@@ -13,3 +13,4 @@ export * from './project';
 export * from './projectType';
 export * from './card';
 export * from './user';
+export * from './beauticianLevel';
