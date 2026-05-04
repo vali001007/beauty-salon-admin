@@ -26,8 +26,8 @@ export interface Message {
   content: string
 }
 
-// 生产环境指向后端代理（VITE_PROXY_URL），本地开发回退到 aicodewith 代理
-const API_URL = (import.meta.env.VITE_PROXY_URL || 'https://api.aicodewith.com') + '/v1/messages'
+const proxyBase = (import.meta.env.VITE_PROXY_URL || 'https://api.aicodewith.com').replace(/\/+$/, '')
+const API_URL = proxyBase + '/v1/messages'
 
 interface IntentRule {
   keywords: string[]
