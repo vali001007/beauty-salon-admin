@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 8080
 const API_KEY = process.env.ANTHROPIC_API_KEY
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages'
 
