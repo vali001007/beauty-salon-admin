@@ -6,7 +6,6 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-ENV VITE_USE_VENDOR_SRC=true
 RUN npm run build
 
 FROM node:20-alpine

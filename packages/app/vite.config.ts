@@ -1,13 +1,15 @@
 import { defineConfig } from 'vite'
 import path from 'path'
+import fs from 'fs'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
 const rootDir = path.resolve(__dirname, '../..')
-// 本地开发用主项目 src/，Docker 构建时 VITE_USE_VENDOR_SRC=true 改用本地 vendor-src/
-const mainSrc = process.env.VITE_USE_VENDOR_SRC
-  ? path.resolve(__dirname, 'vendor-src')
-  : path.resolve(rootDir, 'src')
+const vendorSrc = path.resolve(__dirname, 'vendor-src')
+const localSrc = path.resolve(rootDir, 'src')
+
+// Docker 构建时 vendor-src/ 存在且 ../../src 不存在，自动切换
+const mainSrc = fs.existsSync(localSrc) ? localSrc : vendorSrc
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
