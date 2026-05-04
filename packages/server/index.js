@@ -4,7 +4,7 @@ import cors from 'cors'
 const app = express()
 const PORT = process.env.PORT || 8080
 const API_KEY = process.env.ANTHROPIC_API_KEY
-const CLAUDE_API = 'https://api.anthropic.com/v1/messages'
+const CLAUDE_API = process.env.API_BASE_URL || 'https://api.aicodewith.com/v1/messages'
 
 app.use(cors())
 
@@ -22,7 +22,7 @@ app.post('/v1/messages', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
+        'Authorization': `Bearer ${API_KEY}`,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(req.body),
