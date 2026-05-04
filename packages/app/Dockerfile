@@ -2,11 +2,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 
-# 用 vendor-src/ 替代 ../../src（本目录内，无需跨目录）
 ENV VITE_USE_VENDOR_SRC=true
 RUN npm run build
 
