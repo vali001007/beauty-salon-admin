@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { ChatMessage } from './ChatMessage'
 import { QuickActions } from './QuickActions'
 import { ChatInput } from './ChatInput'
-import { sendMessage, type Message, type Role } from '../../api/claude'
+import { sendMessage, type Message, type Role, type BusinessResult } from '../../api/claude'
 
 const ROLE_LABELS: Record<Role, string> = {
   receptionist: '前台/收银员',
@@ -47,6 +47,7 @@ interface UIMessage {
   id: number
   type: 'ai' | 'user' | 'system'
   content: string
+  businessResult?: BusinessResult | null
 }
 
 export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
@@ -92,6 +93,11 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             )
           )
         },
+        (businessResult) => {
+          setUiMessages((prev) =>
+            prev.map((m) => (m.id === aiMsgId ? { ...m, businessResult } : m))
+          )
+        },
       )
 
       setHistory((prev) => [...prev, ...newEntries])
@@ -123,7 +129,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       {/* 消息区域 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {uiMessages.map((msg) => (
-          <ChatMessage key={msg.id} type={msg.type} content={msg.content} />
+          <ChatMessage key={msg.id} type={msg.type} content={msg.content} businessResult={msg.businessResult} />
         ))}
         {loading && uiMessages[uiMessages.length - 1]?.content === '' && (
           <div className="flex gap-2 items-center pl-10">

@@ -24,6 +24,16 @@ export default defineConfig({
     fs: {
       allow: [rootDir],
     },
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/v1': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
   },
   optimizeDeps: {
     include: ['zustand', 'axios'],
