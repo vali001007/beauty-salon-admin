@@ -1,19 +1,16 @@
-import type { ProjectType } from './mock/projectType';
-import { mockGetProjectTypes, mockCreateProjectType, mockUpdateProjectType, mockDeleteProjectTypes } from './mock/projectType';
+import type { ProjectType } from './domain-types';
 import { realGetProjectTypes, realCreateProjectType, realUpdateProjectType, realDeleteProjectTypes } from './real/projectType';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
 
 export type { ProjectType };
 
 export const getProjectTypes: () => Promise<ProjectType[]> =
-  isReal ? realGetProjectTypes : mockGetProjectTypes;
+  realGetProjectTypes;
 
 export const createProjectType: (data: { name: string; description: string; status: '启用' | '停用' }) => Promise<ProjectType> =
-  isReal ? realCreateProjectType : mockCreateProjectType;
+  realCreateProjectType;
 
 export const updateProjectType: (id: number, data: Partial<{ name: string; description: string; status: '启用' | '停用' }>) => Promise<ProjectType> =
-  isReal ? realUpdateProjectType : mockUpdateProjectType;
+  realUpdateProjectType;
 
 export const deleteProjectTypes: (ids: number[]) => Promise<void> =
-  isReal ? realDeleteProjectTypes : mockDeleteProjectTypes;
+  realDeleteProjectTypes;

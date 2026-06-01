@@ -12,6 +12,30 @@ export interface StockItem {
   storeName: string;
 }
 
+export interface StockMovement {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  productId: number;
+  productName?: string;
+  sku?: string;
+  batchId?: number | null;
+  batchNo?: string;
+  movementNo: string;
+  movementType: string;
+  quantity: number;
+  beforeStock?: number | null;
+  afterStock?: number | null;
+  unit?: string | null;
+  sourceType?: string | null;
+  sourceId?: number | null;
+  sourceNo?: string | null;
+  remark?: string | null;
+  operatorName?: string;
+  occurredAt: string;
+  createdAt: string;
+}
+
 export interface Batch {
   id: number;
   batchNo: string;
@@ -61,6 +85,7 @@ export interface PurchaseOrder {
   status: '草稿' | '待审核' | '已审核' | '已下单' | '已收货' | '已取消';
   createDate: string;
   expectedDate: string;
+  items?: PurchaseOrderItem[];
 }
 
 export interface PurchaseOrderItem {

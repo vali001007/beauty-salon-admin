@@ -23,5 +23,10 @@ export interface AuthUser {
   email?: string;
   roles: string[];
   permissions: string[];
+  deniedPermissions?: string[];
   storeIds: number[];
+  platformScopes?: import('./permission').PlatformScopes;
+  dataScopes?: import('./permission').DataScopes;
+  fieldScopes?: import('./permission').FieldScopes;
+  approvalScopes?: import('./permission').ApprovalScopes;
 }

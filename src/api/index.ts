@@ -14,3 +14,7 @@ export * from './projectType';
 export * from './card';
 export * from './user';
 export * from './beauticianLevel';
+export * from './terminal';
+export * from './recommendation';
+export * from './ai';
+export * from './dashboard';

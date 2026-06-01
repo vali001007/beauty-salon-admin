@@ -1,11 +1,23 @@
-import type { Service, ConsumptionRecord } from '@/types/bom';
-import { mockGetBomList, mockGetBomConsumption } from './mock/bom';
-import { realGetBomList, realGetBomConsumption } from './real/bom';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
+import type { Service, ConsumptionRecord, ForecastItem } from '@/types/bom';
+import { realGetBomList, realGetBomConsumption, realGetBomConsumptionRecords, realGetBomForecast, realCreateBom, realUpdateBom, realDeleteBom } from './real/bom';
 
 export const getBomList: () => Promise<Service[]> =
-  isReal ? realGetBomList : mockGetBomList;
+  realGetBomList;
 
 export const getBomConsumption: (bomId: number) => Promise<ConsumptionRecord[]> =
-  isReal ? realGetBomConsumption : mockGetBomConsumption;
+  realGetBomConsumption;
+
+export const getBomConsumptionRecords: () => Promise<ConsumptionRecord[]> =
+  realGetBomConsumptionRecords;
+
+export const getBomForecast: () => Promise<ForecastItem[]> =
+  realGetBomForecast;
+
+export const createBom: (data: Omit<Service, 'id'>) => Promise<Service> =
+  realCreateBom;
+
+export const updateBom: (id: number, data: Partial<Service>) => Promise<Service> =
+  realUpdateBom;
+
+export const deleteBom: (id: number) => Promise<void> =
+  realDeleteBom;

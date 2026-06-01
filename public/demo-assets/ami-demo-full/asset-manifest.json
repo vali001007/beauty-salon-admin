@@ -1,0 +1,287 @@
+{
+  "generatedAt": "2026-06-01T13:21:56.553Z",
+  "storeName": "Ami 全量演示门店",
+  "prefix": "AMI-DEMO-FULL",
+  "entries": [
+    {
+      "kind": "product",
+      "slug": "hyaluronic-serum",
+      "name": "玻尿酸保湿精华",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-hyaluronic-serum.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"玻尿酸保湿精华\"\nSubject: slim frosted serum bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "repair-mask",
+      "name": "舒缓修护面膜",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-repair-mask.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"舒缓修护面膜\"\nSubject: facial sheet mask box\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "amino-cleanser",
+      "name": "氨基酸洁面乳",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-amino-cleanser.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"氨基酸洁面乳\"\nSubject: soft cleanser tube\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "niacinamide-serum",
+      "name": "烟酰胺亮肤精华",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-niacinamide-serum.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"烟酰胺亮肤精华\"\nSubject: clear brightening serum bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "firming-eye-cream",
+      "name": "抗衰紧致眼霜",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-firming-eye-cream.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"抗衰紧致眼霜\"\nSubject: small premium eye cream jar\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "barrier-lotion",
+      "name": "屏障修护乳",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-barrier-lotion.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"屏障修护乳\"\nSubject: minimal moisturizer pump bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "aqua-care-kit",
+      "name": "水氧护理耗材包",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-aqua-care-kit.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"水氧护理耗材包\"\nSubject: beauty device consumable kit box\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "care-towel",
+      "name": "一次性护理巾",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-care-towel.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"一次性护理巾\"\nSubject: soft disposable care towel pack\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "collagen-mask",
+      "name": "胶原蛋白面膜",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-collagen-mask.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"胶原蛋白面膜\"\nSubject: collagen mask box\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "sunscreen-milk",
+      "name": "清透防晒乳",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-sunscreen-milk.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"清透防晒乳\"\nSubject: sunscreen squeeze tube\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "neck-cream",
+      "name": "紧致颈霜",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-neck-cream.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"紧致颈霜\"\nSubject: premium neck cream jar\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "body-oil",
+      "name": "舒缓精油",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-body-oil.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"舒缓精油\"\nSubject: amber essential oil bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "toner",
+      "name": "水润柔肤水",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-toner.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"水润柔肤水\"\nSubject: clear toner bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "repair-ampoule",
+      "name": "屏障安瓶精华",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-repair-ampoule.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"屏障安瓶精华\"\nSubject: ampoule vial set box\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "cleansing-pad",
+      "name": "清洁棉片",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-cleansing-pad.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"清洁棉片\"\nSubject: round cleansing pad box\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "massage-cream",
+      "name": "舒压按摩膏",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-massage-cream.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"舒压按摩膏\"\nSubject: spa massage cream jar\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "beauty-gel",
+      "name": "仪器导入凝胶",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-beauty-gel.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"仪器导入凝胶\"\nSubject: beauty device conductive gel bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "hand-mask",
+      "name": "滋养手膜",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-hand-mask.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"滋养手膜\"\nSubject: hand mask packaging box\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "hair-scalp-serum",
+      "name": "头皮养护精华",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-hair-scalp-serum.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"头皮养护精华\"\nSubject: scalp serum dropper bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "product",
+      "slug": "aftercare-spray",
+      "name": "术后舒缓喷雾",
+      "path": "/demo-assets/ami-demo-full/products/ami-demo-full-product-aftercare-spray.png",
+      "exists": false,
+      "prompt": "Use case: product-mockup\nAsset type: product catalog image for a beauty salon admin system\nPrimary request: create a clean product photo for \"术后舒缓喷雾\"\nSubject: fine mist calming spray bottle\nStyle/medium: premium ecommerce product photography\nComposition/framing: centered square composition, full product visible, generous padding\nLighting/mood: soft studio lighting, clean professional beauty brand feel\nColor palette: warm white, soft champagne, muted pastel accents\nMaterials/textures: realistic cosmetic packaging texture\nConstraints: no readable brand logo, no watermark, no promotional text, no medical claims\nAvoid: distorted packaging, extra products, hands, faces, cluttered background"
+    },
+    {
+      "kind": "project",
+      "slug": "hydrating-facial",
+      "name": "深层补水护理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-hydrating-facial.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"深层补水护理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: hydrating facial care with serum and mask\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "sensitive-repair",
+      "name": "敏感肌舒缓修护",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-sensitive-repair.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"敏感肌舒缓修护\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: calming sensitive skin facial repair\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "aqua-cleanse",
+      "name": "水氧清洁焕肤",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-aqua-cleanse.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"水氧清洁焕肤\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: aqua oxygen pore cleansing facial device treatment\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "brightening-care",
+      "name": "亮肤淡斑管理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-brightening-care.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"亮肤淡斑管理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: brightening facial care in a spa room\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "firming-anti-aging",
+      "name": "紧致抗衰护理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-firming-anti-aging.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"紧致抗衰护理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: firming anti aging facial massage and skincare\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "neck-shoulder",
+      "name": "肩颈舒压养护",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-neck-shoulder.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"肩颈舒压养护\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: shoulder and neck relaxation massage in salon\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "bubble-cleanse",
+      "name": "小气泡清洁护理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-bubble-cleanse.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"小气泡清洁护理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: small bubble cleansing skincare treatment\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "seasonal-barrier",
+      "name": "季节屏障养护",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-seasonal-barrier.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"季节屏障养护\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: seasonal skin barrier care treatment\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "collagen-lift",
+      "name": "胶原焕活提拉",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-collagen-lift.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"胶原焕活提拉\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: collagen lifting facial treatment\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "sunscreen-repair",
+      "name": "晒后舒缓修护",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-sunscreen-repair.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"晒后舒缓修护\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: after sun calming facial repair\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "eye-care",
+      "name": "眼周紧致护理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-eye-care.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"眼周紧致护理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: eye area firming care service\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "hand-care",
+      "name": "手部细嫩护理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-hand-care.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"手部细嫩护理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: hand care and moisturizing spa service\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "scalp-care",
+      "name": "头皮舒缓养护",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-scalp-care.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"头皮舒缓养护\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: relaxing scalp care in beauty salon\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "body-oil-spa",
+      "name": "全身精油 SPA",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-body-oil-spa.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"全身精油 SPA\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: full body essential oil spa service\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    },
+    {
+      "kind": "project",
+      "slug": "device-introduction",
+      "name": "精华导入护理",
+      "path": "/demo-assets/ami-demo-full/projects/ami-demo-full-project-device-introduction.png",
+      "exists": false,
+      "prompt": "Use case: photorealistic-natural\nAsset type: beauty service project image for a salon admin system\nPrimary request: create a realistic beauty salon service scene for \"精华导入护理\"\nScene/backdrop: clean modern beauty salon treatment room\nSubject: skincare essence infusion device treatment\nStyle/medium: photorealistic editorial service photography\nComposition/framing: horizontal composition, service action visible, no identifiable face\nLighting/mood: soft natural spa lighting, professional and hygienic\nColor palette: warm white, muted rose, light wood, clean neutral tones\nConstraints: no readable text, no watermark, avoid identifiable faces, no invasive medical procedure\nAvoid: hospital surgery feel, exaggerated before-after results, messy tools, dark atmosphere"
+    }
+  ]
+}

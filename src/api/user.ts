@@ -1,21 +1,23 @@
-import type { SystemUser } from '@/types';
-import { mockGetUsers, mockCreateUser, mockUpdateUser } from './mock/user';
-import { realGetUsers, realCreateUser, realUpdateUser } from './real/user';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
+import type { SystemUser, SystemUserCreateInput, SystemUserUpdateInput } from '@/types';
+import { realGetUsers, realCreateUser, realUpdateUser, realDeleteUser, realResetPassword } from './real/user';
 
 export const getUsers: () => Promise<SystemUser[]> =
-  isReal ? realGetUsers : mockGetUsers;
+  realGetUsers;
 
-export const createUser: (data: Omit<SystemUser, 'id' | 'lastLogin' | 'createdAt' | 'status'>) => Promise<SystemUser> =
-  isReal ? realCreateUser : mockCreateUser;
+export const createUser: (data: SystemUserCreateInput) => Promise<SystemUser> =
+  realCreateUser;
 
-export const updateUser: (id: number, data: Partial<SystemUser>) => Promise<SystemUser> =
-  isReal ? realUpdateUser : mockUpdateUser;
+export const updateUser: (id: number, data: SystemUserUpdateInput) => Promise<SystemUser> =
+  realUpdateUser;
+
+export const deleteUser: (id: number) => Promise<void> =
+  realDeleteUser;
+
+export const resetPassword: (id: number, newPassword: string) => Promise<void> =
+  realResetPassword;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
-import { mockGetUsersPaginated } from './mock/user';
 import { realGetUsersPaginated } from './real/user';
 
 export const getUsersPaginated: (params: PaginationParams) => Promise<PaginatedResponse<SystemUser>> =
-  isReal ? realGetUsersPaginated : mockGetUsersPaginated;
+  realGetUsersPaginated;

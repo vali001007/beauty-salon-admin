@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, PackagePlus, PackageMinus, ClipboardList, Settings, X, Loader2, Download } from 'lucide-react';
+import { PackagePlus, PackageMinus, ClipboardList, Settings, X, Loader2, Download } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useForm } from 'react-hook-form';
@@ -108,15 +108,15 @@ export function StockManagement() {
   return (
     <div className="flex flex-col gap-6">
       {/* Breadcrumb */}
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-muted-foreground">
         首页 / 库存管理 / 库存管理
       </div>
 
       {/* Filter Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           <select
-            className="h-9 px-3 text-sm border border-gray-300 rounded-md"
+            className="h-10 min-w-36 rounded-lg border border-border bg-input-background px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/20"
             value={selectedStore}
             onChange={(e) => setSelectedStore(e.target.value)}
           >
@@ -126,7 +126,7 @@ export function StockManagement() {
           </select>
           
           <select
-            className="h-9 px-3 text-sm border border-gray-300 rounded-md"
+            className="h-10 min-w-32 rounded-lg border border-border bg-input-background px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/20"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
@@ -137,7 +137,7 @@ export function StockManagement() {
           </select>
           
           <select
-            className="h-9 px-3 text-sm border border-gray-300 rounded-md"
+            className="h-10 min-w-32 rounded-lg border border-border bg-input-background px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/20"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
@@ -150,13 +150,13 @@ export function StockManagement() {
           
           <Input
             placeholder="搜索产品"
-            className="w-64"
+            className="min-w-48 flex-1 xl:max-w-72"
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
           />
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <Button variant="outline" className="gap-2" onClick={() => exportToExcel(stocks, STOCK_EXPORT_COLUMNS, '库存报表')}>
             <Download className="w-4 h-4" /> 导出报表
           </Button>
@@ -175,8 +175,8 @@ export function StockManagement() {
       {/* Stock Table */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-          <span className="ml-2 text-gray-500">加载中...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">加载中...</span>
         </div>
       )}
       {!loading && (

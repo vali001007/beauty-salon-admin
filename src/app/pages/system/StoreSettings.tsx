@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, MapPin, Phone, Clock, Users, Package, TrendingUp, Eye, Loader2 } from 'lucide-react';
+import { Plus, Edit, MapPin, Users, Package, TrendingUp, Eye, Loader2 } from 'lucide-react';
 import { Button, Input } from '../../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { useForm } from 'react-hook-form';
@@ -83,8 +83,6 @@ export function StoreSettings() {
   const getStatusColor = (mode: Store['mode']) => {
     return mode === '集中' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700';
   };
-
-  const totalEmployees = stores.length;
 
   return (
     <div className="flex flex-col gap-6">

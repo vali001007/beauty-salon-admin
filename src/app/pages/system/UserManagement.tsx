@@ -1,229 +1,275 @@
-import { useState, useMemo } from 'react';
-import { Plus, Search, Shield, Loader2 } from 'lucide-react';
-import { Button, Input, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../../components/UI';
+import { useMemo, useState } from 'react';
+import { Loader2, Plus, Search, Shield } from 'lucide-react';
+import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { userSchema, type UserFormData } from '@/schemas/system';
-import { getUsersPaginated, createUser, updateUser } from '@/api/user';
+import type { SystemUser, SystemUserCreateInput, SystemUserUpdateInput } from '@/types';
+import { createUser, getUsersPaginated, updateUser } from '@/api/user';
 import { usePagination } from '@/hooks/usePagination';
 import { toast } from 'sonner';
-import type { SystemUser } from '@/types';
+import {
+  DEFAULT_APPROVAL_SCOPES,
+  DEFAULT_DATA_SCOPES,
+  DEFAULT_FIELD_SCOPES,
+  DEFAULT_PLATFORM_SCOPES,
+  ROLE_PERMISSIONS,
+  normalizePermissions,
+} from '@/config/permissions';
 
-const ROLES = ['超级管理员', '门店管理员', '收银员', '美容师', '库存管理员'];
-const STORES = [
-  { id: 1, name: '心悦美容养生会所' },
-  { id: 2, name: '凤仪阁美容养生会所' },
-  { id: 3, name: '雅韵美容会所' },
+const ROLE_OPTIONS = [
+  { code: 'super_admin', name: '超级管理员' },
+  { code: 'store_manager', name: '店长' },
+  { code: 'cashier', name: '前台/收银' },
+  { code: 'beautician', name: '美容师' },
+  { code: 'inventory_manager', name: '库存管理员' },
 ];
+
+const STORES = [
+  { id: 1, name: '凤仪阁美容养生会所' },
+  { id: 2, name: '心悦美容养生会所' },
+  { id: 3, name: '兰亭美容SPA馆' },
+  { id: 4, name: '心悦芸美容养生会所' },
+];
+
+interface UserDraft {
+  id?: number;
+  username: string;
+  password: string;
+  name: string;
+  phone: string;
+  email: string;
+  primaryRole: string;
+  roles: string[];
+  storeIds: number[];
+  extraPermissionsText: string;
+  deniedPermissionsText: string;
+}
+
+const createUserDraft = (): UserDraft => ({
+  username: '',
+  password: '',
+  name: '',
+  phone: '',
+  email: '',
+  primaryRole: 'store_manager',
+  roles: ['store_manager'],
+  storeIds: [1],
+  extraPermissionsText: '',
+  deniedPermissionsText: '',
+});
+
+const toText = (permissions?: string[]) => (permissions ?? []).join(', ');
+const fromText = (text: string) => normalizePermissions(text.split(',').map((item) => item.trim()).filter(Boolean));
 
 export function UserManagement() {
   const [keyword, setKeyword] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [showDialog, setShowDialog] = useState(false);
-  const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
-  const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
+  const [draft, setDraft] = useState<UserDraft | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const filters = useMemo(() => ({}), []);
   const { data: users, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<SystemUser>(getUsersPaginated, filters);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<UserFormData>({
-    resolver: zodResolver(userSchema),
-    defaultValues: { roles: [], storeIds: [] },
+  const filteredUsers = users.filter((user) => {
+    const searchHit =
+      !keyword ||
+      user.name.includes(keyword) ||
+      user.username.includes(keyword) ||
+      user.phone.includes(keyword);
+    const roleHit = !roleFilter || user.roles.includes(roleFilter) || user.primaryRole === roleFilter;
+    return searchHit && roleHit;
   });
 
-  const filtered = users.filter((u) => {
-    if (keyword && !u.name.includes(keyword) && !u.username.includes(keyword) && !u.phone.includes(keyword)) return false;
-    if (roleFilter && !u.roles.includes(roleFilter)) return false;
-    if (statusFilter && u.status !== statusFilter) return false;
-    return true;
-  });
+  const openAddDialog = () => setDraft(createUserDraft());
 
-  const handleAdd = () => {
-    setDialogMode('add');
-    setSelectedUser(null);
-    reset({ username: '', name: '', phone: '', email: '', roles: [], storeIds: [], password: '' });
-    setShowDialog(true);
-  };
-
-  const handleEdit = (user: SystemUser) => {
-    setDialogMode('edit');
-    setSelectedUser(user);
-    reset({
+  const openEditDialog = (user: SystemUser) => {
+    setDraft({
+      id: user.id,
       username: user.username,
+      password: '',
       name: user.name,
       phone: user.phone,
       email: user.email,
+      primaryRole: user.primaryRole ?? user.roles[0] ?? 'store_manager',
       roles: user.roles,
       storeIds: user.storeIds,
+      extraPermissionsText: toText(user.extraPermissions),
+      deniedPermissionsText: toText(user.deniedPermissions),
     });
-    setShowDialog(true);
   };
 
-  const handleCloseDialog = () => {
-    setShowDialog(false);
-    setSelectedUser(null);
-    reset();
+  const patchDraft = (patch: Partial<UserDraft>) => {
+    setDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
-  const onSubmit = async (data: UserFormData) => {
+  const toggleRole = (roleCode: string) => {
+    if (!draft) return;
+    const roles = draft.roles.includes(roleCode)
+      ? draft.roles.filter((role) => role !== roleCode)
+      : [...draft.roles, roleCode];
+    patchDraft({
+      roles: roles.length ? roles : [draft.primaryRole],
+      primaryRole: roles.includes(draft.primaryRole) ? draft.primaryRole : roles[0] ?? draft.primaryRole,
+    });
+  };
+
+  const toggleStore = (storeId: number) => {
+    if (!draft) return;
+    const storeIds = draft.storeIds.includes(storeId)
+      ? draft.storeIds.filter((id) => id !== storeId)
+      : [...draft.storeIds, storeId];
+    patchDraft({ storeIds });
+  };
+
+  const saveUser = async () => {
+    if (!draft) return;
+    if (!draft.username.trim() || !draft.name.trim() || !draft.phone.trim()) {
+      toast.error('用户名、姓名和手机号不能为空');
+      return;
+    }
+    if (!draft.id && draft.password.trim().length < 6) {
+      toast.error('新增用户必须设置至少 6 位初始密码');
+      return;
+    }
+
+    const primaryRole = draft.primaryRole || draft.roles[0] || 'store_manager';
+    const rolePermissions = draft.roles.flatMap((role) => ROLE_PERMISSIONS[role] ?? []);
+    const extraPermissions = fromText(draft.extraPermissionsText);
+    const deniedPermissions = fromText(draft.deniedPermissionsText);
+    const payload: SystemUserUpdateInput = {
+      username: draft.username,
+      name: draft.name,
+      phone: draft.phone,
+      email: draft.email,
+      primaryRole,
+      roles: draft.roles,
+      extraPermissions: normalizePermissions([...rolePermissions, ...extraPermissions]),
+      deniedPermissions,
+      storeIds: draft.storeIds,
+      platformScopes: DEFAULT_PLATFORM_SCOPES[primaryRole] ?? { core: true, assist: false, terminal: false },
+      dataScopes: DEFAULT_DATA_SCOPES[primaryRole] ?? DEFAULT_DATA_SCOPES.store_manager,
+      fieldScopes: DEFAULT_FIELD_SCOPES[primaryRole] ?? DEFAULT_FIELD_SCOPES.store_manager,
+      approvalScopes: DEFAULT_APPROVAL_SCOPES[primaryRole] ?? DEFAULT_APPROVAL_SCOPES.store_manager,
+    };
+
+    setSaving(true);
     try {
-      if (dialogMode === 'edit' && selectedUser) {
-        await updateUser(selectedUser.id, {
-          username: data.username,
-          name: data.name,
-          phone: data.phone,
-          email: data.email || '',
-          roles: data.roles,
-          storeIds: data.storeIds,
-        });
-        toast.success('用户更新成功');
+      if (draft.id) {
+        await updateUser(draft.id, payload);
+        toast.success('用户已更新');
       } else {
-        await createUser({
-          username: data.username,
-          name: data.name,
-          phone: data.phone,
-          email: data.email || '',
-          roles: data.roles,
-          storeIds: data.storeIds,
-        });
-        toast.success('用户创建成功');
+        await createUser({ ...payload, password: draft.password.trim() } as SystemUserCreateInput);
+        toast.success('用户已创建');
       }
-      handleCloseDialog();
+      setDraft(null);
       refresh();
     } catch (err: any) {
-      toast.error(err?.message || (dialogMode === 'edit' ? '更新用户失败' : '创建用户失败'));
+      toast.error(err?.message || '保存用户失败');
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const watchedRoles = watch('roles');
-  const watchedStoreIds = watch('storeIds');
-
-  const handleRoleToggle = (role: string) => {
-    const current = watchedRoles || [];
-    const next = current.includes(role) ? current.filter((r: string) => r !== role) : [...current, role];
-    setValue('roles', next, { shouldValidate: true });
-  };
-
-  const handleStoreToggle = (storeId: number) => {
-    const current = watchedStoreIds || [];
-    const next = current.includes(storeId) ? current.filter((id: number) => id !== storeId) : [...current, storeId];
-    setValue('storeIds', next, { shouldValidate: true });
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="text-sm text-gray-500">首页 / 系统设置 / 用户管理</div>
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800">用户管理</h2>
-        <Button className="gap-2" onClick={handleAdd}><Plus className="w-4 h-4" /> 新增用户</Button>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">用户授权管理</h2>
+          <p className="text-sm text-gray-500 mt-1">支持主角色、兼任角色、门店范围、额外授权和禁止权限。</p>
+        </div>
+        <Button className="gap-2" onClick={openAddDialog}><Plus className="w-4 h-4" /> 新增用户</Button>
       </div>
 
-      {/* 统计 */}
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-          <div className="text-sm text-blue-600 mb-1">总用户数</div>
-          <div className="text-2xl font-bold text-blue-900">{users.length}</div>
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-500">用户数</div>
+          <div className="text-2xl font-semibold text-gray-900 mt-1">{users.length}</div>
         </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-          <div className="text-sm text-green-600 mb-1">已启用</div>
-          <div className="text-2xl font-bold text-green-900">{users.filter(u => u.status === '启用').length}</div>
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-500">启用</div>
+          <div className="text-2xl font-semibold text-green-700 mt-1">{users.filter((user) => user.status === '启用').length}</div>
         </div>
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4">
-          <div className="text-sm text-orange-600 mb-1">已禁用</div>
-          <div className="text-2xl font-bold text-orange-900">{users.filter(u => u.status === '禁用').length}</div>
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-500">禁用</div>
+          <div className="text-2xl font-semibold text-gray-700 mt-1">{users.filter((user) => user.status === '禁用').length}</div>
         </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-          <div className="text-sm text-purple-600 mb-1">角色数</div>
-          <div className="text-2xl font-bold text-purple-900">{ROLES.length}</div>
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-500">角色模板</div>
+          <div className="text-2xl font-semibold text-blue-700 mt-1">{ROLE_OPTIONS.length}</div>
         </div>
       </div>
 
-      {/* 筛选 */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input className="pl-9" placeholder="搜索用户名、姓名、手机号" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+          <Input className="pl-9" placeholder="搜索姓名、用户名、手机号" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
         </div>
-        <select className="h-9 px-3 text-sm border border-gray-300 rounded-md" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+        <select className="h-9 px-3 text-sm border border-gray-300 rounded-md" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
           <option value="">全部角色</option>
-          {ROLES.map(r => <option key={r}>{r}</option>)}
-        </select>
-        <select className="h-9 px-3 text-sm border border-gray-300 rounded-md" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">全部状态</option>
-          <option>启用</option>
-          <option>禁用</option>
+          {ROLE_OPTIONS.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
         </select>
       </div>
 
-      {/* 表格 */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-          <span className="ml-2 text-gray-500">加载中...</span>
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-gray-500">
+          <Loader2 className="w-5 h-5 mr-2 animate-spin" /> 加载中...
         </div>
-      )}
-      {!loading && (
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-gray-50/80">
-            <TableHead>用户名</TableHead>
-            <TableHead>姓名</TableHead>
-            <TableHead>手机号</TableHead>
-            <TableHead>角色</TableHead>
-            <TableHead>所属门店</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>最后登录</TableHead>
-            <TableHead className="text-right">操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((user) => (
-            <TableRow key={user.id} className="hover:bg-blue-50/30">
-              <TableCell className="font-mono text-sm text-gray-700">{user.username}</TableCell>
-              <TableCell className="font-medium text-gray-800">{user.name}</TableCell>
-              <TableCell className="text-gray-600">{user.phone}</TableCell>
-              <TableCell>
-                {user.roles.map((role: string) => (
-                  <span key={role} className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium mr-1 ${
-                    role === '超级管理员' ? 'bg-red-100 text-red-700' :
-                    role === '门店管理员' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    <Shield className="w-3 h-3" />{role}
-                  </span>
-                ))}
-              </TableCell>
-              <TableCell className="text-sm text-gray-600">
-                {user.storeIds.length === 0 ? '全部门店' : user.storeIds.map((id: number) => STORES.find(s => s.id === id)?.name).filter(Boolean).join(', ')}
-              </TableCell>
-              <TableCell>
-                <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${user.status === '启用' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {user.status}
-                </span>
-              </TableCell>
-              <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <button onClick={() => handleEdit(user)} className="text-blue-500 hover:text-blue-600 text-sm">编辑</button>
-                  {!user.roles.includes('超级管理员') && (<><span className="text-gray-300">|</span><button className="text-red-500 hover:text-red-600 text-sm">删除</button></>)}
-                </div>
-              </TableCell>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>用户名</TableHead>
+              <TableHead>姓名</TableHead>
+              <TableHead>手机号</TableHead>
+              <TableHead>主角色</TableHead>
+              <TableHead>兼任角色</TableHead>
+              <TableHead>门店范围</TableHead>
+              <TableHead>例外授权</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead className="text-right">操作</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filteredUsers.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell className="font-mono text-sm">{user.username}</TableCell>
+                <TableCell className="font-medium text-gray-900">{user.name}</TableCell>
+                <TableCell>{user.phone}</TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
+                    <Shield className="w-3 h-3" />{ROLE_OPTIONS.find((role) => role.code === user.primaryRole)?.name ?? user.primaryRole}
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm text-gray-600">
+                  {user.roles.map((role) => ROLE_OPTIONS.find((item) => item.code === role)?.name ?? role).join('、')}
+                </TableCell>
+                <TableCell className="text-sm text-gray-600">
+                  {user.storeIds.length === 0 ? '全部门店' : user.storeIds.map((id) => STORES.find((store) => store.id === id)?.name).filter(Boolean).join('、')}
+                </TableCell>
+                <TableCell className="text-xs text-gray-500">
+                  +{user.extraPermissions?.length ?? 0} / -{user.deniedPermissions?.length ?? 0}
+                </TableCell>
+                <TableCell>
+                  <span className={`px-2 py-1 rounded text-xs ${user.status === '启用' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {user.status}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <button className="text-blue-600 hover:text-blue-700 text-sm" onClick={() => openEditDialog(user)}>编辑</button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
-      {/* Pagination */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
         <div className="text-sm text-gray-600">共 {total} 条</div>
         <div className="flex items-center gap-2">
-          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="h-8 px-2 text-sm border border-gray-300 rounded">
-            <option value={10}>10条/页</option>
-            <option value={20}>20条/页</option>
-            <option value={50}>50条/页</option>
+          <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="h-8 px-2 text-sm border border-gray-300 rounded">
+            <option value={10}>10 条/页</option>
+            <option value={20}>20 条/页</option>
+            <option value={50}>50 条/页</option>
           </select>
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
           <span className="text-sm text-gray-600">{page} / {Math.ceil(total / pageSize) || 1}</span>
@@ -231,88 +277,96 @@ export function UserManagement() {
         </div>
       </div>
 
-      {/* 新增/编辑弹窗 */}
-      <Dialog open={showDialog} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-lg" aria-describedby="user-dialog-desc">
-          <DialogHeader><DialogTitle>{dialogMode === 'add' ? '新增用户' : `编辑用户 — ${selectedUser?.name}`}</DialogTitle></DialogHeader>
-          <span id="user-dialog-desc" className="sr-only">{dialogMode === 'add' ? '创建新系统用户' : '编辑系统用户信息'}</span>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="space-y-4 mt-4">
+      <Dialog open={!!draft} onOpenChange={(open) => !open && setDraft(null)}>
+        {draft && (
+          <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto" aria-describedby="user-auth-dialog-desc">
+            <DialogHeader>
+              <DialogTitle>{draft.id ? `编辑用户 - ${draft.name}` : '新增用户'}</DialogTitle>
+            </DialogHeader>
+            <span id="user-auth-dialog-desc" className="sr-only">配置用户主角色、兼任角色、门店范围和例外权限。</span>
+
+            <div className="space-y-5 mt-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">用户名 <span className="text-red-500">*</span></label>
-                  <Input placeholder="请输入用户名" {...register('username')} />
-                  {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">姓名 <span className="text-red-500">*</span></label>
-                  <Input placeholder="请输入姓名" {...register('name')} />
-                  {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
-                </div>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">用户名</span>
+                  <Input value={draft.username} onChange={(event) => patchDraft({ username: event.target.value })} />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">姓名</span>
+                  <Input value={draft.name} onChange={(event) => patchDraft({ name: event.target.value })} />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">手机号</span>
+                  <Input value={draft.phone} onChange={(event) => patchDraft({ phone: event.target.value })} />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">邮箱</span>
+                  <Input value={draft.email} onChange={(event) => patchDraft({ email: event.target.value })} />
+                </label>
+                {!draft.id && (
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">初始密码</span>
+                    <Input type="password" value={draft.password} onChange={(event) => patchDraft({ password: event.target.value })} />
+                  </label>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">手机号 <span className="text-red-500">*</span></label>
-                  <Input placeholder="请输入手机号" {...register('phone')} />
-                  {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
-                  <Input placeholder="请输入邮箱" {...register('email')} />
-                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-                </div>
-              </div>
-              {dialogMode === 'add' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">初始密码 <span className="text-red-500">*</span></label>
-                  <Input type="password" placeholder="请输入初始密码（至少6位）" {...register('password')} />
-                  {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-                </div>
-              )}
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">角色 <span className="text-red-500">*</span></label>
-                <div className="flex flex-wrap gap-2">
-                  {ROLES.map((role) => (
-                    <label key={role} className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded"
-                        checked={watchedRoles?.includes(role) || false}
-                        onChange={() => handleRoleToggle(role)}
-                      />
-                      <span className="text-sm text-gray-700">{role}</span>
+                <div className="text-sm font-medium text-gray-700 mb-2">主角色</div>
+                <select
+                  className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md"
+                  value={draft.primaryRole}
+                  onChange={(event) => patchDraft({ primaryRole: event.target.value, roles: Array.from(new Set([event.target.value, ...draft.roles])) })}
+                >
+                  {ROLE_OPTIONS.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-2">兼任角色</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {ROLE_OPTIONS.map((role) => (
+                    <label key={role.code} className="flex items-center gap-2 border border-gray-200 rounded-md px-3 py-2 text-sm">
+                      <input type="checkbox" checked={draft.roles.includes(role.code)} onChange={() => toggleRole(role.code)} />
+                      {role.name}
                     </label>
                   ))}
                 </div>
-                {errors.roles && <p className="text-red-500 text-xs mt-1">{errors.roles.message}</p>}
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">所属门店 <span className="text-red-500">*</span></label>
-                <div className="flex flex-wrap gap-2">
+                <div className="text-sm font-medium text-gray-700 mb-2">门店范围</div>
+                <div className="grid grid-cols-3 gap-2">
                   {STORES.map((store) => (
-                    <label key={store.id} className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded"
-                        checked={watchedStoreIds?.includes(store.id) || false}
-                        onChange={() => handleStoreToggle(store.id)}
-                      />
-                      <span className="text-sm text-gray-700">{store.name}</span>
+                    <label key={store.id} className="flex items-center gap-2 border border-gray-200 rounded-md px-3 py-2 text-sm">
+                      <input type="checkbox" checked={draft.storeIds.includes(store.id)} onChange={() => toggleStore(store.id)} />
+                      {store.name}
                     </label>
                   ))}
                 </div>
-                {errors.storeIds && <p className="text-red-500 text-xs mt-1">{errors.storeIds.message}</p>}
+                <p className="text-xs text-gray-400 mt-1">超级管理员可不勾选门店，表示全部门店。</p>
               </div>
+
+              <label className="space-y-1 block">
+                <span className="text-sm font-medium text-gray-700">额外授权</span>
+                <textarea className="w-full min-h-20 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono" value={draft.extraPermissionsText} onChange={(event) => patchDraft({ extraPermissionsText: event.target.value })} placeholder="用英文逗号分隔，例如 core:customer:export, assist:chat:reply" />
+              </label>
+
+              <label className="space-y-1 block">
+                <span className="text-sm font-medium text-gray-700">禁止权限</span>
+                <textarea className="w-full min-h-20 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono" value={draft.deniedPermissionsText} onChange={(event) => patchDraft({ deniedPermissionsText: event.target.value })} placeholder="用英文逗号分隔，优先级高于角色授权" />
+              </label>
             </div>
+
             <div className="flex justify-end gap-3 mt-6">
-              <Button type="button" variant="outline" onClick={handleCloseDialog}>取消</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {dialogMode === 'add' ? '创建' : '保存'}
+              <Button variant="outline" onClick={() => setDraft(null)}>取消</Button>
+              <Button onClick={saveUser} disabled={saving}>
+                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                保存
               </Button>
             </div>
-          </form>
-        </DialogContent>
+          </DialogContent>
+        )}
       </Dialog>
     </div>
   );

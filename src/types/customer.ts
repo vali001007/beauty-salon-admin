@@ -34,3 +34,30 @@ export interface CustomerTag {
   name: string;
   color: string;
 }
+
+export interface CustomerConsumptionRecord {
+  id: number;
+  customerId: number;
+  userName: string;
+  consumeType: string;
+  consumeContent: string;
+  payMethod: string;
+  amount: string;
+  campaign: string;
+  consumeTime: string;
+}
+
+export interface CustomerHealthProfile {
+  id: number;
+  customerId: number;
+  photo: string;
+  name: string;
+  skinType: string;
+  skinStatus: string;
+  mainProblems: string;
+  allergyHistory: string;
+  goals: string;
+  recommendedCare: string;
+  instrument: string;
+  lastCheck: string;
+}

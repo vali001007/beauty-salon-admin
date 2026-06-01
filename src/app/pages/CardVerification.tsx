@@ -33,8 +33,8 @@ export function CardVerification() {
   };
 
   const handleSearch = () => {
-    console.log('搜索:', { searchCardName, searchUserName });
-    // 这里应该调用API进行搜索
+    setSearchCardName(searchCardName.trim());
+    setSearchUserName(searchUserName.trim());
   };
 
   return (

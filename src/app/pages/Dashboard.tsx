@@ -1,317 +1,360 @@
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { 
-  Users, TrendingUp, ShoppingBag, Calendar, 
-  ArrowUpRight, ArrowDownRight, DollarSign, 
-  Target, Megaphone, Package, Activity
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarCheck,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  HeartPulse,
+  LayoutDashboard,
+  Megaphone,
+  PackageCheck,
+  Sparkles,
+  TrendingUp,
+  UserPlus,
+  Users,
+  type LucideIcon,
 } from 'lucide-react';
+import { Button } from '../components/UI';
+import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { resolveAuraRole } from '@/config/aura';
+import { getDashboardOverview } from '@/api/dashboard';
+import { useAuthStore } from '@/stores/authStore';
+import { useStoreStore } from '@/stores/storeStore';
+import type { AuraRole } from '@/types/aura';
+import type { DashboardOverview } from '@/types/dashboard';
+
+type Metric = {
+  label: string;
+  value: string;
+  hint: string;
+  icon: LucideIcon;
+  tone: 'primary' | 'rose' | 'amber' | 'slate';
+  path: string;
+};
+
+type Priority = {
+  title: string;
+  detail: string;
+  tag: string;
+  icon: LucideIcon;
+  path: string;
+};
+
+type QuickAction = {
+  label: string;
+  path: string;
+  icon: LucideIcon;
+};
+
+const toneClass: Record<Metric['tone'], string> = {
+  primary: 'bg-primary/10 text-primary',
+  rose: 'bg-rose-100 text-rose-700',
+  amber: 'bg-amber-100 text-amber-700',
+  slate: 'bg-muted text-muted-foreground',
+};
+
+const metricIcons: Record<string, LucideIcon> = {
+  customers: Users,
+  income: TrendingUp,
+  inventory: PackageCheck,
+  campaigns: Megaphone,
+};
+
+const priorityIcons: Record<string, LucideIcon> = {
+  inventory: AlertTriangle,
+  reservation: CalendarCheck,
+  terminal: CheckCircle2,
+  service: HeartPulse,
+  growth: Sparkles,
+};
+
+const roleLabels: Record<AuraRole, string> = {
+  manager: '店长',
+  reception: '前台',
+  beautician: '美容师',
+};
+
+const workspaceConfig: Record<
+  AuraRole,
+  {
+    title: string;
+    subtitle: string;
+    metrics: Metric[];
+    priorities: Priority[];
+    quickActions: QuickAction[];
+    ai: { conclusion: string; basis: string; action: string; path: string };
+  }
+> = {
+  manager: {
+    title: '店长经营驾驶舱',
+    subtitle: '先看经营、风险和员工，再处理门店协同。',
+    metrics: [
+      { label: '总客户数', value: '2,847', hint: '本月新增 156 人', icon: Users, tone: 'primary', path: '/customers/data' },
+      { label: '今日收入', value: '¥45,680', hint: '较昨日 +15.2%', icon: TrendingUp, tone: 'rose', path: '/orders/products' },
+      { label: '库存预警', value: '7', hint: '低库存 5 / 临期 2', icon: PackageCheck, tone: 'amber', path: '/inventory/stock' },
+      { label: '进行中活动', value: '3', hint: '平均转化 28.7%', icon: Megaphone, tone: 'slate', path: '/customer-marketing/activity-management' },
+    ],
+    priorities: [
+      { title: '低库存产品需要确认补货', detail: '补水面膜、眼霜低于安全库存。', tag: '库存', icon: AlertTriangle, path: '/inventory/purchase' },
+      { title: '高价值客户建议二次触达', detail: 'AI 识别 42 位高 LTV 客户进入复购窗口。', tag: '增长', icon: Sparkles, path: '/customer-marketing/intelligent-recommendation' },
+      { title: '美容师排班需补位', detail: '周末晚间档预约量高，建议提前调班。', tag: '协同', icon: CalendarCheck, path: '/stores/scheduling' },
+    ],
+    quickActions: [
+      { label: '客户增长', path: '/customers/profile', icon: Users },
+      { label: '智能营销', path: '/customer-marketing/intelligent-recommendation', icon: Sparkles },
+      { label: '库存管理', path: '/inventory/stock', icon: PackageCheck },
+      { label: '员工排班', path: '/stores/scheduling', icon: CalendarCheck },
+    ],
+    ai: {
+      conclusion: '本周优先处理补货和高价值客户复购。',
+      basis: '依据近 90 天消耗、预约排期和客户分层数据，库存与复购窗口同时进入敏感区。',
+      action: '查看智能建议',
+      path: '/customer-marketing/intelligent-recommendation',
+    },
+  },
+  reception: {
+    title: '前台接待工作台',
+    subtitle: '围绕预约、核销、登记和收银快速处理。',
+    metrics: [
+      { label: '今日预约', value: '32', hint: '待确认 6 单', icon: CalendarCheck, tone: 'primary', path: '/stores/reservations' },
+      { label: '待核销', value: '8', hint: '次卡 / 活动权益', icon: CheckCircle2, tone: 'amber', path: '/orders/card-usage' },
+      { label: '今日收银', value: '¥18,920', hint: '已完成 21 单', icon: CreditCard, tone: 'rose', path: '/orders/products' },
+      { label: '新增登记', value: '14', hint: '新客来源需补全', icon: UserPlus, tone: 'slate', path: '/customers/data' },
+    ],
+    priorities: [
+      { title: '预约到店前确认', detail: '下午 14:00-16:00 有 6 位客户待确认。', tag: '预约', icon: CalendarCheck, path: '/stores/reservations' },
+      { title: '核销后补服务记录', detail: '3 笔次卡核销缺少服务备注。', tag: '核销', icon: FileText, path: '/orders/card-usage' },
+      { title: '收银单待打印', detail: '今日还有 2 单需要补打小票。', tag: '收银', icon: CreditCard, path: '/orders/products' },
+    ],
+    quickActions: [
+      { label: '项目预约', path: '/stores/reservations', icon: CalendarCheck },
+      { label: '客户登记', path: '/customers/data', icon: UserPlus },
+      { label: '次卡核销', path: '/orders/card-usage', icon: CheckCircle2 },
+      { label: '收银订单', path: '/orders/products', icon: CreditCard },
+    ],
+    ai: {
+      conclusion: '今天的接待高峰集中在下午，建议优先确认预约。',
+      basis: 'Ami Aura Lite 已同步预约、核销和收银数据，待确认客户集中在 14:00 后。',
+      action: '进入预约处理',
+      path: '/stores/reservations',
+    },
+  },
+  beautician: {
+    title: '美容师服务工作台',
+    subtitle: '只看自己的排班、客户和服务动作。',
+    metrics: [
+      { label: '我的预约', value: '9', hint: '下一位 30 分钟后到店', icon: CalendarCheck, tone: 'primary', path: '/stores/scheduling' },
+      { label: '待完成服务', value: '3', hint: '需补护理记录', icon: HeartPulse, tone: 'rose', path: '/orders/card-usage' },
+      { label: '客户档案', value: '68', hint: '近期服务客户', icon: Users, tone: 'slate', path: '/customers/profile' },
+      { label: '护理建议', value: '12', hint: '可用于复访邀约', icon: Sparkles, tone: 'amber', path: '/customers/script' },
+    ],
+    priorities: [
+      { title: '补全护理记录', detail: '3 位客户缺少项目反馈和护理建议。', tag: '记录', icon: FileText, path: '/orders/card-usage' },
+      { title: '查看下一位客户档案', detail: '敏感肌客户到店前建议确认禁忌项。', tag: '客户', icon: Users, path: '/customers/profile' },
+      { title: '服务完成后提醒前台核销', detail: '减少漏核销和手工追单。', tag: '协作', icon: CheckCircle2, path: '/orders/card-usage' },
+    ],
+    quickActions: [
+      { label: '我的排班', path: '/stores/scheduling', icon: CalendarCheck },
+      { label: '客户档案', path: '/customers/profile', icon: Users },
+      { label: '服务记录', path: '/orders/card-usage', icon: FileText },
+      { label: '护理建议', path: '/customers/script', icon: HeartPulse },
+    ],
+    ai: {
+      conclusion: '下一位客户建议主推温和修护方案。',
+      basis: '结合历史服务记录、肌肤档案和近期到店周期，客户处于复购和修护窗口。',
+      action: '查看客户画像',
+      path: '/customers/profile',
+    },
+  },
+};
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const role = resolveAuraRole(user);
+  const workspace = useMemo(() => workspaceConfig[role], [role]);
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [isLoadingOverview, setIsLoadingOverview] = useState(false);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
 
-  // 统计数据
-  const stats = [
-    {
-      title: '总客户数',
-      value: '2,847',
-      change: '+12.5%',
-      isIncrease: true,
-      icon: Users,
-      color: 'blue',
-      bgColor: 'bg-blue-50',
-      iconColor: 'text-blue-600',
-      path: '/customers/data'
-    },
-    {
-      title: '本月新增客户',
-      value: '156',
-      change: '+8.3%',
-      isIncrease: true,
-      icon: Users,
-      color: 'green',
-      bgColor: 'bg-green-50',
-      iconColor: 'text-green-600',
-      path: '/customers/data'
-    },
-    {
-      title: '今日收入',
-      value: '¥45,680',
-      change: '+15.2%',
-      isIncrease: true,
-      icon: DollarSign,
-      color: 'purple',
-      bgColor: 'bg-purple-50',
-      iconColor: 'text-purple-600',
-      path: '/orders/products'
-    },
-    {
-      title: '本月总收入',
-      value: '¥892,340',
-      change: '+22.8%',
-      isIncrease: true,
-      icon: TrendingUp,
-      color: 'orange',
-      bgColor: 'bg-orange-50',
-      iconColor: 'text-orange-600',
-      path: '/orders/products'
-    },
-  ];
+  useEffect(() => {
+    let ignore = false;
+    setIsLoadingOverview(true);
+    setOverviewError(null);
 
-  // 营销活动数据
-  const marketingStats = [
-    {
-      title: '进行中活动',
-      value: '3',
-      icon: Megaphone,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-    },
-    {
-      title: '总参与人数',
-      value: '479',
-      icon: Target,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
-    },
-    {
-      title: '平均转化率',
-      value: '28.7%',
-      icon: Activity,
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
-    },
-  ];
+    getDashboardOverview({ storeId: currentStoreId })
+      .then((data) => {
+        if (!ignore) setOverview(data);
+      })
+      .catch((error) => {
+        if (!ignore) setOverviewError(error instanceof Error ? error.message : '仪表盘数据加载失败');
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingOverview(false);
+      });
 
-  // 近期活动
-  const recentActivities = [
-    {
-      id: 1,
-      title: '春季焕肤套餐',
-      status: '进行中',
-      participants: 156,
-      conversion: '23%',
-      statusColor: 'bg-green-100 text-green-700'
-    },
-    {
-      id: 2,
-      title: '会员生日专享',
-      status: '进行中',
-      participants: 89,
-      conversion: '45%',
-      statusColor: 'bg-green-100 text-green-700'
-    },
-    {
-      id: 3,
-      title: '好友推荐计划',
-      status: '进行中',
-      participants: 234,
-      conversion: '18%',
-      statusColor: 'bg-green-100 text-green-700'
-    },
-  ];
+    return () => {
+      ignore = true;
+    };
+  }, [currentStoreId]);
 
-  // 订单统计
-  const orderStats = [
-    { label: '今日订单', value: '45', icon: ShoppingBag },
-    { label: '待处理', value: '8', icon: Package },
-    { label: '今日预约', value: '32', icon: Calendar },
-  ];
+  const metrics = useMemo<Metric[]>(() => {
+    if (!overview?.metrics?.length) return workspace.metrics;
+    return overview.metrics.map((metric) => ({
+      ...metric,
+      icon: metricIcons[metric.key] ?? LayoutDashboard,
+    }));
+  }, [overview, workspace.metrics]);
 
-  // 热门商品
-  const topProducts = [
-    { name: '玻尿酸精华液', sales: 89, revenue: '¥12,450' },
-    { name: '美白面膜套装', sales: 67, revenue: '¥9,850' },
-    { name: '补水修护套餐', sales: 52, revenue: '¥8,320' },
-    { name: '深层清洁护理', sales: 45, revenue: '¥6,750' },
-  ];
+  const priorities = useMemo<Priority[]>(() => {
+    if (!overview?.priorities?.length) return workspace.priorities;
+    return overview.priorities.map((item) => ({
+      ...item,
+      icon: priorityIcons[item.key] ?? AlertTriangle,
+    }));
+  }, [overview, workspace.priorities]);
+
+  const ai = overview?.ai ?? workspace.ai;
+  const scopeName = overview?.scope.storeName ?? (currentStoreId ? '当前门店' : '全部门店');
 
   return (
     <div className="space-y-6">
-      {/* 页面标题 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">仪表盘</h1>
-        <p className="text-sm text-gray-500 mt-1">欢迎回来，查看您的业务概况</p>
-      </div>
-
-      {/* 核心统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <div
-            key={index}
-            onClick={() => navigate(stat.path)}
-            className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center`}>
-                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-              </div>
-              <div className={`flex items-center gap-1 text-sm font-medium ${
-                stat.isIncrease ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {stat.isIncrease ? (
-                  <ArrowUpRight className="w-4 h-4" />
-                ) : (
-                  <ArrowDownRight className="w-4 h-4" />
-                )}
-                {stat.change}
-              </div>
+      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant="default">当前角色：{roleLabels[role]}</Badge>
+              <Badge variant="outline">数据来源 Ami_Core</Badge>
+              <Badge variant="outline">当前口径：{scopeName}</Badge>
+              {isLoadingOverview && <Badge variant="secondary">数据刷新中</Badge>}
+              {overviewError && <Badge variant="destructive">显示默认样例</Badge>}
             </div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
-            <div className="text-sm text-gray-500">{stat.title}</div>
+            <h1 className="text-2xl font-semibold text-foreground">{workspace.title}</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              {user?.name ? `${user.name}，` : ''}
+              {workspace.subtitle}
+            </p>
           </div>
+          <div className="rounded-lg border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground">
+            <div className="font-medium text-foreground">Ami Aura Lite 已接入</div>
+            <div className="mt-1">门店终端、预约、核销和收银数据已同步。</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => (
+          <button
+            key={metric.label}
+            type="button"
+            onClick={() => navigate(metric.path)}
+            className="rounded-xl border border-border bg-card p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${toneClass[metric.tone]}`}>
+                <metric.icon className="h-5 w-5" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="text-2xl font-semibold text-foreground">{metric.value}</div>
+            <div className="mt-1 text-sm font-medium text-foreground/80">{metric.label}</div>
+            <div className="mt-2 text-xs text-muted-foreground">{metric.hint}</div>
+          </button>
         ))}
-      </div>
+      </section>
 
-      {/* 营销活动和订单统计 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 营销活动统计 */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">营销活动概况</h2>
-            <button
-              onClick={() => navigate('/customer-marketing/activity-management')}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-            >
-              查看全部 →
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {marketingStats.map((item, index) => (
-              <div key={index} className="text-center">
-                <div className={`w-12 h-12 ${item.bgColor} rounded-lg flex items-center justify-center mx-auto mb-3`}>
-                  <item.icon className={`w-6 h-6 ${item.iconColor}`} />
-                </div>
-                <div className="text-2xl font-bold text-gray-900 mb-1">{item.value}</div>
-                <div className="text-sm text-gray-500">{item.title}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">近期活动</h3>
-            {recentActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LayoutDashboard className="h-5 w-5 text-primary" />
+              今日优先处理
+            </CardTitle>
+            <CardDescription>按角色和门店数据排序，只展示最需要先看的事项。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {priorities.map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className="flex w-full items-start gap-4 rounded-lg border border-border bg-background/50 p-4 text-left transition hover:bg-accent/50"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-gray-900">{activity.title}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${activity.statusColor}`}>
-                      {activity.status}
-                    </span>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-foreground">{item.title}</span>
+                    <Badge variant="secondary">{item.tag}</Badge>
                   </div>
-                  <div className="text-sm text-gray-500">参与人数: {activity.participants}人</div>
+                  <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
                 </div>
-                <div className="text-right">
-                  <div className="text-lg font-semibold text-green-600">{activity.conversion}</div>
-                  <div className="text-xs text-gray-500">转化率</div>
-                </div>
-              </div>
+                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* 订单统计 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">订单统计</h2>
-          </div>
-
-          <div className="space-y-4">
-            {orderStats.map((item, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                    <item.icon className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{item.value}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <button
-              onClick={() => navigate('/orders/products')}
-              className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-            >
-              查看订单详情
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 热门商品 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">热门商品</h2>
-          <button
-            onClick={() => navigate('/goods/products')}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-          >
-            查看全部 →
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {topProducts.map((product, index) => (
-            <div
-              key={index}
-              className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold">
-                  {index + 1}
-                </div>
-                <Package className="w-5 h-5 text-gray-400" />
-              </div>
-              <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">销量: {product.sales}</span>
-                <span className="font-semibold text-blue-600">{product.revenue}</span>
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Ami 参考
+            </CardTitle>
+            <CardDescription>结论、依据和动作保持同屏可见。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
+              <div className="text-xs font-medium text-primary">结论</div>
+              <div className="mt-1 font-medium text-foreground">{ai.conclusion}</div>
+              <div className="mt-4 text-xs font-medium text-primary">依据</div>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{ai.basis}</p>
+              <Button className="mt-5 w-full gap-2" onClick={() => navigate(ai.path)}>
+                {ai.action}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </div>
-          ))}
-        </div>
-      </div>
+          </CardContent>
+        </Card>
+      </section>
 
-      {/* 快捷操作 */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg p-6 text-white">
-        <h2 className="text-lg font-semibold mb-4">快捷操作</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {workspace.quickActions.map((action) => (
           <button
-            onClick={() => navigate('/customers/data')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
+            key={action.label}
+            type="button"
+            onClick={() => navigate(action.path)}
+            className="rounded-xl border border-border bg-card p-4 text-left shadow-sm transition hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
           >
-            <Users className="w-6 h-6 mb-2" />
-            <div className="font-medium">客户管理</div>
+            <action.icon className="mb-4 h-5 w-5 text-primary" />
+            <div className="font-medium text-foreground">{action.label}</div>
+            <div className="mt-1 text-xs text-muted-foreground">快速进入</div>
           </button>
-          <button
-            onClick={() => navigate('/customer-marketing/strategy-templates')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Megaphone className="w-6 h-6 mb-2" />
-            <div className="font-medium">创建营销活动</div>
-          </button>
-          <button
-            onClick={() => navigate('/stores/reservations')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Calendar className="w-6 h-6 mb-2" />
-            <div className="font-medium">项目预约</div>
-          </button>
-          <button
-            onClick={() => navigate('/inventory/stock')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Package className="w-6 h-6 mb-2" />
-            <div className="font-medium">库存管理</div>
-          </button>
+        ))}
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">门店运行状态</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              网络、打印机、扫码器和终端同步状态正常，适合继续处理前台和经营任务。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">网络正常</Badge>
+            <Badge variant="outline">打印机在线</Badge>
+            <Badge variant="outline">扫码器在线</Badge>
+            <Badge variant="outline">数据同步正常</Badge>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

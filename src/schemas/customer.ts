@@ -7,7 +7,7 @@ export const customerSchema = z.object({
   phone: z.string().regex(/^1[3-9]\d{9}$/, '请输入有效的手机号码').optional().or(z.literal('')),
   landline: z.string().optional(),
   wechat: z.string().optional(),
-  gender: z.enum(['男', '女'], { required_error: '请选择性别' }),
+  gender: z.enum(['男', '女'], { error: '请选择性别' }),
   maritalStatus: z.enum(['未知', '已婚', '未婚']).optional(),
   birthday: z.string().optional(),
   age: z.number().int().min(0).max(150).optional(),

@@ -1,4 +1,4 @@
-import type { ProjectType } from '../mock/projectType';
+import type { ProjectType } from '../domain-types';
 import apiClient from '../client';
 
 export async function realGetProjectTypes(): Promise<ProjectType[]> {

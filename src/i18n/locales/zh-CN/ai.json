@@ -1,0 +1,40 @@
+{
+  "title": "AI 智能助手",
+  "auraLite": {
+    "title": "Ami Aura Lite 已接入",
+    "description": "门店终端、预约、核销和收银数据已同步。"
+  },
+  "recommendation": {
+    "title": "Ami 参考",
+    "subtitle": "结论、依据和动作保持同屏可见。",
+    "conclusion": "结论",
+    "basis": "依据",
+    "action": "建议动作"
+  },
+  "insights": {
+    "title": "智能洞察",
+    "customerInsight": "客户洞察",
+    "salesInsight": "销售洞察",
+    "inventoryInsight": "库存洞察"
+  },
+  "generation": {
+    "generating": "AI 生成中...",
+    "generateComplete": "生成完成",
+    "generateFailed": "生成失败",
+    "retry": "重新生成"
+  },
+  "script": {
+    "title": "智能邀约",
+    "generateScript": "生成话术",
+    "scriptType": "话术类型",
+    "targetCustomer": "目标客户",
+    "channel": "沟通渠道",
+    "types": {
+      "revisit": "回访邀约",
+      "promotion": "活动推广",
+      "birthday": "生日祝福",
+      "lostRecall": "流失召回",
+      "newCustomer": "新客跟进"
+    }
+  }
+}

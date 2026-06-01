@@ -1,0 +1,47 @@
+{
+  "title": "Scheduling",
+  "weekDays": {
+    "monday": "Mon",
+    "tuesday": "Tue",
+    "wednesday": "Wed",
+    "thursday": "Thu",
+    "friday": "Fri",
+    "saturday": "Sat",
+    "sunday": "Sun"
+  },
+  "shifts": {
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "evening": "Evening",
+    "fullDay": "Full Day",
+    "off": "Day Off"
+  },
+  "fields": {
+    "beautician": "Staff",
+    "date": "Date",
+    "shift": "Shift",
+    "startTime": "Start Time",
+    "endTime": "End Time",
+    "status": "Status"
+  },
+  "actions": {
+    "save": "Save Schedule",
+    "prevWeek": "Previous Week",
+    "nextWeek": "Next Week",
+    "copyLastWeek": "Copy Last Week",
+    "clearAll": "Clear All"
+  },
+  "messages": {
+    "saveSuccess": "Schedule saved successfully",
+    "saveFailed": "Failed to save schedule",
+    "loadFailed": "Failed to load schedule data",
+    "noChanges": "No changes to save",
+    "hasChanges": "You have unsaved changes"
+  },
+  "statuses": {
+    "scheduled": "Scheduled",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "leave": "On Leave"
+  }
+}

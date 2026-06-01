@@ -38,3 +38,26 @@ export async function mockUpdateBeautician(id: number, data: Partial<Beautician>
   MOCK_BEAUTICIANS[index] = { ...MOCK_BEAUTICIANS[index], ...data };
   return MOCK_BEAUTICIANS[index];
 }
+
+export async function mockDeleteBeautician(id: number): Promise<void> {
+  const index = MOCK_BEAUTICIANS.findIndex((b) => b.id === id);
+  if (index === -1) throw new Error('美容师不存在');
+  MOCK_BEAUTICIANS.splice(index, 1);
+}
+
+import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
+
+export async function mockGetBeauticiansPaginated(params: PaginationParams & { keyword?: string; storeName?: string }): Promise<PaginatedResponse<Beautician>> {
+  let result = [...MOCK_BEAUTICIANS];
+  if (params.keyword) {
+    const kw = params.keyword.toLowerCase();
+    result = result.filter((b) => b.name.includes(kw) || b.phone.includes(kw));
+  }
+  if (params.storeName) {
+    result = result.filter((b) => b.storeName === params.storeName);
+  }
+  const total = result.length;
+  const start = (params.page - 1) * params.pageSize;
+  const data = result.slice(start, start + params.pageSize);
+  return createPaginatedResponse(data, total, params.page, params.pageSize);
+}

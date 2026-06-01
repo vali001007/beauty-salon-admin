@@ -1,0 +1,117 @@
+{
+  "title": "Customer Data Management",
+  "tabs": {
+    "baseInfo": "Basic Info",
+    "consumption": "Consumption",
+    "skinProfile": "Skin Profile"
+  },
+  "fields": {
+    "name": "Customer Name",
+    "phone": "Phone",
+    "landline": "Landline",
+    "wechat": "WeChat",
+    "email": "Email",
+    "gender": "Gender",
+    "male": "Male",
+    "female": "Female",
+    "maritalStatus": "Marital Status",
+    "married": "Married",
+    "unmarried": "Single",
+    "unknown": "Unknown",
+    "birthday": "Birthday",
+    "age": "Age",
+    "height": "Height (cm)",
+    "weight": "Weight (kg)",
+    "occupation": "Occupation",
+    "workplace": "Workplace",
+    "address": "Address",
+    "hasAllergy": "Allergies",
+    "hasSurgery": "Cosmetic Surgery",
+    "skinCondition": "Skin Condition",
+    "totalSpent": "Total Spent",
+    "cumulativeSpent": "Cumulative Spent",
+    "memberLevel": "Member Level",
+    "source": "Source",
+    "lastVisitDate": "Last Visit",
+    "remark": "Remarks",
+    "storeName": "Store",
+    "tags": "Tags"
+  },
+  "memberLevels": {
+    "none": "None",
+    "regular": "Regular",
+    "silver": "Silver",
+    "gold": "Gold",
+    "diamond": "Diamond"
+  },
+  "sources": {
+    "store": "Walk-in",
+    "referral": "Referral",
+    "online": "Online",
+    "activity": "Campaign"
+  },
+  "actions": {
+    "addCustomer": "Add Customer",
+    "editCustomer": "Edit Customer",
+    "deleteCustomer": "Delete Customer",
+    "batchImportCustomer": "Batch Import Customers",
+    "exportCustomer": "Export Customers"
+  },
+  "messages": {
+    "createSuccess": "Customer created successfully",
+    "createFailed": "Failed to create customer",
+    "updateSuccess": "Customer updated successfully",
+    "updateFailed": "Failed to update customer",
+    "deleteSuccess": "{{count}} customer(s) deleted",
+    "deleteConfirm": "About to delete {{count}} customer(s). This action cannot be undone. Please enter your password to confirm."
+  },
+  "placeholders": {
+    "searchName": "Search by name",
+    "searchPhone": "Search by phone",
+    "inputName": "Enter customer name",
+    "inputPhone": "Enter phone number",
+    "inputEmail": "Enter email",
+    "inputLandline": "Enter landline",
+    "inputWechat": "Enter WeChat ID",
+    "inputAge": "Enter age",
+    "inputHeight": "Enter height",
+    "inputWeight": "Enter weight",
+    "inputOccupation": "Enter occupation",
+    "inputWorkplace": "Enter workplace",
+    "inputAddress": "Enter address",
+    "inputSkinCondition": "Enter skin condition",
+    "inputRemark": "Enter remarks",
+    "selectSource": "Select source"
+  },
+  "consumption": {
+    "userName": "Customer",
+    "consumeType": "Type",
+    "consumeContent": "Description",
+    "payMethod": "Payment Method",
+    "amount": "Amount",
+    "campaign": "Campaign",
+    "consumeTime": "Date"
+  },
+  "health": {
+    "title": "Edit Skin Profile",
+    "userName": "Customer Name",
+    "skinType": "Skin Type",
+    "skinStatus": "Skin Status",
+    "mainProblems": "Main Concerns",
+    "allergyHistory": "Allergies",
+    "goals": "Goals",
+    "recommendedCare": "Recommended Care",
+    "instrument": "Instrument",
+    "lastCheck": "Last Check",
+    "skinTypes": {
+      "dry": "Dry",
+      "oily": "Oily",
+      "combinationDry": "Combination Dry",
+      "combinationOily": "Combination Oily",
+      "neutral": "Normal",
+      "sensitive": "Sensitive",
+      "undetected": "Not Tested"
+    },
+    "updateSuccess": "Skin profile updated"
+  }
+}

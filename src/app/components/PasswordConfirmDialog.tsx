@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { login } from '@/api/auth';
-import { toast } from 'sonner';
 
 interface PasswordConfirmDialogProps {
   open: boolean;

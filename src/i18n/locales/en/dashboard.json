@@ -1,0 +1,85 @@
+{
+  "title": "Dashboard",
+  "roles": {
+    "manager": "Manager",
+    "reception": "Receptionist",
+    "beautician": "Beautician"
+  },
+  "currentRole": "Current Role: {{role}}",
+  "dataSource": "Data Source: Ami_Core",
+  "manager": {
+    "title": "Manager Dashboard",
+    "subtitle": "Review operations, risks, and staff first, then handle store coordination.",
+    "metrics": {
+      "totalCustomers": "Total Customers",
+      "todayRevenue": "Today's Revenue",
+      "inventoryAlerts": "Inventory Alerts",
+      "activeActivities": "Active Campaigns"
+    },
+    "hints": {
+      "newThisMonth": "{{count}} new this month",
+      "vsYesterday": "{{percent}} vs yesterday",
+      "lowAndExpiry": "Low stock {{low}} / Near expiry {{expiry}}",
+      "avgConversion": "Avg. conversion {{rate}}"
+    }
+  },
+  "reception": {
+    "title": "Reception Workspace",
+    "subtitle": "Handle reservations, redemptions, registrations, and cashier tasks.",
+    "metrics": {
+      "todayReservations": "Today's Reservations",
+      "pendingVerification": "Pending Redemption",
+      "todayCashier": "Today's Revenue",
+      "newRegistrations": "New Registrations"
+    },
+    "hints": {
+      "pendingConfirm": "{{count}} pending confirmation",
+      "cardAndActivity": "Cards / Campaign benefits",
+      "completedOrders": "{{count}} orders completed",
+      "needComplete": "New customer info incomplete"
+    }
+  },
+  "beautician": {
+    "title": "Beautician Workspace",
+    "subtitle": "View your schedule, customers, and service tasks.",
+    "metrics": {
+      "myReservations": "My Reservations",
+      "pendingService": "Pending Services",
+      "customerProfiles": "Customer Profiles",
+      "careAdvice": "Care Advice"
+    },
+    "hints": {
+      "nextArrival": "Next client arrives in {{time}}",
+      "needRecord": "Care records needed",
+      "recentCustomers": "Recent customers",
+      "forRevisit": "Available for follow-up"
+    }
+  },
+  "priorities": {
+    "title": "Today's Priorities",
+    "subtitle": "Sorted by role and store data, showing only the most important items."
+  },
+  "quickActions": {
+    "title": "Quick Access",
+    "customerGrowth": "Customer Growth",
+    "smartMarketing": "Smart Marketing",
+    "inventoryManagement": "Inventory",
+    "staffScheduling": "Staff Scheduling",
+    "projectReservation": "Reservations",
+    "customerRegister": "New Customer",
+    "cardVerification": "Card Redemption",
+    "cashierOrder": "Cashier",
+    "mySchedule": "My Schedule",
+    "customerProfile": "Customer Profiles",
+    "serviceRecord": "Service Records",
+    "careAdvice": "Care Advice"
+  },
+  "storeStatus": {
+    "title": "Store Status",
+    "description": "Network, printer, scanner, and terminal sync are all normal. Ready for reception and operations tasks.",
+    "networkOk": "Network OK",
+    "printerOnline": "Printer Online",
+    "scannerOnline": "Scanner Online",
+    "dataSyncOk": "Data Sync OK"
+  }
+}

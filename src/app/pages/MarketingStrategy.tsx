@@ -124,7 +124,15 @@ export function MarketingStrategy() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    const layouts: Array<'classic' | 'modern' | 'elegant' | 'vibrant'> = ['classic', 'modern', 'elegant', 'vibrant'];
+                    setSelectedActivity(activity);
+                    setShowDetailDialog(true);
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Eye className="w-4 h-4" /> 查看详情
+                </button>
+                <button
+                  onClick={() => {
                     setActivityPageData({
                       title: activity.title,
                       description: activity.description,

@@ -1,4 +1,4 @@
-import type { BeauticianLevel } from '../mock/beauticianLevel';
+import type { BeauticianLevel } from '../domain-types';
 import apiClient from '../client';
 
 export async function realGetBeauticianLevels(): Promise<BeauticianLevel[]> {

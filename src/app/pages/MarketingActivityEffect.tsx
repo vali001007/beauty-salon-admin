@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { 
-  TrendingUp, Users, Eye, MousePointerClick, 
-  DollarSign, Target, Calendar, ArrowLeft,
+  Users, Eye, MousePointerClick, 
+  DollarSign, Target, ArrowLeft,
   BarChart3, PieChart, Activity
 } from 'lucide-react';
 

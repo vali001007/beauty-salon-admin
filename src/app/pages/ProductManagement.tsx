@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Upload, Download, Edit, Eye, Ban, ChevronRight, ChevronDown, Settings, Image as ImageIcon, Loader2, FileDown } from 'lucide-react';
+import { Plus, Upload, Download, Edit, Eye, Ban, ChevronRight, ChevronDown, Settings, Image as ImageIcon, Loader2, FileDown } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ImportDialog } from '../components/ImportDialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { productSchema, type ProductFormData } from '@/schemas/product';
-import { getProductsPaginated, createProduct, getCategories, importProducts } from '@/api/product';
+import { getProductsPaginated, createProduct, importProducts } from '@/api/product';
 import { usePagination } from '@/hooks/usePagination';
 import { exportToExcel, downloadTemplate } from '@/utils/excel';
 import { toast } from 'sonner';
-import type { Product, Category } from '@/types';
+import type { Product } from '@/types';
 import type { ExportColumn } from '@/types/excel';
 
 const PRODUCT_EXPORT_COLUMNS: ExportColumn[] = [
@@ -99,7 +99,7 @@ export function ProductManagement() {
   const filters = useMemo(() => ({ keyword: searchKeyword || undefined }), [searchKeyword]);
   const { data: products, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<Product>(getProductsPaginated, filters);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<ProductFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       unit: '瓶',
@@ -240,8 +240,12 @@ export function ProductManagement() {
               {products.map((product) => (
                 <TableRow key={product.id} className="hover:bg-blue-50/30">
                   <TableCell>
-                    <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-purple-100 rounded flex items-center justify-center">
-                      <ImageIcon className="w-6 h-6 text-gray-400" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-purple-100 rounded overflow-hidden flex items-center justify-center">
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 text-gray-400" />
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="font-medium text-gray-800">{product.name}</TableCell>

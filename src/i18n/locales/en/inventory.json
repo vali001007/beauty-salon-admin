@@ -1,0 +1,92 @@
+{
+  "title": "Inventory",
+  "products": {
+    "title": "Products",
+    "productName": "Product Name",
+    "sku": "SKU",
+    "category": "Category",
+    "currentStock": "Current Stock",
+    "safetyStock": "Safety Stock",
+    "unit": "Unit"
+  },
+  "stock": {
+    "title": "Stock Management",
+    "productName": "Product",
+    "storeName": "Store",
+    "currentQty": "Current Qty",
+    "safetyQty": "Safety Stock",
+    "status": "Status",
+    "lastUpdated": "Last Updated",
+    "statuses": {
+      "normal": "Normal",
+      "low": "Low Stock",
+      "outOfStock": "Out of Stock",
+      "overstock": "Overstock"
+    }
+  },
+  "purchase": {
+    "title": "Purchasing",
+    "purchaseNo": "PO Number",
+    "supplier": "Supplier",
+    "totalAmount": "Total",
+    "status": "Status",
+    "createdAt": "Created",
+    "expectedDate": "Expected Delivery",
+    "addPurchase": "New Purchase Order",
+    "statuses": {
+      "draft": "Draft",
+      "pending": "Pending Approval",
+      "approved": "Approved",
+      "ordered": "Ordered",
+      "received": "Received",
+      "cancelled": "Cancelled"
+    }
+  },
+  "expiry": {
+    "title": "Expiry Tracking",
+    "productName": "Product",
+    "batchNo": "Batch No.",
+    "expiryDate": "Expiry Date",
+    "remainingDays": "Days Remaining",
+    "quantity": "Qty",
+    "status": "Status",
+    "statuses": {
+      "normal": "Normal",
+      "nearExpiry": "Near Expiry",
+      "expired": "Expired"
+    }
+  },
+  "transfer": {
+    "title": "Store Transfers",
+    "transferNo": "Transfer No.",
+    "fromStore": "From Store",
+    "toStore": "To Store",
+    "productName": "Product",
+    "quantity": "Qty",
+    "status": "Status",
+    "createdAt": "Created",
+    "addTransfer": "New Transfer",
+    "statuses": {
+      "pending": "Pending Approval",
+      "approved": "Approved",
+      "inTransit": "In Transit",
+      "completed": "Completed",
+      "rejected": "Rejected"
+    }
+  },
+  "consumption": {
+    "title": "Service Consumption & BOM",
+    "projectName": "Service",
+    "productName": "Product",
+    "consumeQty": "Consumption Qty",
+    "unit": "Unit",
+    "bomTitle": "BOM Configuration",
+    "addBom": "Add BOM"
+  },
+  "alerts": {
+    "lowStock": "Low Stock",
+    "nearExpiry": "Near Expiry",
+    "lowStockWarning": "Low Stock Alert",
+    "expiryWarning": "Expiry Alert"
+  }
+}

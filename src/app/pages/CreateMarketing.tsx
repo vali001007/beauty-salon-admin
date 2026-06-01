@@ -1,719 +1,644 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import {
-  Plus, Edit, Trash2, Eye, Copy, Play, Pause, Search,
-  Calendar, Clock, Gift, Sun, Heart, UserCheck, ShoppingBag,
-  TrendingDown, Sparkles, Filter, ChevronDown, ChevronRight, Users, Target, Zap, Loader2, Share2
+  Copy,
+  Edit,
+  Eye,
+  Loader2,
+  Pause,
+  Play,
+  Plus,
+  Search,
+  Sparkles,
+  Target,
+  Trash2,
+  Users,
+  WandSparkles,
 } from 'lucide-react';
-import { Button, Input, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { createStrategy, saveStrategyDraft } from '@/api/marketing';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router';
+import {
+  createAutomationStrategy,
+  deleteAutomationStrategy,
+  enableAutomationStrategy,
+  executeAutomationStrategy,
+  getAutomationEffects,
+  getAutomationExecutionsPaginated,
+  getAutomationStrategiesPaginated,
+  getAutomationTriggerOptions,
+  pauseAutomationStrategy,
+  previewAutomationAudience,
+  saveAutomationStrategyDraft,
+  updateAutomationStrategy,
+} from '@/api/marketing';
+import type {
+  AudiencePreview,
+  MarketingAction,
+  MarketingAutomationEffect,
+  MarketingAutomationExecution,
+  MarketingAutomationStrategy,
+  MarketingParamValue,
+  MarketingRuleRelation,
+  MarketingStrategyInput,
+  MarketingTriggerOption,
+  MarketingTriggerRule,
+  MarketingTriggerType,
+} from '@/types';
+import { createTriggerRuleFromOption, customizeTriggerRule, formatMarketingRuleParams } from '@/utils/marketingAutomation';
+import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
-// --- 触发规则类型 ---
-type TriggerType =
-  | 'last_visit'       // 最近消费时间
-  | 'birthday'         // 生日
-  | 'holiday'          // 节假日
-  | 'seasonal'         // 季节性护肤
-  | 'care_cycle'       // 护理周期到期
-  | 'card_expiry'      // 卡项即将到期
-  | 'consumption'      // 消费金额
-  | 'visit_frequency'  // 到店频率
-  | 'visit_gap'        // 消费间隔异常
-  | 'service_interest' // 项目/服务偏好
-  | 'dormant'          // 沉睡客户唤醒
-  | 'member_level'     // 会员等级
-  | 'new_customer'     // 新客户
-  | 'skin_type'        // 肌肤类型
-  | 'age_range';       // 年龄段
-
-interface TriggerRule {
-  type: TriggerType;
-  label: string;
-  icon: React.ReactNode;
-  params: Record<string, string | number>;
-}
-
-interface ActionConfig {
-  type: 'coupon' | 'discount' | 'gift' | 'points' | 'sms' | 'push';
-  label: string;
-  value: string;
-}
-
-interface EffectStats {
-  triggerCount: number;       // 本月触发次数
-  totalTriggerCount: number;  // 累计触发次数
-  reachedCount: number;       // 触达人数
-  couponUsedRate: string;     // 核销率
-  returnRate: string;         // 回店率
-  revenue: number;            // 带来营收
-  cost: number;               // 投入成本
-  dailyTrend: number[];       // 近7天触发趋势
-}
-
-interface Strategy {
-  id: number;
+interface StrategyForm {
   name: string;
   description: string;
-  triggerRules: TriggerRule[];
-  actions: ActionConfig[];
-  targetCount: number;
-  status: '启用' | '停用' | '草稿';
-  executionType: '自动' | '手动';
+  executionType: 'auto' | 'manual';
   executionTime: string;
-  lastExecuted: string;
-  createdAt: string;
-  effect?: EffectStats;
+  ruleRelation: MarketingRuleRelation;
+  triggerRules: MarketingTriggerRule[];
+  actions: MarketingAction[];
 }
 
-// --- 可选触发规则定义 ---
-const TRIGGER_OPTIONS: { type: TriggerType; label: string; icon: React.ReactNode; description: string; category: string }[] = [
-  { type: 'birthday', label: '生日关怀', icon: <Gift className="w-4 h-4" />, description: '在客户生日前后自动触发关怀营销', category: '时间触发' },
-  { type: 'holiday', label: '节假日营销', icon: <Calendar className="w-4 h-4" />, description: '在指定节假日自动触发营销活动', category: '时间触发' },
-  { type: 'seasonal', label: '季节性护肤', icon: <Sun className="w-4 h-4" />, description: '根据季节变化推荐对应护肤方案', category: '时间触发' },
-  { type: 'care_cycle', label: '护理周期到期', icon: <Clock className="w-4 h-4" />, description: '上次护理后N天自动提醒预约下一次', category: '时间触发' },
-  { type: 'card_expiry', label: '卡项即将到期', icon: <Calendar className="w-4 h-4" />, description: '次卡/套餐到期前N天提醒使用或续费', category: '时间触发' },
-  { type: 'last_visit', label: '最近消费时间', icon: <Clock className="w-4 h-4" />, description: '根据客户最后一次到店消费的时间间隔触发', category: '行为触发' },
-  { type: 'consumption', label: '消费金额', icon: <ShoppingBag className="w-4 h-4" />, description: '根据客户累计或单次消费金额触发', category: '行为触发' },
-  { type: 'visit_frequency', label: '到店频率', icon: <TrendingDown className="w-4 h-4" />, description: '根据客户到店频率变化触发', category: '行为触发' },
-  { type: 'visit_gap', label: '消费间隔异常', icon: <Zap className="w-4 h-4" />, description: '到店间隔超过客户平均值的2倍时触发', category: '行为触发' },
-  { type: 'service_interest', label: '项目/服务偏好', icon: <Heart className="w-4 h-4" />, description: '根据客户历史消费偏好推荐相关护理项目', category: '行为触发' },
-  { type: 'dormant', label: '沉睡客户唤醒', icon: <Zap className="w-4 h-4" />, description: '长期未到店的客户自动唤醒', category: '行为触发' },
-  { type: 'member_level', label: '会员等级', icon: <UserCheck className="w-4 h-4" />, description: '针对特定会员等级的客户触发', category: '属性触发' },
-  { type: 'new_customer', label: '新客户引导', icon: <Users className="w-4 h-4" />, description: '新注册客户自动触发引导营销', category: '属性触发' },
-  { type: 'skin_type', label: '肌肤类型', icon: <Heart className="w-4 h-4" />, description: '按肌肤分类触发（干性/油性/敏感/混合/中性）', category: '属性触发' },
-  { type: 'age_range', label: '年龄段', icon: <Users className="w-4 h-4" />, description: '按年龄区间触发（如25-35岁抗初老）', category: '属性触发' },
+const emptyForm = (): StrategyForm => ({
+  name: '',
+  description: '',
+  executionType: 'auto',
+  executionTime: '09:00',
+  ruleRelation: 'AND',
+  triggerRules: [],
+  actions: [],
+});
+
+const STATUS_LABEL: Record<MarketingAutomationStrategy['status'], string> = {
+  draft: '草稿',
+  enabled: '启用',
+  paused: '暂停',
+  archived: '已归档',
+};
+
+const CHANNEL_OPTIONS: Array<{ value: NonNullable<MarketingAction['channel']>; label: string }> = [
+  { value: 'sms', label: '短信' },
+  { value: 'miniapp', label: '小程序' },
+  { value: 'wechat', label: '微信' },
+  { value: 'group', label: '社群' },
+  { value: 'store', label: '门店话术' },
+  { value: 'moments', label: '朋友圈' },
 ];
 
-const HOLIDAYS = ['元旦', '春节', '情人节', '三八妇女节', '母亲节', '七夕', '中秋节', '国庆节', '双十一', '圣诞节'];
-const SEASONS = ['春季（3-5月）', '夏季（6-8月）', '秋季（9-11月）', '冬季（12-2月）'];
+function createInput(form: StrategyForm): MarketingStrategyInput {
+  return {
+    name: form.name.trim(),
+    description: form.description.trim(),
+    executionType: form.executionType,
+    schedule: { type: form.executionType === 'auto' ? 'daily' : 'realtime', time: form.executionTime },
+    triggerRules: form.triggerRules,
+    ruleRelation: form.ruleRelation,
+    actions: form.actions,
+  };
+}
 
-// --- Mock 策略数据 ---
-const MOCK_STRATEGIES: Strategy[] = [
-  {
-    id: 1, name: '沉睡客户唤醒计划', description: '针对30天以上未到店的客户，发送专属优惠券唤醒',
-    triggerRules: [
-      { type: 'last_visit', label: '最近消费时间', icon: <Clock className="w-4 h-4" />, params: { operator: '大于', days: 30 } },
-      { type: 'member_level', label: '会员等级', icon: <UserCheck className="w-4 h-4" />, params: { level: '银卡及以上' } },
-    ],
-    actions: [
-      { type: 'coupon', label: '优惠券', value: '满500减100' },
-      { type: 'sms', label: '短信通知', value: '个性化唤醒短信' },
-    ],
-    targetCount: 156, status: '启用', executionType: '自动', executionTime: '每周一 09:00',
-    lastExecuted: '2026-03-31', createdAt: '2026-02-15',
-    effect: { triggerCount: 48, totalTriggerCount: 312, reachedCount: 156, couponUsedRate: '32%', returnRate: '28%', revenue: 45600, cost: 8200, dailyTrend: [8, 6, 9, 5, 7, 6, 7] },
-  },
-  {
-    id: 2, name: '生日专属关怀', description: '生日当月自动发送祝福和专属折扣',
-    triggerRules: [
-      { type: 'birthday', label: '生日关怀', icon: <Gift className="w-4 h-4" />, params: { timing: '生日前7天' } },
-    ],
-    actions: [
-      { type: 'discount', label: '折扣', value: '生日月全场8折' },
-      { type: 'gift', label: '赠品', value: '精美生日礼盒' },
-      { type: 'points', label: '积分', value: '双倍积分' },
-      { type: 'sms', label: '短信通知', value: '生日祝福短信' },
-    ],
-    targetCount: 78, status: '启用', executionType: '自动', executionTime: '每日 08:00 检查',
-    lastExecuted: '2026-03-31', createdAt: '2026-01-01',
-    effect: { triggerCount: 78, totalTriggerCount: 890, reachedCount: 78, couponUsedRate: '58%', returnRate: '55%', revenue: 62400, cost: 5600, dailyTrend: [12, 10, 15, 8, 11, 9, 13] },
-  },
-  {
-    id: 3, name: '春季焕肤推荐', description: '春季换季期间推荐敏感肌护理方案',
-    triggerRules: [
-      { type: 'seasonal', label: '季节性护肤', icon: <Sun className="w-4 h-4" />, params: { season: '春季（3-5月）' } },
-      { type: 'service_interest' as TriggerType, label: '项目/服务偏好', icon: <Heart className="w-4 h-4" />, params: { category: '敏感肌护理' } },
-    ],
-    actions: [
-      { type: 'coupon', label: '优惠券', value: '春季护理套餐立减200' },
-      { type: 'push', label: '推送通知', value: '换季护肤指南推送' },
-    ],
-    targetCount: 230, status: '启用', executionType: '自动', executionTime: '3月1日-5月31日',
-    lastExecuted: '2026-03-25', createdAt: '2026-02-28',
-    effect: { triggerCount: 65, totalTriggerCount: 230, reachedCount: 230, couponUsedRate: '38%', returnRate: '35%', revenue: 89200, cost: 12000, dailyTrend: [10, 8, 12, 9, 11, 7, 8] },
-  },
-  {
-    id: 4, name: '高消费客户维护', description: '累计消费超过2万的VIP客户专属服务',
-    triggerRules: [
-      { type: 'consumption', label: '消费金额', icon: <ShoppingBag className="w-4 h-4" />, params: { operator: '大于', amount: 20000, period: '累计' } },
-    ],
-    actions: [
-      { type: 'discount', label: '折扣', value: 'VIP专属9折' },
-      { type: 'gift', label: '赠品', value: '季度护肤礼包' },
-    ],
-    targetCount: 45, status: '启用', executionType: '手动', executionTime: '每季度执行',
-    lastExecuted: '2026-03-15', createdAt: '2025-12-01',
-    effect: { triggerCount: 15, totalTriggerCount: 180, reachedCount: 45, couponUsedRate: '65%', returnRate: '62%', revenue: 128000, cost: 9500, dailyTrend: [3, 2, 4, 1, 2, 2, 1] },
-  },
-  {
-    id: 5, name: '母亲节感恩活动', description: '母亲节期间推出亲子护理套餐',
-    triggerRules: [
-      { type: 'holiday', label: '节假日营销', icon: <Calendar className="w-4 h-4" />, params: { holiday: '母亲节' } },
-    ],
-    actions: [
-      { type: 'coupon', label: '优惠券', value: '亲子套餐立减300' },
-      { type: 'sms', label: '短信通知', value: '母亲节活动通知' },
-    ],
-    targetCount: 0, status: '草稿', executionType: '自动', executionTime: '5月1日-5月12日',
-    lastExecuted: '-', createdAt: '2026-03-28',
-  },
-  {
-    id: 6, name: '新客首次体验', description: '新注册客户7天内未消费自动推送体验券',
-    triggerRules: [
-      { type: 'new_customer', label: '新客户引导', icon: <Users className="w-4 h-4" />, params: { withinDays: 7 } },
-    ],
-    actions: [
-      { type: 'coupon', label: '优惠券', value: '首单立减50' },
-      { type: 'push', label: '推送通知', value: '新人专属体验推荐' },
-    ],
-    targetCount: 34, status: '停用', executionType: '自动', executionTime: '注册后第3天',
-    lastExecuted: '2026-03-20', createdAt: '2025-10-01',
-    effect: { triggerCount: 0, totalTriggerCount: 156, reachedCount: 34, couponUsedRate: '22%', returnRate: '18%', revenue: 12800, cost: 3200, dailyTrend: [0, 0, 0, 0, 0, 0, 0] },
-  },
-];
+function createForm(strategy: MarketingAutomationStrategy): StrategyForm {
+  return {
+    name: strategy.name,
+    description: strategy.description,
+    executionType: strategy.executionType,
+    executionTime: strategy.schedule.time || '09:00',
+    ruleRelation: strategy.ruleRelation,
+    triggerRules: strategy.triggerRules.map((rule) => ({
+      ...rule,
+      params: JSON.parse(JSON.stringify(rule.params)) as Record<string, MarketingParamValue>,
+    })),
+    actions: strategy.actions.map((action) => ({ ...action })),
+  };
+}
 
 export function CreateMarketing() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [strategies, setStrategies] = useState(MOCK_STRATEGIES);
+  const [triggerOptions, setTriggerOptions] = useState<MarketingTriggerOption[]>([]);
+  const [strategies, setStrategies] = useState<MarketingAutomationStrategy[]>([]);
+  const [effects, setEffects] = useState<MarketingAutomationEffect[]>([]);
+  const [executions, setExecutions] = useState<MarketingAutomationExecution[]>([]);
   const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState('全部');
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
-  const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
-  const [wizardStep, setWizardStep] = useState(1); // 1=规则, 2=文案通知, 3=确认
+  const [status, setStatus] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [showEditor, setShowEditor] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const [mode, setMode] = useState<'create' | 'edit'>('create');
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState<StrategyForm>(emptyForm);
+  const [selected, setSelected] = useState<MarketingAutomationStrategy | null>(null);
+  const [preview, setPreview] = useState<AudiencePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [operatingId, setOperatingId] = useState<number | null>(null);
 
-  // 创建表单状态
-  const [formName, setFormName] = useState('');
-  const [formDesc, setFormDesc] = useState('');
-  const [formExecType, setFormExecType] = useState<'自动' | '手动'>('自动');
-  const [formExecTime, setFormExecTime] = useState('');
-  const [selectedTriggers, setSelectedTriggers] = useState<TriggerType[]>([]);
-  const [triggerParams, setTriggerParams] = useState<Record<string, Record<string, string>>>({});
-  const [formActions, setFormActions] = useState<{ type: string; value: string }[]>([]);
-  const [formNotifyChannels, setFormNotifyChannels] = useState<string[]>([]);
-  const [channelContents, setChannelContents] = useState<Record<string, string>>({});
-  const [generatingChannel, setGeneratingChannel] = useState<string | null>(null);
-  const [detailTab, setDetailTab] = useState<'info' | 'copywriting' | 'edit'>('info');
-  const [showTriggerPicker, setShowTriggerPicker] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Auto-open create dialog from URL params (from 客户画像/智能推荐 linkage)
-  useEffect(() => {
-    const autoName = searchParams.get('name');
-    const autoDesc = searchParams.get('desc');
-    const autoTrigger = searchParams.get('trigger') as TriggerType | null;
-    const autoActions = searchParams.get('actions');
-    const autoChannels = searchParams.get('channels');
-    const autoGenerate = searchParams.get('autoGenerate') === 'true';
-    if (autoName) {
-      setDialogMode('add');
-      setFormName(autoName);
-      setFormDesc(autoDesc || '');
-      setFormExecType('自动');
-      setFormExecTime('每日 09:00 检查');
-      setSelectedTriggers(autoTrigger ? [autoTrigger] : []);
-      const actions = autoActions ? JSON.parse(autoActions) : [];
-      setFormActions(actions);
-      const channels = autoChannels ? autoChannels.split(',') : ['sms', 'miniapp'];
-      setFormNotifyChannels(channels);
-      setChannelContents({});
-
-      if (autoGenerate) {
-        // Auto-jump to step 2 and generate all channel content
-        setWizardStep(2);
-        const actionText = actions.map((a: any) => a.value).join('、') || '专属优惠';
-        const ruleName = autoName;
-        const genContent: Record<string, string> = {};
-        for (const ch of channels) {
-          switch (ch) {
-            case 'sms': genContent[ch] = `【心悦芸】亲爱的{客户名}，${ruleName}来啦！${actionText}，限时15天，点击预约→ mini.beauty.com/r 回T退订`; break;
-            case 'miniapp': genContent[ch] = `🌸 ${ruleName}\n${actionText}，限时特惠！\n点击查看详情，立即预约体验 →`; break;
-            case 'wechat': genContent[ch] = `✨ ${ruleName}\n\n亲爱的会员，${actionText}的专属福利！\n\n⏰ 限时优惠，名额有限\n📍 心悦芸美容养生会所`; break;
-            case 'group': genContent[ch] = `姐妹们～ ${ruleName}开始啦 🎉\n${actionText}！名额有限先到先得哦～ 💕`; break;
-            case 'store': genContent[ch] = `【话术】"X姐您好，${ruleName}，${actionText}。特别适合您，要不要帮您预约？"`; break;
-            case 'moments': genContent[ch] = `${ruleName} | ${actionText}\n📍 心悦芸美容养生会所 🔥 限时特惠`; break;
-          }
-        }
-        setChannelContents(genContent);
-      } else {
-        setWizardStep(1);
-      }
-
-      setShowCreateDialog(true);
-      setSearchParams({}, { replace: true });
-    }
+  const loadList = useCallback(async (nextKeyword: string, nextStatus: string) => {
+    const [strategyResponse, automationEffects] = await Promise.all([
+      getAutomationStrategiesPaginated({ page: 1, pageSize: 50, keyword: nextKeyword || undefined, status: nextStatus }),
+      getAutomationEffects(),
+    ]);
+    setStrategies(strategyResponse.items);
+    setEffects(automationEffects);
   }, []);
 
-  const filtered = strategies.filter((s) => {
-    if (keyword && !s.name.includes(keyword) && !s.description.includes(keyword)) return false;
-    if (statusFilter !== '全部' && s.status !== statusFilter) return false;
-    return true;
-  });
-
-  const activeCount = strategies.filter(s => s.status === '启用').length;
-  const totalTarget = strategies.filter(s => s.status === '启用').reduce((sum, s) => sum + s.targetCount, 0);
-
-  const getStatusColor = (status: Strategy['status']) => {
-    switch (status) {
-      case '启用': return 'bg-green-100 text-green-700';
-      case '停用': return 'bg-gray-100 text-gray-500';
-      case '草稿': return 'bg-yellow-100 text-yellow-700';
-    }
-  };
-
-  const getActionColor = (type: string) => {
-    switch (type) {
-      case 'coupon': return 'bg-blue-100 text-blue-700';
-      case 'discount': return 'bg-purple-100 text-purple-700';
-      case 'gift': return 'bg-pink-100 text-pink-700';
-      case 'points': return 'bg-orange-100 text-orange-700';
-      case 'sms': return 'bg-green-100 text-green-700';
-      case 'push': return 'bg-indigo-100 text-indigo-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const handleCreate = () => {
-    setDialogMode('add');
-    setWizardStep(1);
-    setFormName(''); setFormDesc(''); setFormExecType('自动'); setFormExecTime('');
-    setSelectedTriggers([]); setTriggerParams({}); setFormActions([]); setFormNotifyChannels([]);
-    setChannelContents({});
-    setShowCreateDialog(true);
-  };
-
-  const handleEdit = (s: Strategy) => {
-    setDialogMode('edit');
-    setFormName(s.name); setFormDesc(s.description); setFormExecType(s.executionType as '自动' | '手动'); setFormExecTime(s.executionTime);
-    setSelectedTriggers(s.triggerRules.map(r => r.type));
-    setFormActions(s.actions.map(a => ({ type: a.type, value: a.value })));
-    setSelectedStrategy(s);
-    setShowCreateDialog(true);
-  };
-
-  const handleViewDetail = (s: Strategy) => { setSelectedStrategy(s); setShowDetailDialog(true); };
-
-  const toggleTrigger = (type: TriggerType) => {
-    setSelectedTriggers(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
-  };
-
-  const addAction = () => { setFormActions(prev => [...prev, { type: 'coupon', value: '' }]); };
-  const removeAction = (idx: number) => { setFormActions(prev => prev.filter((_, i) => i !== idx)); };
-
-  const handleToggleStatus = (s: Strategy) => {
-    setStrategies(prev => prev.map(item => item.id === s.id ? { ...item, status: item.status === '启用' ? '停用' : '启用' } : item));
-    toast.success(s.status === '启用' ? '策略已停用' : '策略已启用');
-  };
-
-  const handleDelete = (s: Strategy) => {
-    setStrategies(prev => prev.filter(item => item.id !== s.id));
-    toast.success('策略已删除');
-  };
-
-  const handleCopy = (s: Strategy) => {
-    setDialogMode('add');
-    setFormName(`${s.name}（副本）`);
-    setFormDesc(s.description);
-    setFormExecType(s.executionType as '自动' | '手动');
-    setFormExecTime(s.executionTime);
-    setSelectedTriggers(s.triggerRules.map(r => r.type));
-    setFormActions(s.actions.map(a => ({ type: a.type, value: a.value })));
-    setFormNotifyChannels([]);
-    setChannelContents({});
-    setSelectedStrategy(null);
-    setShowCreateDialog(true);
-  };
-
-  // AI 渠道文案生成
-  const generateChannelContent = (channel: string) => {
-    setGeneratingChannel(channel);
-    const actionText = formActions.map((a) => a.value).join('、') || '专属优惠';
-    const ruleName = formName || '营销活动';
-    setTimeout(() => {
-      let content = '';
-      switch (channel) {
-        case 'sms':
-          content = `【心悦芸】亲爱的{客户名}，${ruleName}来啦！${actionText}，限时15天，点击预约→ mini.beauty.com/r 回T退订`;
-          break;
-        case 'miniapp':
-          content = `🌸 ${ruleName}\n${actionText}，限时特惠！\n点击查看详情，立即预约体验 →`;
-          break;
-        case 'wechat':
-          content = `✨ ${ruleName}\n\n亲爱的会员，我们为您精心准备了${actionText}的专属福利！\n\n🎁 活动亮点：\n• ${actionText}\n• 专业美容师一对一服务\n• 进口高端产品\n\n⏰ 限时优惠，名额有限\n📍 心悦芸美容养生会所\n\n点击下方按钮立即预约 ↓`;
-          break;
-        case 'group':
-          content = `姐妹们～ ${ruleName}开始啦 🎉\n${actionText}！\n名额有限先到先得哦～\n需要的姐妹私聊我预约时间 💕`;
-          break;
-        case 'store':
-          content = `【美容师话术】\n"X姐您好，最近我们门店推出了${ruleName}，${actionText}。根据您上次的护理情况，这个活动特别适合您，要不要帮您预约一下？"`;
-          break;
-        case 'moments':
-          content = `${ruleName} | ${actionText}\n📍 心悦芸美容养生会所\n🔥 限时特惠，点击了解详情`;
-          break;
+  useEffect(() => {
+    const loadInitial = async () => {
+      setLoading(true);
+      setLoadError('');
+      try {
+        const options = await getAutomationTriggerOptions();
+        setTriggerOptions(options);
+        await loadList('', 'all');
+      } catch {
+        setLoadError('自动营销数据加载失败，请稍后重试。');
+      } finally {
+        setLoading(false);
       }
-      setChannelContents((prev) => ({ ...prev, [channel]: content }));
-      setGeneratingChannel(null);
-    }, 1000);
+    };
+    void loadInitial();
+  }, [loadList]);
+
+  useEffect(() => {
+    if (!triggerOptions.length || !searchParams.get('name')) return;
+    const next = emptyForm();
+    next.name = searchParams.get('name') || '';
+    next.description = searchParams.get('desc') || '';
+    const type = searchParams.get('trigger') as MarketingTriggerType | null;
+    const option = triggerOptions.find((item) => item.type === type);
+    if (option) next.triggerRules = [createTriggerRuleFromOption(option)];
+    try {
+      const actions = JSON.parse(searchParams.get('actions') || '[]') as Array<{ type: MarketingAction['type']; value: string }>;
+      next.actions = actions.map((action, index) => ({
+        ...action,
+        channel: (searchParams.get('channels')?.split(',')[index] || 'miniapp') as MarketingAction['channel'],
+      }));
+    } catch {
+      next.actions = [];
+    }
+    setMode('create');
+    setForm(next);
+    setPreview(null);
+    setStep(1);
+    setShowEditor(true);
+    setSearchParams({}, { replace: true });
+  }, [triggerOptions, searchParams, setSearchParams]);
+
+  const effectByStrategy = useMemo(
+    () => new Map(effects.map((item) => [item.strategyId, item])),
+    [effects],
+  );
+
+  const openCreate = () => {
+    setMode('create');
+    setSelected(null);
+    setForm(emptyForm());
+    setPreview(null);
+    setStep(1);
+    setShowEditor(true);
   };
+
+  const openEdit = (strategy: MarketingAutomationStrategy) => {
+    setMode('edit');
+    setSelected(strategy);
+    setForm(createForm(strategy));
+    setPreview(null);
+    setStep(1);
+    setShowEditor(true);
+  };
+
+  const openCopy = (strategy: MarketingAutomationStrategy) => {
+    const next = createForm(strategy);
+    next.name = `${next.name}（副本）`;
+    setMode('create');
+    setSelected(null);
+    setForm(next);
+    setPreview(null);
+    setStep(1);
+    setShowEditor(true);
+  };
+
+  const openDetail = async (strategy: MarketingAutomationStrategy) => {
+    setSelected(strategy);
+    setShowDetail(true);
+    const response = await getAutomationExecutionsPaginated({ page: 1, pageSize: 5, strategyId: strategy.id });
+    setExecutions(response.items);
+  };
+
+  const toggleRule = (option: MarketingTriggerOption) => {
+    setForm((current) => {
+      const existing = current.triggerRules.some((rule) => rule.type === option.type);
+      return {
+        ...current,
+        triggerRules: existing
+          ? current.triggerRules.filter((rule) => rule.type !== option.type)
+          : [...current.triggerRules, createTriggerRuleFromOption(option)],
+      };
+    });
+    setPreview(null);
+  };
+
+  const setRuleParam = (type: MarketingTriggerType, key: string, value: MarketingParamValue) => {
+    setForm((current) => ({
+      ...current,
+      triggerRules: current.triggerRules.map((rule) =>
+        rule.type === type ? customizeTriggerRule(rule, key, value) : rule
+      ),
+    }));
+    setPreview(null);
+  };
+
+  const addAction = () => {
+    setForm((current) => ({
+      ...current,
+      actions: [...current.actions, { type: 'coupon', value: '', channel: 'miniapp' }],
+    }));
+  };
+
+  const updateAction = (index: number, patch: Partial<MarketingAction>) => {
+    setForm((current) => ({
+      ...current,
+      actions: current.actions.map((action, currentIndex) => currentIndex === index ? { ...action, ...patch } : action),
+    }));
+  };
+
+  const removeAction = (index: number) => {
+    setForm((current) => ({ ...current, actions: current.actions.filter((_, currentIndex) => currentIndex !== index) }));
+  };
+
+  const handlePreview = async () => {
+    if (!form.triggerRules.length) {
+      toast.error('请至少选择一条触发规则');
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      setPreview(await previewAutomationAudience(selected?.id || 'draft', {
+        triggerRules: form.triggerRules,
+        ruleRelation: form.ruleRelation,
+      }));
+    } catch {
+      toast.error('命中客户预估失败');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const validateForm = () => {
+    if (!form.name.trim()) return '请输入策略名称';
+    if (!form.triggerRules.length) return '请至少选择一条触发规则';
+    if (!form.actions.length || form.actions.some((action) => !action.value.trim())) return '请配置至少一项完整营销动作';
+    return '';
+  };
+
+  const submit = async (draft: boolean) => {
+    const validation = validateForm();
+    if (validation) {
+      toast.error(validation);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = createInput(form);
+      if (mode === 'edit' && selected) {
+        await updateAutomationStrategy(selected.id, payload);
+        toast.success('策略已更新');
+      } else if (draft) {
+        await saveAutomationStrategyDraft(payload);
+        toast.success('已保存为草稿');
+      } else {
+        await createAutomationStrategy(payload);
+        toast.success('策略已创建并启用');
+      }
+      setShowEditor(false);
+      await loadList(keyword, status);
+    } catch {
+      toast.error('策略保存失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleStatus = async (strategy: MarketingAutomationStrategy) => {
+    setOperatingId(strategy.id);
+    try {
+      if (strategy.status === 'enabled') {
+        await pauseAutomationStrategy(strategy.id);
+        toast.success('策略已暂停');
+      } else {
+        await enableAutomationStrategy(strategy.id);
+        toast.success('策略已启用');
+      }
+      await loadList(keyword, status);
+    } catch {
+      toast.error('状态更新失败');
+    } finally {
+      setOperatingId(null);
+    }
+  };
+
+  const executeNow = async (strategy: MarketingAutomationStrategy) => {
+    setOperatingId(strategy.id);
+    try {
+      const result = await executeAutomationStrategy(strategy.id);
+      toast.success(`执行完成，已触达 ${result.reachedCount} 位客户`);
+      await loadList(keyword, status);
+    } catch {
+      toast.error('执行失败');
+    } finally {
+      setOperatingId(null);
+    }
+  };
+
+  const removeStrategy = async (strategy: MarketingAutomationStrategy) => {
+    if (!window.confirm(`确认删除策略“${strategy.name}”吗？`)) return;
+    setOperatingId(strategy.id);
+    try {
+      await deleteAutomationStrategy(strategy.id);
+      toast.success('策略已删除');
+      await loadList(keyword, status);
+    } catch {
+      toast.error('删除失败');
+    } finally {
+      setOperatingId(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex h-72 items-center justify-center text-sm text-gray-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" />加载自动营销策略...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-72 flex-col items-center justify-center gap-4 text-sm text-gray-600">
+        <span>{loadError}</span>
+        <Button onClick={() => window.location.reload()}>重新加载</Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="text-sm text-gray-500">首页 / 智能营销 / 自动营销</div>
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">自动营销</h2>
-          <p className="text-sm text-gray-500 mt-1">创建和管理自动化营销规则，基于客户行为和时间规则自动触发发券和通知</p>
+          <h1 className="text-xl font-semibold text-gray-900">自动营销</h1>
+          <p className="mt-1 text-sm text-gray-500">基于客户画像与消费行为配置自动触发策略</p>
         </div>
-        <Button className="gap-2" onClick={handleCreate}><Plus className="w-4 h-4" /> 创建规则</Button>
+        <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" />新建策略</Button>
       </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-          <div className="text-sm text-blue-600 mb-1">规则总数</div>
-          <div className="text-2xl font-bold text-blue-900">{strategies.length}</div>
-        </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-          <div className="text-sm text-green-600 mb-1">运行中</div>
-          <div className="text-2xl font-bold text-green-900">{activeCount}</div>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-          <div className="text-sm text-purple-600 mb-1">覆盖客户</div>
-          <div className="text-2xl font-bold text-purple-900">{totalTarget}</div>
-        </div>
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4">
-          <div className="text-sm text-orange-600 mb-1">本月触发次数</div>
-          <div className="text-2xl font-bold text-orange-900">328</div>
-        </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Stat title="策略总数" value={strategies.length} icon={<Sparkles className="h-5 w-5 text-blue-600" />} />
+        <Stat title="启用中" value={strategies.filter((item) => item.status === 'enabled').length} icon={<Play className="h-5 w-5 text-green-600" />} />
+        <Stat title="预计覆盖客户" value={strategies.filter((item) => item.status === 'enabled').reduce((sum, item) => sum + item.targetCount, 0)} icon={<Users className="h-5 w-5 text-purple-600" />} />
       </div>
 
-      {/* 状态标签栏 + 搜索 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {(['全部', '启用', '停用', '草稿'] as const).map((status) => {
-            const count = status === '全部' ? strategies.length : strategies.filter(s => s.status === status).length;
-            return (
-              <button key={status} onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === status ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                {status} ({count})
-              </button>
-            );
-          })}
+      <div className="flex items-center gap-3 border-y border-gray-200 py-4">
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索策略名称" className="pl-9" />
         </div>
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input className="pl-9" placeholder="搜索策略名称" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-        </div>
+        <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm">
+          <option value="all">全部状态</option>
+          <option value="enabled">启用</option>
+          <option value="paused">暂停</option>
+          <option value="draft">草稿</option>
+        </select>
+        <Button variant="outline" onClick={() => void loadList(keyword, status)}>筛选</Button>
       </div>
 
-      {/* 策略列表 */}
-      <div className="space-y-4">
-        {filtered.map((strategy) => (
-          <div key={strategy.id} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-800 text-lg">{strategy.name}</h3>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(strategy.status)}`}>{strategy.status}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${strategy.executionType === '自动' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-600'}`}>
-                    {strategy.executionType}执行
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">{strategy.description}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 ml-4">
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => { setSelectedStrategy(strategy); setDetailTab('info'); setShowDetailDialog(true); }}><Eye className="w-3 h-3" /> 管理</Button>
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => { navigator.clipboard?.writeText(`https://mini.beauty-salon.com/rule/${strategy.id}`); toast.success('分享链接已复制'); }}><Share2 className="w-3 h-3" /> 分享</Button>
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => handleToggleStatus(strategy)}>
-                  {strategy.status === '启用' ? <><Pause className="w-3 h-3" /> 停用</> : <><Play className="w-3 h-3" /> 启用</>}
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1 text-red-500 hover:text-red-600 hover:border-red-300" onClick={() => handleDelete(strategy)}><Trash2 className="w-3 h-3" /> 删除</Button>
-              </div>
-            </div>
+      {strategies.length === 0 ? (
+        <div className="flex h-48 flex-col items-center justify-center border border-dashed border-gray-300 text-sm text-gray-500">
+          <Target className="mb-3 h-8 w-8 text-gray-300" />
+          暂无符合条件的自动营销策略
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>策略</TableHead>
+              <TableHead>触发规则</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>覆盖客户</TableHead>
+              <TableHead>效果</TableHead>
+              <TableHead className="w-56">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {strategies.map((strategy) => {
+              const effect = effectByStrategy.get(strategy.id);
+              return (
+                <TableRow key={strategy.id}>
+                  <TableCell>
+                    <div className="font-medium text-gray-900">{strategy.name}</div>
+                    <div className="mt-1 max-w-64 text-xs text-gray-500">{strategy.description}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {strategy.triggerRules.map((rule) => (
+                        <span key={rule.type} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
+                          {triggerOptions.find((option) => option.type === rule.type)?.label || rule.type}
+                        </span>
+                      ))}
+                      <span className="text-xs text-gray-400">{strategy.ruleRelation}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell><StatusBadge status={strategy.status} /></TableCell>
+                  <TableCell className="font-medium text-gray-900">{strategy.targetCount} 人</TableCell>
+                  <TableCell className="text-xs text-gray-600">
+                    <div>回店率 {effect?.returnRate || '-'}</div>
+                    <div className="mt-1">ROI {effect?.roi || '-'}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <IconButton title="查看详情" onClick={() => void openDetail(strategy)}><Eye className="h-4 w-4" /></IconButton>
+                      <IconButton title="编辑" onClick={() => openEdit(strategy)}><Edit className="h-4 w-4" /></IconButton>
+                      <IconButton title="复制" onClick={() => openCopy(strategy)}><Copy className="h-4 w-4" /></IconButton>
+                      <IconButton title={strategy.status === 'enabled' ? '暂停' : '启用'} onClick={() => void toggleStatus(strategy)} disabled={operatingId === strategy.id}>
+                        {strategy.status === 'enabled' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      </IconButton>
+                      <IconButton title="立即执行" onClick={() => void executeNow(strategy)} disabled={operatingId === strategy.id}><WandSparkles className="h-4 w-4" /></IconButton>
+                      <IconButton title="删除" onClick={() => void removeStrategy(strategy)} disabled={operatingId === strategy.id}><Trash2 className="h-4 w-4" /></IconButton>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
 
-            {/* 触发规则 */}
-            <div className="mb-3">
-              <div className="text-xs text-gray-500 mb-2">触发规则</div>
-              <div className="flex flex-wrap gap-2">
-                {strategy.triggerRules.map((rule, idx) => (
-                  <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-                    {rule.icon}
-                    <span className="font-medium">{rule.label}</span>
-                    <span className="text-blue-500">
-                      {Object.values(rule.params).join(' ')}
-                    </span>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* 执行动作 */}
-            <div className="mb-3">
-              <div className="text-xs text-gray-500 mb-2">执行动作</div>
-              <div className="flex flex-wrap gap-2">
-                {strategy.actions.map((action, idx) => (
-                  <span key={idx} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${getActionColor(action.type)}`}>
-                    {action.label}：{action.value}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* 底部数据 */}
-            <div className="flex items-center gap-6 pt-3 border-t border-gray-100 text-sm text-gray-500">
-              <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" /> 触达 {strategy.effect?.reachedCount || strategy.targetCount} 人</span>
-              <span className="flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5" /> 核销率 {strategy.effect?.couponUsedRate || '-'}</span>
-              <span className="flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5" /> 回店率 {strategy.effect?.returnRate || '-'}</span>
-              <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {strategy.executionTime}</span>
-              <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> 上次执行 {strategy.lastExecuted}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ===== 创建规则向导 ===== */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="strategy-create-desc">
-          <DialogHeader>
-            <DialogTitle>创建自动营销规则</DialogTitle>
-          </DialogHeader>
-          <span id="strategy-create-desc" className="sr-only">分步创建自动营销规则</span>
-
-          {/* 进度条 */}
-          <div className="flex items-center gap-2 mb-6">
-            {[{ step: 1, label: '定义规则' }, { step: 2, label: '文案与通知' }, { step: 3, label: '确认启用' }].map((s, i) => (
-              <div key={s.step} className="flex items-center flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${wizardStep >= s.step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>{s.step}</div>
-                <span className={`ml-2 text-sm ${wizardStep >= s.step ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>{s.label}</span>
-                {i < 2 && <div className={`flex-1 h-0.5 mx-3 ${wizardStep > s.step ? 'bg-blue-600' : 'bg-gray-200'}`} />}
-              </div>
+      <Dialog open={showEditor} onOpenChange={setShowEditor}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto" aria-describedby="strategy-editor-description">
+          <DialogHeader><DialogTitle>{mode === 'create' ? '新建自动营销策略' : '编辑自动营销策略'}</DialogTitle></DialogHeader>
+          <span id="strategy-editor-description" className="sr-only">配置触发规则、营销动作和执行方式</span>
+          <div className="mb-5 flex gap-6 border-b border-gray-200 pb-3 text-sm">
+            {['触发规则', '营销动作', '确认提交'].map((label, index) => (
+              <span key={label} className={step === index + 1 ? 'font-medium text-blue-600' : 'text-gray-400'}>
+                {index + 1}. {label}
+              </span>
             ))}
           </div>
-
-          {/* 步骤1: 定义规则 */}
-          {wizardStep === 1 && (
+          {step === 1 && (
             <div className="space-y-5">
-              <div className="border border-gray-200 rounded-lg p-5">
-                <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2"><Target className="w-4 h-4 text-blue-600" /> 基础信息</h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">规则名称 <span className="text-red-500">*</span></label>
-                    <Input placeholder="如：沉睡客户唤醒计划" value={formName} onChange={(e) => setFormName(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">规则描述</label>
-                    <textarea className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md" rows={2} placeholder="描述规则的目标和预期效果" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">执行方式</label>
-                      <select className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md" value={formExecType} onChange={(e) => setFormExecType(e.target.value as '自动' | '手动')}>
-                        <option value="自动">自动执行</option><option value="手动">手动执行</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">执行时间</label>
-                      <Input placeholder="如：每周一 09:00" value={formExecTime} onChange={(e) => setFormExecTime(e.target.value)} />
-                    </div>
-                  </div>
-                </div>
+              <div className="grid grid-cols-3 gap-3">
+                <label className="text-sm text-gray-600">策略名称<Input className="mt-1" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+                <label className="text-sm text-gray-600">执行方式
+                  <select className="mt-1 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm" value={form.executionType} onChange={(event) => setForm({ ...form, executionType: event.target.value as 'auto' | 'manual' })}>
+                    <option value="auto">自动执行</option>
+                    <option value="manual">手动执行</option>
+                  </select>
+                </label>
+                <label className="text-sm text-gray-600">执行时间<Input type="time" className="mt-1" value={form.executionTime} onChange={(event) => setForm({ ...form, executionTime: event.target.value })} /></label>
               </div>
-
-              {/* 触发规则 */}
-              <div className="border border-gray-200 rounded-lg p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-800 flex items-center gap-2"><Filter className="w-4 h-4 text-blue-600" /> 触发规则</h4>
-                </div>
-                {selectedTriggers.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    {selectedTriggers.map((type) => {
-                      const opt = TRIGGER_OPTIONS.find(o => o.type === type)!;
-                      return (
-                        <div key={type} className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
-                          {opt.icon}<span className="font-medium text-blue-800 text-sm">{opt.label}</span>
-                          <button onClick={() => toggleTrigger(type)} className="ml-auto text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <button onClick={() => setShowTriggerPicker(!showTriggerPicker)} className="w-full border-2 border-dashed border-gray-300 rounded-lg p-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> 添加触发规则
-                </button>
-                {showTriggerPicker && (
-                  <div className="mt-3 border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    {['时间触发', '行为触发', '属性触发'].map(cat => (
-                      <div key={cat} className="mb-3">
-                        <div className="text-xs text-gray-500 mb-2">{cat}</div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {TRIGGER_OPTIONS.filter(o => o.category === cat).map(opt => (
-                            <button key={opt.type} onClick={() => { toggleTrigger(opt.type); setShowTriggerPicker(false); }} disabled={selectedTriggers.includes(opt.type)}
-                              className={`flex items-center gap-2 p-2 rounded-lg border text-left text-sm ${selectedTriggers.includes(opt.type) ? 'border-blue-300 bg-blue-50 opacity-50' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
-                              {opt.icon}<div><div className="font-medium">{opt.label}</div><div className="text-xs text-gray-500">{opt.description}</div></div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+              <label className="block text-sm text-gray-600">策略说明
+                <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" rows={2} />
+              </label>
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-800">选择触发规则</span>
+                  <div className="flex items-center rounded-md border border-gray-200 p-1 text-xs">
+                    {(['AND', 'OR'] as MarketingRuleRelation[]).map((relation) => (
+                      <button key={relation} type="button" onClick={() => setForm({ ...form, ruleRelation: relation })}
+                        className={`rounded px-3 py-1.5 ${form.ruleRelation === relation ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>
+                        {relation}
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
-
-              {/* 营销动作 */}
-              <div className="border border-gray-200 rounded-lg p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-800 flex items-center gap-2"><Zap className="w-4 h-4 text-blue-600" /> 营销动作</h4>
-                  <button onClick={addAction} className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> 添加</button>
                 </div>
-                {formActions.length === 0 && <div className="text-center py-4 text-gray-400 text-sm">请添加营销动作</div>}
-                <div className="space-y-2">
-                  {formActions.map((action, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
-                      <select className="h-9 px-3 text-sm border border-gray-300 rounded-md" value={action.type} onChange={(e) => { const next = [...formActions]; next[idx].type = e.target.value; setFormActions(next); }}>
-                        <option value="coupon">优惠券</option><option value="discount">折扣</option><option value="gift">赠品</option><option value="points">积分奖励</option><option value="experience">体验价</option><option value="recharge">储值赠送</option>
-                      </select>
-                      <Input className="flex-1" placeholder="如：满500减100" value={action.value} onChange={(e) => { const next = [...formActions]; next[idx].value = e.target.value; setFormActions(next); }} />
-                      <button onClick={() => removeAction(idx)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                {(['时间触发', '行为触发', '属性触发'] as const).map((category) => (
+                  <div key={category} className="mb-4">
+                    <div className="mb-2 text-xs font-medium text-gray-500">{category}</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {triggerOptions.filter((option) => option.category === category).map((option) => {
+                        const checked = form.triggerRules.some((rule) => rule.type === option.type);
+                        return (
+                          <button key={option.type} type="button" onClick={() => toggleRule(option)}
+                            className={`rounded-md border p-3 text-left ${checked ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                            <div className="flex items-center justify-between text-sm font-medium text-gray-900">
+                              {option.label}<span className="text-[11px] text-gray-400">{option.priority}</span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">{option.description}</div>
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="flex justify-between pt-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>取消</Button>
-                <Button onClick={() => { if (!formName.trim()) { toast.error('请输入规则名称'); return; } setWizardStep(2); }}>下一步 →</Button>
+              {form.triggerRules.map((rule) => {
+                const option = triggerOptions.find((item) => item.type === rule.type);
+                if (!option) return null;
+                return (
+                  <div key={rule.type} className="rounded-md border border-gray-200 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="font-medium text-gray-800">{option.label}参数</span>
+                      <span className={`rounded px-2 py-1 text-xs ${rule.parameterSource === 'system_default' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+                        {rule.parameterSource === 'system_default' ? '已使用系统推荐值' : '已自定义'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {option.paramSchema.map((field) => (
+                        <ParamField key={field.key} field={field} value={rule.params[field.key]}
+                          onChange={(value) => setRuleParam(rule.type, field.key, value)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex justify-end">
+                <Button onClick={() => setStep(2)}>下一步</Button>
               </div>
             </div>
           )}
-
-          {/* 步骤2: 文案与通知 */}
-          {wizardStep === 2 && (
-            <div className="space-y-5">
-              <div className="border border-gray-200 rounded-lg p-5">
-                <h4 className="font-medium text-gray-800 mb-3">🤖 自动触达渠道</h4>
-                <p className="text-xs text-gray-500 mb-3">系统自动发送，配置文案后即可生效</p>
-                <div className="space-y-3">
-                  {[
-                    { value: 'sms', label: '📱 短信通知', hint: '70字以内', rows: 3 },
-                    { value: 'miniapp', label: '📲 小程序推送', hint: '标题+内容', rows: 3 },
-                    { value: 'wechat', label: '💬 公众号模板消息', hint: '模板参数', rows: 3 },
-                  ].map((ch) => (
-                    <div key={ch.value} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2 cursor-pointer" onClick={() => setFormNotifyChannels((prev) => prev.includes(ch.value) ? prev.filter((c) => c !== ch.value) : [...prev, ch.value])}>
-                          <input type="checkbox" checked={formNotifyChannels.includes(ch.value)} readOnly className="w-4 h-4 text-purple-600 rounded" />
-                          <span className="text-sm font-medium text-gray-900">{ch.label}</span>
-                          <span className="text-xs text-gray-400">{ch.hint}</span>
-                        </label>
-                        {formNotifyChannels.includes(ch.value) && (
-                          <button type="button" onClick={() => generateChannelContent(ch.value)} disabled={generatingChannel === ch.value}
-                            className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1 disabled:opacity-50">
-                            {generatingChannel === ch.value ? <><Sparkles className="w-3 h-3 animate-spin" /> 生成中</> : <><Sparkles className="w-3 h-3" /> AI生成</>}
-                          </button>
-                        )}
-                      </div>
-                      {formNotifyChannels.includes(ch.value) && (
-                        <textarea rows={ch.rows} value={channelContents[ch.value] || ''} onChange={(e) => setChannelContents((prev) => ({ ...prev, [ch.value]: e.target.value }))}
-                          placeholder={`请输入${ch.label.slice(2)}文案，或点击AI生成`}
-                          className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none" />
-                      )}
-                    </div>
-                  ))}
-                </div>
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-800">营销动作与触达渠道</h3>
+                <Button variant="outline" size="sm" onClick={addAction}><Plus className="mr-1 h-3.5 w-3.5" />添加动作</Button>
               </div>
-
-              <div className="border border-gray-200 rounded-lg p-5">
-                <h4 className="font-medium text-gray-800 mb-3">👤 人工待办渠道</h4>
-                <p className="text-xs text-gray-500 mb-3">生成待办任务提醒运营人员执行</p>
-                <div className="space-y-3">
-                  {[
-                    { value: 'group', label: '👥 社群通知', hint: '口语化', rows: 3 },
-                    { value: 'store', label: '🏪 门店话术', hint: '美容师话术', rows: 3 },
-                    { value: 'moments', label: '📢 朋友圈广告', hint: '广告文案', rows: 2 },
-                  ].map((ch) => (
-                    <div key={ch.value} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2 cursor-pointer" onClick={() => setFormNotifyChannels((prev) => prev.includes(ch.value) ? prev.filter((c) => c !== ch.value) : [...prev, ch.value])}>
-                          <input type="checkbox" checked={formNotifyChannels.includes(ch.value)} readOnly className="w-4 h-4 text-orange-500 rounded" />
-                          <span className="text-sm font-medium text-gray-900">{ch.label}</span>
-                          <span className="text-xs text-gray-400">{ch.hint}</span>
-                        </label>
-                        {formNotifyChannels.includes(ch.value) && (
-                          <button type="button" onClick={() => generateChannelContent(ch.value)} disabled={generatingChannel === ch.value}
-                            className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1 disabled:opacity-50">
-                            {generatingChannel === ch.value ? <><Sparkles className="w-3 h-3 animate-spin" /> 生成中</> : <><Sparkles className="w-3 h-3" /> AI生成</>}
-                          </button>
-                        )}
-                      </div>
-                      {formNotifyChannels.includes(ch.value) && (
-                        <textarea rows={ch.rows} value={channelContents[ch.value] || ''} onChange={(e) => setChannelContents((prev) => ({ ...prev, [ch.value]: e.target.value }))}
-                          placeholder={`请输入${ch.label.slice(2)}文案，或点击AI生成`}
-                          className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none" />
-                      )}
+              {form.actions.length === 0 && <div className="rounded-md border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">请添加优惠或触达动作</div>}
+              {form.actions.map((action, index) => (
+                <div key={index} className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <div className="grid grid-cols-[130px_150px_1fr_auto] gap-3">
+                    <select value={action.type} onChange={(event) => updateAction(index, { type: event.target.value as MarketingAction['type'] })} className="h-9 rounded-md border border-gray-300 px-2 text-sm">
+                      <option value="coupon">优惠券</option><option value="discount">折扣</option><option value="gift">赠品</option><option value="points">积分</option><option value="sms">通知</option>
+                    </select>
+                    <select value={action.channel} onChange={(event) => updateAction(index, { channel: event.target.value as MarketingAction['channel'] })} className="h-9 rounded-md border border-gray-300 px-2 text-sm">
+                      {CHANNEL_OPTIONS.map((channel) => <option key={channel.value} value={channel.value}>{channel.label}</option>)}
+                    </select>
+                    <Input value={action.value} placeholder="例如：护理套餐立减 100 元" onChange={(event) => updateAction(index, { value: event.target.value })} />
+                    <Button size="sm" variant="ghost" onClick={() => removeAction(index)}>移除</Button>
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                      <span>触达文案</span>
+                      <button type="button" className="flex items-center gap-1 text-blue-600" onClick={() => updateAction(index, {
+                        contentTemplate: `尊敬的{客户姓名}，${form.name || '专属护理活动'}已为您准备：${action.value || '专属权益'}，欢迎预约到店体验。`,
+                      })}>
+                        <WandSparkles className="h-3.5 w-3.5" />生成文案
+                      </button>
                     </div>
-                  ))}
+                    <textarea rows={2} value={action.contentTemplate || ''} onChange={(event) => updateAction(index, { contentTemplate: event.target.value })}
+                      placeholder="填写对应渠道的客户触达文案" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+                  </div>
                 </div>
-              </div>
-
+              ))}
               <div className="flex justify-between pt-2">
-                <Button variant="outline" onClick={() => setWizardStep(1)}>← 上一步</Button>
-                <Button onClick={() => setWizardStep(3)}>下一步 →</Button>
+                <Button variant="outline" onClick={() => setStep(1)}>上一步</Button>
+                <Button onClick={() => setStep(3)}>下一步</Button>
               </div>
             </div>
           )}
-
-          {/* 步骤3: 确认启用 */}
-          {wizardStep === 3 && (
+          {step === 3 && (
             <div className="space-y-5">
-              <div className="bg-gray-50 rounded-lg p-5 space-y-4">
-                <h4 className="font-medium text-gray-800">规则摘要</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-500">规则名称：</span><span className="font-medium text-gray-900">{formName}</span></div>
-                  <div><span className="text-gray-500">执行方式：</span><span className="text-gray-900">{formExecType}执行</span></div>
-                  <div><span className="text-gray-500">执行时间：</span><span className="text-gray-900">{formExecTime || '未设置'}</span></div>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500">触发规则：</span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {selectedTriggers.map((t) => { const opt = TRIGGER_OPTIONS.find(o => o.type === t); return <span key={t} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">{opt?.label || t}</span>; })}
-                    {selectedTriggers.length === 0 && <span className="text-xs text-gray-400">未设置</span>}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500">营销动作：</span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {formActions.map((a, i) => <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">{a.value || a.type}</span>)}
-                    {formActions.length === 0 && <span className="text-xs text-gray-400">未设置</span>}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500">通知渠道：</span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {formNotifyChannels.map((ch) => {
-                      const labels: Record<string, string> = { sms: '📱短信', miniapp: '📲小程序', wechat: '💬公众号', group: '👥社群', store: '🏪门店', moments: '📢朋友圈' };
-                      const hasContent = !!channelContents[ch];
-                      return <span key={ch} className={`px-2 py-1 rounded text-xs ${hasContent ? 'bg-purple-100 text-purple-700' : 'bg-yellow-100 text-yellow-700'}`}>{labels[ch] || ch} {hasContent ? '✓' : '(未配文案)'}</span>;
-                    })}
-                    {formNotifyChannels.length === 0 && <span className="text-xs text-gray-400">未设置</span>}
-                  </div>
+              <div className="rounded-md bg-gray-50 p-4 text-sm text-gray-700">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>策略名称：<span className="font-medium text-gray-900">{form.name || '-'}</span></div>
+                  <div>执行方式：<span className="font-medium text-gray-900">{form.executionType === 'auto' ? '自动执行' : '手动执行'}</span></div>
+                  <div>组合关系：<span className="font-medium text-gray-900">{form.ruleRelation}</span></div>
+                  <div>营销动作：<span className="font-medium text-gray-900">{form.actions.length} 项</span></div>
                 </div>
               </div>
-
+              <div>
+                <Button variant="outline" onClick={() => void handlePreview()} disabled={previewLoading}>
+                  {previewLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Target className="mr-2 h-4 w-4" />}
+                  预估命中客户
+                </Button>
+              </div>
+              {preview && (
+                <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/30 p-4">
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <Metric title="预计触达" value={`${preview.estimatedReachedCount ?? preview.total} 人`} />
+                    <Metric title="预计转化" value={`${preview.estimatedConvertedCount ?? 0} 人`} />
+                    <Metric title="预计收入" value={`¥${(preview.estimatedRevenue ?? 0).toLocaleString()}`} />
+                  </div>
+                  {preview.samples.length === 0 ? (
+                    <div className="py-5 text-center text-sm text-gray-500">当前规则没有命中客户，请调整参数后重试。</div>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>客户</TableHead><TableHead>会员等级</TableHead><TableHead>预测转化</TableHead><TableHead>LTV层级</TableHead><TableHead>预计收入</TableHead><TableHead>命中原因</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {preview.samples.map((customer) => (
+                          <TableRow key={customer.id}>
+                            <TableCell>{customer.name}<div className="text-xs text-gray-400">{customer.phone}</div></TableCell>
+                            <TableCell>{customer.memberLevel}</TableCell>
+                            <TableCell>{customer.predictedConversionScore ?? 0}%</TableCell>
+                            <TableCell>{customer.ltvTier || '-'}</TableCell>
+                            <TableCell>¥{(customer.predictedRevenue ?? 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-xs text-gray-600">{customer.reason}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              )}
               <div className="flex justify-between pt-2">
-                <Button variant="outline" onClick={() => setWizardStep(2)}>← 上一步</Button>
+                <Button variant="outline" onClick={() => setStep(2)}>上一步</Button>
                 <div className="flex gap-3">
-                  <Button variant="outline" disabled={isSubmitting} onClick={async () => {
-                    setIsSubmitting(true);
-                    try { await saveStrategyDraft({ name: formName, description: formDesc, executionType: formExecType, executionTime: formExecTime }); toast.success('已保存为草稿'); setShowCreateDialog(false); } catch { toast.error('保存失败'); } finally { setIsSubmitting(false); }
-                  }}>保存草稿</Button>
-                  <Button disabled={isSubmitting} onClick={async () => {
-                    setIsSubmitting(true);
-                    try { await createStrategy({ name: formName, description: formDesc, executionType: formExecType, executionTime: formExecTime }); toast.success('规则已创建并启用'); setShowCreateDialog(false); } catch { toast.error('创建失败'); } finally { setIsSubmitting(false); }
-                  }}>
-                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} 创建并启用
+                  {mode === 'create' && <Button variant="outline" disabled={submitting} onClick={() => void submit(true)}>保存草稿</Button>}
+                  <Button disabled={submitting} onClick={() => void submit(false)}>
+                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {mode === 'edit' ? '保存更改' : '创建并启用'}
                   </Button>
                 </div>
               </div>
@@ -722,145 +647,150 @@ export function CreateMarketing() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== 规则详情弹窗 ===== */}
-      <Dialog open={showDetailDialog} onOpenChange={(v) => { setShowDetailDialog(v); if (!v) setDetailTab('info'); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby="strategy-detail-desc">
-          <DialogHeader><DialogTitle>规则详情</DialogTitle></DialogHeader>
-          <span id="strategy-detail-desc" className="sr-only">查看自动营销规则详细信息</span>
-          {selectedStrategy && (
-            <div className="mt-2">
-              {/* Tab 切换 */}
-              <div className="flex gap-4 border-b border-gray-200 mb-5">
-                {[{ id: 'info' as const, label: '规则信息' }, { id: 'copywriting' as const, label: '文案配置' }].map((tab) => (
-                  <button key={tab.id} onClick={() => setDetailTab(tab.id)}
-                    className={`pb-3 px-1 text-sm font-medium transition-colors relative ${detailTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                    {tab.label}
-                    {detailTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600" />}
-                  </button>
-                ))}
+      <Dialog open={showDetail} onOpenChange={setShowDetail}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto" aria-describedby="strategy-detail-description">
+          <DialogHeader><DialogTitle>策略详情</DialogTitle></DialogHeader>
+          <span id="strategy-detail-description" className="sr-only">查看触发参数、效果与执行记录</span>
+          {selected && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-gray-900">{selected.name}</h3>
+                <StatusBadge status={selected.status} />
               </div>
-
-              {/* 规则信息 Tab */}
-              {detailTab === 'info' && (
-                <div className="space-y-5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-800">{selectedStrategy.name}</h3>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(selectedStrategy.status)}`}>{selectedStrategy.status}</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{selectedStrategy.description}</p>
-                  <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-2 gap-4">
-                    <div><div className="text-xs text-gray-500">执行方式</div><div className="text-sm font-medium text-gray-800 mt-1">{selectedStrategy.executionType}执行</div></div>
-                    <div><div className="text-xs text-gray-500">执行时间</div><div className="text-sm text-gray-800 mt-1">{selectedStrategy.executionTime}</div></div>
-                    <div><div className="text-xs text-gray-500">覆盖客户</div><div className="text-sm font-semibold text-blue-600 mt-1">{selectedStrategy.targetCount} 人</div></div>
-                    <div><div className="text-xs text-gray-500">上次执行</div><div className="text-sm text-gray-800 mt-1">{selectedStrategy.lastExecuted}</div></div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">触发规则</h4>
-                    <div className="space-y-2">
-                      {selectedStrategy.triggerRules.map((rule, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
-                          {rule.icon}<span className="font-medium text-blue-800">{rule.label}</span><span className="text-blue-600">{Object.values(rule.params).join(' ')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">营销动作</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedStrategy.actions.map((action, idx) => (
-                        <span key={idx} className={`inline-flex px-3 py-1.5 rounded-full text-sm font-medium ${getActionColor(action.type)}`}>{action.label}：{action.value}</span>
-                      ))}
-                    </div>
-                  </div>
-                  {selectedStrategy.effect && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">效果数据</h4>
-                      <div className="grid grid-cols-4 gap-3 mb-4">
-                        <div className="bg-blue-50 rounded-lg p-3 text-center"><div className="text-xl font-bold text-blue-900">{selectedStrategy.effect.triggerCount}</div><div className="text-xs text-blue-600">本月触发</div></div>
-                        <div className="bg-green-50 rounded-lg p-3 text-center"><div className="text-xl font-bold text-green-900">{selectedStrategy.effect.reachedCount}</div><div className="text-xs text-green-600">触达人数</div></div>
-                        <div className="bg-purple-50 rounded-lg p-3 text-center"><div className="text-xl font-bold text-purple-900">{selectedStrategy.effect.couponUsedRate}</div><div className="text-xs text-purple-600">核销率</div></div>
-                        <div className="bg-orange-50 rounded-lg p-3 text-center"><div className="text-xl font-bold text-orange-900">¥{selectedStrategy.effect.revenue.toLocaleString()}</div><div className="text-xs text-orange-600">带来营收</div></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between"><span className="text-sm text-gray-600">回店率</span><span className="text-sm font-semibold text-gray-900">{selectedStrategy.effect.returnRate}</span></div>
-                        <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between"><span className="text-sm text-gray-600">ROI</span><span className="text-sm font-semibold text-gray-900">{selectedStrategy.effect.cost > 0 ? `${(selectedStrategy.effect.revenue / selectedStrategy.effect.cost).toFixed(1)}x` : '-'}</span></div>
-                      </div>
-                      <div><div className="text-xs text-gray-500 mb-2">近7天触发趋势</div><div className="flex items-end gap-1.5 h-16">{selectedStrategy.effect.dailyTrend.map((val, idx) => { const max = Math.max(...selectedStrategy.effect!.dailyTrend, 1); return (<div key={idx} className="flex-1 flex flex-col items-center gap-1"><div className="w-full bg-blue-500 rounded-t" style={{ height: `${(val / max) * 100}%`, minHeight: val > 0 ? '4px' : '0' }} /><span className="text-[10px] text-gray-400">{['一', '二', '三', '四', '五', '六', '日'][idx]}</span></div>); })}</div></div>
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">最近执行记录</h4>
-                    <div className="space-y-2">
-                      {[
-                        { time: '2026-04-11 09:00', action: '自动发送优惠券', target: '张雅文等3位客户', result: '成功' },
-                        { time: '2026-04-10 09:00', action: '自动发送短信通知', target: '李美琪等5位客户', result: '成功' },
-                        { time: '2026-04-09 09:00', action: '自动发送优惠券', target: '王思涵等2位客户', result: '成功' },
-                        { time: '2026-04-08 09:00', action: '自动发送优惠券', target: '陈诗语等4位客户', result: '部分失败' },
-                      ].map((record, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg text-sm">
-                          <span className="text-gray-500">{record.time}</span><span className="text-gray-700">{record.action}</span><span className="text-gray-600">{record.target}</span>
-                          <span className={record.result === '成功' ? 'text-green-600' : 'text-orange-500'}>{record.result}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 文案配置 Tab */}
-              {detailTab === 'copywriting' && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">为每个通知渠道配置推送文案，自动渠道配置完成后即可自动发送</p>
-                  {[
-                    { value: 'sms', label: '📱 短信通知', group: 'auto', hint: '70字以内，含品牌签名和退订提示', rows: 3 },
-                    { value: 'miniapp', label: '📲 小程序推送', group: 'auto', hint: '标题20字+内容50字', rows: 3 },
-                    { value: 'wechat', label: '💬 公众号模板消息', group: 'auto', hint: '模板消息参数', rows: 3 },
-                    { value: 'group', label: '👥 社群通知', group: 'manual', hint: '口语化，200字以内', rows: 3 },
-                    { value: 'store', label: '🏪 门店话术', group: 'manual', hint: '美容师沟通话术', rows: 3 },
-                    { value: 'moments', label: '📢 朋友圈广告', group: 'manual', hint: '广告文案', rows: 2 },
-                  ].map((ch) => (
-                    <div key={ch.value} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-900">{ch.label}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${ch.group === 'auto' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {ch.group === 'auto' ? '自动发送' : '人工执行'}
-                          </span>
-                        </div>
-                        <button type="button" onClick={() => generateChannelContent(ch.value)} disabled={generatingChannel === ch.value}
-                          className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1 disabled:opacity-50">
-                          {generatingChannel === ch.value ? <><Sparkles className="w-3 h-3 animate-spin" /> 生成中...</> : <><Sparkles className="w-3 h-3" /> AI生成文案</>}
-                        </button>
-                      </div>
-                      <textarea
-                        rows={ch.rows}
-                        value={channelContents[ch.value] || ''}
-                        onChange={(e) => setChannelContents((prev) => ({ ...prev, [ch.value]: e.target.value }))}
-                        placeholder={ch.hint}
-                        className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
-                      />
-                      {ch.value === 'sms' && channelContents[ch.value] && (
-                        <div className={`mt-1 text-xs ${channelContents[ch.value].length > 70 ? 'text-red-500' : 'text-gray-400'}`}>{channelContents[ch.value].length}/70字</div>
-                      )}
+              <p className="text-sm text-gray-600">{selected.description}</p>
+              <div>
+                <h4 className="mb-2 text-sm font-medium text-gray-800">触发规则</h4>
+                <div className="space-y-2">
+                  {selected.triggerRules.map((rule) => (
+                    <div key={rule.type} className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                      <span className="font-medium">{triggerOptions.find((item) => item.type === rule.type)?.label || rule.type}</span>
+                      <span className="ml-3 text-blue-600">{formatMarketingRuleParams(rule, triggerOptions.find((item) => item.type === rule.type))}</span>
                     </div>
                   ))}
                 </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 mt-5">
-                {selectedStrategy.status === '启用' ? (
-                  <Button variant="outline" className="gap-1"><Pause className="w-4 h-4" /> 停用规则</Button>
-                ) : (
-                  <Button className="gap-1"><Play className="w-4 h-4" /> 启用规则</Button>
-                )}
-                <Button variant="outline" className="gap-1" onClick={() => { setShowDetailDialog(false); handleEdit(selectedStrategy); }}>
-                  <Edit className="w-4 h-4" /> 编辑
-                </Button>
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-medium text-gray-800">触达配置</h4>
+                {selected.actions.map((action, index) => (
+                  <div key={`${action.channel}-${index}`} className="mb-2 rounded-md border border-gray-200 px-3 py-2 text-sm">
+                    <span className="font-medium text-gray-900">{CHANNEL_OPTIONS.find((channel) => channel.value === action.channel)?.label || action.channel || '门店'}</span>
+                    <span className="ml-3 text-gray-700">{action.value}</span>
+                    {action.contentTemplate && <div className="mt-1 text-xs text-gray-500">{action.contentTemplate}</div>}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <Metric title="预计覆盖" value={`${selected.targetCount} 人`} />
+                <Metric title="预测转化" value={`${effectByStrategy.get(selected.id)?.predictedConvertedCount ?? 0} 人`} />
+                <Metric title="实际转化" value={`${effectByStrategy.get(selected.id)?.actualConvertedCount ?? 0} 人`} />
+                <Metric title="预测/实际收入" value={`¥${(effectByStrategy.get(selected.id)?.predictedRevenue || 0).toLocaleString()} / ¥${(effectByStrategy.get(selected.id)?.actualRevenue || 0).toLocaleString()}`} />
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-medium text-gray-800">最近执行记录</h4>
+                {executions.length === 0 ? <div className="text-sm text-gray-400">暂无执行记录</div> : executions.map((execution) => (
+                  <div key={execution.id} className="mb-2 flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
+                    <span>{execution.executedAt}</span><span>{execution.channel}</span><span>触达 {execution.reachedCount} 人</span>
+                    <span className="text-green-600">{execution.status === 'success' ? '成功' : '部分失败'}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function Stat({ title, value, icon }: { title: string; value: number; icon: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between border border-gray-200 px-5 py-4">
+      <div><div className="text-sm text-gray-500">{title}</div><div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div></div>
+      {icon}
+    </div>
+  );
+}
+
+function Metric({ title, value }: { title: string; value: string }) {
+  return <div className="rounded-md bg-gray-50 p-3"><div className="text-xs text-gray-500">{title}</div><div className="mt-1 font-semibold text-gray-900">{value}</div></div>;
+}
+
+function StatusBadge({ status }: { status: MarketingAutomationStrategy['status'] }) {
+  const style = status === 'enabled' ? 'bg-green-50 text-green-700' : status === 'paused' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-700';
+  return <span className={`rounded px-2 py-1 text-xs ${style}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function IconButton({ title, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { title: string }) {
+  return (
+    <button type="button" title={title} className="flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-40" {...props}>
+      {children}
+    </button>
+  );
+}
+
+function ParamField({
+  field,
+  value,
+  onChange,
+}: {
+  field: MarketingTriggerOption['paramSchema'][number];
+  value: MarketingParamValue | undefined;
+  onChange: (value: MarketingParamValue) => void;
+}) {
+  if (field.type === 'boolean') {
+    return (
+      <label className="flex items-center gap-2 pt-6 text-sm text-gray-700">
+        <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4" />
+        {field.label}
+      </label>
+    );
+  }
+  if (field.type === 'select') {
+    return (
+      <label className="text-sm text-gray-600">{field.label}
+        <select value={String(value || '')} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm">
+          {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+    );
+  }
+  if (field.type === 'multi_select') {
+    const selectedValues = Array.isArray(value) ? value.map(String) : [];
+    return (
+      <div className="text-sm text-gray-600">{field.label}
+        <div className="mt-2 flex flex-wrap gap-3">
+          {field.options?.map((option) => (
+            <label key={option.value} className="flex items-center gap-1 text-xs text-gray-700">
+              <input type="checkbox" checked={selectedValues.includes(option.value)} onChange={(event) => {
+                const next = event.target.checked ? [...selectedValues, option.value] : selectedValues.filter((item) => item !== option.value);
+                onChange(next);
+              }} />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (field.type === 'date_range') {
+    const range = Array.isArray(value) ? value as number[] : [-10, 3];
+    return (
+      <div className="text-sm text-gray-600">{field.label}
+        <div className="mt-1 flex items-center gap-2">
+          <Input type="number" value={range[0] ?? ''} onChange={(event) => onChange([Number(event.target.value), range[1] || 0])} />
+          <span>至</span>
+          <Input type="number" value={range[1] ?? ''} onChange={(event) => onChange([range[0] || 0, Number(event.target.value)])} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <label className="text-sm text-gray-600">{field.label}
+      <div className="mt-1 flex items-center gap-2">
+        <Input type={field.type === 'number' ? 'number' : 'text'} min={field.min} max={field.max} value={String(value ?? '')}
+          onChange={(event) => onChange(field.type === 'number' ? Number(event.target.value) : event.target.value)} />
+        {field.suffix && <span className="text-xs text-gray-500">{field.suffix}</span>}
+      </div>
+    </label>
   );
 }

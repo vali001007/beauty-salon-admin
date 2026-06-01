@@ -1,4 +1,4 @@
-import type { Customer } from '@/types';
+import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
 import apiClient from '../client';
 
 export async function realGetCustomers(params?: { keyword?: string; memberLevel?: string; storeName?: string }): Promise<Customer[]> {
@@ -31,4 +31,19 @@ export async function realImportCustomers(data: Record<string, any>[]): Promise<
 
 export async function realDeleteCustomers(ids: number[]): Promise<void> {
   return apiClient.post('/customers/batch-delete', { ids });
+}
+
+export async function realGetCustomerConsumptionRecords(): Promise<CustomerConsumptionRecord[]> {
+  return apiClient.get('/customers/consumption-records');
+}
+
+export async function realGetCustomerHealthProfiles(): Promise<CustomerHealthProfile[]> {
+  return apiClient.get('/customers/health-profiles');
+}
+
+export async function realUpdateCustomerHealthProfile(
+  customerId: number,
+  data: Partial<Omit<CustomerHealthProfile, 'id' | 'customerId' | 'name'>>,
+): Promise<CustomerHealthProfile> {
+  return apiClient.put(`/customers/${customerId}/health-profile`, data);
 }

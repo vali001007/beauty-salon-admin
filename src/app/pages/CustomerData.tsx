@@ -1,20 +1,34 @@
-import { useState, useMemo } from 'react';
-import { Search, Plus, Trash2, Upload, Eye, Loader2, Download, FileDown, Edit2 } from 'lucide-react';
+/* global HTMLCanvasElement, HTMLVideoElement, MediaStream, FileReader */
+import { useEffect, useState, useMemo, useRef, type ChangeEvent } from 'react';
+import { Search, Plus, Trash2, Upload, Eye, Loader2, Download, FileDown, Edit2, Camera, Sparkles } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ImportDialog } from '../components/ImportDialog';
-import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { customerSchema, type CustomerFormData } from '@/schemas/customer';
-import { getCustomersPaginated, createCustomer, updateCustomer, importCustomers, deleteCustomers } from '@/api/customer';
+import {
+  getCustomers,
+  getCustomersPaginated,
+  createCustomer,
+  updateCustomer,
+  importCustomers,
+  deleteCustomers,
+  getCustomerConsumptionRecords,
+  getCustomerHealthProfiles,
+  updateCustomerHealthProfile,
+} from '@/api/customer';
+import { analyzeSkinPhoto } from '@/api/ai';
 import { usePagination } from '@/hooks/usePagination';
 import { exportToExcel, downloadTemplate } from '@/utils/excel';
 import { toast } from 'sonner';
-import type { Customer } from '@/types';
+import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
+import type { SkinPhotoAnalyzeResult } from '@/types/ai';
 import type { ExportColumn } from '@/types/excel';
 import { PasswordConfirmDialog } from '../components/PasswordConfirmDialog';
-import rawCustomers from '@/api/mock/data/customers.json';
+import { useAuthStore } from '@/stores/authStore';
+import { useStoreStore } from '@/stores/storeStore';
+import { formatScopedValue } from '@/utils/fieldMask';
 
 const CUSTOMER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'name', header: '客户名称', width: 15 },
@@ -67,14 +81,23 @@ const CUSTOMER_IMPORT_SAMPLE = [
   { name: '示例客户', storeName: '心悦芸美容养生会所', email: '', phone: '13800138000', wechat: '', gender: '女', maritalStatus: '未知', birthday: '1996-01-01', age: 30, occupation: '', workplace: '', address: '', hasAllergy: '无', hasSurgery: '无', skinCondition: '', memberLevel: '无', source: '门店', remark: '' },
 ];
 
-import rawConsumptionRecords from '@/api/mock/data/consumption-records.json';
-import rawHealthProfiles from '@/api/mock/data/health-profiles.json';
+const cleanHealthText = (value?: string | null) => (value && value !== '-' ? value : '');
 
-const MOCK_CONSUMPTION_RECORDS = rawConsumptionRecords as any[];
-const MOCK_HEALTH_PROFILES = rawHealthProfiles as any[];
+const formatHealthDate = (value?: string | null) => {
+  if (!value || value === '-') return new Date().toISOString().slice(0, 10);
+  return value.includes('T') ? value.slice(0, 10) : value;
+};
 
 export function CustomerData() {
   const [activeTab, setActiveTab] = useState('base');
+  const fieldScopes = useAuthStore((state) => state.user?.fieldScopes);
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const stores = useStoreStore((state) => state.stores);
+  const currentStoreName = useMemo(
+    () => stores.find((store) => store.id === currentStoreId)?.name,
+    [currentStoreId, stores],
+  );
+  const defaultStoreName = currentStoreName ?? stores[0]?.name ?? '心悦美容养生会所';
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -82,12 +105,20 @@ export function CustomerData() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[]>([]);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [spendRecords, setSpendRecords] = useState<CustomerConsumptionRecord[]>([]);
+  const [healthProfiles, setHealthProfiles] = useState<CustomerHealthProfile[]>([]);
+  const [spendLoading, setSpendLoading] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [spendError, setSpendError] = useState<string | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [insightReloadKey, setInsightReloadKey] = useState(0);
 
   // Pagination for consumption records
   const [spendPage, setSpendPage] = useState(1);
   const [spendPageSize, setSpendPageSize] = useState(50);
-  const spendTotal = MOCK_CONSUMPTION_RECORDS.length;
-  const spendData = MOCK_CONSUMPTION_RECORDS.slice((spendPage - 1) * spendPageSize, spendPage * spendPageSize);
+  const spendTotal = spendRecords.length;
+  const spendData = spendRecords.slice((spendPage - 1) * spendPageSize, spendPage * spendPageSize);
 
   // Pagination for health profiles - merged with all customers
   const [healthPage, setHealthPage] = useState(1);
@@ -96,17 +127,107 @@ export function CustomerData() {
   const [healthSkinFilter, setHealthSkinFilter] = useState('');
   const [editingHealth, setEditingHealth] = useState<any>(null);
   const [showHealthEditDialog, setShowHealthEditDialog] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const skinPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const [showSkinAiDialog, setShowSkinAiDialog] = useState(false);
+  const [skinAiCustomerId, setSkinAiCustomerId] = useState<number | ''>('');
+  const [skinAiCustomerKeyword, setSkinAiCustomerKeyword] = useState('');
+  const [skinAiPhoto, setSkinAiPhoto] = useState('');
+  const [skinAiResult, setSkinAiResult] = useState<SkinPhotoAnalyzeResult | null>(null);
+  const [skinAiCameraError, setSkinAiCameraError] = useState<string | null>(null);
+  const [skinAiAnalyzing, setSkinAiAnalyzing] = useState(false);
+  const [skinAiSaving, setSkinAiSaving] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setSpendLoading(true);
+    setHealthLoading(true);
+    setSpendError(null);
+    setHealthError(null);
+    setSpendRecords([]);
+    setHealthProfiles([]);
+    setAllCustomers([]);
+
+    const loadInsights = () => {
+      void getCustomerConsumptionRecords()
+        .then((records) => {
+          if (!cancelled) {
+            setSpendRecords(records);
+            setSpendError(null);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            const message = error instanceof Error ? error.message : '消费记录加载失败';
+            setSpendError(message);
+            toast.error(message);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setSpendLoading(false);
+        });
+
+      void getCustomerHealthProfiles()
+        .then((profiles) => {
+          if (!cancelled) {
+            setHealthProfiles(profiles);
+            setHealthError(null);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            const message = error instanceof Error ? error.message : '肌肤档案加载失败';
+            setHealthError(message);
+            toast.error(message);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setHealthLoading(false);
+        });
+
+      void getCustomers({ storeName: currentStoreName })
+        .then((customersData) => {
+          if (!cancelled) setAllCustomers(customersData.map((customer) => ({ ...customer, tags: customer.tags || [] })));
+        })
+        .catch((error) => {
+          if (!cancelled) toast.warning(error instanceof Error ? `客户基础信息加载较慢：${error.message}` : '客户基础信息加载较慢');
+        });
+    };
+    void loadInsights();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStoreId, currentStoreName, insightReloadKey]);
 
   // Build health profile map by customerId
   const healthProfileMap = useMemo(() => {
     const map = new Map<number, any>();
-    for (const p of MOCK_HEALTH_PROFILES) map.set(p.customerId, p);
+    for (const p of healthProfiles) map.set(p.customerId, p);
     return map;
-  }, []);
+  }, [healthProfiles]);
 
   // Merge all customers with health profiles
   const allHealthRows = useMemo(() => {
-    return (rawCustomers as any[]).map((c: any) => {
+    if (!allCustomers.length) {
+      return healthProfiles.map((hp: any) => ({
+        customerId: hp.customerId,
+        name: hp.name,
+        photo: hp.photo || '',
+        skinType: hp.skinType || '-',
+        skinStatus: hp.skinStatus || '-',
+        mainProblems: hp.mainProblems || '-',
+        allergyHistory: hp.allergyHistory || '-',
+        goals: hp.goals || '-',
+        recommendedCare: hp.recommendedCare || '-',
+        instrument: hp.instrument || '-',
+        lastCheck: hp.lastCheck || '-',
+      }));
+    }
+
+    return allCustomers.map((c: any) => {
       const hp = healthProfileMap.get(c.id);
       return {
         customerId: c.id,
@@ -122,7 +243,7 @@ export function CustomerData() {
         lastCheck: hp?.lastCheck || '-',
       };
     });
-  }, [healthProfileMap]);
+  }, [allCustomers, healthProfileMap, healthProfiles]);
 
   const filteredHealthRows = useMemo(() => {
     let rows = allHealthRows;
@@ -138,9 +259,46 @@ export function CustomerData() {
 
   const healthTotal = filteredHealthRows.length;
   const healthData = filteredHealthRows.slice((healthPage - 1) * healthPageSize, healthPage * healthPageSize);
+  const skinAiCustomerOptions = useMemo(() => {
+    const keyword = skinAiCustomerKeyword.trim().toLowerCase();
+    return allCustomers
+      .filter((customer) => {
+        if (!keyword) return true;
+        return (
+          customer.name.toLowerCase().includes(keyword) ||
+          customer.phone.includes(keyword) ||
+          customer.storeName?.toLowerCase().includes(keyword)
+        );
+      })
+      .slice(0, 30);
+  }, [allCustomers, skinAiCustomerKeyword]);
+  const selectedSkinAiCustomer = useMemo(
+    () => allCustomers.find((customer) => customer.id === Number(skinAiCustomerId)),
+    [allCustomers, skinAiCustomerId],
+  );
 
-  const filters = useMemo(() => ({}), []);
+  const filters = useMemo(() => ({ storeName: currentStoreName }), [currentStoreName]);
   const { data: customers, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<Customer>(getCustomersPaginated, filters);
+
+  useEffect(() => {
+    setSelectedIds([]);
+    setPage(1);
+    setSpendPage(1);
+    setHealthPage(1);
+  }, [currentStoreId, setPage]);
+
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+      void videoRef.current.play().catch(() => undefined);
+    }
+  }, [cameraStream]);
+
+  useEffect(() => {
+    return () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraStream]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
@@ -161,7 +319,14 @@ export function CustomerData() {
         await updateCustomer(editingCustomer.id, data);
         toast.success('客户更新成功');
       } else {
-        await createCustomer({ ...data, storeName: '心悦美容养生会所' });
+        await createCustomer({
+          ...data,
+          phone: data.phone ?? '',
+          source: data.source ?? '',
+          memberLevel: data.memberLevel ?? '无',
+          tags: data.tags ?? [],
+          storeName: data.storeName || defaultStoreName,
+        });
         toast.success('客户创建成功');
       }
       handleCloseDialog();
@@ -173,7 +338,16 @@ export function CustomerData() {
 
   const handleOpenAdd = () => {
     setEditingCustomer(null);
-    reset({ gender: '女', maritalStatus: '未知', hasAllergy: '无', hasSurgery: '无', memberLevel: '无', source: '', tags: [] });
+    reset({
+      gender: '女',
+      maritalStatus: '未知',
+      hasAllergy: '无',
+      hasSurgery: '无',
+      memberLevel: '无',
+      source: '',
+      tags: [],
+      storeName: defaultStoreName,
+    });
     setShowAddDialog(true);
   };
 
@@ -187,6 +361,7 @@ export function CustomerData() {
       memberLevel: customer.memberLevel,
       tags: customer.tags,
       source: customer.source,
+      storeName: customer.storeName,
     });
     setShowAddDialog(true);
   };
@@ -222,6 +397,262 @@ export function CustomerData() {
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+  };
+
+  const stopSkinCamera = () => {
+    setCameraStream((stream) => {
+      stream?.getTracks().forEach((track) => track.stop());
+      return null;
+    });
+  };
+
+  const startSkinCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSkinAiCameraError('当前浏览器不支持摄像头调用，请上传照片检测。');
+      return false;
+    }
+
+    try {
+      setSkinAiCameraError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 960 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '无法访问摄像头';
+      setSkinAiCameraError(`摄像头打开失败：${message}`);
+      toast.error('摄像头打开失败，请检查浏览器权限或上传照片检测');
+      return false;
+    }
+  };
+
+  const handleOpenSkinAiDialog = () => {
+    const firstId = selectedIds[0] ?? filteredHealthRows[0]?.customerId ?? allCustomers[0]?.id ?? '';
+    setSkinAiCustomerId(firstId);
+    setSkinAiCustomerKeyword('');
+    setSkinAiPhoto('');
+    setSkinAiResult(null);
+    setSkinAiCameraError(null);
+    setShowSkinAiDialog(true);
+    void startSkinCamera();
+  };
+
+  const handleCloseSkinAiDialog = (open: boolean) => {
+    setShowSkinAiDialog(open);
+    if (!open) {
+      stopSkinCamera();
+      setSkinAiPhoto('');
+      setSkinAiResult(null);
+      setSkinAiCameraError(null);
+      setSkinAiAnalyzing(false);
+      setSkinAiSaving(false);
+    }
+  };
+
+  const captureSkinPhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) {
+      toast.error('摄像头画面未就绪');
+      return;
+    }
+    const width = video.videoWidth || 720;
+    const height = video.videoHeight || 540;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.drawImage(video, 0, 0, width, height);
+    setSkinAiPhoto(canvas.toDataURL('image/jpeg', 0.86));
+    setSkinAiResult(null);
+    toast.success('照片已采集，可以开始 AI 检测');
+  };
+
+  const compressSkinPhoto = (dataUrl: string) =>
+    new Promise<string>((resolve, reject) => {
+      const image = document.createElement('img');
+      image.onload = () => {
+        const maxSide = 1280;
+        const sourceWidth = image.naturalWidth || image.width;
+        const sourceHeight = image.naturalHeight || image.height;
+        const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+        const width = Math.max(1, Math.round(sourceWidth * scale));
+        const height = Math.max(1, Math.round(sourceHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('无法处理照片'));
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      image.onerror = () => reject(new Error('照片读取失败'));
+      image.src = dataUrl;
+    });
+
+  const handleCaptureSkinPhoto = async () => {
+    if (!cameraStream) {
+      const opened = await startSkinCamera();
+      if (opened) {
+        toast.info('摄像头已打开，请确认画面后再次点击拍照');
+      }
+      return;
+    }
+    captureSkinPhoto();
+  };
+
+  const handleUploadSkinPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('请上传 JPG、PNG 等图片文件');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) {
+        toast.error('照片读取失败，请重新上传');
+        return;
+      }
+      try {
+        const compressed = await compressSkinPhoto(result);
+        stopSkinCamera();
+        setSkinAiPhoto(compressed);
+        setSkinAiResult(null);
+        setSkinAiCameraError(null);
+        toast.success('照片已上传并压缩，可以开始 AI 检测');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : '照片处理失败，请重新上传');
+      }
+    };
+    reader.onerror = () => {
+      toast.error('照片读取失败，请重新上传');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteSkinPhoto = () => {
+    setSkinAiPhoto('');
+    setSkinAiResult(null);
+    setSkinAiCameraError(null);
+    if (skinPhotoInputRef.current) {
+      skinPhotoInputRef.current.value = '';
+    }
+  };
+
+  const handleAnalyzeSkinPhoto = async () => {
+    if (!skinAiCustomerId || !selectedSkinAiCustomer) {
+      toast.error('请先选择要录入档案的客户');
+      return;
+    }
+    if (!skinAiPhoto) {
+      toast.error('请先拍照或上传照片');
+      return;
+    }
+
+    try {
+      setSkinAiAnalyzing(true);
+      const result = await analyzeSkinPhoto({
+        customerId: Number(skinAiCustomerId),
+        customerName: selectedSkinAiCustomer.name,
+        storeName: currentStoreName,
+        imageDataUrl: skinAiPhoto,
+        capturedAt: new Date().toISOString(),
+      });
+      setSkinAiResult(result);
+      toast.success('AI 肤质检测完成');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'AI 肤质检测失败');
+    } finally {
+      setSkinAiAnalyzing(false);
+    }
+  };
+
+  const applyHealthProfileToState = (
+    customerId: number,
+    data: Partial<CustomerHealthProfile>,
+    customerName?: string,
+  ) => {
+    setHealthProfiles((prev) => {
+      const existing = prev.find((profile) => profile.customerId === customerId);
+      const nextProfile: CustomerHealthProfile = {
+        id: data.id ?? existing?.id ?? Date.now(),
+        customerId,
+        name: data.name ?? existing?.name ?? customerName ?? selectedSkinAiCustomer?.name ?? '',
+        photo: data.photo ?? existing?.photo ?? '',
+        skinType: data.skinType ?? existing?.skinType ?? '未检测',
+        skinStatus: data.skinStatus ?? existing?.skinStatus ?? '',
+        mainProblems: data.mainProblems ?? existing?.mainProblems ?? '',
+        allergyHistory: data.allergyHistory ?? existing?.allergyHistory ?? '',
+        goals: data.goals ?? existing?.goals ?? '',
+        recommendedCare: data.recommendedCare ?? existing?.recommendedCare ?? '',
+        instrument: data.instrument ?? existing?.instrument ?? '',
+        lastCheck: formatHealthDate(data.lastCheck ?? existing?.lastCheck),
+      };
+      return existing
+        ? prev.map((profile) => (profile.customerId === customerId ? nextProfile : profile))
+        : [nextProfile, ...prev];
+    });
+  };
+
+  const handleSaveSkinAiResult = async () => {
+    if (!skinAiResult || !skinAiCustomerId || !selectedSkinAiCustomer) return;
+
+    try {
+      setSkinAiSaving(true);
+      const payload = {
+        photo: skinAiPhoto,
+        skinType: skinAiResult.skinType,
+        skinStatus: skinAiResult.skinStatus,
+        mainProblems: skinAiResult.mainProblems,
+        allergyHistory: skinAiResult.allergyHistory || selectedSkinAiCustomer.hasAllergy || '',
+        goals: skinAiResult.goals,
+        recommendedCare: skinAiResult.recommendedCare,
+        instrument: skinAiResult.instrument,
+        lastCheck: formatHealthDate(skinAiResult.capturedAt),
+      };
+      const saved = await updateCustomerHealthProfile(Number(skinAiCustomerId), payload);
+      applyHealthProfileToState(Number(skinAiCustomerId), { ...payload, id: saved.id }, selectedSkinAiCustomer.name);
+      toast.success('AI 检测结果已录入肌肤档案');
+      handleCloseSkinAiDialog(false);
+      setHealthPage(1);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '肌肤档案录入失败');
+    } finally {
+      setSkinAiSaving(false);
+    }
+  };
+
+  const handleSaveHealthEdit = async () => {
+    if (!editingHealth) return;
+
+    try {
+      const payload = {
+        photo: cleanHealthText(editingHealth.photo),
+        skinType: cleanHealthText(editingHealth.skinType) || '未检测',
+        skinStatus: cleanHealthText(editingHealth.skinStatus),
+        mainProblems: cleanHealthText(editingHealth.mainProblems),
+        allergyHistory: cleanHealthText(editingHealth.allergyHistory),
+        goals: cleanHealthText(editingHealth.goals),
+        recommendedCare: cleanHealthText(editingHealth.recommendedCare),
+        instrument: cleanHealthText(editingHealth.instrument),
+        lastCheck: formatHealthDate(editingHealth.lastCheck),
+      };
+      const saved = await updateCustomerHealthProfile(editingHealth.customerId, payload);
+      applyHealthProfileToState(editingHealth.customerId, { ...payload, id: saved.id }, editingHealth.name);
+      toast.success('肌肤档案已更新');
+      setShowHealthEditDialog(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '肌肤档案更新失败');
+    }
   };
 
   return (
@@ -302,6 +733,7 @@ export function CustomerData() {
                   <input type="checkbox" className="rounded border-gray-300" checked={selectedIds.length === customers.length && customers.length > 0} onChange={toggleSelectAll} />
                 </TableHead>
                 <TableHead>客户名称</TableHead>
+                <TableHead>所属门店</TableHead>
                 <TableHead>年龄</TableHead>
                 <TableHead>手机号码</TableHead>
                 <TableHead>性别</TableHead>
@@ -319,11 +751,12 @@ export function CustomerData() {
                     <input type="checkbox" className="rounded border-gray-300" checked={selectedIds.includes(customer.id)} onChange={() => toggleSelect(customer.id)} />
                   </TableCell>
                   <TableCell className="font-medium text-gray-700">{customer.name}</TableCell>
+                  <TableCell className="min-w-[140px] text-gray-600">{customer.storeName || '-'}</TableCell>
                   <TableCell>{customer.age ?? '-'}</TableCell>
-                  <TableCell>{customer.phone}</TableCell>
+                  <TableCell>{formatScopedValue(customer.phone, fieldScopes?.customerPhone ?? 'visible', 'phone')}</TableCell>
                   <TableCell>{customer.gender}</TableCell>
                   <TableCell>{customer.memberLevel}</TableCell>
-                  <TableCell>¥{customer.totalSpent}</TableCell>
+                  <TableCell>{fieldScopes?.customerProfit === 'hidden' ? '-' : `¥${customer.totalSpent}`}</TableCell>
                   <TableCell>{customer.source}</TableCell>
                   <TableCell>{customer.lastVisitDate}</TableCell>
                   <TableCell className="text-right">
@@ -388,7 +821,7 @@ export function CustomerData() {
               <FileDown className="w-4 h-4" /> 下载模板
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => exportToExcel(
-              MOCK_CONSUMPTION_RECORDS,
+              spendRecords,
               [{ key: 'userName', header: '用户名称', width: 15 }, { key: 'consumeType', header: '消费类型', width: 12 }, { key: 'consumeContent', header: '消费内容', width: 20 }, { key: 'payMethod', header: '支付方式', width: 10 }, { key: 'amount', header: '消费金额', width: 12 }, { key: 'campaign', header: '关联营销活动', width: 15 }, { key: 'consumeTime', header: '消费时间', width: 18 }],
               '消费记录'
             )}>
@@ -412,7 +845,24 @@ export function CustomerData() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {spendData.map((record: any) => (
+              {spendLoading && spendData.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-10 text-center text-gray-500">
+                    正在加载消费记录...
+                  </TableCell>
+                </TableRow>
+              ) : spendError ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-10 text-center">
+                    <div className="flex flex-col items-center gap-3 text-gray-500">
+                      <span>消费记录加载失败：{spendError}</span>
+                      <Button variant="outline" size="sm" onClick={() => setInsightReloadKey((key) => key + 1)}>
+                        重试加载
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : spendData.length ? spendData.map((record: any) => (
                 <TableRow key={record.id} className="hover:bg-blue-50/30">
                   <TableCell className="text-center">
                     <input type="checkbox" className="rounded border-gray-300" />
@@ -425,7 +875,13 @@ export function CustomerData() {
                   <TableCell>{record.campaign}</TableCell>
                   <TableCell>{record.consumeTime}</TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-10 text-center text-gray-500">
+                    暂无消费记录
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
 
@@ -478,6 +934,9 @@ export function CustomerData() {
             <Button variant="danger" className="gap-2 bg-red-400 hover:bg-red-500">
               <Trash2 className="w-4 h-4" /> 批量删除
             </Button>
+            <Button className="gap-2 bg-[#1890ff] hover:bg-[#1677d2]" onClick={handleOpenSkinAiDialog}>
+              <Camera className="w-4 h-4" /> AI肤质检测
+            </Button>
             <Button variant="success" className="gap-2 bg-green-500 hover:bg-green-600">
               <Upload className="w-4 h-4" /> 批量导入
             </Button>
@@ -514,7 +973,24 @@ export function CustomerData() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {healthData.map((row: any) => (
+              {healthLoading && healthData.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="py-10 text-center text-gray-500">
+                    正在加载肌肤档案...
+                  </TableCell>
+                </TableRow>
+              ) : healthError ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="py-10 text-center">
+                    <div className="flex flex-col items-center gap-3 text-gray-500">
+                      <span>肌肤档案加载失败：{healthError}</span>
+                      <Button variant="outline" size="sm" onClick={() => setInsightReloadKey((key) => key + 1)}>
+                        重试加载
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : healthData.length ? healthData.map((row: any) => (
                 <TableRow key={row.customerId} className="hover:bg-blue-50/30">
                   <TableCell className="text-center"><input type="checkbox" className="rounded border-gray-300" /></TableCell>
                   <TableCell className="font-medium text-gray-700">{row.name}</TableCell>
@@ -532,7 +1008,13 @@ export function CustomerData() {
                     </button>
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={11} className="py-10 text-center text-gray-500">
+                    暂无肌肤档案
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
 
@@ -598,10 +1080,186 @@ export function CustomerData() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => setShowHealthEditDialog(false)}>取消</Button>
-                <Button onClick={() => { toast.success('肌肤档案已更新'); setShowHealthEditDialog(false); }}>保存</Button>
+                <Button onClick={handleSaveHealthEdit}>保存</Button>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSkinAiDialog} onOpenChange={handleCloseSkinAiDialog}>
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto" aria-describedby="skin-ai-desc">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-blue-500" />
+              AI肤质检测
+            </DialogTitle>
+          </DialogHeader>
+          <span id="skin-ai-desc" className="sr-only">通过拍照或上传照片，使用 AI 生成客户肌肤档案</span>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-5 mt-4">
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">选择客户</label>
+                  <Input
+                    placeholder="搜索姓名、手机号或门店"
+                    value={skinAiCustomerKeyword}
+                    onChange={(event) => setSkinAiCustomerKeyword(event.target.value)}
+                    className="mb-2"
+                  />
+                  <select
+                    className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md"
+                    value={skinAiCustomerId}
+                    onChange={(event) => {
+                      setSkinAiCustomerId(event.target.value ? Number(event.target.value) : '');
+                      setSkinAiResult(null);
+                    }}
+                  >
+                    <option value="">请选择客户</option>
+                    {skinAiCustomerOptions.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} / {customer.phone} / {customer.storeName || '未分配门店'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {selectedSkinAiCustomer && (
+                  <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    将录入到：{selectedSkinAiCustomer.name}，所属门店：{selectedSkinAiCustomer.storeName || currentStoreName || '-'}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                <div className="font-medium text-sm text-gray-700">照片采集</div>
+                <div className="aspect-[4/3] overflow-hidden rounded-lg bg-gray-900 flex items-center justify-center">
+                  {skinAiPhoto ? (
+                    <img src={skinAiPhoto} alt="肤质检测照片" className="h-full w-full object-cover" />
+                  ) : (
+                    <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+                  )}
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+                <input
+                  ref={skinPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUploadSkinPhoto}
+                />
+                {skinAiCameraError && (
+                  <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {skinAiCameraError}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" className="gap-2" onClick={() => void handleCaptureSkinPhoto()}>
+                    <Camera className="h-4 w-4" />
+                    拍照
+                  </Button>
+                  <Button type="button" variant="outline" className="gap-2" onClick={() => skinPhotoInputRef.current?.click()}>
+                    <Upload className="h-4 w-4" />
+                    上传照片
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleDeleteSkinPhoto}
+                    disabled={!skinAiPhoto && !skinAiResult}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    删除
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-medium text-gray-800">AI检测结果</div>
+                    <p className="text-sm text-gray-500 mt-1">拍照或上传照片后点击检测，结果确认后会写入客户肌肤档案。</p>
+                  </div>
+                  <Button
+                    className="gap-2"
+                    onClick={handleAnalyzeSkinPhoto}
+                    disabled={skinAiAnalyzing || !skinAiPhoto || !skinAiCustomerId}
+                  >
+                    {skinAiAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    开始AI检测
+                  </Button>
+                </div>
+
+                {!skinAiResult ? (
+                  <div className="mt-6 flex h-52 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                    暂无检测结果
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-blue-50 p-3">
+                        <div className="text-xs text-blue-600">肤质类型</div>
+                        <div className="mt-1 text-lg font-semibold text-blue-800">{skinAiResult.skinType}</div>
+                      </div>
+                      <div className="rounded-lg bg-green-50 p-3">
+                        <div className="text-xs text-green-600">AI置信度</div>
+                        <div className="mt-1 text-lg font-semibold text-green-800">
+                          {Math.round(skinAiResult.confidence * 100)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg border border-gray-200 p-3">
+                        <div className="text-gray-500">肌肤状态</div>
+                        <div className="mt-1 text-gray-800">{skinAiResult.skinStatus}</div>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 p-3">
+                        <div className="text-gray-500">主要问题</div>
+                        <div className="mt-1 text-gray-800">{skinAiResult.mainProblems}</div>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 p-3">
+                        <div className="text-gray-500">改善目标</div>
+                        <div className="mt-1 text-gray-800">{skinAiResult.goals}</div>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 p-3">
+                        <div className="text-gray-500">推荐护理</div>
+                        <div className="mt-1 text-gray-800">{skinAiResult.recommendedCare}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      {Object.entries(skinAiResult.metrics).map(([key, value]) => (
+                        <div key={key} className="rounded-md bg-gray-50 p-2">
+                          <div className="text-gray-500">
+                            {key === 'moisture' ? '水分' : key === 'oil' ? '油脂' : key === 'elasticity' ? '弹性' : key === 'sensitivity' ? '敏感' : key === 'pore' ? '毛孔' : '色沉'}
+                          </div>
+                          <div className="mt-1 font-semibold text-gray-800">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                      {skinAiResult.explanation}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => handleCloseSkinAiDialog(false)}>
+                  取消
+                </Button>
+                <Button onClick={handleSaveSkinAiResult} disabled={!skinAiResult || skinAiSaving}>
+                  {skinAiSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  录入肌肤档案
+                </Button>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -625,8 +1283,10 @@ export function CustomerData() {
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap w-24 text-right">所属门店</label>
                 <select className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md" {...register('storeName')}>
-                  <option value="心悦芸美容养生会所">心悦芸美容养生会所</option>
-                  <option value="凤仪阁美容养生会所">凤仪阁美容养生会所</option>
+                  {stores.length === 0 && <option value={defaultStoreName}>{defaultStoreName}</option>}
+                  {stores.map((store) => (
+                    <option key={store.id} value={store.name}>{store.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

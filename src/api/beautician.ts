@@ -1,17 +1,22 @@
 import type { Beautician } from '@/types';
-import { mockGetBeauticians, mockGetBeauticianById, mockCreateBeautician, mockUpdateBeautician } from './mock/beautician';
-import { realGetBeauticians, realGetBeauticianById, realCreateBeautician, realUpdateBeautician } from './real/beautician';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
+import { realGetBeauticians, realGetBeauticianById, realCreateBeautician, realUpdateBeautician, realDeleteBeautician, realGetBeauticiansPaginated } from './real/beautician';
 
 export const getBeauticians: (params?: { keyword?: string; storeName?: string }) => Promise<Beautician[]> =
-  isReal ? realGetBeauticians : mockGetBeauticians;
+  realGetBeauticians;
 
 export const getBeauticianById: (id: number) => Promise<Beautician | undefined> =
-  isReal ? realGetBeauticianById : mockGetBeauticianById;
+  realGetBeauticianById;
 
 export const createBeautician: (data: Omit<Beautician, 'id' | 'createdAt'>) => Promise<Beautician> =
-  isReal ? realCreateBeautician : mockCreateBeautician;
+  realCreateBeautician;
 
 export const updateBeautician: (id: number, data: Partial<Beautician>) => Promise<Beautician> =
-  isReal ? realUpdateBeautician : mockUpdateBeautician;
+  realUpdateBeautician;
+
+export const deleteBeautician: (id: number) => Promise<void> =
+  realDeleteBeautician;
+
+import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+
+export const getBeauticiansPaginated: (params: PaginationParams & { keyword?: string; storeName?: string }) => Promise<PaginatedResponse<Beautician>> =
+  realGetBeauticiansPaginated;

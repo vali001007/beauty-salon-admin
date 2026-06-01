@@ -1,5 +1,5 @@
 import type { Product, Category } from '@/types';
-import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
 
 const MOCK_CATEGORIES: Category[] = [
   {
@@ -29,14 +29,14 @@ const MOCK_CATEGORIES: Category[] = [
 ];
 
 const MOCK_PRODUCTS: Product[] = [
-  { id: 1, name: '玻尿酸精华液', sku: 'SK-LO-000001', brand: '兰蔻', spec: '30ml', unit: '瓶', costPrice: 480, retailPrice: 680, shelfLife: 730, categoryId: 12, categoryName: '精华', supplier: '兰蔻官方旗舰店', minPurchaseQty: 10, status: '在售' },
-  { id: 2, name: '补水面膜', sku: 'SK-LO-000002', brand: '雅诗兰黛', spec: '5片/盒', unit: '盒', costPrice: 220, retailPrice: 350, shelfLife: 365, categoryId: 14, categoryName: '面膜', supplier: '雅诗兰黛专柜', minPurchaseQty: 20, status: '在售' },
-  { id: 3, name: '美白精华', sku: 'SK-LO-000003', brand: 'SK-II', spec: '50ml', unit: '瓶', costPrice: 980, retailPrice: 1280, shelfLife: 730, categoryId: 12, categoryName: '精华', supplier: 'SK-II官方授权店', minPurchaseQty: 5, status: '在售' },
-  { id: 4, name: '修护洗发水', sku: 'SK-LO-000004', brand: '欧莱雅', spec: '500ml', unit: '瓶', costPrice: 65, retailPrice: 128, shelfLife: 1095, categoryId: 21, categoryName: '洗发水', supplier: '欧莱雅旗舰店', minPurchaseQty: 30, status: '在售' },
-  { id: 5, name: '保湿乳液', sku: 'SK-LO-000005', brand: '资生堂', spec: '100ml', unit: '瓶', costPrice: 320, retailPrice: 480, shelfLife: 730, categoryId: 13, categoryName: '面霜', supplier: '资生堂旗舰店', minPurchaseQty: 10, status: '在售' },
-  { id: 6, name: '眼霜', sku: 'SK-LO-000006', brand: '海蓝之谜', spec: '15ml', unit: '瓶', costPrice: 1280, retailPrice: 1680, shelfLife: 365, categoryId: 13, categoryName: '面霜', supplier: '海蓝之谜专柜', minPurchaseQty: 5, status: '在售' },
-  { id: 7, name: '氨基酸洁面乳', sku: 'SK-LO-000007', brand: '芙丽芳丝', spec: '120ml', unit: '支', costPrice: 85, retailPrice: 150, shelfLife: 730, categoryId: 11, categoryName: '洁面', supplier: '芙丽芳丝旗舰店', minPurchaseQty: 20, status: '在售' },
-  { id: 8, name: '防晒霜SPF50', sku: 'SK-LO-000008', brand: '安耐晒', spec: '60ml', unit: '支', costPrice: 180, retailPrice: 280, shelfLife: 365, categoryId: 15, categoryName: '防晒', supplier: '安耐晒旗舰店', minPurchaseQty: 15, status: '停售' },
+  { id: 1, name: '玻尿酸精华液', sku: 'SK-LO-000001', brand: '兰蔻', spec: '30ml', unit: '瓶', costPrice: 480, retailPrice: 680, shelfLife: 730, categoryId: 12, categoryName: '精华', supplier: '兰蔻官方旗舰店', minPurchaseQty: 10, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-hyaluronic-serum.png', status: '在售' },
+  { id: 2, name: '补水面膜', sku: 'SK-LO-000002', brand: '雅诗兰黛', spec: '5片/盒', unit: '盒', costPrice: 220, retailPrice: 350, shelfLife: 365, categoryId: 14, categoryName: '面膜', supplier: '雅诗兰黛专柜', minPurchaseQty: 20, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-repair-mask.png', status: '在售' },
+  { id: 3, name: '美白精华', sku: 'SK-LO-000003', brand: 'SK-II', spec: '50ml', unit: '瓶', costPrice: 980, retailPrice: 1280, shelfLife: 730, categoryId: 12, categoryName: '精华', supplier: 'SK-II官方授权店', minPurchaseQty: 5, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-niacinamide-serum.png', status: '在售' },
+  { id: 4, name: '修护洗发水', sku: 'SK-LO-000004', brand: '欧莱雅', spec: '500ml', unit: '瓶', costPrice: 65, retailPrice: 128, shelfLife: 1095, categoryId: 21, categoryName: '洗发水', supplier: '欧莱雅旗舰店', minPurchaseQty: 30, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-hair-scalp-serum.png', status: '在售' },
+  { id: 5, name: '保湿乳液', sku: 'SK-LO-000005', brand: '资生堂', spec: '100ml', unit: '瓶', costPrice: 320, retailPrice: 480, shelfLife: 730, categoryId: 13, categoryName: '面霜', supplier: '资生堂旗舰店', minPurchaseQty: 10, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-barrier-lotion.png', status: '在售' },
+  { id: 6, name: '眼霜', sku: 'SK-LO-000006', brand: '海蓝之谜', spec: '15ml', unit: '瓶', costPrice: 1280, retailPrice: 1680, shelfLife: 365, categoryId: 13, categoryName: '面霜', supplier: '海蓝之谜专柜', minPurchaseQty: 5, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-firming-eye-cream.png', status: '在售' },
+  { id: 7, name: '氨基酸洁面乳', sku: 'SK-LO-000007', brand: '芙丽芳丝', spec: '120ml', unit: '支', costPrice: 85, retailPrice: 150, shelfLife: 730, categoryId: 11, categoryName: '洁面', supplier: '芙丽芳丝旗舰店', minPurchaseQty: 20, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-amino-cleanser.png', status: '在售' },
+  { id: 8, name: '防晒霜SPF50', sku: 'SK-LO-000008', brand: '安耐晒', spec: '60ml', unit: '支', costPrice: 180, retailPrice: 280, shelfLife: 365, categoryId: 15, categoryName: '防晒', supplier: '安耐晒旗舰店', minPurchaseQty: 15, image: '/demo-assets/ami-demo-full/products/ami-demo-full-product-sunscreen-milk.png', status: '停售' },
 ];
 
 export async function mockGetProducts(params?: { categoryId?: number; status?: string; keyword?: string }): Promise<Product[]> {
@@ -92,7 +92,7 @@ export async function mockGetProductsPaginated(params: PaginationParams & { cate
   const total = result.length;
   const start = (params.page - 1) * params.pageSize;
   const data = result.slice(start, start + params.pageSize);
-  return { data, total, page: params.page, pageSize: params.pageSize };
+  return createPaginatedResponse(data, total, params.page, params.pageSize);
 }
 
 import type { ImportResult } from '@/types/excel';

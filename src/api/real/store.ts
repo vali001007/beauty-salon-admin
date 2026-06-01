@@ -1,18 +1,44 @@
 import type { Store } from '@/types';
+import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import apiClient from '../client';
+import { extractArray, normalizePaginatedResponse } from './response';
+
+function normalizeStore(store: Partial<Store> & { id: number; name: string }): Store {
+  return {
+    ...store,
+    address: store.address ?? '',
+    skuCount: Number(store.skuCount ?? 0),
+    totalValue: Number(store.totalValue ?? 0),
+    healthScore: Number(store.healthScore ?? 0),
+    mode: store.mode ?? '独立',
+  };
+}
 
 export async function realGetStores(): Promise<Store[]> {
-  return apiClient.get('/stores');
+  const response = await apiClient.get<unknown, unknown>('/stores');
+  return extractArray<Store>(response).map(normalizeStore);
 }
 
 export async function realGetAccessibleStores(): Promise<Store[]> {
-  return apiClient.get('/stores/accessible');
+  const response = await apiClient.get<unknown, unknown>('/stores/accessible');
+  return extractArray<Store>(response).map(normalizeStore);
 }
 
 export async function realCreateStore(data: Omit<Store, 'id'>): Promise<Store> {
-  return apiClient.post('/stores', data);
+  const store = await apiClient.post<unknown, Store>('/stores', data);
+  return normalizeStore(store);
 }
 
 export async function realUpdateStore(id: number, data: Partial<Store>): Promise<Store> {
-  return apiClient.put(`/stores/${id}`, data);
+  const store = await apiClient.put<unknown, Store>(`/stores/${id}`, data);
+  return normalizeStore(store);
+}
+
+export async function realDeleteStore(id: number): Promise<void> {
+  return apiClient.delete(`/stores/${id}`);
+}
+
+export async function realGetStoresPaginated(params: PaginationParams): Promise<PaginatedResponse<Store>> {
+  const response = await apiClient.get<unknown, unknown>('/stores/paginated', { params });
+  return normalizePaginatedResponse<Store, Store>(response, normalizeStore);
 }

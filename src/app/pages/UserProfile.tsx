@@ -8,8 +8,9 @@ import type { Customer } from '@/types';
 import {
   computeSegmentStats, computeSkinStats, computeBehaviorProfiles,
   AI_RECOMMENDATIONS, SKIN_AI_RECOMMENDATIONS, SKIN_SERVICES,
-  type SegmentType, type SkinCategory, type SegmentStats, type SkinStats, type BehaviorProfile,
+  type SegmentType,
 } from '@/utils/customerSegmentation';
+import { computeChurnScores, computeLTVPredictions } from '@/utils/advancedAnalytics';
 
 const customers: Customer[] = (rawCustomers as any[]).map((c) => ({ ...c, tags: c.tags || [] }));
 const healthProfiles = rawHealthProfiles as any[];
@@ -40,12 +41,36 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export function UserProfile() {
-  const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior'>('segment');
+  const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior' | 'prediction'>('segment');
   const navigate = useNavigate();
 
   const segmentStats = useMemo(() => computeSegmentStats(customers), []);
   const skinStats = useMemo(() => computeSkinStats(customers, healthProfiles), []);
   const behaviorProfiles = useMemo(() => computeBehaviorProfiles(customers, consumptionRecords, healthProfiles), []);
+  const predictionRows = useMemo(() => {
+    const churnScores = computeChurnScores(customers, consumptionRecords);
+    const ltvPredictions = computeLTVPredictions(customers, consumptionRecords);
+    return customers.map((customer) => {
+      const churn = churnScores.find((item) => item.customerId === customer.id);
+      const ltv = ltvPredictions.find((item) => item.customerId === customer.id);
+      const repurchase30dScore = Math.max(5, Math.min(95, 78 - (churn?.churnProbability || 20) + (customer.visitCount > 8 ? 12 : 0)));
+      const marketingResponseScore = Math.max(5, Math.min(95, Math.round(repurchase30dScore * 0.65 + (customer.totalSpent > 10000 ? 18 : 8))));
+      return {
+        customer,
+        churnScore: churn?.churnProbability || 20,
+        churnLevel: churn?.riskLevel || '低',
+        repurchase30dScore,
+        marketingResponseScore,
+        ltvTier: ltv?.ltvTier || '青铜',
+        ltv12m: ltv?.predictedLTV12M || 0,
+        reasons: [
+          churn?.factors?.[0] || '暂无明显流失风险',
+          `30天复购概率 ${repurchase30dScore} 分`,
+          `预计12个月价值 ¥${(ltv?.predictedLTV12M || 0).toLocaleString()}`,
+        ],
+      };
+    }).sort((a, b) => b.churnScore - a.churnScore);
+  }, []);
   const [behaviorPage, setBehaviorPage] = useState(1);
   const [behaviorPageSize, setBehaviorPageSize] = useState(50);
   const [behaviorSegmentFilter, setBehaviorSegmentFilter] = useState('');
@@ -110,7 +135,7 @@ export function UserProfile() {
       </div>
 
       <div className="flex gap-4 bg-gray-100 p-1 rounded-lg">
-        {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像']] as const).map(([key, label]) => (
+        {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像'], ['prediction', '预测视角']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex-1 py-3 px-6 rounded-lg transition-all ${activeTab === key ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-600 hover:text-gray-800'}`}>
             {label}
@@ -322,6 +347,53 @@ export function UserProfile() {
               <span className="text-sm text-gray-600">{behaviorPage} / {Math.ceil(behaviorTotal / behaviorPageSize) || 1}</span>
               <button disabled={behaviorPage >= Math.ceil(behaviorTotal / behaviorPageSize)} onClick={() => setBehaviorPage(behaviorPage + 1)} className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50">下一页</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'prediction' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div>
+              <h3 className="text-lg font-medium text-gray-800">客户预测视角</h3>
+              <p className="mt-1 text-sm text-gray-500">模型版本 rules-v1；展示流失风险、30天复购概率、营销响应分和 LTV 分层。</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">客户</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">流失风险</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">30天复购</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">营销响应</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">LTV层级</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                {predictionRows.slice(0, 50).map((row) => (
+                  <tr key={row.customer.id} className="border-b border-gray-100 hover:bg-blue-50/30">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-800">{row.customer.name}</div>
+                      <div className="text-xs text-gray-400">{row.customer.memberLevel}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`rounded px-2 py-1 text-sm ${row.churnLevel === '极高' || row.churnLevel === '高' ? 'bg-red-50 text-red-700' : row.churnLevel === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'}`}>
+                        {row.churnScore} / {row.churnLevel}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">{row.repurchase30dScore}分</td>
+                    <td className="px-6 py-4 text-gray-700">{row.marketingResponseScore}分</td>
+                    <td className="px-6 py-4">
+                      <span className="rounded bg-purple-50 px-2 py-1 text-sm text-purple-700">{row.ltvTier}</span>
+                      <div className="mt-1 text-xs text-gray-400">¥{row.ltv12m.toLocaleString()}</div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-600">{row.reasons.join('；')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

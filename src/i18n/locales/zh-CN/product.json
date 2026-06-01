@@ -1,0 +1,92 @@
+{
+  "title": "产品管理",
+  "breadcrumb": "首页 / 库存管理 / 产品管理",
+  "fields": {
+    "name": "产品名称",
+    "sku": "SKU编码",
+    "brand": "品牌",
+    "spec": "规格",
+    "unit": "单位",
+    "costPrice": "成本价",
+    "retailPrice": "零售价",
+    "shelfLife": "保质期",
+    "shelfLifeDays": "保质期(天)",
+    "supplier": "供应商",
+    "status": "状态",
+    "category": "分类",
+    "minPurchaseQty": "最小采购量",
+    "productImage": "产品图片"
+  },
+  "units": {
+    "bottle": "瓶",
+    "box": "盒",
+    "piece": "支",
+    "item": "个",
+    "set": "套"
+  },
+  "categories": {
+    "skincare": "护肤品",
+    "cleanser": "洁面",
+    "essence": "精华",
+    "cream": "面霜",
+    "mask": "面膜",
+    "sunscreen": "防晒",
+    "haircare": "美发产品",
+    "shampoo": "洗发",
+    "conditioner": "护发",
+    "styling": "造型",
+    "nailcare": "美甲产品",
+    "polish": "指甲油",
+    "gel": "甲油胶",
+    "nailTools": "美甲工具",
+    "equipment": "仪器耗材",
+    "consumables": "一次性耗材",
+    "parts": "仪器配件",
+    "daily": "日用消耗品",
+    "towel": "毛巾类",
+    "disposable": "一次性用品"
+  },
+  "actions": {
+    "addProduct": "添加产品",
+    "editProduct": "编辑产品",
+    "batchImport": "批量导入产品",
+    "manageCategory": "管理分类",
+    "confirmAdd": "确认添加"
+  },
+  "placeholders": {
+    "searchProduct": "搜索产品名称、SKU、品牌",
+    "inputName": "请输入产品名称",
+    "inputBrand": "请输入品牌",
+    "inputSpec": "如：30ml、10片/盒",
+    "inputPrice": "0.00",
+    "inputShelfLife": "如：1080",
+    "inputMinPurchaseQty": "如：10",
+    "searchSupplier": "搜索供应商",
+    "selectCategory": "请选择分类"
+  },
+  "messages": {
+    "createSuccess": "产品创建成功",
+    "createFailed": "创建产品失败"
+  },
+  "categoryTree": "产品分类",
+  "goodsType": {
+    "title": "商品类型",
+    "name": "类型名称",
+    "description": "描述"
+  },
+  "goods": {
+    "title": "商品管理",
+    "name": "商品名称",
+    "price": "价格",
+    "stock": "库存"
+  },
+  "card": {
+    "title": "次卡管理",
+    "cardName": "次卡名称",
+    "totalTimes": "总次数",
+    "usedTimes": "已用次数",
+    "remainingTimes": "剩余次数",
+    "validPeriod": "有效期",
+    "price": "价格"
+  }
+}

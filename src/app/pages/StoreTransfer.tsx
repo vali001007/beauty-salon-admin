@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Sparkles, TrendingUp, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { transferSchema, type TransferFormData } from '@/schemas/inventory';
-import { createTransfer } from '@/api/inventory';
+import { createTransfer, getTransferOrdersPaginated } from '@/api/inventory';
 import { toast } from 'sonner';
 
 interface Store {
@@ -75,6 +75,19 @@ export function StoreTransfer() {
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [transfers, setTransfers] = useState(MOCK_TRANSFERS);
 
+  const loadTransfers = async () => {
+    try {
+      const response = await getTransferOrdersPaginated({ page: 1, pageSize: 50 });
+      setTransfers(response.items);
+    } catch {
+      setTransfers(MOCK_TRANSFERS);
+    }
+  };
+
+  useEffect(() => {
+    void loadTransfers();
+  }, []);
+
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<TransferFormData>({
     resolver: zodResolver(transferSchema),
     defaultValues: {
@@ -93,9 +106,9 @@ export function StoreTransfer() {
 
   const onSubmit = async (data: TransferFormData) => {
     try {
-      const result = await createTransfer(data);
+      await createTransfer(data);
       toast.success('调拨申请创建成功');
-      setTransfers(prev => [{ ...result, id: result.id, orderNo: result.orderNo, fromStore: result.fromStore, toStore: result.toStore, productCount: result.productCount, status: result.status }, ...prev]);
+      await loadTransfers();
       setShowTransferDialog(false);
     } catch (err: any) {
       toast.error(err?.message || '创建调拨申请失败');

@@ -11,8 +11,6 @@ import { getProjectTypes, type ProjectType } from '@/api/projectType';
 import { toast } from 'sonner';
 import type { Project } from '@/types';
 
-const THUMBNAIL_URL = "https://images.unsplash.com/photo-1696841212541-449ca29397cc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzcGElMjBtYXNzYWdlfGVufDF8fHx8MTc3MzY2NDExM3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral";
-
 function StatusBadge({ active, children }: { active: boolean, children: React.ReactNode }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${

@@ -43,3 +43,18 @@ export async function mockSaveSchedule(data: {
   const key = `${data.beauticianId}-${data.weekStart}`;
   scheduleCache.set(key, data.slots);
 }
+
+import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
+
+export async function mockGetSchedulePaginated(params: PaginationParams & { beauticianId?: number; weekStart?: string }): Promise<PaginatedResponse<any>> {
+  const items: any[] = [];
+  return createPaginatedResponse(items, 0, params.page, params.pageSize);
+}
+
+export async function mockCreateScheduleSlot(data: { beauticianId: number; date: string; time: string; available: boolean }): Promise<any> {
+  return { id: Date.now(), ...data };
+}
+
+export async function mockDeleteScheduleSlot(_id: number): Promise<void> {
+  // no-op in mock
+}

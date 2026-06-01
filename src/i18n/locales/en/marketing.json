@@ -1,0 +1,86 @@
+{
+  "title": "Marketing",
+  "recommendation": {
+    "title": "Smart Recommendations",
+    "subtitle": "AI-powered marketing suggestions based on customer data and behavior analysis",
+    "refreshData": "Refresh Data",
+    "createActivity": "Create Campaign",
+    "urgencyLevels": {
+      "all": "All",
+      "high": "High Priority",
+      "medium": "Medium Priority",
+      "low": "Low Priority"
+    },
+    "customerSegments": {
+      "highValue": "High Value",
+      "potential": "Potential Value",
+      "stable": "Stable",
+      "churnRisk": "Churn Risk",
+      "new": "New Customer"
+    },
+    "evidence": "Evidence",
+    "action": "Suggested Action",
+    "targetCustomers": "Target Customers",
+    "expectedConversion": "Expected Conversion"
+  },
+  "strategy": {
+    "title": "Auto Marketing",
+    "templateName": "Strategy Template",
+    "triggerCondition": "Trigger Condition",
+    "targetAudience": "Target Audience",
+    "channel": "Channel",
+    "status": "Status",
+    "createStrategy": "Create Strategy"
+  },
+  "activity": {
+    "title": "Campaign Management",
+    "activityName": "Campaign Name",
+    "type": "Type",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "status": "Status",
+    "budget": "Budget",
+    "participants": "Participants",
+    "conversion": "Conversion Rate",
+    "createActivity": "Create Campaign",
+    "types": {
+      "discount": "Discount",
+      "coupon": "Coupon",
+      "gift": "Gift",
+      "pointsExchange": "Points Exchange",
+      "groupBuy": "Group Buy",
+      "flashSale": "Flash Sale"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "pending": "Upcoming",
+      "active": "Active",
+      "ended": "Ended",
+      "paused": "Paused"
+    }
+  },
+  "analytics": {
+    "title": "Analytics",
+    "overview": "Overview",
+    "conversionRate": "Conversion Rate",
+    "roi": "ROI",
+    "reachCount": "Reach",
+    "responseRate": "Response Rate",
+    "revenue": "Revenue Contribution",
+    "trend": "Trend Analysis",
+    "comparison": "Comparison"
+  },
+  "channels": {
+    "sms": "SMS",
+    "wechat": "WeChat",
+    "push": "Push Notification",
+    "inStore": "In-Store Reminder"
+  },
+  "copy": {
+    "generateCopy": "Generate Copy",
+    "generating": "Generating...",
+    "channel": "Channel",
+    "tone": "Tone",
+    "preview": "Preview"
+  }
+}

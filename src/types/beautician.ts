@@ -1,5 +1,6 @@
 export interface Beautician {
   id: number;
+  userId?: number;
   name: string;
   phone: string;
   level: string;

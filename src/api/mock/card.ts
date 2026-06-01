@@ -35,7 +35,40 @@ export async function mockUpdateCard(id: number, data: Partial<CardFormData>): P
   return MOCK_CARDS[index];
 }
 
-import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+export async function mockDeleteCard(id: number): Promise<void> {
+  const index = MOCK_CARDS.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error('次卡不存在');
+  MOCK_CARDS.splice(index, 1);
+}
+
+export async function mockCreateCardOrder(data: { cardId: number; userId: number; actualPrice: number }): Promise<any> {
+  return {
+    id: String(Date.now()),
+    cardName: MOCK_CARDS.find((c) => c.id === data.cardId)?.name ?? '未知卡',
+    userName: '新用户',
+    actualPrice: data.actualPrice,
+    status: 'active',
+    purchaseTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    expireTime: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19),
+  };
+}
+
+export async function mockCreateCardUsage(data: { cardOrderId: string; projectName: string; consumedTimes: number }): Promise<any> {
+  return {
+    id: Date.now(),
+    cardName: '未知卡',
+    userName: '未知用户',
+    storeName: '心悦美容养生会所',
+    projectName: data.projectName,
+    usedTimes: data.consumedTimes,
+    consumedTimes: data.consumedTimes,
+    usageTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    operationPermission: '系统',
+    orderTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
+}
+
+import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
 
 interface CardOrder {
   id: string;
@@ -97,7 +130,7 @@ export async function mockGetCardOrdersPaginated(params: PaginationParams & { us
   const total = result.length;
   const start = (params.page - 1) * params.pageSize;
   const data = result.slice(start, start + params.pageSize);
-  return { data, total, page: params.page, pageSize: params.pageSize };
+  return createPaginatedResponse(data, total, params.page, params.pageSize);
 }
 
 export async function mockGetCardUsageRecordsPaginated(params: PaginationParams & { cardName?: string; userName?: string }): Promise<PaginatedResponse<CardUsageRecord>> {
@@ -111,5 +144,5 @@ export async function mockGetCardUsageRecordsPaginated(params: PaginationParams 
   const total = result.length;
   const start = (params.page - 1) * params.pageSize;
   const data = result.slice(start, start + params.pageSize);
-  return { data, total, page: params.page, pageSize: params.pageSize };
+  return createPaginatedResponse(data, total, params.page, params.pageSize);
 }

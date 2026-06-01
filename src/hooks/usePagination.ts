@@ -24,10 +24,11 @@ export function usePagination<T>(
         pageSize,
         ...filters,
       });
-      setData(response.data);
+      setData(response.items ?? response.data);
       setTotal(response.total);
-    } catch {
-      toast.error('数据加载失败，请稍后重试');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '数据加载失败，请稍后重试';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
