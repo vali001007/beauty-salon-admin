@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美丽人生 - 美容院预约小程序</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- 主页面 -->
+        <div id="home-page" class="page active">
+            <div class="header">
+                <div class="logo">
+                    <i class="fas fa-spa"></i>
+                    <span>美丽人生</span>
+                </div>
+                <div class="user-avatar" onclick="showPage('profile-page')">
+                    <i class="fas fa-user"></i>
+                </div>
+            </div>
+            
+            <div class="hero-section">
+                <h1>专业美容服务</h1>
+                <p>让美丽从内而外绽放</p>
+                <button class="cta-button" onclick="showPage('booking-page')">
+                    <i class="fas fa-calendar-plus"></i>
+                    立即预约
+                </button>
+            </div>
+            
+            <div class="services-grid">
+                <div class="service-card" onclick="selectService('facial')">
+                    <i class="fas fa-face-smile"></i>
+                    <h3>面部护理</h3>
+                    <p>深层清洁，焕活肌肤</p>
+                </div>
+                <div class="service-card" onclick="selectService('massage')">
+                    <i class="fas fa-hands"></i>
+                    <h3>身体按摩</h3>
+                    <p>放松身心，缓解疲劳</p>
+                </div>
+                <div class="service-card" onclick="selectService('beauty')">
+                    <i class="fas fa-magic"></i>
+                    <h3>美体塑形</h3>
+                    <p>塑造完美身材曲线</p>
+                </div>
+                <div class="service-card" onclick="selectService('nail')">
+                    <i class="fas fa-hand-sparkles"></i>
+                    <h3>美甲服务</h3>
+                    <p>精致美甲，指尖艺术</p>
+                </div>
+            </div>
+            
+            <div class="ai-assistant-section">
+                <h2>AI美容助手</h2>
+                <p>智能推荐最适合您的美容方案</p>
+                <button class="ai-button" onclick="showPage('ai-assistant-page')">
+                    <i class="fas fa-robot"></i>
+                    咨询AI助手
+                </button>
+            </div>
+            
+            <div class="mini-classroom-section">
+                <h2>美容课堂</h2>
+                <p>学习专业美容知识和技巧</p>
+                <button class="classroom-button" onclick="showPage('classroom-page')">
+                    <i class="fas fa-graduation-cap"></i>
+                    进入课堂
+                </button>
+            </div>
+        </div>
+
+        <!-- 预约页面 -->
+        <div id="booking-page" class="page">
+            <div class="page-header">
+                <button class="back-button" onclick="showPage('home-page')">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>服务预约</h2>
+            </div>
+            
+            <div class="service-selection">
+                <h3>选择服务</h3>
+                <div class="service-options">
+                    <div class="service-option" data-service="facial">
+                        <i class="fas fa-face-smile"></i>
+                        <span>面部护理</span>
+                        <span class="price">¥128</span>
+                    </div>
+                    <div class="service-option" data-service="massage">
+                        <i class="fas fa-hands"></i>
+                        <span>身体按摩</span>
+                        <span class="price">¥158</span>
+                    </div>
+                    <div class="service-option" data-service="beauty">
+                        <i class="fas fa-magic"></i>
+                        <span>美体塑形</span>
+                        <span class="price">¥198</span>
+                    </div>
+                    <div class="service-option" data-service="nail">
+                        <i class="fas fa-hand-sparkles"></i>
+                        <span>美甲服务</span>
+                        <span class="price">¥88</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="date-time-selection">
+                <h3>选择日期和时间</h3>
+                <div class="date-picker">
+                    <input type="date" id="appointment-date" min="">
+                </div>
+                <div class="time-slots">
+                    <h4>可选时间段</h4>
+                    <div class="time-grid">
+                        <button class="time-slot" data-time="09:00">09:00</button>
+                        <button class="time-slot" data-time="10:00">10:00</button>
+                        <button class="time-slot" data-time="11:00">11:00</button>
+                        <button class="time-slot" data-time="14:00">14:00</button>
+                        <button class="time-slot" data-time="15:00">15:00</button>
+                        <button class="time-slot" data-time="16:00">16:00</button>
+                        <button class="time-slot" data-time="17:00">17:00</button>
+                        <button class="time-slot" data-time="18:00">18:00</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="beautician-selection">
+                <h3>选择美容师</h3>
+                <div class="beautician-list">
+                    <div class="beautician-card" data-beautician="anna">
+                        <img src="https://via.placeholder.com/60x60/FFB6C1/000000?text=安娜" alt="安娜">
+                        <div class="beautician-info">
+                            <h4>安娜</h4>
+                            <p>高级美容师 · 5年经验</p>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <span>5.0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="beautician-card" data-beautician="sarah">
+                        <img src="https://via.placeholder.com/60x60/87CEEB/000000?text=莎拉" alt="莎拉">
+                        <div class="beautician-info">
+                            <h4>莎拉</h4>
+                            <p>资深美容师 · 8年经验</p>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <span>4.9</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="booking-summary">
+                <h3>预约信息</h3>
+                <div class="summary-item">
+                    <span>服务项目：</span>
+                    <span id="selected-service">请选择服务</span>
+                </div>
+                <div class="summary-item">
+                    <span>预约日期：</span>
+                    <span id="selected-date">请选择日期</span>
+                </div>
+                <div class="summary-item">
+                    <span>预约时间：</span>
+                    <span id="selected-time">请选择时间</span>
+                </div>
+                <div class="summary-item">
+                    <span>美容师：</span>
+                    <span id="selected-beautician">请选择美容师</span>
+                </div>
+                <div class="summary-item total">
+                    <span>总价：</span>
+                    <span id="total-price">¥0</span>
+                </div>
+            </div>
+            
+            <button class="confirm-booking-btn" onclick="confirmBooking()">
+                确认预约
+            </button>
+        </div>
+
+        <!-- AI助手页面 -->
+        <div id="ai-assistant-page" class="page">
+            <div class="page-header">
+                <button class="back-button" onclick="showPage('home-page')">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>AI美容助手</h2>
+            </div>
+            
+            <div class="ai-chat-container">
+                <div class="ai-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="ai-greeting">
+                    <h3>您好！我是您的专属AI美容助手</h3>
+                    <p>我可以为您推荐最适合的美容方案，回答美容相关问题</p>
+                </div>
+                
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message ai-message">
+                        <div class="message-content">
+                            <p>您好！请告诉我您的皮肤类型和关注的问题，我会为您推荐合适的美容方案。</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="quick-questions">
+                    <h4>常见问题</h4>
+                    <div class="question-buttons">
+                        <button onclick="askQuestion('我的皮肤很干燥，应该怎么护理？')">皮肤干燥护理</button>
+                        <button onclick="askQuestion('如何选择适合自己的护肤品？')">护肤品选择</button>
+                        <button onclick="askQuestion('痘痘肌怎么护理？')">痘痘肌护理</button>
+                        <button onclick="askQuestion('推荐一些美白产品')">美白产品推荐</button>
+                    </div>
+                </div>
+                
+                <div class="chat-input">
+                    <input type="text" id="user-input" placeholder="输入您的问题...">
+                    <button onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 美容课堂页面 -->
+        <div id="classroom-page" class="page">
+            <div class="page-header">
+                <button class="back-button" onclick="showPage('home-page')">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>美容课堂</h2>
+            </div>
+            
+            <div class="course-categories">
+                <div class="category-tab active" data-category="skincare">护肤知识</div>
+                <div class="category-tab" data-category="makeup">化妆技巧</div>
+                <div class="category-tab" data-category="body">身体护理</div>
+                <div class="category-tab" data-category="trends">美容趋势</div>
+            </div>
+            
+            <div class="course-content">
+                <div class="course-category active" id="skincare">
+                    <div class="course-item">
+                        <div class="course-image">
+                            <img src="https://via.placeholder.com/300x200/FFE4E1/000000?text=护肤基础" alt="护肤基础">
+                        </div>
+                        <div class="course-info">
+                            <h3>护肤基础知识</h3>
+                            <p>了解皮肤结构，掌握正确的护肤步骤</p>
+                            <div class="course-meta">
+                                <span><i class="fas fa-clock"></i> 15分钟</span>
+                                <span><i class="fas fa-users"></i> 1.2k人学习</span>
+                            </div>
+                            <button class="watch-course-btn">观看课程</button>
+                        </div>
+                    </div>
+                    
+                    <div class="course-item">
+                        <div class="course-image">
+                            <img src="https://via.placeholder.com/300x200/E6E6FA/000000?text=面膜使用" alt="面膜使用">
+                        </div>
+                        <div class="course-info">
+                            <h3>面膜的正确使用方法</h3>
+                            <p>学习如何选择和使用各种类型的面膜</p>
+                            <div class="course-meta">
+                                <span><i class="fas fa-clock"></i> 12分钟</span>
+                                <span><i class="fas fa-users"></i> 856人学习</span>
+                            </div>
+                            <button class="watch-course-btn">观看课程</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="course-category" id="makeup">
+                    <div class="course-item">
+                        <div class="course-image">
+                            <img src="https://via.placeholder.com/300x200/FFFACD/000000?text=日常妆容" alt="日常妆容">
+                        </div>
+                        <div class="course-info">
+                            <h3>日常妆容教程</h3>
+                            <p>简单易学的日常化妆技巧</p>
+                            <div class="course-meta">
+                                <span><i class="fas fa-clock"></i> 20分钟</span>
+                                <span><i class="fas fa-users"></i> 2.1k人学习</span>
+                            </div>
+                            <button class="watch-course-btn">观看课程</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="course-category" id="body">
+                    <div class="course-item">
+                        <div class="course-image">
+                            <img src="https://via.placeholder.com/300x200/F0FFF0/000000?text=身体护理" alt="身体护理">
+                        </div>
+                        <div class="course-info">
+                            <h3>身体护理指南</h3>
+                            <p>全身护理的方法和技巧</p>
+                            <div class="course-meta">
+                                <span><i class="fas fa-clock"></i> 18分钟</span>
+                                <span><i class="fas fa-users"></i> 743人学习</span>
+                            </div>
+                            <button class="watch-course-btn">观看课程</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="course-category" id="trends">
+                    <div class="course-item">
+                        <div class="course-image">
+                            <img src="https://via.placeholder.com/300x200/FFE4B5/000000?text=美容趋势" alt="美容趋势">
+                        </div>
+                        <div class="course-info">
+                            <h3>2024美容趋势</h3>
+                            <p>了解最新的美容潮流和产品</p>
+                            <div class="course-meta">
+                                <span><i class="fas fa-clock"></i> 25分钟</span>
+                                <span><i class="fas fa-users"></i> 1.8k人学习</span>
+                            </div>
+                            <button class="watch-course-btn">观看课程</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 订单页面 -->
+        <div id="orders-page" class="page">
+            <div class="page-header">
+                <button class="back-button" onclick="showPage('home-page')">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>我的订单</h2>
+            </div>
+            
+            <div class="order-tabs">
+                <div class="order-tab active" data-status="all">全部</div>
+                <div class="order-tab" data-status="pending">待确认</div>
+                <div class="order-tab" data-status="confirmed">已确认</div>
+                <div class="order-tab" data-status="completed">已完成</div>
+                <div class="order-tab" data-status="cancelled">已取消</div>
+            </div>
+            
+            <div class="orders-list" id="orders-list">
+                <!-- 订单列表将通过JavaScript动态生成 -->
+            </div>
+        </div>
+
+        <!-- 个人中心页面 -->
+        <div id="profile-page" class="page">
+            <div class="page-header">
+                <div class="header-left">
+                    <i class="fas fa-home"></i>
+                </div>
+                <h2>个人中心</h2>
+                <div class="header-right">
+                    <i class="fas fa-ellipsis-h"></i>
+                    <i class="fas fa-cog"></i>
+                </div>
+            </div>
+            
+            <div class="profile-section">
+                <div class="profile-info">
+                    <div class="profile-avatar">
+                        <img src="https://via.placeholder.com/80x80/90EE90/000000?text=小美" alt="用户头像" id="user-avatar">
+                    </div>
+                    <div class="profile-details">
+                        <h3 class="username">小美</h3>
+                        <p class="user-info">女・25岁</p>
+                    </div>
+                    <button class="edit-profile-btn" onclick="editProfile()">
+                        <i class="fas fa-pencil-alt"></i>
+                        编辑资料
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-section">
+                <div class="section-header">
+                    <h3>卡项</h3>
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+                <div class="card-items">
+                    <div class="card-item">
+                        <span class="card-value">--</span>
+                        <span class="card-label">总余额(元)</span>
+                    </div>
+                    <div class="card-item">
+                        <span class="card-value">--</span>
+                        <span class="card-label">优惠券</span>
+                    </div>
+                    <div class="card-item">
+                        <span class="card-value">--</span>
+                        <span class="card-label">积分</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="order-section">
+                <div class="section-header">
+                    <h3>订单</h3>
+                    <a href="#" class="view-all">查看全部></a>
+                </div>
+                <div class="order-status-icons">
+                    <div class="status-icon" onclick="showOrders('pending-payment')">
+                        <i class="fas fa-wallet"></i>
+                        <span>待付款</span>
+                    </div>
+                    <div class="status-icon" onclick="showOrders('pending-consumption')">
+                        <i class="fas fa-shopping-bag"></i>
+                        <span>待消费</span>
+                    </div>
+                    <div class="status-icon" onclick="showOrders('pending-shipment')">
+                        <i class="fas fa-box"></i>
+                        <span>待发货</span>
+                    </div>
+                    <div class="status-icon" onclick="showOrders('pending-receipt')">
+                        <i class="fas fa-truck"></i>
+                        <span>待收货</span>
+                    </div>
+                    <div class="status-icon" onclick="showOrders('pending-review')">
+                        <i class="fas fa-comment"></i>
+                        <span>待评价</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="appointment-section">
+                <div class="section-header">
+                    <h3>预约</h3>
+                    <a href="#" class="view-all">查看全部></a>
+                </div>
+                <div class="appointment-status-icons">
+                    <div class="status-icon" onclick="showAppointments('pending-service')">
+                        <i class="fas fa-wallet"></i>
+                        <span>待服务</span>
+                    </div>
+                    <div class="status-icon" onclick="showAppointments('completed')">
+                        <i class="fas fa-shopping-bag"></i>
+                        <span>已完成</span>
+                    </div>
+                    <div class="status-icon" onclick="showAppointments('pending-payment')">
+                        <i class="fas fa-box"></i>
+                        <span>待付款</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="quick-features">
+                <div class="feature-row">
+                    <div class="feature-item" onclick="showBenefits()">
+                        <div class="feature-icon benefits">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <span>我的权益</span>
+                    </div>
+                    <div class="feature-item" onclick="showBenefits()">
+                        <div class="feature-icon cart">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <span>购物车</span>
+                    </div>
+                    <div class="feature-item" onclick="showCoupons()">
+                        <div class="feature-icon coupons">
+                            <i class="fas fa-gift"></i>
+                        </div>
+                        <span>优惠卷</span>
+                    </div>
+                    <div class="feature-item" onclick="showPoints()">
+                        <div class="feature-icon points">
+                            <i class="fas fa-gem"></i>
+                        </div>
+                        <span>积分</span>
+                    </div>
+                </div>
+                <div class="feature-row">
+                    <div class="feature-item" onclick="showCustomerService()">
+                        <div class="feature-icon service">
+                            <i class="fas fa-headset"></i>
+                        </div>
+                        <span>客服</span>
+                    </div>
+                    <div class="feature-item" onclick="showSettings()">
+                        <div class="feature-icon settings">
+                            <i class="fas fa-cog"></i>
+                        </div>
+                        <span>设置</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="showPage('home-page')">
+                <i class="fas fa-home"></i>
+                <span>首页</span>
+            </div>
+            <div class="nav-item" onclick="showPage('booking-page')">
+                <i class="fas fa-calendar-plus"></i>
+                <span>预约</span>
+            </div>
+            <div class="nav-item" onclick="showPage('orders-page')">
+                <i class="fas fa-list"></i>
+                <span>订单</span>
+            </div>
+            <div class="nav-item" onclick="showPage('profile-page')">
+                <i class="fas fa-user"></i>
+                <span>我的</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
