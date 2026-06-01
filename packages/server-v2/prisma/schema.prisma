@@ -1,0 +1,1017 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum EntityStatus {
+  active
+  disabled
+  archived
+}
+
+enum TerminalDeviceStatus {
+  online
+  offline
+  disabled
+  pending_unbind
+}
+
+enum ServiceTaskStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+  no_show
+}
+
+enum MarketingStrategyStatus {
+  draft
+  enabled
+  paused
+  archived
+}
+
+// ─── Auth & Access ───────────────────────────────────────────────────────────
+
+model Store {
+  id        Int       @id @default(autoincrement())
+  name      String
+  city      String?
+  address   String?
+  phone     String?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users                UserStore[]
+  customers            Customer[]
+  predictionRuns       PredictionRun[]
+  predictionSnapshots  CustomerPredictionSnapshot[]
+  products             Product[]
+  projects             Project[]
+  beauticians          Beautician[]
+  schedules            Schedule[]
+  reservations         Reservation[]
+  productOrders        ProductOrder[]
+  transferOrdersFrom   TransferOrder[]              @relation("TransferFromStore")
+  transferOrdersTo     TransferOrder[]              @relation("TransferToStore")
+  stockMovements       StockMovement[]
+  terminalDevices      TerminalDevice[]
+  serviceTasks         ServiceTask[]
+  recommendationEvents RecommendationEvent[]
+  balanceAccounts      CustomerBalanceAccount[]
+  balanceTransactions  CustomerBalanceTransaction[]
+  promotions           Promotion[]
+  printJobs            PrintJob[]
+  aiAuditLogs          AiAuditLog[]
+
+  @@index([status])
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  name         String
+  phone        String?
+  email        String?
+  avatar       String?
+  status       String    @default("active")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  roles          UserRole[]
+  stores         UserStore[]
+  aiAuditLogs    AiAuditLog[]
+  refreshTokens  RefreshToken[]
+  stockMovements StockMovement[]
+
+  @@index([status])
+  @@index([phone])
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Role {
+  id             Int      @id @default(autoincrement())
+  key            String   @unique
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false)
+  permissions    String[]
+  platformScopes Json?
+  dataScopes     Json?
+  fieldScopes    Json?
+  approvalScopes Json?
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users UserRole[]
+}
+
+model UserRole {
+  userId Int
+  roleId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model UserStore {
+  userId  Int
+  storeId Int
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store   Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storeId])
+}
+
+// ─── Customers ───────────────────────────────────────────────────────────────
+
+model Customer {
+  id            Int       @id @default(autoincrement())
+  storeId       Int
+  name          String
+  phone         String?
+  email         String?
+  wechat        String?
+  landline      String?
+  gender        String?
+  maritalStatus String?
+  birthday      DateTime?
+  age           Int?
+  height        Decimal?
+  weight        Decimal?
+  occupation    String?
+  workplace     String?
+  address       String?
+  hasAllergy    String?
+  hasSurgery    String?
+  skinCondition String?
+  memberLevel   String    @default("无")
+  source        String?
+  totalSpent    Decimal   @default(0)
+  visitCount    Int       @default(0)
+  lastVisitDate DateTime?
+  skinType      String?
+  tags          String[]
+  remark        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  store                 Store                        @relation(fields: [storeId], references: [id])
+  healthProfile         CustomerHealthProfile?
+  consumptionRecords    ConsumptionRecord[]
+  customerCards         CustomerCard[]
+  productOrders         ProductOrder[]
+  reservations          Reservation[]
+  serviceTasks          ServiceTask[]
+  cardUsageRecords      CardUsageRecord[]
+  skinTests             SkinTest[]
+  predictionSnapshots   CustomerPredictionSnapshot[]
+  marketingTouches      MarketingAutomationTouch[]
+  marketingAttributions MarketingAttribution[]
+  recommendationEvents  RecommendationEvent[]
+  balanceAccounts       CustomerBalanceAccount[]
+  balanceTransactions   CustomerBalanceTransaction[]
+
+  @@index([storeId])
+  @@index([phone])
+  @@index([memberLevel])
+  @@index([name])
+}
+
+model CustomerHealthProfile {
+  id              Int      @id @default(autoincrement())
+  customerId      Int      @unique
+  skinType        String
+  skinStatus      String?
+  mainProblems    String?
+  allergyHistory  String?
+  goals           String?
+  recommendedCare String?
+  instrument      String?
+  lastCheck       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model ConsumptionRecord {
+  id             Int      @id @default(autoincrement())
+  customerId     Int
+  consumeType    String
+  consumeContent String
+  payMethod      String?
+  amount         Decimal  @default(0)
+  campaign       String?
+  consumeTime    DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([consumeTime])
+}
+
+// ─── Products & Inventory ────────────────────────────────────────────────────
+
+model Category {
+  id       Int        @id @default(autoincrement())
+  name     String
+  parentId Int?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+}
+
+model Product {
+  id             Int       @id @default(autoincrement())
+  storeId        Int
+  categoryId     Int?
+  sku            String    @unique
+  name           String
+  brand          String?
+  spec           String?
+  unit           String?
+  costPrice      Decimal   @default(0)
+  retailPrice    Decimal   @default(0)
+  shelfLife      Int?
+  supplier       String?
+  minPurchaseQty Int       @default(0)
+  image          String?
+  status         String    @default("active")
+  currentStock   Decimal   @default(0)
+  safetyStock    Decimal   @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  store          Store            @relation(fields: [storeId], references: [id])
+  category       Category?        @relation(fields: [categoryId], references: [id])
+  batches        StockBatch[]
+  bomItems       ProjectBomItem[]
+  stockMovements StockMovement[]
+
+  @@index([storeId])
+  @@index([status])
+  @@index([categoryId])
+}
+
+model StockBatch {
+  id             Int       @id @default(autoincrement())
+  productId      Int
+  batchNo        String
+  stock          Decimal   @default(0)
+  productionDate DateTime?
+  expiryDate     DateTime?
+  createdAt      DateTime  @default(now())
+
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockMovements StockMovement[]
+
+  @@index([productId])
+  @@index([expiryDate])
+}
+
+model PurchaseOrder {
+  id          Int      @id @default(autoincrement())
+  orderNo     String   @unique
+  supplier    String?
+  totalAmount Decimal  @default(0)
+  status      String   @default("pending")
+  items       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+model TransferOrder {
+  id           Int      @id @default(autoincrement())
+  orderNo      String   @unique
+  fromStoreId  Int
+  toStoreId    Int
+  productCount Int      @default(0)
+  status       String   @default("pending")
+  items        Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  fromStore Store @relation("TransferFromStore", fields: [fromStoreId], references: [id])
+  toStore   Store @relation("TransferToStore", fields: [toStoreId], references: [id])
+
+  @@index([status])
+}
+
+model StockMovement {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  productId    Int
+  batchId      Int?
+  movementNo   String   @unique
+  movementType String
+  quantity     Decimal
+  beforeStock  Decimal?
+  afterStock   Decimal?
+  unit         String?
+  sourceType   String?
+  sourceId     Int?
+  sourceNo     String?
+  remark       String?
+  operatorId   Int?
+  occurredAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  store    Store       @relation(fields: [storeId], references: [id])
+  product  Product     @relation(fields: [productId], references: [id])
+  batch    StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  operator User?       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, productId, occurredAt])
+  @@index([movementType])
+  @@index([sourceType, sourceId])
+  @@index([batchId])
+  @@index([operatorId])
+}
+
+// ─── Projects & Services ─────────────────────────────────────────────────────
+
+model ProjectType {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  status      String    @default("active")
+  projects    Project[]
+}
+
+model Project {
+  id          Int       @id @default(autoincrement())
+  storeId     Int
+  typeId      Int?
+  name        String
+  description String?
+  price       Decimal   @default(0)
+  duration    Int       @default(60)
+  image       String?
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  store        Store            @relation(fields: [storeId], references: [id])
+  type         ProjectType?     @relation(fields: [typeId], references: [id])
+  bomItems     ProjectBomItem[]
+  serviceTasks ServiceTask[]
+  reservations Reservation[]
+
+  @@index([storeId])
+  @@index([status])
+}
+
+model ProjectBomItem {
+  id          Int     @id @default(autoincrement())
+  projectId   Int
+  productId   Int
+  standardQty Decimal @default(0)
+  unit        String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// ─── Beauticians ─────────────────────────────────────────────────────────────
+
+model Beautician {
+  id        Int      @id @default(autoincrement())
+  storeId   Int
+  name      String
+  phone     String?
+  levelId   Int?
+  avatar    String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store            Store             @relation(fields: [storeId], references: [id])
+  level            BeauticianLevel?  @relation(fields: [levelId], references: [id])
+  schedules        Schedule[]
+  reservations     Reservation[]
+  serviceTasks     ServiceTask[]
+  cardUsageRecords CardUsageRecord[]
+
+  @@index([storeId])
+}
+
+model BeauticianLevel {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  beauticians Beautician[]
+}
+
+// ─── Orders & Cards ──────────────────────────────────────────────────────────
+
+model ProductOrder {
+  id           Int      @id @default(autoincrement())
+  orderNo      String   @unique
+  customerId   Int?
+  customerName String?
+  storeId      Int?
+  totalAmount  Decimal  @default(0)
+  status       String   @default("completed")
+  payMethod    String?
+  items        Json
+  remark       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer              Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  store                 Store?                 @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  orderItems            OrderItem[]
+  paymentRecords        PaymentRecord[]
+  refundRecords         RefundRecord[]
+  marketingAttributions MarketingAttribution[]
+  recommendationEvents  RecommendationEvent[]
+  balanceTransactions   CustomerBalanceTransaction[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([storeId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  itemType  String
+  itemId    Int?
+  name      String
+  quantity  Decimal
+  unitPrice Decimal
+  subtotal  Decimal
+  discount  Decimal  @default(0)
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  order ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([itemType, itemId])
+}
+
+model PaymentRecord {
+  id            Int       @id @default(autoincrement())
+  orderId       Int
+  paymentNo     String    @unique
+  method        String
+  amount        Decimal
+  status        String
+  transactionNo String?
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  order ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([paidAt])
+}
+
+model RefundRecord {
+  id         Int       @id @default(autoincrement())
+  orderId    Int
+  refundNo   String    @unique
+  amount     Decimal
+  reason     String?
+  status     String
+  refundedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  order ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([refundedAt])
+}
+
+model Card {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  totalTimes  Int
+  price       Decimal  @default(0)
+  projects    Json
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customerCards CustomerCard[]
+}
+
+model CustomerCard {
+  id             Int      @id @default(autoincrement())
+  customerId     Int
+  cardId         Int
+  cardName       String
+  totalTimes     Int
+  remainingTimes Int
+  expiryDate     DateTime
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  card     Card     @relation(fields: [cardId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model CardUsageRecord {
+  id             Int      @id @default(autoincrement())
+  customerId     Int
+  customerName   String
+  cardName       String
+  projectName    String
+  times          Int
+  remainingTimes Int
+  beauticianId   Int?
+  deviceId       Int?
+  verifiedAt     DateTime @default(now())
+
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  device     TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([beauticianId])
+  @@index([deviceId])
+  @@index([verifiedAt])
+}
+
+// ─── Scheduling & Reservations ───────────────────────────────────────────────
+
+model Schedule {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  beauticianId Int
+  date         DateTime
+  startTime    String
+  endTime      String
+  status       String   @default("available")
+  createdAt    DateTime @default(now())
+
+  store      Store      @relation(fields: [storeId], references: [id])
+  beautician Beautician @relation(fields: [beauticianId], references: [id])
+
+  @@index([storeId, date])
+  @@index([beauticianId, date])
+}
+
+model Reservation {
+  id           Int       @id @default(autoincrement())
+  storeId      Int
+  customerId   Int
+  projectId    Int
+  beauticianId Int?
+  date         DateTime
+  startTime    String
+  endTime      String?
+  status       String    @default("pending")
+  remark       String?
+  checkedInAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  store      Store       @relation(fields: [storeId], references: [id])
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project    Project     @relation(fields: [projectId], references: [id])
+  beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, date])
+  @@index([customerId])
+  @@index([projectId])
+  @@index([beauticianId])
+  @@index([status])
+}
+
+// ─── Terminal Devices ─────────────────────────────────────────────────────────
+
+model TerminalDevice {
+  id              Int                  @id @default(autoincrement())
+  storeId         Int
+  deviceCode      String               @unique
+  activationCode  String
+  name            String
+  model           String
+  status          TerminalDeviceStatus @default(offline)
+  appVersion      String?
+  firmwareVersion String?
+  batteryLevel    Int?
+  networkStatus   String?
+  lastOnlineAt    DateTime?
+  boundAt         DateTime?
+
+  store                Store                 @relation(fields: [storeId], references: [id])
+  serviceTasks         ServiceTask[]
+  skinTests            SkinTest[]
+  cardUsageRecords     CardUsageRecord[]
+  recommendationEvents RecommendationEvent[]
+  aiAuditLogs          AiAuditLog[]
+
+  @@index([storeId])
+}
+
+model ServiceTask {
+  id               Int               @id @default(autoincrement())
+  taskNo           String            @unique
+  customerId       Int
+  projectId        Int
+  beauticianId     Int?
+  deviceId         Int?
+  storeId          Int
+  appointmentTime  DateTime
+  duration         Int               @default(60)
+  status           ServiceTaskStatus @default(pending)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  remark           String?
+  consumptionItems Json?
+  images           String[]
+
+  store                Store                 @relation(fields: [storeId], references: [id])
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project              Project               @relation(fields: [projectId], references: [id])
+  beautician           Beautician?           @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  device               TerminalDevice?       @relation(fields: [deviceId], references: [id])
+  skinTests            SkinTest[]
+  recommendationEvents RecommendationEvent[]
+
+  @@index([storeId, status])
+  @@index([customerId])
+  @@index([beauticianId])
+  @@index([deviceId])
+}
+
+model SkinTest {
+  id                 Int      @id @default(autoincrement())
+  customerId         Int?
+  taskId             Int?
+  deviceId           Int?
+  images             String[]
+  metrics            Json
+  skinType           String
+  skinStatus         String?
+  mainProblems       String?
+  recommendationText String?
+  createdAt          DateTime @default(now())
+
+  customer    Customer?       @relation(fields: [customerId], references: [id])
+  serviceTask ServiceTask?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  device      TerminalDevice? @relation(fields: [deviceId], references: [id])
+
+  @@index([customerId])
+  @@index([taskId])
+  @@index([deviceId])
+}
+
+// ─── Marketing ───────────────────────────────────────────────────────────────
+
+model MarketingActivity {
+  id                     Int       @id @default(autoincrement())
+  title                  String
+  description            String?
+  status                 String    @default("draft")
+  participants           Int       @default(0)
+  conversion             String?
+  startDate              DateTime?
+  endDate                DateTime?
+  targetCustomers        String?
+  discount               String?
+  pageSchema             Json?
+  sourceRecommendationId String?
+  aiGenerationId         String?
+  publishStatus          String?
+  publishedAt            DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([status])
+  @@index([publishStatus])
+}
+
+model MarketingAutomationStrategy {
+  id             Int                     @id @default(autoincrement())
+  name           String
+  description    String?
+  status         MarketingStrategyStatus @default(draft)
+  executionType  String
+  schedule       Json
+  triggerRules   Json
+  ruleRelation   String                  @default("AND")
+  actions        Json
+  targetCount    Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  lastExecutedAt DateTime?
+
+  executions   MarketingAutomationExecution[]
+  touches      MarketingAutomationTouch[]
+  attributions MarketingAttribution[]
+
+  @@index([status])
+}
+
+model MarketingAutomationExecution {
+  id             Int      @id @default(autoincrement())
+  strategyId     Int
+  strategyName   String
+  status         String
+  triggeredCount Int      @default(0)
+  reachedCount   Int      @default(0)
+  channel        String?
+  executedAt     DateTime @default(now())
+  message        String?
+
+  strategy     MarketingAutomationStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  touches      MarketingAutomationTouch[]
+  attributions MarketingAttribution[]
+
+  @@index([strategyId])
+}
+
+model PredictionRun {
+  id            Int       @id @default(autoincrement())
+  storeId       Int?
+  modelVersion  String
+  status        String    @default("running")
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  customerCount Int       @default(0)
+  summaryJson   Json?
+
+  store     Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  snapshots CustomerPredictionSnapshot[]
+
+  @@index([storeId])
+  @@index([modelVersion])
+  @@index([startedAt])
+  @@index([status])
+}
+
+model CustomerPredictionSnapshot {
+  id                     Int      @id @default(autoincrement())
+  runId                  Int
+  customerId             Int
+  storeId                Int
+  modelVersion           String
+  churnScore             Int      @default(0)
+  churnLevel             String
+  repurchase30dScore     Int      @default(0)
+  marketingResponseScore Int      @default(0)
+  ltv6m                  Decimal  @default(0)
+  ltv12m                 Decimal  @default(0)
+  ltvTier                String
+  featureJson            Json
+  reasonJson             Json
+  recommendedActionsJson Json
+  createdAt              DateTime @default(now())
+
+  run      PredictionRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  customer Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store    Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  touches  MarketingAutomationTouch[]
+
+  @@index([runId])
+  @@index([customerId])
+  @@index([storeId])
+  @@index([churnLevel])
+  @@index([ltvTier])
+  @@index([createdAt])
+}
+
+model MarketingAutomationTouch {
+  id                       Int       @id @default(autoincrement())
+  executionId              Int
+  strategyId               Int
+  customerId               Int
+  predictionSnapshotId     Int?
+  predictedConversionScore Int       @default(0)
+  predictedRevenue         Decimal   @default(0)
+  channel                  String?
+  status                   String    @default("reached")
+  touchedAt                DateTime  @default(now())
+  convertedAt              DateTime?
+  conversionType           String?
+  actualRevenue            Decimal?
+  attributionWindowDays    Int       @default(30)
+
+  execution          MarketingAutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  strategy           MarketingAutomationStrategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  customer           Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionSnapshot CustomerPredictionSnapshot?  @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+  attributions       MarketingAttribution[]
+
+  @@index([executionId])
+  @@index([strategyId])
+  @@index([customerId])
+  @@index([predictionSnapshotId])
+  @@index([status])
+  @@index([touchedAt])
+}
+
+model MarketingAttribution {
+  id                    Int      @id @default(autoincrement())
+  touchId               Int
+  strategyId            Int
+  executionId           Int?
+  customerId            Int
+  orderId               Int
+  attributionType       String   @default("last_touch")
+  attributedRevenue     Decimal  @default(0)
+  attributionWindowDays Int      @default(30)
+  occurredAt            DateTime
+  createdAt             DateTime @default(now())
+
+  touch     MarketingAutomationTouch      @relation(fields: [touchId], references: [id], onDelete: Cascade)
+  strategy  MarketingAutomationStrategy   @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  execution MarketingAutomationExecution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+  customer  Customer                      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order     ProductOrder                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([touchId])
+  @@index([strategyId])
+  @@index([executionId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([occurredAt])
+}
+
+model RecommendationEvent {
+  id               Int      @id @default(autoincrement())
+  storeId          Int
+  customerId       Int
+  deviceId         Int?
+  recommendationId Int?
+  eventType        String
+  taskId           Int?
+  orderId          Int?
+  note             String?
+  payload          Json?
+  createdAt        DateTime @default(now())
+
+  store    Store           @relation(fields: [storeId], references: [id])
+  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  device   TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  task     ServiceTask?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  order    ProductOrder?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([customerId])
+  @@index([eventType])
+  @@index([taskId])
+  @@index([orderId])
+}
+
+model CustomerBalanceAccount {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  storeId     Int
+  cashBalance Decimal  @default(0)
+  giftBalance Decimal  @default(0)
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer     Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store        Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  transactions CustomerBalanceTransaction[]
+
+  @@unique([customerId, storeId])
+  @@index([storeId])
+  @@index([status])
+}
+
+model CustomerBalanceTransaction {
+  id                Int      @id @default(autoincrement())
+  accountId         Int
+  customerId        Int
+  storeId           Int
+  orderId           Int?
+  transactionNo     String   @unique
+  type              String
+  amount            Decimal
+  giftAmount        Decimal  @default(0)
+  cashBalanceBefore Decimal  @default(0)
+  cashBalanceAfter  Decimal  @default(0)
+  giftBalanceBefore Decimal  @default(0)
+  giftBalanceAfter  Decimal  @default(0)
+  paymentMethod     String?
+  remark            String?
+  createdAt         DateTime @default(now())
+
+  account  CustomerBalanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  customer Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store    Store                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order    ProductOrder?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([orderId])
+  @@index([type])
+}
+
+model Promotion {
+  id                   Int       @id @default(autoincrement())
+  storeId              Int?
+  name                 String
+  description          String?
+  discountText         String
+  applicableProjectIds Int[]
+  startAt              DateTime?
+  endAt                DateTime?
+  status               String    @default("active")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([status])
+  @@index([startAt, endAt])
+}
+
+model PrintJob {
+  id           Int       @id @default(autoincrement())
+  storeId      Int
+  jobNo        String    @unique
+  sourceType   String
+  sourceId     Int?
+  title        String
+  content      String
+  copies       Int       @default(1)
+  status       String
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([status])
+}
+
+// ─── AI Audit ────────────────────────────────────────────────────────────────
+
+model AiAuditLog {
+  id             Int      @id @default(autoincrement())
+  userId         Int?
+  deviceId       Int?
+  storeId        Int?
+  scenario       String
+  promptTemplate String?
+  provider       String
+  model          String
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  inputSummary   String?
+  outputSummary  String?
+  latencyMs      Int?
+  status         String
+  createdAt      DateTime @default(now())
+
+  user   User?           @relation(fields: [userId], references: [id])
+  device TerminalDevice? @relation(fields: [deviceId], references: [id])
+  store  Store?          @relation(fields: [storeId], references: [id])
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([storeId])
+  @@index([scenario])
+  @@index([createdAt])
+}

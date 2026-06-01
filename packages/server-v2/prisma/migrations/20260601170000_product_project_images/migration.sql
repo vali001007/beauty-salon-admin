@@ -1,0 +1,2 @@
+ALTER TABLE "Product" ADD COLUMN "image" TEXT;
+ALTER TABLE "Project" ADD COLUMN "image" TEXT;
