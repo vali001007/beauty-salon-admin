@@ -1,0 +1,38 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: beauty
+      POSTGRES_PASSWORD: beauty_dev_123
+      POSTGRES_DB: beauty_salon
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./packages/server-v2
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://beauty:beauty_dev_123@postgres:5432/beauty_salon
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+      LLM_PROVIDER: mock
+      NODE_ENV: development
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  pgdata:

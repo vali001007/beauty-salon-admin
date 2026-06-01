@@ -1,11 +1,169 @@
+# Ami_Core Admin
 
-  # beauty salon
+Ami_Core 美业管理平台前端。当前阶段以 MVP 联调准备为主，默认使用 `server-v2 + PostgreSQL + real API`，mock 仅作为显式开启的 UI 演示/单测兜底。
 
-  This is a code bundle for beauty salon. The original project is available at https://www.figma.com/design/Y3Ytwv6emMVMADyekScXVG/beauty-salon.
+## 本地启动
 
-  ## Running the code
+```bash
+npm install
+npm run dev:full
+```
 
-  Run `npm i` to install the dependencies.
+管理端地址：`http://localhost:5173`，API 默认代理到 `http://localhost:8080/api`。
 
-  Run `npm run dev` to start the development server.
-  
+## 默认账号
+
+- 用户名：`admin`
+- 密码：`11111111`
+- 角色：超级管理员，拥有全部权限
+
+## 环境变量
+
+`.env` 默认配置应保持 real：
+
+```bash
+VITE_API_MODE=real
+VITE_API_BASE_URL=/api
+```
+
+显式 mock 演示可复制 `.env.mock.example`：
+
+```bash
+VITE_API_MODE=mock
+VITE_API_BASE_URL=/api
+```
+
+本地 real 联调默认使用主线后端 `packages/server-v2`，根项目已提供一键命令：
+
+```bash
+npm run dev:full
+
+# 或拆开启动
+npm run dev:api
+npm run dev:web
+```
+
+Vite 开发服务器会把 `/api` 代理到 `VITE_API_PROXY_TARGET`，未配置时为 `http://localhost:8080`。
+
+- `real`：默认模式，走 `src/api/real/*`，请求会基于 `VITE_API_BASE_URL`，默认回退 `/api`
+- `mock`：只在 `VITE_API_MODE=mock` 时启用，走 `src/api/mock/*`，适合 UI 演示、离线兜底和单元测试
+- 真实请求自动附带 `Authorization: Bearer <token>` 和 `X-Store-Id`
+- 新业务逻辑优先落在 `packages/server-v2`；mock 只补返回结构样例，不承载库存扣减、支付退款、营销归因等真实闭环规则
+
+## 常用命令
+
+```bash
+npm run dev:full
+npm run dev:api
+npm run dev:web
+npm run build
+npm run test
+npm run test:coverage
+npm run lint
+npm run format
+npm run db:migrate:v2
+npm run db:generate:v2
+npm run db:seed:demo
+npm run db:studio:v2
+```
+
+## 当前状态
+
+- 自动营销触发规则已切到 API 驱动，支持默认参数、命中预估、策略启停和执行记录
+- Ami Aura Lite / Terminal API 已补齐，覆盖设备登录、门店绑定、客户识别、服务任务、次卡核销、肌肤检测和推荐闭环
+- build、test 已可通过；lint 当前仅剩少量 warnings
+- demo seed 以 `packages/server-v2/prisma/seed-mvp.ts` 为准，采用幂等补数，不会自动清库或批量删除数据
+
+## API 契约
+
+- [通用接口契约](docs/api-contract.md)
+- [自动营销触发规则需求](docs/marketing-trigger-rules-requirements.md)
+- [Ami Aura Lite / Terminal API](docs/terminal-api.md)
+
+统一约定：
+
+- 分页响应以 `items` 为主字段，同时保留 `data` 兼容旧页面
+- 错误响应统一为 `{ message, code?, status?, details? }`
+
+## Docker 演示
+
+仓库内的 `Dockerfile.app` 会构建前端静态产物，并通过 `serve` 在 8080 端口提供服务：
+
+```bash
+docker build -f Dockerfile.app -t ami-core-admin .
+docker run --rm -p 8080:8080 ami-core-admin
+```
+
+访问地址：`http://localhost:8080`
+
+## Core API 与 AI Gateway
+
+主业务 API、AI Gateway 和旧 Claude 兼容入口统一由 `packages/server-v2` 承接。根项目启动后端统一使用：
+
+```bash
+npm run dev:api
+```
+
+或进入后端目录直接启动：
+
+```bash
+cd packages/server-v2
+npm install
+npm run dev
+```
+
+默认地址：
+
+```bash
+http://localhost:8080/api
+```
+
+前端 real 模式建议配置：
+
+```bash
+VITE_API_MODE=real
+VITE_API_BASE_URL=http://localhost:8080/api
+```
+
+AI Gateway 环境变量：
+
+```bash
+PORT=8080
+REQUEST_BODY_LIMIT=12mb
+LLM_PROVIDER=mock
+LLM_MODEL=ami-core-mock-llm
+LLM_BASE_URL=https://api.example.com/v1/messages
+LLM_API_KEY=your-server-side-key
+LLM_TIMEOUT_MS=30000
+LLM_DAILY_BUDGET=0
+FACEPP_API_KEY=your-faceplusplus-api-key
+FACEPP_API_SECRET=your-faceplusplus-api-secret
+FACEPP_SKIN_ANALYZE_URL=https://api-cn.faceplusplus.com/facepp/v1/skinanalyze
+FACEPP_SKIN_ANALYZE_TIMEOUT_MS=30000
+FACEPP_SKIN_ANALYZE_FALLBACK=true
+```
+
+已落地的 AI API：
+
+- `POST /api/ai/chat/messages`
+- `POST /api/ai/generate/customer-invitation-script`
+- `POST /api/ai/generate/marketing-copy`
+- `POST /api/ai/generate/campaign-variants`
+- `POST /api/ai/generate/customer-summary`
+- `POST /api/ai/generate/service-note-summary`
+- `POST /api/ai/generate/skin-test-explanation`
+- `POST /api/ai/analyze/skin-photo`
+- `POST /api/ai/generate/terminal-service-advice`
+- `POST /api/ai/recommend/next-best-action`
+- `GET /api/ai/audit-logs/paginated`
+
+AI 肤质检测说明：
+- 管理端 `/customers/data` 的 `AI肤质检测` 只调用 Core 后端 `/api/ai/analyze/skin-photo`。
+- Core 后端配置 `FACEPP_API_KEY` 与 `FACEPP_API_SECRET` 后，会调用 Face++ 皮肤分析-高阶版。
+- 未配置 Key 或 Face++ 临时不可用时，`FACEPP_SKIN_ANALYZE_FALLBACK=true` 会返回演示级兜底结果；生产环境可改为 `false` 让接口直接报错。
+
+约束：
+
+- 管理端和 Ami Aura Lite 不保存大模型 Key，只调用 Core API。
+- `LLM_PROVIDER=mock` 时返回稳定模拟结果，适合本地演示。
+- 旧 `/v1/messages` 入口仍保留在 `server-v2`，兼容现有 Claude 代理调用；新业务继续使用 `/api/ai/*`。
