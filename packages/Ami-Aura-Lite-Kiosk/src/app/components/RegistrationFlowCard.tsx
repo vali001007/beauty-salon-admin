@@ -210,6 +210,11 @@ export function RegistrationFlowCard({
     }
   };
 
+  const skipSkinAnalyze = () => {
+    clearSkinPhoto();
+    setStep(3);
+  };
+
   const submit = async () => {
     if (!canSubmitBasic) return;
     setLoading(true);
@@ -221,6 +226,7 @@ export function RegistrationFlowCard({
         skinMetrics: skinAnalysis?.metrics,
         skinImageUrl: skinAnalysis?.imageUrl,
         skinInstrument: skinAnalysis?.instrument,
+        skinIsFallback: skinAnalysis?.isFallback,
         skinConfidence: skinAnalysis?.confidence,
         skinCapturedAt: skinAnalysis?.capturedAt,
         skinAnalyzeId: skinAnalysis?.analyzeId,
@@ -324,24 +330,38 @@ export function RegistrationFlowCard({
                 <div>
                   <div className="text-sm font-semibold text-emerald-800">Ami_Core 面部检测结果</div>
                   <div className="mt-1 text-xs text-emerald-700">
-                    检测ID {skinAnalysis.analyzeId} · 置信度 {Math.round(skinAnalysis.confidence * 100)}%
+                    检测ID {skinAnalysis.analyzeId}
+                    {skinAnalysis.isFallback ? " · AI 初筛" : ` · 置信度 ${Math.round(skinAnalysis.confidence * 100)}%`}
                   </div>
                 </div>
-                <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-700">
-                  {skinAnalysis.instrument}
-                </div>
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {skinAnalysis.metrics.slice(0, 6).map((metric) => (
-                  <div key={metric.key} className="rounded-xl bg-white px-3 py-2">
-                    <div className="text-[11px] text-[#6F6678]">{metric.label}</div>
-                    <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">
-                      {metric.value}
-                      {metric.unit ?? ""}
+                <div className="flex flex-wrap gap-2">
+                  {skinAnalysis.isFallback ? (
+                    <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                      仅供参考
                     </div>
+                  ) : null}
+                  <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-700">
+                    {skinAnalysis.instrument}
                   </div>
-                ))}
+                </div>
               </div>
+              {skinAnalysis.isFallback ? (
+                <div className="mt-3 rounded-xl border border-amber-100 bg-white px-3 py-2 text-sm leading-6 text-amber-800">
+                  正式仪器检测暂不可用，本次不展示水分、油脂、毛孔等量化指标。
+                </div>
+              ) : (
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {skinAnalysis.metrics.slice(0, 6).map((metric) => (
+                    <div key={metric.key} className="rounded-xl bg-white px-3 py-2">
+                      <div className="text-[11px] text-[#6F6678]">{metric.label}</div>
+                      <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">
+                        {metric.value}
+                        {metric.unit ?? ""}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="mt-3 text-sm leading-6 text-emerald-800">{skinAnalysis.explanation}</p>
             </div>
           ) : null}
@@ -350,8 +370,16 @@ export function RegistrationFlowCard({
             <input value={form.skinStatus} onChange={setField("skinStatus")} placeholder="皮肤状态" className="h-12 rounded-xl border border-black/10 px-4 outline-none focus:border-[#C9956C]" />
           </div>
           <textarea value={form.mainProblems} onChange={setField("mainProblems")} placeholder="主要问题" className="min-h-20 rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#C9956C]" />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <button type="button" onClick={() => setStep(1)} className="h-12 rounded-xl border border-black/10 bg-white text-sm font-medium">返回信息</button>
+            <button
+              type="button"
+              onClick={skipSkinAnalyze}
+              disabled={scanLoading}
+              className="h-12 rounded-xl border border-black/10 bg-white text-sm font-medium text-[#6F6678] disabled:opacity-60"
+            >
+              跳过检测
+            </button>
             <button type="button" onClick={() => setStep(3)} disabled={!cameraCaptured} className="h-12 rounded-xl bg-[#C9956C] text-sm font-semibold text-white disabled:opacity-40">
               生成用户信息卡
             </button>

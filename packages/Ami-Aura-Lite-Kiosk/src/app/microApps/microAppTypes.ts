@@ -1,5 +1,7 @@
 import type {
   getAiSuggestion,
+  createAutomationDraft,
+  getAutomationTodaySummary,
   getBeauticianDashboard,
   getCardOpeningFlow,
   getCardVerificationFlow,
@@ -30,6 +32,8 @@ export type AuraPayload =
   | { kind: "registration"; data: Awaited<ReturnType<typeof getRegistrationFlow>> }
   | { kind: "recharge"; data: Awaited<ReturnType<typeof getRechargeFlow>> }
   | { kind: "operation"; data: Awaited<ReturnType<typeof getOperationResult>> }
+  | { kind: "automation"; data: Awaited<ReturnType<typeof createAutomationDraft>> }
+  | { kind: "automationSummary"; data: Awaited<ReturnType<typeof getAutomationTodaySummary>> }
   | { kind: "ai"; data: Awaited<ReturnType<typeof getAiSuggestion>> };
 
 export interface MicroAppMessage {
@@ -43,4 +47,3 @@ export interface MicroAppRunResult {
   aiSummary?: string;
   aiCommand?: string;
 }
-

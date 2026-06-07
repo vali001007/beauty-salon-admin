@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard } from "lucide-react";
 import type { CardOpeningConfirmInput, CardOpeningFlowData, CardOpenOption, CustomerSelectItem } from "../types";
 import { cn } from "./ui/utils";
@@ -20,6 +20,7 @@ export function CardOpeningFlowCard({
   const [step, setStep] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSelectItem | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardOpenOption | null>(null);
+  const [selectedCardType, setSelectedCardType] = useState("全部");
   const [discountAmount, setDiscountAmount] = useState("");
   const [giftProjects, setGiftProjects] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<CardOpeningConfirmInput["paymentMethod"]>("微信");
@@ -27,9 +28,20 @@ export function CardOpeningFlowCard({
   const [error, setError] = useState<string | null>(null);
   const customers = safeArray(data.customers);
   const cards = safeArray(data.cards);
+  const cardTypeOptions = useMemo(() => ["全部", ...Array.from(new Set(cards.map((card) => card.type).filter(Boolean)))], [cards]);
+  const visibleCards = useMemo(
+    () => selectedCardType === "全部" ? cards : cards.filter((card) => card.type === selectedCardType),
+    [cards, selectedCardType],
+  );
 
   const discount = Math.min(selectedCard?.price ?? 0, Math.max(0, Number(discountAmount) || 0));
   const receivable = Math.max(0, (selectedCard?.price ?? 0) - discount);
+
+  useEffect(() => {
+    if (selectedCard && selectedCardType !== "全部" && selectedCard.type !== selectedCardType) {
+      setSelectedCard(null);
+    }
+  }, [selectedCard, selectedCardType]);
 
   const toggleGiftProject = (project: string) => {
     setGiftProjects((prev) => prev.includes(project) ? prev.filter((item) => item !== project) : [...prev, project]);
@@ -73,27 +85,57 @@ export function CardOpeningFlowCard({
             <CustomerSelectList customers={customers} selectedCustomerId={selectedCustomer?.id} onSelect={setSelectedCustomer} />
           </div>
           <div>
-            <div className="mb-3 text-sm font-medium text-[#6F6678]">第二步：选择次卡</div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {cards.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  onClick={() => setSelectedCard(card)}
-                  className={cn(
-                    "rounded-2xl border p-4 text-left transition",
-                    selectedCard?.id === card.id ? "border-[#2D1B69] bg-[#2D1B69]/6" : "border-black/5 bg-[#F7F5F2] hover:border-[#C9956C]/50",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <CreditCard className="h-5 w-5 text-[#2D1B69]" />
-                    {selectedCard?.id === card.id ? <CheckCircle2 className="h-5 w-5 text-[#C9956C]" /> : null}
-                  </div>
-                  <div className="mt-3 font-semibold text-[#1F1B2D]">{card.name}</div>
-                  <div className="mt-1 text-sm text-[#6F6678]">{card.type} · {card.totalTimes} 次</div>
-                  <div className="mt-3 text-xl font-bold text-[#1F1B2D]">￥{card.price.toLocaleString()}</div>
-                </button>
-              ))}
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-medium text-[#6F6678]">第二步：选择次卡</div>
+              <div className="text-xs text-[#9B92A3]">共 {visibleCards.length} 张，选中后继续</div>
+            </div>
+            {cardTypeOptions.length > 2 ? (
+              <div className="mb-3 flex gap-1 overflow-x-auto rounded-xl bg-[#F7F5F2] p-1">
+                {cardTypeOptions.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setSelectedCardType(type)}
+                    className={cn(
+                      "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
+                      selectedCardType === type ? "bg-white text-[#1F1B2D] shadow-sm" : "text-[#6F6678] hover:bg-white/70",
+                    )}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="max-h-[236px] overflow-y-auto pr-1">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {visibleCards.map((card) => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => setSelectedCard(card)}
+                    className={cn(
+                      "min-h-[76px] rounded-xl border px-3 py-2.5 text-left transition active:scale-[0.99]",
+                      selectedCard?.id === card.id
+                        ? "border-[#2D1B69] bg-[#2D1B69]/6 shadow-[0_0_0_1px_rgba(45,27,105,0.08)]"
+                        : "border-black/5 bg-[#F7F5F2] hover:border-[#C9956C]/50 hover:bg-white",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <CreditCard className="h-4 w-4 shrink-0 text-[#2D1B69]" />
+                          <span className="truncate text-sm font-semibold text-[#1F1B2D]">{card.name}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-[#6F6678]">{card.type} · {card.totalTimes} 次</div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-base font-bold text-[#1F1B2D]">￥{card.price.toLocaleString()}</div>
+                        {selectedCard?.id === card.id ? <CheckCircle2 className="ml-auto mt-1 h-4 w-4 text-[#C9956C]" /> : null}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <button

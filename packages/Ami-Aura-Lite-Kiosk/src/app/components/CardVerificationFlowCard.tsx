@@ -1,15 +1,40 @@
 import React, { useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, ChevronRight, Gift, Loader2, Search } from "lucide-react";
+import { AlertCircle, ChevronRight, Gift, Loader2 } from "lucide-react";
 import type {
   CardVerificationCardOption,
   CardVerificationConfirmInput,
   CardVerificationCustomer,
   CardVerificationFlowData,
 } from "../types";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { cn } from "./ui/utils";
+import { CustomerSelectList } from "./CustomerSelectList";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
+}
+
+function getCustomerTags(customer: CardVerificationCustomer) {
+  return [customer.profileLabel, ...safeArray(customer.tags)].filter(Boolean).slice(0, 6);
+}
+
+function CustomerAvatar({ customer, className }: { customer: CardVerificationCustomer; className?: string }) {
+  const avatarUrl = customer.avatarUrl?.trim();
+
+  return (
+    <div
+      className={cn(
+        "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#2D1B69] to-[#C9956C] text-base font-semibold text-white shadow-sm",
+        className,
+      )}
+    >
+      {avatarUrl ? (
+        <img src={avatarUrl} alt={`${customer.name}头像`} className="h-full w-full object-cover" />
+      ) : (
+        customer.name.trim().slice(0, 1) || "客"
+      )}
+    </div>
+  );
 }
 
 type SelectedCustomer = CardVerificationCustomer & { cards?: CardVerificationCardOption[] };
@@ -30,27 +55,20 @@ export function CardVerificationFlowCard({
   onConfirm: (input: CardVerificationConfirmInput) => Promise<void>;
 }) {
   const [step, setStep] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<SelectedCustomer | null>(null);
   const [selectedProject, setSelectedProject] = useState<SelectedProject | null>(null);
+  const [detailCustomer, setDetailCustomer] = useState<CardVerificationCustomer | null>(null);
+  const [pendingCustomerId, setPendingCustomerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedCards = safeArray(selectedCustomer?.cards);
 
-  const customers = useMemo(() => {
-    const keyword = searchQuery.trim();
-    const sourceCustomers = safeArray(data.customers);
-    if (!keyword) {
-      const appointedToday = sourceCustomers.filter((customer) => customer.isAppointedToday);
-      return (appointedToday.length ? appointedToday : sourceCustomers).slice(0, 8);
-    }
-    return sourceCustomers
-      .filter((customer) => customer.name.includes(keyword) || customer.phone.includes(keyword))
-      .slice(0, 12);
-  }, [data.customers, searchQuery]);
+  const customers = useMemo(() => safeArray(data.customers), [data.customers]);
 
   const chooseCustomer = async (customer: CardVerificationCustomer) => {
     setLoading(true);
+    setPendingCustomerId(customer.id);
+    setDetailCustomer(null);
     setError(null);
     try {
       const detail = await onLoadCustomerCards(customer.id);
@@ -61,7 +79,13 @@ export function CardVerificationFlowCard({
       setError(err instanceof Error ? err.message : "客户卡项加载失败");
     } finally {
       setLoading(false);
+      setPendingCustomerId(null);
     }
+  };
+
+  const chooseDetailCustomer = () => {
+    if (!detailCustomer) return;
+    void chooseCustomer(detailCustomer);
   };
 
   const chooseProject = (card: CardVerificationCardOption, project: CardVerificationCardOption["projects"][number]) => {
@@ -132,61 +156,16 @@ export function CardVerificationFlowCard({
       {step === 1 ? (
         <div className="flex flex-col gap-4">
           <div className="text-sm font-medium text-[#6F6678]">第一步：选择客户，默认优先显示当天预约客户</div>
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6F6678]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="输入客户姓名或手机号搜索"
-              className="h-14 w-full rounded-2xl border border-black/10 bg-white pl-12 pr-4 text-base text-[#1F1B2D] outline-none transition focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
-            />
-          </div>
-          <div className="flex flex-col gap-3">
-            {customers.length ? (
-              customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  onClick={() => chooseCustomer(customer)}
-                  disabled={loading}
-                  className="flex w-full items-center justify-between gap-4 rounded-2xl border border-black/5 bg-[#F7F5F2] p-4 text-left transition hover:border-[#C9956C]/60 hover:bg-[#C9956C]/5 disabled:cursor-wait disabled:opacity-60"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2D1B69] to-[#C9956C] text-base font-semibold text-white">
-                      {customer.name.slice(0, 1)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-lg font-semibold text-[#1F1B2D]">{customer.name}</span>
-                        {customer.isAppointedToday ? (
-                          <span className="rounded-full bg-[#2D1B69]/8 px-2.5 py-1 text-xs font-medium text-[#2D1B69]">
-                            预约 {customer.appointmentTime}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 text-sm text-[#6F6678]">{customer.phone} · {customer.memberLevel}</div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {[customer.profileLabel, ...safeArray(customer.tags)].filter(Boolean).slice(0, 4).map((tag) => (
-                          <span key={`${customer.id}-${tag}`} className="rounded-full bg-white px-2.5 py-1 text-xs text-[#6F6678]">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {loading && selectedCustomer?.id === customer.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <ChevronRight className="h-5 w-5 text-[#9B92A3]" />}
-                </button>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-black/10 bg-[#F7F5F2] p-8 text-center text-sm text-[#6F6678]">
-                未找到匹配客户，请检查姓名或手机号。
-              </div>
-            )}
-          </div>
+          <CustomerSelectList
+            customers={customers}
+            selectedCustomerId={selectedCustomer?.id}
+            onSelect={(customer) => void chooseCustomer(customer)}
+            onViewDetails={setDetailCustomer}
+            loadingCustomerId={pendingCustomerId}
+            disabled={loading}
+          />
         </div>
       ) : null}
-
       {step === 2 && selectedCustomer ? (
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
@@ -273,6 +252,77 @@ export function CardVerificationFlowCard({
           </div>
         </div>
       ) : null}
+
+      <Dialog open={Boolean(detailCustomer)} onOpenChange={(open) => !open && setDetailCustomer(null)}>
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>客户详情</DialogTitle>
+            <DialogDescription>核销前快速查看客户基础信息、今日预约和画像标签。</DialogDescription>
+          </DialogHeader>
+
+          {detailCustomer ? (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 rounded-2xl bg-[#F7F5F2] p-4">
+                <CustomerAvatar customer={detailCustomer} className="h-14 w-14 text-lg" />
+                <div className="min-w-0">
+                  <div className="truncate text-lg font-semibold text-[#1F1B2D]">{detailCustomer.name}</div>
+                  <div className="mt-1 text-sm text-[#6F6678]">
+                    {detailCustomer.phone} · {detailCustomer.memberLevel}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  ["今日预约", detailCustomer.isAppointedToday ? `${detailCustomer.appointmentTime ?? "待定"} ${detailCustomer.appointmentProjectName ?? ""}`.trim() : "无今日预约"],
+                  ["最近到店", detailCustomer.lastVisitDate || "暂无到店记录"],
+                  ["会员等级", detailCustomer.memberLevel],
+                  ["客户画像", detailCustomer.profileLabel || "待补充"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-black/5 bg-white p-3">
+                    <div className="text-xs text-[#9B92A3]">{label}</div>
+                    <div className="mt-1 text-sm font-medium text-[#1F1B2D]">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs text-[#9B92A3]">画像标签</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {getCustomerTags(detailCustomer).length ? (
+                    getCustomerTags(detailCustomer).map((tag) => (
+                      <span key={`detail-${detailCustomer.id}-${tag}`} className="rounded-full bg-[#F7F5F2] px-2.5 py-1 text-xs text-[#6F6678]">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="rounded-full bg-[#F7F5F2] px-2.5 py-1 text-xs text-[#9B92A3]">暂无标签</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setDetailCustomer(null)}
+              className="h-11 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium text-[#1F1B2D]"
+            >
+              关闭
+            </button>
+            <button
+              type="button"
+              onClick={chooseDetailCustomer}
+              disabled={loading || !detailCustomer}
+              className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1F1B2D] px-4 text-sm font-medium text-white disabled:cursor-wait disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              选择客户核销
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

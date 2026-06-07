@@ -1,4 +1,4 @@
-﻿import { format, startOfWeek } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 import {
   getBeauticians,
   getCards,
@@ -10,6 +10,7 @@ import {
   getProductOrdersPaginated,
   getReservationsPaginated,
   getSchedule,
+  getWeeklySchedules,
   getStockItemsPaginated,
   getTerminalBootstrap,
   getTerminalCatalogSync,
@@ -24,16 +25,29 @@ import {
   login,
   checkInTerminalReservation,
   completeTerminalPayment,
-  completeTerminalServiceTask,
   createTerminalCardOrder,
   createTerminalCashierOrder,
   createTerminalPrintJob,
   createTerminalRechargeOrder,
   createTerminalReservation,
+  createTerminalServiceRecord,
   createTerminalSkinTest,
+  createTerminalAutomationStrategy,
+  enableTerminalAutomationStrategy,
+  getTerminalAutomationExecutionDetail,
+  getTerminalAutomationTemplates,
+  getTerminalAutomationTodaySummary,
+  previewTerminalAutomationStrategy,
   getTerminalCustomerCards,
   getTerminalServiceTasks,
+  markTerminalAutomationTouchFollowedUp,
+  pauseTerminalAutomationStrategy,
   quickCreateTerminalCustomer,
+  generateTerminalServiceAdvice,
+  recommendNextBestAction,
+  rescheduleTerminalReservation,
+  runDueTerminalAutomations,
+  runTerminalAutomationOnce,
   sendAiChatMessage,
   updateTerminalReservation,
   verifyTerminalCardUsage,
@@ -45,15 +59,23 @@ import type { AuraBootstrap, AuraRole } from "@/types/aura";
 import type { Project } from "@/types/project";
 import type { Beautician } from "@/types/beautician";
 import type {
+  TerminalCardUsageRecord,
   TerminalCustomerCard,
   TerminalReservationCreateRequest,
   TerminalReservationUpdateRequest,
   TerminalRoleDashboard,
+  TerminalAutomationStrategy,
+  TerminalAutomationTodaySummary,
 } from "@/types/terminal";
 import type {
   AppointmentCardData,
   AppointmentViewItem,
   AiSuggestionData,
+  AutomationDraftData,
+  AutomationExecutionDetailData,
+  AutomationPreviewData,
+  AutomationTemplateData,
+  AutomationTodaySummaryData,
   CardVerificationConfirmInput,
   CardVerificationFlowData,
   CardOpeningConfirmInput,
@@ -64,6 +86,7 @@ import type {
   CustomerCardData,
   DashboardCardData,
   InventoryAlertCardData,
+  OperationReceiptData,
   OperationResultData,
   RechargeConfirmInput,
   RechargeFlowData,
@@ -113,8 +136,46 @@ function asList<T>(value: unknown): T[] {
   return [];
 }
 
+function pickCustomerAvatarUrl(customer: unknown) {
+  if (!customer || typeof customer !== "object") return undefined;
+
+  const record = customer as Record<string, unknown>;
+  const value =
+    record.avatarUrl ??
+    record.avatar ??
+    record.photo ??
+    record.imageUrl ??
+    record.profileImage ??
+    record.headImageUrl;
+
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function getTotal(value: { total?: number } | null | undefined, fallbackCount = 0) {
   return typeof value?.total === "number" ? value.total : fallbackCount;
+}
+
+function parseTime(value?: string) {
+  if (!value) return null;
+  const time = new Date(value.replace(" ", "T")).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function getDaysSince(value?: string) {
+  const time = parseTime(value);
+  if (time === null) return 999;
+  return Math.max(0, Math.floor((Date.now() - time) / 86_400_000));
+}
+
+function getChurnRiskLevel(score: number) {
+  if (score >= 8) return "高风险";
+  if (score >= 5) return "中风险";
+  return "需关注";
+}
+
+function formatCustomerRiskLine(item: CustomerCardData, index: number) {
+  const customer = item.customer;
+  return `${index + 1}. ${customer.name}（${customer.memberLevel}）：${item.summary}；${item.reasons.join("；")}`;
 }
 
 async function optionalCoreCall<T>(label: string, task: () => Promise<T>, fallback: T): Promise<T> {
@@ -136,20 +197,86 @@ let bootstrapCache: { value: AuraBootstrap; storeId: number | null; createdAt: n
 let bootstrapPromise: Promise<AuraBootstrap> | null = null;
 let roleDashboardCache: { value: TerminalRoleDashboard; storeId: number | null; createdAt: number } | null = null;
 let roleDashboardPromise: Promise<TerminalRoleDashboard> | null = null;
+let coreSnapshotCache: { value: CoreSnapshot; storeId: number | null; createdAt: number } | null = null;
+let coreSnapshotPromise: Promise<CoreSnapshot> | null = null;
+let coreSnapshotBackgroundRefresh: Promise<CoreSnapshot> | null = null;
+const businessFlowCache = new Map<string, { value: unknown; storeId: number | null; createdAt: number }>();
+const businessFlowBackgroundRefresh = new Map<string, Promise<unknown>>();
 const BOOTSTRAP_CACHE_MS = 30_000;
 const ROLE_DASHBOARD_CACHE_MS = 15_000;
+const CORE_SNAPSHOT_CACHE_MS = 60_000;
+const BUSINESS_FLOW_CACHE_MS = 90_000;
 const AURA_ROLES: AuraRole[] = ["manager", "reception", "beautician"];
 const AURA_STORE_STORAGE_KEY = "ami:aura-lite:current-store-id";
+const AURA_STARTUP_CACHE_KEY = "ami:aura-lite:startup-cache:v1";
+const AURA_STARTUP_CACHE_VERSION = 1;
+
+export type AuraHomePayload =
+  | { kind: "manager"; data: DashboardCardData }
+  | { kind: "reception"; data: AppointmentCardData }
+  | { kind: "beautician"; data: StaffScheduleCardData };
+
+export interface AuraStartupCacheV1 {
+  version: 1;
+  cachedAt: number;
+  dateKey: string;
+  bootstrap: AuraBootstrap;
+  currentRole: Role;
+  homePayload: AuraHomePayload;
+}
 
 function clearRoleDashboardCache() {
   roleDashboardCache = null;
   roleDashboardPromise = null;
 }
 
+function clearCoreSnapshotCache() {
+  coreSnapshotCache = null;
+  coreSnapshotPromise = null;
+  coreSnapshotBackgroundRefresh = null;
+  businessFlowCache.clear();
+  businessFlowBackgroundRefresh.clear();
+}
+
+function clearBusinessDataCache() {
+  clearRoleDashboardCache();
+  clearCoreSnapshotCache();
+}
+
+function refreshBusinessFlowInBackground<T>(key: string, storeId: number | null, loader: () => Promise<T>) {
+  if (businessFlowBackgroundRefresh.has(key)) return;
+  const task = loader()
+    .then((value) => {
+      businessFlowCache.set(key, { value, storeId, createdAt: Date.now() });
+      return value;
+    })
+    .catch((err) => {
+      console.warn(`Ami Aura Lite ${key} 后台刷新失败，继续使用缓存`, err);
+      throw err;
+    })
+    .finally(() => {
+      businessFlowBackgroundRefresh.delete(key);
+    });
+  businessFlowBackgroundRefresh.set(key, task);
+}
+
+async function loadCachedBusinessFlow<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  const storeId = useStoreStore.getState().currentStoreId;
+  const cached = businessFlowCache.get(key);
+  const now = Date.now();
+  if (cached && cached.storeId === storeId && now - cached.createdAt < BUSINESS_FLOW_CACHE_MS) {
+    refreshBusinessFlowInBackground(key, storeId, loader);
+    return cached.value as T;
+  }
+  const value = await loader();
+  businessFlowCache.set(key, { value, storeId: useStoreStore.getState().currentStoreId, createdAt: Date.now() });
+  return value;
+}
+
 function clearBootstrapCache() {
   bootstrapCache = null;
   bootstrapPromise = null;
-  clearRoleDashboardCache();
+  clearBusinessDataCache();
 }
 
 function readStoredAuraStoreId() {
@@ -185,6 +312,78 @@ function getPreferredAuraStoreId(bootstrap: AuraBootstrap, currentStoreId: numbe
 
 function isAuraRole(value: unknown): value is AuraRole {
   return value === "manager" || value === "reception" || value === "beautician";
+}
+
+function getAuraDateKey(date = new Date()) {
+  return format(date, "yyyy-MM-dd");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object");
+}
+
+function isAuraHomePayload(value: unknown): value is AuraHomePayload {
+  if (!isRecord(value)) return false;
+  return (
+    (value.kind === "manager" || value.kind === "reception" || value.kind === "beautician") &&
+    isRecord(value.data)
+  );
+}
+
+function isAuraBootstrap(value: unknown): value is AuraBootstrap {
+  if (!isRecord(value)) return false;
+  return (
+    isRecord(value.currentUser) ||
+    isRecord(value.currentStore) ||
+    Array.isArray(value.availableStores) ||
+    Array.isArray(value.availableRoles)
+  );
+}
+
+export function readAuraStartupCache(): AuraStartupCacheV1 | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(AURA_STARTUP_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<AuraStartupCacheV1>;
+    if (parsed.version !== AURA_STARTUP_CACHE_VERSION) return null;
+    if (parsed.dateKey !== getAuraDateKey()) return null;
+    if (!Number.isFinite(parsed.cachedAt)) return null;
+    if (!isAuraRole(parsed.currentRole)) return null;
+    if (!isAuraBootstrap(parsed.bootstrap)) return null;
+    if (!isAuraHomePayload(parsed.homePayload)) return null;
+    if (parsed.homePayload.kind !== parsed.currentRole) return null;
+
+    return parsed as AuraStartupCacheV1;
+  } catch {
+    return null;
+  }
+}
+
+export function writeAuraStartupCache(input: {
+  bootstrap: AuraBootstrap;
+  currentRole: Role;
+  homePayload: AuraHomePayload;
+}) {
+  if (typeof window === "undefined") return;
+  if (input.homePayload.kind !== input.currentRole) return;
+
+  const cache: AuraStartupCacheV1 = {
+    version: AURA_STARTUP_CACHE_VERSION,
+    cachedAt: Date.now(),
+    dateKey: getAuraDateKey(),
+    bootstrap: input.bootstrap,
+    currentRole: input.currentRole,
+    homePayload: input.homePayload,
+  };
+
+  try {
+    window.localStorage.setItem(AURA_STARTUP_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // localStorage may be full or blocked; startup should keep working without cache.
+  }
 }
 
 function inferAuraRole(user: unknown): AuraRole {
@@ -315,6 +514,10 @@ function getReservationStatusText(status?: string) {
   return statusMap[normalized] ?? "待确认";
 }
 
+function isArrivedReservation(reservation: Record<string, any>) {
+  return Boolean(reservation.checkedInAt) || ["checked_in", "completed"].includes(normalizeReservationStatus(reservation.status));
+}
+
 function formatAppointmentTime(value?: string) {
   if (!value) return "时间待定";
   const normalized = value.replace("T", " ");
@@ -423,6 +626,62 @@ function buildEmptyBeauticianDashboard(storeName?: string): StaffScheduleCardDat
   };
 }
 
+function getTodayIndex() {
+  return (new Date().getDay() + 6) % 7;
+}
+
+function calculateScheduleUtilization(slots: Array<{ available?: boolean; status?: string }>) {
+  const activeSlots = slots.filter((slot) => slot.status && slot.status !== "expired");
+  const scopedSlots = activeSlots.length ? activeSlots : slots;
+  const busyCount = scopedSlots.filter((slot) => !slot.available || ["booked", "busy", "leave"].includes(String(slot.status))).length;
+  return scopedSlots.length ? `${Math.round((busyCount / scopedSlots.length) * 100)}%` : "0%";
+}
+
+function buildStaffScheduleFromWeek(
+  beautician: CoreSnapshot["beauticians"][number],
+  weekSlots: StaffScheduleCardData["weekSlots"],
+  weekStart: string,
+  storeName?: string,
+  title = "员工本周排班",
+): StaffScheduleCardData {
+  const todaySlots = weekSlots?.[getTodayIndex()] ?? [];
+  const utilization = calculateScheduleUtilization(todaySlots);
+  return {
+    title,
+    subtitle: storeName ?? beautician.storeName,
+    beautician,
+    todaySlots,
+    weekSlots,
+    weekStart,
+    utilization,
+    summary: `${beautician.name} 今日共有 ${todaySlots.length} 个排班时段，占用率 ${utilization}。`,
+  };
+}
+
+async function loadWeeklyStaffSchedules(): Promise<StaffScheduleCardData[]> {
+  const snapshot = await loadCoreSnapshot();
+  const beauticians = snapshot.beauticians.slice(0, 8);
+  if (!beauticians.length) {
+    return [buildEmptyBeauticianDashboard(snapshot.store?.name)];
+  }
+
+  const { weekStart } = getTodayRange();
+  const scheduleByBeautician = await getWeeklySchedules({
+    beauticianIds: beauticians.map((beautician) => beautician.id),
+    weekStart,
+  });
+
+  return beauticians.map((beautician) =>
+    buildStaffScheduleFromWeek(
+      beautician,
+      scheduleByBeautician[beautician.id] ?? [],
+      weekStart,
+      snapshot.store?.name ?? beautician.storeName,
+      "员工本周排班",
+    ),
+  );
+}
+
 function normalizeManagerDashboard(value: unknown, storeName?: string): DashboardCardData {
   const data = value && typeof value === "object" ? (value as Partial<DashboardCardData>) : {};
   return {
@@ -430,8 +689,8 @@ function normalizeManagerDashboard(value: unknown, storeName?: string): Dashboar
     subtitle: data.subtitle ?? storeName ?? "当前门店",
     summary: data.summary ?? "当前门店经营数据已从 Ami_Core 接入，请优先关注经营、风险和员工协同。",
     kpis: asList<DashboardCardData["kpis"][number]>((data as { kpis?: unknown }).kpis),
-    risks: asList<string>((data as { risks?: unknown }).risks),
-    highlights: asList<string>((data as { highlights?: unknown }).highlights),
+    risks: asList<DashboardCardData["risks"][number]>((data as { risks?: unknown }).risks),
+    highlights: asList<DashboardCardData["highlights"][number]>((data as { highlights?: unknown }).highlights),
   };
 }
 
@@ -463,6 +722,7 @@ function normalizeReceptionDashboard(value: unknown, storeName?: string): Appoin
 async function ensureLoggedIn() {
   const authState = useAuthStore.getState();
   const storeState = useStoreStore.getState();
+  const pendingTasks: Promise<unknown>[] = [];
 
   if (!authState.token) {
     await authState.login({
@@ -470,11 +730,15 @@ async function ensureLoggedIn() {
       password: import.meta.env.VITE_DEMO_PASSWORD || "11111111",
     });
   } else if (!authState.user) {
-    await authState.loadUserInfo();
+    pendingTasks.push(authState.loadUserInfo());
   }
 
   if (storeState.stores.length === 0) {
-    await storeState.loadStores();
+    pendingTasks.push(storeState.loadStores());
+  }
+
+  if (pendingTasks.length > 0) {
+    await Promise.all(pendingTasks);
   }
 }
 
@@ -548,7 +812,7 @@ async function getAuraBootstrapSession() {
   };
 }
 
-export async function loadCoreSnapshot(): Promise<CoreSnapshot> {
+async function fetchCoreSnapshot(): Promise<CoreSnapshot> {
   const { bootstrap, storeName, storeId } = await getAuraBootstrapSession();
 
   const [
@@ -602,6 +866,43 @@ export async function loadCoreSnapshot(): Promise<CoreSnapshot> {
   };
 }
 
+function refreshCoreSnapshotInBackground(storeId: number | null) {
+  if (coreSnapshotBackgroundRefresh) return;
+  coreSnapshotBackgroundRefresh = fetchCoreSnapshot()
+    .then((snapshot) => {
+      coreSnapshotCache = { value: snapshot, storeId, createdAt: Date.now() };
+      return snapshot;
+    })
+    .catch((err) => {
+      console.warn("Ami Aura Lite 业务快照后台刷新失败，继续使用缓存", err);
+      throw err;
+    })
+    .finally(() => {
+      coreSnapshotBackgroundRefresh = null;
+    });
+}
+
+export async function loadCoreSnapshot(): Promise<CoreSnapshot> {
+  const storeId = useStoreStore.getState().currentStoreId;
+  const now = Date.now();
+  if (coreSnapshotCache && coreSnapshotCache.storeId === storeId && now - coreSnapshotCache.createdAt < CORE_SNAPSHOT_CACHE_MS) {
+    refreshCoreSnapshotInBackground(storeId);
+    return coreSnapshotCache.value;
+  }
+
+  if (!coreSnapshotPromise) {
+    coreSnapshotPromise = fetchCoreSnapshot()
+      .then((snapshot) => {
+        coreSnapshotCache = { value: snapshot, storeId: useStoreStore.getState().currentStoreId, createdAt: Date.now() };
+        return snapshot;
+      })
+      .finally(() => {
+        coreSnapshotPromise = null;
+      });
+  }
+  return coreSnapshotPromise;
+}
+
 async function loadCardVerificationSnapshot() {
   const [snapshot, catalogResult, projectsResult] = await Promise.all([
     loadCoreSnapshot(),
@@ -622,6 +923,26 @@ export async function getAiSuggestion(params: {
   command: string;
   businessSummary: string;
 }): Promise<AiSuggestionData> {
+  const commandText = params.command.toLowerCase();
+  const extractedCustomerId = Number((params.businessSummary.match(/客户\s*#?(\d+)/) ?? [])[1] ?? 0);
+  if (
+    params.role === "beautician" &&
+    extractedCustomerId > 0 &&
+    /建议|推荐|适合|护理|服务|项目|耗材|下一次|下次/.test(commandText)
+  ) {
+    const result = await generateTerminalServiceAdvice({
+      customerId: extractedCustomerId,
+      taskId: Number((params.businessSummary.match(/任务\s*#?(\d+)/) ?? [])[1] ?? 0) || undefined,
+      projectId: Number((params.businessSummary.match(/项目\s*#?(\d+)/) ?? [])[1] ?? 0) || undefined,
+    });
+    return {
+      title: "服务建议",
+      text: result.text,
+      source: "Ami AI",
+      structured: result.structured,
+    };
+  }
+
   const roleMap = {
     manager: "manager",
     reception: "receptionist",
@@ -651,6 +972,738 @@ export async function getAiSuggestion(params: {
     text: result.text,
     source: "Ami AI",
   };
+}
+
+function buildTerminalBusinessContext(command: string, role: Role, snapshot: CoreSnapshot, churnCandidates: CustomerCardData[]) {
+  const today = getTodayRange().today;
+  const todayReservations = snapshot.reservations.filter((item) => isReservationOnDate(item, today));
+  const lowStock = snapshot.stockItems.filter(isLowStock);
+  const totalRevenue = sum(snapshot.orders, (order) => order.totalAmount);
+  const topCustomers = [...snapshot.customers]
+    .sort((a, b) => b.totalSpent - a.totalSpent)
+    .slice(0, 6)
+    .map((customer) => ({
+      name: customer.name,
+      memberLevel: customer.memberLevel,
+      totalSpent: customer.totalSpent,
+      visitCount: customer.visitCount,
+      lastVisitDate: customer.lastVisitDate,
+      tags: customer.tags?.slice(0, 3) ?? [],
+    }));
+
+  return {
+    command,
+    role,
+    storeName: snapshot.store?.name ?? "当前门店",
+    today,
+    dataSource: "Ami_Core",
+    overview: {
+      customerTotal: snapshot.customers.length,
+      todayReservationCount: todayReservations.length,
+      orderCount: snapshot.orders.length,
+      totalRevenue,
+      lowStockCount: lowStock.length,
+      beauticianCount: snapshot.beauticians.length,
+    },
+    churnCandidates: churnCandidates.map((item, index) => ({
+      rank: index + 1,
+      name: item.customer.name,
+      phone: item.customer.phone,
+      memberLevel: item.customer.memberLevel,
+      totalSpent: item.customer.totalSpent,
+      visitCount: item.customer.visitCount,
+      lastVisitDate: item.customer.lastVisitDate,
+      summary: item.summary,
+      evidence: item.reasons,
+    })),
+    todayReservations: todayReservations.slice(0, 8).map((reservation) => {
+      const item = reservation as Record<string, any>;
+      return {
+        customerName: item.customerName ?? item.userName ?? "",
+        projectName: item.projectName,
+        beauticianName: item.beauticianName,
+        appointmentTime: item.appointmentTime ?? getReservationTime(item),
+        status: item.status,
+      };
+    }),
+    lowStock: lowStock.slice(0, 8).map((item) => ({
+      productName: item.productName,
+      currentStock: item.currentStock,
+      safetyStock: item.safetyStock,
+      status: item.status,
+    })),
+    topCustomers,
+  };
+}
+
+function buildFallbackBusinessAnswer(command: string, context: ReturnType<typeof buildTerminalBusinessContext>) {
+  const churnLines = context.churnCandidates.slice(0, 5).map((item) => `${item.rank}. ${item.name}：${item.summary}`);
+  const reservationText = context.overview.todayReservationCount
+    ? `今日预约 ${context.overview.todayReservationCount} 条。`
+    : "今日暂无预约。";
+  const stockText = context.overview.lowStockCount
+    ? `库存有 ${context.overview.lowStockCount} 项低库存。`
+    : "库存暂无明显低库存风险。";
+
+  if (/流失|沉默|唤醒|回访|客户/.test(command) && churnLines.length) {
+    return `基于 Ami_Core 当前门店数据，优先关注这些潜在流失客户：\n${churnLines.join("\n")}\n建议先联系高消费且 60 天以上未到店客户，确认护理计划并安排复购/预约。`;
+  }
+
+  return `基于 Ami_Core 当前门店数据：客户 ${context.overview.customerTotal} 位，订单 ${context.overview.orderCount} 笔，累计金额约 ￥${context.overview.totalRevenue.toLocaleString()}。${reservationText}${stockText}`;
+}
+
+export async function getTerminalBusinessAnswer(params: { role: Role; command: string }): Promise<AiSuggestionData> {
+  const snapshot = await loadCoreSnapshot();
+  const churnCandidates = buildCustomerGrowthCandidates(snapshot);
+  const context = buildTerminalBusinessContext(params.command, params.role, snapshot, churnCandidates);
+  const nextActionCustomer = churnCandidates[0];
+  if (nextActionCustomer && /下一步|怎么跟|跟进|推荐|回访|流失|很久没来|唤醒/.test(params.command)) {
+    const lastVisitTime = nextActionCustomer.customer.lastVisitDate
+      ? new Date(nextActionCustomer.customer.lastVisitDate).getTime()
+      : NaN;
+    const result = await recommendNextBestAction({
+      customerId: nextActionCustomer.customer.id,
+      context: {
+        projectName: nextActionCustomer.customer.skinCondition,
+        lastProjectName: nextActionCustomer.recentVisits[0],
+        daysSinceVisit: Number.isFinite(lastVisitTime)
+          ? Math.max(0, Math.floor((Date.now() - lastVisitTime) / 86400000))
+          : undefined,
+        evidence: nextActionCustomer.reasons,
+      },
+      ruleResults: nextActionCustomer.reasons.map((reason, index) => ({
+        type: index === 0 ? "churn" : "profile",
+        score: Math.max(50, 90 - index * 10),
+        reasons: [reason],
+      })),
+    });
+    return {
+      title: "下一步行动建议",
+      text: result.text,
+      source: "Ami AI",
+      structured: result.structured,
+    };
+  }
+
+  try {
+    const result = await sendAiChatMessage({
+      role: params.role === "manager" ? "manager" : params.role === "beautician" ? "beautician" : "receptionist",
+      messages: [
+        {
+          role: "system",
+          content:
+            "你是 Ami Aura Lite 智能终端的业务问答助手。必须只基于用户提供的 Ami_Core 数据回答；不要编造客户、订单、预约、库存或金额。回答要短、可执行，必要时列出客户姓名和证据。",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(context),
+        },
+      ],
+      context,
+    });
+
+    return {
+      title: "Ami 智能问答",
+      text: result.text,
+      source: "Ami AI",
+    };
+  } catch {
+    return {
+      title: "Ami 智能问答",
+      text: buildFallbackBusinessAnswer(params.command, context),
+      source: "Ami AI",
+    };
+  }
+}
+
+function createAutomationId() {
+  return `automation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function normalizeAutomationText(command: string) {
+  return command.trim().replace(/\s+/g, " ");
+}
+
+function parseChineseHour(text: string) {
+  const normalized = text.replace(/两/g, "二");
+  const map: Record<string, number> = {
+    零: 0,
+    一: 1,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+    十: 10,
+  };
+  if (/^\d+$/.test(normalized)) return Number(normalized);
+  if (normalized === "十") return 10;
+  if (normalized.startsWith("十")) return 10 + (map[normalized.slice(1)] ?? 0);
+  if (normalized.endsWith("十")) return (map[normalized.slice(0, 1)] ?? 0) * 10;
+  if (normalized.includes("十")) {
+    const [tens, ones] = normalized.split("十");
+    return (map[tens] ?? 1) * 10 + (map[ones] ?? 0);
+  }
+  return map[normalized] ?? null;
+}
+
+function extractAutomationTime(command: string) {
+  const exactTime = command.match(/(?:每天|每日)?\s*(上午|下午|晚上|晚间|早上|中午)?\s*([0-9一二三四五六七八九十两]{1,3})[:：点](半|\d{0,2})/);
+  if (exactTime) {
+    const [, period, hourText, minuteText] = exactTime;
+    let hour = parseChineseHour(hourText) ?? Number(hourText);
+    if ((period === "下午" || period === "晚上" || period === "晚间") && hour < 12) hour += 12;
+    if (period === "中午" && hour < 11) hour += 12;
+    const minute = minuteText === "半" ? 30 : minuteText ? Number(minuteText) : 0;
+    return `每天 ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  if (/闭店前|下班前|收工前/.test(command)) return "每天闭店前";
+  if (/早上|上午/.test(command)) return "每天 09:00";
+  if (/中午/.test(command)) return "每天 12:00";
+  if (/晚上|晚间/.test(command)) return "每天 21:00";
+  return "";
+}
+
+function extractNumberBeforeUnit(command: string, unitPattern: string) {
+  const match = command.match(new RegExp(`(\\d+)\\s*(?:${unitPattern})`));
+  return match ? Number(match[1]) : null;
+}
+
+function buildAutomationDraft(params: {
+  command: string;
+  title: string;
+  summary: string;
+  trigger: string;
+  audience: string;
+  action: string;
+  riskLevel?: AutomationDraftData["riskLevel"];
+  requiresApproval?: boolean;
+  frequencyCap?: string;
+}): AutomationDraftData {
+  return {
+    id: createAutomationId(),
+    title: params.title,
+    status: "draft_ready",
+    summary: params.summary,
+    sourceText: params.command,
+    trigger: params.trigger,
+    audience: params.audience,
+    action: params.action,
+    frequencyCap: params.frequencyCap ?? "同一顾客同一策略 7 天内最多触达 1 次",
+    riskLevel: params.riskLevel ?? "low",
+    requiresApproval: params.requiresApproval ?? false,
+    missingFields: [],
+    suggestions: [],
+  };
+}
+
+function buildAutomationQuestion(params: {
+  command: string;
+  title: string;
+  summary: string;
+  question: string;
+  missingField: string;
+  suggestions: string[];
+}): AutomationDraftData {
+  return {
+    id: createAutomationId(),
+    title: params.title,
+    status: "needs_info",
+    summary: params.summary,
+    sourceText: params.command,
+    trigger: "待补充",
+    audience: "待补充",
+    action: "待补充",
+    frequencyCap: "补齐信息后自动应用门店默认频控",
+    riskLevel: "low",
+    requiresApproval: false,
+    missingFields: [params.missingField],
+    question: params.question,
+    suggestions: params.suggestions,
+  };
+}
+
+function extractAutomationJson(text: string) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1)) as Partial<AutomationDraftData>;
+  } catch {
+    return null;
+  }
+}
+
+function validateAiAutomationDraft(raw: Partial<AutomationDraftData>, command: string): AutomationDraftData | null {
+  const status = raw.status === "needs_info" ? "needs_info" : raw.status === "draft_ready" ? "draft_ready" : null;
+  const riskLevel = raw.riskLevel === "high" || raw.riskLevel === "medium" || raw.riskLevel === "low" ? raw.riskLevel : null;
+  if (!status || !riskLevel || !raw.title || !raw.summary) return null;
+
+  const missingFields = Array.isArray(raw.missingFields) ? raw.missingFields.filter((item): item is string => typeof item === "string") : [];
+  const suggestions = Array.isArray(raw.suggestions) ? raw.suggestions.filter((item): item is string => typeof item === "string") : [];
+
+  if (status === "needs_info") {
+    if (!raw.question || missingFields.length === 0) return null;
+    return {
+      id: createAutomationId(),
+      title: raw.title,
+      status,
+      summary: raw.summary,
+      sourceText: command,
+      trigger: raw.trigger || "待补充",
+      audience: raw.audience || "待补充",
+      action: raw.action || "待补充",
+      frequencyCap: raw.frequencyCap || "补齐信息后自动应用门店默认频控",
+      riskLevel,
+      requiresApproval: Boolean(raw.requiresApproval),
+      missingFields,
+      question: raw.question,
+      suggestions,
+    };
+  }
+
+  if (!raw.trigger || !raw.audience || !raw.action || missingFields.length > 0) return null;
+  return {
+    id: createAutomationId(),
+    title: raw.title,
+    status,
+    summary: raw.summary,
+    sourceText: command,
+    trigger: raw.trigger,
+    audience: raw.audience,
+    action: raw.action,
+    frequencyCap: raw.frequencyCap || "同一顾客同一策略 7 天内最多触达 1 次",
+    riskLevel,
+    requiresApproval: Boolean(raw.requiresApproval) || riskLevel !== "low",
+    missingFields: [],
+    suggestions,
+  };
+}
+
+async function tryCreateAutomationDraftWithAi(command: string): Promise<AutomationDraftData | null> {
+  try {
+    const result = await sendAiChatMessage({
+      role: "manager",
+      messages: [
+        {
+          role: "system",
+          content:
+            "你是 Ami 美业自动化草稿生成器。只输出合法 JSON，不要 Markdown。字段必须包含 title,status,summary,trigger,audience,action,frequencyCap,riskLevel,requiresApproval,missingFields,suggestions。status 只能是 draft_ready 或 needs_info。riskLevel 只能是 low/medium/high。缺少触发时间、对象或动作时，status=needs_info，并只追问一个问题 question。涉及自动发送、短信、微信、优惠、扣次、核销、收款、取消预约必须 requiresApproval=true 且 riskLevel 至少 medium。",
+        },
+        {
+          role: "user",
+          content: `用户想设置的美业自动化：${command}`,
+        },
+      ],
+      context: { source: "Ami_AutomationDraft", command },
+    });
+    const parsed = extractAutomationJson(result.text);
+    return parsed ? validateAiAutomationDraft(parsed, command) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function createAutomationDraft(params: {
+  role: Role;
+  command: string;
+  pendingDraft?: AutomationDraftData | null;
+}): Promise<AutomationDraftData> {
+  const rawCommand = normalizeAutomationText(params.command);
+  const command = normalizeAutomationText([params.pendingDraft?.sourceText, rawCommand].filter(Boolean).join(" "));
+
+  if (!command) {
+    return buildAutomationQuestion({
+      command,
+      title: "新建自动提醒",
+      summary: "你可以直接说一句门店业务，比如“每天闭店前提醒我看未收款订单”。",
+      question: "你想让 Ami 自动提醒什么？",
+      missingField: "intent",
+      suggestions: ["每天 21:30 看收工报告", "顾客护理后 25 天回访", "次卡剩 1 次提醒前台"],
+    });
+  }
+
+  const aiDraft = await tryCreateAutomationDraftWithAi(command);
+  if (aiDraft) return aiDraft;
+
+  const timeText = extractAutomationTime(command);
+
+  if (/迟到|超时未到|未到店/.test(command)) {
+    const minutes = extractNumberBeforeUnit(command, "分钟") ?? 10;
+    return buildAutomationDraft({
+      command,
+      title: "预约迟到提醒",
+      summary: `当顾客超过预约时间 ${minutes} 分钟仍未到店，提醒前台及时处理。`,
+      trigger: `超过预约时间 ${minutes} 分钟未到店`,
+      audience: "今日有预约且未到店顾客",
+      action: "提醒前台电话确认，并在今日预约卡片标记“需跟进”",
+      frequencyCap: "同一预约最多提醒 1 次",
+    });
+  }
+
+  if (/预约.*提醒|预约前|来店前|到店前/.test(command)) {
+    const hours = extractNumberBeforeUnit(command, "小时") ?? 2;
+    return buildAutomationDraft({
+      command,
+      title: "预约前提醒",
+      summary: `顾客预约前 ${hours} 小时自动生成提醒，减少忘约和迟到。`,
+      trigger: `预约开始前 ${hours} 小时`,
+      audience: "今日及未来有预约的顾客",
+      action: "生成顾客提醒草稿，并同步给前台查看",
+      riskLevel: "medium",
+      requiresApproval: true,
+      frequencyCap: "同一预约最多提醒 2 次",
+    });
+  }
+
+  if (/护理|服务后|做完|补水|敏感肌|回访/.test(command)) {
+    const hasClearProject = /补水|清洁|抗衰|面部|身体|肩颈|敏感肌|水光|祛痘/.test(command);
+    if (!hasClearProject && /护理|服务后|做完/.test(command)) {
+      return buildAutomationQuestion({
+        command,
+        title: "护理周期回访",
+        summary: "Ami 已理解为服务后回访自动化，还需要确认适用项目范围。",
+        question: "要针对哪些护理项目？例如“补水类项目”“所有面部护理”或指定项目。",
+        missingField: "audience",
+        suggestions: ["补水类项目", "所有面部护理", "敏感肌护理"],
+      });
+    }
+
+    const days = extractNumberBeforeUnit(command, "天") ?? 25;
+    const projectLabel = /敏感肌/.test(command) ? "敏感肌护理顾客" : /补水/.test(command) ? "补水类项目顾客" : "指定护理项目顾客";
+    return buildAutomationDraft({
+      command,
+      title: "护理周期回访",
+      summary: `顾客完成护理后第 ${days} 天，如果还没有下次预约，就提醒员工回访。`,
+      trigger: `服务完成后第 ${days} 天上午 10:00`,
+      audience: projectLabel,
+      action: /自动发送|发给顾客|短信|微信/.test(command) ? "生成顾客提醒消息草稿，确认后发送" : "给负责美容师生成回访任务",
+      riskLevel: /自动发送|短信|微信/.test(command) ? "medium" : "low",
+      requiresApproval: /自动发送|短信|微信/.test(command),
+      frequencyCap: "同一顾客 30 天内最多提醒 1 次",
+    });
+  }
+
+  if (/次卡|卡项|到期|剩\s*\d*\s*次|续卡/.test(command)) {
+    const remaining = extractNumberBeforeUnit(command, "次") ?? 1;
+    const days = extractNumberBeforeUnit(command, "天") ?? 30;
+    return buildAutomationDraft({
+      command,
+      title: "次卡剩余/到期提醒",
+      summary: `当顾客次卡剩 ${remaining} 次或 ${days} 天内到期，生成前台跟进任务。`,
+      trigger: `次卡剩余 ${remaining} 次，或 ${days} 天内到期`,
+      audience: "持有有效次卡的顾客",
+      action: "生成前台跟进任务，并推荐续卡/使用提醒话术",
+      riskLevel: "medium",
+      requiresApproval: true,
+      frequencyCap: "同一卡项 14 天内最多提醒 1 次",
+    });
+  }
+
+  if (/库存|补货|低于|少于/.test(command)) {
+    const threshold = extractNumberBeforeUnit(command, "瓶|件|个|盒") ?? null;
+    return buildAutomationDraft({
+      command,
+      title: "低库存提醒",
+      summary: threshold ? `当库存低于 ${threshold} 件时提醒店长补货。` : "当库存低于安全库存时提醒店长补货。",
+      trigger: threshold ? `库存数量低于 ${threshold}` : "库存低于系统安全库存",
+      audience: "门店库存商品",
+      action: "给店长生成补货提醒，并展示当前库存和建议补货量",
+      frequencyCap: "同一商品每天最多提醒 1 次",
+    });
+  }
+
+  if (/收工|闭店|下班|未收款|未付款|未完成服务|经营报告|日报/.test(command)) {
+    if (!timeText) {
+      return buildAutomationQuestion({
+        command,
+        title: "每日收工检查",
+        summary: "Ami 已理解为店长每日经营提醒，还需要确认提醒时间。",
+        question: "你希望什么时候提醒？可以选“每天 21:00”“每天闭店前”或直接输入时间。",
+        missingField: "trigger",
+        suggestions: ["每天 21:00", "每天 21:30", "每天闭店前"],
+      });
+    }
+
+    return buildAutomationDraft({
+      command,
+      title: "每日收工检查",
+      summary: "每天自动汇总未收款、未完成服务和库存风险，帮助店长闭店前检查。",
+      trigger: timeText,
+      audience: "当前门店今日经营数据",
+      action: "生成店长提醒卡片，汇总未支付订单、未完成服务任务和低库存商品",
+      frequencyCap: "每天执行 1 次",
+    });
+  }
+
+  if (/生日/.test(command)) {
+    return buildAutomationDraft({
+      command,
+      title: "顾客生日关怀",
+      summary: "在顾客生日到来前生成关怀提醒和祝福话术。",
+      trigger: "顾客生日提前 7 天上午 09:00",
+      audience: "当前门店有生日信息的会员顾客",
+      action: "生成生日关怀消息草稿，确认后发送",
+      riskLevel: "medium",
+      requiresApproval: true,
+      frequencyCap: "同一顾客每年最多触达 1 次",
+    });
+  }
+
+  return buildAutomationQuestion({
+    command,
+    title: "新建自动提醒",
+    summary: "Ami 需要再确认触发时间，避免把门店业务提醒设置错。",
+    question: "这条自动化希望什么时候触发？例如“每天 21:30”“预约前 2 小时”或“服务完成后第 25 天”。",
+    missingField: "trigger",
+    suggestions: ["每天 21:30", "预约前 2 小时", "服务完成后第 25 天"],
+  });
+}
+
+export async function enableAutomationDraft(draft: AutomationDraftData): Promise<AutomationDraftData> {
+  if (draft.status !== "draft_ready" || draft.missingFields.length) {
+    throw new Error("自动化草稿信息还不完整，请先补齐追问信息");
+  }
+
+  const strategy: TerminalAutomationStrategy = await createTerminalAutomationStrategy(buildTerminalAutomationRequestFromDraft(draft));
+
+  return {
+    ...draft,
+    persistedStrategyId: strategy.id,
+    persistedStatus: strategy.status,
+  };
+}
+
+function buildTerminalAutomationRequestFromDraft(draft: AutomationDraftData) {
+  return {
+    draftId: draft.id,
+    title: draft.title,
+    summary: draft.summary,
+    sourceText: draft.sourceText,
+    trigger: draft.trigger,
+    audience: draft.audience,
+    action: draft.action,
+    frequencyCap: draft.frequencyCap,
+    riskLevel: draft.riskLevel,
+    requiresApproval: draft.requiresApproval,
+    missingFields: draft.missingFields,
+  };
+}
+
+export async function previewAutomationDraft(draft: AutomationDraftData): Promise<AutomationPreviewData> {
+  if (draft.status !== "draft_ready" || draft.missingFields.length) {
+    throw new Error("自动化草稿信息还不完整，请先补齐追问信息");
+  }
+
+  return previewTerminalAutomationStrategy(buildTerminalAutomationRequestFromDraft(draft));
+}
+
+function mapAutomationTodaySummary(summary: TerminalAutomationTodaySummary): AutomationTodaySummaryData {
+  return {
+    date: summary.date,
+    strategyCount: summary.strategyCount,
+    enabledCount: summary.enabledCount,
+    waitingApprovalCount: summary.waitingApprovalCount,
+    executedCount: summary.executedCount,
+    successCount: summary.successCount,
+    failedCount: summary.failedCount,
+    latestStrategies: summary.latestStrategies.map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      trigger: item.trigger,
+      action: item.action,
+      riskLevel: item.riskLevel,
+      requiresApproval: item.requiresApproval,
+      lastExecutedAt: item.lastExecutedAt,
+    })),
+    latestExecutions: summary.latestExecutions.map((item) => ({
+      id: item.id,
+      strategyId: item.strategyId,
+      strategyName: item.strategyName,
+      status: item.status,
+      triggeredCount: item.triggeredCount,
+      reachedCount: item.reachedCount,
+      channel: item.channel,
+      executedAt: item.executedAt,
+      message: item.message,
+      reason: item.reason,
+      nextActions: item.nextActions,
+      primaryActionLabel: item.primaryActionLabel,
+      detailLines: item.detailLines,
+    })),
+  };
+}
+
+function mapAutomationTemplates(items: Awaited<ReturnType<typeof getTerminalAutomationTemplates>>): AutomationTemplateData[] {
+  return items.map((item) => ({
+    id: item.id,
+    category: item.category,
+    title: item.title,
+    description: item.description,
+    command: item.command,
+    defaultTrigger: item.defaultTrigger,
+    defaultAudience: item.defaultAudience,
+    defaultAction: item.defaultAction,
+    riskLevel: item.riskLevel,
+  }));
+}
+
+function mapAutomationExecutionDetail(item: Awaited<ReturnType<typeof getTerminalAutomationExecutionDetail>>): AutomationExecutionDetailData {
+  return {
+    id: item.id,
+    strategyId: item.strategyId,
+    strategyName: item.strategyName,
+    status: item.status,
+    triggeredCount: item.triggeredCount,
+    reachedCount: item.reachedCount,
+    channel: item.channel,
+    executedAt: item.executedAt,
+    message: item.message,
+    reason: item.reason,
+    nextActions: item.nextActions,
+    primaryActionLabel: item.primaryActionLabel,
+    detailLines: item.detailLines,
+    touches: item.touches.map((touch) => ({
+      id: touch.id,
+      customerId: touch.customerId,
+      customerName: touch.customerName,
+      customerPhone: touch.customerPhone,
+      status: touch.status,
+      channel: touch.channel,
+      touchedAt: touch.touchedAt,
+      convertedAt: touch.convertedAt,
+      conversionType: touch.conversionType,
+      predictedConversionScore: touch.predictedConversionScore,
+      predictedRevenue: touch.predictedRevenue,
+      attributionWindowDays: touch.attributionWindowDays,
+    })),
+  };
+}
+
+export async function getAutomationTodaySummary(): Promise<AutomationTodaySummaryData> {
+  try {
+    await runDueTerminalAutomations();
+  } catch (err) {
+    console.warn("Ami Aura Lite 自动化到期扫描失败，继续读取今日摘要", err);
+  }
+  const [summary, templates] = await Promise.all([
+    getTerminalAutomationTodaySummary(),
+    getTerminalAutomationTemplates().catch((err) => {
+      console.warn("Ami Aura Lite 自动化模板加载失败，继续展示今日摘要", err);
+      return [];
+    }),
+  ]);
+  return {
+    ...mapAutomationTodaySummary(summary),
+    templates: mapAutomationTemplates(templates),
+  };
+}
+
+export async function getAutomationExecutionDetail(executionId: number): Promise<AutomationExecutionDetailData> {
+  return mapAutomationExecutionDetail(await getTerminalAutomationExecutionDetail(executionId));
+}
+
+export async function markAutomationTouchFollowedUp(touchId: number) {
+  const touch = await markTerminalAutomationTouchFollowedUp(touchId);
+  return {
+    id: touch.id,
+    customerId: touch.customerId,
+    customerName: touch.customerName,
+    customerPhone: touch.customerPhone,
+    status: touch.status,
+    channel: touch.channel,
+    touchedAt: touch.touchedAt,
+    convertedAt: touch.convertedAt,
+    conversionType: touch.conversionType,
+    predictedConversionScore: touch.predictedConversionScore,
+    predictedRevenue: touch.predictedRevenue,
+    attributionWindowDays: touch.attributionWindowDays,
+  };
+}
+
+export async function enableAutomationStrategyFromSummary(strategyId: number): Promise<AutomationTodaySummaryData> {
+  await enableTerminalAutomationStrategy(strategyId);
+  return getAutomationTodaySummary();
+}
+
+export async function pauseAutomationStrategyFromSummary(strategyId: number): Promise<AutomationTodaySummaryData> {
+  await pauseTerminalAutomationStrategy(strategyId);
+  return getAutomationTodaySummary();
+}
+
+export async function runAutomationStrategyOnceFromSummary(strategyId: number): Promise<AutomationTodaySummaryData> {
+  await runTerminalAutomationOnce(strategyId);
+  return getAutomationTodaySummary();
+}
+
+function normalizeAutomationCommandKeyword(text: string) {
+  return text.replace(/\s+/g, "").toLowerCase();
+}
+
+function isAutomationOperationCommand(command: string) {
+  return /自动化|自动管家|提醒|定时|执行一次|立即执行|启用|确认启用|暂停/.test(command) && /执行一次|立即执行|启用|确认启用|暂停/.test(command);
+}
+
+function matchAutomationStrategy(command: string, strategies: AutomationTodaySummaryData["latestStrategies"]) {
+  const normalizedCommand = normalizeAutomationCommandKeyword(command);
+  const aliases: Array<[RegExp, string[]]> = [
+    [/营业结束|每日营业|收工|闭店|未收款|经营报告|日报/, ["每日收工", "收工", "闭店", "未收款", "经营"]],
+    [/预约前|来店前|到店前/, ["预约前", "预约开始前"]],
+    [/迟到|未到店/, ["迟到", "未到店", "预约"]],
+    [/护理|回访|服务完成/, ["护理", "回访", "服务完成"]],
+    [/次卡|卡项|到期|续卡/, ["次卡", "卡项", "到期", "续卡"]],
+    [/库存|补货|低库存/, ["库存", "补货", "低库存"]],
+  ];
+
+  return (
+    strategies.find((strategy) => {
+      const haystack = normalizeAutomationCommandKeyword(`${strategy.title}${strategy.trigger}${strategy.action}`);
+      const title = normalizeAutomationCommandKeyword(strategy.title);
+      return Boolean(haystack) && (normalizedCommand.includes(title) || haystack.includes(normalizedCommand));
+    }) ??
+    aliases
+      .find(([pattern]) => pattern.test(command))?.[1]
+      .map((keyword) => normalizeAutomationCommandKeyword(keyword))
+      .map((keyword) =>
+        strategies.find((strategy) => normalizeAutomationCommandKeyword(`${strategy.title}${strategy.trigger}${strategy.action}`).includes(keyword)),
+      )
+      .find(Boolean)
+  );
+}
+
+export async function tryHandleAutomationTextOperation(command: string): Promise<AutomationTodaySummaryData | null> {
+  if (!isAutomationOperationCommand(command)) return null;
+
+  const summary = await getAutomationTodaySummary();
+  const strategy = matchAutomationStrategy(command, summary.latestStrategies);
+  if (!strategy) {
+    throw new Error("还没有找到匹配的自动化策略，请先用发送按钮右侧的定时图标创建自动化草稿。");
+  }
+
+  if (/暂停/.test(command)) {
+    await pauseTerminalAutomationStrategy(strategy.id);
+    return getAutomationTodaySummary();
+  }
+
+  if (/启用|确认启用/.test(command)) {
+    await enableTerminalAutomationStrategy(strategy.id);
+    return getAutomationTodaySummary();
+  }
+
+  if (/执行一次|立即执行/.test(command)) {
+    if (strategy.status !== "enabled") {
+      throw new Error(`“${strategy.title}”当前是${strategy.status === "draft" ? "待确认" : "未启用"}状态，请先确认启用后再执行一次。`);
+    }
+    await runTerminalAutomationOnce(strategy.id);
+    return getAutomationTodaySummary();
+  }
+
+  return summary;
 }
 
 function isLowStock(item: { status?: string; currentStock?: number; safetyStock?: number }) {
@@ -688,17 +1741,19 @@ export async function getManagerDashboard(): Promise<DashboardCardData> {
     ? terminalReservations
     : asList<CoreSnapshot["reservations"][number]>(reservationsPage);
   const todayReservations = reservations.filter((item) => isReservationOnDate(item, today));
+  const arrivedReservations = todayReservations.filter((item) => isArrivedReservation(item as Record<string, any>));
   const selectedReservations = todayReservations.length ? todayReservations : reservations.slice(0, 5);
   const stockItems = asList<CoreSnapshot["stockItems"][number]>(stockPage);
   const lowStock = stockItems.filter(isLowStock);
   const orders = filterByStoreName(asList<CoreSnapshot["orders"][number]>(ordersPage), storeName);
   const totalRevenue = sum(orders, (order) => order.totalAmount);
-  const cards = asList<CoreSnapshot["cards"][number]>(cardsResult);
   const beauticians = asList<CoreSnapshot["beauticians"][number]>(beauticiansResult);
   const topBeautician = beauticians[0];
   const customers = asList<CoreSnapshot["customers"][number]>(customersPage);
   const customerTotal = getTotal(customersPage, customers.length);
-  const orderTotal = getTotal(ordersPage, orders.length);
+  const activeCustomerTotal = customers.length
+    ? customers.filter((customer) => Number((customer as Record<string, any>).visitCount ?? 0) > 0).length
+    : customerTotal;
   const lowStockTotal = getTotal(stockPage, lowStock.length);
 
   return {
@@ -707,11 +1762,10 @@ export async function getManagerDashboard(): Promise<DashboardCardData> {
     summary: `当前门店 ${bootstrap.currentStore?.name ?? "未选择门店"} 已接入 Ami_Core 数据，优先关注经营、风险和员工协同。`,
     kpis: [
       { label: "客户总数", value: String(customerTotal) },
-      { label: "预约待处理", value: String(selectedReservations.length) },
-      { label: "门店订单", value: String(orderTotal) },
-      { label: "低库存", value: String(lowStockTotal) },
-      { label: "上架卡项", value: String(cards.length) },
-      { label: "总营业额", value: `￥${totalRevenue.toLocaleString()}` },
+      { label: "营业额", value: `￥${totalRevenue.toLocaleString()}` },
+      { label: "预约客户", value: String(todayReservations.length) },
+      { label: "到店客户", value: String(arrivedReservations.length) },
+      { label: "活跃客户", value: String(activeCustomerTotal) },
     ],
     risks: [
       `${lowStockTotal || lowStockCount(lowStock)} 项库存需要优先补货`,
@@ -720,9 +1774,8 @@ export async function getManagerDashboard(): Promise<DashboardCardData> {
     ],
     highlights: [
       `客户总数 ${customerTotal}，已接入当前门店数据`,
-      `订单合计 ${orderTotal} 笔，近期订单金额约 ￥${totalRevenue.toLocaleString()}`,
-      `近期预约 ${selectedReservations.length} 条，门店经营节奏正常`,
-      `当前上架卡项 ${cards.length} 个，可直接给前台和店长查看`,
+      `营业额约 ￥${totalRevenue.toLocaleString()}`,
+      `今日预约客户 ${todayReservations.length} 位，到店 ${arrivedReservations.length} 位`,
     ],
   };
 }
@@ -845,7 +1898,7 @@ export async function createAppointmentFromTerminal(input: AppointmentCreateInpu
     remark: input.remark,
   };
   const created = await createTerminalReservation(payload);
-  clearRoleDashboardCache();
+  clearBusinessDataCache();
 
   return {
     title: "预约已创建",
@@ -870,7 +1923,7 @@ export async function updateAppointmentFromTerminal(
     remark: input.remark,
   };
   const updated = await updateTerminalReservation(reservationId, payload);
-  clearRoleDashboardCache();
+  clearBusinessDataCache();
 
   return {
     title: "预约已修改",
@@ -883,7 +1936,7 @@ export async function updateAppointmentFromTerminal(
 
 export async function confirmAppointmentFromTerminal(reservationId: number): Promise<OperationResultData> {
   const updated = await confirmTerminalReservation(reservationId);
-  clearRoleDashboardCache();
+  clearBusinessDataCache();
   return {
     title: "预约已确认",
     subtitle: updated.storeName,
@@ -895,12 +1948,13 @@ export async function confirmAppointmentFromTerminal(reservationId: number): Pro
 
 export async function checkInAppointmentFromTerminal(reservationId: number): Promise<OperationResultData> {
   const updated = await checkInTerminalReservation(reservationId);
-  clearRoleDashboardCache();
+  clearBusinessDataCache();
+  const serviceTaskText = updated.serviceTask ? `，服务任务 ${updated.serviceTask.taskNo} 已同步生成` : "";
   return {
     title: "客户已到店",
     subtitle: updated.storeName,
     status: "success",
-    description: `${updated.customerName} 已确认到店，可继续核销、开单或通知美容师接待。`,
+    description: `${updated.customerName} 已确认到店${serviceTaskText}，可继续核销、开单或通知美容师接待。`,
     nextSteps: [],
   };
 }
@@ -910,7 +1964,7 @@ export async function cancelAppointmentFromTerminal(
   reason?: string,
 ): Promise<OperationResultData> {
   const updated = await cancelTerminalReservation(reservationId, reason);
-  clearRoleDashboardCache();
+  clearBusinessDataCache();
   return {
     title: "预约已取消",
     subtitle: updated.storeName,
@@ -921,14 +1975,11 @@ export async function cancelAppointmentFromTerminal(
 }
 
 export async function getBeauticianDashboard(): Promise<StaffScheduleCardData> {
-  const { bootstrap } = await getAuraBootstrapSession();
   try {
-    const staff = asList<StaffScheduleCardData>((await fetchCachedRoleDashboard()).staff).map((item) =>
-      normalizeStaffSchedule(item, bootstrap.currentStore?.name),
-    );
-    return staff[0] ?? buildEmptyBeauticianDashboard(bootstrap.currentStore?.name);
+    const staff = await loadWeeklyStaffSchedules();
+    return staff[0] ?? buildEmptyBeauticianDashboard();
   } catch (err) {
-    console.warn("Ami Aura Lite 聚合美容师数据加载失败，降级到旧排班查询", err);
+    console.warn("Ami Aura Lite 管理端排班数据加载失败，降级到旧排班查询", err);
   }
 
   const snapshot = await loadCoreSnapshot();
@@ -936,34 +1987,18 @@ export async function getBeauticianDashboard(): Promise<StaffScheduleCardData> {
   if (!beautician) return buildEmptyBeauticianDashboard(snapshot.store?.name);
   const { weekStart } = getTodayRange();
   const weekSlots = await getSchedule({ beauticianId: beautician.id, weekStart });
-  const todaySlots = weekSlots[(new Date().getDay() + 6) % 7] ?? [];
-  const busyCount = todaySlots.filter((slot) => !slot.available).length;
-  const utilization = todaySlots.length ? `${Math.round((busyCount / todaySlots.length) * 100)}%` : "0%";
-
-  return {
-    title: "我的今日服务",
-    subtitle: beautician.storeName,
-    beautician,
-    todaySlots,
-    utilization,
-    summary: `今日排班已从 Ami_Core 调入，共 ${todaySlots.length} 个时段，当前占用率 ${utilization}。`,
-  };
+  return buildStaffScheduleFromWeek(beautician, weekSlots, weekStart, snapshot.store?.name ?? beautician.storeName, "我的本周排班");
 }
 
 export async function getStaffSchedules(): Promise<StaffScheduleCardData[]> {
-  const { bootstrap } = await getAuraBootstrapSession();
   try {
-    const staff = asList<StaffScheduleCardData>((await fetchCachedRoleDashboard()).staff).map((item) =>
-      normalizeStaffSchedule(item, bootstrap.currentStore?.name),
-    );
-    return staff.length ? staff : [buildEmptyBeauticianDashboard(bootstrap.currentStore?.name)];
+    return await loadWeeklyStaffSchedules();
   } catch (err) {
-    console.warn("Ami Aura Lite 聚合员工排班加载失败，降级到旧排班查询", err);
+    console.warn("Ami Aura Lite 管理端排班数据加载失败，降级到旧排班查询", err);
   }
 
   const snapshot = await loadCoreSnapshot();
   const { weekStart } = getTodayRange();
-  const todayIndex = (new Date().getDay() + 6) % 7;
 
   if (!snapshot.beauticians.length) {
     return [buildEmptyBeauticianDashboard(snapshot.store?.name)];
@@ -972,37 +2007,62 @@ export async function getStaffSchedules(): Promise<StaffScheduleCardData[]> {
   return Promise.all(
     snapshot.beauticians.slice(0, 6).map(async (beautician) => {
       const weekSlots = await getSchedule({ beauticianId: beautician.id, weekStart });
-      const todaySlots = weekSlots[todayIndex] ?? [];
-      const busyCount = todaySlots.filter((slot) => !slot.available).length;
-      const utilization = todaySlots.length ? `${Math.round((busyCount / todaySlots.length) * 100)}%` : "0%";
-      return {
-        title: "员工当天排班",
-        subtitle: beautician.storeName,
-        beautician,
-        todaySlots,
-        utilization,
-        summary: `${beautician.name} 今日共有 ${todaySlots.length} 个排班时段，占用率 ${utilization}。`,
-      };
+      return buildStaffScheduleFromWeek(beautician, weekSlots, weekStart, snapshot.store?.name ?? beautician.storeName);
     }),
   );
 }
 
-export async function getCustomerGrowthCandidates(): Promise<CustomerCardData[]> {
-  const snapshot = await loadCoreSnapshot();
-  const candidates = [...snapshot.customers]
-    .sort((a, b) => b.totalSpent - a.totalSpent || new Date(a.lastVisitDate).getTime() - new Date(b.lastVisitDate).getTime())
+function buildCustomerGrowthCandidates(snapshot: CoreSnapshot): CustomerCardData[] {
+  const scored = [...snapshot.customers].map((customer) => {
+    const daysSinceVisit = getDaysSince(customer.lastVisitDate);
+    const todayReservation = getCustomerReservation(snapshot, customer.id, customer.name);
+    const hasTodayReservation = Boolean(todayReservation && isReservationOnDate(todayReservation, getTodayRange().today));
+    const totalSpent = customer.totalSpent ?? 0;
+    const visitCount = customer.visitCount ?? 0;
+    const score =
+      (daysSinceVisit >= 120 ? 5 : daysSinceVisit >= 90 ? 4 : daysSinceVisit >= 60 ? 3 : daysSinceVisit >= 30 ? 1 : 0) +
+      (totalSpent >= 10_000 ? 3 : totalSpent >= 5_000 ? 2 : totalSpent >= 1_000 ? 1 : 0) +
+      (visitCount >= 5 ? 2 : visitCount >= 2 ? 1 : 0) -
+      (hasTodayReservation ? 3 : 0);
+
+    return { customer, daysSinceVisit, hasTodayReservation, score };
+  });
+
+  const candidates = scored
+    .filter((item) => item.score >= 3)
+    .sort((a, b) => b.score - a.score || b.customer.totalSpent - a.customer.totalSpent || b.daysSinceVisit - a.daysSinceVisit)
     .slice(0, 6);
 
-  return candidates.map((customer) => ({
-    customer,
-    summary: `${customer.name} 属于 ${customer.memberLevel}，建议结合最近到店与消费节奏安排跟进。`,
-    reasons: [
-      `累计消费 ￥${customer.totalSpent.toLocaleString()}`,
-      `到店 ${customer.visitCount} 次`,
-      customer.tags?.length ? `标签：${customer.tags.join("、")}` : "暂无标签",
-    ],
-    recentVisits: [customer.lastVisitDate],
-  }));
+  const selected = candidates.length
+    ? candidates
+    : scored
+        .sort((a, b) => b.score - a.score || b.customer.totalSpent - a.customer.totalSpent || b.daysSinceVisit - a.daysSinceVisit)
+        .slice(0, 6);
+
+  return selected.map(({ customer, daysSinceVisit, hasTodayReservation, score }) => {
+    const recentOrders = snapshot.orders
+      .filter((order) => order.customerName.includes(customer.name))
+      .slice(0, 2)
+      .map((order) => `${order.createdAt} · ￥${order.totalAmount.toLocaleString()}`);
+
+    return {
+      customer,
+      summary: `${getChurnRiskLevel(score)}：最近 ${daysSinceVisit >= 999 ? "暂无有效到店记录" : `${daysSinceVisit} 天未到店`}，建议优先做回访和预约唤醒。`,
+      reasons: [
+        `最近到店：${customer.lastVisitDate || "暂无"}`,
+        `累计消费 ￥${customer.totalSpent.toLocaleString()}`,
+        `到店 ${customer.visitCount} 次`,
+        hasTodayReservation ? "今日已有预约，跟进优先级降低" : "今日无预约，建议主动触达",
+        customer.tags?.length ? `标签：${customer.tags.slice(0, 3).join("、")}` : "暂无标签",
+      ],
+      recentVisits: [customer.lastVisitDate, ...recentOrders].filter(Boolean),
+    };
+  });
+}
+
+export async function getCustomerGrowthCandidates(): Promise<CustomerCardData[]> {
+  const snapshot = await loadCoreSnapshot();
+  return buildCustomerGrowthCandidates(snapshot);
 }
 
 export async function getAppointments(): Promise<AppointmentCardData> {
@@ -1030,6 +2090,34 @@ function findProjectForCardProject(projects: Project[], projectName: string, ind
   );
 }
 
+function readNumericValue(...values: unknown[]) {
+  for (const value of values) {
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue) && numberValue > 0) return numberValue;
+  }
+  return 0;
+}
+
+function getCustomerMemberCardDeductMeta(customer: CoreSnapshot["customers"][number]) {
+  const record = customer as Record<string, any>;
+  const balanceAccount = Array.isArray(record.balanceAccounts) ? record.balanceAccounts[0] : undefined;
+  const cashBalance = readNumericValue(record.cashBalance, balanceAccount?.cashBalance);
+  const giftBalance = readNumericValue(record.giftBalance, balanceAccount?.giftBalance);
+  const totalBalance = readNumericValue(record.totalBalance, record.memberBalance, record.balance, cashBalance + giftBalance);
+  const activeCardsCount = readNumericValue(
+    record.activeCustomerCardsCount,
+    record.customerCardsCount,
+    Array.isArray(record.activeCards) ? record.activeCards.length : 0,
+    Array.isArray(record.customerCards) ? record.customerCards.filter((card) => card?.status !== "inactive" && Number(card?.remainingTimes ?? 0) > 0).length : 0,
+  );
+
+  return {
+    enabled: totalBalance > 0 || activeCardsCount > 0,
+    balance: totalBalance,
+    label: totalBalance > 0 ? `储值余额 ￥${totalBalance.toLocaleString()}` : activeCardsCount > 0 ? `${activeCardsCount} 张可用会员卡` : "暂无可划扣会员卡",
+  };
+}
+
 function buildCustomerSelectItems(snapshot: CoreSnapshot) {
   const customerMap = new Map<number, { customer: CoreSnapshot["customers"][number]; reservation?: Record<string, any> }>();
   asList<CoreSnapshot["reservations"][number]>(snapshot.reservations).forEach((reservation) => {
@@ -1045,18 +2133,24 @@ function buildCustomerSelectItems(snapshot: CoreSnapshot) {
     }
   });
 
-  return Array.from(customerMap.values()).map(({ customer, reservation }) => ({
-    id: customer.id,
-    name: customer.name,
-    phone: customer.phone,
-    memberLevel: customer.memberLevel,
-    tags: customer.tags?.slice(0, 3) ?? [],
-    isAppointedToday: Boolean(reservation),
-    appointmentTime: reservation ? formatTimeOnly(reservation.appointmentTime ?? getReservationTime(reservation)) : undefined,
-  }));
+  return Array.from(customerMap.values()).map(({ customer, reservation }) => {
+    const deductMeta = getCustomerMemberCardDeductMeta(customer);
+    return {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      memberLevel: customer.memberLevel,
+      tags: customer.tags?.slice(0, 3) ?? [],
+      isAppointedToday: Boolean(reservation),
+      appointmentTime: reservation ? formatTimeOnly(reservation.appointmentTime ?? getReservationTime(reservation)) : undefined,
+      memberCardDeductEnabled: deductMeta.enabled,
+      memberCardDeductBalance: deductMeta.balance,
+      memberCardDeductLabel: deductMeta.label,
+    };
+  });
 }
 
-export async function getCardVerificationFlow(): Promise<CardVerificationFlowData> {
+async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
   const { snapshot } = await loadCardVerificationSnapshot();
   const appointmentCustomers = asList<CoreSnapshot["reservations"][number]>(snapshot.reservations)
     .map((reservation) => {
@@ -1081,6 +2175,7 @@ export async function getCardVerificationFlow(): Promise<CardVerificationFlowDat
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      avatarUrl: pickCustomerAvatarUrl(customer),
       memberLevel: customer.memberLevel,
       tags: customer.tags?.slice(0, 3) ?? [],
       profileLabel: customer.skinCondition || customer.source || "画像待补充",
@@ -1100,6 +2195,10 @@ export async function getCardVerificationFlow(): Promise<CardVerificationFlowDat
   };
 }
 
+export async function getCardVerificationFlow(): Promise<CardVerificationFlowData> {
+  return loadCachedBusinessFlow("operation.verify", buildCardVerificationFlow);
+}
+
 export async function getCardVerificationCards(customerId: number) {
   const { snapshot, projects } = await loadCardVerificationSnapshot();
   const customer = snapshot.customers.find((item) => item.id === customerId);
@@ -1113,6 +2212,7 @@ export async function getCardVerificationCards(customerId: number) {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
+    avatarUrl: pickCustomerAvatarUrl(customer),
     memberLevel: customer.memberLevel,
     tags: customer.tags?.slice(0, 3) ?? [],
     profileLabel: customer.skinCondition || customer.source || "画像待补充",
@@ -1140,6 +2240,38 @@ export async function getCardVerificationCards(customerId: number) {
   };
 }
 
+function buildCardUsageReceipt(
+  record: TerminalCardUsageRecord,
+  snapshot: CoreSnapshot,
+  fallbackProjectName?: string,
+): OperationReceiptData {
+  const customer = snapshot.customers.find((item) => item.id === record.customerId);
+  return {
+    sourceType: "card_usage",
+    sourceId: record.id,
+    receiptNo: `CU${String(record.id).padStart(6, "0")}`,
+    businessTitle: "核销凭证",
+    detailLabel: "核销明细",
+    storeName: snapshot.store?.name ?? "当前门店",
+    customerName: record.customerName,
+    customerPhone: customer?.phone,
+    cashierName: snapshot.user?.name ?? snapshot.user?.username,
+    paymentMethod: "次卡核销",
+    items: [
+      {
+        name: `${record.projectName || fallbackProjectName || "服务项目"} · ${record.cardName}，剩余 ${record.remainingTimes} 次`,
+        quantity: record.times,
+        unitPrice: 0,
+        subtotal: 0,
+      },
+    ],
+    subtotalAmount: 0,
+    discountAmount: 0,
+    paidAmount: 0,
+    createdAt: record.verifiedAt ?? new Date().toISOString(),
+  };
+}
+
 export async function confirmCardVerification(input: CardVerificationConfirmInput): Promise<OperationResultData> {
   const snapshot = await loadCoreSnapshot();
   const beautician = snapshot.beauticians[0];
@@ -1154,12 +2286,13 @@ export async function confirmCardVerification(input: CardVerificationConfirmInpu
     title: "核销成功",
     subtitle: snapshot.store?.name ?? "当前门店",
     status: "success",
-    description: `${record.customerName} 已核销 ${record.cardName}，项目：${record.projectName || input.projectName}，扣减 ${record.times} 次，剩余 ${record.remainingTimes} 次。`,
+    description: `${record.customerName} 的次卡核销已完成。`,
     nextSteps: ["完成服务记录", "打印核销凭证", "预约下次护理"],
+    receipt: buildCardUsageReceipt(record, snapshot, input.projectName),
   };
 }
 
-export async function getCashierFlow(): Promise<CashierFlowData> {
+async function buildCashierFlow(): Promise<CashierFlowData> {
   const [snapshot, catalogResult, projectsResult, productsResult] = await Promise.all([
     loadCoreSnapshot(),
     optionalCoreCall<unknown>("终端目录", () => getTerminalCatalogSync(), null),
@@ -1205,6 +2338,10 @@ export async function getCashierFlow(): Promise<CashierFlowData> {
   };
 }
 
+export async function getCashierFlow(): Promise<CashierFlowData> {
+  return loadCachedBusinessFlow("operation.cashier", buildCashierFlow);
+}
+
 export async function confirmCashierPayment(input: CashierConfirmInput): Promise<OperationResultData> {
   const snapshot = await loadCoreSnapshot();
   const customer = snapshot.customers.find((item) => item.id === input.customerId);
@@ -1242,7 +2379,7 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
     title: "收银完成",
     subtitle: paid.storeName,
     status: "success",
-    description: `${customer.name} 的收银单 ${paid.orderNo} 已完成，${items.length} 个项目/商品，应收 ￥${subtotal.toLocaleString()}，优惠 ￥${discountAmount.toLocaleString()}，实收 ￥${paidAmount.toLocaleString()}。`,
+    description: `${customer.name} 的收银已完成，收银流水号和收费明细如下。`,
     nextSteps: [],
     receipt: {
       sourceType: "cashier_order",
@@ -1267,7 +2404,7 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
   };
 }
 
-export async function getCardOpeningFlow(): Promise<CardOpeningFlowData> {
+async function buildCardOpeningFlow(): Promise<CardOpeningFlowData> {
   const snapshot = await loadCoreSnapshot();
   const cards = asList<CoreSnapshot["cards"][number]>(snapshot.cards);
   return {
@@ -1288,6 +2425,10 @@ export async function getCardOpeningFlow(): Promise<CardOpeningFlowData> {
         projects: asList<{ projectName: string }>(card.projects).map((project) => project.projectName),
       })),
   };
+}
+
+export async function getCardOpeningFlow(): Promise<CardOpeningFlowData> {
+  return loadCachedBusinessFlow("operation.card", buildCardOpeningFlow);
 }
 
 export async function confirmCardOpening(input: CardOpeningConfirmInput): Promise<OperationResultData> {
@@ -1319,10 +2460,40 @@ export async function confirmCardOpening(input: CardOpeningConfirmInput): Promis
     status: "success",
     description: `${customer.name} 已办理 ${card.name}，应收 ￥${card.price.toLocaleString()}，优惠 ￥${discountAmount.toLocaleString()}，实收 ￥${amount.toLocaleString()}，剩余 ${order.remainingTimes} 次${asList<string>(input.giftProjects).length ? `，赠送：${asList<string>(input.giftProjects).join("、")}` : ""}。`,
     nextSteps: [],
+    receipt: {
+      sourceType: "card_order",
+      sourceId: order.id,
+      receiptNo: order.orderNo,
+      businessTitle: "开卡小票",
+      detailLabel: "开卡明细",
+      storeName: order.storeName,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      cashierName: snapshot.user?.name ?? snapshot.user?.username,
+      paymentMethod: input.paymentMethod,
+      items: [
+        {
+          name: `${card.name} · ${card.totalTimes} 次`,
+          quantity: 1,
+          unitPrice: card.price,
+          subtotal: card.price,
+        },
+        ...asList<string>(input.giftProjects).map((projectName) => ({
+          name: `赠送项目：${projectName}`,
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+        })),
+      ],
+      subtotalAmount: card.price,
+      discountAmount,
+      paidAmount: amount,
+      createdAt: order.purchaseTime ?? new Date().toISOString(),
+    },
   };
 }
 
-export async function getRegistrationFlow(): Promise<RegistrationFlowData> {
+async function buildRegistrationFlow(): Promise<RegistrationFlowData> {
   const snapshot = await loadCoreSnapshot();
   return {
     title: "客户登记",
@@ -1330,6 +2501,10 @@ export async function getRegistrationFlow(): Promise<RegistrationFlowData> {
     source: "Ami_Core 客户档案、面部检测数据",
     generatedAt: format(new Date(), "yyyy-MM-dd HH:mm"),
   };
+}
+
+export async function getRegistrationFlow(): Promise<RegistrationFlowData> {
+  return loadCachedBusinessFlow("operation.register", buildRegistrationFlow);
 }
 
 function skinMetricsToTerminalMetrics(metrics: Record<string, number>): TerminalSkinMetric[] {
@@ -1372,6 +2547,7 @@ export async function analyzeRegistrationSkinPhoto(input: {
     metrics: skinMetricsToTerminalMetrics(result.metrics),
     imageUrl: result.imageUrl,
     instrument: result.instrument,
+    isFallback: result.isFallback,
     confidence: result.confidence,
     capturedAt: result.capturedAt,
     explanation: result.explanation,
@@ -1392,33 +2568,42 @@ export async function confirmRegistration(input: RegistrationConfirmInput): Prom
     remark: input.remark,
   });
 
-  const skinTest = await createTerminalSkinTest({
-    customerId: customer.id,
-    images: input.skinImageUrl ? [input.skinImageUrl] : input.cameraCaptured ? ["camera://aura-lite-face-scan"] : [],
-    metrics: input.skinMetrics?.length
-      ? input.skinMetrics
-      : [
-          { key: "moisture", label: "水分", value: 62, unit: "%", score: 76 },
-          { key: "oil", label: "油脂", value: 34, unit: "%", score: 72 },
-        ],
-    skinType: input.skinType,
-    skinStatus: input.skinStatus,
-    mainProblems: input.mainProblems,
-    recommendationText: input.skinAnalyzeId
-      ? `${input.recommendationText}\n检测来源：${input.skinInstrument ?? "Ami AI 面部检测"}，置信度 ${Math.round((input.skinConfidence ?? 0) * 100)}%，检测ID ${input.skinAnalyzeId}`
-      : input.recommendationText,
-  });
+  const shouldCreateSkinTest = input.cameraCaptured || Boolean(input.skinAnalyzeId || input.skinMetrics?.length || input.skinImageUrl);
+  const skinTest = shouldCreateSkinTest
+    ? await createTerminalSkinTest({
+        customerId: customer.id,
+        images: input.skinImageUrl ? [input.skinImageUrl] : input.cameraCaptured ? ["camera://aura-lite-face-scan"] : [],
+        metrics: input.skinMetrics?.length && !input.skinIsFallback
+          ? input.skinMetrics
+          : input.skinIsFallback
+            ? []
+          : [
+              { key: "moisture", label: "水分", value: 62, unit: "%", score: 76 },
+              { key: "oil", label: "油脂", value: 34, unit: "%", score: 72 },
+            ],
+        skinType: input.skinType,
+        skinStatus: input.skinStatus,
+        mainProblems: input.mainProblems,
+        recommendationText: input.skinAnalyzeId
+          ? input.skinIsFallback
+            ? `${input.recommendationText}\n检测来源：${input.skinInstrument ?? "Ami AI 初筛"}，仅供顾问参考，检测ID ${input.skinAnalyzeId}`
+            : `${input.recommendationText}\n检测来源：${input.skinInstrument ?? "Ami AI 面部检测"}，置信度 ${Math.round((input.skinConfidence ?? 0) * 100)}%，检测ID ${input.skinAnalyzeId}`
+          : input.recommendationText,
+      })
+    : null;
 
   return {
     title: "登记完成",
     subtitle: customer.storeName,
     status: "success",
-    description: `${customer.name} 已写入 Ami_Core 客户档案，手机号 ${customer.phone}，面部检测记录 ${skinTest.id} 已生成，肤质：${skinTest.skinType}，重点问题：${skinTest.mainProblems}。`,
+    description: skinTest
+      ? `${customer.name} 已写入 Ami_Core 客户档案，手机号 ${customer.phone}，面部检测记录 ${skinTest.id} 已生成，肤质：${skinTest.skinType}，重点问题：${skinTest.mainProblems}。`
+      : `${customer.name} 已写入 Ami_Core 客户档案，手机号 ${customer.phone}。本次已跳过面部检测，可后续在客户档案中补检。`,
     nextSteps: [],
   };
 }
 
-export async function getRechargeFlow(): Promise<RechargeFlowData> {
+async function buildRechargeFlow(): Promise<RechargeFlowData> {
   const snapshot = await loadCoreSnapshot();
   const cards = asList<CoreSnapshot["cards"][number]>(snapshot.cards);
   return {
@@ -1429,6 +2614,10 @@ export async function getRechargeFlow(): Promise<RechargeFlowData> {
     customers: buildCustomerSelectItems(snapshot),
     giftProjects: cards.flatMap((card) => asList<{ projectName: string }>(card.projects).map((project) => project.projectName)).slice(0, 8),
   };
+}
+
+export async function getRechargeFlow(): Promise<RechargeFlowData> {
+  return loadCachedBusinessFlow("operation.recharge", buildRechargeFlow);
 }
 
 export async function confirmRecharge(input: RechargeConfirmInput): Promise<OperationResultData> {
@@ -1453,6 +2642,46 @@ export async function confirmRecharge(input: RechargeConfirmInput): Promise<Oper
     status: "success",
     description: `${customer.name} 已充值 ￥${order.amount.toLocaleString()}，优惠/赠送金额 ￥${order.giftAmount.toLocaleString()}${asList<string>(input.giftProjects).length ? `，赠送项目：${asList<string>(input.giftProjects).join("、")}` : ""}${typeof order.cashBalance === "number" ? `，当前储值余额 ￥${order.cashBalance.toLocaleString()}，赠送余额 ￥${(order.giftBalance ?? 0).toLocaleString()}` : ""}。`,
     nextSteps: [],
+    receipt: {
+      sourceType: "recharge_order",
+      sourceId: order.id,
+      receiptNo: order.orderNo,
+      businessTitle: "充值小票",
+      detailLabel: "充值明细",
+      storeName: order.storeName,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      cashierName: snapshot.user?.name ?? snapshot.user?.username,
+      paymentMethod: input.paymentMethod,
+      items: [
+        {
+          name: "会员储值充值",
+          quantity: 1,
+          unitPrice: order.amount,
+          subtotal: order.amount,
+        },
+        ...(order.giftAmount > 0
+          ? [
+              {
+                name: "赠送金额",
+                quantity: 1,
+                unitPrice: order.giftAmount,
+                subtotal: order.giftAmount,
+              },
+            ]
+          : []),
+        ...asList<string>(input.giftProjects).map((projectName) => ({
+          name: `赠送项目：${projectName}`,
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+        })),
+      ],
+      subtotalAmount: order.amount,
+      discountAmount: 0,
+      paidAmount: order.amount,
+      createdAt: order.createdAt ?? new Date().toISOString(),
+    },
   };
 }
 
@@ -1471,7 +2700,8 @@ export async function updateAppointmentAction(action: string): Promise<Operation
   const storeName = snapshot.store?.name ?? reservation?.storeName ?? "当前门店";
 
   if (operation === "confirm") {
-    const updated = await updateTerminalReservation(reservationId, { status: "confirmed" });
+    const updated = await confirmTerminalReservation(reservationId);
+    clearBusinessDataCache();
     return {
       title: "预约已确认",
       subtitle: updated.storeName ?? storeName,
@@ -1483,10 +2713,11 @@ export async function updateAppointmentAction(action: string): Promise<Operation
 
   if (operation === "reschedule") {
     const nextTime = addMinutesToAppointment(appointmentTime, 30);
-    const updated = await updateTerminalReservation(reservationId, {
+    const updated = await rescheduleTerminalReservation(reservationId, {
       appointmentTime: nextTime,
-      remark: "Ami Aura Lite 前台快捷改期",
+      reason: "Ami Aura Lite 前台快捷改期",
     });
+    clearBusinessDataCache();
     return {
       title: "预约时间已修改",
       subtitle: updated.storeName ?? storeName,
@@ -1497,10 +2728,8 @@ export async function updateAppointmentAction(action: string): Promise<Operation
   }
 
   if (operation === "cancel") {
-    const updated = await updateTerminalReservation(reservationId, {
-      status: "cancelled",
-      remark: "Ami Aura Lite 前台取消预约",
-    });
+    const updated = await cancelTerminalReservation(reservationId, "Ami Aura Lite 前台取消预约");
+    clearBusinessDataCache();
     return {
       title: "预约已取消",
       subtitle: updated.storeName ?? storeName,
@@ -1512,11 +2741,13 @@ export async function updateAppointmentAction(action: string): Promise<Operation
 
   if (operation === "checkin") {
     const updated = await checkInTerminalReservation(reservationId);
+    clearBusinessDataCache();
+    const serviceTaskText = updated.serviceTask ? `，服务任务 ${updated.serviceTask.taskNo} 已同步生成` : "";
     return {
       title: "客户已到店",
       subtitle: updated.storeName ?? storeName,
       status: "success",
-      description: `${updated.customerName ?? customerName} 已确认到店，可继续核销、开单或通知美容师接待。`,
+      description: `${updated.customerName ?? customerName} 已确认到店${serviceTaskText}，可继续核销、开单或通知美容师接待。`,
       nextSteps: ["开始核销", "通知美容师", "需要时前台收银"],
     };
   }
@@ -1682,8 +2913,9 @@ export async function getOperationResult(action: string): Promise<OperationResul
         title: "核销成功",
         subtitle: storeName,
         status: "success",
-        description: `${record.customerName} 已核销 ${record.cardName}，项目：${record.projectName}，剩余 ${record.remainingTimes} 次。`,
+        description: `${record.customerName} 的次卡核销已完成。`,
         nextSteps: ["完成服务记录", "打印核销凭证", "预约下次护理"],
+        receipt: buildCardUsageReceipt(record, snapshot, record.projectName),
       };
     }
     case "operation.cashier": {
@@ -1709,7 +2941,7 @@ export async function getOperationResult(action: string): Promise<OperationResul
         title: "收银完成",
         subtitle: paid.storeName,
         status: "success",
-        description: `${paid.customerName} 的收银单 ${paid.orderNo} 已完成，实收 ￥${paid.totalAmount.toLocaleString()}。`,
+        description: `${paid.customerName} 的收银已完成，收银流水号和收费明细如下。`,
         nextSteps: ["打印小票", "刷新经营数据", "提醒客户护理注意事项"],
         receipt: {
           sourceType: "cashier_order",
@@ -1743,18 +2975,25 @@ export async function getOperationResult(action: string): Promise<OperationResul
           nextSteps: ["查看我的预约", "确认客户到店", "联系前台创建任务"],
         };
       }
-      const completed = await completeTerminalServiceTask(targetTask.id, {
-        beauticianId: targetTask.beauticianId,
+      const result = await createTerminalServiceRecord({
+        taskId: targetTask.id,
+        customerId: targetTask.customerId,
+        projectId: targetTask.projectId,
+        beauticianId: targetTask.beauticianId || undefined,
         result: "服务已完成",
         remark: "Ami Aura Lite 快捷完成服务",
         consumptionItems: targetTask.consumptionItems,
+        transferToCashier: true,
       });
+      const completed = result.task;
       return {
         title: "服务已完成",
         subtitle: completed.storeName,
         status: "success",
         description: `${completed.customerName} 的 ${completed.projectName} 已标记完成，服务人员：${completed.beauticianName}。`,
-        nextSteps: ["补充护理备注", "转前台收银", "预约下次服务"],
+        nextSteps: result.nextActions?.length
+          ? result.nextActions.map((action) => (action === "transfer_cashier" ? "转前台收银" : "预约下次服务"))
+          : ["补充护理备注", "转前台收银", "预约下次服务"],
       };
     }
     case "operation.print": {

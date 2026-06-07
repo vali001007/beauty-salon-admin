@@ -13,6 +13,7 @@ import {
   getRechargeFlow,
   getRegistrationFlow,
   getStaffSchedules,
+  getTerminalBusinessAnswer,
   updateAppointmentAction,
 } from "../services/auraCoreService";
 import type { MicroAppRunResult } from "./microAppTypes";
@@ -27,16 +28,9 @@ export async function runMicroAppIntent(intent: AuraResolvedIntent, command: str
   }
 
   if (!action) {
+    const data = await getTerminalBusinessAnswer({ role: intent.role, command });
     return {
-      messages: [
-        {
-          type: "error",
-          payload: {
-            text: "暂时无法识别这个指令。可以试试：今日预约、核销次卡、收银、办卡、充值、客户登记。",
-            source: "intent",
-          },
-        },
-      ],
+      messages: [{ type: "ai", payload: { kind: "ai", data } }],
     };
   }
 
@@ -157,4 +151,3 @@ export async function runMicroAppIntent(intent: AuraResolvedIntent, command: str
   const data = await getOperationResult(action);
   return { messages: [{ type: "operation", payload: { kind: "operation", data } }] };
 }
-

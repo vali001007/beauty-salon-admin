@@ -12,6 +12,7 @@ import type {
   Store,
 } from "../../../../src/types";
 import type { AuraAction, AuraQuickAction, AuraRole, AuraRoleDefinition } from "../../../../src/types/aura";
+import type { NextBestActionStructured, TerminalServiceAdviceStructured } from "../../../../src/types/ai";
 import type { TerminalSkinMetric } from "../../../../src/types/terminal";
 
 export type Role = AuraRole;
@@ -21,6 +22,7 @@ export type MessageType =
   | "query"
   | "operation"
   | "ai"
+  | "automation"
   | "cardVerification"
   | "cashier"
   | "cardOpening"
@@ -46,13 +48,22 @@ export interface KpiItem {
   hint?: string;
 }
 
+export interface DashboardInsightItem {
+  title: string;
+  severity?: "high" | "medium" | "low" | string;
+  reason: string;
+  action: string;
+  relatedType?: string;
+  relatedId?: number | string;
+}
+
 export interface DashboardCardData {
   title: string;
   subtitle: string;
   summary: string;
   kpis: KpiItem[];
-  risks: string[];
-  highlights: string[];
+  risks: Array<string | DashboardInsightItem>;
+  highlights: Array<string | DashboardInsightItem>;
 }
 
 export interface CustomerCardData {
@@ -95,6 +106,8 @@ export interface StaffScheduleCardData {
   subtitle: string;
   beautician: Beautician;
   todaySlots: ScheduleSlot[];
+  weekSlots?: ScheduleSlot[][];
+  weekStart?: string;
   utilization: string;
   summary: string;
 }
@@ -112,6 +125,7 @@ export interface CardVerificationCustomer {
   id: number;
   name: string;
   phone: string;
+  avatarUrl?: string;
   memberLevel: string;
   tags: string[];
   profileLabel: string;
@@ -162,6 +176,9 @@ export interface CashierCustomer {
   tags: string[];
   isAppointedToday: boolean;
   appointmentTime?: string;
+  memberCardDeductEnabled?: boolean;
+  memberCardDeductBalance?: number;
+  memberCardDeductLabel?: string;
 }
 
 export interface CashierCatalogItem {
@@ -194,7 +211,7 @@ export interface CashierConfirmInput {
   customerId: number;
   items: CashierOrderItemInput[];
   discountAmount: number;
-  paymentMethod: "现金" | "微信" | "支付宝" | "银行卡" | "次卡抵扣";
+  paymentMethod: "现金" | "微信" | "支付宝" | "银行卡" | "次卡抵扣" | "会员余额";
 }
 
 export interface CustomerSelectItem {
@@ -250,6 +267,7 @@ export interface RegistrationSkinAnalysisData {
   metrics: TerminalSkinMetric[];
   imageUrl?: string;
   instrument: string;
+  isFallback?: boolean;
   confidence: number;
   capturedAt: string;
   explanation: string;
@@ -270,6 +288,7 @@ export interface RegistrationConfirmInput {
   skinMetrics?: TerminalSkinMetric[];
   skinImageUrl?: string;
   skinInstrument?: string;
+  skinIsFallback?: boolean;
   skinConfidence?: number;
   skinCapturedAt?: string;
   skinAnalyzeId?: string;
@@ -312,6 +331,8 @@ export interface OperationReceiptData {
   sourceType: "cashier_order" | "card_order" | "recharge_order" | "card_usage" | "reservation" | "custom";
   sourceId?: number;
   receiptNo: string;
+  businessTitle?: string;
+  detailLabel?: string;
   storeName: string;
   customerName: string;
   customerPhone?: string;
@@ -328,6 +349,106 @@ export interface AiSuggestionData {
   title: string;
   text: string;
   source: "Ami AI";
+  structured?: TerminalServiceAdviceStructured | NextBestActionStructured;
+}
+
+export interface AutomationDraftData {
+  id: string;
+  persistedStrategyId?: number;
+  persistedStatus?: "draft" | "enabled" | "paused" | "archived";
+  title: string;
+  status: "needs_info" | "draft_ready";
+  summary: string;
+  sourceText: string;
+  trigger: string;
+  audience: string;
+  action: string;
+  frequencyCap: string;
+  riskLevel: "low" | "medium" | "high";
+  requiresApproval: boolean;
+  missingFields: string[];
+  question?: string;
+  suggestions: string[];
+}
+
+export interface AutomationPreviewData {
+  targetCount: number;
+  riskLevel: "low" | "medium" | "high";
+  requiresApproval: boolean;
+  trigger: string;
+  audience: string;
+  action: string;
+  frequencyCap: string;
+  message: string;
+}
+
+export interface AutomationTemplateData {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  command: string;
+  defaultTrigger: string;
+  defaultAudience: string;
+  defaultAction: string;
+  riskLevel: "low" | "medium" | "high";
+}
+
+export interface AutomationExecutionSummaryData {
+  id: number;
+  strategyId: number;
+  strategyName: string;
+  status: string;
+  triggeredCount: number;
+  reachedCount: number;
+  channel?: string;
+  executedAt: string;
+  message?: string;
+  reason?: string;
+  nextActions?: string[];
+  primaryActionLabel?: string;
+  detailLines?: string[];
+}
+
+export interface AutomationExecutionTouchData {
+  id: number;
+  customerId: number;
+  customerName: string;
+  customerPhone?: string;
+  status: string;
+  channel?: string;
+  touchedAt: string;
+  convertedAt?: string;
+  conversionType?: string;
+  predictedConversionScore?: number;
+  predictedRevenue?: number;
+  attributionWindowDays?: number;
+}
+
+export interface AutomationExecutionDetailData extends AutomationExecutionSummaryData {
+  touches: AutomationExecutionTouchData[];
+}
+
+export interface AutomationTodaySummaryData {
+  date: string;
+  strategyCount: number;
+  enabledCount: number;
+  waitingApprovalCount: number;
+  executedCount: number;
+  successCount: number;
+  failedCount: number;
+  latestStrategies: Array<{
+    id: number;
+    title: string;
+    status: "draft" | "enabled" | "paused" | "archived";
+    trigger: string;
+    action: string;
+    riskLevel: "low" | "medium" | "high";
+    requiresApproval: boolean;
+    lastExecutedAt?: string;
+  }>;
+  templates?: AutomationTemplateData[];
+  latestExecutions: AutomationExecutionSummaryData[];
 }
 
 export interface SessionContext {

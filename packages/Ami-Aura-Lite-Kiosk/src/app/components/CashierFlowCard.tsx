@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
-import { CheckCircle2, ChevronRight, Minus, Plus, Search, ShoppingBag, Trash2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import type { CashierConfirmInput, CashierCustomer, CashierFlowData, CashierOrderItemInput } from "../types";
 import { cn } from "./ui/utils";
+import { CustomerSelectList } from "./CustomerSelectList";
 
 type CartItem = CashierOrderItemInput & { id: string; category: string };
 
@@ -9,7 +10,19 @@ function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-const PAYMENT_METHODS: CashierConfirmInput["paymentMethod"][] = ["微信", "支付宝", "银行卡", "现金"];
+const MEMBER_CARD_PAYMENT_METHOD = "会员余额";
+
+const PAYMENT_METHODS: Array<{
+  value: CashierConfirmInput["paymentMethod"];
+  label: string;
+  requiresMemberCard?: boolean;
+}> = [
+  { value: "微信", label: "微信" },
+  { value: "支付宝", label: "支付宝" },
+  { value: "银行卡", label: "银行卡" },
+  { value: "现金", label: "现金" },
+  { value: MEMBER_CARD_PAYMENT_METHOD, label: "会员卡划扣", requiresMemberCard: true },
+];
 
 export function CashierFlowCard({
   data,
@@ -19,30 +32,26 @@ export function CashierFlowCard({
   onConfirm: (input: CashierConfirmInput) => Promise<void>;
 }) {
   const [step, setStep] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CashierCustomer | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<CashierConfirmInput["paymentMethod"]>("微信");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const customers = safeArray(data.customers);
   const catalog = safeArray(data.catalog);
-
-  const customers = useMemo(() => {
-    const keyword = searchQuery.trim();
-    const sourceCustomers = safeArray(data.customers);
-    if (!keyword) {
-      const appointedToday = sourceCustomers.filter((customer) => customer.isAppointedToday);
-      return (appointedToday.length ? appointedToday : sourceCustomers).slice(0, 8);
-    }
-    return sourceCustomers
-      .filter((customer) => customer.name.includes(keyword) || customer.phone.includes(keyword))
-      .slice(0, 12);
-  }, [data.customers, searchQuery]);
 
   const subtotal = cart.reduce((total, item) => total + item.quantity * item.unitPrice, 0);
   const discount = Math.min(subtotal, Math.max(0, Number(discountAmount) || 0));
   const receivable = Math.max(0, subtotal - discount);
+  const canUseMemberCardDeduct = Boolean(selectedCustomer?.memberCardDeductEnabled);
+  const memberCardDeductLabel = selectedCustomer?.memberCardDeductLabel ?? "该客户暂无可划扣会员卡";
+
+  useEffect(() => {
+    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canUseMemberCardDeduct) {
+      setPaymentMethod("微信");
+    }
+  }, [canUseMemberCardDeduct, paymentMethod]);
 
   const addItem = (item: CashierFlowData["catalog"][number]) => {
     setCart((prev) => {
@@ -77,6 +86,10 @@ export function CashierFlowCard({
 
   const submit = async () => {
     if (!selectedCustomer || cart.length === 0) return;
+    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canUseMemberCardDeduct) {
+      setError("该客户暂无可划扣会员卡，请更换支付方式");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -124,43 +137,11 @@ export function CashierFlowCard({
       {step === 1 ? (
         <div className="flex flex-col gap-5">
           <div>
-            <div className="mb-3 text-sm font-medium text-[#6F6678]">第一步：选择客户</div>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6F6678]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="输入客户姓名或手机号搜索"
-                className="h-14 w-full rounded-2xl border border-black/10 bg-white pl-12 pr-4 text-base text-[#1F1B2D] outline-none transition focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
-              />
-            </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  onClick={() => setSelectedCustomer(customer)}
-                  className={cn(
-                    "flex items-center justify-between rounded-2xl border p-4 text-left transition",
-                    selectedCustomer?.id === customer.id
-                      ? "border-[#C9956C] bg-[#C9956C]/8"
-                      : "border-black/5 bg-[#F7F5F2] hover:border-[#C9956C]/50",
-                  )}
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-[#1F1B2D]">{customer.name}</span>
-                      {customer.isAppointedToday ? (
-                        <span className="rounded-full bg-[#2D1B69]/8 px-2 py-0.5 text-xs text-[#2D1B69]">预约 {customer.appointmentTime}</span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 text-sm text-[#6F6678]">{customer.phone} · {customer.memberLevel}</div>
-                  </div>
-                  {selectedCustomer?.id === customer.id ? <CheckCircle2 className="h-5 w-5 text-[#C9956C]" /> : <ChevronRight className="h-5 w-5 text-[#9B92A3]" />}
-                </button>
-              ))}
-            </div>
+            <CustomerSelectList
+              customers={customers}
+              selectedCustomerId={selectedCustomer?.id}
+              onSelect={setSelectedCustomer}
+            />
           </div>
 
           <div>
@@ -255,20 +236,31 @@ export function CashierFlowCard({
             </label>
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium text-[#6F6678]">支付方式</span>
-              <div className="grid grid-cols-4 gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <button
-                    key={method}
-                    type="button"
-                    onClick={() => setPaymentMethod(method)}
-                    className={cn(
-                      "h-12 rounded-xl border text-sm font-medium transition",
-                      paymentMethod === method ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white text-[#1F1B2D]",
-                    )}
-                  >
-                    {method}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                {PAYMENT_METHODS.map((method) => {
+                  const disabled = method.requiresMemberCard && !canUseMemberCardDeduct;
+                  return (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => {
+                        if (!disabled) setPaymentMethod(method.value);
+                      }}
+                      disabled={disabled}
+                      title={method.requiresMemberCard ? memberCardDeductLabel : method.label}
+                      className={cn(
+                        "min-h-12 rounded-xl border px-2 py-2 text-sm font-medium leading-tight transition",
+                        paymentMethod === method.value ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white text-[#1F1B2D]",
+                        disabled && "cursor-not-allowed border-black/5 bg-black/[0.03] text-[#9B92A3]",
+                      )}
+                    >
+                      <span>{method.label}</span>
+                      {method.requiresMemberCard ? (
+                        <span className="mt-0.5 block text-[10px] font-normal opacity-70">{canUseMemberCardDeduct ? memberCardDeductLabel : "无卡置灰"}</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

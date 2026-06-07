@@ -106,6 +106,90 @@ function withPermissionCheck(
   return buildResolvedIntent({ action, role, source, command, showUserCommand });
 }
 
+const RULE_KEYWORDS: Array<{ action: AuraAction; roles?: Role[]; keywords: string[] }> = [
+  {
+    action: "manager.dashboard",
+    roles: ["manager"],
+    keywords: ["经营", "报表", "概览", "今日经营", "今天怎么样", "业绩", "营业额", "收入", "数据", "店里怎么样", "情况"],
+  },
+  {
+    action: "manager.staff",
+    roles: ["manager"],
+    keywords: ["员工", "排班", "绩效", "人员", "今天谁在", "谁上班", "美容师", "忙不忙", "人手"],
+  },
+  {
+    action: "manager.customers",
+    roles: ["manager"],
+    keywords: ["流失", "增长", "高价值", "没来", "很久没到店", "沉睡", "回访", "客户情况", "会员情况", "老客"],
+  },
+  {
+    action: "manager.inventory",
+    roles: ["manager"],
+    keywords: ["库存", "补货", "临期", "缺货", "快用完", "过期", "库存预警", "耗材", "产品不够"],
+  },
+  {
+    action: "beautician.schedule",
+    roles: ["beautician"],
+    keywords: ["我今天做什么", "我的客户", "我的预约", "今天安排", "我排了什么", "我的排班", "今天服务谁"],
+  },
+  {
+    action: "beautician.record",
+    roles: ["beautician"],
+    keywords: ["写记录", "补记录", "服务记录", "护理记录", "记录一下"],
+  },
+  {
+    action: "beautician.customer",
+    roles: ["beautician"],
+    keywords: ["客户档案", "皮肤", "肤况", "上次做什么", "上次做了什么", "服务历史", "过敏", "禁忌"],
+  },
+  {
+    action: "beautician.advice",
+    roles: ["beautician"],
+    keywords: ["护理建议", "适合做什么护理", "推荐什么", "适合做", "怎么护理", "下次做什么", "护理方案"],
+  },
+  {
+    action: "reception.appointments",
+    roles: ["reception", "manager"],
+    keywords: ["预约", "有没有预约", "今天来几个", "排了什么", "到店", "今日预约", "确认预约", "爽约"],
+  },
+  {
+    action: "operation.verify",
+    keywords: ["核销", "扣次", "消次", "次卡使用", "用卡", "划次"],
+  },
+  {
+    action: "operation.register",
+    keywords: ["登记", "新增客户", "新客户", "没有档案", "建档", "录客户", "建个档"],
+  },
+  {
+    action: "operation.cashier",
+    keywords: ["收银", "开单", "买单", "结算", "多少钱", "付款", "支付", "收费"],
+  },
+  {
+    action: "operation.card",
+    keywords: ["办卡", "开卡", "买卡", "办张", "买张", "办张卡", "开一张", "开一张卡"],
+  },
+  {
+    action: "operation.recharge",
+    keywords: ["充值", "充钱", "储值", "充会员卡", "余额充值"],
+  },
+  {
+    action: "operation.print",
+    keywords: ["打印", "小票", "补打", "打票"],
+  },
+  {
+    action: "operation.service-complete",
+    keywords: ["完成服务", "服务做完", "结束服务", "做完了", "服务结束"],
+  },
+];
+
+function hasAnyKeyword(text: string, keywords: string[]) {
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function matchKeywordRule(text: string, role: Role) {
+  return RULE_KEYWORDS.find((rule) => (!rule.roles || rule.roles.includes(role)) && hasAnyKeyword(text, rule.keywords));
+}
+
 export function parseRuleIntent(command: string, role: Role, definition: RoleDefinition, source: AuraCommandSource) {
   const text = normalizeCommandText(command);
 
@@ -124,6 +208,11 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
   const quickMatch = definition.quickActions.find((item) => text === item.label || text.includes(item.label));
   if (quickMatch) {
     return withPermissionCheck(quickMatch.action, role, definition, command, source, false);
+  }
+
+  const keywordRule = matchKeywordRule(text, role);
+  if (keywordRule) {
+    return withPermissionCheck(keywordRule.action, role, definition, command, source, true);
   }
 
   if (text.includes("经营") || text.includes("报表") || text.includes("概览") || text.includes("今日经营")) {

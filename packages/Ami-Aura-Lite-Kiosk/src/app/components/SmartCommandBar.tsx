@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import {
+  AlarmClock,
   BarChart3,
   CalendarCheck,
   CheckSquare,
   CreditCard,
   FileText,
   HeartPulse,
+  Loader2,
   Mic,
   PackageCheck,
   Printer,
@@ -16,6 +18,8 @@ import {
   Wallet,
 } from "lucide-react";
 import type { Role, RoleDefinition } from "../types";
+
+type AutomationStatus = "idle" | "loading" | "needs_info" | "draft_ready";
 
 const iconMap = {
   BarChart3,
@@ -63,11 +67,15 @@ export function SmartCommandBar({
   currentRole,
   definition,
   onCommand,
+  onAutomationCommand,
+  automationStatus = "idle",
   disabled,
 }: {
   currentRole: Role;
   definition: RoleDefinition;
-  onCommand: (command: string) => void;
+  onCommand: (command: string, source?: "quick_action" | "text") => void;
+  onAutomationCommand?: (command: string) => void;
+  automationStatus?: AutomationStatus;
   disabled?: boolean;
 }) {
   const [inputValue, setInputValue] = useState("");
@@ -81,9 +89,24 @@ export function SmartCommandBar({
   const handleSend = () => {
     const command = inputValue.trim();
     if (!command || disabled) return;
-    onCommand(command);
+    onCommand(command, "text");
     setInputValue("");
   };
+
+  const handleAutomation = () => {
+    if (disabled || automationStatus === "loading") return;
+    onAutomationCommand?.(inputValue.trim());
+    setInputValue("");
+  };
+
+  const automationButtonTitle =
+    automationStatus === "needs_info"
+      ? "补充自动提醒信息"
+      : automationStatus === "draft_ready"
+        ? "查看自动化草稿"
+        : inputValue.trim()
+          ? "把这句话设为自动化"
+          : "查看自动管家 / 新建自动化";
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-4 border-t border-black/5 bg-[#F7F5F2] px-4 pb-6 pt-4 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] sm:px-6">
@@ -93,7 +116,7 @@ export function SmartCommandBar({
             <QuickCommandButton
               iconName={button.icon as keyof typeof iconMap}
               label={button.label}
-              onClick={() => onCommand(button.action)}
+              onClick={() => onCommand(button.action, "quick_action")}
               disabled={disabled}
             />
           </div>
@@ -129,6 +152,25 @@ export function SmartCommandBar({
         >
           <Send className="h-6 w-6 text-white" />
         </button>
+        {currentRole === "manager" && onAutomationCommand ? (
+          <button
+            type="button"
+            onClick={handleAutomation}
+            disabled={disabled || automationStatus === "loading"}
+            className={[
+              "relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-50",
+              automationStatus === "draft_ready"
+                ? "border-[#2D1B69] bg-[#2D1B69] text-white"
+                : "border-black/10 bg-white text-[#2D1B69] hover:bg-[#F7F5F2]",
+            ].join(" ")}
+            title={automationButtonTitle}
+          >
+            {automationStatus === "loading" ? <Loader2 className="h-6 w-6 animate-spin" /> : <AlarmClock className="h-6 w-6" />}
+            {automationStatus === "needs_info" ? (
+              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+            ) : null}
+          </button>
+        ) : null}
       </div>
     </div>
   );
