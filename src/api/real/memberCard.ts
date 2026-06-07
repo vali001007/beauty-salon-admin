@@ -61,6 +61,14 @@ function normalizeMemberCardTransaction(item: ApiMemberCardTransaction): MemberC
   return {
     id: Number(item.id ?? 0),
     accountId: Number(item.accountId ?? 0),
+    accountNo: item.accountNo,
+    customerId: item.customerId === undefined ? undefined : Number(item.customerId),
+    customerName: item.customerName,
+    customerPhone: item.customerPhone,
+    storeId: item.storeId === undefined ? undefined : Number(item.storeId),
+    storeName: item.storeName,
+    orderId: item.orderId === undefined ? undefined : Number(item.orderId),
+    orderNo: item.orderNo,
     transactionNo: item.transactionNo ?? '',
     type,
     typeLabel: item.typeLabel ?? labels[type] ?? '流水',
@@ -106,4 +114,14 @@ export async function realDeductMemberCard(id: number, data: MemberCardDeductPay
 export async function realGetMemberCardTransactions(accountId: number): Promise<MemberCardTransaction[]> {
   const response = await apiClient.get<unknown, unknown>(`/orders/member-cards/${accountId}/transactions`);
   return extractArray<ApiMemberCardTransaction>(response).map(normalizeMemberCardTransaction);
+}
+
+export async function realGetMemberCardDeductRecordsPaginated(
+  params: PaginationParams & { keyword?: string; storeId?: number },
+): Promise<PaginatedResponse<MemberCardTransaction>> {
+  const response = await apiClient.get<unknown, unknown>('/orders/member-cards/deduct-records/paginated', { params });
+  return normalizePaginatedResponse<ApiMemberCardTransaction, MemberCardTransaction>(
+    response,
+    normalizeMemberCardTransaction,
+  );
 }

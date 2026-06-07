@@ -21,3 +21,18 @@ export async function realUpdateRecommendation(id: number, data: Partial<Recomme
 export async function realDeleteRecommendation(id: number): Promise<void> {
   return apiClient.delete(`/marketing/recommendations/${id}`);
 }
+
+export async function realAdoptMarketingRecommendation(
+  id: number,
+  data: { targetType?: 'activity' | 'automation'; storeId?: number; customerId?: number; audienceSnapshotId?: number | string },
+): Promise<{ success: boolean; recommendationId: number; adoptedAt: string }> {
+  return apiClient.post(`/marketing/recommendations/${id}/adopt`, data);
+}
+
+export async function realCreateMarketingRecommendationActivityDraft(id: number): Promise<Record<string, unknown>> {
+  return apiClient.post(`/marketing/recommendations/${id}/activity-draft`);
+}
+
+export async function realCreateMarketingRecommendationAutomationDraft(id: number): Promise<Record<string, unknown>> {
+  return apiClient.post(`/marketing/recommendations/${id}/automation-draft`);
+}

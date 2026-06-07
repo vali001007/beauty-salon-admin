@@ -38,6 +38,7 @@ describe('API facades', () => {
   it('routes customer insight calls to the real implementation', async () => {
     const realGetCustomerConsumptionRecords = vi.fn(async () => [{ id: 1, customerId: 1001 }]);
     const realGetCustomerHealthProfiles = vi.fn(async () => [{ id: 2, customerId: 1001, skinType: 'dry' }]);
+    const realGetCustomerMiniappBehaviorAnalysis = vi.fn(async () => ({ events: [], summary: {} }));
 
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/customer', () => ({
@@ -51,6 +52,7 @@ describe('API facades', () => {
       realUpdateCustomerHealthProfile: vi.fn(),
       realGetCustomerConsumptionRecords,
       realGetCustomerHealthProfiles,
+      realGetCustomerMiniappBehaviorAnalysis,
     }));
     vi.resetModules();
 
@@ -96,6 +98,7 @@ describe('API facades', () => {
     const realPreviewAutomationAudience = vi.fn(async () => ({ total: 0, samples: [], ruleRelation: 'AND' }));
     const realUpdateAutomationStrategy = vi.fn(async (_id, data) => ({ id: 1, ...data }));
     const realDeleteAutomationStrategy = vi.fn(async () => undefined);
+    const realRecordCustomerBehaviorEvent = vi.fn(async (data) => ({ id: 1, ...data }));
 
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/marketing', () => ({
@@ -118,6 +121,7 @@ describe('API facades', () => {
       realGetLatestPredictionSummary: vi.fn(),
       realGetPredictionCustomers: vi.fn(),
       realGetCustomerPrediction: vi.fn(),
+      realRecordCustomerBehaviorEvent,
       realGetAutomationTriggerOptions,
       realPreviewAutomationAudience,
       realUpdateAutomationStrategy,
@@ -140,11 +144,13 @@ describe('API facades', () => {
     await api.previewAutomationAudience('draft', { triggerRules: [], ruleRelation: 'AND' });
     await api.updateAutomationStrategy(1, payload);
     await api.deleteAutomationStrategy(1);
+    await api.recordCustomerBehaviorEvent({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
 
     expect(realGetAutomationTriggerOptions).toHaveBeenCalledTimes(1);
     expect(realPreviewAutomationAudience).toHaveBeenCalledWith('draft', { triggerRules: [], ruleRelation: 'AND' });
     expect(realUpdateAutomationStrategy).toHaveBeenCalledWith(1, payload);
     expect(realDeleteAutomationStrategy).toHaveBeenCalledWith(1);
+    expect(realRecordCustomerBehaviorEvent).toHaveBeenCalledWith({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
   });
 
   it('routes terminal device calls to the real implementation', async () => {
@@ -155,17 +161,23 @@ describe('API facades', () => {
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/terminal', () => ({
       realApproveTerminalDeviceUnbind: vi.fn(),
+      realAdjustTerminalBalance: vi.fn(),
       realBindTerminalSkinTestCustomer: vi.fn(),
       realCancelTerminalServiceTask: vi.fn(),
       realCancelTerminalReservation: vi.fn(),
       realCompleteTerminalServiceTask: vi.fn(),
+      realCompleteTerminalFollowUpTask: vi.fn(),
+      realConsumeTerminalBalance: vi.fn(),
       realCreateTerminalConsumptionRecord: vi.fn(),
       realCreateTerminalCashierOrder: vi.fn(),
       realCreateTerminalCardOrder: vi.fn(),
+      realCreateTerminalFollowUpTask: vi.fn(),
       realCreateTerminalPrintJob: vi.fn(),
       realCreateTerminalRechargeOrder: vi.fn(),
       realCreateTerminalReservation: vi.fn(),
+      realCreateTerminalServiceRecord: vi.fn(),
       realCreateTerminalSkinTest: vi.fn(),
+      realCreateTerminalTaskFromReservation: vi.fn(),
       realCheckInTerminalReservation: vi.fn(),
       realConfirmTerminalReservation: vi.fn(),
       realCompleteTerminalPayment: vi.fn(),
@@ -177,30 +189,54 @@ describe('API facades', () => {
       realGetTerminalCatalogSync: vi.fn(),
       realGetTerminalConfig: vi.fn(),
       realGetTerminalCustomerCards: vi.fn(),
+      realGetTerminalCustomerBalance: vi.fn(),
       realGetTerminalCustomerSummary: vi.fn(),
       realGetTerminalCustomerConsumptionRecordsPaginated: vi.fn(),
       realGetTerminalCustomerHealthProfile: vi.fn(),
       realGetTerminalCustomerRecommendations: vi.fn(),
+      realGetTerminalCustomerNextBestActions: vi.fn(),
       realGetTerminalDeviceMe: vi.fn(),
+      realGetTerminalDeviceStatus: vi.fn(),
       realGetTerminalDevicesPaginated: vi.fn(),
       realGetTerminalInventoryStock: vi.fn(),
       realGetTerminalInventoryAlerts: vi.fn(),
       realGetTerminalPromotions: vi.fn(),
+      realGetTerminalPrintJobs: vi.fn(),
       realGetTerminalPrintJobStatus: vi.fn(),
+      realGetTerminalReservationAvailability: vi.fn(),
       realGetTerminalRoleDashboard: vi.fn(),
+      realGetTerminalAutomations: vi.fn(),
+      realGetTerminalAutomationTemplates: vi.fn(),
+      realCreateTerminalAutomationStrategy: vi.fn(),
+      realPreviewTerminalAutomationStrategy: vi.fn(),
+      realEnableTerminalAutomationStrategy: vi.fn(),
+      realPauseTerminalAutomationStrategy: vi.fn(),
+      realRunTerminalAutomationOnce: vi.fn(),
+      realRunDueTerminalAutomations: vi.fn(),
+      realGetTerminalAutomationTodaySummary: vi.fn(),
+      realGetTerminalAutomationExecutionDetail: vi.fn(),
+      realMarkTerminalAutomationTouchFollowedUp: vi.fn(),
+      realGetTerminalServiceRecord: vi.fn(),
       realGetTerminalServiceTaskById: vi.fn(),
       realGetTerminalServiceTasks: vi.fn(),
       realGetTerminalSkinTestById: vi.fn(),
       realGetTerminalSkinTestRecommendations: vi.fn(),
       realGetTerminalSkinTests: vi.fn(),
+      realMarkTerminalReservationNoShow: vi.fn(),
       realPreviewTerminalCardUsage: vi.fn(),
       realQuickCreateTerminalCustomer: vi.fn(),
       realRecordTerminalRecommendationEvent: vi.fn(),
       realRequestTerminalDeviceUnbind: vi.fn(),
+      realRefundTerminalBalance: vi.fn(),
+      realRescheduleTerminalReservation: vi.fn(),
+      realRetryTerminalPrintJob: vi.fn(),
       realSearchTerminalCustomers: vi.fn(),
       realStartTerminalServiceTask: vi.fn(),
+      realTransferTerminalTaskToCashier: vi.fn(),
       realUpdateTerminalCustomerHealthProfile: vi.fn(),
+      realUpdateTerminalPrintJobStatus: vi.fn(),
       realUpdateTerminalReservation: vi.fn(),
+      realUpdateTerminalServiceRecord: vi.fn(),
       realVerifyTerminalCardUsage: vi.fn(),
       realHeartbeatTerminalDevice: vi.fn(),
       realGetTerminalBootstrap,
@@ -236,6 +272,8 @@ describe('API facades', () => {
       realGenerateSkinTestExplanation: vi.fn(),
       realGenerateTerminalServiceAdvice: vi.fn(),
       realResolveTerminalIntent: vi.fn(),
+      realGetAiAuditLogsPaginated: vi.fn(),
+      realGetAiAuditSummary: vi.fn(),
       realSendAiChatMessage,
       realGenerateMarketingCopy,
       realRecommendNextBestAction,

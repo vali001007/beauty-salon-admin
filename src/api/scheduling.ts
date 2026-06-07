@@ -1,11 +1,24 @@
 import type { ScheduleSlot } from '@/types/store';
-import { realGetSchedule, realSaveSchedule, realGetSchedulePaginated, realCreateScheduleSlot, realDeleteScheduleSlot } from './real/scheduling';
+import {
+  realGetSchedule,
+  realGetWeeklySchedules,
+  realSaveSchedule,
+  realGetSchedulePaginated,
+  realCreateScheduleSlot,
+  realDeleteScheduleSlot,
+} from './real/scheduling';
 
 export const getSchedule: (params: {
   beauticianId: number;
   weekStart: string;
 }) => Promise<ScheduleSlot[][]> =
   realGetSchedule;
+
+export const getWeeklySchedules: (params: {
+  beauticianIds: number[];
+  weekStart: string;
+}) => Promise<Record<number, ScheduleSlot[][]>> =
+  realGetWeeklySchedules;
 
 export const saveSchedule: (data: {
   beauticianId: number;

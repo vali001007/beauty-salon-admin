@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RotateCcw, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Search, RotateCcw, Plus, Edit, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AddProjectDialog } from '../components/AddProjectDialog';
+import { MarketingPageGeneratorDialog, type MarketingPageGeneratorSource } from '../components/MarketingPageGeneratorDialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { projectSchema, type ProjectFormData } from '@/schemas/project';
@@ -43,6 +44,7 @@ export function ProjectManagement() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTypeList, setProjectTypeList] = useState<ProjectType[]>([]);
+  const [marketingPageSource, setMarketingPageSource] = useState<MarketingPageGeneratorSource | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
@@ -108,6 +110,14 @@ export function ProjectManagement() {
       price: project.price,
     });
     setShowQuickAddDialog(true);
+  };
+
+  const openMarketingPageGenerator = (project: Project) => {
+    setMarketingPageSource({
+      type: 'project',
+      item: project,
+      storeName: project.storeName,
+    });
   };
 
   const handleCloseQuickDialog = () => {
@@ -216,9 +226,15 @@ export function ProjectManagement() {
                 <TableCell className="text-gray-600 align-middle">{project.duration} 分钟</TableCell>
                 <TableCell className="text-gray-500 align-middle">{project.sort}</TableCell>
                 <TableCell className="text-right align-middle">
-                  <button className="text-blue-500 hover:text-blue-600 text-sm" onClick={() => handleOpenQuickEdit(project)}>
-                    编辑
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    <button className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 text-sm" onClick={() => openMarketingPageGenerator(project)}>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      生成推广页
+                    </button>
+                    <button className="text-blue-500 hover:text-blue-600 text-sm" onClick={() => handleOpenQuickEdit(project)}>
+                      编辑
+                    </button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -292,6 +308,12 @@ export function ProjectManagement() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <MarketingPageGeneratorDialog
+        source={marketingPageSource}
+        onClose={() => setMarketingPageSource(null)}
+        onPublished={loadProjects}
+      />
     </div>
   );
 }

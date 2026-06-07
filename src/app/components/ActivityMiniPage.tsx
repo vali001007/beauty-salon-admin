@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Calendar,
   Check,
@@ -325,8 +326,8 @@ export function ActivityMiniPage({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-white p-4">
+  const content = (
+    <div className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-white p-4">
       <div className="relative flex h-full w-full flex-col items-center justify-center gap-4 lg:flex-row lg:gap-6">
         <div className="flex h-[min(844px,calc(100vh-136px))] w-[390px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[46px] border-[10px] border-gray-950 bg-white shadow-2xl lg:h-[min(844px,calc(100vh-32px))]">
           <div className="relative flex h-11 shrink-0 items-center justify-between bg-white px-7 text-xs font-semibold text-gray-900">
@@ -547,4 +548,7 @@ export function ActivityMiniPage({
       )}
     </div>
   );
+
+  if (typeof document === 'undefined') return content;
+  return createPortal(content, document.body);
 }

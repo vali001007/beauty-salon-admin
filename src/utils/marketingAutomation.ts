@@ -47,6 +47,16 @@ const VALUE_LABELS: Record<string, string> = {
   diamond: '钻石会员',
   privilege_care: '专属权益关怀',
   first_order_coupon: '首单体验券',
+  coupon_expiry: '优惠券即将到期',
+  coupon_claimed_unused: '领券未核销',
+  browse_abandonment: '小程序浏览未预约',
+  booking_abandonment: '预约放弃',
+  seasonal_skin_care: '季节换肤护理',
+  holiday_campaign: '节假日营销',
+  vip_privilege_care: '高价值客户权益维护',
+  product_replenishment: '商品补货提醒',
+  referral_campaign: '老带新/闺蜜同行',
+  package_remaining: '卡项剩余次数',
   dry: '干性肌肤',
   oily: '油性肌肤',
   sensitive: '敏感肌肤',
@@ -65,6 +75,11 @@ const VALUE_LABELS: Record<string, string> = {
   moments: '朋友圈',
   auto_by_season: '按季节自动匹配',
   all: '全部',
+  project: '项目',
+  skin_care: '护肤品',
+  last_top_category: '最近偏好项目',
+  related_project: '相关项目',
+  coupon: '优惠券',
 };
 
 function formatValue(value: MarketingParamValue): string {

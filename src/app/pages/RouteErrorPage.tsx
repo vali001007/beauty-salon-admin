@@ -32,9 +32,9 @@ export function RouteErrorPage() {
         : '页面加载遇到问题';
   const description =
     status === 404
-      ? '当前地址可能不是这个应用的入口，或页面路径已经调整。Ami Aura Lite 主线终端包 packages/Ami Aura Lite Kiosk Prototype 启动后请访问 127.0.0.1:5175。'
+      ? '当前地址可能不是这个应用的入口，或页面路径已经调整。Ami Aura Lite 主线终端包 packages/Ami-Aura-Lite-Kiosk 启动后请访问 127.0.0.1:5175。'
       : moduleLoadFailed
-        ? '通常是开发服务重启、端口访问错位或浏览器缓存了旧模块地址。Ami Aura Lite 主线终端包 packages/Ami Aura Lite Kiosk Prototype 启动后请访问 127.0.0.1:5175；当前页面可先刷新重试。'
+        ? '通常是开发服务重启、端口访问错位或浏览器缓存了旧模块地址。Ami Aura Lite 主线终端包 packages/Ami-Aura-Lite-Kiosk 启动后请访问 127.0.0.1:5175；当前页面可先刷新重试。'
         : '当前页面没有正常加载。建议返回上一页，或回到工作台重新进入对应功能。';
 
   return (

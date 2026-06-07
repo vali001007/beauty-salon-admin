@@ -1,5 +1,19 @@
-import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
-import { realGetCustomers, realGetCustomerById, realCreateCustomer, realUpdateCustomer, realGetCustomerConsumptionRecords, realGetCustomerHealthProfiles, realUpdateCustomerHealthProfile } from './real/customer';
+import type {
+  Customer,
+  CustomerConsumptionRecord,
+  CustomerHealthProfile,
+  CustomerMiniappBehaviorAnalysis,
+} from '@/types';
+import {
+  realGetCustomers,
+  realGetCustomerById,
+  realCreateCustomer,
+  realUpdateCustomer,
+  realGetCustomerConsumptionRecords,
+  realGetCustomerHealthProfiles,
+  realUpdateCustomerHealthProfile,
+  realGetCustomerMiniappBehaviorAnalysis,
+} from './real/customer';
 
 export const getCustomers: (params?: { keyword?: string; memberLevel?: string; storeName?: string }) => Promise<Customer[]> =
   realGetCustomers;
@@ -42,3 +56,6 @@ export const updateCustomerHealthProfile: (
   customerId: number,
   data: CustomerHealthProfilePayload,
 ) => Promise<CustomerHealthProfile> = realUpdateCustomerHealthProfile;
+
+export const getCustomerMiniappBehaviorAnalysis: () => Promise<CustomerMiniappBehaviorAnalysis> =
+  realGetCustomerMiniappBehaviorAnalysis;

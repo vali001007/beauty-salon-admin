@@ -36,6 +36,16 @@ type PreviewInitialData = {
   sourceRecommendationId?: string;
   aiGenerationId?: string;
   aiPromptTemplateVersion?: string;
+  predictionRunId?: string;
+  preferredMode?: string;
+  executionModes?: string;
+  triggerType?: string;
+  triggerRuleJson?: string;
+  audienceSnapshotJson?: string;
+  recommendedChannelsJson?: string;
+  recommendedItemsJson?: string;
+  offerJson?: string;
+  sourceSignalsJson?: string;
   pageSchema?: ActivityPageSchema;
   [key: string]: string | ActivityPageSchema | undefined;
 };
@@ -61,6 +71,54 @@ const LEVEL_COLORS: Record<string, string> = {
   '流失风险客户': 'bg-red-100 text-red-600',
   '新客户': 'bg-yellow-100 text-yellow-700',
 };
+
+function buildRecommendationRecoveryCard(totalCustomers = 0): Recommendation {
+  return {
+    id: -1,
+    title: '算法数据恢复推荐',
+    reason: '当前推荐算法暂未拿到完整预测结果，系统先提供一张可创建活动的恢复卡，避免运营流程中断。请检查客户数据、预测批次或后端迁移后再次刷新。',
+    targetCustomers: `待分析客户 ${totalCustomers} 人`,
+    targetCount: 0,
+    targetCustomerIds: [],
+    expectedConversion: '预计转化率 待计算',
+    expectedRevenue: '预计营收 待计算',
+    strategy: '先创建一次性活动承接门店权益；算法恢复后，再按节假日、次卡到期、优惠券到期和小程序行为生成精准自动规则。',
+    discount: '门店专属权益',
+    duration: '建议周期: 7天',
+    matchScore: 60,
+    image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400',
+    tags: ['算法恢复', '数据接入'],
+    category: 'high-conversion',
+    source: 'strategy',
+    preferAutoRule: false,
+    urgency: 'recommended',
+    urgencyLabel: '推荐',
+    dataEvidence: ['推荐接口返回为空或预测运行失败，已启用前端恢复卡'],
+    totalCustomers,
+    modelVersion: 'rules-v2',
+    predictionType: 'strategy',
+    priority: 'P2',
+    executionModes: ['activity'],
+    preferredMode: 'activity',
+    modeReason: '缺少稳定预测名单时优先创建一次性活动，避免自动规则误触达。',
+    recommendedChannels: [
+      { channel: 'miniapp', label: '小程序', reason: '用于活动页、领券和预约入口承接。', priority: 'P0' },
+      { channel: 'wechat', label: '微信', reason: '适合顾问跟进和解释权益。', priority: 'P1' },
+    ],
+    offer: { type: 'member_privilege', label: '门店专属权益', validDays: 7, reason: '算法恢复期间使用低风险权益承接。' },
+    recommendedItems: [
+      { type: 'project', name: '会员护理推荐方案', category: '面部护理', reason: '算法恢复期间先使用门店通用护理方案承接。', confidence: 60 },
+    ],
+    audienceSnapshot: {
+      generatedAt: new Date().toISOString(),
+      ruleSummary: '算法恢复卡未固化客户名单',
+      customerIds: [],
+      totalCustomers: 0,
+      sampleReasons: [],
+    },
+    sourceSignals: ['frontend_recovery', 'algorithm_unavailable'],
+  };
+}
 
 function ProgressMetric({ value }: { value: string }) {
   return (
@@ -89,6 +147,19 @@ function ltvTierToLoyalty(tier?: string) {
   if (tier === '白银') return '65%';
   if (tier === '青铜') return '45%';
   return '50%';
+}
+
+function parseJsonField<T>(value?: string): T | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function getChannelText(rec: Recommendation) {
+  return rec.recommendedChannels?.slice(0, 3).map((item) => item.label).join('、') || '小程序、短信';
 }
 
 function normalizeAudienceProfiles(profiles: RecommendationAudiencePayload[]): BehaviorProfile[] {
@@ -161,18 +232,30 @@ export function MarketingRecommendation() {
     setIsLoading(true);
     try {
       if (options.refreshPredictions) {
-        await runPredictions();
+        try {
+          await runPredictions();
+        } catch (predictionError) {
+          toast.warning(
+            predictionError instanceof Error
+              ? `预测运行失败，已尝试加载现有推荐：${predictionError.message}`
+              : '预测运行失败，已尝试加载现有推荐',
+          );
+        }
       }
       const recommendationData = await getMarketingRecommendations();
-      setRecommendations(recommendationData);
+      setRecommendations(recommendationData.length ? recommendationData : [buildRecommendationRecoveryCard(customers.length)]);
+      if (!recommendationData.length) {
+        toast.warning('推荐接口暂未返回卡片，已启用恢复推荐卡');
+      }
       setRefreshKey((current) => current + 1);
       void loadCustomerContextInBackground();
     } catch (error) {
+      setRecommendations((current) => (current.length ? current : [buildRecommendationRecoveryCard(customers.length)]));
       toast.error(error instanceof Error ? error.message : '推荐数据加载失败');
     } finally {
       setIsLoading(false);
     }
-  }, [loadCustomerContextInBackground]);
+  }, [customers.length, loadCustomerContextInBackground]);
 
   useEffect(() => {
     void loadSourceData();
@@ -192,14 +275,26 @@ export function MarketingRecommendation() {
 
   const createInitialDataFromRecommendation = (rec: Recommendation): PreviewInitialData => ({
     sourceRecommendationId: String(rec.id),
+    predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : undefined,
     title: rec.title,
     description: rec.reason,
     targetCustomers: rec.targetCustomers,
-    discount: rec.discount,
-    strategy: rec.strategy,
+    discount: rec.offer?.label || rec.discount,
+    strategy: rec.recommendedItems?.length
+      ? `${rec.strategy}；推荐项目/商品：${rec.recommendedItems.map((item) => item.name).join('、')}`
+      : rec.strategy,
     image: rec.image,
     category: rec.category,
     duration: rec.duration,
+    preferredMode: rec.preferredMode,
+    executionModes: rec.executionModes?.join(','),
+    triggerType: rec.triggerType,
+    triggerRuleJson: rec.triggerRule ? JSON.stringify(rec.triggerRule) : undefined,
+    audienceSnapshotJson: rec.audienceSnapshot ? JSON.stringify(rec.audienceSnapshot) : undefined,
+    recommendedChannelsJson: rec.recommendedChannels ? JSON.stringify(rec.recommendedChannels) : undefined,
+    recommendedItemsJson: rec.recommendedItems ? JSON.stringify(rec.recommendedItems) : undefined,
+    offerJson: rec.offer ? JSON.stringify(rec.offer) : undefined,
+    sourceSignalsJson: rec.sourceSignals ? JSON.stringify(rec.sourceSignals) : undefined,
   });
 
   const getPreviewPeriod = () => {
@@ -529,6 +624,11 @@ export function MarketingRecommendation() {
         posterTitleColor: preview.posterTitleColor,
         pageSchema: preview.pageSchema,
         sourceRecommendationId: previewInitialData.sourceRecommendationId,
+        predictionRunId: previewInitialData.predictionRunId,
+        audienceSnapshotJson: parseJsonField(previewInitialData.audienceSnapshotJson),
+        sourceSignalsJson: parseJsonField<string[]>(previewInitialData.sourceSignalsJson),
+        offerJson: parseJsonField(previewInitialData.offerJson),
+        recommendedItemsJson: parseJsonField(previewInitialData.recommendedItemsJson),
         aiGenerationId: previewInitialData.aiGenerationId,
         publishStatus: 'published',
         publishedAt: new Date().toISOString(),
@@ -584,14 +684,14 @@ export function MarketingRecommendation() {
           <h1 className="text-xl font-semibold text-gray-900">智能推荐</h1>
           <p className="text-sm text-gray-500 mt-1">
             {isLoading && recommendations.length === 0
-              ? '正在读取真实客户数据并运行 RFM分群、关联规则、流失预警、LTV预测 四大算法'
+              ? '正在读取今日智能推荐；如今天尚未生成，将自动运行一次 RFM分群、关联规则、流失预警、LTV预测'
               : `基于 ${totalCustomerCount} 位客户数据，综合 RFM分群、关联规则、流失预警、LTV预测 四大算法智能推荐`}
           </p>
         </div>
         <div className="flex gap-3">
           <button onClick={handleRefresh} disabled={isLoading}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> {isLoading ? '分析中...' : '刷新推荐'}
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> {isLoading ? '刷新中...' : '刷新推荐'}
           </button>
           <button onClick={openManualCreateDialog}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-60">
@@ -614,7 +714,7 @@ export function MarketingRecommendation() {
       <div className="flex-1 overflow-auto">
         {isLoading && recommendations.length === 0 ? (
           <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-blue-200 bg-blue-50/60 text-sm text-blue-700">
-            正在根据后台真实客户、消费记录和肌肤档案生成智能推荐...
+            正在读取今日推荐数据，必要时自动完成本日首次计算...
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
@@ -625,6 +725,9 @@ export function MarketingRecommendation() {
           {filtered.map((rec) => {
             const sl = sourceLabel(rec.source);
             const isExpanded = expandedEvidence.has(rec.id);
+            const executionModes = rec.executionModes ?? (rec.preferAutoRule ? ['automation'] : ['activity']);
+            const canCreateAutomation = executionModes.includes('automation') && Boolean(rec.triggerType || rec.triggerRule?.type);
+            const canCreateActivity = executionModes.includes('activity');
             return (
               <div key={rec.id} className={`border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow ${urgencyBorder(rec.urgency)}`}>
                 <div className="flex gap-5 p-5">
@@ -638,22 +741,9 @@ export function MarketingRecommendation() {
                     {/* 标题行 */}
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span className="text-sm font-medium">{rec.urgencyLabel}</span>
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${sl.color}`}>{sl.text}</span>
-                          {rec.modelVersion && (
-                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                              模型 {rec.modelVersion}
-                            </span>
-                          )}
-                          {rec.predictionType && (
-                            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                              {rec.predictionType === 'churn' ? '流失预测' : rec.predictionType === 'repurchase' ? '复购预测' : rec.predictionType === 'marketing_response' ? '转化预测' : rec.predictionType === 'ltv' ? 'LTV预测' : '策略'}
-                            </span>
-                          )}
-                          {rec.tags.filter((t) => !['紧急', '流失预警', '交叉销售', 'LTV驱动'].includes(t)).slice(0, 2).map((tag, i) => (
-                            <span key={i} className={`px-2 py-0.5 rounded text-xs font-medium ${tag === 'AI推荐' ? 'bg-yellow-100 text-yellow-700' : tag.includes('高') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{tag}</span>
-                          ))}
                         </div>
                         <h3 className="text-base font-semibold text-gray-900">{rec.title}</h3>
                       </div>
@@ -668,6 +758,18 @@ export function MarketingRecommendation() {
                       <div className="flex items-start gap-2">
                         <Sparkles className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
                         <p className="text-sm text-blue-800">{rec.reason}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-3 grid gap-2 text-xs text-gray-600 md:grid-cols-3">
+                      <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+                        <span className="font-medium">优惠：</span>{rec.offer?.label || rec.discount}
+                      </div>
+                      <div className="rounded-lg bg-teal-50 px-3 py-2 text-teal-800">
+                        <span className="font-medium">项目/商品：</span>{rec.recommendedItems?.[0]?.name || '推荐护理方案'}
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-700">
+                        <span className="font-medium">渠道：</span>{getChannelText(rec)}
                       </div>
                     </div>
 
@@ -713,12 +815,25 @@ export function MarketingRecommendation() {
                     {/* 操作按钮 */}
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                       <span className="flex-1 text-xs text-gray-400">{rec.discount}</span>
-                      {rec.preferAutoRule && rec.triggerType && (
+                      {canCreateAutomation && (
                         <button onClick={() => {
+                          const triggerType = rec.triggerRule?.type || rec.triggerType!;
+                          const channels = rec.recommendedChannels?.map((item) => item.channel).join(',') || 'sms,miniapp';
                           const params = new URLSearchParams({
-                            name: rec.title, desc: rec.reason, trigger: rec.triggerType!,
-                            actions: JSON.stringify([{ type: 'coupon', value: rec.discount }]),
-                            channels: 'sms,miniapp',
+                            name: rec.title, desc: rec.reason, trigger: triggerType,
+                            triggerParams: JSON.stringify(rec.triggerRule?.params || {}),
+                            actions: JSON.stringify((rec.recommendedActions?.length ? rec.recommendedActions : [{ type: 'coupon', value: rec.offer?.label || rec.discount }]).map((action) => ({
+                              type: action.type === 'consultant_task' ? 'push' : action.type,
+                              value: action.value,
+                            }))),
+                            channels,
+                            sourceRecommendationId: String(rec.id),
+                            predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : '',
+                            targetAudience: rec.targetCustomers || rec.title,
+                            offer: rec.offer?.label || rec.discount,
+                            strategyText: rec.strategy,
+                            recommendedItems: JSON.stringify(rec.recommendedItems?.map((item) => item.name) || []),
+                            sourceSignals: JSON.stringify(rec.sourceSignals || []),
                             autoGenerate: 'true',
                           });
                           navigate(`/customer-marketing/strategy-templates?${params.toString()}`);
@@ -726,8 +841,13 @@ export function MarketingRecommendation() {
                           <Zap className="w-3.5 h-3.5" /> 创建自动规则
                         </button>
                       )}
-                      <button onClick={() => void openMiniPreview(createInitialDataFromRecommendation(rec))} disabled={isPreparingPreview} className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs disabled:opacity-60 ${rec.preferAutoRule ? 'border border-blue-500 text-blue-600 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                        {isPreparingPreview ? 'AI生成中' : '创建活动'} <ArrowRight className="w-3.5 h-3.5" />
+                      <button
+                        onClick={() => void openMiniPreview(createInitialDataFromRecommendation(rec))}
+                        disabled={isPreparingPreview || !canCreateActivity}
+                        title={canCreateActivity ? rec.modeReason : '该推荐更适合配置为自动营销规则'}
+                        className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs disabled:opacity-50 ${canCreateAutomation ? 'border border-blue-500 text-blue-600 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                      >
+                        {isPreparingPreview ? 'AI生成中' : canCreateActivity ? '创建活动' : '不建议活动'} <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

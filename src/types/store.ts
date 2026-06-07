@@ -39,4 +39,5 @@ export interface ScheduleSlot {
   time: string;
   period: '上午' | '下午';
   available: boolean;
+  status?: 'normal' | 'available' | 'booked' | 'expired' | 'leave' | 'busy' | string;
 }

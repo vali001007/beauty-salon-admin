@@ -55,7 +55,7 @@ const PAYMENT_TO_API: Record<ProductOrderPaymentMethod, string> = {
   微信: 'wechat',
   支付宝: 'alipay',
   银行卡: 'card',
-  次卡抵扣: 'customer_card',
+  会员卡划扣: 'member_balance',
 };
 
 const PAYMENT_FROM_API: Record<string, ProductOrderPaymentMethod> = {
@@ -64,12 +64,14 @@ const PAYMENT_FROM_API: Record<string, ProductOrderPaymentMethod> = {
   alipay: '支付宝',
   card: '银行卡',
   bank_card: '银行卡',
-  customer_card: '次卡抵扣',
+  customer_card: '会员卡划扣',
+  member_balance: '会员卡划扣',
   现金: '现金',
   微信: '微信',
   支付宝: '支付宝',
   银行卡: '银行卡',
-  次卡抵扣: '次卡抵扣',
+  次卡抵扣: '会员卡划扣',
+  会员卡划扣: '会员卡划扣',
 };
 
 function normalizeDateTime(value?: string): string {
@@ -201,5 +203,27 @@ export async function realGetProductOrdersPaginated(
   params: PaginationParams & { status?: string; keyword?: string; storeId?: number },
 ): Promise<PaginatedResponse<ProductOrder>> {
   const response = await apiClient.get<unknown, unknown>('/orders/product/paginated', { params: toApiParams(params) });
+  return normalizePaginatedResponse<ApiProductOrder, ProductOrder>(response, normalizeProductOrder);
+}
+
+export async function realGetProjectOrders(params?: { status?: string; keyword?: string; storeId?: number }): Promise<ProductOrder[]> {
+  const response = await apiClient.get<unknown, unknown>('/orders/project', { params: toApiParams(params) });
+  return extractArray<ApiProductOrder>(response).map(normalizeProductOrder);
+}
+
+export async function realGetProjectOrderById(id: number): Promise<ProductOrder | undefined> {
+  const item = await apiClient.get<unknown, ApiProductOrder>(`/orders/project/${id}`);
+  return normalizeProductOrder(item);
+}
+
+export async function realCreateProjectOrder(data: ProductOrderCreatePayload): Promise<ProductOrder> {
+  const item = await apiClient.post<unknown, ApiProductOrder>('/orders/project', toApiCreatePayload(data));
+  return normalizeProductOrder(item);
+}
+
+export async function realGetProjectOrdersPaginated(
+  params: PaginationParams & { status?: string; keyword?: string; storeId?: number },
+): Promise<PaginatedResponse<ProductOrder>> {
+  const response = await apiClient.get<unknown, unknown>('/orders/project/paginated', { params: toApiParams(params) });
   return normalizePaginatedResponse<ApiProductOrder, ProductOrder>(response, normalizeProductOrder);
 }

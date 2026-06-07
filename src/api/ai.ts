@@ -1,4 +1,7 @@
 import type {
+  AiAuditLog,
+  AiAuditLogQuery,
+  AiAuditSummary,
   AiChatRequest,
   AiGenerationResult,
   CampaignVariantsRequest,
@@ -9,15 +12,20 @@ import type {
   MarketingCopyRequest,
   MarketingCopyStructured,
   NextBestActionRequest,
+  NextBestActionResult,
   ServiceNoteSummaryRequest,
   SkinPhotoAnalyzeRequest,
   SkinPhotoAnalyzeResult,
   SkinTestExplanationRequest,
   TerminalServiceAdviceRequest,
+  TerminalServiceAdviceResult,
   TerminalIntentResolveRequest,
   TerminalIntentResolveResult,
 } from '@/types/ai';
+import type { PaginatedResponse } from '@/types/pagination';
 import {
+  realGetAiAuditLogsPaginated,
+  realGetAiAuditSummary,
   realGenerateCampaignVariants,
   realGenerateCustomerInvitationScript,
   realGenerateCustomerSummary,
@@ -60,11 +68,17 @@ export const generateSkinTestExplanation: (data: SkinTestExplanationRequest) => 
 export const analyzeSkinPhoto: (data: SkinPhotoAnalyzeRequest) => Promise<SkinPhotoAnalyzeResult> =
   realAnalyzeSkinPhoto;
 
-export const generateTerminalServiceAdvice: (data: TerminalServiceAdviceRequest) => Promise<AiGenerationResult> =
+export const generateTerminalServiceAdvice: (data: TerminalServiceAdviceRequest) => Promise<TerminalServiceAdviceResult> =
   realGenerateTerminalServiceAdvice;
 
-export const recommendNextBestAction: (data: NextBestActionRequest) => Promise<AiGenerationResult> =
+export const recommendNextBestAction: (data: NextBestActionRequest) => Promise<NextBestActionResult> =
   realRecommendNextBestAction;
 
 export const resolveTerminalIntent: (data: TerminalIntentResolveRequest) => Promise<TerminalIntentResolveResult> =
   realResolveTerminalIntent;
+
+export const getAiAuditLogsPaginated: (params: AiAuditLogQuery) => Promise<PaginatedResponse<AiAuditLog>> =
+  realGetAiAuditLogsPaginated;
+
+export const getAiAuditSummary: (params?: { scenario?: string; status?: string }) => Promise<AiAuditSummary> =
+  realGetAiAuditSummary;

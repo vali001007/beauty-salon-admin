@@ -7,6 +7,7 @@ export * from './scheduling';
 export * from './store';
 export * from './role';
 export * from './marketing';
+export * from './marketingPage';
 export * from './bom';
 export * from './beautician';
 export * from './project';

@@ -7,17 +7,28 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { marketingActivitySchema, type MarketingActivityFormData, type MarketingActivityFormInput } from '@/schemas/marketing';
-import { generateMarketingCopy } from '@/api/ai';
+import { generateActivityPage, generateMarketingCopy } from '@/api/ai';
 import { createMarketingActivity } from '@/api/marketing';
+import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
 import { getProjects } from '@/api/project';
 import { toast } from 'sonner';
 import { ActivityMiniPage } from './ActivityMiniPage';
 import { MARKETING_POSTER_TEMPLATES } from '@/config/marketingAssets';
 import rawCustomers from '@/api/mock/data/customers.json';
 import rawHealthProfiles from '@/api/mock/data/health-profiles.json';
-import type { Customer } from '@/types';
-import type { MarketingCopyChannel, MarketingCopyStructured, MarketingCopyStyleInstruction } from '@/types/ai';
+import type { AudienceSnapshot, Customer, RecommendedItem, RecommendedOffer } from '@/types';
+import type {
+  GenerateActivityPageResult,
+  MarketingCopyChannel,
+  MarketingCopyStructured,
+  MarketingCopyStyleInstruction,
+} from '@/types/ai';
 import { classifyCustomer, classifySkin } from '@/utils/customerSegmentation';
+import {
+  buildMarketingActivityPageSchema,
+  buildMarketingPagePayloadFromActivity,
+  type ActivityMarketingPageItem,
+} from '@/utils/marketingPageGenerator';
 
 interface CreateActivityDialogProps {
   open: boolean;
@@ -32,6 +43,12 @@ interface CreateActivityDialogProps {
     image?: string;
     category?: string;
     duration?: string;
+    sourceRecommendationId?: string;
+    predictionRunId?: string;
+    audienceSnapshotJson?: string;
+    offerJson?: string;
+    recommendedItemsJson?: string;
+    sourceSignalsJson?: string;
   };
 }
 
@@ -78,6 +95,15 @@ const TARGET_SPECIAL_TAGS = [
   { value: '本月生日', label: '本月生日' },
   { value: 'VIP客户', label: 'VIP客户' },
 ];
+
+const STORE_NAME = '心悦芸美容养生会所';
+const STORE_PHONE = '0571-88888888';
+
+const ACTIVITY_STEPS = [
+  { key: 1, title: '活动核心', desc: '名称、类型、时间与权益' },
+  { key: 2, title: '目标客户', desc: '客户范围、规则与渠道' },
+  { key: 3, title: '预览发布', desc: '文案、海报和小程序预览' },
+] as const;
 
 // Pre-compute customer classifications
 const allCustomers: Customer[] = (rawCustomers as any[]).map((c) => ({ ...c, tags: c.tags || [] }));
@@ -177,6 +203,40 @@ function sanitizeCustomerFacingCopy(text: string, fallback: string) {
   return trimmed;
 }
 
+function parseInitialJson<T>(value?: string): T | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getDefaultActivityPeriod() {
+  const startDate = new Date();
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + 30);
+  return {
+    startDate: toDateInputValue(startDate),
+    endDate: toDateInputValue(endDate),
+  };
+}
+
+function getActivityStatusFromPeriod(startDate: string, endDate: string): '进行中' | '即将开始' | '已结束' {
+  const today = toDateInputValue(new Date());
+  if (startDate && startDate > today) return '即将开始';
+  if (endDate && endDate < today) return '已结束';
+  return '进行中';
+}
+
+function normalizeBooleanValue(value: boolean | string | undefined) {
+  return value === true || value === 'true';
+}
+
 export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: CreateActivityDialogProps) {
   const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
@@ -185,6 +245,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
   const [targetSegment, setTargetSegment] = useState('');
   const [targetSkinType, setTargetSkinType] = useState('');
   const [targetSpecialTags, setTargetSpecialTags] = useState<string[]>([]);
+  const [activityStep, setActivityStep] = useState<1 | 2 | 3>(1);
 
   const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
   const [isGeneratingPosters, setIsGeneratingPosters] = useState(false);
@@ -193,11 +254,14 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
   const [showMiniPreview, setShowMiniPreview] = useState(false);
   const [copyVariants, setCopyVariants] = useState<MarketingCopyStructured['variants']>([]);
   const [selectedCopyVariantId, setSelectedCopyVariantId] = useState<string | null>(null);
+  const [useAiPageSchema, setUseAiPageSchema] = useState(false);
+  const [isGeneratingPageSchema, setIsGeneratingPageSchema] = useState(false);
+  const [aiPageResult, setAiPageResult] = useState<GenerateActivityPageResult | null>(null);
 
   const { register, handleSubmit: rhfHandleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<MarketingActivityFormInput, unknown, MarketingActivityFormData>({
     resolver: zodResolver(marketingActivitySchema),
     defaultValues: {
-      title: '', activityType: '折扣促销', description: '', startDate: '2026-04-01', endDate: '2026-05-01',
+      title: '', activityType: '折扣促销', description: '', ...getDefaultActivityPeriod(),
       targetCustomers: '', discountType: '折扣', discountValue: '', discount: '', budget: '', targetParticipants: '',
       targetRevenue: '', channels: [], maxUsagePerPerson: '1', minSpend: '', stackable: false, image: '',
     },
@@ -250,12 +314,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       else if (tc.includes('油性')) autoSkinType = '油性肌肤';
       else if (tc.includes('混合')) autoSkinType = '混合肌肤';
 
-      // Auto-set dates (today + 30 days)
-      const today = new Date();
-      const endDate = new Date(today);
-      endDate.setDate(endDate.getDate() + 30);
-      const startStr = today.toISOString().split('T')[0];
-      const endStr = endDate.toISOString().split('T')[0];
+      const { startDate: startStr, endDate: endStr } = getDefaultActivityPeriod();
       const initialDescription = initialData?.description
         ? sanitizeCustomerFacingCopy(
             initialData.description,
@@ -282,6 +341,10 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       setTargetSpecialTags(tc.includes('VIP') ? ['VIP客户'] : []);
       setCopyVariants([]);
       setSelectedCopyVariantId(null);
+      setUseAiPageSchema(false);
+      setIsGeneratingPageSchema(false);
+      setAiPageResult(null);
+      setActivityStep(1);
     }
   }, [open, initialData, reset]);
 
@@ -292,6 +355,26 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
     { id: 4, name: '眼霜套装', price: 220, category: '护肤品' },
     { id: 5, name: '防晒喷雾', price: 150, category: '护肤品' },
   ];
+
+  const getSelectedProjectItems = (): ActivityMarketingPageItem[] =>
+    projectList
+      .filter((project) => selectedProjects.includes(project.id))
+      .map((project) => ({
+        id: project.id,
+        name: project.name,
+        type: project.type,
+        price: project.price,
+      }));
+
+  const getSelectedProductItems = (): ActivityMarketingPageItem[] =>
+    products
+      .filter((product) => selectedProducts.includes(product.id))
+      .map((product) => ({
+        id: product.id,
+        name: product.name,
+        category: product.category,
+        price: product.price,
+      }));
 
   const toggleChannel = (ch: string) => {
     setSelectedChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]);
@@ -378,13 +461,69 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
     if (targetSkinType) parts.push(targetSkinType);
     parts.push(...targetSpecialTags);
     const targetLabel = parts.length > 0 ? parts.join(' + ') : '全部客户';
+    const selectedProjectItems = getSelectedProjectItems();
+    const selectedProductItems = getSelectedProductItems();
+    const localPageSchema = buildMarketingActivityPageSchema({
+      title: data.title,
+      description: data.description,
+      activityType: data.activityType,
+      offer: data.discountValue || '',
+      targetCustomers: targetLabel,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      posterImage: currentPoster?.imageUrl,
+      posterBg: currentPoster?.backgroundColor,
+      selectedProjects: selectedProjectItems,
+      selectedProducts: selectedProductItems,
+      maxUsagePerPerson: data.maxUsagePerPerson,
+      minSpend: data.minSpend,
+      stackable: data.stackable,
+      storeName: STORE_NAME,
+      storePhone: STORE_PHONE,
+    });
+    let pageSchema = localPageSchema;
+    let pageAiGenerationId = `activity-page-${Date.now()}`;
+    const parsedAudienceSnapshot = parseInitialJson<AudienceSnapshot>(initialData?.audienceSnapshotJson);
+    const parsedOffer = parseInitialJson<RecommendedOffer>(initialData?.offerJson);
+    const parsedRecommendedItems = parseInitialJson<RecommendedItem[]>(initialData?.recommendedItemsJson);
+    const parsedSourceSignals = parseInitialJson<Record<string, unknown> | string[]>(initialData?.sourceSignalsJson);
 
     try {
-      await createMarketingActivity({
+      if (useAiPageSchema) {
+        setIsGeneratingPageSchema(true);
+        try {
+          const result = await generateActivityPage({
+            campaignName: data.title,
+            targetAudience: targetLabel,
+            offer: data.discountValue || '',
+            projectNames: selectedProjectItems.map((item) => item.name),
+            productNames: selectedProductItems.map((item) => item.name),
+            startDate: data.startDate,
+            endDate: data.endDate,
+            storeName: STORE_NAME,
+            storePhone: STORE_PHONE,
+          });
+          const aiSchema = result.pageVariants?.[0]?.pageSchema ?? result.pageSchema;
+          if (!aiSchema || result.safety?.blocked || aiSchema.safety?.blocked) {
+            throw new Error(result.safety?.reasons?.[0] || aiSchema?.safety?.reasons?.[0] || 'AI 页面结构未通过安全检查');
+          }
+          pageSchema = aiSchema;
+          pageAiGenerationId = result.id || pageAiGenerationId;
+          setAiPageResult(result);
+          toast.success('AI 已优化活动推广页结构');
+        } catch (error) {
+          setAiPageResult(null);
+          toast.error(error instanceof Error ? `${error.message}，已使用本地模板继续发布` : 'AI 页面优化失败，已使用本地模板继续发布');
+        } finally {
+          setIsGeneratingPageSchema(false);
+        }
+      }
+
+      const activity = await createMarketingActivity({
         title: data.title,
         description: data.description,
         image: currentPoster?.imageUrl || '',
-        status: '即将开始',
+        status: getActivityStatusFromPeriod(data.startDate, data.endDate),
         participants: 0,
         conversion: '0%',
         startDate: data.startDate,
@@ -392,15 +531,40 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
         targetCustomers: targetLabel,
         discount: data.discountValue || '',
         source: '手动创建',
+        sourceRecommendationId: initialData?.sourceRecommendationId,
+        predictionRunId: initialData?.predictionRunId,
+        audienceSnapshotJson: parsedAudienceSnapshot,
+        offerJson: parsedOffer,
+        recommendedItemsJson: parsedRecommendedItems,
+        sourceSignalsJson: parsedSourceSignals,
         posterBg: currentPoster?.backgroundColor,
         posterImage: currentPoster?.imageUrl,
         posterTitleColor: currentPoster?.titleColor,
+        pageSchema,
+        aiGenerationId: pageAiGenerationId,
+        publishStatus: 'published',
+        publishedAt: new Date().toISOString(),
       });
-      toast.success('活动发布成功');
+      const page = await createMarketingPage(
+        buildMarketingPagePayloadFromActivity(activity, {
+          pageSchema,
+          activityType: data.activityType,
+          selectedProjects: selectedProjectItems,
+          selectedProducts: selectedProductItems,
+          selectedChannels,
+          posterImage: currentPoster?.imageUrl,
+          offerJson: parsedOffer,
+          audienceSnapshotJson: parsedAudienceSnapshot,
+          recommendedItemsJson: parsedRecommendedItems,
+          sourceSignalsJson: parsedSourceSignals,
+        }),
+      );
+      await publishMarketingPage(page.id);
+      toast.success('活动和公开 H5 已发布，可在营销页面库分发链接');
       onClose();
       onSuccess?.();
     } catch (err: any) {
-      toast.error(err?.message || '发布活动失败');
+      toast.error(err?.message || '发布活动或公开 H5 失败');
     }
   };
 
@@ -419,6 +583,8 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
 
   const currentPoster = selectedPoster ? generatedPosters.find((p) => p.id === selectedPoster) : null;
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const matchedCustomerCount = countMatchingCustomers(targetSegment, targetSkinType, targetSpecialTags);
+  const recommendationDriven = Boolean(initialData?.sourceRecommendationId || initialData?.predictionRunId || initialData?.title);
 
   return (
     <>
@@ -432,10 +598,37 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
             if (firstError?.message) toast.error(String(firstError.message));
           })}>
           <div className="space-y-6 mt-2">
-            {/* 基础信息 */}
+            <div className="grid grid-cols-3 gap-3">
+              {ACTIVITY_STEPS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActivityStep(item.key)}
+                  className={`rounded-lg border px-4 py-3 text-left transition-colors ${
+                    activityStep === item.key ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-sm font-semibold">{item.key}. {item.title}</div>
+                  <div className="mt-1 text-xs opacity-80">{item.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {recommendationDriven && (
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                已根据智能推荐自动带入活动类型、目标客户和权益信息；门店只需确认关键内容，必要时再微调。
+              </div>
+            )}
+
+            {/* 基础信息 / 目标客户 */}
+            {activityStep !== 3 && (
             <div className="border border-gray-200 rounded-lg p-5">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-blue-600" /> 基础信息</h3>
+              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-blue-600" /> {activityStep === 1 ? '基础信息' : '目标客户确认'}
+              </h3>
               <div className="space-y-4">
+                {activityStep === 1 && (
+                <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">活动名称 *</label>
@@ -451,6 +644,22 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 *</label>
+                    <input type="date" {...register('startDate')} className={inputCls} />
+                    {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate.message}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">结束时间 *</label>
+                    <input type="date" {...register('endDate')} className={inputCls} />
+                    {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate.message}</p>}
+                  </div>
+                </div>
+                </>
+                )}
+
+                {activityStep === 2 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">目标客户群 *</label>
                   {/* 客户细分 */}
@@ -493,28 +702,18 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center gap-2">
                     <Users className="w-4 h-4 text-blue-600" />
                     <span className="text-sm text-blue-800">
-                      符合条件的客户：<span className="font-semibold">{countMatchingCustomers(targetSegment, targetSkinType, targetSpecialTags)}</span> 人
+                      符合条件的客户：<span className="font-semibold">{matchedCustomerCount}</span> 人
                       {!targetSegment && !targetSkinType && targetSpecialTags.length === 0 && <span className="text-blue-500 ml-1">（全部客户）</span>}
                     </span>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 *</label>
-                    <input type="date" {...register('startDate')} className={inputCls} />
-                    {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate.message}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">结束时间 *</label>
-                    <input type="date" {...register('endDate')} className={inputCls} />
-                    {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate.message}</p>}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
+            )}
 
             {/* 优惠设置 */}
+            {activityStep === 1 && (
             <div className="border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Tag className="w-5 h-5 text-blue-600" /> 优惠设置</h3>
               <div className="space-y-4">
@@ -568,8 +767,10 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                 </div>
               </div>
             </div>
+            )}
 
             {/* 活动规则 */}
+            {activityStep === 2 && (
             <div className="border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Settings className="w-5 h-5 text-blue-600" /> 活动规则</h3>
               <div className="grid grid-cols-3 gap-4">
@@ -592,8 +793,10 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                 </div>
               </div>
             </div>
+            )}
 
             {/* 预算与目标 */}
+            {activityStep === 2 && (
             <div className="border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><DollarSign className="w-5 h-5 text-blue-600" /> 预算与目标</h3>
               <div className="grid grid-cols-3 gap-4">
@@ -611,8 +814,10 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                 </div>
               </div>
             </div>
+            )}
 
             {/* 推送渠道 */}
+            {activityStep === 2 && (
             <div className="border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Megaphone className="w-5 h-5 text-blue-600" /> 推送渠道</h3>
               <div className="grid grid-cols-3 gap-3">
@@ -628,8 +833,10 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                 ))}
               </div>
             </div>
+            )}
 
             {/* 活动文案 */}
+            {activityStep === 3 && (
             <div className="border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-blue-600" /> 活动文案</h3>
               <div>
@@ -696,8 +903,38 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                 )}
               </div>
             </div>
+            )}
+
+            {/* AI 页面结构 */}
+            {activityStep === 3 && (
+            <div className="border border-purple-100 bg-purple-50 rounded-lg p-5">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useAiPageSchema}
+                  onChange={(event) => setUseAiPageSchema(event.target.checked)}
+                  className="mt-1 w-4 h-4 text-purple-600 rounded"
+                />
+                <span>
+                  <span className="flex items-center gap-2 text-sm font-medium text-purple-900">
+                    <Sparkles className="w-4 h-4" />
+                    AI 优化页面结构
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-purple-700">
+                    发布时调用后端 AI 生成更适合客户浏览的推广页结构；失败时会自动退回本地模板，不影响活动发布。
+                  </span>
+                  {aiPageResult && (
+                    <span className="mt-2 block text-xs text-purple-700">
+                      已采用 AI 方案：{aiPageResult.id}
+                    </span>
+                  )}
+                </span>
+              </label>
+            </div>
+            )}
 
             {/* 活动海报 */}
+            {activityStep === 3 && (
             <div className="border border-gray-200 rounded-lg p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Sparkles className="w-5 h-5 text-yellow-500" /> 活动海报</h3>
@@ -732,15 +969,26 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                 </div>
               )}
             </div>
+            )}
 
             {/* 底部操作 */}
             <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
               <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">取消</button>
-              <button type="button" onClick={() => setShowMiniPreview(true)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-sm"><Smartphone className="w-4 h-4" /> 小程序预览</button>
-              <button type="button" onClick={handleSaveDraft} className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2 text-sm"><Save className="w-4 h-4" /> 保存草稿</button>
-              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2 disabled:bg-blue-400">
-                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />} 发布活动
-              </button>
+              {activityStep > 1 && (
+                <button type="button" onClick={() => setActivityStep((activityStep - 1) as 1 | 2 | 3)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">上一步</button>
+              )}
+              {activityStep < 3 ? (
+                <button type="button" onClick={() => setActivityStep((activityStep + 1) as 1 | 2 | 3)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">下一步</button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => setShowMiniPreview(true)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-sm"><Smartphone className="w-4 h-4" /> 小程序预览</button>
+                  <button type="button" onClick={handleSaveDraft} className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2 text-sm"><Save className="w-4 h-4" /> 保存草稿</button>
+                  <button type="submit" disabled={isSubmitting || isGeneratingPageSchema} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2 disabled:bg-blue-400">
+                    {(isSubmitting || isGeneratingPageSchema) && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {isGeneratingPageSchema ? 'AI 优化中' : '发布活动'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
           </form>
@@ -763,8 +1011,26 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
             projects: projectList.filter((p) => selectedProjects.includes(p.id)).map((p) => ({ name: p.name, price: p.price, type: p.type })),
             products: products.filter((p) => selectedProducts.includes(p.id)).map((p) => ({ name: p.name, price: p.price, category: p.category })),
             storeName: '心悦芸美容养生会所',
-            storePhone: '0571-88888888',
+            storePhone: STORE_PHONE,
             layout: 'classic',
+            pageSchema: buildMarketingActivityPageSchema({
+              title: watchedTitle || '活动名称',
+              description: watchedDescription || '暂无活动描述',
+              activityType: watch('activityType'),
+              offer: watchedDiscountValue || '优惠信息',
+              startDate: watchedStartDate,
+              endDate: watchedEndDate,
+              targetCustomers: getTargetAudienceText(),
+              posterBg: currentPoster?.backgroundColor,
+              posterImage: currentPoster?.imageUrl,
+              selectedProjects: getSelectedProjectItems(),
+              selectedProducts: getSelectedProductItems(),
+              maxUsagePerPerson: watch('maxUsagePerPerson'),
+              minSpend: watch('minSpend'),
+              stackable: normalizeBooleanValue(watch('stackable')),
+              storeName: STORE_NAME,
+              storePhone: STORE_PHONE,
+            }),
           }}
           onClose={() => setShowMiniPreview(false)}
         />

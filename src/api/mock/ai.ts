@@ -12,11 +12,15 @@ import type {
   MarketingCopyRequest,
   MarketingCopyStructured,
   NextBestActionRequest,
+  NextBestActionResult,
+  NextBestActionStructured,
   ServiceNoteSummaryRequest,
   SkinPhotoAnalyzeRequest,
   SkinPhotoAnalyzeResult,
   SkinTestExplanationRequest,
   TerminalServiceAdviceRequest,
+  TerminalServiceAdviceResult,
+  TerminalServiceAdviceStructured,
   TerminalIntentResolveRequest,
   TerminalIntentResolveResult,
 } from '@/types/ai';
@@ -498,19 +502,44 @@ export async function mockAnalyzeSkinPhoto(data: SkinPhotoAnalyzeRequest): Promi
   };
 }
 
-export async function mockGenerateTerminalServiceAdvice(data: TerminalServiceAdviceRequest): Promise<AiGenerationResult> {
+export async function mockGenerateTerminalServiceAdvice(
+  data: TerminalServiceAdviceRequest,
+): Promise<TerminalServiceAdviceResult> {
+  const structured: TerminalServiceAdviceStructured = {
+    preChecks: [
+      data.customerId ? `确认客户 ${data.customerId} 禁忌` : '确认客户禁忌',
+      data.skinTestId ? `复核检测 ${data.skinTestId}` : '确认本次护理目标',
+    ],
+    keySteps: ['确认服务项目', '记录护理过程', '服务后同步反馈'],
+    materialUsage: ['按项目 BOM 记录耗材', '异常用量需备注'],
+    followUpAdvice: '服务后记录顾客反馈和注意事项。',
+    nextBookingHint: '建议结合护理周期预约下次到店。',
+  };
   return result(
     'terminal_service_advice',
     `终端服务建议：服务前确认顾客过敏史和本次护理目标，服务中记录耗材用量，服务后引导预约下次护理。`,
-    data as unknown as Record<string, unknown>,
+    structured,
   );
 }
 
-export async function mockRecommendNextBestAction(data: NextBestActionRequest): Promise<AiGenerationResult> {
+export async function mockRecommendNextBestAction(data: NextBestActionRequest): Promise<NextBestActionResult> {
+  const projectName =
+    typeof data.context?.projectName === 'string'
+      ? data.context.projectName
+      : typeof data.context?.lastProjectName === 'string'
+        ? data.context.lastProjectName
+        : undefined;
+  const structured: NextBestActionStructured = {
+    action: projectName ? 'recommend_project' : 'send_care_reminder',
+    reason: projectName ? `客户适合继续跟进 ${projectName}。` : '客户已有跟进信号，适合发送护理提醒。',
+    projectName,
+    urgency: 'this_week',
+    confidence: 0.78,
+  };
   return result(
     'next_best_action',
     '下一步建议：优先选择命中原因最明确的客户，使用低打扰渠道触达，并在顾客到店后记录采纳结果形成闭环。',
-    data as unknown as Record<string, unknown>,
+    structured,
   );
 }
 export async function mockResolveTerminalIntent(data: TerminalIntentResolveRequest): Promise<TerminalIntentResolveResult> {

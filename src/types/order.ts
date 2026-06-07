@@ -1,5 +1,5 @@
 export type ProductOrderStatus = '待付款' | '已付款' | '已完成' | '已取消' | '已退款';
-export type ProductOrderPaymentMethod = '现金' | '微信' | '支付宝' | '银行卡' | '次卡抵扣';
+export type ProductOrderPaymentMethod = '现金' | '微信' | '支付宝' | '银行卡' | '会员卡划扣';
 
 export interface ProductOrder {
   id: number;
@@ -176,6 +176,14 @@ export interface MemberCardAccount {
 export interface MemberCardTransaction {
   id: number;
   accountId: number;
+  accountNo?: string;
+  customerId?: number;
+  customerName?: string;
+  customerPhone?: string;
+  storeId?: number;
+  storeName?: string;
+  orderId?: number;
+  orderNo?: string;
   transactionNo: string;
   type: MemberCardTransactionType;
   typeLabel: string;

@@ -3,16 +3,29 @@ import { ChevronDown, ChevronRight, Edit, FolderOpen, Plus, Trash2 } from 'lucid
 import { toast } from 'sonner';
 import { Button, Input } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { createProjectType, deleteProjectTypes, getProjectTypes, updateProjectType } from '@/api/projectType';
-import type { ProjectType } from '@/api/projectType';
+import { createCategory, deleteCategories, getCategories, updateCategory } from '@/api/product';
+import type { Category } from '@/types';
 
-interface GoodsTypeNode extends ProjectType {
+interface GoodsTypeNode extends Category {
   parentId: number | null;
   productCount: number;
+  description: string;
+  status: '启用' | '停用';
   children: GoodsTypeNode[];
 }
 
 const DEFAULT_EXPANDED_IDS = [1, 2, 3];
+
+function toGoodsTypeNode(category: Category): GoodsTypeNode {
+  return {
+    ...category,
+    parentId: category.parentId ?? null,
+    productCount: Number(category.productCount ?? 0),
+    description: category.description ?? '',
+    status: category.status ?? '启用',
+    children: (category.children ?? []).map(toGoodsTypeNode),
+  };
+}
 
 export function GoodsTypeManagement() {
   const [types, setTypes] = useState<GoodsTypeNode[]>([]);
@@ -41,14 +54,10 @@ export function GoodsTypeManagement() {
   const loadTypes = async () => {
     setLoading(true);
     try {
-      const data = await getProjectTypes();
-      const nodes: GoodsTypeNode[] = data.map((type, index) => ({
-        ...type,
-        parentId: null,
-        productCount: index % 3 === 0 ? 0 : index * 4 + 6,
-        children: [],
-      }));
+      const data = await getCategories();
+      const nodes = data.map(toGoodsTypeNode);
       setTypes(nodes);
+      setExpandedIds(nodes.map((node) => node.id));
       setSelectedType((current) => {
         if (!current) return nodes[0] ?? null;
         return nodes.find((item) => item.id === current.id) ?? nodes[0] ?? null;
@@ -100,10 +109,10 @@ export function GoodsTypeManagement() {
     setSubmitting(true);
     try {
       if (dialogMode === 'add') {
-        await createProjectType({ name, description, status: '启用' });
+        await createCategory({ name, parentId: parentForAdd?.id ?? null, description, status: '启用' });
         toast.success('商品类型已创建');
       } else if (selectedType) {
-        await updateProjectType(selectedType.id, { name, description });
+        await updateCategory(selectedType.id, { name, description, parentId: selectedType.parentId, status: selectedType.status });
         toast.success('商品类型已保存');
       }
       setShowDialog(false);
@@ -120,7 +129,7 @@ export function GoodsTypeManagement() {
     if (type.productCount > 0) return;
     setSubmitting(true);
     try {
-      await deleteProjectTypes([type.id]);
+      await deleteCategories([type.id]);
       toast.success('商品类型已删除');
       if (selectedType?.id === type.id) setSelectedType(null);
       await loadTypes();

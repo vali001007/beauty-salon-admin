@@ -10,6 +10,7 @@ export type AiScenario =
   | 'service_note_summary'
   | 'skin_test_explanation'
   | 'skin_photo_analyze'
+  | 'terminal_dashboard_insights'
   | 'terminal_service_advice'
   | 'next_best_action'
   | 'terminal_intent';
@@ -26,6 +27,43 @@ export interface AiUsageInfo {
   inputTokens: number;
   outputTokens: number;
   estimatedCost?: number;
+}
+
+export interface AiAuditLog {
+  id: number;
+  scenario: AiScenario | string;
+  userId?: number | null;
+  deviceId?: number | null;
+  storeId?: number | null;
+  provider: AiProvider | string;
+  model: string;
+  promptTemplate?: string | null;
+  inputSummary?: string | null;
+  outputSummary?: string | null;
+  inputPreview?: string | null;
+  outputPreview?: string | null;
+  safetyBlocked?: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs?: number | null;
+  status: 'success' | 'failed' | 'failed_fallback' | string;
+  createdAt: string;
+}
+
+export interface AiAuditLogQuery {
+  page: number;
+  pageSize: number;
+  scenario?: string;
+  status?: string;
+}
+
+export interface AiAuditSummary {
+  total: number;
+  successCount: number;
+  failedCount: number;
+  successRate: number;
+  averageLatencyMs: number;
+  blockedCount: number;
 }
 
 export interface AiGenerationVariant {
@@ -345,6 +383,7 @@ export interface SkinPhotoAnalyzeResult {
   goals: string;
   recommendedCare: string;
   instrument: string;
+  isFallback?: boolean;
   metrics: {
     moisture: number;
     oil: number;
@@ -366,11 +405,40 @@ export interface TerminalServiceAdviceRequest {
   skinTestId?: number;
 }
 
+export interface TerminalServiceAdviceStructured {
+  preChecks: string[];
+  keySteps: string[];
+  materialUsage: string[];
+  followUpAdvice: string;
+  nextBookingHint: string;
+}
+
+export type TerminalServiceAdviceResult = AiGenerationResult<TerminalServiceAdviceStructured>;
+
+export type NextBestActionType =
+  | 'recommend_project'
+  | 'send_care_reminder'
+  | 'offer_card'
+  | 'escalate_to_consultant';
+
+export type NextBestActionUrgency = 'now' | 'this_week' | 'this_month';
+
+export interface NextBestActionStructured {
+  action: NextBestActionType;
+  reason: string;
+  projectName?: string;
+  urgency: NextBestActionUrgency;
+  confidence: number;
+}
+
 export interface NextBestActionRequest {
   customerId?: number;
   strategyId?: number;
+  context?: Record<string, unknown>;
   ruleResults?: Array<{ type: string; score: number; reasons: string[] }>;
 }
+
+export type NextBestActionResult = AiGenerationResult<NextBestActionStructured>;
 
 export interface TerminalIntentQuickAction {
   label: string;

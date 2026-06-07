@@ -6,6 +6,20 @@ import { extractArray, normalizePaginatedResponse } from './response';
 
 type ApiStockItem = Partial<StockItem> & { name?: string; productName?: string; currentStock?: number | string; safetyStock?: number | string };
 type ApiBatch = Partial<Batch> & { stock?: number | string; product?: { name?: string; sku?: string } };
+type ApiExpiringProduct = Partial<ExpiringProduct> & {
+  stock?: number | string;
+  costAmount?: number | string;
+  unitCost?: number | string;
+  costPrice?: number | string;
+  expiryDate?: string | Date | null;
+  product?: {
+    name?: string;
+    sku?: string;
+    costPrice?: number | string;
+    store?: { name?: string };
+  };
+  store?: { name?: string };
+};
 type ApiStockMovement = Partial<StockMovement> & {
   store?: { id?: number; name?: string };
   product?: { id?: number; name?: string; sku?: string; unit?: string };
@@ -51,6 +65,44 @@ function normalizeBatch(item: ApiBatch): Batch {
     expiryDate,
     status: item.status ?? '正常',
     inboundDate: item.inboundDate ?? '',
+  };
+}
+
+function normalizeExpiringProduct(item: ApiExpiringProduct): ExpiringProduct {
+  const stock = Number(item.stock ?? 0);
+  const unitCost = Number(item.unitCost ?? item.costPrice ?? item.product?.costPrice ?? 0);
+  const expiryDate = item.expiryDate ? new Date(item.expiryDate) : undefined;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const remainingDays = Number.isFinite(Number(item.remainingDays))
+    ? Number(item.remainingDays)
+    : expiryDate
+      ? Math.ceil((expiryDate.getTime() - today.getTime()) / 86400000)
+      : 0;
+  const urgency: ExpiringProduct['urgency'] =
+    item.urgency === '已过期' || remainingDays < 0
+      ? '已过期'
+      : item.urgency === '紧急' || remainingDays <= 30
+        ? '紧急'
+        : '临期';
+  const suggestion: ExpiringProduct['suggestion'] =
+    item.suggestion === '报废' || urgency === '已过期'
+      ? '报废'
+      : item.suggestion === '调拨'
+        ? '调拨'
+        : '促销';
+
+  return {
+    id: Number(item.id ?? 0),
+    urgency,
+    productName: item.productName ?? item.product?.name ?? '',
+    sku: item.sku ?? item.product?.sku ?? '',
+    batchNo: item.batchNo ?? '',
+    remainingDays,
+    stock,
+    costAmount: Number(item.costAmount ?? stock * unitCost),
+    storeName: item.storeName ?? item.store?.name ?? item.product?.store?.name ?? '',
+    suggestion,
   };
 }
 
@@ -160,7 +212,8 @@ export async function realGetStockMovements(params?: {
 }
 
 export async function realGetExpiringProducts(): Promise<ExpiringProduct[]> {
-  return apiClient.get('/inventory/expiring');
+  const response = await apiClient.get<unknown, unknown>('/inventory/expiring');
+  return extractArray<ApiExpiringProduct>(response).map(normalizeExpiringProduct);
 }
 
 export async function realGetReplenishmentSuggestions(): Promise<ReplenishmentSuggestion[]> {
@@ -203,7 +256,8 @@ export async function realGetPurchaseOrdersPaginated(params: PaginationParams): 
 }
 
 export async function realGetExpiringProductsPaginated(params: PaginationParams): Promise<PaginatedResponse<ExpiringProduct>> {
-  return apiClient.get('/inventory/expiring/paginated', { params });
+  const response = await apiClient.get<unknown, unknown>('/inventory/expiring/paginated', { params });
+  return normalizePaginatedResponse<ApiExpiringProduct, ExpiringProduct>(response, normalizeExpiringProduct);
 }
 
 export async function realGetTransferOrdersPaginated(params: PaginationParams): Promise<PaginatedResponse<TransferOrder>> {

@@ -1,15 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, Input, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { createProductOrder, getProductOrdersPaginated } from '@/api/order';
-import { getProducts } from '@/api/product';
+import { createProjectOrder, getProjectOrdersPaginated } from '@/api/order';
 import { getCustomers } from '@/api/customer';
+import { getProjects } from '@/api/project';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import { exportToExcel } from '@/utils/excel';
-import type { Customer, Product, ProductOrder, ProductOrderCreatePayload, ProductOrderItem, ProductOrderPaymentMethod, ProductOrderStatus } from '@/types';
+import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import type {
+  Customer,
+  ProductOrder,
+  ProductOrderCreatePayload,
+  ProductOrderItem,
+  ProductOrderPaymentMethod,
+  ProductOrderStatus,
+  Project,
+} from '@/types';
 import type { ExportColumn } from '@/types/excel';
 
 const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
@@ -27,11 +35,12 @@ const STATUS_OPTIONS: Array<'全部' | ProductOrderStatus> = ['全部', '待付�
 const CREATE_STATUS_OPTIONS: ProductOrderStatus[] = ['待付款', '已付款', '已完成'];
 const PAYMENT_METHODS: ProductOrderPaymentMethod[] = ['微信', '支付宝', '现金', '银行卡', '会员卡划扣'];
 
-type DraftItem = {
+type DraftProjectItem = {
   rowId: number;
-  productId: string;
-  productName: string;
-  sku: string;
+  projectId: string;
+  projectName: string;
+  projectType: string;
+  duration: number;
   quantity: number;
   unitPrice: number;
 };
@@ -46,11 +55,12 @@ type OrderFormState = {
   remark: string;
 };
 
-const createEmptyItem = (): DraftItem => ({
+const createEmptyItem = (): DraftProjectItem => ({
   rowId: Date.now() + Math.floor(Math.random() * 1000),
-  productId: '',
-  productName: '',
-  sku: '',
+  projectId: '',
+  projectName: '',
+  projectType: '',
+  duration: 60,
   quantity: 1,
   unitPrice: 0,
 });
@@ -60,30 +70,32 @@ function formatCurrency(value: number) {
 }
 
 function getOrderItems(order: ProductOrder): ProductOrderItem[] {
-  if (Array.isArray(order.items) && order.items.length) return order.items;
-  return (order.orderItems ?? []).map((item) => ({
-    id: item.id,
-    itemId: item.itemId ?? undefined,
-    itemType: item.itemType,
-    productName: item.name,
-    sku: '',
-    quantity: Number(item.quantity),
-    unitPrice: Number(item.unitPrice),
-    subtotal: Number(item.subtotal),
-    discount: Number(item.discount || 0),
-    payload: item.payload,
-  }));
+  if (Array.isArray(order.items) && order.items.length) return order.items.filter((item) => item.itemType === 'project');
+  return (order.orderItems ?? [])
+    .filter((item) => item.itemType === 'project')
+    .map((item) => ({
+      id: item.id,
+      itemId: item.itemId ?? undefined,
+      itemType: item.itemType,
+      productName: item.name,
+      sku: '',
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+      subtotal: Number(item.subtotal),
+      discount: Number(item.discount || 0),
+      payload: item.payload,
+    }));
 }
 
-export function ProductOrderManagement() {
+export function ProjectOrderManagement() {
   const [statusFilter, setStatusFilter] = useState<'全部' | ProductOrderStatus>('全部');
   const [keyword, setKeyword] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<ProductOrder | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
@@ -97,7 +109,7 @@ export function ProductOrderManagement() {
     paymentMethod: '微信',
     remark: '',
   });
-  const [draftItems, setDraftItems] = useState<DraftItem[]>([createEmptyItem()]);
+  const [draftItems, setDraftItems] = useState<DraftProjectItem[]>([createEmptyItem()]);
 
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const stores = useStoreStore((state) => state.stores);
@@ -110,17 +122,19 @@ export function ProductOrderManagement() {
   }, [loadStores, stores.length]);
 
   useEffect(() => {
-    setLoadingProducts(true);
-    getProducts()
-      .then(setProducts)
-      .catch(() => toast.error('商品列表加载失败，可先手动录入商品名称和价格'))
-      .finally(() => setLoadingProducts(false));
+    setLoadingProjects(true);
+    getProjects()
+      .then((items) => setProjects(items.filter((project) => project.status)))
+      .catch(() => toast.error('项目列表加载失败，请稍后重试'))
+      .finally(() => setLoadingProjects(false));
   }, []);
 
-  const selectedOrderStore = useMemo(
-    () => stores.find((store) => String(store.id) === form.storeId),
-    [form.storeId, stores],
-  );
+  const selectedOrderStore = useMemo(() => stores.find((store) => String(store.id) === form.storeId), [form.storeId, stores]);
+
+  const selectableProjects = useMemo(() => {
+    if (!selectedOrderStore) return [];
+    return projects.filter((project) => project.storeName === selectedOrderStore.name);
+  }, [projects, selectedOrderStore]);
 
   useEffect(() => {
     if (!showCreate || !selectedOrderStore) {
@@ -161,6 +175,7 @@ export function ProductOrderManagement() {
     }),
     [currentStoreId, keyword, statusFilter],
   );
+
   const {
     data: orders,
     total,
@@ -170,7 +185,7 @@ export function ProductOrderManagement() {
     setPage,
     setPageSize,
     refresh,
-  } = usePagination<ProductOrder>(getProductOrdersPaginated, filters);
+  } = usePagination<ProductOrder>(getProjectOrdersPaginated, filters);
 
   const currentStoreName = useMemo(() => {
     if (!currentStoreId) return '全部门店';
@@ -225,21 +240,22 @@ export function ProductOrderManagement() {
     setShowCreate(true);
   };
 
-  const updateDraftItem = (rowId: number, patch: Partial<DraftItem>) => {
+  const updateDraftItem = (rowId: number, patch: Partial<DraftProjectItem>) => {
     setDraftItems((prev) => prev.map((item) => (item.rowId === rowId ? { ...item, ...patch } : item)));
   };
 
-  const handleProductSelect = (rowId: number, productId: string) => {
-    const product = products.find((item) => String(item.id) === productId);
-    if (!product) {
-      updateDraftItem(rowId, { productId, productName: '', sku: '', unitPrice: 0 });
+  const handleProjectSelect = (rowId: number, projectId: string) => {
+    const project = selectableProjects.find((item) => String(item.id) === projectId);
+    if (!project) {
+      updateDraftItem(rowId, { projectId, projectName: '', projectType: '', duration: 60, unitPrice: 0 });
       return;
     }
     updateDraftItem(rowId, {
-      productId,
-      productName: product.name,
-      sku: product.sku,
-      unitPrice: Number(product.retailPrice || 0),
+      projectId,
+      projectName: project.name,
+      projectType: project.type,
+      duration: Number(project.duration || 60),
+      unitPrice: Number(project.price || 0),
     });
   };
 
@@ -262,6 +278,7 @@ export function ProductOrderManagement() {
     setCustomerSearch('');
     setCustomers([]);
     setShowCustomerOptions(false);
+    setDraftItems([createEmptyItem()]);
   };
 
   const handleCustomerInputChange = (value: string) => {
@@ -291,12 +308,13 @@ export function ProductOrderManagement() {
     const normalizedItems = draftItems
       .map((item) => ({
         ...item,
-        productName: item.productName.trim(),
-        sku: item.sku.trim(),
+        projectName: item.projectName.trim(),
+        projectType: item.projectType.trim(),
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice || 0),
+        duration: Number(item.duration || 0),
       }))
-      .filter((item) => item.productName && item.quantity > 0 && item.unitPrice >= 0);
+      .filter((item) => item.projectName && item.quantity > 0 && item.unitPrice >= 0);
 
     if (!form.customerName.trim()) {
       toast.error('请填写客户姓名');
@@ -307,7 +325,7 @@ export function ProductOrderManagement() {
       return;
     }
     if (!normalizedItems.length) {
-      toast.error('请至少添加一条商品明细');
+      toast.error('请至少添加一条项目明细');
       return;
     }
 
@@ -318,15 +336,20 @@ export function ProductOrderManagement() {
       storeId: Number(form.storeId),
       storeName: selectedStore?.name || currentStoreName,
       items: normalizedItems.map((item) => ({
-        itemType: 'product',
-        itemId: item.productId ? Number(item.productId) : undefined,
-        productId: item.productId ? Number(item.productId) : undefined,
-        productName: item.productName,
-        name: item.productName,
-        sku: item.sku,
+        itemType: 'project',
+        itemId: item.projectId ? Number(item.projectId) : undefined,
+        productName: item.projectName,
+        name: item.projectName,
+        sku: item.projectType,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: item.quantity * item.unitPrice,
+        payload: {
+          projectId: item.projectId ? Number(item.projectId) : undefined,
+          projectName: item.projectName,
+          projectType: item.projectType,
+          duration: item.duration,
+        },
       })),
       totalAmount,
       status: form.status,
@@ -338,12 +361,12 @@ export function ProductOrderManagement() {
 
     setSubmitting(true);
     try {
-      await createProductOrder(payload);
-      toast.success('商品订单已创建');
+      await createProjectOrder(payload);
+      toast.success('项目订单已创建');
       setShowCreate(false);
       refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : '商品订单创建失败，请稍后重试';
+      const message = error instanceof Error ? error.message : '项目订单创建失败，请稍后重试';
       toast.error(message);
     } finally {
       setSubmitting(false);
@@ -351,21 +374,21 @@ export function ProductOrderManagement() {
   };
 
   const handleExport = () => {
-    exportToExcel(orders, ORDER_EXPORT_COLUMNS, '商品订单报表');
+    exportToExcel(orders, ORDER_EXPORT_COLUMNS, '项目订单报表');
   };
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="text-sm text-gray-500">首页 / 订单管理 / 商品订单管理</div>
+      <div className="text-sm text-gray-500">首页 / 订单管理 / 项目订单管理</div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">商品订单管理</h2>
+          <h2 className="text-xl font-semibold text-gray-800">项目订单管理</h2>
           <p className="mt-1 text-sm text-gray-500">
-            当前范围：{currentStoreName}；管理端开单与 Ami Aura Lite 收银单统一进入本列表。
+            当前范围：{currentStoreName}；管理端项目开单与 Ami Aura Lite 服务收银统一进入本列表。
           </p>
         </div>
         <Button className="gap-2" onClick={handleOpenCreate}>
-          <Plus className="h-4 w-4" /> 新增商品订单
+          <Plus className="h-4 w-4" /> 新增项目订单
         </Button>
       </div>
 
@@ -439,7 +462,7 @@ export function ProductOrderManagement() {
               <TableHead>订单编号</TableHead>
               <TableHead>客户</TableHead>
               <TableHead>门店</TableHead>
-              <TableHead>商品数</TableHead>
+              <TableHead>项目数</TableHead>
               <TableHead>总金额</TableHead>
               <TableHead>支付方式</TableHead>
               <TableHead>来源</TableHead>
@@ -486,7 +509,7 @@ export function ProductOrderManagement() {
             {orders.length === 0 && (
               <TableRow>
                 <TableCell colSpan={10} className="py-12 text-center text-gray-400">
-                  暂无匹配的商品订单
+                  暂无匹配的项目订单
                 </TableCell>
               </TableRow>
             )}
@@ -519,11 +542,11 @@ export function ProductOrderManagement() {
       </div>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" aria-describedby="create-order-desc">
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" aria-describedby="create-project-order-desc">
           <DialogHeader>
-            <DialogTitle>新增商品订单</DialogTitle>
-            <DialogDescription id="create-order-desc">
-              管理端手工开单会写入商品订单接口；Ami Aura Lite 收银继续通过终端收银接口写入同一订单列表。
+            <DialogTitle>新增项目订单</DialogTitle>
+            <DialogDescription id="create-project-order-desc">
+              项目订单会写入 real 后端 `/orders/project`，并以项目明细进入统一订单与收银记录。
             </DialogDescription>
           </DialogHeader>
 
@@ -534,7 +557,7 @@ export function ProductOrderManagement() {
                 value={customerSearch}
                 onChange={(event) => handleCustomerInputChange(event.target.value)}
                 onFocus={() => setShowCustomerOptions(true)}
-                onClick={() => setShowCustomerOptions(true)}
+                onBlur={() => window.setTimeout(() => setShowCustomerOptions(false), 120)}
                 placeholder={form.storeId ? '搜索或选择该门店客户' : '请先选择订单门店'}
                 disabled={!form.storeId}
               />
@@ -568,9 +591,7 @@ export function ProductOrderManagement() {
                     </div>
                   )}
                   {!loadingCustomers && customers.length === 0 && (
-                    <div className="px-3 py-3 text-sm text-gray-500">
-                      未找到该门店客户，可继续手工录入新客户姓名。
-                    </div>
+                    <div className="px-3 py-3 text-sm text-gray-500">未找到该门店客户，可继续手工录入新客户姓名。</div>
                   )}
                 </div>
               )}
@@ -633,19 +654,19 @@ export function ProductOrderManagement() {
           <div className="mt-5 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-medium text-gray-800">商品明细</h3>
-                <p className="mt-1 text-xs text-gray-500">可从商品档案选择，也可手工录入临时商品。</p>
+                <h3 className="font-medium text-gray-800">项目明细</h3>
+                <p className="mt-1 text-xs text-gray-500">项目来源于当前订单门店已配置项目。</p>
               </div>
               <Button variant="outline" size="sm" onClick={addDraftItem} className="gap-1">
-                <Plus className="h-4 w-4" /> 添加商品
+                <Plus className="h-4 w-4" /> 添加项目
               </Button>
             </div>
 
             <div className="rounded-xl border border-gray-200">
-              <div className="grid grid-cols-[1.3fr_1.4fr_0.9fr_0.8fr_0.9fr_0.9fr_48px] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500">
-                <span>商品档案</span>
-                <span>商品名称</span>
-                <span>SKU</span>
+              <div className="grid grid-cols-[1.5fr_1.3fr_0.8fr_0.8fr_0.9fr_0.9fr_48px] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500">
+                <span>项目档案</span>
+                <span>项目名称</span>
+                <span>类型</span>
                 <span>数量</span>
                 <span>单价</span>
                 <span>小计</span>
@@ -657,30 +678,32 @@ export function ProductOrderManagement() {
                   return (
                     <div
                       key={item.rowId}
-                      className="grid grid-cols-[1.3fr_1.4fr_0.9fr_0.8fr_0.9fr_0.9fr_48px] gap-2 px-3 py-3"
+                      className="grid grid-cols-[1.5fr_1.3fr_0.8fr_0.8fr_0.9fr_0.9fr_48px] gap-2 px-3 py-3"
                     >
                       <select
                         className="h-10 min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm"
-                        value={item.productId}
-                        onChange={(event) => handleProductSelect(item.rowId, event.target.value)}
-                        disabled={loadingProducts}
+                        value={item.projectId}
+                        onChange={(event) => handleProjectSelect(item.rowId, event.target.value)}
+                        disabled={loadingProjects || !form.storeId}
                       >
-                        <option value="">{loadingProducts ? '加载商品中...' : '手工录入 / 选择商品'}</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
+                        <option value="">
+                          {loadingProjects ? '加载项目中...' : form.storeId ? '请选择项目' : '请先选择门店'}
+                        </option>
+                        {selectableProjects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.name} / {project.type}
                           </option>
                         ))}
                       </select>
                       <Input
-                        value={item.productName}
-                        onChange={(event) => updateDraftItem(item.rowId, { productName: event.target.value })}
-                        placeholder="商品名称"
+                        value={item.projectName}
+                        onChange={(event) => updateDraftItem(item.rowId, { projectName: event.target.value })}
+                        placeholder="项目名称"
                       />
                       <Input
-                        value={item.sku}
-                        onChange={(event) => updateDraftItem(item.rowId, { sku: event.target.value })}
-                        placeholder="SKU"
+                        value={item.projectType}
+                        onChange={(event) => updateDraftItem(item.rowId, { projectType: event.target.value })}
+                        placeholder="类型"
                       />
                       <Input
                         type="number"
@@ -702,7 +725,7 @@ export function ProductOrderManagement() {
                         onClick={() => removeDraftItem(item.rowId)}
                         disabled={draftItems.length <= 1}
                         className="flex h-10 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label="删除商品明细"
+                        aria-label="删除项目明细"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -719,7 +742,7 @@ export function ProductOrderManagement() {
               className="min-h-20 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               value={form.remark}
               onChange={(event) => setForm((prev) => ({ ...prev, remark: event.target.value }))}
-              placeholder="可记录导购说明、线下收款流水号或客户特殊要求"
+              placeholder="可记录服务顾问、线下收款流水号或客户特殊要求"
             />
           </label>
 
@@ -742,10 +765,10 @@ export function ProductOrderManagement() {
       </Dialog>
 
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" aria-describedby="order-detail-desc">
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" aria-describedby="project-order-detail-desc">
           <DialogHeader>
-            <DialogTitle>订单详情</DialogTitle>
-            <DialogDescription id="order-detail-desc">查看商品订单明细、收款状态和来源。</DialogDescription>
+            <DialogTitle>项目订单详情</DialogTitle>
+            <DialogDescription id="project-order-detail-desc">查看项目订单明细、收款状态和来源。</DialogDescription>
           </DialogHeader>
 
           {selectedOrder && (
@@ -796,12 +819,12 @@ export function ProductOrderManagement() {
               </div>
 
               <div>
-                <h4 className="mb-3 font-medium text-gray-800">商品明细</h4>
+                <h4 className="mb-3 font-medium text-gray-800">项目明细</h4>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50/80">
-                      <TableHead>商品名称</TableHead>
-                      <TableHead>SKU</TableHead>
+                      <TableHead>项目名称</TableHead>
+                      <TableHead>类型</TableHead>
                       <TableHead>数量</TableHead>
                       <TableHead>单价</TableHead>
                       <TableHead className="text-right">小计</TableHead>
@@ -811,7 +834,7 @@ export function ProductOrderManagement() {
                     {getOrderItems(selectedOrder).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
-                        <TableCell className="font-mono text-sm text-gray-600">{item.sku || '-'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{item.sku || '-'}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(item.subtotal)}</TableCell>

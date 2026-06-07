@@ -1,5 +1,14 @@
 import type { Product, Category } from '@/types';
-import { realGetProducts, realGetProductById, realGetCategories, realCreateProduct, realUpdateProduct } from './real/product';
+import {
+  realGetProducts,
+  realGetProductById,
+  realGetCategories,
+  realCreateCategory,
+  realUpdateCategory,
+  realDeleteCategories,
+  realCreateProduct,
+  realUpdateProduct,
+} from './real/product';
 
 export const getProducts: (params?: { categoryId?: number; status?: string; keyword?: string }) => Promise<Product[]> =
   realGetProducts;
@@ -9,6 +18,23 @@ export const getProductById: (id: number) => Promise<Product | undefined> =
 
 export const getCategories: () => Promise<Category[]> =
   realGetCategories;
+
+export const createCategory: (data: {
+  name: string;
+  parentId?: number | null;
+  description?: string;
+  status?: '启用' | '停用';
+}) => Promise<Category> =
+  realCreateCategory;
+
+export const updateCategory: (
+  id: number,
+  data: Partial<{ name: string; parentId: number | null; description: string; status: '启用' | '停用' }>,
+) => Promise<Category> =
+  realUpdateCategory;
+
+export const deleteCategories: (ids: number[]) => Promise<void> =
+  realDeleteCategories;
 
 export const createProduct: (data: Omit<Product, 'id' | 'sku'>) => Promise<Product> =
   realCreateProduct;

@@ -1,16 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Upload, Download, Edit, Eye, Ban, ChevronRight, ChevronDown, Settings, Image as ImageIcon, Loader2, FileDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Plus, Upload, Download, Edit, Eye, Ban, Image as ImageIcon, Loader2, FileDown, CircleCheck } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ImportDialog } from '../components/ImportDialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { productSchema, type ProductFormData } from '@/schemas/product';
-import { getProductsPaginated, createProduct, importProducts } from '@/api/product';
+import { getCategories, getProductsPaginated, createProduct, updateProduct, importProducts } from '@/api/product';
 import { usePagination } from '@/hooks/usePagination';
 import { exportToExcel, downloadTemplate } from '@/utils/excel';
 import { toast } from 'sonner';
-import type { Product } from '@/types';
+import type { Category, Product } from '@/types';
 import type { ExportColumn } from '@/types/excel';
 
 const PRODUCT_EXPORT_COLUMNS: ExportColumn[] = [
@@ -41,63 +41,27 @@ const PRODUCT_IMPORT_SAMPLE = [
   { name: '示例产品', brand: '示例品牌', spec: '30ml', unit: '瓶', costPrice: 100, retailPrice: 200, shelfLife: 730, supplier: '示例供应商' },
 ];
 
-const CATEGORIES_UI = [
-  {
-    id: 'skincare',
-    name: '护肤品',
-    children: [
-      { id: 'cleanser', name: '洁面' },
-      { id: 'essence', name: '精华' },
-      { id: 'cream', name: '面霜' },
-      { id: 'mask', name: '面膜' },
-      { id: 'sunscreen', name: '防晒' },
-    ],
-  },
-  {
-    id: 'haircare',
-    name: '美发产品',
-    children: [
-      { id: 'shampoo', name: '洗发' },
-      { id: 'conditioner', name: '护发' },
-      { id: 'styling', name: '造型' },
-    ],
-  },
-  {
-    id: 'nailcare',
-    name: '美甲产品',
-    children: [
-      { id: 'polish', name: '指甲油' },
-      { id: 'gel', name: '甲油胶' },
-      { id: 'tools', name: '美甲工具' },
-    ],
-  },
-  {
-    id: 'equipment',
-    name: '仪器耗材',
-    children: [
-      { id: 'consumables', name: '一次性耗材' },
-      { id: 'parts', name: '仪器配件' },
-    ],
-  },
-  {
-    id: 'daily',
-    name: '日用消耗品',
-    children: [
-      { id: 'towel', name: '毛巾类' },
-      { id: 'disposable', name: '一次性用品' },
-    ],
-  },
-];
+function flattenCategories(categories: Category[]): Category[] {
+  return categories.flatMap((category) => [category, ...flattenCategories(category.children ?? [])]);
+}
 
 export function ProductManagement() {
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(['skincare', 'haircare', 'nailcare', 'equipment', 'daily']);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
 
-  const filters = useMemo(() => ({ keyword: searchKeyword || undefined }), [searchKeyword]);
+  const filters = useMemo(
+    () => ({ keyword: searchKeyword || undefined, categoryId: selectedCategory ?? undefined }),
+    [searchKeyword, selectedCategory],
+  );
   const { data: products, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<Product>(getProductsPaginated, filters);
+  const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -106,33 +70,90 @@ export function ProductManagement() {
     },
   });
 
-  const toggleCategory = (categoryId: string) => {
-    setExpandedCategories(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
+  useEffect(() => {
+    let ignore = false;
+    const loadCategories = async () => {
+      setCategoriesLoading(true);
+      try {
+        const data = await getCategories();
+        if (ignore) return;
+        setCategories(data);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '商品分类加载失败';
+        toast.error(message);
+      } finally {
+        if (!ignore) setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const onSubmit = async (data: ProductFormData) => {
     try {
-      await createProduct({
+      const category = flatCategories.find((item) => item.id === data.categoryId);
+      const payload = {
         ...data,
-        categoryName: '',
-        status: '在售',
-      });
-      toast.success('产品创建成功');
-      setShowAddDialog(false);
-      reset();
+        categoryName: category?.name ?? '',
+        status: editingProduct?.status ?? '在售',
+      } as Omit<Product, 'id' | 'sku'>;
+
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+        toast.success('产品已保存');
+      } else {
+        await createProduct(payload);
+        toast.success('产品创建成功');
+      }
+      handleCloseDialog();
       refresh();
     } catch (err: any) {
-      toast.error(err?.message || '创建产品失败');
+      toast.error(err?.message || (editingProduct ? '保存产品失败' : '创建产品失败'));
     }
   };
 
   const handleCloseDialog = () => {
     setShowAddDialog(false);
-    reset();
+    setEditingProduct(null);
+    reset({ unit: '瓶' } as Partial<ProductFormData>);
+  };
+
+  const openCreateDialog = () => {
+    setEditingProduct(null);
+    reset({ unit: '瓶' } as Partial<ProductFormData>);
+    setShowAddDialog(true);
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product);
+    reset({
+      name: product.name,
+      brand: product.brand,
+      spec: product.spec,
+      unit: product.unit,
+      costPrice: product.costPrice,
+      retailPrice: product.retailPrice,
+      shelfLife: product.shelfLife,
+      categoryId: product.categoryId,
+      supplier: product.supplier,
+      minPurchaseQty: product.minPurchaseQty,
+    });
+  };
+
+  const handleToggleSaleStatus = async (product: Product) => {
+    const nextStatus: Product['status'] = product.status === '在售' ? '停售' : '在售';
+    setUpdatingStatusId(product.id);
+    try {
+      await updateProduct(product.id, { status: nextStatus });
+      toast.success(nextStatus === '在售' ? '产品已上架销售' : '产品已停售');
+      refresh();
+    } catch (err: any) {
+      toast.error(err?.message || '更新售卖状态失败');
+    } finally {
+      setUpdatingStatusId(null);
+    }
   };
 
   return (
@@ -143,13 +164,35 @@ export function ProductManagement() {
       </div>
 
       {/* Top Action Bar */}
-      <div className="flex items-center justify-between">
-        <Input
-          placeholder="搜索产品名称、SKU、品牌"
-          className="w-96"
-          value={searchKeyword}
-          onChange={(e) => setSearchKeyword(e.target.value)}
-        />
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 items-center gap-3 min-w-0">
+          <Input
+            placeholder="搜索产品名称、SKU、品牌"
+            className="max-w-md flex-1"
+            value={searchKeyword}
+            onChange={(e) => {
+              setSearchKeyword(e.target.value);
+              setPage(1);
+            }}
+          />
+          <select
+            className="h-10 w-52 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none transition-colors focus:border-blue-400 disabled:bg-gray-50 disabled:text-gray-400"
+            value={selectedCategory ?? ''}
+            disabled={categoriesLoading}
+            onChange={(event) => {
+              const value = event.target.value;
+              setSelectedCategory(value ? Number(value) : null);
+              setPage(1);
+            }}
+          >
+            <option value="">{categoriesLoading ? '分类加载中...' : '全部分类'}</option>
+            {flatCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.parentId ? `-- ${category.name}` : category.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" className="gap-2" onClick={() => setShowImportDialog(true)}>
             <Upload className="w-4 h-4" /> 批量导入
@@ -160,57 +203,14 @@ export function ProductManagement() {
           <Button variant="outline" className="gap-2" onClick={() => exportToExcel(products, PRODUCT_EXPORT_COLUMNS, '产品数据')}>
             <Download className="w-4 h-4" /> 导出
           </Button>
-          <Button className="gap-2" onClick={() => setShowAddDialog(true)}>
+          <Button className="gap-2" onClick={openCreateDialog}>
             <Plus className="w-4 h-4" /> 添加产品
           </Button>
         </div>
       </div>
 
-      {/* Main Content: Category Tree + Product Table */}
-      <div className="flex gap-6">
-        {/* Left: Category Tree */}
-        <div className="w-60 shrink-0 bg-white border border-gray-200 rounded-lg p-4">
-          <div className="font-semibold text-gray-800 mb-4">产品分类</div>
-          <div className="space-y-1">
-            {CATEGORIES_UI.map((category) => (
-              <div key={category.id}>
-                <button
-                  onClick={() => toggleCategory(category.id)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm"
-                >
-                  <span className="font-medium text-gray-700">{category.name}</span>
-                  {expandedCategories.includes(category.id) ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  )}
-                </button>
-                {expandedCategories.includes(category.id) && category.children && (
-                  <div className="ml-4 mt-1 space-y-1">
-                    {category.children.map((child) => (
-                      <button
-                        key={child.id}
-                        onClick={() => setSelectedCategory(child.id)}
-                        className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
-                          selectedCategory === child.id
-                            ? 'bg-blue-50 text-blue-600'
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        {child.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <button className="w-full mt-4 pt-4 border-t border-gray-200 text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1">
-            <Settings className="w-4 h-4" /> 管理分类
-          </button>
-        </div>
-
-        {/* Right: Product Table */}
+      {/* Product Table */}
+      <div>
         <div className="flex-1 bg-white border border-gray-200 rounded-lg overflow-hidden">
           {loading && (
             <div className="flex items-center justify-center py-12">
@@ -270,17 +270,41 @@ export function ProductManagement() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="text-blue-500 hover:text-blue-600 text-sm">
+                      <button
+                        className="text-blue-500 hover:text-blue-600 text-sm"
+                        onClick={() => openEditDialog(product)}
+                        title="编辑"
+                        type="button"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="text-gray-500 hover:text-gray-600 text-sm">
+                      <button
+                        className="text-gray-500 hover:text-gray-600 text-sm"
+                        onClick={() => setViewingProduct(product)}
+                        title="查看"
+                        type="button"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      {product.status === '在售' && (
-                        <button className="text-orange-500 hover:text-orange-600 text-sm">
+                      <button
+                        className={`text-sm disabled:opacity-50 ${
+                          product.status === '在售'
+                            ? 'text-orange-500 hover:text-orange-600'
+                            : 'text-green-600 hover:text-green-700'
+                        }`}
+                        onClick={() => handleToggleSaleStatus(product)}
+                        title={product.status === '在售' ? '停售' : '上架销售'}
+                        type="button"
+                        disabled={updatingStatusId === product.id}
+                      >
+                        {updatingStatusId === product.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : product.status === '在售' ? (
                           <Ban className="w-4 h-4" />
-                        </button>
-                      )}
+                        ) : (
+                          <CircleCheck className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -306,20 +330,20 @@ export function ProductManagement() {
         </div>
       </div>
 
-      {/* Add Product Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={handleCloseDialog}>
+      {/* Add / Edit Product Dialog */}
+      <Dialog open={showAddDialog || Boolean(editingProduct)} onOpenChange={(open) => !open && handleCloseDialog()}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="add-product-description">
           <DialogHeader>
-            <DialogTitle>添加产品</DialogTitle>
+            <DialogTitle>{editingProduct ? '编辑产品' : '添加产品'}</DialogTitle>
           </DialogHeader>
-          <span id="add-product-description" className="sr-only">添加新产品到产品库</span>
+          <span id="add-product-description" className="sr-only">{editingProduct ? '编辑产品资料' : '添加新产品到产品库'}</span>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   SKU编码 <span className="text-gray-400">(自动生成)</span>
                 </label>
-                <Input value="SK-LO-000006" disabled className="bg-gray-50" />
+                <Input value={editingProduct?.sku ?? '保存后自动生成'} disabled className="bg-gray-50" />
               </div>
               
               <div>
@@ -419,10 +443,11 @@ export function ProductManagement() {
                   {...register('categoryId', { valueAsNumber: true })}
                 >
                   <option value={0}>请选择分类</option>
-                  <option value={12}>护肤品 - 精华</option>
-                  <option value={14}>护肤品 - 面膜</option>
-                  <option value={21}>美发产品 - 洗发</option>
-                  <option value={31}>美甲产品 - 甲油胶</option>
+                  {flatCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.parentId ? `-- ${category.name}` : category.name}
+                    </option>
+                  ))}
                 </select>
                 {errors.categoryId && <p className="text-red-500 text-xs mt-1">{errors.categoryId.message}</p>}
               </div>
@@ -466,10 +491,99 @@ export function ProductManagement() {
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                确认添加
+                {editingProduct ? '保存修改' : '确认添加'}
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Product Detail Dialog */}
+      <Dialog open={Boolean(viewingProduct)} onOpenChange={(open) => !open && setViewingProduct(null)}>
+        <DialogContent className="max-w-xl" aria-describedby="view-product-description">
+          <DialogHeader>
+            <DialogTitle>产品详情</DialogTitle>
+          </DialogHeader>
+          <span id="view-product-description" className="sr-only">查看产品资料</span>
+          {viewingProduct && (
+            <div className="mt-4 space-y-5">
+              <div className="flex items-start gap-4">
+                <div className="w-20 h-20 bg-gradient-to-br from-pink-100 to-purple-100 rounded overflow-hidden flex items-center justify-center shrink-0">
+                  {viewingProduct.image ? (
+                    <img src={viewingProduct.image} alt={viewingProduct.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-lg font-semibold text-gray-900">{viewingProduct.name}</div>
+                  <div className="mt-1 text-sm text-gray-500">{viewingProduct.sku}</div>
+                  <span
+                    className={`mt-3 inline-flex px-2 py-1 rounded text-xs font-medium ${
+                      viewingProduct.status === '在售' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {viewingProduct.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-500">分类</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.categoryName || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">品牌</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.brand || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">规格</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.spec || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">单位</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.unit || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">成本价</div>
+                  <div className="mt-1 font-medium text-gray-800">¥{viewingProduct.costPrice}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">零售价</div>
+                  <div className="mt-1 font-medium text-gray-800">¥{viewingProduct.retailPrice}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">保质期</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.shelfLife} 天</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">最小采购量</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.minPurchaseQty}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-gray-500">供应商</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.supplier || '-'}</div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                <Button type="button" variant="outline" onClick={() => setViewingProduct(null)}>
+                  关闭
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const product = viewingProduct;
+                    setViewingProduct(null);
+                    openEditDialog(product);
+                  }}
+                >
+                  编辑
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

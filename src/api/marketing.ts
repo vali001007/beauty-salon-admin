@@ -32,6 +32,7 @@ import {
   realGetStrategyEffects,
   realPauseAutomationStrategy,
   realPreviewAutomationAudience,
+  realRecordCustomerBehaviorEvent,
   realSaveAutomationStrategyDraft,
   realSaveStrategyDraft,
   realUpdateAutomationStrategy,
@@ -127,3 +128,15 @@ export const getCustomerPrediction: (customerId: number) => Promise<{
   history: Array<Pick<CustomerPredictionSnapshot, 'id' | 'runId' | 'churnScore' | 'repurchase30dScore' | 'marketingResponseScore' | 'ltv6m' | 'ltv12m' | 'createdAt'>>;
 }> =
   realGetCustomerPrediction;
+
+export const recordCustomerBehaviorEvent: (data: {
+  storeId: number;
+  customerId: number;
+  eventType: string;
+  targetType?: string;
+  targetId?: string | number;
+  sessionId?: string;
+  metadataJson?: Record<string, unknown>;
+  occurredAt?: string;
+}) => Promise<Record<string, unknown>> =
+  realRecordCustomerBehaviorEvent;

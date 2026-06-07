@@ -43,6 +43,7 @@ const MENU_ITEMS = [
     children: [
       { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: MessageSquare, permission: 'core:marketing:recommend' },
       { title: '自动营销', path: '/customer-marketing/strategy-templates', icon: FileText, permission: 'core:marketing:template' },
+      { title: '营销页面', path: '/customer-marketing/pages', icon: Megaphone, permission: 'core:marketing:view' },
       { title: '活动管理', path: '/customer-marketing/activity-management', icon: LayoutGrid, permission: 'core:marketing:view' },
       { title: '效果分析', path: '/customer-marketing/effect-analysis', icon: ClipboardList, permission: 'core:marketing:analytics' },
     ],
@@ -76,7 +77,9 @@ const MENU_ITEMS = [
     path: '/orders',
     children: [
       { title: '商品订单管理', path: '/orders/products', icon: FileText, permission: 'core:order:products' },
+      { title: '项目订单管理', path: '/orders/projects', icon: FileText, permission: 'core:order:projects' },
       { title: '会员卡管理', path: '/orders/member-cards', icon: FileText, permission: 'core:order:member-cards' },
+      { title: '会员卡划扣记录', path: '/orders/member-card-deducts', icon: FileText, permission: 'core:order:member-cards' },
       { title: '次卡开卡管理', path: '/orders/card-orders', icon: FileText, permission: 'core:order:card-orders' },
       { title: '次卡核销管理', path: '/orders/card-usage', icon: FileText, permission: 'core:order:card-usage' },
     ],
@@ -103,6 +106,7 @@ const MENU_ITEMS = [
       { title: '角色管理', path: '/system/roles', icon: Shield, permission: 'core:system:roles' },
       { title: '权限管理', path: '/system/permissions', icon: Lock, permission: 'core:system:permissions' },
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
+      { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
     ],
   },
 ];

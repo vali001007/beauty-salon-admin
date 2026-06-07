@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Sparkles, Droplets, Flame, AlertCircle, Layers, Heart } from 'lucide-react';
+import { Sparkles, Droplets, Flame, AlertCircle, Layers, Heart, Smartphone, MousePointer, CalendarCheck, TrendingUp } from 'lucide-react';
 import rawCustomers from '@/api/mock/data/customers.json';
 import rawHealthProfiles from '@/api/mock/data/health-profiles.json';
 import rawConsumptionRecords from '@/api/mock/data/consumption-records.json';
-import type { Customer } from '@/types';
+import { getCustomerMiniappBehaviorAnalysis } from '@/api/customer';
+import type { Customer, CustomerMiniappBehaviorAnalysis } from '@/types';
 import {
   computeSegmentStats, computeSkinStats, computeBehaviorProfiles,
   AI_RECOMMENDATIONS, SKIN_AI_RECOMMENDATIONS, SKIN_SERVICES,
@@ -41,8 +42,11 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export function UserProfile() {
-  const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior' | 'prediction'>('segment');
+  const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior' | 'miniapp' | 'prediction'>('segment');
   const navigate = useNavigate();
+  const [miniappAnalysis, setMiniappAnalysis] = useState<CustomerMiniappBehaviorAnalysis | null>(null);
+  const [miniappLoading, setMiniappLoading] = useState(false);
+  const [miniappError, setMiniappError] = useState('');
 
   const segmentStats = useMemo(() => computeSegmentStats(customers), []);
   const skinStats = useMemo(() => computeSkinStats(customers, healthProfiles), []);
@@ -85,6 +89,22 @@ export function UserProfile() {
 
   const behaviorTotal = filteredBehaviorProfiles.length;
   const behaviorData = filteredBehaviorProfiles.slice((behaviorPage - 1) * behaviorPageSize, behaviorPage * behaviorPageSize);
+
+  useEffect(() => {
+    if (activeTab !== 'miniapp' || miniappAnalysis || miniappLoading) return;
+    const loadMiniappAnalysis = async () => {
+      setMiniappLoading(true);
+      setMiniappError('');
+      try {
+        setMiniappAnalysis(await getCustomerMiniappBehaviorAnalysis());
+      } catch {
+        setMiniappError('小程序行为分析加载失败，请确认后端服务和客户画像权限正常。');
+      } finally {
+        setMiniappLoading(false);
+      }
+    };
+    void loadMiniappAnalysis();
+  }, [activeTab, miniappAnalysis, miniappLoading]);
 
   const handleViewSegmentDetail = (segment: string) => {
     setBehaviorSegmentFilter(segment);
@@ -135,7 +155,7 @@ export function UserProfile() {
       </div>
 
       <div className="flex gap-4 bg-gray-100 p-1 rounded-lg">
-        {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像'], ['prediction', '预测视角']] as const).map(([key, label]) => (
+        {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像'], ['miniapp', '小程序行为'], ['prediction', '预测视角']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex-1 py-3 px-6 rounded-lg transition-all ${activeTab === key ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-600 hover:text-gray-800'}`}>
             {label}
@@ -351,6 +371,175 @@ export function UserProfile() {
         </div>
       )}
 
+      {activeTab === 'miniapp' && (
+        <div className="space-y-6">
+          {miniappLoading && (
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+              正在加载小程序行为分析...
+            </div>
+          )}
+          {miniappError && (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">
+              {miniappError}
+            </div>
+          )}
+          {miniappAnalysis && (
+            <>
+              <div className="grid grid-cols-4 gap-4">
+                <MiniappMetricCard
+                  title="可触达客户"
+                  value={`${miniappAnalysis.summary.boundCustomers} / ${miniappAnalysis.summary.totalCustomers}`}
+                  hint="手机号或微信可用于小程序会员绑定"
+                  icon={<Smartphone className="h-5 w-5 text-blue-600" />}
+                />
+                <MiniappMetricCard
+                  title="30天活跃客户"
+                  value={miniappAnalysis.summary.activeCustomers30d}
+                  hint={`7天活跃 ${miniappAnalysis.summary.activeCustomers7d} 位`}
+                  icon={<MousePointer className="h-5 w-5 text-green-600" />}
+                />
+                <MiniappMetricCard
+                  title="预约意向行为"
+                  value={miniappAnalysis.summary.reservationIntentCount}
+                  hint="预约提交、到店确认等行为合计"
+                  icon={<CalendarCheck className="h-5 w-5 text-purple-600" />}
+                />
+                <MiniappMetricCard
+                  title="平均互动评分"
+                  value={miniappAnalysis.summary.avgEngagementScore}
+                  hint={`数据源：${miniappAnalysis.summary.dataSource === 'miniapp_events' ? '小程序埋点' : 'Core真实记录推导'}`}
+                  icon={<TrendingUp className="h-5 w-5 text-orange-600" />}
+                />
+              </div>
+
+              <div className="grid grid-cols-[1.05fr_0.95fr] gap-6">
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium text-gray-800">小程序转化漏斗</h3>
+                    <p className="mt-1 text-sm text-gray-500">先按 Core 真实业务记录推导，未来接入小程序埋点后可直接替换数据源。</p>
+                  </div>
+                  <div className="space-y-3">
+                    {miniappAnalysis.funnel.map((item) => (
+                      <div key={item.stage}>
+                        <div className="mb-1 flex items-center justify-between text-sm">
+                          <span className="font-medium text-gray-700">{item.stage}</span>
+                          <span className="text-gray-500">{item.count} 位 / {item.rate}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                          <div className="h-full rounded-full bg-blue-600" style={{ width: item.rate }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium text-gray-800">入口模块表现</h3>
+                    <p className="mt-1 text-sm text-gray-500">用于指导小程序首页、活动页、预约页和会员权益页的埋点设计。</p>
+                  </div>
+                  <div className="space-y-3">
+                    {miniappAnalysis.entryModules.map((module) => (
+                      <div key={module.name} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-800">{module.name}</span>
+                          <span className="text-sm text-gray-500">{module.eventCount} 次行为</span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">覆盖 {module.customerCount} 位客户</div>
+                        <div className="mt-2 text-xs text-gray-600">{module.conversionHint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-4">
+                {miniappAnalysis.segments.map((segment) => (
+                  <div key={segment.label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-medium text-gray-800">{segment.label}</div>
+                    <div className="mt-3 text-3xl font-semibold text-gray-900">{segment.customerCount}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                      <div>活跃率 <span className="font-medium text-gray-700">{segment.activeRate}</span></div>
+                      <div>转化率 <span className="font-medium text-gray-700">{segment.conversionRate}</span></div>
+                      <div className="col-span-2">均分 <span className="font-medium text-gray-700">{segment.avgScore}</span></div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-gray-600">{segment.suggestion}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-gray-200 p-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-800">客户小程序行为明细</h3>
+                    <p className="mt-1 text-sm text-gray-500">展示互动评分最高的客户，帮助门店判断谁更适合推送预约、权益或顾问跟进。</p>
+                  </div>
+                  <span className="text-sm text-gray-500">生成时间：{miniappAnalysis.summary.generatedAt}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">客户</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">状态</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">互动评分</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">预约/订单</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">营销触达</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">最近活跃</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">建议动作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {miniappAnalysis.customers.map((customer) => (
+                        <tr key={customer.customerId} className="border-b border-gray-100 hover:bg-blue-50/30">
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-800">{customer.name}</div>
+                            <div className="text-xs text-gray-400">{customer.phone || '未留手机号'} · {customer.storeName}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`rounded px-2 py-1 text-sm ${customer.miniappStatus === '高活跃' ? 'bg-green-50 text-green-700' : customer.miniappStatus === '有意向' ? 'bg-blue-50 text-blue-700' : customer.miniappStatus === '待绑定' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {customer.miniappStatus}
+                            </span>
+                            <div className="mt-1 text-xs text-gray-400">意向 {customer.intentLevel}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-800">{customer.engagementScore}</div>
+                            <div className="mt-1 h-2 w-24 overflow-hidden rounded-full bg-gray-100">
+                              <div className="h-full rounded-full bg-gray-800" style={{ width: `${customer.engagementScore}%` }} />
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{customer.reservationCount} / {customer.orderCount}</td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{customer.marketingTouchCount} 次</td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{customer.lastActiveAt || '-'}</td>
+                          <td className="max-w-72 px-6 py-4 text-sm text-gray-600">{customer.nextAction}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-6">
+                <h3 className="text-base font-medium text-blue-900">未来客户服务端小程序埋点契约</h3>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {miniappAnalysis.eventContract.map((field) => (
+                    <div key={field.field} className="rounded-lg border border-blue-100 bg-white p-3">
+                      <div className="flex items-center justify-between">
+                        <code className="text-sm font-medium text-blue-800">{field.field}</code>
+                        <span className={`rounded px-2 py-0.5 text-xs ${field.required ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {field.required ? '必填' : '可选'}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">{field.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {activeTab === 'prediction' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -397,6 +586,29 @@ export function UserProfile() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function MiniappMetricCard({
+  title,
+  value,
+  hint,
+  icon,
+}: {
+  title: string;
+  value: number | string;
+  hint: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-500">{title}</span>
+        {icon}
+      </div>
+      <div className="mt-3 text-2xl font-semibold text-gray-900">{value}</div>
+      <div className="mt-1 text-xs text-gray-500">{hint}</div>
     </div>
   );
 }

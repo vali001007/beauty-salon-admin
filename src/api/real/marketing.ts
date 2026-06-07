@@ -139,3 +139,16 @@ export async function realGetCustomerPrediction(customerId: number): Promise<{
 }> {
   return apiClient.get(`/marketing/predictions/customers/${customerId}`);
 }
+
+export async function realRecordCustomerBehaviorEvent(data: {
+  storeId: number;
+  customerId: number;
+  eventType: string;
+  targetType?: string;
+  targetId?: string | number;
+  sessionId?: string;
+  metadataJson?: Record<string, unknown>;
+  occurredAt?: string;
+}): Promise<Record<string, unknown>> {
+  return apiClient.post('/marketing/customer-events', data);
+}

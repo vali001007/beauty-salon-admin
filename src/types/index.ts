@@ -26,6 +26,7 @@ export type {
   MemberCardDeductPayload,
 } from './order';
 export * from './marketing';
+export * from './marketing-page';
 export * from './transfer';
 export * from './bom';
 export * from './auth';

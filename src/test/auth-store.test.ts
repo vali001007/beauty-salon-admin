@@ -1,5 +1,22 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/stores/authStore';
+
+vi.mock('@/api/auth', () => ({
+  login: vi.fn(async () => ({
+    token: 'real-test-token',
+    user: {
+      id: 1,
+      username: 'admin',
+      name: '系统管理员',
+      roles: ['super_admin'],
+      permissions: ['*'],
+      storeIds: [],
+    },
+  })),
+  getUserInfo: vi.fn(),
+  logout: vi.fn(),
+  register: vi.fn(),
+}));
 
 describe('authStore', () => {
   beforeEach(() => {
@@ -12,7 +29,7 @@ describe('authStore', () => {
 
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(true);
-    expect(state.token).toMatch(/^mock-token-/);
+    expect(state.token).toBe('real-test-token');
     expect(state.user?.username).toBe('admin');
     expect(localStorage.getItem('token')).toBe(state.token);
   });

@@ -2,7 +2,18 @@
  * 智能营销推荐算法
  * 综合客户画像、消费习惯、季节特征、行业趋势四个维度计算匹配度
  */
-import type { Customer } from '@/types';
+import type {
+  AudienceSnapshot,
+  Customer,
+  MarketingTriggerType,
+  RecommendationExecutionMode,
+  RecommendationPriority,
+  RecommendedAction,
+  RecommendedChannel,
+  RecommendedItem,
+  RecommendedOffer,
+  RecommendedTriggerRule,
+} from '@/types';
 import { MARKETING_RECOMMENDATION_IMAGES } from '@/config/marketingAssets';
 import { computeSegmentStats, computeSkinStats, type SegmentType } from './customerSegmentation';
 import { computeAssociationRules, computeChurnScores, computeLTVPredictions } from './advancedAnalytics';
@@ -25,7 +36,7 @@ export interface Recommendation {
   image: string;
   tags: string[];
   category: 'high-conversion' | 'customer-wake' | 'viral' | 'member-care' | 'seasonal' | 'trend' | 'cross-sell' | 'churn-alert' | 'ltv-nurture';
-  triggerType?: string;
+  triggerType?: MarketingTriggerType;
   preferAutoRule: boolean;
   urgency: UrgencyLevel;
   urgencyLabel: string;
@@ -36,6 +47,17 @@ export interface Recommendation {
   predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy';
   predictionRunFinishedAt?: string;
   totalCustomers?: number;
+  priority?: RecommendationPriority;
+  executionModes?: RecommendationExecutionMode[];
+  preferredMode?: RecommendationExecutionMode;
+  modeReason?: string;
+  recommendedChannels?: RecommendedChannel[];
+  triggerRule?: RecommendedTriggerRule;
+  recommendedActions?: RecommendedAction[];
+  offer?: RecommendedOffer;
+  recommendedItems?: RecommendedItem[];
+  audienceSnapshot?: AudienceSnapshot;
+  sourceSignals?: string[];
 }
 
 // ========== 季节 & 节日 ==========
@@ -176,7 +198,7 @@ interface StrategyTemplate {
   duration: string;
   tags: string[];
   imageIdx: number;
-  triggerType?: string;
+  triggerType?: MarketingTriggerType;
   preferAutoRule: boolean;
 }
 

@@ -30,6 +30,8 @@ import {
   saveAutomationStrategyDraft,
   updateAutomationStrategy,
 } from '@/api/marketing';
+import { generateMarketingCopy } from '@/api/ai';
+import type { MarketingCopyChannel } from '@/types/ai';
 import type {
   AudiencePreview,
   MarketingAction,
@@ -57,6 +59,16 @@ interface StrategyForm {
   actions: MarketingAction[];
 }
 
+interface MarketingCopyContext {
+  targetAudience?: string;
+  offer?: string;
+  strategyText?: string;
+  sourceRecommendationId?: string;
+  predictionRunId?: string;
+  sourceSignals?: string[];
+  recommendedItems?: string[];
+}
+
 const emptyForm = (): StrategyForm => ({
   name: '',
   description: '',
@@ -66,6 +78,243 @@ const emptyForm = (): StrategyForm => ({
   triggerRules: [],
   actions: [],
 });
+
+function asArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeCount(value: unknown): number {
+  const numberValue = Number(value ?? 0);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function cloneParams(params: MarketingTriggerRule['params'] | null | undefined): Record<string, MarketingParamValue> {
+  return JSON.parse(JSON.stringify(params ?? {})) as Record<string, MarketingParamValue>;
+}
+
+function parseJsonParam<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function getActionChannel(action: MarketingAction): MarketingCopyChannel {
+  const channel = action.channel || 'miniapp';
+  return MARKETING_COPY_CHANNELS.has(channel as MarketingCopyChannel) ? channel as MarketingCopyChannel : 'miniapp';
+}
+
+const INTERNAL_MARKETING_COPY_PATTERNS = [
+  /\d+\s*位客户/,
+  /客户进入/,
+  /复购窗口/,
+  /护理周期复购方案/,
+  /高流失风险/,
+  /流失风险/,
+  /即将流失/,
+  /沉睡客户/,
+  /待唤醒/,
+  /唤醒/,
+  /命中客户/,
+  /推荐命中/,
+  /客户群体/,
+  /智能推荐/,
+  /策略名称/,
+  /营销策略/,
+  /策略/,
+  /触发规则/,
+  /自动规则/,
+  /规则条件/,
+  /算法/,
+  /模型/,
+  /RFM/i,
+  /LTV/i,
+  /P[0-3]\b/i,
+  /高优先级/,
+  /预测/,
+  /预警/,
+];
+
+function buildCopySignal(form: StrategyForm, option?: MarketingTriggerOption, context?: MarketingCopyContext) {
+  return [
+    form.name,
+    form.description,
+    option?.label,
+    option?.description,
+    context?.targetAudience,
+    context?.strategyText,
+    ...(context?.sourceSignals || []),
+    ...(context?.recommendedItems || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function hasInternalMarketingTerms(text?: string) {
+  if (!text) return false;
+  return INTERNAL_MARKETING_COPY_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function stripInternalMarketingTerms(text = '') {
+  return text
+    .replace(/\d+\s*位客户/g, '')
+    .replace(/进入\s*\d+\s*天复购窗口[。；，,、\s]*/g, '')
+    .replace(/\d+\s*天复购窗口/g, '护理焕新')
+    .replace(/高流失风险客户|流失风险客户|即将流失客户|沉睡客户|待唤醒客户/g, '老朋友')
+    .replace(/护理周期复购方案/g, '护理焕新方案')
+    .replace(/复购窗口/g, '护理焕新')
+    .replace(/推荐命中|命中客户|客户群体|智能推荐|策略名称|营销策略|策略|触发规则|自动规则|规则条件/g, '')
+    .replace(/RFM|LTV|算法|模型|预测|预警|P[0-3]\b|高优先级/gi, '')
+    .replace(/[，,。；;、\s]*(?=[，,。；;、])/g, '')
+    .replace(/^[，,。；;、\s]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getCustomerFacingCampaignName(form: StrategyForm, option?: MarketingTriggerOption, context?: MarketingCopyContext) {
+  const signal = buildCopySignal(form, option, context);
+  if (/流失|沉睡|唤醒|回归|未到店/.test(signal)) return '老朋友回店护理礼';
+  if (/复购窗口|护理周期|30\s*天复购|复购/.test(signal)) return '护理焕新礼';
+  if (/次卡|套餐|卡项|核销|划扣/.test(signal)) return '卡项护理权益提醒';
+  if (/优惠券|券/.test(signal)) return '专属护理优惠';
+  if (/生日|寿星/.test(signal)) return '生日月专属护理礼';
+  if (/新客|首单|首次/.test(signal)) return '新客首护体验礼';
+  if (/敏感|修护|舒缓/.test(signal)) return '敏感肌舒缓护理季';
+  if (/补水|保湿|干性/.test(signal)) return '补水保湿护理季';
+  if (/VIP|会员|高价值|铂金|黄金/.test(signal)) return '会员专属护理礼遇';
+
+  const candidate = stripInternalMarketingTerms(form.name || context?.strategyText || option?.label || '');
+  return candidate && !hasInternalMarketingTerms(candidate) ? candidate : '会员专属护理活动';
+}
+
+function getCustomerFacingAudience(form: StrategyForm, option?: MarketingTriggerOption, context?: MarketingCopyContext) {
+  const signal = buildCopySignal(form, option, context);
+  if (/流失|沉睡|唤醒|回归|未到店/.test(signal)) return '老朋友';
+  if (/生日|寿星/.test(signal)) return '寿星会员';
+  if (/新客|首单|首次/.test(signal)) return '新朋友';
+  return '会员';
+}
+
+function getSafeRecommendedItems(context?: MarketingCopyContext) {
+  return (context?.recommendedItems || [])
+    .map((item) => stripInternalMarketingTerms(item))
+    .filter((item) => item && !hasInternalMarketingTerms(item));
+}
+
+function buildFallbackCopy(form: StrategyForm, action: MarketingAction, option?: MarketingTriggerOption, context?: MarketingCopyContext) {
+  const target = getCustomerFacingAudience(form, option, context);
+  const campaignName = getCustomerFacingCampaignName(form, option, context);
+  const offer = action.value || context?.offer || '专属护理权益';
+  const recommendedItems = getSafeRecommendedItems(context);
+  const itemText = recommendedItems.length ? `，可预约体验${recommendedItems.join('、')}` : '';
+  if (action.channel === 'sms') {
+    return `【Ami_Core】${campaignName}已开启：${offer}${itemText}。可在线预约，到店后由顾问为您确认合适护理方案。`;
+  }
+  if (action.channel === 'store') {
+    return `${target}您好，门店为您准备了「${campaignName}」：${offer}${itemText}。到店后我们会根据实际肤况帮您细化护理安排。`;
+  }
+  return `最近正适合给自己安排一次护理焕新。门店为您准备了「${campaignName}」：${offer}${itemText}。可在线预约，到店后由顾问根据您的肤况和护理习惯确认合适方案。`;
+}
+
+function sanitizeGeneratedMarketingCopy(
+  text: string | undefined,
+  form: StrategyForm,
+  action: MarketingAction,
+  option?: MarketingTriggerOption,
+  context?: MarketingCopyContext,
+) {
+  const cleaned = stripInternalMarketingTerms(text || '');
+  if (!cleaned || cleaned.length < 12 || hasInternalMarketingTerms(cleaned)) {
+    return buildFallbackCopy(form, action, option, context);
+  }
+  return cleaned;
+}
+
+async function generateCopyTextForAction(
+  form: StrategyForm,
+  action: MarketingAction,
+  option?: MarketingTriggerOption,
+  context?: MarketingCopyContext,
+) {
+  const channel = getActionChannel(action);
+  const campaignName = getCustomerFacingCampaignName(form, option, context);
+  const targetAudience = getCustomerFacingAudience(form, option, context);
+  const recommendedItems = getSafeRecommendedItems(context);
+  const triggerReasons = [
+    form.name,
+    form.description,
+    option?.label,
+    option?.description,
+    context?.strategyText,
+    ...(context?.sourceSignals || []),
+  ].filter(Boolean) as string[];
+  const result = await generateMarketingCopy({
+    campaignName,
+    targetAudience,
+    channel,
+    channels: [channel],
+    offer: action.value || context?.offer || '专属护理权益',
+    source: context?.strategyText || form.description || option?.description,
+    segment: targetAudience,
+    triggerReasons,
+    projectNames: recommendedItems,
+    storeName: 'Ami_Core',
+    styleInstruction: channel === 'sms' ? 'shorter' : channel === 'store' ? 'consultative' : 'warmer',
+  });
+
+  if (result.safety?.blocked) {
+    throw new Error(result.safety.reasons?.[0] || 'AI 文案被安全规则拦截');
+  }
+  const structuredVariant = result.structured?.variants?.find((variant) => variant.channel === channel);
+  const plainVariant = result.variants?.find((variant) => variant.channel === channel);
+  return sanitizeGeneratedMarketingCopy(
+    structuredVariant?.text || plainVariant?.text || result.text,
+    form,
+    action,
+    option,
+    context,
+  );
+}
+
+function normalizeTriggerOption(option: MarketingTriggerOption): MarketingTriggerOption {
+  return {
+    ...option,
+    paramSchema: asArray(option.paramSchema),
+    defaultParams: option.defaultParams ?? {},
+  };
+}
+
+function normalizeStrategy(strategy: MarketingAutomationStrategy): MarketingAutomationStrategy {
+  return {
+    ...strategy,
+    description: strategy.description ?? '',
+    executionType: strategy.executionType ?? 'auto',
+    schedule: strategy.schedule ?? { type: 'daily', time: '09:00' },
+    ruleRelation: strategy.ruleRelation ?? 'AND',
+    triggerRules: asArray(strategy.triggerRules).map((rule) => ({
+      ...rule,
+      params: cloneParams(rule.params),
+      parameterSource: rule.parameterSource ?? 'system_default',
+    })),
+    actions: asArray(strategy.actions).map((action) => ({ ...action })),
+    targetCount: safeCount(strategy.targetCount),
+  };
+}
+
+function normalizePreview(preview: AudiencePreview): AudiencePreview {
+  return {
+    ...preview,
+    total: safeCount(preview.total ?? preview.estimatedCount ?? preview.totalCustomers),
+    estimatedReachedCount: safeCount(preview.estimatedReachedCount ?? preview.estimatedCount ?? preview.total),
+    estimatedConvertedCount: safeCount(preview.estimatedConvertedCount),
+    estimatedRevenue: safeCount(preview.estimatedRevenue),
+    samples: asArray(preview.samples),
+    ruleRelation: preview.ruleRelation ?? 'AND',
+    generatedAt: preview.generatedAt ?? new Date().toISOString(),
+  };
+}
 
 const STATUS_LABEL: Record<MarketingAutomationStrategy['status'], string> = {
   draft: '草稿',
@@ -83,6 +332,8 @@ const CHANNEL_OPTIONS: Array<{ value: NonNullable<MarketingAction['channel']>; l
   { value: 'moments', label: '朋友圈' },
 ];
 
+const MARKETING_COPY_CHANNELS = new Set<MarketingCopyChannel>(['sms', 'wechat', 'miniapp', 'group', 'store', 'moments']);
+
 function createInput(form: StrategyForm): MarketingStrategyInput {
   return {
     name: form.name.trim(),
@@ -96,17 +347,18 @@ function createInput(form: StrategyForm): MarketingStrategyInput {
 }
 
 function createForm(strategy: MarketingAutomationStrategy): StrategyForm {
+  const normalized = normalizeStrategy(strategy);
   return {
-    name: strategy.name,
-    description: strategy.description,
-    executionType: strategy.executionType,
-    executionTime: strategy.schedule.time || '09:00',
-    ruleRelation: strategy.ruleRelation,
-    triggerRules: strategy.triggerRules.map((rule) => ({
+    name: normalized.name,
+    description: normalized.description,
+    executionType: normalized.executionType,
+    executionTime: normalized.schedule.time || '09:00',
+    ruleRelation: normalized.ruleRelation,
+    triggerRules: normalized.triggerRules.map((rule) => ({
       ...rule,
-      params: JSON.parse(JSON.stringify(rule.params)) as Record<string, MarketingParamValue>,
+      params: cloneParams(rule.params),
     })),
-    actions: strategy.actions.map((action) => ({ ...action })),
+    actions: normalized.actions.map((action) => ({ ...action })),
   };
 }
 
@@ -130,14 +382,17 @@ export function CreateMarketing() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [operatingId, setOperatingId] = useState<number | null>(null);
+  const [copyContext, setCopyContext] = useState<MarketingCopyContext>({});
+  const [generatingCopyIndex, setGeneratingCopyIndex] = useState<number | null>(null);
+  const [autoGenerateCopyPending, setAutoGenerateCopyPending] = useState(false);
 
   const loadList = useCallback(async (nextKeyword: string, nextStatus: string) => {
     const [strategyResponse, automationEffects] = await Promise.all([
       getAutomationStrategiesPaginated({ page: 1, pageSize: 50, keyword: nextKeyword || undefined, status: nextStatus }),
       getAutomationEffects(),
     ]);
-    setStrategies(strategyResponse.items);
-    setEffects(automationEffects);
+    setStrategies(asArray(strategyResponse.items ?? strategyResponse.data).map(normalizeStrategy));
+    setEffects(asArray(automationEffects));
   }, []);
 
   useEffect(() => {
@@ -146,7 +401,7 @@ export function CreateMarketing() {
       setLoadError('');
       try {
         const options = await getAutomationTriggerOptions();
-        setTriggerOptions(options);
+        setTriggerOptions(asArray(options).map(normalizeTriggerOption));
         await loadList('', 'all');
       } catch {
         setLoadError('自动营销数据加载失败，请稍后重试。');
@@ -162,28 +417,59 @@ export function CreateMarketing() {
     const next = emptyForm();
     next.name = searchParams.get('name') || '';
     next.description = searchParams.get('desc') || '';
+    const nextContext: MarketingCopyContext = {
+      targetAudience: searchParams.get('targetAudience') || undefined,
+      offer: searchParams.get('offer') || undefined,
+      strategyText: searchParams.get('strategyText') || undefined,
+      sourceRecommendationId: searchParams.get('sourceRecommendationId') || undefined,
+      predictionRunId: searchParams.get('predictionRunId') || undefined,
+      sourceSignals: parseJsonParam<string[]>(searchParams.get('sourceSignals'), []),
+      recommendedItems: parseJsonParam<string[]>(searchParams.get('recommendedItems'), []),
+    };
     const type = searchParams.get('trigger') as MarketingTriggerType | null;
     const option = triggerOptions.find((item) => item.type === type);
-    if (option) next.triggerRules = [createTriggerRuleFromOption(option)];
+    if (option) {
+      const rule = createTriggerRuleFromOption(option);
+      try {
+        const triggerParams = JSON.parse(searchParams.get('triggerParams') || '{}') as Record<string, MarketingParamValue>;
+        next.triggerRules = [{
+          ...rule,
+          params: { ...rule.params, ...triggerParams },
+          parameterSource: Object.keys(triggerParams).length ? 'system_default' : rule.parameterSource,
+        }];
+      } catch {
+        next.triggerRules = [rule];
+      }
+    }
     try {
       const actions = JSON.parse(searchParams.get('actions') || '[]') as Array<{ type: MarketingAction['type']; value: string }>;
+      const channels = searchParams.get('channels')?.split(',').filter(Boolean) || [];
       next.actions = actions.map((action, index) => ({
         ...action,
-        channel: (searchParams.get('channels')?.split(',')[index] || 'miniapp') as MarketingAction['channel'],
+        channel: (channels[index] || channels[0] || 'miniapp') as MarketingAction['channel'],
+        contentTemplate: buildFallbackCopy(
+          next,
+          { ...action, channel: (channels[index] || channels[0] || 'miniapp') as MarketingAction['channel'] },
+          option,
+          nextContext,
+        ),
       }));
     } catch {
       next.actions = [];
     }
     setMode('create');
     setForm(next);
+    setCopyContext(nextContext);
     setPreview(null);
-    setStep(1);
+    const shouldAutoGenerate = searchParams.get('autoGenerate') === 'true' && next.actions.length > 0;
+    setStep(shouldAutoGenerate ? 2 : 1);
     setShowEditor(true);
+    setAutoGenerateCopyPending(shouldAutoGenerate);
     setSearchParams({}, { replace: true });
   }, [triggerOptions, searchParams, setSearchParams]);
 
   const effectByStrategy = useMemo(
-    () => new Map(effects.map((item) => [item.strategyId, item])),
+    () => new Map(asArray(effects).map((item) => [item.strategyId, item])),
     [effects],
   );
 
@@ -191,6 +477,7 @@ export function CreateMarketing() {
     setMode('create');
     setSelected(null);
     setForm(emptyForm());
+    setCopyContext({});
     setPreview(null);
     setStep(1);
     setShowEditor(true);
@@ -198,8 +485,9 @@ export function CreateMarketing() {
 
   const openEdit = (strategy: MarketingAutomationStrategy) => {
     setMode('edit');
-    setSelected(strategy);
+    setSelected(normalizeStrategy(strategy));
     setForm(createForm(strategy));
+    setCopyContext({});
     setPreview(null);
     setStep(1);
     setShowEditor(true);
@@ -211,28 +499,25 @@ export function CreateMarketing() {
     setMode('create');
     setSelected(null);
     setForm(next);
+    setCopyContext({});
     setPreview(null);
     setStep(1);
     setShowEditor(true);
   };
 
   const openDetail = async (strategy: MarketingAutomationStrategy) => {
-    setSelected(strategy);
+    setSelected(normalizeStrategy(strategy));
     setShowDetail(true);
     const response = await getAutomationExecutionsPaginated({ page: 1, pageSize: 5, strategyId: strategy.id });
-    setExecutions(response.items);
+    setExecutions(asArray(response.items ?? response.data));
   };
 
-  const toggleRule = (option: MarketingTriggerOption) => {
-    setForm((current) => {
-      const existing = current.triggerRules.some((rule) => rule.type === option.type);
-      return {
-        ...current,
-        triggerRules: existing
-          ? current.triggerRules.filter((rule) => rule.type !== option.type)
-          : [...current.triggerRules, createTriggerRuleFromOption(option)],
-      };
-    });
+  const selectRule = (option: MarketingTriggerOption | undefined) => {
+    setForm((current) => ({
+      ...current,
+      ruleRelation: 'AND',
+      triggerRules: option ? [createTriggerRuleFromOption(option)] : [],
+    }));
     setPreview(null);
   };
 
@@ -264,6 +549,55 @@ export function CreateMarketing() {
     setForm((current) => ({ ...current, actions: current.actions.filter((_, currentIndex) => currentIndex !== index) }));
   };
 
+  const selectedRule = form.triggerRules[0];
+  const selectedOption = selectedRule ? triggerOptions.find((item) => item.type === selectedRule.type) : undefined;
+
+  const generateActionCopy = useCallback(async (index: number) => {
+    const action = form.actions[index];
+    if (!action) return;
+    setGeneratingCopyIndex(index);
+    try {
+      const text = await generateCopyTextForAction(form, action, selectedOption, copyContext);
+      updateAction(index, { contentTemplate: text });
+      toast.success('AI 文案已生成');
+    } catch (error) {
+      updateAction(index, { contentTemplate: buildFallbackCopy(form, action, selectedOption, copyContext) });
+      toast.warning(error instanceof Error ? `AI 文案生成失败，已使用兜底文案：${error.message}` : 'AI 文案生成失败，已使用兜底文案');
+    } finally {
+      setGeneratingCopyIndex(null);
+    }
+  }, [copyContext, form, selectedOption]);
+
+  const generateAllActionCopies = useCallback(async (baseForm: StrategyForm, context: MarketingCopyContext, option?: MarketingTriggerOption) => {
+    if (!baseForm.actions.length) return;
+    setGeneratingCopyIndex(-1);
+    try {
+      const generatedActions = await Promise.all(baseForm.actions.map(async (action) => {
+        try {
+          return {
+            ...action,
+            contentTemplate: await generateCopyTextForAction(baseForm, action, option, context),
+          };
+        } catch {
+          return {
+            ...action,
+            contentTemplate: buildFallbackCopy(baseForm, action, option, context),
+          };
+        }
+      }));
+      setForm((current) => ({ ...current, actions: generatedActions }));
+      toast.success('已根据智能推荐自动生成触达文案');
+    } finally {
+      setGeneratingCopyIndex(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!autoGenerateCopyPending || !showEditor || step !== 2 || !form.actions.length) return;
+    setAutoGenerateCopyPending(false);
+    void generateAllActionCopies(form, copyContext, selectedOption);
+  }, [autoGenerateCopyPending, copyContext, form, generateAllActionCopies, selectedOption, showEditor, step]);
+
   const handlePreview = async () => {
     if (!form.triggerRules.length) {
       toast.error('请至少选择一条触发规则');
@@ -271,10 +605,11 @@ export function CreateMarketing() {
     }
     setPreviewLoading(true);
     try {
-      setPreview(await previewAutomationAudience(selected?.id || 'draft', {
+      const response = await previewAutomationAudience(selected?.id || 'draft', {
         triggerRules: form.triggerRules,
         ruleRelation: form.ruleRelation,
-      }));
+      });
+      setPreview(normalizePreview(response));
     } catch {
       toast.error('命中客户预估失败');
     } finally {
@@ -423,7 +758,7 @@ export function CreateMarketing() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {strategies.map((strategy) => {
+            {asArray(strategies).map((strategy) => {
               const effect = effectByStrategy.get(strategy.id);
               return (
                 <TableRow key={strategy.id}>
@@ -433,7 +768,7 @@ export function CreateMarketing() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {strategy.triggerRules.map((rule) => (
+                      {asArray(strategy.triggerRules).map((rule) => (
                         <span key={rule.type} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
                           {triggerOptions.find((option) => option.type === rule.type)?.label || rule.type}
                         </span>
@@ -493,38 +828,36 @@ export function CreateMarketing() {
                 <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" rows={2} />
               </label>
               <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-800">选择触发规则</span>
-                  <div className="flex items-center rounded-md border border-gray-200 p-1 text-xs">
-                    {(['AND', 'OR'] as MarketingRuleRelation[]).map((relation) => (
-                      <button key={relation} type="button" onClick={() => setForm({ ...form, ruleRelation: relation })}
-                        className={`rounded px-3 py-1.5 ${form.ruleRelation === relation ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>
-                        {relation}
-                      </button>
+                <label className="block text-sm font-medium text-gray-800">
+                  触发规则
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800"
+                    value={selectedRule?.type || ''}
+                    onChange={(event) => selectRule(triggerOptions.find((option) => option.type === event.target.value))}
+                  >
+                    <option value="">请选择一个触发场景</option>
+                    {(['时间触发', '行为触发', '属性触发'] as const).map((category) => (
+                      <optgroup key={category} label={category}>
+                        {triggerOptions.filter((option) => option.category === category).map((option) => (
+                          <option key={option.type} value={option.type}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
-                  </div>
-                </div>
-                {(['时间触发', '行为触发', '属性触发'] as const).map((category) => (
-                  <div key={category} className="mb-4">
-                    <div className="mb-2 text-xs font-medium text-gray-500">{category}</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {triggerOptions.filter((option) => option.category === category).map((option) => {
-                        const checked = form.triggerRules.some((rule) => rule.type === option.type);
-                        return (
-                          <button key={option.type} type="button" onClick={() => toggleRule(option)}
-                            className={`rounded-md border p-3 text-left ${checked ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                            <div className="flex items-center justify-between text-sm font-medium text-gray-900">
-                              {option.label}<span className="text-[11px] text-gray-400">{option.priority}</span>
-                            </div>
-                            <div className="mt-1 text-xs text-gray-500">{option.description}</div>
-                          </button>
-                        );
-                      })}
+                  </select>
+                </label>
+                {selectedOption && (
+                  <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium text-blue-900">{selectedOption.label}</div>
+                      <span className="rounded bg-white px-2 py-0.5 text-xs text-blue-700">{selectedOption.priority}</span>
                     </div>
+                    <div className="mt-1 text-xs leading-relaxed text-blue-700">{selectedOption.description}</div>
                   </div>
-                ))}
+                )}
               </div>
-              {form.triggerRules.map((rule) => {
+              {asArray(form.triggerRules).map((rule) => {
                 const option = triggerOptions.find((item) => item.type === rule.type);
                 if (!option) return null;
                 return (
@@ -536,7 +869,7 @@ export function CreateMarketing() {
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      {option.paramSchema.map((field) => (
+                      {asArray(option.paramSchema).map((field) => (
                         <ParamField key={field.key} field={field} value={rule.params[field.key]}
                           onChange={(value) => setRuleParam(rule.type, field.key, value)} />
                       ))}
@@ -556,7 +889,7 @@ export function CreateMarketing() {
                 <Button variant="outline" size="sm" onClick={addAction}><Plus className="mr-1 h-3.5 w-3.5" />添加动作</Button>
               </div>
               {form.actions.length === 0 && <div className="rounded-md border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">请添加优惠或触达动作</div>}
-              {form.actions.map((action, index) => (
+              {asArray(form.actions).map((action, index) => (
                 <div key={index} className="space-y-3 rounded-md border border-gray-200 p-3">
                   <div className="grid grid-cols-[130px_150px_1fr_auto] gap-3">
                     <select value={action.type} onChange={(event) => updateAction(index, { type: event.target.value as MarketingAction['type'] })} className="h-9 rounded-md border border-gray-300 px-2 text-sm">
@@ -571,10 +904,14 @@ export function CreateMarketing() {
                   <div>
                     <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
                       <span>触达文案</span>
-                      <button type="button" className="flex items-center gap-1 text-blue-600" onClick={() => updateAction(index, {
-                        contentTemplate: `尊敬的{客户姓名}，${form.name || '专属护理活动'}已为您准备：${action.value || '专属权益'}，欢迎预约到店体验。`,
-                      })}>
-                        <WandSparkles className="h-3.5 w-3.5" />生成文案
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-blue-600 disabled:opacity-50"
+                        disabled={generatingCopyIndex !== null}
+                        onClick={() => void generateActionCopy(index)}
+                      >
+                        <WandSparkles className={`h-3.5 w-3.5 ${generatingCopyIndex === index || generatingCopyIndex === -1 ? 'animate-spin' : ''}`} />
+                        {generatingCopyIndex === index || generatingCopyIndex === -1 ? '生成中' : '生成文案'}
                       </button>
                     </div>
                     <textarea rows={2} value={action.contentTemplate || ''} onChange={(event) => updateAction(index, { contentTemplate: event.target.value })}
@@ -594,7 +931,7 @@ export function CreateMarketing() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>策略名称：<span className="font-medium text-gray-900">{form.name || '-'}</span></div>
                   <div>执行方式：<span className="font-medium text-gray-900">{form.executionType === 'auto' ? '自动执行' : '手动执行'}</span></div>
-                  <div>组合关系：<span className="font-medium text-gray-900">{form.ruleRelation}</span></div>
+                  <div>触发规则：<span className="font-medium text-gray-900">{selectedOption?.label || '-'}</span></div>
                   <div>营销动作：<span className="font-medium text-gray-900">{form.actions.length} 项</span></div>
                 </div>
               </div>
@@ -611,13 +948,13 @@ export function CreateMarketing() {
                     <Metric title="预计转化" value={`${preview.estimatedConvertedCount ?? 0} 人`} />
                     <Metric title="预计收入" value={`¥${(preview.estimatedRevenue ?? 0).toLocaleString()}`} />
                   </div>
-                  {preview.samples.length === 0 ? (
+                  {asArray(preview.samples).length === 0 ? (
                     <div className="py-5 text-center text-sm text-gray-500">当前规则没有命中客户，请调整参数后重试。</div>
                   ) : (
                     <Table>
                       <TableHeader><TableRow><TableHead>客户</TableHead><TableHead>会员等级</TableHead><TableHead>预测转化</TableHead><TableHead>LTV层级</TableHead><TableHead>预计收入</TableHead><TableHead>命中原因</TableHead></TableRow></TableHeader>
                       <TableBody>
-                        {preview.samples.map((customer) => (
+                        {asArray(preview.samples).map((customer) => (
                           <TableRow key={customer.id}>
                             <TableCell>{customer.name}<div className="text-xs text-gray-400">{customer.phone}</div></TableCell>
                             <TableCell>{customer.memberLevel}</TableCell>
@@ -661,7 +998,7 @@ export function CreateMarketing() {
               <div>
                 <h4 className="mb-2 text-sm font-medium text-gray-800">触发规则</h4>
                 <div className="space-y-2">
-                  {selected.triggerRules.map((rule) => (
+                  {asArray(selected.triggerRules).map((rule) => (
                     <div key={rule.type} className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
                       <span className="font-medium">{triggerOptions.find((item) => item.type === rule.type)?.label || rule.type}</span>
                       <span className="ml-3 text-blue-600">{formatMarketingRuleParams(rule, triggerOptions.find((item) => item.type === rule.type))}</span>
@@ -671,7 +1008,7 @@ export function CreateMarketing() {
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-medium text-gray-800">触达配置</h4>
-                {selected.actions.map((action, index) => (
+                {asArray(selected.actions).map((action, index) => (
                   <div key={`${action.channel}-${index}`} className="mb-2 rounded-md border border-gray-200 px-3 py-2 text-sm">
                     <span className="font-medium text-gray-900">{CHANNEL_OPTIONS.find((channel) => channel.value === action.channel)?.label || action.channel || '门店'}</span>
                     <span className="ml-3 text-gray-700">{action.value}</span>
@@ -687,7 +1024,7 @@ export function CreateMarketing() {
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-medium text-gray-800">最近执行记录</h4>
-                {executions.length === 0 ? <div className="text-sm text-gray-400">暂无执行记录</div> : executions.map((execution) => (
+                {asArray(executions).length === 0 ? <div className="text-sm text-gray-400">暂无执行记录</div> : asArray(executions).map((execution) => (
                   <div key={execution.id} className="mb-2 flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
                     <span>{execution.executedAt}</span><span>{execution.channel}</span><span>触达 {execution.reachedCount} 人</span>
                     <span className="text-green-600">{execution.status === 'success' ? '成功' : '部分失败'}</span>

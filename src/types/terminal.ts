@@ -28,6 +28,26 @@ export interface TerminalDevice {
   boundAt: string;
 }
 
+export interface TerminalDevicePeripheralStatus {
+  status: string;
+  label: string;
+  checkedAt?: string;
+  pendingCount?: number;
+  failedCount?: number;
+  latestJobId?: number;
+}
+
+export interface TerminalDeviceStatusOverview {
+  device: TerminalDevice;
+  peripherals: {
+    network: TerminalDevicePeripheralStatus;
+    printer: TerminalDevicePeripheralStatus;
+    scanner: TerminalDevicePeripheralStatus;
+    camera: TerminalDevicePeripheralStatus;
+  };
+  serverTime: string;
+}
+
 export interface TerminalDeviceLoginRequest {
   deviceCode: string;
   activationCode: string;
@@ -56,6 +76,7 @@ export interface TerminalConfig {
     cardVerification: boolean;
     serviceConsumption: boolean;
     recommendationFeedback: boolean;
+    automation?: boolean;
   };
   uploadLimits: {
     maxImageCount: number;
@@ -89,10 +110,133 @@ export interface TerminalCatalogSync {
   config: TerminalConfig;
 }
 
+export interface TerminalAutomationStrategy {
+  id: number;
+  name: string;
+  title: string;
+  summary: string;
+  status: 'draft' | 'enabled' | 'paused' | 'archived';
+  executionType: string;
+  schedule: Record<string, unknown>;
+  trigger: string;
+  audience: string;
+  action: string;
+  frequencyCap: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresApproval: boolean;
+  sourceText: string;
+  createdAt: string;
+  updatedAt: string;
+  lastExecutedAt?: string;
+}
+
+export interface TerminalAutomationCreateRequest {
+  draftId: string;
+  title: string;
+  summary: string;
+  sourceText: string;
+  trigger: string;
+  audience: string;
+  action: string;
+  frequencyCap: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresApproval: boolean;
+  missingFields?: string[];
+}
+
+export interface TerminalAutomationTemplate {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  command: string;
+  defaultTrigger: string;
+  defaultAudience: string;
+  defaultAction: string;
+  riskLevel: 'low' | 'medium' | 'high';
+}
+
+export interface TerminalAutomationPreview {
+  targetCount: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresApproval: boolean;
+  trigger: string;
+  audience: string;
+  action: string;
+  frequencyCap: string;
+  message: string;
+}
+
+export interface TerminalAutomationExecutionSummary {
+  id: number;
+  strategyId: number;
+  strategyName: string;
+  status: string;
+  triggeredCount: number;
+  reachedCount: number;
+  channel?: string;
+  executedAt: string;
+  message?: string;
+  reason?: string;
+  nextActions?: string[];
+  primaryActionLabel?: string;
+  detailLines?: string[];
+}
+
+export interface TerminalAutomationExecutionTouch {
+  id: number;
+  customerId: number;
+  customerName: string;
+  customerPhone?: string;
+  status: string;
+  channel?: string;
+  touchedAt: string;
+  convertedAt?: string;
+  conversionType?: string;
+  predictedConversionScore?: number;
+  predictedRevenue?: number;
+  attributionWindowDays?: number;
+}
+
+export interface TerminalAutomationExecutionDetail extends TerminalAutomationExecutionSummary {
+  touches: TerminalAutomationExecutionTouch[];
+}
+
+export interface TerminalAutomationTodaySummary {
+  date: string;
+  strategyCount: number;
+  enabledCount: number;
+  waitingApprovalCount: number;
+  executedCount: number;
+  successCount: number;
+  failedCount: number;
+  latestStrategies: TerminalAutomationStrategy[];
+  latestExecutions: TerminalAutomationExecutionSummary[];
+}
+
+export interface TerminalAutomationDueRunSummary {
+  scannedCount: number;
+  dueCount?: number;
+  executedCount: number;
+  skipped?: boolean;
+  reason?: string;
+  scannedAt?: string;
+  executions?: TerminalAutomationExecutionSummary[];
+}
+
 export interface TerminalDashboardKpi {
   label: string;
   value: string;
   hint?: string;
+}
+
+export interface TerminalDashboardInsight {
+  title: string;
+  severity?: 'high' | 'medium' | 'low' | string;
+  reason: string;
+  action: string;
+  relatedType?: string;
+  relatedId?: number | string;
 }
 
 export interface TerminalManagerDashboard {
@@ -100,8 +244,8 @@ export interface TerminalManagerDashboard {
   subtitle: string;
   summary: string;
   kpis: TerminalDashboardKpi[];
-  risks: string[];
-  highlights: string[];
+  risks: Array<string | TerminalDashboardInsight>;
+  highlights: Array<string | TerminalDashboardInsight>;
 }
 
 export interface TerminalStaffScheduleItem {
@@ -296,6 +440,33 @@ export interface TerminalReservationUpdateRequest {
   remark?: string;
 }
 
+export interface TerminalReservationRescheduleRequest {
+  appointmentTime: string;
+  duration?: number;
+  beauticianId?: number;
+  reason?: string;
+}
+
+export interface TerminalReservationAvailabilityParams {
+  date?: string;
+  projectId?: number;
+  beauticianId?: number;
+  duration?: number;
+}
+
+export interface TerminalReservationAvailability {
+  storeId: number;
+  date: string;
+  projectId?: number;
+  projectName?: string;
+  duration: number;
+  items: Array<{
+    beauticianId: number;
+    beauticianName: string;
+    slots: Array<{ time: string; available: boolean; reason?: string }>;
+  }>;
+}
+
 export interface TerminalReservation {
   id: number;
   reservationNo: string;
@@ -314,6 +485,7 @@ export interface TerminalReservation {
   remark?: string;
   createdAt: string;
   checkedInAt?: string;
+  serviceTask?: TerminalServiceTask;
 }
 
 export interface TerminalCashierOrderItem {
@@ -331,7 +503,7 @@ export interface TerminalCashierOrderCreateRequest {
   customerPhone?: string;
   items: TerminalCashierOrderItem[];
   discountAmount?: number;
-  paymentMethod?: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u6b21\u5361\u62b5\u6263' | 'cash' | 'wechat' | 'alipay' | 'card' | 'customer_card';
+  paymentMethod?: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u6b21\u5361\u62b5\u6263' | '\u4f1a\u5458\u4f59\u989d' | 'cash' | 'wechat' | 'alipay' | 'card' | 'customer_card' | 'member_balance';
   remark?: string;
 }
 
@@ -354,7 +526,7 @@ export interface TerminalCashierOrder {
 }
 
 export interface TerminalPaymentCompleteRequest {
-  paymentMethod: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u6b21\u5361\u62b5\u6263' | 'cash' | 'wechat' | 'alipay' | 'card' | 'customer_card';
+  paymentMethod: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u6b21\u5361\u62b5\u6263' | '\u4f1a\u5458\u4f59\u989d' | 'cash' | 'wechat' | 'alipay' | 'card' | 'customer_card' | 'member_balance';
   paidAmount?: number;
   transactionNo?: string;
 }
@@ -446,9 +618,15 @@ export interface TerminalPrintJob {
   copies: number;
   storeId: number;
   storeName: string;
-  status: 'queued' | 'printing' | 'completed' | 'failed';
+  status: 'queued' | 'pending' | 'printing' | 'completed' | 'failed';
+  errorMessage?: string;
   createdAt: string;
   completedAt?: string;
+}
+
+export interface TerminalPrintJobStatusUpdateRequest {
+  status: 'queued' | 'pending' | 'printing' | 'completed' | 'failed';
+  errorMessage?: string;
 }
 
 export interface TerminalSkinMetric {
@@ -469,6 +647,7 @@ export interface TerminalCreateSkinTestRequest {
   skinStatus: string;
   mainProblems: string;
   recommendationText?: string;
+  isFallback?: boolean;
 }
 
 export interface TerminalSkinTest {
@@ -482,6 +661,7 @@ export interface TerminalSkinTest {
   skinStatus: string;
   mainProblems: string;
   recommendationText: string;
+  isFallback?: boolean;
   createdAt: string;
 }
 
@@ -496,6 +676,23 @@ export interface TerminalRecommendation {
   payload?: Record<string, unknown>;
 }
 
+export interface TerminalNextBestAction {
+  id: string;
+  type: 'recommend_project' | 'create_follow_up' | 'service_care' | string;
+  title: string;
+  reason: string;
+  priority: 'high' | 'medium' | 'low' | string;
+  actionLabel: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface TerminalNextBestActionsResponse {
+  customerId: number;
+  customerName: string;
+  generatedAt: string;
+  actions: TerminalNextBestAction[];
+}
+
 export interface TerminalRecommendationEventRequest {
   recommendationId: number;
   customerId: number;
@@ -503,6 +700,39 @@ export interface TerminalRecommendationEventRequest {
   taskId?: number;
   orderId?: number;
   note?: string;
+}
+
+export interface TerminalFollowUpTaskCreateRequest {
+  customerId: number;
+  recommendationId?: number;
+  taskId?: number;
+  orderId?: number;
+  channel?: 'phone' | 'wechat' | 'sms' | 'offline' | string;
+  script?: string;
+  note?: string;
+  remark?: string;
+  dueAt?: string;
+}
+
+export interface TerminalFollowUpTask {
+  id: number;
+  customerId: number;
+  customerName?: string;
+  customerPhone?: string;
+  status: 'pending' | 'completed' | string;
+  channel?: string;
+  script?: string;
+  dueAt?: string;
+  result?: string;
+  completionEventId?: number;
+  createdAt?: string;
+  completedAt?: string;
+}
+
+export interface TerminalFollowUpTaskCompleteRequest {
+  result?: string;
+  note?: string;
+  orderId?: number;
 }
 
 export interface TerminalPromotion {
@@ -521,6 +751,79 @@ export interface TerminalConsumptionRecordCreateRequest {
   beauticianId: number;
   items: TerminalConsumptionItem[];
   deviceId?: number;
+  remark?: string;
+}
+
+export interface TerminalServiceRecordCreateRequest {
+  taskId?: number;
+  customerId: number;
+  projectId?: number;
+  beauticianId?: number;
+  result?: string;
+  customerFeedback?: string;
+  nextSuggestion?: string;
+  remark?: string;
+  images?: string[];
+  consumptionItems?: TerminalConsumptionItem[];
+  transferToCashier?: boolean;
+  nextReservationSuggestion?: string;
+}
+
+export interface TerminalServiceRecordResponse {
+  task: TerminalServiceTask;
+  serviceRecord?: {
+    id: number;
+    customerId?: number;
+    consumeContent?: string;
+    note?: string;
+    createdAt: string;
+  };
+  nextActions?: string[];
+}
+
+export interface TerminalBalanceAccount {
+  customerId: number;
+  customerName: string;
+  customerPhone: string;
+  storeId: number;
+  cashBalance: number;
+  giftBalance: number;
+  totalBalance: number;
+  status: string;
+  updatedAt: string;
+  lastTransaction?: {
+    id: number;
+    transactionNo: string;
+    type: 'consume' | 'refund' | 'adjust' | 'recharge' | string;
+    amount: number;
+    giftAmount: number;
+    cashBalanceAfter: number;
+    giftBalanceAfter: number;
+    createdAt: string;
+  };
+}
+
+export interface TerminalBalanceConsumeRequest {
+  customerId: number;
+  amount: number;
+  giftAmount?: number;
+  orderId?: number;
+  paymentMethod?: string;
+  remark?: string;
+}
+
+export interface TerminalBalanceRefundRequest {
+  customerId: number;
+  amount: number;
+  giftAmount?: number;
+  orderId?: number;
+  remark?: string;
+}
+
+export interface TerminalBalanceAdjustRequest {
+  customerId: number;
+  cashDelta?: number;
+  giftDelta?: number;
   remark?: string;
 }
 

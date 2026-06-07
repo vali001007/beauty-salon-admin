@@ -12,6 +12,19 @@ export function buildMarketingActivityUrl(activityId: string | number) {
   return `${MARKETING_SHARE_BASE_URL}/activity/${activityId}`;
 }
 
+export function buildMarketingPageUrl(
+  slug: string,
+  params?: Record<string, string | number | boolean | undefined | null>,
+) {
+  const url = new URL(`${MARKETING_SHARE_BASE_URL}/page/${encodeURIComponent(slug)}`);
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return url.toString();
+}
+
 export const MARKETING_RECOMMENDATION_IMAGES = [
   ...splitConfiguredImages(import.meta.env.VITE_MARKETING_RECOMMENDATION_IMAGES),
   'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',

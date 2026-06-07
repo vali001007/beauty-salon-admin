@@ -247,6 +247,15 @@ export const PERMISSION_CATALOG: Permission[] = [
     legacyCodes: ['order:products', 'order:view'],
   },
   {
+    code: 'core:order:projects',
+    name: '项目订单',
+    type: 'menu',
+    module: '订单管理',
+    platform: 'core',
+    description: '项目订单管理',
+    legacyCodes: ['order:projects'],
+  },
+  {
     code: 'core:order:member-cards',
     name: '会员卡管理',
     type: 'menu',
@@ -606,6 +615,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'core:goods:products',
     'core:goods:cards',
     'core:order:products',
+    'core:order:projects',
     'core:order:member-cards',
     'core:order:card-orders',
     'core:order:card-usage',
@@ -653,6 +663,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   cashier: [
     'core:dashboard:view',
     'core:order:products',
+    'core:order:projects',
     'core:order:member-cards',
     'core:order:card-orders',
     'core:order:card-usage',

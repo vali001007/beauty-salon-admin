@@ -19,6 +19,12 @@ export interface MarketingActivity {
   posterTitleColor?: string;
   pageSchema?: ActivityPageSchema;
   sourceRecommendationId?: string | number;
+  predictionRunId?: string | number;
+  audienceSnapshotId?: string | number;
+  audienceSnapshotJson?: AudienceSnapshot;
+  sourceSignalsJson?: Record<string, unknown> | string[];
+  offerJson?: RecommendedOffer;
+  recommendedItemsJson?: RecommendedItem[];
   aiGenerationId?: string;
   publishStatus?: 'draft' | 'published' | 'offline';
   publishedAt?: string;
@@ -55,6 +61,86 @@ export interface MarketingRecommendation {
   predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy';
   predictionRunFinishedAt?: string;
   dataEvidence?: string[];
+  priority?: RecommendationPriority;
+  executionModes?: RecommendationExecutionMode[];
+  preferredMode?: RecommendationExecutionMode;
+  modeReason?: string;
+  recommendedChannels?: RecommendedChannel[];
+  triggerRule?: RecommendedTriggerRule;
+  recommendedActions?: RecommendedAction[];
+  offer?: RecommendedOffer;
+  recommendedItems?: RecommendedItem[];
+  audienceSnapshot?: AudienceSnapshot;
+  sourceSignals?: string[];
+  totalCustomers?: number;
+  triggerType?: MarketingTriggerType;
+  preferAutoRule?: boolean;
+}
+
+export type RecommendationPriority = 'P0' | 'P1' | 'P2' | 'P3';
+export type RecommendationExecutionMode = 'activity' | 'automation';
+
+export interface AudienceSnapshot {
+  predictionRunId?: number;
+  generatedAt: string;
+  ruleSummary: string;
+  customerIds: number[];
+  totalCustomers: number;
+  sampleReasons: Array<{
+    customerId: number;
+    reason: string;
+    score: number;
+  }>;
+}
+
+export interface RecommendedChannel {
+  channel: 'sms' | 'miniapp' | 'wechat' | 'group' | 'store' | 'moments';
+  label: string;
+  reason: string;
+  priority: RecommendationPriority;
+}
+
+export interface RecommendedTriggerRule {
+  type: MarketingTriggerType;
+  params: Record<string, MarketingParamValue>;
+  defaultEditable: boolean;
+  reason: string;
+}
+
+export interface RecommendedAction {
+  type: MarketingAction['type'] | 'consultant_task';
+  value: string;
+  channel?: MarketingAction['channel'];
+  reason: string;
+}
+
+export interface RecommendedOffer {
+  type:
+    | 'money_off'
+    | 'percentage_off'
+    | 'gift'
+    | 'trial_price'
+    | 'points'
+    | 'member_privilege'
+    | 'free_service'
+    | 'bundle';
+  label: string;
+  threshold?: number;
+  amount?: number;
+  discountRate?: number;
+  validDays?: number;
+  reason: string;
+}
+
+export interface RecommendedItem {
+  type: 'project' | 'product' | 'card' | 'package';
+  id?: number;
+  name: string;
+  category?: string;
+  price?: number;
+  activityPrice?: number;
+  reason: string;
+  confidence: number;
 }
 
 export interface PredictionReason {
@@ -125,6 +211,18 @@ export type MarketingTriggerType =
   | 'seasonal'
   | 'care_cycle'
   | 'card_expiry'
+  | 'coupon_expiry'
+  | 'coupon_claimed_unused'
+  | 'browse_abandonment'
+  | 'booking_abandonment'
+  | 'appointment_reminder'
+  | 'no_show_recovery'
+  | 'package_remaining'
+  | 'product_replenishment'
+  | 'seasonal_skin_care'
+  | 'holiday_campaign'
+  | 'vip_privilege_care'
+  | 'referral_campaign'
   | 'last_visit'
   | 'consumption'
   | 'visit_frequency'
@@ -159,7 +257,7 @@ export interface MarketingTriggerOption {
   category: MarketingTriggerCategory;
   label: string;
   description: string;
-  priority: 'P0' | 'P1' | 'P2';
+  priority: RecommendationPriority;
   paramSchema: MarketingTriggerParamSchema[];
   defaultParams: Record<string, MarketingParamValue>;
 }

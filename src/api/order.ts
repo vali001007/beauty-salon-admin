@@ -8,9 +8,20 @@ import type {
   ProductOrder,
   ProductOrderCreatePayload,
 } from '@/types';
-import { realGetProductOrders, realGetProductOrderById, realCreateProductOrder, realUpdateProductOrder, realDeleteProductOrder, realRefundProductOrder } from './real/order';
+import {
+  realCreateProductOrder,
+  realCreateProjectOrder,
+  realDeleteProductOrder,
+  realGetProductOrderById,
+  realGetProductOrders,
+  realGetProjectOrderById,
+  realGetProjectOrders,
+  realRefundProductOrder,
+  realUpdateProductOrder,
+} from './real/order';
 import {
   realDeductMemberCard,
+  realGetMemberCardDeductRecordsPaginated,
   realGetMemberCardsPaginated,
   realGetMemberCardTransactions,
   realGiftMemberCard,
@@ -36,11 +47,23 @@ export const deleteProductOrder: (id: number) => Promise<void> =
 export const refundProductOrder: (id: number) => Promise<ProductOrder> =
   realRefundProductOrder;
 
+export const getProjectOrders: (params?: { status?: string; keyword?: string; storeId?: number }) => Promise<ProductOrder[]> =
+  realGetProjectOrders;
+
+export const getProjectOrderById: (id: number) => Promise<ProductOrder | undefined> =
+  realGetProjectOrderById;
+
+export const createProjectOrder: (data: ProductOrderCreatePayload) => Promise<ProductOrder> =
+  realCreateProjectOrder;
+
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
-import { realGetProductOrdersPaginated } from './real/order';
+import { realGetProductOrdersPaginated, realGetProjectOrdersPaginated } from './real/order';
 
 export const getProductOrdersPaginated: (params: PaginationParams & { status?: string; keyword?: string; storeId?: number }) => Promise<PaginatedResponse<ProductOrder>> =
   realGetProductOrdersPaginated;
+
+export const getProjectOrdersPaginated: (params: PaginationParams & { status?: string; keyword?: string; storeId?: number }) => Promise<PaginatedResponse<ProductOrder>> =
+  realGetProjectOrdersPaginated;
 
 export const getMemberCardsPaginated: (
   params: PaginationParams & { keyword?: string; storeId?: number },
@@ -60,3 +83,7 @@ export const deductMemberCard: (id: number, data: MemberCardDeductPayload) => Pr
 
 export const getMemberCardTransactions: (accountId: number) => Promise<MemberCardTransaction[]> =
   realGetMemberCardTransactions;
+
+export const getMemberCardDeductRecordsPaginated: (
+  params: PaginationParams & { keyword?: string; storeId?: number },
+) => Promise<PaginatedResponse<MemberCardTransaction>> = realGetMemberCardDeductRecordsPaginated;

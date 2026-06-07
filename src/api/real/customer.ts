@@ -1,4 +1,9 @@
-import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
+import type {
+  Customer,
+  CustomerConsumptionRecord,
+  CustomerHealthProfile,
+  CustomerMiniappBehaviorAnalysis,
+} from '@/types';
 import apiClient from '../client';
 
 export async function realGetCustomers(params?: { keyword?: string; memberLevel?: string; storeName?: string }): Promise<Customer[]> {
@@ -46,4 +51,8 @@ export async function realUpdateCustomerHealthProfile(
   data: Partial<Omit<CustomerHealthProfile, 'id' | 'customerId' | 'name'>>,
 ): Promise<CustomerHealthProfile> {
   return apiClient.put(`/customers/${customerId}/health-profile`, data);
+}
+
+export async function realGetCustomerMiniappBehaviorAnalysis(): Promise<CustomerMiniappBehaviorAnalysis> {
+  return apiClient.get('/customers/miniapp-behavior-analysis');
 }
