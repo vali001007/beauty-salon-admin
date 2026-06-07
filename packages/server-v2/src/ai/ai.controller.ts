@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AiService } from './ai.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { Permissions } from '../common/decorators/permissions.decorator.js';
 
 @ApiTags('AI')
 @ApiBearerAuth()
@@ -83,9 +84,22 @@ export class AiController {
     return this.aiService.resolveTerminalIntent(dto, userId, storeId ? +storeId : undefined);
   }
 
+  @Get('audit-logs/summary')
+  @Permissions('core:system:view')
+  @ApiOperation({ summary: 'AI审计日志今日汇总' })
+  getAuditLogSummary(@Query('scenario') scenario?: string, @Query('status') status?: string) {
+    return this.aiService.getAuditLogSummary({ scenario, status });
+  }
+
   @Get('audit-logs/paginated')
+  @Permissions('core:system:view')
   @ApiOperation({ summary: '获取AI审计日志' })
-  getAuditLogs(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('scenario') scenario?: string) {
-    return this.aiService.getAuditLogs({ page, pageSize, scenario });
+  getAuditLogs(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('scenario') scenario?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.aiService.getAuditLogs({ page, pageSize, scenario, status });
   }
 }

@@ -5,14 +5,24 @@ import { CurrentDevice } from './decorators/current-device.decorator.js';
 import {
   CheckoutDto,
   ConsumeCardDto,
+  ConsumeBalanceDto,
+  CreateTerminalAutomationDto,
   CreateCardOrderDto,
   CreateRechargeOrderDto,
+  CreateReservationDto,
   CreateServiceTaskDto,
   CreateSkinTestDto,
+  CreateTerminalServiceRecordDto,
   DeviceHeartbeatDto,
   DeviceLoginDto,
   QuickCreateCustomerDto,
+  RefundBalanceDto,
+  ReservationAvailabilityQueryDto,
+  RescheduleReservationDto,
   UpdateTerminalCustomerHealthProfileDto,
+  UpdateReservationDto,
+  UpdateTerminalAutomationDto,
+  AdjustBalanceDto,
   VerifyCardDto,
 } from './dto/index.js';
 import { DeviceAuthGuard } from './guards/device-auth.guard.js';
@@ -52,6 +62,14 @@ export class TerminalDeviceController {
   @ApiOperation({ summary: '当前设备信息' })
   getInfo(@CurrentDevice('id') deviceId: number) {
     return this.terminalService.getDeviceInfo(deviceId);
+  }
+
+  @Get('status')
+  @UseGuards(DeviceAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '终端设备与外设状态' })
+  getDeviceStatus(@CurrentDevice('storeId') storeId: number, @CurrentDevice('id') deviceId: number) {
+    return this.terminalService.getDeviceStatus(storeId, deviceId);
   }
 }
 
@@ -143,10 +161,22 @@ export class TerminalCustomerController {
     return this.terminalService.getCustomerCards(id);
   }
 
+  @Get(':id/balance')
+  @ApiOperation({ summary: '客户储值余额' })
+  getBalance(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.getCustomerBalance(storeId, id);
+  }
+
   @Get(':id/recommendations')
   @ApiOperation({ summary: '客户推荐' })
   getRecommendations(@Param('id', ParseIntPipe) id: number) {
     return this.terminalService.getCustomerRecommendations(id);
+  }
+
+  @Get(':id/next-best-actions')
+  @ApiOperation({ summary: '客户下一步最佳动作' })
+  getNextBestActions(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.getCustomerNextBestActions(storeId, id);
   }
 }
 
@@ -161,6 +191,18 @@ export class TerminalTaskController {
   @ApiOperation({ summary: '今日服务任务' })
   list(@CurrentDevice('storeId') storeId: number, @CurrentDevice('id') deviceId: number) {
     return this.terminalService.listTasks(storeId, deviceId);
+  }
+
+  @Get(':id/service-record')
+  @ApiOperation({ summary: '服务记录详情' })
+  getServiceRecord(@Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.getServiceRecord(id);
+  }
+
+  @Put(':id/service-record')
+  @ApiOperation({ summary: '补充或修改服务记录' })
+  updateServiceRecord(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number, @Body() dto: CreateTerminalServiceRecordDto) {
+    return this.terminalService.updateServiceRecord(storeId, id, dto);
   }
 
   @Get(':id')
@@ -191,6 +233,12 @@ export class TerminalTaskController {
   @ApiOperation({ summary: '取消服务' })
   cancel(@Param('id', ParseIntPipe) id: number, @Body('reason') reason?: string) {
     return this.terminalService.cancelTask(id, reason);
+  }
+
+  @Post(':id/transfer-cashier')
+  @ApiOperation({ summary: '服务任务转前台收银' })
+  transferCashier(@Param('id', ParseIntPipe) id: number, @Body('remark') remark?: string) {
+    return this.terminalService.transferTaskToCashier(id, remark);
   }
 }
 
@@ -259,16 +307,52 @@ export class TerminalOrderController {
     return this.terminalService.createRechargeOrder(storeId, dto);
   }
 
+  @Post('balance/consume')
+  @ApiOperation({ summary: '会员余额消费' })
+  consumeBalance(@CurrentDevice('storeId') storeId: number, @Body() dto: ConsumeBalanceDto) {
+    return this.terminalService.consumeBalance(storeId, dto);
+  }
+
+  @Post('balance/refund')
+  @ApiOperation({ summary: '会员余额退款' })
+  refundBalance(@CurrentDevice('storeId') storeId: number, @Body() dto: RefundBalanceDto) {
+    return this.terminalService.refundBalance(storeId, dto);
+  }
+
+  @Post('balance/adjust')
+  @ApiOperation({ summary: '会员余额调整' })
+  adjustBalance(@CurrentDevice('storeId') storeId: number, @Body() dto: AdjustBalanceDto) {
+    return this.terminalService.adjustBalance(storeId, dto);
+  }
+
   @Post('print-jobs')
   @ApiOperation({ summary: '创建打印任务' })
   createPrintJob(@CurrentDevice('storeId') storeId: number, @Body() dto: any) {
     return this.terminalService.createPrintJob(storeId, dto);
   }
 
+  @Get('print-jobs')
+  @ApiOperation({ summary: '打印任务队列' })
+  listPrintJobs(@CurrentDevice('storeId') storeId: number, @Query() query: any) {
+    return this.terminalService.listPrintJobs(storeId, query);
+  }
+
   @Get('print-jobs/:id')
   @ApiOperation({ summary: '打印任务状态' })
   getPrintJob(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
     return this.terminalService.getPrintJob(storeId, id);
+  }
+
+  @Post('print-jobs/:id/retry')
+  @ApiOperation({ summary: '重试打印任务' })
+  retryPrintJob(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.retryPrintJob(storeId, id);
+  }
+
+  @Patch('print-jobs/:id/status')
+  @ApiOperation({ summary: '更新打印任务状态' })
+  updatePrintJobStatus(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.terminalService.updatePrintJobStatus(storeId, id, dto);
   }
 
   @Get('card-usage-records/paginated')
@@ -281,6 +365,24 @@ export class TerminalOrderController {
   @ApiOperation({ summary: '提交服务消耗记录' })
   createConsumptionRecord(@CurrentDevice('storeId') storeId: number, @Body() dto: any) {
     return this.terminalService.createConsumptionRecord(dto, storeId);
+  }
+
+  @Post('service-records')
+  @ApiOperation({ summary: '提交终端服务记录' })
+  createServiceRecord(@CurrentDevice('storeId') storeId: number, @Body() dto: CreateTerminalServiceRecordDto) {
+    return this.terminalService.createServiceRecord(storeId, dto);
+  }
+
+  @Post('follow-up-tasks')
+  @ApiOperation({ summary: '创建客户邀约跟进任务' })
+  createFollowUpTask(@CurrentDevice('storeId') storeId: number, @CurrentDevice('id') deviceId: number, @Body() dto: any) {
+    return this.terminalService.createFollowUpTask(storeId, deviceId, dto);
+  }
+
+  @Patch('follow-up-tasks/:id/complete')
+  @ApiOperation({ summary: '完成客户邀约跟进任务' })
+  completeFollowUpTask(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.terminalService.completeFollowUpTask(storeId, id, dto);
   }
 }
 
@@ -335,16 +437,40 @@ export class TerminalReservationController {
     return this.terminalService.getTodayReservations(storeId);
   }
 
+  @Get('availability')
+  @ApiOperation({ summary: '查询可预约时段' })
+  getAvailability(@CurrentDevice('storeId') storeId: number, @Query() query: ReservationAvailabilityQueryDto) {
+    return this.terminalService.getReservationAvailability(storeId, query);
+  }
+
   @Post()
   @ApiOperation({ summary: '创建预约' })
-  create(@CurrentDevice('storeId') storeId: number, @Body() dto: any) {
+  create(@CurrentDevice('storeId') storeId: number, @Body() dto: CreateReservationDto) {
     return this.terminalService.createReservation(storeId, dto);
   }
 
   @Put(':id')
   @ApiOperation({ summary: '更新预约' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateReservationDto) {
     return this.terminalService.updateReservation(id, dto);
+  }
+
+  @Post(':id/reschedule')
+  @ApiOperation({ summary: '预约改期' })
+  reschedule(@Param('id', ParseIntPipe) id: number, @Body() dto: RescheduleReservationDto) {
+    return this.terminalService.rescheduleReservation(id, dto);
+  }
+
+  @Post(':id/no-show')
+  @ApiOperation({ summary: '标记爽约' })
+  noShow(@Param('id', ParseIntPipe) id: number, @Body('reason') reason?: string) {
+    return this.terminalService.markReservationNoShow(id, reason);
+  }
+
+  @Post(':id/create-task')
+  @ApiOperation({ summary: '由预约创建服务任务' })
+  createTask(@CurrentDevice('id') deviceId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.createTaskFromReservation(id, deviceId);
   }
 
   @Patch(':id/confirm')
@@ -355,8 +481,8 @@ export class TerminalReservationController {
 
   @Patch(':id/check-in')
   @ApiOperation({ summary: '预约到店' })
-  checkIn(@Param('id', ParseIntPipe) id: number) {
-    return this.terminalService.checkInReservation(id);
+  checkIn(@CurrentDevice('id') deviceId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.checkInReservation(id, deviceId);
   }
 
   @Patch(':id/cancel')
@@ -401,6 +527,94 @@ export class TerminalInventoryController {
   @ApiOperation({ summary: '可用活动' })
   getPromotions(@CurrentDevice('storeId') storeId: number, @Query() query: any) {
     return this.terminalService.getPromotions(storeId, query);
+  }
+}
+
+@ApiTags('Terminal - 自动化')
+@ApiBearerAuth()
+@UseGuards(DeviceAuthGuard)
+@Controller('terminal/automations')
+export class TerminalAutomationController {
+  constructor(private terminalService: TerminalService) {}
+
+  @Get('templates')
+  @ApiOperation({ summary: '终端自动化 P0 模板' })
+  templates() {
+    return this.terminalService.getTerminalAutomationTemplates();
+  }
+
+  @Get()
+  @ApiOperation({ summary: '终端自动化策略列表' })
+  list(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.listTerminalAutomationStrategies(storeId);
+  }
+
+  @Post('preview')
+  @ApiOperation({ summary: '预览终端自动化命中对象与风险' })
+  preview(@CurrentDevice('storeId') storeId: number, @Body() dto: CreateTerminalAutomationDto) {
+    return this.terminalService.previewTerminalAutomationStrategy(storeId, dto);
+  }
+
+  @Post()
+  @ApiOperation({ summary: '从终端草稿创建或启用自动化策略' })
+  create(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() dto: CreateTerminalAutomationDto,
+  ) {
+    return this.terminalService.createTerminalAutomationStrategy(storeId, userId, dto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: '更新终端自动化策略' })
+  update(
+    @CurrentDevice('storeId') storeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTerminalAutomationDto,
+  ) {
+    return this.terminalService.updateTerminalAutomationStrategy(storeId, id, dto);
+  }
+
+  @Post(':id/enable')
+  @ApiOperation({ summary: '启用终端自动化策略' })
+  enable(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.enableTerminalAutomationStrategy(storeId, id);
+  }
+
+  @Post(':id/pause')
+  @ApiOperation({ summary: '暂停终端自动化策略' })
+  pause(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.pauseTerminalAutomationStrategy(storeId, id);
+  }
+
+  @Post(':id/run-once')
+  @ApiOperation({ summary: '手动执行一次终端自动化策略' })
+  runOnce(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.runTerminalAutomationOnce(storeId, id);
+  }
+
+  @Post('executions/run-due')
+  @ApiOperation({ summary: '扫描并执行当前门店已到期自动化' })
+  runDue(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.runDueTerminalAutomations(storeId);
+  }
+
+  @Get('executions/today')
+  @ApiOperation({ summary: '今日终端自动化执行摘要' })
+  getTodaySummary(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getTerminalAutomationTodaySummary(storeId);
+  }
+
+  @Get('executions/:id')
+  @ApiOperation({ summary: '终端自动化执行详情' })
+  getExecutionDetail(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.getTerminalAutomationExecutionDetail(storeId, id);
+  }
+
+  @Post('touches/:id/follow-up')
+  @ApiOperation({ summary: '标记终端自动化触达已跟进' })
+  markTouchFollowedUp(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.markTerminalAutomationTouchFollowedUp(storeId, id);
   }
 }
 

@@ -49,11 +49,36 @@ describe('AiService', () => {
     expect(result.safety).toMatchObject({ masked: true, blocked: false });
   });
 
-  it('generates terminal service advice with stable scenario', async () => {
+  it('generates terminal service advice with structured fields', async () => {
     const result = await service.generateTerminalServiceAdvice({ customerId: 1, projectId: 2 });
 
     expect(result.scenario).toBe('terminal_service_advice');
     expect(result.usage.provider).toBe('mock');
+    expect(result.structured).toMatchObject({
+      preChecks: expect.any(Array),
+      keySteps: expect.any(Array),
+      materialUsage: expect.any(Array),
+      followUpAdvice: expect.any(String),
+      nextBookingHint: expect.any(String),
+    });
+    expect(result.structured?.preChecks.length).toBeGreaterThan(0);
+  });
+
+  it('generates next best action with structured fields', async () => {
+    const result = await service.recommendNextBestAction({
+      customerId: 1,
+      context: { daysSinceVisit: 35, projectName: '舒缓补水护理' },
+    });
+
+    expect(result.scenario).toBe('next_best_action');
+    expect(result.usage.provider).toBe('mock');
+    expect(result.structured).toMatchObject({
+      action: expect.stringMatching(/recommend_project|send_care_reminder|offer_card|escalate_to_consultant/),
+      reason: expect.any(String),
+      urgency: expect.stringMatching(/now|this_week|this_month/),
+      confidence: expect.any(Number),
+    });
+    expect(result.structured?.reason).toContain('35');
   });
 
   it('returns a usable skin photo fallback when Face++ credentials are not configured', async () => {
@@ -64,7 +89,9 @@ describe('AiService', () => {
     });
 
     expect(result.customerId).toBe(1);
-    expect(result.instrument).toContain('演示结果');
+    expect(result.isFallback).toBe(true);
+    expect(result.instrument).toContain('仅供参考');
+    expect(result.explanation).toContain('仅供顾问接待参考');
     expect(result.metrics.moisture).toBeGreaterThanOrEqual(0);
     expect(result.metrics.moisture).toBeLessThanOrEqual(100);
   });
@@ -245,6 +272,70 @@ describe('AiService', () => {
     });
   });
 
+  it('uses fallback provider when primary provider is unavailable', async () => {
+    const prisma = {
+      aiAuditLog: {
+        create: jest.fn(),
+      },
+    };
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chatcmpl-fallback',
+        choices: [{ message: { content: 'fallback provider 已返回建议。' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+    });
+    global.fetch = fetchMock as any;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, fallback?: string) => {
+              const values: Record<string, string> = {
+                LLM_PROVIDER: 'anthropic',
+                LLM_API_KEY: '',
+                LLM_BASE_URL: 'https://primary.example/v1/messages',
+                LLM_MODEL: 'claude-primary',
+                LLM_FALLBACK_PROVIDER: 'openai-compat',
+                LLM_FALLBACK_API_KEY: 'fallback-key',
+                LLM_FALLBACK_BASE_URL: 'https://fallback.example/v1',
+                LLM_FALLBACK_CHAT_PATH: '/chat/completions',
+                LLM_FALLBACK_MODEL: 'fallback-model',
+              };
+              return values[key] ?? fallback;
+            }),
+          },
+        },
+      ],
+    }).compile();
+    const fallbackService = module.get<AiService>(AiService);
+
+    const result = await fallbackService.chat([{ role: 'user', content: '今日经营怎么样' }]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://fallback.example/v1/chat/completions');
+    expect(result.text).toBe('fallback provider 已返回建议。');
+    expect(result.usage).toMatchObject({
+      provider: 'openai_compatible(fallback)',
+      model: 'fallback-model',
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+    expect(prisma.aiAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scenario: 'chat',
+        provider: 'openai_compatible(fallback)',
+        model: 'fallback-model',
+        status: 'success',
+      }),
+    });
+  });
+
   it('returns a readable blocked fallback when DeepSeek key is missing', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -382,5 +473,37 @@ describe('AiService', () => {
         status: 'success',
       }),
     });
+  });
+
+  it('removes internal strategy labels from generated marketing copy', async () => {
+    const result = await service.generateMarketingCopy({
+      campaignName: '1266 位客户进入 30 天复购窗口',
+      targetAudience: '1266 位客户进入 30 天复购窗口',
+      offer: '复购专享满500减80',
+      channel: 'miniapp',
+      channels: ['miniapp', 'sms'],
+      source: '智能推荐策略：1266 位客户进入 30 天复购窗口',
+      segment: '复购窗口客户群体',
+      triggerReasons: ['RFM 模型命中', '护理周期复购方案'],
+      projectNames: ['护理周期复购方案'],
+    });
+
+    const output = JSON.stringify({
+      text: result.text,
+      variants: result.variants,
+      structured: result.structured,
+    });
+
+    expect(result.scenario).toBe('marketing-copy');
+    expect(result.safety.blocked).toBe(false);
+    expect(output).toContain('护理焕新礼');
+    expect(output).toContain('复购专享满500减80');
+    expect(output).not.toContain('1266');
+    expect(output).not.toContain('复购窗口');
+    expect(output).not.toContain('客户进入');
+    expect(output).not.toContain('护理周期复购方案');
+    expect(output).not.toContain('营销策略');
+    expect(output).not.toContain('RFM');
+    expect(output).not.toContain('算法');
   });
 });

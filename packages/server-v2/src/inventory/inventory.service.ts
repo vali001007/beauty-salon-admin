@@ -37,17 +37,18 @@ export class InventoryService {
     });
   }
 
-  async getExpiring(page = 1, pageSize = 20) {
+  async getExpiring(page = 1, pageSize = 20, storeId?: number) {
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-    const where = { expiryDate: { lte: thirtyDaysFromNow }, stock: { gt: 0 } };
+    const where: any = { expiryDate: { lte: thirtyDaysFromNow }, stock: { gt: 0 } };
+    if (storeId) where.product = { storeId };
     const [items, total] = await Promise.all([
       this.prisma.stockBatch.findMany({
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { product: { select: { name: true, sku: true } } },
+        include: { product: { select: { name: true, sku: true, costPrice: true, store: { select: { name: true } } } } },
         orderBy: { expiryDate: 'asc' },
       }),
       this.prisma.stockBatch.count({ where }),

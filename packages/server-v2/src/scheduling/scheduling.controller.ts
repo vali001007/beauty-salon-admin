@@ -14,14 +14,29 @@ export class SchedulingController {
   @Get()
   @Permissions('core:store:scheduling')
   @ApiOperation({ summary: '获取排班' })
-  findAll(@Headers('x-store-id') storeId?: string, @Query('date') date?: string) {
-    return this.schedulingService.findAll(storeId ? +storeId : undefined, date);
+  findAll(
+    @Headers('x-store-id') storeId?: string,
+    @Query('date') date?: string,
+    @Query('beauticianId') beauticianId?: string,
+    @Query('weekStart') weekStart?: string,
+  ) {
+    return this.schedulingService.findAll(
+      storeId ? +storeId : undefined,
+      date,
+      beauticianId ? +beauticianId : undefined,
+      weekStart,
+    );
   }
 
   @Put()
   @Permissions('core:store:scheduling')
   @ApiOperation({ summary: '保存排班' })
-  save(@Body('schedules') schedules: any[]) {
-    return this.schedulingService.save(schedules);
+  save(@Headers('x-store-id') storeId: string | undefined, @Body() body: any) {
+    return this.schedulingService.save(
+      body?.schedules ?? [],
+      storeId ? +storeId : undefined,
+      body?.beauticianId ? +body.beauticianId : undefined,
+      body?.weekStart,
+    );
   }
 }

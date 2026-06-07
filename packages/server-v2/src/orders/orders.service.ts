@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class OrdersService {
+  private readonly MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS = 30;
+
   constructor(private prisma: PrismaService) {}
 
   private toNumber(value: unknown): number {
@@ -38,19 +40,21 @@ export class OrdersService {
   }
 
   private normalizePaymentMethod(method?: string) {
-    const map: Record<string, string> = {
-      现金: 'cash',
-      微信: 'wechat',
-      支付宝: 'alipay',
-      银行卡: 'card',
-      次卡抵扣: 'customer_card',
-      cash: 'cash',
-      wechat: 'wechat',
-      alipay: 'alipay',
-      card: 'card',
-      bank_card: 'card',
-      customer_card: 'customer_card',
-    };
+      const map: Record<string, string> = {
+        现金: 'cash',
+        微信: 'wechat',
+        支付宝: 'alipay',
+        银行卡: 'card',
+        会员卡划扣: 'member_balance',
+        次卡抵扣: 'customer_card',
+        cash: 'cash',
+        wechat: 'wechat',
+        alipay: 'alipay',
+        card: 'card',
+        bank_card: 'card',
+        member_balance: 'member_balance',
+        customer_card: 'customer_card',
+      };
     return map[method || ''] || method || 'cash';
   }
 
@@ -178,6 +182,60 @@ export class OrdersService {
     });
   }
 
+  private async applyMarketingPageAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
+    if (!order.customerId || amount <= 0) return;
+    if (!tx.marketingPageLead || !tx.marketingPageAttribution) return;
+
+    try {
+      const existed = await tx.marketingPageAttribution.findFirst({
+        where: { orderId: order.id },
+        select: { id: true },
+      });
+      if (existed) return;
+
+      const now = new Date();
+      const windowStart = new Date(now.getTime() - this.MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS * 86400000);
+      const eligibleLeads = await tx.marketingPageLead.findMany({
+        where: {
+          customerId: order.customerId,
+          status: { not: 'expired' },
+          createdAt: { gte: windowStart },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      });
+      const lastLead = eligibleLeads[0];
+      if (!lastLead) return;
+
+      const duplicated = await tx.marketingPageAttribution.findFirst({
+        where: { leadId: lastLead.id, orderId: order.id },
+        select: { id: true },
+      });
+      if (duplicated) return;
+
+      await tx.marketingPageAttribution.create({
+        data: {
+          leadId: lastLead.id,
+          pageId: lastLead.pageId,
+          customerId: order.customerId,
+          orderId: order.id,
+          attributionType: 'last_touch',
+          attributedRevenue: amount,
+          attributionWindowDays: this.MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS,
+          touchedAt: lastLead.createdAt,
+          convertedAt: now,
+        },
+      });
+
+      await tx.marketingPageLead.update({
+        where: { id: lastLead.id },
+        data: { status: 'converted', convertedAt: now },
+      });
+    } catch (error) {
+      console.warn('营销页面归因写入失败', error);
+    }
+  }
+
   private async reverseMarketingAttribution(tx: any, orderId: number, refundAmount: number) {
     if (refundAmount <= 0) return;
 
@@ -200,8 +258,64 @@ export class OrdersService {
     }
   }
 
-  async findProductOrders(query: { page?: number; pageSize?: number; keyword?: string; status?: string; storeId?: number | string }) {
-    const { page = 1, pageSize = 20, keyword, status, storeId } = query;
+  private async deductMemberBalanceForOrder(tx: any, order: any, amount: number, remark?: string) {
+    if (!order.customerId) throw new BadRequestException('会员卡划扣需要先选择客户');
+    if (!order.storeId) throw new BadRequestException('会员卡划扣需要先选择门店');
+    if (amount <= 0) throw new BadRequestException('会员卡划扣金额必须大于 0');
+
+    const account = await tx.customerBalanceAccount.findUnique({
+      where: { customerId_storeId: { customerId: order.customerId, storeId: order.storeId } },
+    });
+    if (!account) throw new BadRequestException('该客户在当前门店没有可用会员卡账户');
+
+    const cashBalanceBefore = this.toNumber(account.cashBalance);
+    const giftBalanceBefore = this.toNumber(account.giftBalance);
+    const availableTotal = cashBalanceBefore + giftBalanceBefore;
+    if (amount > availableTotal) throw new BadRequestException('会员卡余额不足');
+
+    const giftDeduct = Math.min(giftBalanceBefore, amount);
+    const cashDeduct = amount - giftDeduct;
+    const cashBalanceAfter = cashBalanceBefore - cashDeduct;
+    const giftBalanceAfter = giftBalanceBefore - giftDeduct;
+
+    await tx.customerBalanceAccount.update({
+      where: { id: account.id },
+      data: {
+        cashBalance: cashBalanceAfter,
+        giftBalance: giftBalanceAfter,
+        status: 'active',
+      },
+    });
+
+    await tx.customerBalanceTransaction.create({
+      data: {
+        accountId: account.id,
+        customerId: order.customerId,
+        storeId: order.storeId,
+        orderId: order.id,
+        transactionNo: this.createBalanceTransactionNo(),
+        type: 'deduct',
+        amount: cashDeduct,
+        giftAmount: giftDeduct,
+        cashBalanceBefore,
+        cashBalanceAfter,
+        giftBalanceBefore,
+        giftBalanceAfter,
+        paymentMethod: 'member_balance',
+        remark: remark || `订单 ${order.orderNo} 会员卡划扣`,
+      },
+    });
+  }
+
+  async findProductOrders(query: {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    status?: string;
+    storeId?: number | string;
+    itemType?: string;
+  }) {
+    const { page = 1, pageSize = 20, keyword, status, storeId, itemType } = query;
     const where: any = {};
     if (status) {
       const normalizedStatus = this.normalizeOrderStatus(status);
@@ -209,6 +323,9 @@ export class OrdersService {
     }
     const normalizedStoreId = this.toNumber(storeId);
     if (normalizedStoreId > 0) where.storeId = normalizedStoreId;
+    if (itemType) {
+      where.orderItems = { some: { itemType } };
+    }
     if (keyword) {
       where.OR = [
         { orderNo: { contains: keyword, mode: 'insensitive' } },
@@ -239,6 +356,10 @@ export class OrdersService {
     return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
   }
 
+  async findProjectOrders(query: { page?: number; pageSize?: number; keyword?: string; status?: string; storeId?: number | string }) {
+    return this.findProductOrders({ ...query, itemType: 'project' });
+  }
+
   async findProductOrderById(id: number) {
     const order = await this.prisma.productOrder.findUnique({
       where: { id },
@@ -253,6 +374,23 @@ export class OrdersService {
       },
     });
     if (!order) throw new NotFoundException('订单不存在');
+    return this.serializeProductOrder(order);
+  }
+
+  async findProjectOrderById(id: number) {
+    const order = await this.prisma.productOrder.findFirst({
+      where: { id, orderItems: { some: { itemType: 'project' } } },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        store: { select: { id: true, name: true } },
+        orderItems: true,
+        paymentRecords: true,
+        refundRecords: true,
+        marketingAttributions: true,
+        recommendationEvents: true,
+      },
+    });
+    if (!order) throw new NotFoundException('项目订单不存在');
     return this.serializeProductOrder(order);
   }
 
@@ -295,13 +433,18 @@ export class OrdersService {
         });
       }
 
-      if (['completed', 'paid'].includes(status)) {
-        await tx.paymentRecord.create({
-          data: {
-            orderId: order.id,
-            paymentNo: this.createPaymentNo(),
-            method: payMethod,
-            amount: this.toNumber(data.paidAmount ?? totalAmount),
+        if (['completed', 'paid'].includes(status)) {
+          const paidAmount = this.toNumber(data.paidAmount ?? totalAmount);
+          if (payMethod === 'member_balance') {
+            await this.deductMemberBalanceForOrder(tx, order, paidAmount, data.remark);
+          }
+
+          await tx.paymentRecord.create({
+            data: {
+              orderId: order.id,
+              paymentNo: this.createPaymentNo(),
+              method: payMethod,
+              amount: paidAmount,
             status: 'success',
             transactionNo: data.transactionNo,
             paidAt: data.paidAt ? new Date(data.paidAt) : new Date(),
@@ -319,6 +462,7 @@ export class OrdersService {
           });
         }
         await this.applyMarketingAttribution(tx, order, totalAmount);
+        await this.applyMarketingPageAttribution(tx, order, totalAmount);
       }
 
       return tx.productOrder.findUnique({
@@ -332,6 +476,25 @@ export class OrdersService {
           marketingAttributions: true,
         },
       }).then((createdOrder) => this.serializeProductOrder(createdOrder));
+    });
+  }
+
+  async createProjectOrder(data: any) {
+    const items = Array.isArray(data.items) ? data.items : [];
+    const projectItems = items.map((item: any) => ({
+      ...item,
+      itemType: 'project',
+      type: 'project',
+      itemId: item.itemId ?? item.projectId,
+      projectId: item.projectId ?? item.itemId,
+      name: item.name ?? item.projectName ?? item.productName,
+      productName: item.productName ?? item.projectName ?? item.name,
+    }));
+
+    return this.createProductOrder({
+      ...data,
+      items: projectItems,
+      source: data.source ?? 'admin',
     });
   }
 
@@ -384,6 +547,7 @@ export class OrdersService {
             },
           });
           await this.applyMarketingAttribution(tx, order, amount);
+          await this.applyMarketingPageAttribution(tx, order, amount);
         }
       }
 
@@ -477,6 +641,14 @@ export class OrdersService {
     return {
       id: transaction.id,
       accountId: transaction.accountId,
+      accountNo: transaction.accountId ? String(transaction.accountId) : undefined,
+      customerId: transaction.customerId ?? transaction.customer?.id,
+      customerName: transaction.customer?.name ?? '',
+      customerPhone: transaction.customer?.phone ?? '',
+      storeId: transaction.storeId ?? transaction.store?.id,
+      storeName: transaction.store?.name ?? '',
+      orderId: transaction.orderId ?? transaction.order?.id,
+      orderNo: transaction.order?.orderNo ?? '',
       transactionNo: transaction.transactionNo,
       type: transaction.type,
       typeLabel: this.getMemberCardTypeLabel(transaction.type),
@@ -490,6 +662,48 @@ export class OrdersService {
       remark: transaction.remark,
       createdAt: transaction.createdAt,
     };
+  }
+
+  async findMemberCardDeductTransactionsPaginated(query: {
+    page?: number | string;
+    pageSize?: number | string;
+    keyword?: string;
+    storeId?: number | string;
+  }) {
+    const page = Math.max(1, this.toNumber(query.page) || 1);
+    const pageSize = Math.max(1, this.toNumber(query.pageSize) || 20);
+    const storeId = this.toNumber(query.storeId);
+    const keyword = query.keyword?.trim();
+    const where: any = { type: 'deduct' };
+    if (storeId > 0) where.storeId = storeId;
+    if (keyword) {
+      where.OR = [
+        { transactionNo: { contains: keyword, mode: 'insensitive' } },
+        { remark: { contains: keyword, mode: 'insensitive' } },
+        { customer: { name: { contains: keyword, mode: 'insensitive' } } },
+        { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
+        { store: { name: { contains: keyword, mode: 'insensitive' } } },
+        { order: { orderNo: { contains: keyword, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.customerBalanceTransaction.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          store: { select: { id: true, name: true } },
+          order: { select: { id: true, orderNo: true } },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.customerBalanceTransaction.count({ where }),
+    ]);
+
+    const normalizedItems = items.map((item) => this.serializeMemberCardTransaction(item));
+    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
   }
 
   async findMemberCardsPaginated(query: { page?: number | string; pageSize?: number | string; keyword?: string; storeId?: number | string }) {
@@ -661,6 +875,7 @@ export class OrdersService {
       });
 
       await this.applyMarketingAttribution(tx, order, rechargeAmount);
+      await this.applyMarketingPageAttribution(tx, order, rechargeAmount);
       return updatedAccount;
     });
 

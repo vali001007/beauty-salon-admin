@@ -67,15 +67,23 @@ export class InventoryController {
   @Get('expiring')
   @Permissions('core:inventory:expiry')
   @ApiOperation({ summary: '获取临期商品' })
-  getExpiring(@Query('page') page?: number, @Query('pageSize') pageSize?: number) {
-    return this.inventoryService.getExpiring(page, pageSize);
+  getExpiring(
+    @Headers('x-store-id') storeId?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ) {
+    return this.inventoryService.getExpiring(page, pageSize, storeId ? Number(storeId) : undefined);
   }
 
   @Get('expiring/paginated')
   @Permissions('core:inventory:expiry')
   @ApiOperation({ summary: '分页获取临期商品' })
-  getExpiringPaginated(@Query('page') page?: number, @Query('pageSize') pageSize?: number) {
-    return this.inventoryService.getExpiring(page, pageSize);
+  getExpiringPaginated(
+    @Headers('x-store-id') storeId?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ) {
+    return this.inventoryService.getExpiring(page, pageSize, storeId ? Number(storeId) : undefined);
   }
 
   @Post('inbound')

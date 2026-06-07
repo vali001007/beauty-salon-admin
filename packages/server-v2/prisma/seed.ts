@@ -262,7 +262,7 @@ async function main() {
         'core:store:view', 'core:store:project-types', 'core:store:projects', 'core:store:beauticians',
         'core:store:beautician-levels', 'core:store:scheduling', 'core:store:reservations',
         'core:goods:types', 'core:goods:products', 'core:goods:cards',
-        'core:order:products', 'core:order:member-cards', 'core:order:card-orders', 'core:order:card-usage',
+        'core:order:products', 'core:order:projects', 'core:order:member-cards', 'core:order:card-orders', 'core:order:card-usage',
         'core:order:create', 'core:order:update', 'core:order:refund',
         'core:inventory:products', 'core:inventory:stock', 'core:inventory:purchase',
         'core:inventory:expiry', 'core:inventory:transfer', 'core:inventory:consumption',
@@ -299,7 +299,7 @@ async function main() {
       description: '收银权限',
       isSystem: true,
       permissions: [
-        'core:dashboard:view', 'core:order:products', 'core:order:member-cards', 'core:order:card-orders', 'core:order:card-usage',
+        'core:dashboard:view', 'core:order:products', 'core:order:projects', 'core:order:member-cards', 'core:order:card-orders', 'core:order:card-usage',
         'core:order:create', 'core:order:update', 'core:order:refund',
       ],
       platformScopes: { core: true, assist: false, terminal: false },

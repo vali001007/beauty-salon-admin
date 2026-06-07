@@ -9,3 +9,12 @@ export { CreateSkinTestDto } from './create-skin-test.dto.js';
 export { CreateCardOrderDto } from './card-order.dto.js';
 export { CreateRechargeOrderDto } from './recharge-order.dto.js';
 export { UpdateTerminalCustomerHealthProfileDto } from './customer-health-profile.dto.js';
+export {
+  CreateReservationDto,
+  ReservationAvailabilityQueryDto,
+  RescheduleReservationDto,
+  UpdateReservationDto,
+} from './reservation.dto.js';
+export { AdjustBalanceDto, ConsumeBalanceDto, RefundBalanceDto } from './balance.dto.js';
+export { CreateTerminalServiceRecordDto } from './service-record.dto.js';
+export { CreateTerminalAutomationDto, UpdateTerminalAutomationDto } from './automation.dto.js';

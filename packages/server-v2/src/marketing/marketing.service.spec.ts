@@ -165,19 +165,19 @@ describe('MarketingService', () => {
   });
 
   describe('getTriggerOptions', () => {
-    it('should return 15 trigger types', async () => {
+    it('should return upgraded trigger types', async () => {
       const result = await service.getTriggerOptions();
 
-      expect(result).toHaveLength(15);
+      expect(result).toHaveLength(24);
     });
 
     it('should include expected trigger categories', async () => {
       const result = await service.getTriggerOptions();
 
       const categories = [...new Set(result.map((t) => t.category))];
-      expect(categories).toContain('time');
-      expect(categories).toContain('behavior');
-      expect(categories).toContain('attribute');
+      expect(categories).toContain('时间触发');
+      expect(categories).toContain('行为触发');
+      expect(categories).toContain('属性触发');
     });
 
     it('should include birthday trigger', async () => {
@@ -186,7 +186,9 @@ describe('MarketingService', () => {
       const birthday = result.find((t) => t.type === 'birthday');
       expect(birthday).toBeDefined();
       expect(birthday!.name).toBe('生日触发');
-      expect(birthday!.category).toBe('time');
+      expect(birthday!.category).toBe('时间触发');
+      expect(birthday!.defaultParams).toBeDefined();
+      expect(birthday!.paramSchema).toBeDefined();
     });
 
     it('should include all expected trigger types', async () => {
@@ -203,6 +205,15 @@ describe('MarketingService', () => {
       expect(types).toContain('seasonal');
       expect(types).toContain('care_cycle');
       expect(types).toContain('card_expiry');
+      expect(types).toContain('coupon_expiry');
+      expect(types).toContain('coupon_claimed_unused');
+      expect(types).toContain('browse_abandonment');
+      expect(types).toContain('booking_abandonment');
+      expect(types).toContain('seasonal_skin_care');
+      expect(types).toContain('holiday_campaign');
+      expect(types).toContain('vip_privilege_care');
+      expect(types).toContain('product_replenishment');
+      expect(types).toContain('referral_campaign');
       expect(types).toContain('visit_frequency');
       expect(types).toContain('visit_gap');
       expect(types).toContain('service_interest');
@@ -323,7 +334,133 @@ describe('MarketingService', () => {
         title: expect.any(String),
         targetCount: 2,
         matchScore: expect.any(Number),
+        executionModes: ['activity'],
+        preferredMode: 'activity',
+        offer: expect.objectContaining({ label: expect.any(String) }),
+        recommendedItems: expect.any(Array),
+        recommendedChannels: expect.any(Array),
       });
+    });
+
+    it('should return fallback cards when prediction storage is unavailable', async () => {
+      prisma.predictionRun.findFirst.mockRejectedValue(new Error('prediction table unavailable'));
+      prisma.customer.count.mockRejectedValue(new Error('customer table unavailable'));
+
+      const result = await service.getRecommendations();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        targetCount: 0,
+        totalCustomers: 0,
+        executionModes: ['activity'],
+        preferredMode: 'activity',
+      });
+      expect(result[0].sourceSignals).toContain('fallback');
+    });
+
+    it('should ignore behavior event query failures while building cards', async () => {
+      prisma.predictionRun.findFirst.mockResolvedValue({
+        id: 9,
+        status: 'completed',
+        modelVersion: 'rules-v2',
+        customerCount: 1,
+        finishedAt: new Date('2026-06-01T00:00:00.000Z'),
+        summaryJson: {
+          churnDistribution: [],
+          repurchaseDistribution: [],
+          marketingResponseDistribution: [],
+          ltvDistribution: [],
+          avgMarketingResponseScore: 80,
+          expectedLtv6m: 1000,
+        },
+      });
+      prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+        {
+          id: 1,
+          runId: 9,
+          customerId: 100,
+          marketingResponseScore: 82,
+          repurchase30dScore: 75,
+          churnScore: 20,
+          ltv6m: 1000,
+          reasonJson: [],
+          featureJson: {},
+        },
+      ]);
+      prisma.customerBehaviorEvent = {
+        findMany: jest.fn().mockRejectedValue(new Error('behavior table unavailable')),
+      };
+
+      const result = await service.getRecommendations();
+
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('predictionRunId', 9);
+    });
+
+    it('should prioritize realtime card and care-cycle signals in recommendation cards', async () => {
+      prisma.predictionRun.findFirst.mockResolvedValue({
+        id: 10,
+        status: 'completed',
+        modelVersion: 'rules-v2',
+        customerCount: 2,
+        storeId: 1,
+        finishedAt: new Date('2026-06-01T00:00:00.000Z'),
+        summaryJson: {
+          churnDistribution: [],
+          repurchaseDistribution: [],
+          marketingResponseDistribution: [],
+          ltvDistribution: [],
+          avgMarketingResponseScore: 78,
+          expectedLtv6m: 2000,
+        },
+      });
+      prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+        {
+          id: 1,
+          runId: 10,
+          customerId: 201,
+          marketingResponseScore: 82,
+          repurchase30dScore: 40,
+          churnScore: 20,
+          ltv6m: 1000,
+          reasonJson: [],
+          featureJson: {},
+        },
+        {
+          id: 2,
+          runId: 10,
+          customerId: 202,
+          marketingResponseScore: 76,
+          repurchase30dScore: 60,
+          churnScore: 25,
+          ltv6m: 1000,
+          reasonJson: [],
+          featureJson: {},
+        },
+      ]);
+      prisma.customerCard = {
+        findMany: jest.fn().mockResolvedValue([{ customerId: 201 }]),
+      };
+      prisma.cardUsageRecord = {
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      prisma.reservation = {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ customerId: 202, date: new Date('2026-05-01') }])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([]),
+      };
+      prisma.recommendationEvent = {
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const result = await service.getRecommendations();
+      const cardExpiry = result.find((item: any) => item.triggerType === 'card_expiry');
+      const careCycle = result.find((item: any) => item.triggerType === 'care_cycle');
+
+      expect(cardExpiry?.targetCustomerIds).toEqual([201]);
+      expect(careCycle?.targetCustomerIds).toEqual([202]);
     });
 
     it('should return audience profiles for a recommendation', async () => {

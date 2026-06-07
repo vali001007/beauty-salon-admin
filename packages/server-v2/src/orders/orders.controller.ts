@@ -20,7 +20,7 @@ export class OrdersController {
     @Query('storeId') storeId?: number,
     @Headers('x-store-id') storeHeader?: string,
   ) {
-    return this.ordersService.findProductOrders({ keyword, status, storeId: storeId ?? storeHeader });
+    return this.ordersService.findProductOrders({ keyword, status, storeId: storeId ?? storeHeader, itemType: 'product' });
   }
 
   @Get('product/paginated')
@@ -34,7 +34,47 @@ export class OrdersController {
     @Query('storeId') storeId?: number,
     @Headers('x-store-id') storeHeader?: string,
   ) {
-    return this.ordersService.findProductOrders({ page, pageSize, keyword, status, storeId: storeId ?? storeHeader });
+    return this.ordersService.findProductOrders({ page, pageSize, keyword, status, storeId: storeId ?? storeHeader, itemType: 'product' });
+  }
+
+  @Get('project')
+  @Permissions('core:order:projects')
+  @ApiOperation({ summary: '获取项目订单列表' })
+  findProjectOrders(
+    @Query('keyword') keyword?: string,
+    @Query('status') status?: string,
+    @Query('storeId') storeId?: number,
+    @Headers('x-store-id') storeHeader?: string,
+  ) {
+    return this.ordersService.findProjectOrders({ keyword, status, storeId: storeId ?? storeHeader });
+  }
+
+  @Get('project/paginated')
+  @Permissions('core:order:projects')
+  @ApiOperation({ summary: '分页获取项目订单' })
+  findProjectOrdersPaginated(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('keyword') keyword?: string,
+    @Query('status') status?: string,
+    @Query('storeId') storeId?: number,
+    @Headers('x-store-id') storeHeader?: string,
+  ) {
+    return this.ordersService.findProjectOrders({ page, pageSize, keyword, status, storeId: storeId ?? storeHeader });
+  }
+
+  @Get('project/:id')
+  @Permissions('core:order:projects')
+  @ApiOperation({ summary: '获取项目订单详情' })
+  findProjectOrderById(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.findProjectOrderById(id);
+  }
+
+  @Post('project')
+  @Permissions('core:order:create')
+  @ApiOperation({ summary: '创建项目订单' })
+  createProjectOrder(@Body() dto: any) {
+    return this.ordersService.createProjectOrder(dto);
   }
 
   @Get('product/:id')
@@ -104,6 +144,24 @@ export class OrdersController {
   @ApiOperation({ summary: '会员卡划扣' })
   deductMemberCard(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
     return this.ordersService.deductMemberCard(id, dto);
+  }
+
+  @Get('member-cards/deduct-records/paginated')
+  @Permissions('core:order:member-cards')
+  @ApiOperation({ summary: '分页获取会员卡划扣流水' })
+  findMemberCardDeductRecordsPaginated(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('keyword') keyword?: string,
+    @Query('storeId') storeId?: number,
+    @Headers('x-store-id') storeHeader?: string,
+  ) {
+    return this.ordersService.findMemberCardDeductTransactionsPaginated({
+      page,
+      pageSize,
+      keyword,
+      storeId: storeId ?? storeHeader,
+    });
   }
 
   @Get('member-cards/:id/transactions')

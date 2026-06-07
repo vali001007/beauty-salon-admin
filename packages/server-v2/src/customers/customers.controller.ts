@@ -48,6 +48,13 @@ export class CustomersController {
     return this.customersService.getAllHealthProfiles(storeId ? +storeId : undefined);
   }
 
+  @Get('miniapp-behavior-analysis')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '获取客户小程序行为分析' })
+  getMiniappBehaviorAnalysis(@Headers('x-store-id') storeId?: string) {
+    return this.customersService.getMiniappBehaviorAnalysis(storeId ? +storeId : undefined);
+  }
+
   @Get(':id')
   @Permissions('core:customer:view')
   @ApiOperation({ summary: '获取客户详情' })

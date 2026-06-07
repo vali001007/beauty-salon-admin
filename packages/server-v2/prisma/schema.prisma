@@ -192,6 +192,7 @@ model Customer {
   predictionSnapshots   CustomerPredictionSnapshot[]
   marketingTouches      MarketingAutomationTouch[]
   marketingAttributions MarketingAttribution[]
+  pageAttributions      MarketingPageAttribution[]
   recommendationEvents  RecommendationEvent[]
   balanceAccounts       CustomerBalanceAccount[]
   balanceTransactions   CustomerBalanceTransaction[]
@@ -262,6 +263,12 @@ model Product {
   minPurchaseQty Int       @default(0)
   image          String?
   status         String    @default("active")
+  salePrice      Decimal?
+  discountRate   Decimal?
+  discountLabel  String?
+  salesDescription String?
+  miniappStatus  String    @default("unpublished")
+  miniappPublishedAt DateTime?
   currentStock   Decimal   @default(0)
   safetyStock    Decimal   @default(0)
   createdAt      DateTime  @default(now())
@@ -276,6 +283,7 @@ model Product {
 
   @@index([storeId])
   @@index([status])
+  @@index([miniappStatus])
   @@index([categoryId])
 }
 
@@ -456,6 +464,7 @@ model ProductOrder {
   paymentRecords        PaymentRecord[]
   refundRecords         RefundRecord[]
   marketingAttributions MarketingAttribution[]
+  pageAttributions      MarketingPageAttribution[]
   recommendationEvents  RecommendationEvent[]
   balanceTransactions   CustomerBalanceTransaction[]
 
@@ -714,6 +723,12 @@ model MarketingActivity {
   discount               String?
   pageSchema             Json?
   sourceRecommendationId String?
+  predictionRunId        String?
+  audienceSnapshotId     String?
+  audienceSnapshotJson   Json?
+  sourceSignalsJson      Json?
+  offerJson              Json?
+  recommendedItemsJson   Json?
   aiGenerationId         String?
   publishStatus          String?
   publishedAt            DateTime?
@@ -722,6 +737,140 @@ model MarketingActivity {
 
   @@index([status])
   @@index([publishStatus])
+  @@index([sourceRecommendationId])
+  @@index([predictionRunId])
+}
+
+model MarketingPage {
+  id               Int       @id @default(autoincrement())
+  storeId          Int?
+  activityId       Int?
+  sourceType       String
+  sourceId         String?
+  title            String
+  slug             String    @unique
+  runtimeType      String    @default("h5")
+  pageSchema       Json
+  snapshotJson     Json?
+  themeJson        Json?
+  shareTitle       String?
+  shareDescription String?
+  shareImage       String?
+  status           String    @default("draft")
+  shareUrl         String?
+  miniappPath      String?
+  qrCodeUrl        String?
+  aiGenerationId   String?
+  promptVersion    String?
+  publishedAt      DateTime?
+  offlineAt        DateTime?
+  createdBy        Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  versions MarketingPageVersion[]
+  events   MarketingPageEvent[]
+  leads    MarketingPageLead[]
+  attributions MarketingPageAttribution[]
+
+  @@index([storeId, status])
+  @@index([sourceType, sourceId])
+  @@index([publishedAt])
+}
+
+model MarketingPageVersion {
+  id             Int      @id @default(autoincrement())
+  pageId         Int
+  version        Int
+  pageSchema     Json
+  snapshotJson   Json?
+  changeSummary  String?
+  aiGenerationId String?
+  createdBy      Int?
+  createdAt      DateTime @default(now())
+
+  page MarketingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, version])
+  @@index([pageId])
+}
+
+model MarketingPageEvent {
+  id           Int      @id @default(autoincrement())
+  pageId       Int
+  storeId      Int?
+  customerId   Int?
+  sessionId    String?
+  openId       String?
+  eventType    String
+  channel      String?
+  referrer     String?
+  staffId      Int?
+  campaignId   String?
+  source       String?
+  medium       String?
+  userAgent    String?
+  ipHash       String?
+  metadataJson Json?
+  occurredAt   DateTime @default(now())
+
+  page MarketingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, eventType, occurredAt])
+  @@index([storeId, occurredAt])
+  @@index([customerId])
+  @@index([sessionId])
+  @@index([channel, occurredAt])
+}
+
+model MarketingPageLead {
+  id           Int      @id @default(autoincrement())
+  pageId       Int
+  storeId      Int?
+  customerId   Int?
+  sessionId    String?
+  name         String?
+  phone        String
+  intentType   String?
+  message      String?
+  channel      String?
+  staffId      Int?
+  status       String   @default("new")
+  convertedAt  DateTime?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  page         MarketingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  attributions MarketingPageAttribution[]
+
+  @@index([pageId, createdAt])
+  @@index([storeId, status])
+  @@index([phone])
+}
+
+model MarketingPageAttribution {
+  id                    Int      @id @default(autoincrement())
+  leadId                Int
+  pageId                Int
+  customerId            Int
+  orderId               Int
+  attributionType       String   @default("last_touch")
+  attributedRevenue     Decimal  @default(0)
+  attributionWindowDays Int      @default(30)
+  touchedAt             DateTime
+  convertedAt           DateTime
+  createdAt             DateTime @default(now())
+
+  lead     MarketingPageLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  page     MarketingPage     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  customer Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    ProductOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, orderId])
+  @@index([pageId, convertedAt])
+  @@index([customerId])
+  @@index([orderId])
 }
 
 model MarketingAutomationStrategy {
@@ -897,6 +1046,25 @@ model RecommendationEvent {
   @@index([orderId])
 }
 
+model CustomerBehaviorEvent {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  customerId   Int
+  eventType    String
+  targetType   String?
+  targetId     String?
+  sessionId    String?
+  metadataJson Json?
+  occurredAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([storeId, occurredAt])
+  @@index([customerId, occurredAt])
+  @@index([eventType])
+  @@index([targetType, targetId])
+  @@index([sessionId])
+}
+
 model CustomerBalanceAccount {
   id          Int      @id @default(autoincrement())
   customerId  Int
@@ -1001,6 +1169,7 @@ model AiAuditLog {
   outputTokens   Int      @default(0)
   inputSummary   String?
   outputSummary  String?
+  safetyBlocked  Boolean  @default(false)
   latencyMs      Int?
   status         String
   createdAt      DateTime @default(now())

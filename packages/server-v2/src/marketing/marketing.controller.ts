@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Headers } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { MarketingService } from './marketing.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -15,15 +15,15 @@ export class MarketingController {
   @Get('recommendations')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销推荐列表' })
-  getRecommendations() {
-    return this.marketingService.getRecommendations();
+  getRecommendations(@Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getRecommendations(storeId ? Number(storeId) : undefined);
   }
 
   @Get('recommendations/:id/audience')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销推荐受众' })
-  getRecommendationAudience(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.getRecommendationAudience(id);
+  getRecommendationAudience(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getRecommendationAudience(id, storeId ? Number(storeId) : undefined);
   }
 
   @Post('recommendations')
@@ -45,6 +45,34 @@ export class MarketingController {
   @ApiOperation({ summary: '删除营销推荐' })
   deleteRecommendation(@Param('id', ParseIntPipe) id: number) {
     return this.marketingService.deleteRecommendation(id);
+  }
+
+  @Post('recommendations/:id/adopt')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '采纳营销推荐' })
+  adoptRecommendation(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.marketingService.adoptRecommendation(id, dto);
+  }
+
+  @Post('recommendations/:id/activity-draft')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '根据推荐生成活动草稿' })
+  createRecommendationActivityDraft(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.createRecommendationActivityDraft(id);
+  }
+
+  @Post('recommendations/:id/automation-draft')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '根据推荐生成自动营销规则草稿' })
+  createRecommendationAutomationDraft(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.createRecommendationAutomationDraft(id);
+  }
+
+  @Post('customer-events')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '写入客户小程序/营销行为事件' })
+  recordCustomerBehaviorEvent(@Body() dto: any) {
+    return this.marketingService.recordCustomerBehaviorEvent(dto);
   }
 
   @Post('predictions/run')

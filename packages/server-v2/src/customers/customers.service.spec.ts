@@ -28,6 +28,14 @@ describe('CustomersService', () => {
       totalSpent: 0,
     });
 
+  const expectCustomerListInclude = (storeId?: number) => ({
+    store: true,
+    balanceAccounts: storeId
+      ? { where: { storeId, status: 'active' }, take: 1 }
+      : { where: { status: 'active' }, take: 1 },
+    customerCards: { where: { status: 'active', remainingTimes: { gt: 0 } }, select: { id: true } },
+  });
+
   beforeEach(async () => {
     const mockPrisma = {
       customer: {
@@ -70,7 +78,7 @@ describe('CustomersService', () => {
       expect(result).toEqual(customers.map((customer) => expectCustomerView(customer)));
       expect(prisma.customer.findMany).toHaveBeenCalledWith({
         where: { deletedAt: null },
-        include: { store: true },
+        include: expectCustomerListInclude(),
         orderBy: { createdAt: 'desc' },
       });
     });
@@ -82,7 +90,7 @@ describe('CustomersService', () => {
 
       expect(prisma.customer.findMany).toHaveBeenCalledWith({
         where: { deletedAt: null, storeId: 1 },
-        include: { store: true },
+        include: expectCustomerListInclude(1),
         orderBy: { createdAt: 'desc' },
       });
     });

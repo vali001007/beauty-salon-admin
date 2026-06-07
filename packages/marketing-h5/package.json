@@ -1,0 +1,20 @@
+{
+  "name": "ami-marketing-h5",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5176",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4176"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "4.7.0",
+    "typescript": "^5.7.3",
+    "vite": "6.3.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "0.487.0"
+  },
+  "devDependencies": {}
+}

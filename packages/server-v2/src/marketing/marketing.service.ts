@@ -19,12 +19,13 @@ type PredictionReason = {
   weight?: number;
 };
 
-const MODEL_VERSION = 'rules-v1';
+const MODEL_VERSION = 'rules-v2';
 const DEFAULT_ATTRIBUTION_WINDOW_DAYS = 30;
 
 @Injectable()
 export class MarketingService {
   private readonly defaultRecommendationImage: string;
+  private readonly dailyPredictionLocks = new Map<string, Promise<void>>();
 
   private recommendations: any[] = [
     {
@@ -51,56 +52,31 @@ export class MarketingService {
     );
   }
 
-  async getRecommendations() {
-    let latestRun: any = null;
+  async getRecommendations(storeId?: number) {
     try {
-      latestRun = await this.getLatestRunForRecommendations();
-    } catch {
-      latestRun = null;
-    }
-
-    if (!latestRun || latestRun.snapshotCount === 0) {
+      let latestRun: any = null;
       try {
-        const totalCustomers = await this.prisma.customer.count({ where: { deletedAt: null } });
-        if (totalCustomers > 0) {
-          await this.runPredictions();
-          latestRun = await this.getLatestRunForRecommendations();
-        }
+        latestRun = await this.ensureDailyRunForRecommendations(storeId);
       } catch {
         latestRun = null;
       }
-    }
 
-    const totalCustomers = latestRun?.customerCount ?? latestRun?.snapshotCount ?? 0;
+      if (!latestRun || latestRun.snapshotCount === 0) {
+        try {
+          const totalCustomers = await this.safeCustomerCount(storeId);
+          if (totalCustomers > 0) {
+            latestRun = await this.getLatestRunForRecommendations(storeId);
+          }
+        } catch {
+          latestRun = null;
+        }
+      }
 
-    if (!latestRun || latestRun.snapshotCount === 0) {
-      const totalCustomers = await this.prisma.customer.count();
-      return this.recommendations.map((item) => ({
-        ...item,
-        reason: item.reason ?? item.description,
-        matchScore: item.matchScore <= 1 ? Math.round(item.matchScore * 100) : item.matchScore,
-        targetCustomerIds: [],
-        targetCount: Math.max(0, Math.round(totalCustomers * 0.2)),
-        targetCustomers: `目标客户 ${Math.max(0, Math.round(totalCustomers * 0.2))} 人`,
-        expectedConversion: '预计转化率 20%',
-        expectedRevenue: '预计营收 ¥0',
-        strategy: item.description,
-        discount: '门店专属权益',
-        duration: '建议周期: 30天',
-        image: this.defaultRecommendationImage,
-        tags: ['兼容推荐'],
-        category: 'high-conversion',
-        source: 'strategy',
-        urgency: 'recommended',
-        urgencyLabel: '推荐',
-        preferAutoRule: false,
-        totalCustomers,
-        predictionRunId: undefined,
-        modelVersion: MODEL_VERSION,
-        predictionType: 'strategy',
-        dataEvidence: ['暂无预测批次，先触发一次预测后可获得模型化推荐'],
-      }));
-    }
+      const totalCustomers = latestRun?.customerCount ?? latestRun?.snapshotCount ?? 0;
+
+      if (!latestRun || latestRun.snapshotCount === 0) {
+        return this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId));
+      }
 
     const summary = latestRun.summaryJson ?? {};
     const churnDistribution = summary.churnDistribution ?? [];
@@ -117,6 +93,38 @@ export class MarketingService {
     const averageChurnScore = Number(summary.avgChurnScore ?? 0);
     const averageRepurchaseScore = Number(summary.avgRepurchase30dScore ?? 0);
     const averageMarketingResponseScore = Number(summary.avgMarketingResponseScore ?? 0);
+    const snapshotsForCards = await this.getSnapshotsForRecommendationRun(latestRun.id);
+    const behaviorSignals = await this.getRecentBehaviorSignals();
+    const realtimeSignals = await this.getRealtimeSignals(latestRun.storeId ?? undefined);
+    const highChurnSnapshots = snapshotsForCards.filter((item: any) => ['高', '极高'].includes(item.churnLevel));
+    const repurchaseSnapshots = snapshotsForCards.filter((item: any) => item.repurchase30dScore >= 65 && item.churnScore < 70);
+    const marketingResponseSnapshots = snapshotsForCards.filter((item: any) => item.marketingResponseScore >= 70);
+    const highLtvSnapshots = snapshotsForCards.filter((item: any) => ['铂金', '黄金'].includes(item.ltvTier));
+    const cardExpirySnapshots = this.pickRealtimeSnapshots(
+      snapshotsForCards,
+      realtimeSignals.cardExpiry,
+      (item: any) => Number(item.featureJson?.cardExpiryUrgencyScore ?? 0) >= 50,
+    );
+    const careCycleSnapshots = this.pickRealtimeSnapshots(
+      snapshotsForCards,
+      realtimeSignals.careCycle,
+      (item: any) => Number(item.featureJson?.lastVisitDays ?? 0) >= 21 && item.repurchase30dScore >= 55,
+    );
+    const browseIntentSnapshots = this.pickBehaviorSnapshots(
+      snapshotsForCards,
+      behaviorSignals.browseAbandonment,
+      (item: any) => item.marketingResponseScore >= 72 && item.repurchase30dScore >= 55,
+    );
+    const couponExpirySnapshots = this.pickBehaviorSnapshots(
+      snapshotsForCards,
+      this.mergeSignalSets(behaviorSignals.couponClaimedUnused, realtimeSignals.couponClaimedUnused),
+      (item: any) => item.marketingResponseScore >= 68 && item.repurchase30dScore >= 45,
+    );
+    const bookingAbandonmentSnapshots = this.pickBehaviorSnapshots(
+      snapshotsForCards,
+      this.mergeSignalSets(behaviorSignals.bookingAbandonment, realtimeSignals.bookingAbandonment),
+      (item: any) => item.marketingResponseScore >= 75,
+    );
     const cards = [];
     if (highChurnCount) {
       cards.push(this.buildRecommendationCard({
@@ -133,6 +141,21 @@ export class MarketingService {
         category: 'churn-alert',
         source: 'churn',
         predictionType: 'churn',
+        triggerType: 'dormant',
+        priority: 'P0',
+        executionModes: ['automation', 'activity'],
+        preferredMode: 'automation',
+        modeReason: '流失风险会持续变化，适合沉淀为自动唤醒规则；本月也可作为一次性回归活动。',
+        offer: { type: 'money_off', label: '回归专享满300减100', threshold: 300, amount: 100, validDays: 30, reason: '高风险客户需要更强唤醒权益，但保留消费门槛避免过度低价。' },
+        recommendedItems: [
+          { type: 'project', name: '回店护理关怀方案', category: '面部护理', activityPrice: 380, reason: '适合长期未到店客户用低门槛恢复服务关系。', confidence: 86 },
+        ],
+        recommendedChannels: [
+          { channel: 'sms', label: '短信', reason: '沉睡客户小程序活跃度不稳定，短信适合作为强提醒。', priority: 'P0' },
+          { channel: 'miniapp', label: '小程序', reason: '配合预约入口和权益领取。', priority: 'P1' },
+          { channel: 'store', label: '顾问跟进', reason: '极高风险客户建议顾问二次跟进。', priority: 'P1' },
+        ],
+        targetSnapshots: highChurnSnapshots,
         tags: ['流失预警', '高优先级'],
         urgency: 'urgent',
         urgencyLabel: '紧急',
@@ -161,6 +184,20 @@ export class MarketingService {
         category: 'high-conversion',
         source: 'strategy',
         predictionType: 'repurchase',
+        triggerType: 'care_cycle',
+        priority: 'P1',
+        executionModes: ['automation'],
+        preferredMode: 'automation',
+        modeReason: '复购窗口和护理周期按客户滚动变化，最适合配置为自动规则。',
+        offer: { type: 'money_off', label: '复购专享满500减80', threshold: 500, amount: 80, validDays: 21, reason: '复购客户不需要过强折扣，小额券配合护理周期提醒更稳。' },
+        recommendedItems: [
+          { type: 'project', name: '护理周期复购方案', category: '面部护理', activityPrice: 480, reason: '结合护理周期推动下一次预约。', confidence: 88 },
+        ],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '复购提醒需要直接带预约入口。', priority: 'P0' },
+          { channel: 'sms', label: '短信', reason: '对未读小程序消息客户补充提醒。', priority: 'P1' },
+        ],
+        targetSnapshots: repurchaseSnapshots,
         tags: ['复购机会', '高转化'],
         urgency: 'recommended',
         urgencyLabel: '推荐',
@@ -189,6 +226,21 @@ export class MarketingService {
         category: 'seasonal',
         source: 'strategy',
         predictionType: 'marketing_response',
+        triggerType: 'holiday_campaign',
+        priority: 'P1',
+        executionModes: ['activity', 'automation'],
+        preferredMode: 'activity',
+        modeReason: '高响应客户适合快速发起限时活动验证，也可复制为长期高响应人群触达规则。',
+        offer: { type: 'trial_price', label: '限时体验价 + 预约礼包', validDays: 14, reason: '高响应客户适合用限时权益促进快速预约。' },
+        recommendedItems: [
+          { type: 'project', name: '限时护理体验方案', category: '体验活动', activityPrice: 298, reason: '适合高营销响应客户快速决策。', confidence: 84 },
+          { type: 'product', name: '修护面膜套装', category: '护肤品', activityPrice: 128, reason: '活动到店后可搭配转化商品。', confidence: 72 },
+        ],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '适合活动页承接、领券和预约。', priority: 'P0' },
+          { channel: 'wechat', label: '微信', reason: '适合活动氛围和顾问转发。', priority: 'P1' },
+        ],
+        targetSnapshots: marketingResponseSnapshots,
         tags: ['活动转化', '预测名单'],
         urgency: 'recommended',
         urgencyLabel: '推荐',
@@ -217,6 +269,20 @@ export class MarketingService {
         category: 'ltv-nurture',
         source: 'ltv',
         predictionType: 'ltv',
+        triggerType: 'vip_privilege_care',
+        priority: 'P2',
+        executionModes: ['automation', 'activity'],
+        preferredMode: 'automation',
+        modeReason: '高 LTV 客户需要长期权益维护，季度专属活动也可作为补充。',
+        offer: { type: 'member_privilege', label: 'VIP专属权益', validDays: 90, reason: '高价值客户优先权益和顾问服务，避免过度低价促销。' },
+        recommendedItems: [
+          { type: 'package', name: '季度高端护理礼遇', category: 'VIP权益', reason: '适合高价值客户持续维护和消费升级。', confidence: 90 },
+        ],
+        recommendedChannels: [
+          { channel: 'store', label: '顾问跟进', reason: '高价值客户更适合一对一服务。', priority: 'P0' },
+          { channel: 'wechat', label: '微信', reason: '适合发送权益说明和预约确认。', priority: 'P1' },
+        ],
+        targetSnapshots: highLtvSnapshots,
         tags: ['LTV维护', '高价值'],
         urgency: 'opportunity',
         urgencyLabel: '机会',
@@ -230,12 +296,316 @@ export class MarketingService {
       }));
     }
 
-    return cards.length ? cards : this.recommendations;
+    if (cardExpirySnapshots.length) {
+      cards.push(this.buildRecommendationCard({
+        id: 5,
+        title: `${cardExpirySnapshots.length} 位客户次卡/套餐需要提醒使用`,
+        reason: '客户仍有有效卡项，且存在剩余次数较少或临近到期信号，建议优先提醒核销并推荐续卡。',
+        targetLabel: `次卡/套餐待使用客户（${cardExpirySnapshots.length}人）`,
+        targetCount: cardExpirySnapshots.length,
+        matchScore: Math.max(70, Math.min(96, this.average(cardExpirySnapshots.map((item: any) => item.marketingResponseScore)) + 12)),
+        expectedConversionRate: 0.38,
+        expectedRevenue: cardExpirySnapshots.reduce((sum: number, item: any) => sum + Number(item.ltv6m ?? 0), 0) * 0.08,
+        strategy: '到期前提醒客户消耗剩余权益，并在到店时推荐续卡或升级套餐',
+        discount: '续卡专享赠护理一次',
+        category: 'member-care',
+        source: 'strategy',
+        predictionType: 'strategy',
+        triggerType: 'card_expiry',
+        priority: 'P0',
+        executionModes: ['automation'],
+        preferredMode: 'automation',
+        modeReason: '卡项到期和剩余次数是持续变化事件，适合自动提醒和续卡触达。',
+        offer: { type: 'gift', label: '续卡专享赠护理一次', validDays: 30, reason: '权益类赠送比直接打折更适合卡项续费场景。' },
+        recommendedItems: [
+          { type: 'card', name: '护理次卡续费方案', category: '卡项', reason: '客户已有卡项使用习惯，适合续卡或升级。', confidence: 86 },
+        ],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '直接承接卡项查询、预约和续费入口。', priority: 'P0' },
+          { channel: 'sms', label: '短信', reason: '到期提醒需要更高触达率。', priority: 'P1' },
+        ],
+        targetSnapshots: cardExpirySnapshots,
+        tags: ['次卡到期', '权益提醒'],
+        urgency: 'urgent',
+        urgencyLabel: '紧急',
+        dataEvidence: [
+          `有效卡项客户 ${cardExpirySnapshots.length} 人`,
+          '剩余次数低或 30 天内到期优先',
+          `模型版本 ${latestRun.modelVersion}`,
+        ],
+        totalCustomers,
+        run: latestRun,
+      }));
+    }
+
+    if (careCycleSnapshots.length) {
+      cards.push(this.buildRecommendationCard({
+        id: 6,
+        title: `${careCycleSnapshots.length} 位客户护理周期已到复购提醒点`,
+        reason: '客户距离上次到店已超过常见护理周期，且复购/营销响应分较高，适合推送预约提醒。',
+        targetLabel: `护理周期到期客户（${careCycleSnapshots.length}人）`,
+        targetCount: careCycleSnapshots.length,
+        matchScore: Math.max(65, Math.min(96, this.average(careCycleSnapshots.map((item: any) => item.repurchase30dScore)) + 8)),
+        expectedConversionRate: 0.34,
+        expectedRevenue: careCycleSnapshots.reduce((sum: number, item: any) => sum + Number(item.ltv6m ?? 0), 0) * 0.07,
+        strategy: '按上次护理后的 28 天周期推送预约提醒，搭配小额项目券',
+        discount: '护理周期专享满500减80',
+        category: 'high-conversion',
+        source: 'strategy',
+        predictionType: 'repurchase',
+        triggerType: 'care_cycle',
+        priority: 'P1',
+        executionModes: ['automation'],
+        preferredMode: 'automation',
+        modeReason: '护理周期是客户级滚动事件，适合长期自动规则。',
+        offer: { type: 'money_off', label: '护理周期专享满500减80', threshold: 500, amount: 80, validDays: 21, reason: '小额优惠配合预约入口即可推动复购。' },
+        recommendedItems: [
+          { type: 'project', name: '护理周期复购项目', category: '面部护理', activityPrice: 480, reason: '匹配 21-30 天常见复购节奏。', confidence: 88 },
+        ],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '直接承接预约。', priority: 'P0' },
+          { channel: 'wechat', label: '微信', reason: '顾问可补充护理建议。', priority: 'P2' },
+        ],
+        targetSnapshots: careCycleSnapshots,
+        tags: ['护理周期', '复购提醒'],
+        urgency: 'recommended',
+        urgencyLabel: '推荐',
+        dataEvidence: [
+          `平均复购分 ${this.average(careCycleSnapshots.map((item: any) => item.repurchase30dScore))} 分`,
+          '排除高流失客户后优先提醒复购窗口客户',
+        ],
+        totalCustomers,
+        run: latestRun,
+      }));
+    }
+
+    if (browseIntentSnapshots.length) {
+      cards.push(this.buildRecommendationCard({
+        id: 7,
+        title: `${browseIntentSnapshots.length} 位客户适合小程序浏览未预约触达`,
+        reason: '当前尚未接入完整小程序行为事件，先用高响应 + 高复购客户作为浏览意图规则的种子人群；接入埋点后将切换为真实浏览未预约事件。',
+        targetLabel: `高意图种子客户（${browseIntentSnapshots.length}人）`,
+        targetCount: browseIntentSnapshots.length,
+        matchScore: Math.max(70, Math.min(98, this.average(browseIntentSnapshots.map((item: any) => item.marketingResponseScore)) + 10)),
+        expectedConversionRate: 0.4,
+        expectedRevenue: browseIntentSnapshots.reduce((sum: number, item: any) => sum + Number(item.ltv6m ?? 0), 0) * 0.09,
+        strategy: '客户浏览项目/活动页后 24 小时未预约时，推送项目案例、体验券和预约入口',
+        discount: '浏览专属体验券',
+        category: 'high-conversion',
+        source: 'strategy',
+        predictionType: 'marketing_response',
+        triggerType: 'browse_abandonment',
+        priority: 'P1',
+        executionModes: ['automation'],
+        preferredMode: 'automation',
+        modeReason: '浏览未预约是典型行为事件，必须由自动规则实时承接。',
+        offer: { type: 'trial_price', label: '浏览专属体验券', validDays: 7, reason: '浏览后短时间内给轻权益，强化预约决策。' },
+        recommendedItems: [
+          { type: 'project', name: '浏览项目同类体验方案', category: '行为推荐', activityPrice: 298, reason: '接入真实浏览事件后按项目详情页自动匹配。', confidence: 80 },
+        ],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '浏览行为发生在小程序，最适合原渠道召回。', priority: 'P0' },
+          { channel: 'sms', label: '短信', reason: '24 小时未响应后可补充提醒。', priority: 'P2' },
+        ],
+        targetSnapshots: browseIntentSnapshots,
+        tags: ['浏览未预约', '行为触发'],
+        urgency: 'recommended',
+        urgencyLabel: '推荐',
+        dataEvidence: [
+          '当前为高意图种子规则，后续接入 CustomerBehaviorEvent 后切换为真实浏览事件',
+          `平均营销响应 ${this.average(browseIntentSnapshots.map((item: any) => item.marketingResponseScore))} 分`,
+        ],
+        totalCustomers,
+        run: latestRun,
+      }));
+    }
+
+    if (couponExpirySnapshots.length) {
+      cards.push(this.buildRecommendationCard({
+        id: 10,
+        title: `${couponExpirySnapshots.length} 位客户适合优惠券到期提醒`,
+        reason: '当前优惠券资产表尚未独立接入，先以高响应客户作为券到期规则种子；接入券资产后将按 D-7/D-3/D-1 真实到期时间命中。',
+        targetLabel: `优惠券到期提醒种子客户（${couponExpirySnapshots.length}人）`,
+        targetCount: couponExpirySnapshots.length,
+        matchScore: Math.max(68, Math.min(96, this.average(couponExpirySnapshots.map((item: any) => item.marketingResponseScore)) + 8)),
+        expectedConversionRate: 0.33,
+        expectedRevenue: couponExpirySnapshots.reduce((sum: number, item: any) => sum + Number(item.ltv6m ?? 0), 0) * 0.06,
+        strategy: '优惠券到期前分三段提醒客户使用，并搭配适配项目预约入口',
+        discount: '优惠券到期提醒',
+        category: 'high-conversion',
+        source: 'strategy',
+        predictionType: 'marketing_response',
+        triggerType: 'coupon_expiry',
+        priority: 'P0',
+        executionModes: ['automation'],
+        preferredMode: 'automation',
+        modeReason: '优惠券到期是时间敏感事件，适合自动规则按到期日滚动触发。',
+        offer: { type: 'money_off', label: '优惠券到期提醒', validDays: 7, reason: '用客户已持有权益推动核销，避免额外让利。' },
+        recommendedItems: [{ type: 'project', name: '优惠券适配护理项目', category: '权益核销', reason: '后续按券适用项目自动匹配。', confidence: 78 }],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '展示券状态、适用项目和预约入口。', priority: 'P0' },
+          { channel: 'sms', label: '短信', reason: 'D-1 可补充强提醒。', priority: 'P1' },
+        ],
+        targetSnapshots: couponExpirySnapshots,
+        tags: ['优惠券到期', '权益核销'],
+        urgency: 'urgent',
+        urgencyLabel: '紧急',
+        dataEvidence: ['券资产表接入前采用高响应种子客户，接入后按真实优惠券到期时间命中。'],
+        totalCustomers,
+        run: latestRun,
+      }));
+    }
+
+    if (bookingAbandonmentSnapshots.length) {
+      cards.push(this.buildRecommendationCard({
+        id: 11,
+        title: `${bookingAbandonmentSnapshots.length} 位客户适合预约放弃召回`,
+        reason: '当前预约放弃埋点尚未完全接入，先以高营销响应客户作为规则种子；接入 booking_started/booking_abandoned 后将按真实事件触发。',
+        targetLabel: `预约放弃召回种子客户（${bookingAbandonmentSnapshots.length}人）`,
+        targetCount: bookingAbandonmentSnapshots.length,
+        matchScore: Math.max(72, Math.min(98, this.average(bookingAbandonmentSnapshots.map((item: any) => item.marketingResponseScore)) + 9)),
+        expectedConversionRate: 0.36,
+        expectedRevenue: bookingAbandonmentSnapshots.reduce((sum: number, item: any) => sum + Number(item.ltv6m ?? 0), 0) * 0.08,
+        strategy: '客户进入预约流程后 2 小时未提交时，推荐继续预约、相邻时段或顾问协助',
+        discount: '预约保留提醒 + 到店小礼',
+        category: 'high-conversion',
+        source: 'strategy',
+        predictionType: 'marketing_response',
+        triggerType: 'booking_abandonment',
+        priority: 'P0',
+        executionModes: ['automation'],
+        preferredMode: 'automation',
+        modeReason: '预约放弃是强行为意图事件，必须自动实时召回。',
+        offer: { type: 'gift', label: '预约保留提醒 + 到店小礼', validDays: 3, reason: '预约放弃场景更适合轻权益和顾问协助。' },
+        recommendedItems: [{ type: 'project', name: '预约流程中断项目', category: '预约召回', reason: '接入真实事件后按客户选择过的项目和时间自动匹配。', confidence: 82 }],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '回到原预约流程继续提交。', priority: 'P0' },
+          { channel: 'sms', label: '短信', reason: '2 小时未完成后补充提醒。', priority: 'P1' },
+        ],
+        targetSnapshots: bookingAbandonmentSnapshots,
+        tags: ['预约放弃', '行为召回'],
+        urgency: 'urgent',
+        urgencyLabel: '紧急',
+        dataEvidence: ['预约放弃埋点接入前采用高响应种子客户，接入后按 booking_abandoned 事件命中。'],
+        totalCustomers,
+        run: latestRun,
+      }));
+    }
+
+    cards.push(...this.buildCalendarScenarioCards({
+      latestRun,
+      totalCustomers,
+      snapshots: marketingResponseSnapshots.length ? marketingResponseSnapshots : snapshotsForCards.slice(0, 80),
+      averageMarketingResponseScore,
+      expectedLtv6m,
+    }));
+
+      return cards.length ? cards : this.buildFallbackRecommendationCards(totalCustomers, latestRun);
+    } catch {
+      return this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId));
+    }
   }
 
-  private async getLatestRunForRecommendations() {
+  private async safeCustomerCount(storeId?: number) {
+    try {
+      return await this.prisma.customer.count({ where: { deletedAt: null, ...(storeId ? { storeId } : {}) } });
+    } catch {
+      try {
+        return await this.prisma.customer.count({ where: storeId ? { storeId } : undefined });
+      } catch {
+        return 0;
+      }
+    }
+  }
+
+  private buildFallbackRecommendationCards(totalCustomers = 0, latestRun?: any) {
+    const targetCount = Math.max(0, Math.round(totalCustomers * 0.2));
+    return this.recommendations.map((item) => ({
+      ...item,
+      reason: item.reason ?? item.description,
+      matchScore: item.matchScore <= 1 ? Math.round(item.matchScore * 100) : item.matchScore,
+      targetCustomerIds: [],
+      targetCount,
+      targetCustomers: `目标客户 ${targetCount} 人`,
+      expectedConversion: '预计转化率 20%',
+      expectedRevenue: '预计营收 ¥0',
+      strategy: item.description,
+      discount: '门店专属权益',
+      duration: '建议周期: 30天',
+      image: this.defaultRecommendationImage,
+      tags: ['兼容推荐'],
+      category: 'high-conversion',
+      source: 'strategy',
+      urgency: 'recommended',
+      urgencyLabel: '推荐',
+      preferAutoRule: false,
+      executionModes: ['activity'],
+      preferredMode: 'activity',
+      modeReason: '暂无可用预测批次时先作为一次性活动建议，刷新预测后可生成自动规则。',
+      priority: 'P2',
+      recommendedChannels: [
+        { channel: 'miniapp', label: '小程序', reason: '用于活动页和预约入口承接。', priority: 'P0' },
+      ],
+      offer: { type: 'member_privilege', label: '门店专属权益', validDays: 30, reason: '兼容推荐默认权益。' },
+      recommendedItems: [
+        { type: 'project', name: '会员护理推荐方案', category: '面部护理', reason: item.description, confidence: 60 },
+      ],
+      audienceSnapshot: {
+        predictionRunId: latestRun?.id,
+        generatedAt: new Date().toISOString(),
+        ruleSummary: '暂无预测命中名单，未固化客户名单',
+        customerIds: [],
+        totalCustomers: targetCount,
+        sampleReasons: [],
+      },
+      sourceSignals: ['fallback', 'strategy'],
+      totalCustomers,
+      predictionRunId: latestRun?.id,
+      modelVersion: latestRun?.modelVersion ?? MODEL_VERSION,
+      predictionType: 'strategy',
+      predictionRunFinishedAt: latestRun?.finishedAt ?? latestRun?.startedAt,
+      dataEvidence: ['预测数据暂不可用，先展示可创建活动的兼容推荐，避免运营流程中断'],
+    }));
+  }
+
+  private async ensureDailyRunForRecommendations(storeId?: number) {
+    const todayRun = await this.getLatestRunForRecommendations(storeId, { todayOnly: true });
+    if ((todayRun?.snapshotCount ?? 0) > 0) return todayRun;
+
+    const totalCustomers = await this.safeCustomerCount(storeId);
+    if (totalCustomers <= 0) return todayRun;
+
+    const { start } = this.getShanghaiBusinessDayRange();
+    const lockKey = `${storeId ?? 'all'}:${start.toISOString().slice(0, 10)}`;
+    let lock = this.dailyPredictionLocks.get(lockKey);
+    if (!lock) {
+      lock = this.runPredictions(storeId).then(() => undefined);
+      this.dailyPredictionLocks.set(lockKey, lock);
+      lock.finally(() => this.dailyPredictionLocks.delete(lockKey)).catch(() => undefined);
+    }
+
+    await lock;
+    return this.getLatestRunForRecommendations(storeId, { todayOnly: true });
+  }
+
+  private getShanghaiBusinessDayRange(now = new Date()) {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const shanghaiOffsetMs = 8 * 60 * 60 * 1000;
+    const startMs = Math.floor((now.getTime() + shanghaiOffsetMs) / dayMs) * dayMs - shanghaiOffsetMs;
+    return {
+      start: new Date(startMs),
+      end: new Date(startMs + dayMs),
+    };
+  }
+
+  private async getLatestRunForRecommendations(storeId?: number, options: { todayOnly?: boolean } = {}) {
+    const { start, end } = this.getShanghaiBusinessDayRange();
     const run = await this.prisma.predictionRun.findFirst({
-      where: { status: 'completed' },
+      where: {
+        status: 'completed',
+        ...(storeId ? { storeId } : { storeId: null }),
+        ...(options.todayOnly ? { finishedAt: { gte: start, lt: end } } : {}),
+      },
       orderBy: { finishedAt: 'desc' },
     });
     if (!run) return null;
@@ -246,8 +616,375 @@ export class MarketingService {
     return Number(distribution.find((item) => item.label === label)?.count ?? 0);
   }
 
-  async getRecommendationAudience(recommendationId: number) {
-    const latestRun = await this.getLatestRunForRecommendations();
+  private async getSnapshotsForRecommendationRun(runId: number) {
+    return this.prisma.customerPredictionSnapshot.findMany({
+      where: { runId },
+      take: 500,
+      orderBy: [{ marketingResponseScore: 'desc' }, { repurchase30dScore: 'desc' }],
+    });
+  }
+
+  private async getRecentBehaviorSignals() {
+    const empty = {
+      browseAbandonment: new Set<number>(),
+      bookingAbandonment: new Set<number>(),
+      couponClaimedUnused: new Set<number>(),
+    };
+    const delegate = (this.prisma as any).customerBehaviorEvent;
+    if (!delegate?.findMany) return empty;
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+    let events: any[] = [];
+    try {
+      events = await delegate.findMany({
+        where: {
+          occurredAt: { gte: since },
+          eventType: {
+            in: [
+              'miniapp_project_viewed',
+              'miniapp_product_viewed',
+              'activity_page_viewed',
+              'booking_started',
+              'booking_abandoned',
+              'booking_completed',
+              'coupon_claimed',
+              'coupon_viewed',
+              'coupon_redeemed',
+              'order_paid',
+            ],
+          },
+        },
+        take: 2000,
+        orderBy: { occurredAt: 'desc' },
+      });
+    } catch {
+      return empty;
+    }
+    const bookedOrPurchased = new Set<number>();
+    for (const event of events) {
+      if (['booking_completed', 'order_paid', 'coupon_redeemed'].includes(event.eventType)) {
+        bookedOrPurchased.add(Number(event.customerId));
+      }
+    }
+    const signals = {
+      browseAbandonment: new Set<number>(),
+      bookingAbandonment: new Set<number>(),
+      couponClaimedUnused: new Set<number>(),
+    };
+    for (const event of events) {
+      const customerId = Number(event.customerId);
+      if (bookedOrPurchased.has(customerId)) continue;
+      if (['miniapp_project_viewed', 'miniapp_product_viewed', 'activity_page_viewed'].includes(event.eventType)) {
+        signals.browseAbandonment.add(customerId);
+      }
+      if (['booking_started', 'booking_abandoned'].includes(event.eventType)) {
+        signals.bookingAbandonment.add(customerId);
+      }
+      if (['coupon_claimed', 'coupon_viewed'].includes(event.eventType)) {
+        signals.couponClaimedUnused.add(customerId);
+      }
+    }
+    return signals;
+  }
+
+  private async getRealtimeSignals(storeId?: number | null) {
+    const empty = {
+      cardExpiry: new Set<number>(),
+      careCycle: new Set<number>(),
+      bookingAbandonment: new Set<number>(),
+      couponClaimedUnused: new Set<number>(),
+    };
+    const now = new Date();
+    const careCycleThreshold = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+    const bookingWindow = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const customerWhere = storeId ? { storeId: Number(storeId), deletedAt: null } : { deletedAt: null };
+
+    const safeFindMany = async (delegateName: string, args: any) => {
+      const delegate = (this.prisma as any)[delegateName];
+      if (!delegate?.findMany) return [];
+      try {
+        return await delegate.findMany(args);
+      } catch {
+        return [];
+      }
+    };
+
+    const [lowRemainingCards, lowRemainingUsageRecords, oldCompletedReservations, recentReservations, abandonedReservations, couponEvents] = await Promise.all([
+      safeFindMany('customerCard', {
+        where: {
+          status: 'active',
+          remainingTimes: { gt: 0, lte: 2 },
+          expiryDate: { gte: now },
+          customer: customerWhere,
+        },
+        select: { customerId: true },
+        take: 2000,
+      }),
+      safeFindMany('cardUsageRecord', {
+        where: {
+          remainingTimes: { gt: 0, lte: 2 },
+          customer: customerWhere,
+        },
+        select: { customerId: true },
+        take: 2000,
+      }),
+      safeFindMany('reservation', {
+        where: {
+          ...(storeId ? { storeId: Number(storeId) } : {}),
+          status: { in: ['completed', 'done', 'finished'] },
+          date: { lte: careCycleThreshold },
+          customer: customerWhere,
+        },
+        select: { customerId: true, date: true },
+        take: 3000,
+      }),
+      safeFindMany('reservation', {
+        where: {
+          ...(storeId ? { storeId: Number(storeId) } : {}),
+          status: { notIn: ['cancelled', 'canceled'] },
+          date: { gt: careCycleThreshold },
+          customer: customerWhere,
+        },
+        select: { customerId: true },
+        take: 3000,
+      }),
+      safeFindMany('reservation', {
+        where: {
+          ...(storeId ? { storeId: Number(storeId) } : {}),
+          status: { in: ['cancelled', 'canceled'] },
+          date: { gte: bookingWindow },
+          customer: customerWhere,
+        },
+        select: { customerId: true },
+        take: 2000,
+      }),
+      safeFindMany('recommendationEvent', {
+        where: {
+          ...(storeId ? { storeId: Number(storeId) } : {}),
+          eventType: { in: ['coupon_claimed', 'coupon_viewed', 'promotion_claimed', 'promotion_viewed'] },
+          createdAt: { gte: bookingWindow },
+          customer: customerWhere,
+        },
+        select: { customerId: true, eventType: true },
+        take: 2000,
+      }),
+    ]);
+
+    for (const item of [...lowRemainingCards, ...lowRemainingUsageRecords]) {
+      if (item?.customerId) empty.cardExpiry.add(Number(item.customerId));
+    }
+
+    const recentlyVisited = new Set<number>();
+    for (const item of recentReservations) {
+      if (item?.customerId) recentlyVisited.add(Number(item.customerId));
+    }
+    for (const item of oldCompletedReservations) {
+      const customerId = Number(item?.customerId);
+      if (customerId && !recentlyVisited.has(customerId)) empty.careCycle.add(customerId);
+    }
+
+    for (const item of abandonedReservations) {
+      if (item?.customerId) empty.bookingAbandonment.add(Number(item.customerId));
+    }
+    for (const item of couponEvents) {
+      if (item?.customerId) empty.couponClaimedUnused.add(Number(item.customerId));
+    }
+
+    return empty;
+  }
+
+  private pickBehaviorSnapshots(snapshots: any[], customerIds: Set<number>, fallback: (snapshot: any) => boolean) {
+    const eventMatched = customerIds.size
+      ? snapshots.filter((snapshot: any) => customerIds.has(Number(snapshot.customerId)))
+      : [];
+    return eventMatched.length ? eventMatched : snapshots.filter(fallback);
+  }
+
+  private pickRealtimeSnapshots(snapshots: any[], customerIds: Set<number>, fallback: (snapshot: any) => boolean) {
+    const realtimeMatched = customerIds.size
+      ? snapshots.filter((snapshot: any) => customerIds.has(Number(snapshot.customerId)))
+      : [];
+    return realtimeMatched.length ? realtimeMatched : snapshots.filter(fallback);
+  }
+
+  private mergeSignalSets(...sets: Set<number>[]) {
+    const merged = new Set<number>();
+    for (const set of sets) {
+      for (const value of set) merged.add(Number(value));
+    }
+    return merged;
+  }
+
+  private buildCalendarScenarioCards(input: {
+    latestRun: any;
+    totalCustomers: number;
+    snapshots: any[];
+    averageMarketingResponseScore: number;
+    expectedLtv6m: number;
+  }) {
+    const { latestRun, totalCustomers, snapshots, averageMarketingResponseScore, expectedLtv6m } = input;
+    if (!snapshots.length) return [];
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const season = this.getSeason(month);
+    const holiday = this.getUpcomingHoliday(month);
+    const seasonalTheme = this.getSeasonalCareTheme(season);
+    const seasonalSnapshots = snapshots.slice(0, Math.max(1, Math.min(snapshots.length, Math.round(totalCustomers * 0.25))));
+    const cards = [
+      this.buildRecommendationCard({
+        id: 8,
+        title: `${seasonalTheme.title}适合提前启动`,
+        reason: `${season}季肤况变化明显，建议按肤质和近期护理节奏发起${seasonalTheme.focus}主题。`,
+        targetLabel: `${seasonalTheme.audience}（${seasonalSnapshots.length}人）`,
+        targetCount: seasonalSnapshots.length,
+        matchScore: Math.max(62, Math.min(94, averageMarketingResponseScore + 8)),
+        expectedConversionRate: 0.3,
+        expectedRevenue: expectedLtv6m * 0.1,
+        strategy: seasonalTheme.strategy,
+        discount: seasonalTheme.offerLabel,
+        category: 'seasonal',
+        source: 'strategy',
+        predictionType: 'marketing_response',
+        triggerType: 'seasonal_skin_care',
+        priority: 'P2',
+        executionModes: ['activity', 'automation'],
+        preferredMode: 'activity',
+        modeReason: '季节换肤有明确主题和周期，适合作为活动页承接；也可沉淀为季节规则。',
+        offer: seasonalTheme.offer,
+        recommendedItems: seasonalTheme.items,
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '适合活动页、项目介绍和预约入口。', priority: 'P0' },
+          { channel: 'wechat', label: '微信', reason: '适合顾问转发护理建议。', priority: 'P1' },
+        ],
+        targetSnapshots: seasonalSnapshots,
+        tags: ['季节护肤', seasonalTheme.focus],
+        urgency: 'opportunity',
+        urgencyLabel: '机会',
+        dataEvidence: [
+          `${season}季护理主题：${seasonalTheme.focus}`,
+          `目标客户按营销响应分和复购分排序，取前 ${seasonalSnapshots.length} 人`,
+        ],
+        totalCustomers,
+        run: latestRun,
+      }),
+    ];
+
+    if (holiday) {
+      const holidaySnapshots = snapshots.slice(0, Math.max(1, Math.min(snapshots.length, Math.round(totalCustomers * 0.18))));
+      cards.push(this.buildRecommendationCard({
+        id: 9,
+        title: `${holiday}主题营销活动建议`,
+        reason: `${holiday}前适合提前 15-30 天预热，优先触达营销响应高、近期可复购的客户。`,
+        targetLabel: `${holiday}活动目标客户（${holidaySnapshots.length}人）`,
+        targetCount: holidaySnapshots.length,
+        matchScore: Math.max(65, Math.min(96, averageMarketingResponseScore + 12)),
+        expectedConversionRate: 0.32,
+        expectedRevenue: expectedLtv6m * 0.12,
+        strategy: `创建${holiday}限定护理活动，搭配小程序活动页、节日礼包和预约入口`,
+        discount: `${holiday}专享护理礼遇`,
+        category: 'seasonal',
+        source: 'strategy',
+        predictionType: 'marketing_response',
+        triggerType: 'holiday_campaign',
+        priority: 'P2',
+        executionModes: ['activity'],
+        preferredMode: 'activity',
+        modeReason: '节假日营销有明确开始/结束时间，更适合一次性活动。',
+        offer: { type: 'bundle', label: `${holiday}专享护理礼遇`, validDays: 21, reason: '节日活动适合组合权益和礼包表达。' },
+        recommendedItems: [
+          { type: 'package', name: `${holiday}护理礼遇套餐`, category: '节日活动', reason: '适合节日氛围和礼品化表达。', confidence: 82 },
+        ],
+        recommendedChannels: [
+          { channel: 'miniapp', label: '小程序', reason: '活动页承接。', priority: 'P0' },
+          { channel: 'moments', label: '朋友圈', reason: '节日活动适合裂变传播。', priority: 'P1' },
+          { channel: 'group', label: '社群', reason: '适合活动预热和名额提醒。', priority: 'P2' },
+        ],
+        targetSnapshots: holidaySnapshots,
+        tags: ['节假日', '活动营销'],
+        urgency: 'opportunity',
+        urgencyLabel: '机会',
+        dataEvidence: [
+          `当前临近 ${holiday}`,
+          '按高营销响应客户优先生成活动受众',
+        ],
+        totalCustomers,
+        run: latestRun,
+      }));
+    }
+
+    return cards;
+  }
+
+  private getSeason(month: number) {
+    if (month >= 3 && month <= 5) return '春';
+    if (month >= 6 && month <= 8) return '夏';
+    if (month >= 9 && month <= 11) return '秋';
+    return '冬';
+  }
+
+  private getUpcomingHoliday(month: number) {
+    const holidays: Record<number, string> = {
+      1: '春节',
+      2: '情人节',
+      3: '女神节',
+      5: '母亲节/520',
+      6: '端午节/618',
+      7: '七夕',
+      8: '七夕',
+      9: '中秋节',
+      10: '国庆节',
+      11: '双十一',
+      12: '双十二/圣诞',
+    };
+    return holidays[month] ?? holidays[month + 1] ?? null;
+  }
+
+  private getSeasonalCareTheme(season: string) {
+    const themes: Record<string, any> = {
+      春: {
+        title: '春敏修护护理季',
+        focus: '敏感修护',
+        audience: '敏感/屏障修护客户',
+        strategy: '针对春季敏感、泛红和屏障脆弱客户推出温和修护护理方案',
+        offerLabel: '敏感修护套餐 8.5 折',
+        offer: { type: 'percentage_off', label: '敏感修护套餐 8.5 折', discountRate: 85, validDays: 30, reason: '春季敏感修护适合温和折扣和专业护理方案。' },
+        items: [{ type: 'project', name: '敏感肌舒缓修护护理', category: '面部护理', activityPrice: 398, reason: '春季换肤高频需求。', confidence: 84 }],
+      },
+      夏: {
+        title: '夏季防晒控油护理季',
+        focus: '防晒控油',
+        audience: '油性/混合肌客户',
+        strategy: '围绕控油清洁、防晒修护和晒后舒缓，发起夏季护理活动',
+        offerLabel: '控油清洁护理体验价',
+        offer: { type: 'trial_price', label: '控油清洁护理体验价', validDays: 30, reason: '夏季护理适合体验价快速拉动预约。' },
+        items: [{ type: 'project', name: '控油清洁焕肤护理', category: '面部护理', activityPrice: 298, reason: '夏季出油和防晒修护场景匹配。', confidence: 86 }],
+      },
+      秋: {
+        title: '秋季补水修护护理季',
+        focus: '补水修护',
+        audience: '干性/混合肌客户',
+        strategy: '换季干燥前提前推荐深层补水、屏障修护和抗初老护理',
+        offerLabel: '补水修护套餐立减 120',
+        offer: { type: 'money_off', label: '补水修护套餐立减 120', threshold: 500, amount: 120, validDays: 30, reason: '秋季补水护理客单适中，满减更便于套餐化。' },
+        items: [{ type: 'project', name: '深层补水屏障修护', category: '面部护理', activityPrice: 398, reason: '换季补水与屏障修护需求明显。', confidence: 86 }],
+      },
+      冬: {
+        title: '冬季深层滋养护理季',
+        focus: '深层滋养',
+        audience: '干性/抗衰需求客户',
+        strategy: '针对冬季干燥、细纹和身体护理需求，推荐滋养护理和热石 SPA',
+        offerLabel: '深层滋养护理礼包',
+        offer: { type: 'bundle', label: '深层滋养护理礼包', validDays: 30, reason: '冬季适合护理 + 产品组合权益。' },
+        items: [{ type: 'package', name: '深层滋养护理礼包', category: '护理套餐', activityPrice: 580, reason: '冬季滋养和抗干燥场景匹配。', confidence: 84 }],
+      },
+    };
+    return themes[season] ?? themes.秋;
+  }
+
+  async getRecommendationAudience(recommendationId: number, storeId?: number) {
+    const latestRun =
+      (await this.getLatestRunForRecommendations(storeId, { todayOnly: true })) ??
+      (await this.getLatestRunForRecommendations(storeId));
     const recommendation = this.getRecommendationAudienceMeta(recommendationId)
       ?? this.recommendations.find((item) => item.id === recommendationId);
     if (!recommendation) throw new NotFoundException('Recommendation not found');
@@ -327,6 +1064,13 @@ export class MarketingService {
       2: { id: 2, predictionType: 'repurchase', description: '30 天复购窗口客户' },
       3: { id: 3, predictionType: 'marketing_response', description: '高营销响应客户' },
       4: { id: 4, predictionType: 'ltv', description: '高 LTV 客户' },
+      5: { id: 5, predictionType: 'card_expiry', description: '次卡/套餐待使用客户' },
+      6: { id: 6, predictionType: 'care_cycle', description: '护理周期到期客户' },
+      7: { id: 7, predictionType: 'browse_abandonment', description: '小程序浏览未预约种子客户' },
+      8: { id: 8, predictionType: 'seasonal_skin_care', description: '季节护肤目标客户' },
+      9: { id: 9, predictionType: 'holiday_campaign', description: '节假日活动目标客户' },
+      10: { id: 10, predictionType: 'coupon_expiry', description: '优惠券到期提醒客户' },
+      11: { id: 11, predictionType: 'booking_abandonment', description: '预约放弃召回客户' },
     };
     return meta[recommendationId] ?? null;
   }
@@ -359,6 +1103,19 @@ export class MarketingService {
         return { runId, marketingResponseScore: { gte: 70 } };
       case 'ltv':
         return { runId, ltvTier: { in: ['铂金', '黄金'] } };
+      case 'card_expiry':
+        return { runId, marketingResponseScore: { gte: 50 } };
+      case 'care_cycle':
+        return { runId, repurchase30dScore: { gte: 55 } };
+      case 'browse_abandonment':
+        return { runId, marketingResponseScore: { gte: 72 }, repurchase30dScore: { gte: 55 } };
+      case 'coupon_expiry':
+        return { runId, marketingResponseScore: { gte: 68 }, repurchase30dScore: { gte: 45 } };
+      case 'booking_abandonment':
+        return { runId, marketingResponseScore: { gte: 75 } };
+      case 'seasonal_skin_care':
+      case 'holiday_campaign':
+        return { runId, marketingResponseScore: { gte: 60 } };
       default:
         return null;
     }
@@ -382,6 +1139,152 @@ export class MarketingService {
     if (index === -1) throw new NotFoundException('Recommendation not found');
     this.recommendations.splice(index, 1);
     return { success: true };
+  }
+
+  async adoptRecommendation(id: number, dto: any = {}) {
+    const recommendation = await this.getRecommendationCardById(id);
+    let event = null;
+    if (dto.storeId && dto.customerId) {
+      event = await this.prisma.recommendationEvent.create({
+        data: {
+          storeId: Number(dto.storeId),
+          customerId: Number(dto.customerId),
+          recommendationId: id,
+          eventType: 'accepted',
+          note: dto.note ?? `采纳推荐：${recommendation.title}`,
+          payload: {
+            actionTarget: dto.targetType ?? dto.actionTarget ?? recommendation.preferredMode,
+            sourcePage: dto.sourcePage ?? 'marketing_recommendation',
+            audienceSnapshotId: dto.audienceSnapshotId,
+            predictionRunId: recommendation.predictionRunId,
+          },
+        },
+      });
+    }
+    return {
+      success: true,
+      recommendationId: id,
+      adoptedAt: new Date().toISOString(),
+      preferredMode: recommendation.preferredMode,
+      event,
+    };
+  }
+
+  async createRecommendationActivityDraft(id: number) {
+    const recommendation = await this.getRecommendationCardById(id);
+    const period = this.defaultActivityPeriod();
+    const primaryItem = recommendation.recommendedItems?.[0];
+    return {
+      recommendationId: id,
+      sourceRecommendationId: String(id),
+      predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : undefined,
+      formDefaults: {
+        title: recommendation.title,
+        description: recommendation.reason,
+        status: '草稿',
+        startDate: period.startDate,
+        endDate: period.endDate,
+        targetCustomers: recommendation.targetCustomers,
+        discount: recommendation.offer?.label ?? recommendation.discount,
+        sourceRecommendationId: String(id),
+        predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : undefined,
+        audienceSnapshotJson: recommendation.audienceSnapshot,
+        sourceSignalsJson: recommendation.sourceSignals ?? [],
+        offerJson: recommendation.offer,
+        recommendedItemsJson: recommendation.recommendedItems ?? [],
+      },
+      pageSeed: {
+        campaignName: recommendation.title,
+        targetAudience: recommendation.targetCustomers,
+        offer: recommendation.offer?.label ?? recommendation.discount,
+        projectNames: recommendation.recommendedItems?.filter((item: any) => item.type === 'project').map((item: any) => item.name) ?? [],
+        productNames: recommendation.recommendedItems?.filter((item: any) => item.type === 'product').map((item: any) => item.name) ?? [],
+        primaryItemName: primaryItem?.name,
+        startDate: period.startDate,
+        endDate: period.endDate,
+      },
+      recommendation,
+    };
+  }
+
+  async createRecommendationAutomationDraft(id: number) {
+    const recommendation = await this.getRecommendationCardById(id);
+    const triggerRule = recommendation.triggerRule ?? (
+      recommendation.triggerType
+        ? {
+            type: recommendation.triggerType,
+            params: this.defaultTriggerParams(recommendation.triggerType),
+            parameterSource: 'system_default',
+          }
+        : null
+    );
+    const actions = (recommendation.recommendedActions?.length ? recommendation.recommendedActions : [{
+      type: 'coupon',
+      value: recommendation.offer?.label ?? recommendation.discount,
+      channel: recommendation.recommendedChannels?.[0]?.channel ?? 'miniapp',
+    }]).map((action: any, index: number) => ({
+      type: action.type === 'consultant_task' ? 'push' : action.type,
+      value: action.value,
+      channel: action.channel ?? recommendation.recommendedChannels?.[index]?.channel ?? recommendation.recommendedChannels?.[0]?.channel ?? 'miniapp',
+    }));
+    const triggerRules = triggerRule ? [{
+      type: triggerRule.type,
+      params: triggerRule.params ?? {},
+      parameterSource: 'system_default',
+    }] : [];
+    const preview = triggerRules.length ? await this.previewAudience(triggerRules, 'AND') : null;
+    return {
+      recommendationId: id,
+      strategyInput: {
+        name: recommendation.title,
+        description: recommendation.reason,
+        executionType: 'auto',
+        schedule: { type: 'daily', time: '09:00' },
+        triggerRules,
+        ruleRelation: 'AND',
+        actions,
+      },
+      preview,
+      recommendation,
+    };
+  }
+
+  async recordCustomerBehaviorEvent(dto: any) {
+    const data = {
+      storeId: Number(dto.storeId),
+      customerId: Number(dto.customerId),
+      eventType: dto.eventType,
+      targetType: dto.targetType ?? null,
+      targetId: dto.targetId != null ? String(dto.targetId) : null,
+      sessionId: dto.sessionId ?? null,
+      metadataJson: dto.metadataJson ?? dto.metadata ?? {},
+      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+    };
+    if (!data.storeId || !data.customerId || !data.eventType) {
+      throw new NotFoundException('storeId, customerId and eventType are required');
+    }
+    const delegate = (this.prisma as any).customerBehaviorEvent;
+    if (!delegate?.create) {
+      return { id: `behavior-event-${Date.now()}`, ...data, createdAt: new Date() };
+    }
+    return delegate.create({ data });
+  }
+
+  private async getRecommendationCardById(id: number) {
+    const cards = await this.getRecommendations();
+    const recommendation = cards.find((item: any) => item.id === id) ?? this.recommendations.find((item) => item.id === id);
+    if (!recommendation) throw new NotFoundException('Recommendation not found');
+    return recommendation;
+  }
+
+  private defaultActivityPeriod() {
+    const start = new Date();
+    const end = new Date(start);
+    end.setDate(end.getDate() + 30);
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
   }
 
   async runPredictions(storeId?: number) {
@@ -526,6 +1429,8 @@ export class MarketingService {
       'targetCustomers',
       'discount',
       'sourceRecommendationId',
+      'predictionRunId',
+      'audienceSnapshotId',
       'aiGenerationId',
       'publishStatus',
     ];
@@ -549,6 +1454,18 @@ export class MarketingService {
     if (dto.pageSchema !== undefined) {
       data.pageSchema = dto.pageSchema;
     }
+    if (dto.audienceSnapshotJson !== undefined) {
+      data.audienceSnapshotJson = dto.audienceSnapshotJson;
+    }
+    if (dto.sourceSignalsJson !== undefined) {
+      data.sourceSignalsJson = dto.sourceSignalsJson;
+    }
+    if (dto.offerJson !== undefined) {
+      data.offerJson = dto.offerJson;
+    }
+    if (dto.recommendedItemsJson !== undefined) {
+      data.recommendedItemsJson = dto.recommendedItemsJson;
+    }
 
     return data;
   }
@@ -567,22 +1484,113 @@ export class MarketingService {
   }
 
   getTriggerOptions() {
+    const option = (type: string, category: string, label: string, description: string, priority: string, defaultParams: any, paramSchema: any[] = []) => ({
+      type,
+      name: label,
+      category,
+      label,
+      description,
+      priority,
+      defaultParams,
+      paramSchema,
+    });
+    const numberField = (key: string, label: string, suffix = '天', min = 0, max = 365) => ({ key, label, type: 'number', min, max, suffix });
+    const booleanField = (key: string, label: string) => ({ key, label, type: 'boolean' });
+    const multiChannelField = { key: 'channels', label: '触达渠道', type: 'multi_select', options: [
+      { label: '短信', value: 'sms' },
+      { label: '小程序', value: 'miniapp' },
+      { label: '微信', value: 'wechat' },
+      { label: '门店话术', value: 'store' },
+      { label: '社群', value: 'group' },
+      { label: '朋友圈', value: 'moments' },
+    ] };
+
     return [
-      { type: 'birthday', name: '生日触发', category: 'time' },
-      { type: 'last_visit', name: '上次到店', category: 'behavior' },
-      { type: 'dormant', name: '沉睡客户', category: 'behavior' },
-      { type: 'consumption', name: '消费金额', category: 'behavior' },
-      { type: 'member_level', name: '会员等级', category: 'attribute' },
-      { type: 'skin_type', name: '肤质类型', category: 'attribute' },
-      { type: 'holiday', name: '节日营销', category: 'time' },
-      { type: 'seasonal', name: '季节护理', category: 'time' },
-      { type: 'care_cycle', name: '护理周期', category: 'behavior' },
-      { type: 'card_expiry', name: '次卡到期', category: 'behavior' },
-      { type: 'visit_frequency', name: '到店频次', category: 'behavior' },
-      { type: 'visit_gap', name: '到店间隔', category: 'behavior' },
-      { type: 'service_interest', name: '项目偏好', category: 'behavior' },
-      { type: 'new_customer', name: '新客转化', category: 'attribute' },
-      { type: 'age_range', name: '年龄区间', category: 'attribute' },
+      option('coupon_expiry', '时间触发', '优惠券即将到期', '优惠券 D-7/D-3/D-1 到期提醒，推动预约和核销。', 'P0',
+        { beforeDays: 7, remindSteps: [7, 3, 1], excludeBooked: true, channels: ['miniapp', 'sms'] },
+        [numberField('beforeDays', '提前提醒'), booleanField('excludeBooked', '排除已有预约客户'), multiChannelField]),
+      option('card_expiry', '行为触发', '次卡/套餐即将到期', '次卡或套餐剩余次数较少、临近到期时提醒使用或续费。', 'P0',
+        { beforeDays: 30, remainingTimes: 1, cardType: 'all', actionIntent: 'use_or_renew', channels: ['miniapp', 'sms'] },
+        [numberField('beforeDays', '到期提前'), numberField('remainingTimes', '剩余次数阈值', '次', 0, 20), multiChannelField]),
+      option('booking_abandonment', '行为触发', '预约放弃', '客户进入预约流程后未提交，自动召回继续预约。', 'P0',
+        { windowHours: 2, recommendAdjacentSlots: true, channels: ['miniapp', 'sms'] },
+        [{ key: 'windowHours', label: '放弃后', type: 'number', min: 1, max: 72, suffix: '小时' }, booleanField('recommendAdjacentSlots', '推荐相邻时段'), multiChannelField]),
+      option('dormant', '行为触发', '沉睡客户唤醒', '超过指定天数未到店，排除近期购买或已有预约客户。', 'P0',
+        { days: 60, excludePurchasedRecently: true, excludeBooked: true, wakeLevel: 'medium', channels: ['sms', 'miniapp'] },
+        [numberField('days', '未到店超过'), booleanField('excludePurchasedRecently', '排除近期已购'), booleanField('excludeBooked', '排除已有预约'), multiChannelField]),
+      option('care_cycle', '时间触发', '护理周期到期', '上次护理后按 21-45 天周期提醒复购预约。', 'P1',
+        { cycleDays: 28, lastServiceType: 'facial_care', remindDaysBefore: 3, channels: ['miniapp', 'sms'] },
+        [numberField('cycleDays', '护理周期'), numberField('remindDaysBefore', '提前提醒'), multiChannelField]),
+      option('browse_abandonment', '行为触发', '小程序浏览未预约', '浏览项目/活动页后 24 小时未预约，自动推送项目案例和体验券。', 'P1',
+        { windowHours: 24, minViewCount: 1, targetType: 'project', excludeBooked: true, channels: ['miniapp'] },
+        [{ key: 'windowHours', label: '浏览后', type: 'number', min: 1, max: 168, suffix: '小时' }, { key: 'minViewCount', label: '最低浏览次数', type: 'number', min: 1, max: 20, suffix: '次' }, booleanField('excludeBooked', '排除已有预约'), multiChannelField]),
+      option('coupon_claimed_unused', '行为触发', '领券未核销', '客户领券后未预约或未核销，自动提醒使用。', 'P1',
+        { unusedDays: 3, excludePurchasedRecently: true, channels: ['miniapp', 'sms'] },
+        [numberField('unusedDays', '领券后未使用'), booleanField('excludePurchasedRecently', '排除近期已购'), multiChannelField]),
+      option('seasonal_skin_care', '时间触发', '季节换肤护理', '按春敏、夏季控油防晒、秋冬补水修护生成季节护理推荐。', 'P2',
+        { season: 'current', leadDays: 15, skinTypes: 'auto_by_season', projectCategories: 'auto_by_season', channels: ['miniapp', 'wechat'] },
+        [numberField('leadDays', '提前预热'), multiChannelField]),
+      option('seasonal', '时间触发', '季节护理', '兼容旧版季节护理规则，默认映射到季节换肤护理。', 'P2',
+        { season: 'current', leadDays: 15, skinTypes: 'auto_by_season', projectCategories: 'auto_by_season', channels: ['miniapp', 'wechat'] },
+        [numberField('leadDays', '提前预热'), multiChannelField]),
+      option('holiday_campaign', '时间触发', '节假日营销', '节日前 15-30 天预热女神节、母亲节、520、七夕等主题活动。', 'P2',
+        { holiday: 'auto_upcoming_major_holiday', leadDays: 21, channels: ['miniapp', 'wechat'] },
+        [numberField('leadDays', '提前预热'), multiChannelField]),
+      option('holiday', '时间触发', '节日营销', '兼容旧版节日营销规则，默认映射到节假日营销活动。', 'P2',
+        { holiday: 'auto_upcoming_major_holiday', leadDays: 21, channels: ['miniapp', 'wechat'] },
+        [numberField('leadDays', '提前预热'), multiChannelField]),
+      option('vip_privilege_care', '属性触发', '高价值客户权益维护', '铂金/黄金/VIP 客户季度权益、生日或周年关怀。', 'P2',
+        { levels: ['gold', 'platinum', 'diamond'], actionIntent: 'privilege_care', channels: ['wechat', 'store'] },
+        [{ key: 'levels', label: '会员等级', type: 'multi_select', options: [
+          { label: '金卡会员', value: 'gold' },
+          { label: '白金会员', value: 'platinum' },
+          { label: '钻石会员', value: 'diamond' },
+        ] }, multiChannelField]),
+      option('product_replenishment', '行为触发', '商品补货提醒', '按护肤品消耗周期提醒补货或搭配护理。', 'P2',
+        { replenishmentDays: 45, productCategory: 'skin_care', channels: ['miniapp', 'wechat'] },
+        [numberField('replenishmentDays', '预计消耗周期'), multiChannelField]),
+      option('referral_campaign', '行为触发', '老带新/闺蜜同行', '稳定客户、分享意愿强客户触发裂变活动。', 'P3',
+        { minVisitCount: 3, rewardType: 'coupon', channels: ['miniapp', 'moments', 'group'] },
+        [{ key: 'minVisitCount', label: '最低到店次数', type: 'number', min: 1, max: 100, suffix: '次' }, multiChannelField]),
+      option('birthday', '时间触发', '生日触发', '生日月或生日前自动触达生日权益。', 'P1',
+        { offsetDays: -7, dateScope: 'birthday_month', channels: ['miniapp', 'sms'] },
+        [numberField('offsetDays', '生日偏移天数', '天', -30, 30), multiChannelField]),
+      option('last_visit', '行为触发', '最近消费时间', '最近到店超过指定天数时触发轻唤醒。', 'P1',
+        { operator: 'greater_than', days: 30, excludeBooked: true, channels: ['sms', 'miniapp'] },
+        [numberField('days', '未到店超过'), booleanField('excludeBooked', '排除已有预约'), multiChannelField]),
+      option('consumption', '行为触发', '消费金额', '累计或周期消费达到门槛，触发会员权益或升级。', 'P2',
+        { period: 'cumulative', operator: 'greater_than_or_equal', amount: 5000, tierAction: 'vip_care' },
+        [{ key: 'amount', label: '消费金额', type: 'number', min: 0, max: 1000000, suffix: '元' }]),
+      option('member_level', '属性触发', '会员等级', '按会员等级触发权益维护。', 'P2',
+        { levels: ['gold', 'platinum', 'diamond'], actionIntent: 'privilege_care', channels: ['wechat', 'store'] },
+        [{ key: 'levels', label: '会员等级', type: 'multi_select', options: [
+          { label: '金卡会员', value: 'gold' },
+          { label: '白金会员', value: 'platinum' },
+          { label: '钻石会员', value: 'diamond' },
+        ] }, multiChannelField]),
+      option('skin_type', '属性触发', '肤质类型', '按肤质触发护肤方案推荐。', 'P2',
+        { skinTypes: ['dry', 'oily', 'sensitive', 'combination'], sourcePriority: ['aura_lite', 'health_profile', 'manual'], recommendMode: 'skin_care_plan' },
+        [{ key: 'skinTypes', label: '肤质类型', type: 'multi_select', options: [
+          { label: '干性肌肤', value: 'dry' },
+          { label: '油性肌肤', value: 'oily' },
+          { label: '敏感肌肤', value: 'sensitive' },
+          { label: '混合肌肤', value: 'combination' },
+        ] }]),
+      option('visit_frequency', '行为触发', '到店频次', '观察窗口内到店次数变化。', 'P2',
+        { windowDays: 90, operator: 'less_than', count: 2, compareToPreviousWindow: true },
+        [numberField('windowDays', '观察窗口'), { key: 'count', label: '次数阈值', type: 'number', min: 0, max: 100, suffix: '次' }]),
+      option('visit_gap', '行为触发', '到店间隔异常', '当前到店间隔超过个人历史均值倍数。', 'P1',
+        { gapRatio: 1.5, minDays: 45, excludeNewCustomer: true },
+        [{ key: 'gapRatio', label: '间隔倍数', type: 'number', min: 1, max: 10, suffix: '倍' }, numberField('minDays', '最小间隔')]),
+      option('service_interest', '行为触发', '项目偏好', '按历史项目偏好推荐相关项目或套餐。', 'P2',
+        { windowDays: 180, minCount: 2, projectCategory: 'last_top_category', recommendMode: 'related_project' },
+        [numberField('windowDays', '观察窗口'), { key: 'minCount', label: '最低次数', type: 'number', min: 1, max: 20, suffix: '次' }]),
+      option('new_customer', '属性触发', '新客转化', '新客建档后首单或二次到店引导。', 'P1',
+        { withinDays: 7, hasNoOrder: true, touchDay: 3, defaultAction: 'first_order_coupon' },
+        [numberField('withinDays', '建档后窗口'), numberField('touchDay', '第几天触达')]),
+      option('age_range', '属性触发', '年龄区间', '按年龄段推荐抗初老、维稳等主题。', 'P3',
+        { minAge: 25, maxAge: 40, theme: 'anti_aging_entry', channels: ['miniapp', 'wechat'] },
+        [{ key: 'minAge', label: '最小年龄', type: 'number', min: 0, max: 100, suffix: '岁' }, { key: 'maxAge', label: '最大年龄', type: 'number', min: 0, max: 100, suffix: '岁' }, multiChannelField]),
     ];
   }
 
@@ -638,7 +1646,9 @@ export class MarketingService {
     const strategy = await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
     if (!strategy) throw new NotFoundException('Strategy not found');
     const audience = await this.buildAutomationAudience(strategy.triggerRules as any[], strategy.ruleRelation, strategy.actions);
-    const reachedCount = audience.customers.length;
+    const channel = this.extractPrimaryChannel(strategy.actions);
+    const eligibleCustomers = await this.filterTouchFatigue(id, channel, audience.customers);
+    const reachedCount = eligibleCustomers.length;
 
     const execution = await this.prisma.marketingAutomationExecution.create({
       data: {
@@ -647,19 +1657,19 @@ export class MarketingService {
         status: 'success',
         triggeredCount: audience.total,
         reachedCount,
-        channel: this.extractPrimaryChannel(strategy.actions),
+        channel,
       },
     });
-    if (audience.customers.length) {
+    if (eligibleCustomers.length) {
       await this.prisma.marketingAutomationTouch.createMany({
-        data: audience.customers.map((item: any) => ({
+        data: eligibleCustomers.map((item: any) => ({
           executionId: execution.id,
           strategyId: id,
           customerId: item.id,
           predictionSnapshotId: item.prediction?.id ?? null,
           predictedConversionScore: item.predictedConversionScore,
           predictedRevenue: item.predictedRevenue,
-          channel: this.extractPrimaryChannel(strategy.actions),
+          channel,
           status: 'reached',
           touchedAt: new Date(),
           attributionWindowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
@@ -671,6 +1681,28 @@ export class MarketingService {
       data: { lastExecutedAt: new Date(), targetCount: audience.total },
     });
     return execution;
+  }
+
+  private async filterTouchFatigue(strategyId: number, channel: string, customers: any[]) {
+    const delegate = (this.prisma as any).marketingAutomationTouch;
+    if (!delegate?.findMany || customers.length === 0) return customers;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    const customerIds = customers.map((customer) => customer.id);
+    const touches = await delegate.findMany({
+      where: {
+        customerId: { in: customerIds },
+        OR: [
+          { strategyId, touchedAt: { gte: sevenDaysAgo } },
+          { channel, touchedAt: { gte: oneDayAgo } },
+        ],
+      },
+      select: { customerId: true },
+    });
+    const fatigued = new Set(touches.map((touch: any) => touch.customerId));
+    return customers.filter((customer) => !fatigued.has(customer.id));
   }
 
   async previewAudience(triggerRules: any[] = [], ruleRelation = 'AND', strategyId?: number) {
@@ -838,6 +1870,7 @@ export class MarketingService {
     const activeCardCount = (customer.customerCards ?? []).filter(
       (card: any) => card.status === 'active' && card.remainingTimes > 0 && new Date(card.expiryDate) >= now,
     ).length;
+    const cardExpiryUrgencyScore = this.calculateCardExpiryUrgencyScore(customer.customerCards ?? [], now);
 
     const churn = this.calculateChurnScore({
       lastVisitDays,
@@ -910,6 +1943,7 @@ export class MarketingService {
         memberLevel: customer.memberLevel,
         skinType: customer.healthProfile?.skinType ?? customer.skinType ?? customer.skinCondition ?? '未分类',
         activeCardCount,
+        cardExpiryUrgencyScore,
         recordCount: records.length,
       },
       reasonJson: reasons,
@@ -1032,19 +2066,38 @@ export class MarketingService {
     const checks = triggerRules.map((rule) => {
       const params = rule.params ?? {};
       switch (rule.type) {
+        case 'coupon_expiry':
+        case 'coupon_claimed_unused':
+          return snapshot.marketingResponseScore >= 60 && snapshot.repurchase30dScore >= 45;
+        case 'browse_abandonment':
+          return snapshot.marketingResponseScore >= 72 && snapshot.repurchase30dScore >= 55;
+        case 'booking_abandonment':
+          return snapshot.marketingResponseScore >= 65;
+        case 'seasonal_skin_care':
+        case 'holiday_campaign':
+          return snapshot.marketingResponseScore >= 60;
+        case 'vip_privilege_care':
+          return ['铂金', '黄金'].includes(snapshot.ltvTier) || ['金卡会员', '钻石会员', 'VIP'].includes(customer.memberLevel);
+        case 'product_replenishment':
+          return snapshot.marketingResponseScore >= 55 && Number(customer.totalSpent ?? 0) >= Number(params.minSpent ?? 1000);
+        case 'referral_campaign':
+          return Number(customer.visitCount ?? 0) >= Number(params.minVisitCount ?? 3) && snapshot.marketingResponseScore >= 55;
         case 'dormant':
         case 'last_visit':
-          return Number(snapshot.featureJson?.lastVisitDays ?? 0) >= Number(params.daysInactive ?? params.daysSinceLastVisit ?? 60);
+          return Number(snapshot.featureJson?.lastVisitDays ?? 0) >= Number(params.days ?? params.daysInactive ?? params.daysSinceLastVisit ?? 60);
         case 'member_level':
           return params.levels?.length ? params.levels.includes(customer.memberLevel) : ['金卡会员', '钻石会员', 'VIP'].includes(customer.memberLevel);
         case 'skin_type':
           return params.skinTypes?.length ? params.skinTypes.includes(customer.skinType) : Boolean(customer.skinType);
         case 'visit_gap':
-          return Number(snapshot.featureJson?.currentGapRatio ?? 0) >= Number(params.gapRatio ?? 1.5);
+          return Number(snapshot.featureJson?.currentGapRatio ?? 0) >= Number(params.gapRatio ?? params.multiplier ?? 1.5);
         case 'consumption':
-          return Number(customer.totalSpent ?? 0) >= Number(params.minAmount ?? 1000);
+          return Number(customer.totalSpent ?? 0) >= Number(params.amount ?? params.minAmount ?? 1000);
         case 'card_expiry':
-          return Number(snapshot.featureJson?.activeCardCount ?? 0) > 0;
+        case 'package_remaining':
+          return Number(snapshot.featureJson?.cardExpiryUrgencyScore ?? 0) >= 50 || Number(snapshot.featureJson?.activeCardCount ?? 0) > 0;
+        case 'care_cycle':
+          return Number(snapshot.featureJson?.lastVisitDays ?? 0) >= Number(params.cycleDays ?? 28) - Number(params.remindDaysBefore ?? 3);
         case 'new_customer':
           return Number(customer.visitCount ?? 0) <= Number(params.maxVisitCount ?? 2);
         default:
@@ -1057,13 +2110,20 @@ export class MarketingService {
   private buildRecommendationCard(input: any) {
     const targetSnapshots = input.targetSnapshots ?? [];
     const targetCount = input.targetCount ?? targetSnapshots.length;
+    const triggerType = input.triggerType ?? (input.predictionType === 'churn' ? 'dormant' : input.predictionType === 'ltv' ? 'member_level' : 'care_cycle');
+    const executionModes = input.executionModes ?? (triggerType ? ['automation'] : ['activity']);
+    const preferredMode = input.preferredMode ?? (executionModes.includes('automation') ? 'automation' : 'activity');
+    const offer = input.offer ?? this.inferOffer(input.discount);
+    const recommendedChannels = input.recommendedChannels ?? this.inferRecommendedChannels(preferredMode, input.urgency);
+    const recommendedItems = input.recommendedItems ?? this.inferRecommendedItems(input.category, input.strategy);
+    const audienceCustomerIds = targetSnapshots.map((item: any) => item.customerId);
     return {
       id: input.id,
       title: input.title,
       reason: input.reason,
       targetCustomers: input.targetLabel ?? `${input.title.split('需要')[0]}（${targetCount}人）`,
       targetCount,
-      targetCustomerIds: targetSnapshots.map((item: any) => item.customerId),
+      targetCustomerIds: audienceCustomerIds,
       expectedConversion: `预计转化率 ${Math.round(input.expectedConversionRate * 100)}%`,
       expectedRevenue: `预计营收 ¥${Math.round(input.expectedRevenue).toLocaleString()}`,
       strategy: input.strategy,
@@ -1073,8 +2133,42 @@ export class MarketingService {
       image: this.defaultRecommendationImage,
       tags: input.tags,
       category: input.category,
-      triggerType: input.predictionType === 'churn' ? 'dormant' : input.predictionType === 'ltv' ? 'member_level' : 'care_cycle',
-      preferAutoRule: true,
+      triggerType,
+      triggerRule: triggerType
+        ? {
+            type: triggerType,
+            params: this.defaultTriggerParams(triggerType),
+            defaultEditable: true,
+            reason: input.modeReason ?? '基于推荐卡命中原因自动生成触发规则，运营可继续调整参数。',
+          }
+        : undefined,
+      preferAutoRule: preferredMode === 'automation',
+      executionModes,
+      preferredMode,
+      modeReason: input.modeReason ?? (preferredMode === 'automation' ? '该推荐适合按客户状态长期自动触发。' : '该推荐适合用活动页集中承接。'),
+      priority: input.priority ?? (input.urgency === 'urgent' ? 'P0' : input.urgency === 'recommended' ? 'P1' : 'P2'),
+      recommendedChannels,
+      recommendedActions: input.recommendedActions ?? recommendedChannels.map((channel: any) => ({
+        type: offer?.type === 'member_privilege' ? 'push' : 'coupon',
+        value: offer?.label ?? input.discount,
+        channel: channel.channel,
+        reason: channel.reason,
+      })),
+      offer,
+      recommendedItems,
+      audienceSnapshot: {
+        predictionRunId: input.run.id,
+        generatedAt: new Date().toISOString(),
+        ruleSummary: input.targetLabel ?? input.reason,
+        customerIds: audienceCustomerIds,
+        totalCustomers: targetCount,
+        sampleReasons: targetSnapshots.slice(0, 10).map((item: any) => ({
+          customerId: item.customerId,
+          reason: this.formatTopReason(item.reasonJson),
+          score: item.marketingResponseScore ?? item.repurchase30dScore ?? item.churnScore ?? 0,
+        })),
+      },
+      sourceSignals: input.sourceSignals ?? [input.predictionType, triggerType, input.category].filter(Boolean),
       urgency: input.urgency,
       urgencyLabel: input.urgencyLabel,
       source: input.source,
@@ -1085,6 +2179,68 @@ export class MarketingService {
       dataEvidence: input.dataEvidence,
       totalCustomers: input.totalCustomers ?? input.run.customerCount ?? targetCount,
     };
+  }
+
+  private inferOffer(discount: string) {
+    if (/满(\d+)减(\d+)/.test(discount)) {
+      const [, threshold, amount] = discount.match(/满(\d+)减(\d+)/) ?? [];
+      return {
+        type: 'money_off',
+        label: discount,
+        threshold: Number(threshold),
+        amount: Number(amount),
+        validDays: 30,
+        reason: '从推荐优惠文案解析为满减权益。',
+      };
+    }
+    if (discount.includes('体验')) {
+      return { type: 'trial_price', label: discount, validDays: 14, reason: '体验价适合活动拉新或浏览转化。' };
+    }
+    if (discount.includes('VIP') || discount.includes('权益')) {
+      return { type: 'member_privilege', label: discount, validDays: 90, reason: '会员权益适合高价值客户维护。' };
+    }
+    return { type: 'gift', label: discount || '门店专属权益', validDays: 30, reason: '默认按门店权益承接。' };
+  }
+
+  private inferRecommendedChannels(preferredMode: string, urgency?: string) {
+    if (preferredMode === 'activity') {
+      return [
+        { channel: 'miniapp', label: '小程序', reason: '活动页、领券和预约入口统一承接。', priority: 'P0' },
+        { channel: 'wechat', label: '微信', reason: '适合顾问转发活动内容。', priority: 'P1' },
+      ];
+    }
+    return [
+      { channel: 'miniapp', label: '小程序', reason: '自动规则优先通过小程序承接预约和权益。', priority: 'P0' },
+      { channel: urgency === 'urgent' ? 'sms' : 'wechat', label: urgency === 'urgent' ? '短信' : '微信', reason: urgency === 'urgent' ? '紧急场景需要更强触达。' : '适合补充顾问跟进。', priority: 'P1' },
+    ];
+  }
+
+  private inferRecommendedItems(category: string, strategy: string) {
+    if (category === 'ltv-nurture') {
+      return [{ type: 'package', name: 'VIP专属护理方案', category: '会员权益', reason: strategy, confidence: 82 }];
+    }
+    if (category === 'seasonal') {
+      return [{ type: 'project', name: '季节护理推荐项目', category: '季节护理', reason: strategy, confidence: 78 }];
+    }
+    return [{ type: 'project', name: '推荐护理方案', category: '面部护理', reason: strategy, confidence: 75 }];
+  }
+
+  private defaultTriggerParams(triggerType: string) {
+    const params: Record<string, any> = {
+      dormant: { days: 60, excludePurchasedRecently: true, excludeBooked: true, wakeLevel: 'medium' },
+      care_cycle: { cycleDays: 28, lastServiceType: 'facial_care', remindDaysBefore: 3, channels: ['miniapp', 'sms'] },
+      card_expiry: { beforeDays: 30, remainingTimes: 1, cardType: 'all', actionIntent: 'use_or_renew' },
+      coupon_expiry: { beforeDays: 7, remindSteps: [7, 3, 1], excludeBooked: true },
+      coupon_claimed_unused: { unusedDays: 3, excludePurchasedRecently: true, channels: ['miniapp', 'sms'] },
+      browse_abandonment: { windowHours: 24, minViewCount: 1, targetType: 'project', excludeBooked: true },
+      booking_abandonment: { windowHours: 2, recommendAdjacentSlots: true, channels: ['miniapp', 'sms'] },
+      seasonal_skin_care: { season: 'current', leadDays: 15, skinTypes: 'auto_by_season', projectCategories: 'auto_by_season' },
+      holiday_campaign: { holiday: 'auto_upcoming_major_holiday', leadDays: 21, channels: ['miniapp', 'wechat'] },
+      vip_privilege_care: { levels: ['gold', 'platinum', 'diamond'], actionIntent: 'privilege_care', channels: ['wechat', 'store'] },
+      member_level: { levels: ['gold', 'platinum', 'diamond'], actionIntent: 'privilege_care', channels: ['wechat', 'store'] },
+      new_customer: { withinDays: 7, hasNoOrder: true, touchDay: 3, defaultAction: 'first_order_coupon' },
+    };
+    return params[triggerType] ?? {};
   }
 
   private calculateChurnScore(input: any) {
@@ -1125,6 +2281,24 @@ export class MarketingService {
     const level = score >= 75 ? '极高' : score >= 55 ? '高' : score >= 30 ? '中' : '低';
     if (!reasons.length) reasons.push({ type: 'churn', label: '稳定', detail: '暂无明显流失风险特征', impact: 'neutral' });
     return { score, level, reasons };
+  }
+
+  private calculateCardExpiryUrgencyScore(cards: any[], now: Date) {
+    const activeCards = cards.filter((card: any) => card.status === 'active' && new Date(card.expiryDate) >= now);
+    if (!activeCards.length) return 0;
+    return Math.max(
+      ...activeCards.map((card: any) => {
+        const daysToExpiry = this.daysBetween(now, card.expiryDate);
+        const remainingTimes = Number(card.remainingTimes ?? 0);
+        let score = 20;
+        if (daysToExpiry <= 7) score += 45;
+        else if (daysToExpiry <= 30) score += 30;
+        else if (daysToExpiry <= 60) score += 12;
+        if (remainingTimes <= 1) score += 25;
+        else if (remainingTimes <= 3) score += 12;
+        return this.clamp(score, 0, 100);
+      }),
+    );
   }
 
   private calculateRepurchaseScore(input: any) {

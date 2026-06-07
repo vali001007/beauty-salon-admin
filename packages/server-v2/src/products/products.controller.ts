@@ -46,9 +46,31 @@ export class ProductsController {
   }
 
   @Get('categories')
+  @Permissions('core:goods:types', 'core:goods:products')
   @ApiOperation({ summary: '获取商品分类' })
   getCategories() {
     return this.productsService.getCategories();
+  }
+
+  @Post('categories')
+  @Permissions('core:goods:types')
+  @ApiOperation({ summary: '创建商品分类' })
+  createCategory(@Body() dto: any) {
+    return this.productsService.createCategory(dto);
+  }
+
+  @Put('categories/:id')
+  @Permissions('core:goods:types')
+  @ApiOperation({ summary: '更新商品分类' })
+  updateCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.productsService.updateCategory(id, dto);
+  }
+
+  @Post('categories/batch-delete')
+  @Permissions('core:goods:types')
+  @ApiOperation({ summary: '批量删除商品分类' })
+  deleteCategories(@Body('ids') ids: number[]) {
+    return this.productsService.deleteCategories(ids);
   }
 
   @Get(':id')

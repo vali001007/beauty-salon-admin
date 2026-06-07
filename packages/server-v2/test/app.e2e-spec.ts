@@ -130,6 +130,196 @@ describe('App (e2e)', () => {
     });
   });
 
+  describe('Public marketing page routes', () => {
+    const publishedPage = {
+      id: 1,
+      storeId: 8,
+      sourceType: 'product',
+      sourceId: '101',
+      title: '水光护理体验页',
+      slug: 'mp-product-101',
+      pageSchema: { schemaVersion: '1.0', sections: [], cta: { text: '立即预约', action: 'book' } },
+      snapshotJson: { internalCost: 12 },
+      shareTitle: '水光护理限时体验',
+      shareDescription: '适合新客体验',
+      shareImage: 'https://example.test/share.jpg',
+      shareUrl: 'https://mini.ami-core.com/page/mp-product-101',
+      miniappPath: '/pages/marketing/page?slug=mp-product-101',
+      status: 'published',
+      publishedAt: new Date('2026-06-07T09:00:00.000Z'),
+    };
+
+    it('exposes published page data without auth and without internal ids', () => {
+      const unsafePublishedPage = {
+        ...publishedPage,
+        pageSchema: {
+          schemaVersion: '1.0',
+          sourceId: '101',
+          promptVersion: 'internal-prompt-v1',
+          sections: [
+            {
+              type: 'product_recommendation',
+              title: 'Products',
+              internalCost: 12,
+              items: [{ id: 101, productId: 101, name: 'product', activityPrice: 199, costPrice: 80 }],
+            },
+          ],
+          cta: { text: 'book', action: 'book' },
+          safety: { customerFacing: true, blocked: false, reasons: ['internal review reason'] },
+        },
+      };
+      prisma.marketingPage.findUnique.mockResolvedValue(unsafePublishedPage);
+
+      return request(app.getHttpServer())
+        .get('/api/public/marketing/pages/mp-product-101')
+        .expect(200)
+        .expect((res: any) => {
+          expect(res.body.title).toBe('水光护理体验页');
+          expect(res.body.slug).toBe('mp-product-101');
+          expect(res.body.id).toBeUndefined();
+          expect(res.body.storeId).toBeUndefined();
+          expect(res.body.sourceId).toBeUndefined();
+          expect(res.body.snapshotJson).toBeUndefined();
+          expect(res.body.pageSchema.sourceId).toBeUndefined();
+          expect(res.body.pageSchema.promptVersion).toBeUndefined();
+          expect(res.body.pageSchema.safety.reasons).toBeUndefined();
+          expect(res.body.pageSchema.sections[0].internalCost).toBeUndefined();
+          expect(res.body.pageSchema.sections[0].items[0].id).toBeUndefined();
+          expect(res.body.pageSchema.sections[0].items[0].productId).toBeUndefined();
+          expect(res.body.pageSchema.sections[0].items[0].costPrice).toBeUndefined();
+          expect(res.body.pageSchema.sections[0].items[0].activityPrice).toBe(199);
+        });
+    });
+
+    it('records public events without auth or CSRF token', () => {
+      prisma.marketingPage.findUnique.mockResolvedValue(publishedPage);
+      prisma.marketingPageEvent.create.mockResolvedValue({ id: 10 });
+
+      return request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/events')
+        .send({
+          eventType: 'click_cta',
+          sessionId: 'session-1',
+          channel: 'poster',
+          staffId: 3,
+          campaignId: 'summer-hydration',
+          source: 'wechat',
+          medium: 'group',
+          metadataJson: {
+            ctaAction: 'book',
+            phone: '13800138000',
+            ip: '127.0.0.1',
+            nested: { mobile: '13800138001', sectionType: 'hero' },
+          },
+        })
+        .expect(201)
+        .expect((res: any) => {
+          expect(res.body).toEqual({ ok: true });
+          expect(prisma.marketingPageEvent.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+              pageId: 1,
+              storeId: 8,
+              eventType: 'click_cta',
+              channel: 'poster',
+              staffId: 3,
+              campaignId: 'summer-hydration',
+              source: 'wechat',
+              medium: 'group',
+              metadataJson: { ctaAction: 'book', nested: { sectionType: 'hero' } },
+            }),
+          });
+        });
+    });
+
+    it('rejects unsupported public events and internal ids at the API boundary', () => {
+      return request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/events')
+        .send({
+          eventType: 'delete_page',
+          pageId: 1,
+          storeId: 8,
+        })
+        .expect(400);
+    });
+
+    it('rejects public reads and submissions for draft or offline pages', async () => {
+      prisma.marketingPage.findUnique.mockResolvedValue({ ...publishedPage, status: 'offline' });
+      const eventCreateCallsBefore = prisma.marketingPageEvent.create.mock.calls.length;
+      const leadCreateCallsBefore = prisma.marketingPageLead.create.mock.calls.length;
+
+      await request(app.getHttpServer()).get('/api/public/marketing/pages/mp-product-101').expect(404);
+      await request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/events')
+        .send({ eventType: 'view', sessionId: 'session-offline' })
+        .expect(404);
+      await request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/leads')
+        .send({ phone: '13800138000', sessionId: 'session-offline' })
+        .expect(404);
+      await request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/bookings')
+        .send({ phone: '13800138000', sessionId: 'session-offline' })
+        .expect(404);
+
+      expect(prisma.marketingPageEvent.create).toHaveBeenCalledTimes(eventCreateCallsBefore);
+      expect(prisma.marketingPageLead.create).toHaveBeenCalledTimes(leadCreateCallsBefore);
+    });
+
+    it('accepts public leads without auth or CSRF token', () => {
+      prisma.marketingPage.findUnique.mockResolvedValue(publishedPage);
+      prisma.marketingPageLead.findMany.mockResolvedValue([]);
+      prisma.marketingPageLead.create.mockResolvedValue({ id: 20, intentType: 'consult' });
+      prisma.marketingPageEvent.create.mockResolvedValue({ id: 21 });
+
+      return request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/leads')
+        .send({
+          phone: '13800138000',
+          name: '王女士',
+          sessionId: 'session-2',
+          channel: 'wechat_group',
+          campaignId: 'summer-hydration',
+        })
+        .expect(201)
+        .expect((res: any) => {
+          expect(res.body).toEqual({ ok: true, intentType: 'consult' });
+          expect(prisma.marketingPageLead.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+              pageId: 1,
+              storeId: 8,
+              phone: '13800138000',
+              name: '王女士',
+              channel: 'wechat_group',
+            }),
+          });
+          expect(prisma.marketingPageEvent.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+              pageId: 1,
+              eventType: 'lead_submit',
+              campaignId: 'summer-hydration',
+            }),
+          });
+        });
+    });
+
+    it('rejects invalid public lead phone numbers before writing data', () => {
+      return request(app.getHttpServer())
+        .post('/api/public/marketing/pages/mp-product-101/leads')
+        .send({
+          phone: '12345',
+          status: 'contacted',
+        })
+        .expect(400)
+        .expect(() => {
+          expect(prisma.marketingPageLead.create).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+              data: expect.objectContaining({ phone: '12345' }),
+            }),
+          );
+        });
+    });
+  });
+
   describe('GET /api/auth/user-info', () => {
     it('should return 401 without token', () => {
       return request(app.getHttpServer())
@@ -207,6 +397,25 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    marketingPage: {
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    marketingPageVersion: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
+    marketingPageEvent: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+    },
+    marketingPageLead: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
     },
     marketingAutomationStrategy: {
       findMany: jest.fn().mockResolvedValue([]),

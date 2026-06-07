@@ -606,7 +606,7 @@ async function upsertCategory(name: string, parentId?: number) {
 
 async function seedUsersAndBeauticians(storeId: number, levelIds: number[]) {
   const managerRole = await ensureRole(`${USER_PREFIX}_manager`, 'Ami 演示店长', ['*']);
-  const cashierRole = await ensureRole(`${USER_PREFIX}_cashier`, 'Ami 演示收银员', ['core:order:create', 'core:order:products', 'core:goods:cards']);
+  const cashierRole = await ensureRole(`${USER_PREFIX}_cashier`, 'Ami 演示收银员', ['core:order:create', 'core:order:products', 'core:order:projects', 'core:goods:cards']);
   const beauticianRole = await ensureRole(`${USER_PREFIX}_beautician`, 'Ami 演示美容师', ['core:store:reservations', 'terminal:service:start', 'terminal:service:complete']);
   const passwordHash = await bcrypt.hash(readSeedPassword('DEMO_USER_DEFAULT_PASSWORD'), 12);
   const users = [

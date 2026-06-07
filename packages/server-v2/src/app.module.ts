@@ -16,6 +16,7 @@ import { InventoryModule } from './inventory/inventory.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { ReservationsModule } from './reservations/reservations.module.js';
 import { MarketingModule } from './marketing/marketing.module.js';
+import { MarketingPagesModule } from './marketing-pages/marketing-pages.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { TerminalModule } from './terminal/terminal.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -42,6 +43,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     SchedulingModule,
     ReservationsModule,
     MarketingModule,
+    MarketingPagesModule,
     AiModule,
     TerminalModule,
     DashboardModule,

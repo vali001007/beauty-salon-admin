@@ -13,6 +13,7 @@ export class CsrfMiddleware implements NestMiddleware {
     '/api/auth/register',
     '/api/auth/csrf-token',
     '/api/terminal', // device auth endpoints
+    '/api/public/marketing/pages', // public H5 event and lead submission
     '/v1/messages', // legacy public AI proxy
   ];
 
