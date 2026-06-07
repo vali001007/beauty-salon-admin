@@ -3,13 +3,13 @@
 版本：v1.1  
 日期：2026-05-31  
 关联需求文档：`02-产品设计/Ami_Aura_Lite_意图驱动即时美业微应用需求文档.md`  
-主线目录：`packages/Ami Aura Lite Kiosk Prototype`  
+主线目录：`packages/Ami-Aura-Lite-Kiosk`  
 基础平台：Ami_Core 美业管理平台  
 后端主线：`packages/server-v2`，统一承接业务 API、AI Gateway 与旧 `/v1/messages` 兼容入口  
 
 ## 1. 计划结论
 
-本次实施不建议推翻现有原型重做，而是以 `packages/Ami Aura Lite Kiosk Prototype` 为主线，在现有三角色首页、消息流、快捷按钮和流程卡片基础上，逐步收敛成“意图驱动的即时美业微应用”。
+本次实施不建议推翻现有原型重做，而是以 `packages/Ami-Aura-Lite-Kiosk` 为主线，在现有三角色首页、消息流、快捷按钮和流程卡片基础上，逐步收敛成“意图驱动的即时美业微应用”。
 
 总体改造目标：
 
@@ -113,12 +113,12 @@ P2 规划交付：
 
 ### 5.1 目标
 
-避免后续改造时把历史原型、主线终端包和 Core 后台混改。先确认这次只围绕 `packages/Ami Aura Lite Kiosk Prototype` 推进。
+避免后续改造时把历史原型、主线终端包和 Core 后台混改。先确认这次只围绕 `packages/Ami-Aura-Lite-Kiosk` 推进。
 
 ### 5.2 开发任务
 
 1. 确认主线目录
-   - 主线目录固定为 `packages/Ami Aura Lite Kiosk Prototype`。
+   - 主线目录固定为 `packages/Ami-Aura-Lite-Kiosk`。
    - 不再迁移到已退役的轻量终端包。
    - 废弃轻量终端包不作为参考或修改目标。
 
@@ -145,7 +145,7 @@ P2 规划交付：
 
 ### 5.4 验收标准
 
-- 团队确认本轮开发目标目录是 `packages/Ami Aura Lite Kiosk Prototype`。
+- 团队确认本轮开发目标目录是 `packages/Ami-Aura-Lite-Kiosk`。
 - 不再混用 `packages/app` 或已退役轻量终端包作为当前主线。
 
 ## 6. 阶段 1：原型稳定化
@@ -156,14 +156,14 @@ P2 规划交付：
 
 ### 6.2 重点文件
 
-- `packages/Ami Aura Lite Kiosk Prototype/package.json`
-- `packages/Ami Aura Lite Kiosk Prototype/vite.config.ts`
-- `packages/Ami Aura Lite Kiosk Prototype/src/app/AppContent.tsx`
-- `packages/Ami Aura Lite Kiosk Prototype/src/app/types.ts`
-- `packages/Ami Aura Lite Kiosk Prototype/src/app/components/SmartCommandBar.tsx`
-- `packages/Ami Aura Lite Kiosk Prototype/src/app/components/TopStatusBar.tsx`
-- `packages/Ami Aura Lite Kiosk Prototype/src/app/components/*FlowCard.tsx`
-- `packages/Ami Aura Lite Kiosk Prototype/src/app/services/auraCoreService.ts`
+- `packages/Ami-Aura-Lite-Kiosk/package.json`
+- `packages/Ami-Aura-Lite-Kiosk/vite.config.ts`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/AppContent.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/types.ts`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/components/SmartCommandBar.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/components/TopStatusBar.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/components/*FlowCard.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/services/auraCoreService.ts`
 
 ### 6.3 开发任务
 
@@ -210,7 +210,7 @@ P2 规划交付：
 ### 7.2 新增目录建议
 
 ```text
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/
   intentTypes.ts
   intentSchema.ts
   commandRegistry.ts
@@ -222,7 +222,7 @@ packages/Ami Aura Lite Kiosk Prototype/src/app/intent/
 ```
 
 ```text
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/
   microAppTypes.ts
   managerHandlers.ts
   appointmentHandlers.ts
@@ -815,7 +815,7 @@ E2E：
 必须通过：
 
 ```bash
-cd "packages/Ami Aura Lite Kiosk Prototype"
+cd "packages/Ami-Aura-Lite-Kiosk"
 npm run typecheck
 npm run build
 ```
@@ -850,43 +850,43 @@ npm run test
 ### 14.1 重点改造文件
 
 ```text
-packages/Ami Aura Lite Kiosk Prototype/package.json
-packages/Ami Aura Lite Kiosk Prototype/vite.config.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/AppContent.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/types.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/services/auraCoreService.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/SmartCommandBar.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/TopStatusBar.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/RoleDashboards.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/CardVerificationFlowCard.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/CashierFlowCard.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/CardOpeningFlowCard.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/RechargeFlowCard.tsx
-packages/Ami Aura Lite Kiosk Prototype/src/app/components/RegistrationFlowCard.tsx
+packages/Ami-Aura-Lite-Kiosk/package.json
+packages/Ami-Aura-Lite-Kiosk/vite.config.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/AppContent.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/types.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/services/auraCoreService.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/components/SmartCommandBar.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/TopStatusBar.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/RoleDashboards.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/CardVerificationFlowCard.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/CashierFlowCard.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/CardOpeningFlowCard.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/RechargeFlowCard.tsx
+packages/Ami-Aura-Lite-Kiosk/src/app/components/RegistrationFlowCard.tsx
 ```
 
 ### 14.2 建议新增文件
 
 ```text
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/intentTypes.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/intentSchema.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/commandRegistry.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/ruleIntentParser.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/aiIntentParser.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/intentRouter.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/intent/slotUtils.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/microAppTypes.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/managerHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/appointmentHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/cardConsumeHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/cashierHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/cardOrderHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/rechargeHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/registrationHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/beauticianHandlers.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/microApps/resultBuilders.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/services/auraAdapters.ts
-packages/Ami Aura Lite Kiosk Prototype/src/app/services/auraCache.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/intentTypes.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/intentSchema.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/commandRegistry.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/ruleIntentParser.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/aiIntentParser.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/intentRouter.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/intent/slotUtils.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/microAppTypes.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/managerHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/appointmentHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/cardConsumeHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/cashierHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/cardOrderHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/rechargeHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/registrationHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/beauticianHandlers.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/microApps/resultBuilders.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/services/auraAdapters.ts
+packages/Ami-Aura-Lite-Kiosk/src/app/services/auraCache.ts
 ```
 
 ### 14.3 Core 侧可能新增或补齐

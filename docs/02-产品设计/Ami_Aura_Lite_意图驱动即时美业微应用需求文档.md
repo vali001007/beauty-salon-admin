@@ -2,12 +2,12 @@
 
 版本：v1.1  
 日期：2026-05-31  
-分析对象：`D:\AI coding\beauty-salon-admin\packages\Ami Aura Lite Kiosk Prototype`  
+分析对象：`D:\AI coding\beauty-salon-admin\packages\Ami-Aura-Lite-Kiosk`  
 关联系统：Ami_Core 美业管理平台、Ami Aura Lite 智能终端、Core Terminal API、Core AI Gateway  
 
 ## 1. 文档结论
 
-`packages/Ami Aura Lite Kiosk Prototype` 当前已经不是单纯 Figma Make 静态原型，而是一个已经开始接入 Ami_Core 的高保真智能终端雏形。它具备三角色首页、快捷按钮、消息流、业务卡片、核销、收银、办卡、充值、登记、预约操作和 AI 建议等关键能力。
+`packages/Ami-Aura-Lite-Kiosk` 当前已经不是单纯 Figma Make 静态原型，而是一个已经开始接入 Ami_Core 的高保真智能终端雏形。它具备三角色首页、快捷按钮、消息流、业务卡片、核销、收银、办卡、充值、登记、预约操作和 AI 建议等关键能力。
 
 但它还没有形成稳定的“意图驱动即时微应用”架构，主要问题是：
 
@@ -24,7 +24,7 @@
 
 ### 2.1 工程状态
 
-原型目录：`packages/Ami Aura Lite Kiosk Prototype`
+原型目录：`packages/Ami-Aura-Lite-Kiosk`
 
 当前工程特征：
 
@@ -1132,7 +1132,7 @@ AI 建议卡：
 
 ## 18. 待确认问题
 
-1. `packages/Ami Aura Lite Kiosk Prototype` 是否正式作为 Ami Aura Lite 主线，还是后续合并到 `packages/ami-aura-lite`？
+1. `packages/Ami-Aura-Lite-Kiosk` 是否正式作为 Ami Aura Lite 主线，还是后续合并到 `packages/ami-aura-lite`？
 2. 交易类大额优惠是否需要店长授权阈值？
 3. 摄像头面部检测先接真实设备 SDK，还是先做浏览器摄像头采集？
 4. 美容师服务记录是否需要语音转文字作为 v1 必做？

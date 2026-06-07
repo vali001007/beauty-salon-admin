@@ -23,7 +23,7 @@
 | 测试 | 40% | 仅 API mock 层测试，无组件/e2e 测试 |
 | CI/CD | 0% | 无任何自动化流水线 |
 | i18n | 0% | 全部硬编码中文 |
-| 终端 Aura Lite | 主线原型 | packages/Ami Aura Lite Kiosk Prototype 作为当前 kiosk 应用主线 |
+| 终端 Aura Lite | 主线原型 | packages/Ami-Aura-Lite-Kiosk 作为当前 kiosk 应用主线 |
 
 ---
 
@@ -253,7 +253,7 @@ T
 
 #### 3.1 终端前端开发（第 7-8 周）
 
-基于 `packages/Ami Aura Lite Kiosk Prototype/` 主线，开发完整的 kiosk 应用：
+基于 `packages/Ami-Aura-Lite-Kiosk/` 主线，开发完整的 kiosk 应用：
 
 **核心页面**：
 - 设备登录/激活

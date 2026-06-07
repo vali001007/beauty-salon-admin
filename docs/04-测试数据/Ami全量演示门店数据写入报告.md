@@ -71,7 +71,7 @@ Manifest：`public\demo-assets\ami-demo-full\asset-manifest.json`
 | `npm run build` | 通过 | Vite 构建通过，仍有既有大 chunk warning |
 | `npm run test` | 通过 | 8 files / 69 tests passed；ErrorBoundary 用例会打印预期错误日志 |
 | `npm run test:e2e` | 通过 | 5/5 passed；当前 Playwright 配置为 mock 模式 |
-| `packages/Ami Aura Lite Kiosk Prototype npm run build` | 通过 | 终端主线构建通过，仍有既有大 chunk warning |
+| `packages/Ami-Aura-Lite-Kiosk npm run build` | 通过 | 终端主线构建通过，仍有既有大 chunk warning |
 | 真实 API 抽样 | 通过 | `Ami 全量演示门店` 可读：客户 1240、商品 20、库存 20、项目 15、预约 360、商品订单 400 |
 | 真实页面抽样 | 部分通过 | 登录后可切换 `Ami 全量演示门店`，仪表盘、客户、商品、库存、项目、预约、订单、营销推荐页面可读；商品/项目图片路径已渲染，但 PNG 文件缺失导致图片未加载 |
 | Ami Aura Lite 终端抽样 | 通过 | 终端页可切换 `Ami 全量演示门店`，首页显示客户 1240、门店订单 364、预约待处理 3、员工排班 8，未发现 4xx/5xx API 错误 |

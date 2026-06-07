@@ -1,4 +1,4 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 This file provides guidance to Codex / coding agents when working in this repository.
 
@@ -15,14 +15,14 @@ This file provides guidance to Codex / coding agents when working in this reposi
 
 截至 2026-05-30，本仓库处在较大的集成分支状态：
 
-- 当前分支：集成分支，终端主线为 `packages/Ami Aura Lite Kiosk Prototype`
+- 当前分支：集成分支，终端主线为 `packages/Ami-Aura-Lite-Kiosk`
 - 主应用 `npm run build` 已通过。
 - `npm run check:api` 指向 `packages/server-v2` 构建检查。
 - `npm run test` 已通过：65/65 通过。Vitest 默认强制 `VITE_API_MODE=mock`，避免本地 `.env real` 干扰单测。
 - `npm run test:e2e` 已通过：5/5 通过，登录成功断言以实际 `/dashboard` 为准。
 - `npx tsc --noEmit -p tsconfig.json`、`npm run lint` 已通过。
 - `packages/server-v2` 的 `npm run build`、`npm run test`、`npm run lint` 已通过；lint 仍有少量未使用变量 warning，不阻塞。
-- `packages/Ami Aura Lite Kiosk Prototype npm run build` 是当前主线终端构建；5175 端口用于 Ami Aura Lite 智能终端。
+- `packages/Ami-Aura-Lite-Kiosk npm run build` 是当前主线终端构建；5175 端口用于 Ami Aura Lite 智能终端。
 - 构建仍存在大 chunk 警告，主要是客户健康档案、消耗记录等数据/页面包体偏大，不阻塞构建，但后续可优化懒加载和拆包。
 - 根目录有若干中文文档从单文件迁移到 `01-市场调研/`、`02-产品设计/`、`03-开发计划/`、`04-测试数据/`、`05-市场营销/` 等目录的迹象。不要把这些当作可随手清理的废文件。
 
@@ -66,10 +66,10 @@ npm run db:seed
 npm run db:studio
 ```
 
-智能终端主线 `packages/Ami Aura Lite Kiosk Prototype`：
+智能终端主线 `packages/Ami-Aura-Lite-Kiosk`：
 
 ```bash
-cd "packages/Ami Aura Lite Kiosk Prototype"
+cd "packages/Ami-Aura-Lite-Kiosk"
 npm run dev           # http://127.0.0.1:5175
 npm run build         # tsc --noEmit && vite build
 ```
@@ -94,7 +94,7 @@ npm run preview
 ```text
 src/                         # 管理端主应用
 packages/server-v2           # NestJS + Prisma 主线后端、AI Gateway、旧 /v1/messages 兼容入口
-packages/Ami Aura Lite Kiosk Prototype # Ami Aura Lite 智能终端 kiosk 主线
+packages/Ami-Aura-Lite-Kiosk # Ami Aura Lite 智能终端 kiosk 主线
 packages/app                 # 移动/AI 助手端应用
 docs/                        # API 契约、终端接口、生产计划等文档
 e2e/                         # Playwright 用例
@@ -102,7 +102,7 @@ outputs/                     # 生成产物/演示输出，谨慎改动
 01-市场调研/ ... 05-市场营销/ # 产品、市场、开发、测试资料目录
 ```
 
-`packages/Ami Aura Lite Kiosk Prototype/` 是当前 Ami Aura Lite 终端主线；废弃轻量终端包已退役，不再作为开发目标。
+`packages/Ami-Aura-Lite-Kiosk/` 是当前 Ami Aura Lite 终端主线；废弃轻量终端包已退役，不再作为开发目标。
 
 ## 技术栈
 
@@ -140,27 +140,28 @@ outputs/                     # 生成产物/演示输出，谨慎改动
 
 ## API 层约定
 
-管理端 API 采用 Mock / Real 双实现：
+管理端运行时 API 当前统一走 Real 主线，不再采用 `VITE_API_MODE` 在 mock/real 之间动态切换：
 
 ```text
-src/api/mock/<module>.ts  # Mock 实现
 src/api/real/<module>.ts  # 真实 HTTP 实现
-src/api/<module>.ts       # 根据 VITE_API_MODE 切换
+src/api/<module>.ts       # 门面文件，直接导出 real 实现
+src/api/mock/             # 历史 mock 样例与演示/seed fixture
 ```
 
-切换模式：
+当前约定：
 
-```ts
-const isReal = import.meta.env.VITE_API_MODE === 'real';
-export const getProducts = isReal ? realGetProducts : mockGetProducts;
-```
+- `src/api/mode.ts` 固定为 `real`，`VITE_API_MODE` 不再控制管理端运行时 API 模式。
+- `src/api/mock/data/*.json` 可继续作为演示数据、页面 fixture 或 `server-v2` seed 数据来源。
+- `src/api/mock/*.ts` 作为历史测试/离线样例暂时保留，方便对照字段结构；新增业务不要求同步实现一份 mock API。
 
-新增 API 模块时必须：
+新增 API 模块时优先顺序：
 
-- 同时创建 mock 与 real 文件。
-- 创建切换文件。
+- 在 `packages/server-v2` 实现 schema、service、controller。
+- 在 `src/api/real/*` 实现前端 HTTP 调用。
+- 在 `src/api/*.ts` 门面直接导出 real 实现。
 - 在 `src/api/index.ts` 导出。
 - 保持分页、错误、响应解包格式一致。
+- 只有演示页、离线样例或 seed 明确需要固定样例数据时，才补充 `src/api/mock/data` 或轻量 fixture。
 
 当前 API 模块包括：
 
@@ -340,7 +341,7 @@ packages/server-v2/**/*.spec.ts
 Ami Aura Lite / Terminal 相关文件：
 
 - 管理端 API：`src/api/terminal.ts`、`src/api/mock/terminal.ts`、`src/api/real/terminal.ts`
-- 终端应用：`packages/Ami Aura Lite Kiosk Prototype`
+- 终端应用：`packages/Ami-Aura-Lite-Kiosk`
 - 后端 v2：`packages/server-v2/src/terminal`
 - 文档：`docs/terminal-api.md`
 
@@ -407,7 +408,7 @@ docker run --rm -p 8080:8080 ami-core-admin
 
 ## 关键约定
 
-- Mock 优先开发，但 real 实现要同步维护，避免演示能跑、联调断层。
+- API 以 `server-v2` + `src/api/real/*` 为主线；不要再默认要求 mock/real 双写，避免长期双维护。
 - 所有路由集中在 `src/app/routes.tsx`。
 - 权限码要保持新旧兼容，不要随意删除 legacy 映射。
 - API 调用方默认拿到已解包数据，不要重复 `.data.data`。
