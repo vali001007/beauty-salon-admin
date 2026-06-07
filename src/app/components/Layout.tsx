@@ -66,7 +66,8 @@ const MENU_ITEMS = [
     icon: ShoppingBag,
     path: '/goods',
     children: [
-      { title: '商品类型', path: '/goods/types', icon: LayoutGrid, permission: 'core:goods:types' },
+      { title: '产品类型', path: '/goods/types', icon: LayoutGrid, permission: 'core:goods:types' },
+      { title: '产品管理', path: '/inventory/products', icon: ShoppingBag, permission: 'core:inventory:products' },
       { title: '商品管理', path: '/goods/products', icon: ShoppingBag, permission: 'core:goods:products' },
       { title: '次卡管理', path: '/goods/cards', icon: FileText, permission: 'core:goods:cards' },
     ],
@@ -89,7 +90,6 @@ const MENU_ITEMS = [
     icon: Package,
     path: '/inventory',
     children: [
-      { title: '产品管理', path: '/inventory/products', icon: ShoppingBag, permission: 'core:inventory:products' },
       { title: '库存管理', path: '/inventory/stock', icon: Package, permission: 'core:inventory:stock' },
       { title: '采购管理', path: '/inventory/purchase', icon: ShoppingCart, permission: 'core:inventory:purchase' },
       { title: '过期管理', path: '/inventory/expiry', icon: AlertTriangle, permission: 'core:inventory:expiry' },
