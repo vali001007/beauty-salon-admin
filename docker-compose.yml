@@ -27,7 +27,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-change-in-production
       JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production
-      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:5176,http://localhost:4176,http://127.0.0.1:5176,http://127.0.0.1:4176
       LLM_PROVIDER: mock
       NODE_ENV: development
     depends_on:
