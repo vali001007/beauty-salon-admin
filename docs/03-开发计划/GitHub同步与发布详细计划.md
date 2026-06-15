@@ -610,3 +610,99 @@ gh pr create --draft --base main --head codex/ami-aura-lite-kiosk
 - 批量删除未跟踪文件
 - 把 coverage、dist、临时产物提交到 GitHub
 
+## 9. 阶段 1-5 执行记录
+
+执行时间：2026-06-15
+
+### 阶段 1：排除不应提交内容
+
+执行结果：已完成。
+
+- 已在 `.gitignore` 增加 `coverage/` 与 `**/coverage/`。
+- 未删除本地 `packages/server-v2/coverage/` 文件，只通过忽略规则排除。
+- 验证结果：`git status --porcelain -uall -- packages/server-v2/coverage` 返回 0 条。
+
+### 阶段 2：确认删除文件是否合理
+
+执行结果：已完成。
+
+确认删除的 3 个大样本 JSON：
+
+```text
+src/api/mock/data/consumption-records.json
+src/api/mock/data/customers.json
+src/api/mock/data/health-profiles.json
+```
+
+核对结果：
+
+- `src` 与 `packages/server-v2` 主线已无 `api/mock/data` 旧引用。
+- 历史 mock API 已改用 `src/api/mock/fixtures.ts` 的轻量 fixture。
+- `packages/app/vendor-src` 仍有旧引用，但该目录已标注为 Deprecated，且 `packages/app/vite.config.ts` 默认不再 fallback 到 `vendor-src`。
+
+### 阶段 3：按主题拆分提交
+
+执行结果：已完成。
+
+已形成提交：
+
+```text
+af63bd7 docs: update project plans and sync guidance
+6dcd4d7 feat(api): add backend integration modules and migrations
+c7165a3 feat(admin): wire APIs types and retire large mock data
+9962ec3 feat(admin): add management workflows and navigation
+976f211 feat(kiosk): enhance Ami Aura Lite terminal workflows
+13cd62f feat(miniapp): add Ami Glow customer service app
+7f8a73a test: add integration checks and mock boundary guard
+```
+
+执行后状态：
+
+- 工作区已清空。
+- 本地分支曾领先远端 7 个提交。
+- coverage 产物未进入 Git 状态。
+
+### 阶段 4：推送分支并创建 Draft PR
+
+执行结果：已完成。
+
+- 已推送分支：`codex/ami-aura-lite-kiosk`
+- Draft PR：[https://github.com/vali001007/beauty-salon-admin/pull/1](https://github.com/vali001007/beauty-salon-admin/pull/1)
+
+### 阶段 5：合并前验证
+
+执行结果：已完成。
+
+验证命令与结果：
+
+```text
+npm.cmd run check:no-runtime-mock
+结果：通过，Runtime mock boundary check passed.
+
+npm.cmd run lint
+结果：通过；存在 3 个非阻塞 unused-vars warning。
+
+npm.cmd run test
+结果：通过，24 个测试文件、96 个用例通过。
+
+npm.cmd run build
+结果：通过。
+
+npm.cmd run check:api
+结果：通过，已执行 packages/server-v2 build。
+
+packages/server-v2: npm.cmd run test
+结果：通过，20 个测试套件、195 个用例通过。
+
+packages/Ami-Aura-Lite-Kiosk: npm.cmd run build
+结果：通过；存在 chunk 超 500 kB 的 Vite 警告，不阻塞。
+
+packages/Ami-Glow-MiniApp: npm.cmd run typecheck
+结果：通过。
+```
+
+当前 Go / No-Go 判断：
+
+- 可以保持 Draft PR 状态进入产品和技术集成验收。
+- 可以在确认 PR 范围与 migration 风险后转 Ready PR。
+- 暂不建议直接正式发布生产版本。
