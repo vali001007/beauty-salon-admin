@@ -1,4 +1,5 @@
 import apiClient from '../client';
+import { useStoreStore } from '@/stores/storeStore';
 import type {
   AiAuditLog,
   AiAuditLogQuery,
@@ -28,6 +29,71 @@ import { normalizePaginatedResponse } from './response';
 
 export async function realSendAiChatMessage(data: AiChatRequest): Promise<AiGenerationResult> {
   return apiClient.post('/ai/chat/messages', data);
+}
+
+function getCsrfToken(): string {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : '';
+}
+
+export async function* realStreamAiChatMessage(data: AiChatRequest): AsyncGenerator<string> {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+  const normalizedBase = baseURL.replace(/\/$/, '');
+  const token = localStorage.getItem('token');
+  const currentStoreId = useStoreStore.getState().currentStoreId;
+
+  const response = await fetch(`${normalizedBase}/ai/chat/messages/stream`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(currentStoreId !== null ? { 'X-Store-Id': String(currentStoreId) } : {}),
+      'X-CSRF-Token': getCsrfToken(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`AI 流式响应失败：${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const parseEvent = (event: string) => {
+    const line = event
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .find((item) => item.startsWith('data:'));
+    if (!line) return null;
+
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') return null;
+    const parsed = JSON.parse(payload) as { delta?: string; error?: string };
+    if (parsed.error) throw new Error(parsed.error);
+    return parsed.delta || null;
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split(/\n\n/);
+    buffer = events.pop() ?? '';
+
+    for (const event of events) {
+      const delta = parseEvent(event);
+      if (delta) yield delta;
+    }
+  }
+
+  const tail = decoder.decode();
+  if (tail) buffer += tail;
+  const delta = parseEvent(buffer);
+  if (delta) yield delta;
 }
 
 export async function realGenerateCustomerInvitationScript(

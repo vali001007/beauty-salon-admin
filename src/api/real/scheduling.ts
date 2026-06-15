@@ -167,6 +167,79 @@ export async function realSaveSchedule(data: {
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
+export type SmartScheduleItem = {
+  beauticianId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: 'available' | 'normal' | 'busy' | 'leave' | string;
+  source?: 'existing' | 'generated' | 'reservation';
+};
+
+export type SmartSchedulingOptions = {
+  storeId?: number;
+  runId?: string;
+  createdById?: number;
+  weekStart: string;
+  mode?: 'blank' | 'copy_last_week_optimize' | 'optimize_current';
+  objective?: 'cover_reservations' | 'cover_peak' | 'fairness' | 'reduce_staff';
+  keepConfirmedReservations?: boolean;
+  allowOverrideBusy?: boolean;
+  allowOverrideLeave?: boolean;
+  peakMinStaff?: Array<{ weekday: number; startTime: string; endTime: string; minStaff: number }>;
+  schedules?: SmartScheduleItem[];
+};
+
+export type SmartSchedulingConflict = {
+  type: string;
+  severity: 'hard' | 'soft';
+  message: string;
+  beauticianId?: number;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  reservationId?: number;
+};
+
+export type SmartSchedulingSummary = {
+  reservationCoverageRate: number;
+  peakCoverageRate: number;
+  hardConflictCount: number;
+  softWarningCount: number;
+  scheduledSlots: number;
+};
+
+export type SmartSchedulingResult = {
+  runId?: string;
+  weekStart: string;
+  score: number;
+  summary: SmartSchedulingSummary;
+  schedules?: SmartScheduleItem[];
+  warnings: SmartSchedulingConflict[];
+  conflicts?: SmartSchedulingConflict[];
+  explanations: string[];
+  savedCount?: number;
+};
+
+export type SchedulingDemandSlot = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  expectedReservations: number;
+  requiredStaff: number;
+  scheduledStaff: number;
+  level: 'low' | 'medium' | 'high';
+};
+
+export type SchedulingDemandResult = {
+  weekStart: string;
+  slots: SchedulingDemandSlot[];
+  summary: {
+    highDemandSlots: number;
+    underStaffedSlots: number;
+  };
+};
+
 export async function realGetSchedulePaginated(params: PaginationParams & { beauticianId?: number; weekStart?: string }): Promise<PaginatedResponse<any>> {
   return apiClient.get('/scheduling/paginated', { params });
 }
@@ -177,4 +250,20 @@ export async function realCreateScheduleSlot(data: { beauticianId: number; date:
 
 export async function realDeleteScheduleSlot(id: number): Promise<void> {
   return apiClient.delete(`/scheduling/slots/${id}`);
+}
+
+export async function realPreviewSmartSchedule(data: SmartSchedulingOptions): Promise<SmartSchedulingResult> {
+  return apiClient.post('/scheduling/smart/preview', data);
+}
+
+export async function realEvaluateSmartSchedule(data: SmartSchedulingOptions): Promise<SmartSchedulingResult> {
+  return apiClient.post('/scheduling/smart/evaluate', data);
+}
+
+export async function realPublishSmartSchedule(data: SmartSchedulingOptions): Promise<SmartSchedulingResult> {
+  return apiClient.post('/scheduling/smart/publish', data);
+}
+
+export async function realGetSchedulingDemand(params: { weekStart: string }): Promise<SchedulingDemandResult> {
+  return apiClient.get('/scheduling/demand', { params });
 }

@@ -55,7 +55,9 @@ export interface MarketingRecommendation {
   image: string;
   tags: string[];
   category: string;
-  source?: 'strategy' | 'association' | 'churn' | 'ltv';
+  source?: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project';
+  recommendationType?: 'product_expiry_clearance' | 'project_idle_capacity' | 'product_replenishment' | 'project_cycle_due' | string;
+  recommendationKey?: string;
   predictionRunId?: number;
   modelVersion?: string;
   predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy';
@@ -75,10 +77,37 @@ export interface MarketingRecommendation {
   totalCustomers?: number;
   triggerType?: MarketingTriggerType;
   preferAutoRule?: boolean;
+  isFallback?: boolean;
+  inventorySnapshot?: RecommendationInventorySnapshot;
+  capacitySnapshot?: RecommendationCapacitySnapshot;
+  expectedGrossProfit?: string;
+  expectedLossAvoided?: string;
+  riskWarnings?: string[];
 }
 
 export type RecommendationPriority = 'P0' | 'P1' | 'P2' | 'P3';
-export type RecommendationExecutionMode = 'activity' | 'automation';
+export type RecommendationExecutionMode = 'activity' | 'automation' | 'advisor_task' | 'miniapp_slot' | 'transfer' | 'replenishment';
+
+export interface RecommendationInventorySnapshot {
+  productId: number;
+  productName: string;
+  batchId?: number;
+  batchNo?: string;
+  stock: number;
+  daysToExpiry?: number;
+  forecastSellThroughQty?: number;
+  gapQty?: number;
+  expectedLossAmount?: number;
+}
+
+export interface RecommendationCapacitySnapshot {
+  dateRange: string;
+  idleSlots: number;
+  idleMinutes: number;
+  utilizationRate: number;
+  beauticianIds: number[];
+  projectIds: number[];
+}
 
 export interface AudienceSnapshot {
   predictionRunId?: number;
@@ -123,12 +152,14 @@ export interface RecommendedOffer {
     | 'points'
     | 'member_privilege'
     | 'free_service'
-    | 'bundle';
+    | 'bundle'
+    | 'low_peak_privilege';
   label: string;
   threshold?: number;
   amount?: number;
   discountRate?: number;
   validDays?: number;
+  usableTimeRange?: string;
   reason: string;
 }
 
@@ -179,6 +210,26 @@ export interface CustomerPredictionSnapshot {
   };
 }
 
+export interface InvitationCandidate {
+  customerId: number;
+  customerName: string;
+  memberLevel?: string;
+  phoneMasked?: string;
+  skinType?: string;
+  lastVisitDate?: string;
+  preferredProjectNames: string[];
+  reason: string;
+  evidence: string[];
+  priority: RecommendationPriority | 'high' | 'medium' | 'low';
+}
+
+export interface InvitationCandidateResponse {
+  items: InvitationCandidate[];
+  generatedAt: string;
+  source: 'prediction' | 'customer_profile';
+  emptyReason?: string;
+}
+
 export interface PredictionRunSummary {
   run: {
     id: number;
@@ -205,6 +256,46 @@ export interface PredictionRunSummary {
   };
 }
 
+export type MarketingEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'glow';
+
+export interface UnifiedMarketingEffectItem {
+  id: string;
+  objectId: number | string;
+  objectType: MarketingEffectObjectType;
+  objectTypeLabel: string;
+  objectName: string;
+  status: string;
+  exposureCount: number;
+  clickCount: number;
+  conversionCount: number;
+  revenue: number;
+  cost: number;
+  roi: string;
+  conversionRate: string;
+  dateRange?: string;
+  lastEventAt?: string;
+  detailPath?: string;
+  emptyReason?: string;
+  metricsSource: string;
+}
+
+export interface UnifiedMarketingEffectSummary {
+  totalObjects: number;
+  exposureCount: number;
+  clickCount: number;
+  conversionCount: number;
+  revenue: number;
+  cost: number;
+  roi: string;
+}
+
+export interface UnifiedMarketingEffectsResponse {
+  items: UnifiedMarketingEffectItem[];
+  summary: UnifiedMarketingEffectSummary;
+  emptyReasons: Partial<Record<MarketingEffectObjectType, string>>;
+  generatedAt: string;
+}
+
 export type MarketingTriggerType =
   | 'birthday'
   | 'holiday'
@@ -219,6 +310,9 @@ export type MarketingTriggerType =
   | 'no_show_recovery'
   | 'package_remaining'
   | 'product_replenishment'
+  | 'product_expiry_clearance'
+  | 'project_idle_capacity'
+  | 'project_cycle_due'
   | 'seasonal_skin_care'
   | 'holiday_campaign'
   | 'vip_privilege_care'
@@ -289,6 +383,9 @@ export interface MarketingAutomationStrategy {
   description: string;
   status: MarketingStrategyStatus;
   executionType: 'auto' | 'manual';
+  source?: 'manual' | 'rule_library' | 'recommendation';
+  ruleTemplateId?: number;
+  ruleTemplateVersion?: string;
   schedule: MarketingSchedule;
   triggerRules: MarketingTriggerRule[];
   ruleRelation: MarketingRuleRelation;
@@ -303,6 +400,94 @@ export type MarketingStrategyInput = Omit<
   MarketingAutomationStrategy,
   'id' | 'status' | 'targetCount' | 'createdAt' | 'updatedAt' | 'lastExecutedAt'
 >;
+
+export type MarketingRuleTemplateSource = 'system' | 'store';
+export type MarketingRuleTemplateCategory = 'time' | 'behavior' | 'attribute';
+export type MarketingRuleTemplateStatus = 'recommended' | 'enabled' | 'disabled' | 'draft' | 'archived';
+
+export interface MarketingRuleFrequencyCap {
+  sameCustomerDays?: number;
+  sameChannelDays?: number;
+  maxTouchesPerDay?: number;
+}
+
+export interface MarketingRuleEffectSummary {
+  ruleTemplateId: number;
+  strategyCount: number;
+  activeStrategyCount: number;
+  reachedCount: number;
+  convertedCount: number;
+  conversionRate: string;
+  returnCount: number;
+  revenue: number;
+  cost: number;
+  roi: string;
+  lastExecutedAt?: string;
+}
+
+export interface MarketingRuleTemplate {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  source: MarketingRuleTemplateSource;
+  category: MarketingRuleTemplateCategory;
+  categoryLabel: MarketingTriggerCategory;
+  scenario: string;
+  priority: RecommendationPriority;
+  status: MarketingRuleTemplateStatus;
+  version: string;
+  baseTemplateId?: number;
+  storeId?: number;
+  triggerType: MarketingTriggerType;
+  paramSchema: MarketingTriggerParamSchema[];
+  defaultParams: Record<string, MarketingParamValue>;
+  recommendedActions: MarketingAction[];
+  scheduleDefault: MarketingSchedule;
+  frequencyCap: MarketingRuleFrequencyCap;
+  dataDependencies: string[];
+  recommendationReason?: string;
+  createdBy?: number;
+  createdAt: string;
+  updatedAt: string;
+  effect?: MarketingRuleEffectSummary;
+}
+
+export type MarketingRuleTemplateInput = Partial<
+  Pick<
+    MarketingRuleTemplate,
+    | 'code'
+    | 'name'
+    | 'description'
+    | 'category'
+    | 'categoryLabel'
+    | 'scenario'
+    | 'priority'
+    | 'status'
+    | 'baseTemplateId'
+    | 'storeId'
+    | 'triggerType'
+    | 'paramSchema'
+    | 'defaultParams'
+    | 'recommendedActions'
+    | 'scheduleDefault'
+    | 'frequencyCap'
+    | 'dataDependencies'
+    | 'recommendationReason'
+    | 'createdBy'
+  >
+>;
+
+export interface MarketingRuleTemplateQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  source?: 'all' | MarketingRuleTemplateSource;
+  category?: 'all' | MarketingRuleTemplateCategory;
+  scenario?: string;
+  priority?: 'all' | RecommendationPriority | 'urgent' | 'recommended' | 'opportunity';
+  status?: 'all' | MarketingRuleTemplateStatus;
+}
 
 export interface AudiencePreviewCustomer {
   id: number;

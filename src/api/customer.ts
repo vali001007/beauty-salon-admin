@@ -1,18 +1,40 @@
 import type {
   Customer,
+  CustomerCreatePayload,
   CustomerConsumptionRecord,
   CustomerHealthProfile,
   CustomerMiniappBehaviorAnalysis,
+  CustomerProfile,
+  CustomerProfileAnalytics,
+  CustomerProfileAnalyticsOverview,
+  CustomerProfileBehaviorAnalytics,
+  CustomerProfileBehaviorQuery,
+  CustomerProfilePredictionAnalytics,
+  CustomerProfilePredictionQuery,
+  CustomerProfileSegmentAnalytics,
+  CustomerProfileSkinAnalytics,
+  CustomerUpdatePayload,
 } from '@/types';
 import {
   realGetCustomers,
   realGetCustomerById,
+  realGetCustomerProfile,
   realCreateCustomer,
   realUpdateCustomer,
   realGetCustomerConsumptionRecords,
+  realGetCustomerConsumptionRecordsPaginated,
   realGetCustomerHealthProfiles,
   realUpdateCustomerHealthProfile,
   realGetCustomerMiniappBehaviorAnalysis,
+  realGetCustomerProfileAnalytics,
+  realGetCustomerProfileAnalyticsOverview,
+  realGetCustomerProfileBehaviorAnalytics,
+  realGetCustomerProfilePredictionAnalytics,
+  realGetCustomerProfileSegmentAnalytics,
+  realGetCustomerProfileSkinAnalytics,
+  realGetCustomerSegmentCount,
+  type CustomerSegmentCountParams,
+  type CustomerSegmentCountResult,
 } from './real/customer';
 
 export const getCustomers: (params?: { keyword?: string; memberLevel?: string; storeName?: string }) => Promise<Customer[]> =
@@ -21,16 +43,19 @@ export const getCustomers: (params?: { keyword?: string; memberLevel?: string; s
 export const getCustomerById: (id: number) => Promise<Customer | undefined> =
   realGetCustomerById;
 
-export const createCustomer: (data: Omit<Customer, 'id' | 'totalSpent' | 'visitCount' | 'lastVisitDate' | 'createdAt'>) => Promise<Customer> =
+export const getCustomerProfile: (id: number) => Promise<CustomerProfile> =
+  realGetCustomerProfile;
+
+export const createCustomer: (data: CustomerCreatePayload) => Promise<Customer> =
   realCreateCustomer;
 
-export const updateCustomer: (id: number, data: Partial<Customer>) => Promise<Customer> =
+export const updateCustomer: (id: number, data: CustomerUpdatePayload) => Promise<Customer> =
   realUpdateCustomer;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import { realGetCustomersPaginated } from './real/customer';
 
-export const getCustomersPaginated: (params: PaginationParams & { keyword?: string; memberLevel?: string; storeName?: string }) => Promise<PaginatedResponse<Customer>> =
+export const getCustomersPaginated: (params: PaginationParams & { keyword?: string; name?: string; phone?: string; memberLevel?: string; storeName?: string }) => Promise<PaginatedResponse<Customer>> =
   realGetCustomersPaginated;
 
 import type { ImportResult } from '@/types/excel';
@@ -47,6 +72,10 @@ export const deleteCustomers: (ids: number[]) => Promise<void> =
 export const getCustomerConsumptionRecords: () => Promise<CustomerConsumptionRecord[]> =
   realGetCustomerConsumptionRecords;
 
+export const getCustomerConsumptionRecordsPaginated: (
+  params: PaginationParams & { keyword?: string },
+) => Promise<PaginatedResponse<CustomerConsumptionRecord>> = realGetCustomerConsumptionRecordsPaginated;
+
 export const getCustomerHealthProfiles: () => Promise<CustomerHealthProfile[]> =
   realGetCustomerHealthProfiles;
 
@@ -59,3 +88,29 @@ export const updateCustomerHealthProfile: (
 
 export const getCustomerMiniappBehaviorAnalysis: () => Promise<CustomerMiniappBehaviorAnalysis> =
   realGetCustomerMiniappBehaviorAnalysis;
+
+export const getCustomerProfileAnalytics: () => Promise<CustomerProfileAnalytics> =
+  realGetCustomerProfileAnalytics;
+
+export const getCustomerProfileAnalyticsOverview: () => Promise<CustomerProfileAnalyticsOverview> =
+  realGetCustomerProfileAnalyticsOverview;
+
+export const getCustomerProfileSegmentAnalytics: () => Promise<CustomerProfileSegmentAnalytics> =
+  realGetCustomerProfileSegmentAnalytics;
+
+export const getCustomerProfileSkinAnalytics: () => Promise<CustomerProfileSkinAnalytics> =
+  realGetCustomerProfileSkinAnalytics;
+
+export const getCustomerProfileBehaviorAnalytics: (
+  params?: CustomerProfileBehaviorQuery,
+) => Promise<CustomerProfileBehaviorAnalytics> = realGetCustomerProfileBehaviorAnalytics;
+
+export const getCustomerProfilePredictionAnalytics: (
+  params?: CustomerProfilePredictionQuery,
+) => Promise<CustomerProfilePredictionAnalytics> = realGetCustomerProfilePredictionAnalytics;
+
+export type { CustomerSegmentCountParams, CustomerSegmentCountResult };
+
+export const getCustomerSegmentCount: (
+  params?: CustomerSegmentCountParams,
+) => Promise<CustomerSegmentCountResult> = realGetCustomerSegmentCount;

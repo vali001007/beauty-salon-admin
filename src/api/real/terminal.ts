@@ -17,6 +17,7 @@ import type {
   TerminalBalanceRefundRequest,
   TerminalBomResponse,
   TerminalBootstrap,
+  TerminalBootstrapParams,
   TerminalCardUsagePreview,
   TerminalCardUsagePreviewRequest,
   TerminalCardUsageRecord,
@@ -24,6 +25,9 @@ import type {
   TerminalCatalogSync,
   TerminalCompleteServiceTaskRequest,
   TerminalConfig,
+  TerminalContextCustomer,
+  TerminalConversationHistoryParams,
+  TerminalConversationRecord,
   TerminalConsumptionRecord,
   TerminalConsumptionRecordCreateRequest,
   TerminalCustomerCard,
@@ -32,16 +36,29 @@ import type {
   TerminalDeviceHeartbeatRequest,
   TerminalDeviceLoginRequest,
   TerminalDeviceLoginResponse,
+  TerminalDeviceProvisionRequest,
+  TerminalDeviceProvisionResponse,
   TerminalDeviceStatusOverview,
   TerminalFollowUpTask,
+  TerminalFollowUpTaskBatchCreateResponse,
   TerminalFollowUpTaskCompleteRequest,
   TerminalFollowUpTaskCreateRequest,
+  TerminalFollowUpTaskListResponse,
+  TerminalFollowUpTaskQuery,
+  TerminalGrowthCandidate,
   TerminalHealthProfile,
+  TerminalCardVerificationContext,
+  TerminalBeauticianDashboard,
+  TerminalBeauticianMe,
+  TerminalBeauticianCommissionSummary,
+  TerminalCashierContext,
+  TerminalCustomerGrowthDashboard,
   TerminalInventoryAlertsResponse,
   TerminalInventoryStockParams,
   TerminalInventoryStockResponse,
   TerminalCashierOrder,
   TerminalCashierOrderCreateRequest,
+  TerminalCashierShift,
   TerminalCardOrder,
   TerminalCardOrderCreateRequest,
   TerminalPaymentCompleteRequest,
@@ -68,9 +85,10 @@ import type {
   TerminalServiceTaskStatus,
   TerminalSkinTest,
   TerminalCreateSkinTestRequest,
+  SaveTerminalConversationRequest,
 } from '@/types/terminal';
 import type { Customer } from '@/types/customer';
-import { extractArray } from './response';
+import { extractArray, normalizePaginatedResponse } from './response';
 
 export async function realLoginTerminalDevice(req: TerminalDeviceLoginRequest): Promise<TerminalDeviceLoginResponse> {
   return apiClient.post('/terminal/devices/login', req);
@@ -96,23 +114,33 @@ export async function realRequestTerminalDeviceUnbind(reason?: string): Promise<
 export async function realGetTerminalDevicesPaginated(
   params: PaginationParams & { keyword?: string; storeId?: number; status?: string },
 ): Promise<PaginatedResponse<TerminalDevice>> {
-  return apiClient.get('/terminal/devices/paginated', { params });
+  return apiClient.get('/terminal/admin/devices/paginated', { params });
+}
+
+export async function realProvisionTerminalDevice(
+  data: TerminalDeviceProvisionRequest,
+): Promise<TerminalDeviceProvisionResponse> {
+  return apiClient.post('/terminal/admin/devices/provision', data);
 }
 
 export async function realUpdateTerminalDevice(id: number, data: Partial<TerminalDevice>): Promise<TerminalDevice> {
-  return apiClient.put(`/terminal/devices/${id}`, data);
+  return apiClient.put(`/terminal/admin/devices/${id}`, data);
 }
 
 export async function realDisableTerminalDevice(id: number): Promise<TerminalDevice> {
-  return apiClient.post(`/terminal/devices/${id}/disable`);
+  return apiClient.post(`/terminal/admin/devices/${id}/disable`);
 }
 
 export async function realApproveTerminalDeviceUnbind(id: number, approved: boolean): Promise<TerminalDevice> {
-  return apiClient.post(`/terminal/devices/${id}/unbind/approve`, { approved });
+  return apiClient.post(`/terminal/admin/devices/${id}/unbind/approve`, { approved });
 }
 
-export async function realGetTerminalBootstrap(): Promise<TerminalBootstrap> {
-  return apiClient.get('/terminal/bootstrap');
+export async function realDeleteTerminalDevice(id: number): Promise<{ success: boolean; id: number }> {
+  return apiClient.delete(`/terminal/admin/devices/${id}`);
+}
+
+export async function realGetTerminalBootstrap(params?: TerminalBootstrapParams): Promise<TerminalBootstrap> {
+  return apiClient.get('/terminal/bootstrap', { params });
 }
 
 export async function realGetTerminalCatalogSync(params?: { since?: string }): Promise<TerminalCatalogSync> {
@@ -123,8 +151,111 @@ export async function realGetTerminalConfig(): Promise<TerminalConfig> {
   return apiClient.get('/terminal/config');
 }
 
+export async function realSaveTerminalConversation(
+  data: SaveTerminalConversationRequest,
+): Promise<TerminalConversationRecord> {
+  return apiClient.post('/terminal/conversations/save', data);
+}
+
+export async function realGetTerminalConversationHistory(
+  params?: TerminalConversationHistoryParams,
+): Promise<PaginatedResponse<TerminalConversationRecord>> {
+  const response = await apiClient.get('/terminal/conversations/history', { params });
+  return normalizePaginatedResponse<TerminalConversationRecord, TerminalConversationRecord>(response, (item) => item);
+}
+
+export async function realGetTerminalConversationDetail(id: number): Promise<TerminalConversationRecord> {
+  return apiClient.get(`/terminal/conversations/${id}`);
+}
+
+export async function realDeleteTerminalConversation(id: number): Promise<{ success: boolean; id: number }> {
+  return apiClient.delete(`/terminal/conversations/${id}`);
+}
+
 export async function realGetTerminalRoleDashboard(): Promise<TerminalRoleDashboard> {
   return apiClient.get('/terminal/dashboard/role');
+}
+
+export async function realGetTerminalManagerDashboard(): Promise<TerminalRoleDashboard['manager']> {
+  return apiClient.get('/terminal/dashboard/manager');
+}
+
+export async function realGetTerminalStaffSchedulesDashboard(): Promise<TerminalRoleDashboard['staff']> {
+  return apiClient.get('/terminal/dashboard/staff-schedules');
+}
+
+export async function realGetTerminalTodayReservationsDashboard(): Promise<TerminalRoleDashboard['reception']> {
+  return apiClient.get('/terminal/dashboard/today-reservations');
+}
+
+export async function realGetTerminalCustomerGrowthDashboard(): Promise<TerminalCustomerGrowthDashboard> {
+  return apiClient.get('/terminal/dashboard/customer-growth');
+}
+
+export async function realGetTerminalInventoryAlertsDashboard(): Promise<TerminalInventoryAlertsResponse> {
+  return apiClient.get('/terminal/dashboard/inventory-alerts');
+}
+
+export async function realGetTerminalCashierContext(): Promise<TerminalCashierContext> {
+  return apiClient.get('/terminal/context/cashier');
+}
+
+export async function realGetTerminalCardVerificationContext(params?: { keyword?: string }): Promise<TerminalCardVerificationContext> {
+  return apiClient.get('/terminal/context/card-verification', { params });
+}
+
+export async function realGetTerminalBeauticianCommission(
+  beauticianId: number,
+  period: 'today' | 'month' = 'month',
+  detailLimit?: number,
+): Promise<TerminalBeauticianCommissionSummary> {
+  return apiClient.get('/terminal/commission/records/beautician-summary', { params: { beauticianId, period, detailLimit } });
+}
+
+export async function realGetCurrentTerminalBeautician(params?: { operatorId?: number }): Promise<TerminalBeauticianMe> {
+  return apiClient.get('/terminal/beautician/me', { params });
+}
+
+export async function realGetCurrentTerminalBeauticianDashboard(params?: {
+  date?: string;
+  operatorId?: number;
+}): Promise<TerminalBeauticianDashboard> {
+  return apiClient.get('/terminal/beautician/dashboard', { params });
+}
+
+export async function realGetCurrentTerminalBeauticianTasks(params?: {
+  date?: string;
+  status?: TerminalServiceTaskStatus;
+  operatorId?: number;
+}): Promise<TerminalServiceTask[]> {
+  return apiClient.get('/terminal/beautician/tasks', { params });
+}
+
+export async function realGetCurrentTerminalBeauticianCommission(params?: {
+  period?: 'today' | 'month';
+  detailLimit?: number;
+  operatorId?: number;
+}): Promise<TerminalBeauticianCommissionSummary> {
+  return apiClient.get('/terminal/beautician/commission', { params });
+}
+
+export async function realGetCurrentTerminalBeauticianCustomers(params?: {
+  keyword?: string;
+  operatorId?: number;
+}): Promise<TerminalContextCustomer[]> {
+  return apiClient.get('/terminal/beautician/customers', { params });
+}
+
+export async function realGetTerminalCurrentCashierShift(): Promise<TerminalCashierShift | null> {
+  return apiClient.get('/terminal/commission/shifts/current');
+}
+
+export async function realOpenTerminalCashierShift(openingCash: number): Promise<TerminalCashierShift> {
+  return apiClient.post('/terminal/commission/shifts/open', { openingCash });
+}
+
+export async function realCloseTerminalCashierShift(shiftId: number | undefined, closingCash: number): Promise<TerminalCashierShift> {
+  return apiClient.post('/terminal/commission/shifts/close', { shiftId, closingCash });
 }
 
 export async function realGetTerminalAutomations(): Promise<TerminalAutomationStrategy[]> {
@@ -197,6 +328,48 @@ function sanitizeQuickCreateCustomerRequest(data: TerminalQuickCreateCustomerReq
   delete (payload as Partial<TerminalQuickCreateCustomerRequest>).storeName;
   const normalizedBirthday = normalizeOptionalIsoDate(birthday);
   return normalizedBirthday ? { ...payload, birthday: normalizedBirthday } : payload;
+}
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function sanitizeTerminalConsumptionItems(
+  items: TerminalCompleteServiceTaskRequest['consumptionItems'] | TerminalServiceRecordCreateRequest['consumptionItems'],
+) {
+  if (!Array.isArray(items)) return undefined;
+
+  const sanitized = items
+    .map((item) => {
+      const productId = Number(item.productId);
+      const productName = String(item.productName ?? '').trim();
+      const sku = String(item.sku ?? '').trim();
+      const standardQty = toFiniteNumber(item.standardQty);
+      const actualQty = toFiniteNumber(item.actualQty, standardQty);
+      const unit = String(item.unit ?? '').trim();
+
+      return {
+        ...(Number.isInteger(productId) ? { productId } : {}),
+        productName,
+        sku,
+        standardQty,
+        actualQty,
+        unit,
+      };
+    })
+    .filter((item) => item.productId !== undefined || item.productName || item.sku);
+
+  return sanitized.length ? sanitized : undefined;
+}
+
+function sanitizeServicePayload<T extends TerminalCompleteServiceTaskRequest | TerminalServiceRecordCreateRequest>(data: T): T {
+  const consumptionItems = sanitizeTerminalConsumptionItems(data.consumptionItems);
+  const payload = { ...data, consumptionItems } as T;
+  if (!consumptionItems) {
+    delete (payload as { consumptionItems?: unknown }).consumptionItems;
+  }
+  return payload;
 }
 
 export async function realQuickCreateTerminalCustomer(data: TerminalQuickCreateCustomerRequest): Promise<Customer> {
@@ -288,6 +461,7 @@ export async function realGetTerminalBehaviorProfile(customerId: number): Promis
 export async function realGetTerminalServiceTasks(params?: {
   date?: string;
   status?: TerminalServiceTaskStatus;
+  beauticianId?: number;
 }): Promise<TerminalServiceTask[]> {
   return apiClient.get('/terminal/tasks', { params });
 }
@@ -304,7 +478,7 @@ export async function realCompleteTerminalServiceTask(
   id: number,
   data: TerminalCompleteServiceTaskRequest,
 ): Promise<TerminalServiceTask> {
-  return apiClient.patch(`/terminal/tasks/${id}/complete`, data);
+  return apiClient.patch(`/terminal/tasks/${id}/complete`, sanitizeServicePayload(data));
 }
 
 export async function realCancelTerminalServiceTask(id: number, reason?: string): Promise<TerminalServiceTask> {
@@ -339,6 +513,8 @@ export async function realCreateTerminalCashierOrder(
 ): Promise<TerminalCashierOrder> {
   return apiClient.post('/terminal/cashier/checkout', {
     customerId: data.customerId,
+    customerName: data.customerName,
+    customerPhone: data.customerPhone,
     payMethod: data.paymentMethod ?? 'cash',
     discountAmount: data.discountAmount,
     items: extractArray<TerminalCashierOrderCreateRequest['items'][number]>(data.items).map((item) => ({
@@ -440,14 +616,14 @@ export async function realCreateTerminalConsumptionRecord(
 export async function realCreateTerminalServiceRecord(
   data: TerminalServiceRecordCreateRequest,
 ): Promise<TerminalServiceRecordResponse> {
-  return apiClient.post('/terminal/service-records', data);
+  return apiClient.post('/terminal/service-records', sanitizeServicePayload(data));
 }
 
 export async function realUpdateTerminalServiceRecord(
   taskId: number,
   data: TerminalServiceRecordCreateRequest,
 ): Promise<TerminalServiceRecordResponse> {
-  return apiClient.put(`/terminal/tasks/${taskId}/service-record`, data);
+  return apiClient.put(`/terminal/tasks/${taskId}/service-record`, sanitizeServicePayload(data));
 }
 
 export async function realCreateTerminalSkinTest(data: TerminalCreateSkinTestRequest): Promise<TerminalSkinTest> {
@@ -478,6 +654,10 @@ export async function realGetTerminalCustomerNextBestActions(customerId: number)
   return apiClient.get(`/terminal/customers/${customerId}/next-best-actions`);
 }
 
+export async function realGetTerminalCustomerGrowthCandidates(limit = 10): Promise<TerminalGrowthCandidate[]> {
+  return apiClient.get('/terminal/customers/growth-candidates', { params: { limit } });
+}
+
 export async function realRecordTerminalRecommendationEvent(
   data: TerminalRecommendationEventRequest,
 ): Promise<{ id: number; createdAt: string }> {
@@ -488,11 +668,42 @@ export async function realCreateTerminalFollowUpTask(data: TerminalFollowUpTaskC
   return apiClient.post('/terminal/follow-up-tasks', data);
 }
 
+export async function realGetTerminalFollowUpTasks(
+  params: TerminalFollowUpTaskQuery = {},
+): Promise<TerminalFollowUpTaskListResponse> {
+  return apiClient.get('/terminal/follow-up-tasks', { params });
+}
+
+export async function realBatchCreateRecommendationFollowUpTasks(
+  recommendationId: number,
+  data: TerminalFollowUpTaskCreateRequest,
+): Promise<TerminalFollowUpTaskBatchCreateResponse> {
+  return apiClient.post(`/marketing/recommendations/${recommendationId}/follow-up-tasks`, data);
+}
+
+export async function realGetMarketingFollowUpTasks(
+  params: TerminalFollowUpTaskQuery = {},
+): Promise<TerminalFollowUpTaskListResponse> {
+  return apiClient.get('/marketing/follow-up-tasks', { params });
+}
+
+export async function realGetMarketingFollowUpTaskSummary() {
+  return apiClient.get('/marketing/follow-up-tasks/summary');
+}
+
+export async function realStartTerminalFollowUpTask(id: number): Promise<TerminalFollowUpTask> {
+  return apiClient.patch(`/terminal/follow-up-tasks/${id}/start`);
+}
+
 export async function realCompleteTerminalFollowUpTask(
   id: number,
   data: TerminalFollowUpTaskCompleteRequest,
 ): Promise<TerminalFollowUpTask> {
   return apiClient.patch(`/terminal/follow-up-tasks/${id}/complete`, data);
+}
+
+export async function realReturnTerminalFollowUpTask(id: number, note?: string): Promise<TerminalFollowUpTask> {
+  return apiClient.patch(`/terminal/follow-up-tasks/${id}/return`, { assigneeRole: 'manager', note });
 }
 
 export async function realGetTerminalPromotions(params?: { customerId?: number; projectId?: number }): Promise<TerminalPromotion[]> {

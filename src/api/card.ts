@@ -17,8 +17,14 @@ export const deleteCard: (id: number) => Promise<void> =
 export const createCardOrder: (data: { cardId: number; userId: number; actualPrice: number }) => Promise<any> =
   realCreateCardOrder;
 
-export const createCardUsage: (data: { cardOrderId: string; projectName: string; consumedTimes: number }) => Promise<any> =
-  realCreateCardUsage;
+export const createCardUsage: (data: {
+  cardOrderId?: string | number;
+  customerCardId?: string | number;
+  customerId?: number;
+  cardName?: string;
+  projectName: string;
+  consumedTimes: number;
+}) => Promise<any> = realCreateCardUsage;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import { realGetCardOrdersPaginated, realGetCardUsageRecordsPaginated } from './real/card';
@@ -26,5 +32,6 @@ import { realGetCardOrdersPaginated, realGetCardUsageRecordsPaginated } from './
 export const getCardOrdersPaginated: (params: PaginationParams & { userName?: string; cardName?: string }) => Promise<PaginatedResponse<any>> =
   realGetCardOrdersPaginated;
 
-export const getCardUsageRecordsPaginated: (params: PaginationParams & { cardName?: string; userName?: string }) => Promise<PaginatedResponse<any>> =
-  realGetCardUsageRecordsPaginated;
+export const getCardUsageRecordsPaginated: (
+  params: PaginationParams & { cardName?: string; userName?: string; projectName?: string },
+) => Promise<PaginatedResponse<any>> = realGetCardUsageRecordsPaginated;

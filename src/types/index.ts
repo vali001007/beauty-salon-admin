@@ -1,4 +1,5 @@
 export * from './customer';
+export * from './customer-app';
 export * from './product';
 export * from './inventory';
 export type { Store, Beautician as StoreBeautician, BeauticianLevel, Schedule, ScheduleSlot } from './store';
@@ -41,3 +42,5 @@ export * from './terminal';
 export * from './aura';
 export * from './ai';
 export * from './dashboard';
+export * from './promotion';
+export * from './supply-chain';

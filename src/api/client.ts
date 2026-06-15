@@ -15,6 +15,7 @@ const BASE_DELAY_MS = 1000;
 interface RetryConfig extends InternalAxiosRequestConfig {
   _retryCount?: number;
   _csrfRetry?: boolean;
+  skipRetry?: boolean;
 }
 
 function generateRequestId(): string {
@@ -49,6 +50,11 @@ function delay(ms: number): Promise<void> {
 function isLoginRequest(config?: InternalAxiosRequestConfig): boolean {
   const url = config?.url ?? '';
   return url.endsWith('/auth/login') || url === 'auth/login' || url === '/auth/login';
+}
+
+function redirectToLoginOnce(): void {
+  if (window.location.pathname === '/login') return;
+  window.location.href = '/login';
 }
 
 const apiClient = axios.create({
@@ -94,7 +100,7 @@ apiClient.interceptors.response.use(
     const config = error.config as RetryConfig | undefined;
 
     // Retry logic for retryable errors
-    if (config && isRetryable(error)) {
+    if (config && !config.skipRetry && isRetryable(error)) {
       config._retryCount = config._retryCount ?? 0;
 
       if (config._retryCount < MAX_RETRIES) {
@@ -133,7 +139,7 @@ apiClient.interceptors.response.use(
 
     if (status === 401 && !isLoginRequest(config)) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      redirectToLoginOnce();
     }
 
     const normalizedError = new Error(payload.message) as Error & {

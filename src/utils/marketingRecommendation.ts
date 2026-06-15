@@ -35,16 +35,18 @@ export interface Recommendation {
   matchScore: number;
   image: string;
   tags: string[];
-  category: 'high-conversion' | 'customer-wake' | 'viral' | 'member-care' | 'seasonal' | 'trend' | 'cross-sell' | 'churn-alert' | 'ltv-nurture';
+  category: 'high-conversion' | 'customer-wake' | 'viral' | 'member-care' | 'seasonal' | 'trend' | 'cross-sell' | 'churn-alert' | 'ltv-nurture' | 'inventory-opportunity' | 'capacity-opportunity' | 'product-replenishment' | 'project-cycle' | string;
+  recommendationType?: 'product_expiry_clearance' | 'project_idle_capacity' | 'product_replenishment' | 'project_cycle_due' | string;
+  recommendationKey?: string;
   triggerType?: MarketingTriggerType;
   preferAutoRule: boolean;
   urgency: UrgencyLevel;
   urgencyLabel: string;
   dataEvidence?: string[];    // 数据依据（折叠展示）
-  source: 'strategy' | 'association' | 'churn' | 'ltv';
+  source: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project';
   predictionRunId?: number;
   modelVersion?: string;
-  predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy';
+  predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy' | string;
   predictionRunFinishedAt?: string;
   totalCustomers?: number;
   priority?: RecommendationPriority;
@@ -58,6 +60,29 @@ export interface Recommendation {
   recommendedItems?: RecommendedItem[];
   audienceSnapshot?: AudienceSnapshot;
   sourceSignals?: string[];
+  isFallback?: boolean;
+  inventorySnapshot?: {
+    productId: number;
+    productName: string;
+    batchId?: number;
+    batchNo?: string;
+    stock: number;
+    daysToExpiry?: number;
+    forecastSellThroughQty?: number;
+    gapQty?: number;
+    expectedLossAmount?: number;
+  };
+  capacitySnapshot?: {
+    dateRange: string;
+    idleSlots: number;
+    idleMinutes: number;
+    utilizationRate: number;
+    beauticianIds: number[];
+    projectIds: number[];
+  };
+  expectedGrossProfit?: string;
+  expectedLossAvoided?: string;
+  riskWarnings?: string[];
 }
 
 // ========== 季节 & 节日 ==========

@@ -5,18 +5,40 @@ import type {
   MarketingAutomationExecution,
   MarketingAutomationStrategy,
   MarketingRuleRelation,
+  MarketingRuleEffectSummary,
+  MarketingRuleTemplate,
+  MarketingRuleTemplateInput,
+  MarketingRuleTemplateQuery,
   MarketingStrategyInput,
+  MarketingEffectObjectType,
   MarketingTriggerOption,
   MarketingTriggerRule,
   CustomerPredictionSnapshot,
+  InvitationCandidateResponse,
   PredictionRunSummary,
+  UnifiedMarketingEffectsResponse,
 } from '@/types';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+import type {
+  TerminalFollowUpTask,
+  TerminalFollowUpTaskBatchCreateResponse,
+  TerminalFollowUpTaskCreateRequest,
+  TerminalFollowUpTaskListResponse,
+  TerminalFollowUpTaskQuery,
+  TerminalFollowUpTaskSummary,
+} from '@/types/terminal';
 import type { MarketingStrategy, StrategyEffectSummary } from './domain-types';
 import {
+  realAssignMarketingFollowUpTask,
+  realBatchCreateMarketingFollowUpTasks,
+  realCancelMarketingFollowUpTask,
   realCreateAutomationStrategy,
+  realCloneMarketingRuleTemplate,
+  realCreateMarketingRuleTemplate,
   realCreateMarketingActivity,
   realCreateStrategy,
+  realDisableMarketingRuleTemplate,
+  realEnableMarketingRuleTemplate,
   realDeleteAutomationStrategy,
   realEnableAutomationStrategy,
   realExecuteAutomationStrategy,
@@ -25,18 +47,27 @@ import {
   realGetAutomationExecutionsPaginated,
   realGetAutomationStrategiesPaginated,
   realGetAutomationTriggerOptions,
+  realGetUnifiedMarketingEffects,
   realGetCustomerPrediction,
+  realGetInvitationCandidates,
   realGetLatestPredictionSummary,
   realGetMarketingActivities,
+  realGetMarketingRuleTemplateById,
+  realGetMarketingRuleTemplateEffects,
+  realGetMarketingRuleTemplatesPaginated,
+  realGetMarketingFollowUpTasks,
+  realGetMarketingFollowUpTaskSummary,
   realGetPredictionCustomers,
   realGetStrategyEffects,
   realPauseAutomationStrategy,
+  realPreviewMarketingRuleTemplateAudience,
   realPreviewAutomationAudience,
   realRecordCustomerBehaviorEvent,
   realSaveAutomationStrategyDraft,
   realSaveStrategyDraft,
   realUpdateAutomationStrategy,
   realUpdateMarketingActivity,
+  realUpdateMarketingRuleTemplate,
   realRunPredictions,
 } from './real/marketing';
 
@@ -62,6 +93,67 @@ export const getStrategyEffects: () => Promise<StrategyEffectSummary[]> =
 
 export const getAutomationTriggerOptions: () => Promise<MarketingTriggerOption[]> =
   realGetAutomationTriggerOptions;
+
+export const getMarketingRuleTemplatesPaginated: (
+  params: PaginationParams & MarketingRuleTemplateQuery,
+) => Promise<PaginatedResponse<MarketingRuleTemplate>> =
+  realGetMarketingRuleTemplatesPaginated;
+
+export const getMarketingRuleTemplateById: (id: number) => Promise<MarketingRuleTemplate> =
+  realGetMarketingRuleTemplateById;
+
+export const cloneMarketingRuleTemplate: (
+  id: number,
+  data?: MarketingRuleTemplateInput,
+) => Promise<MarketingRuleTemplate> =
+  realCloneMarketingRuleTemplate;
+
+export const createMarketingRuleTemplate: (data: MarketingRuleTemplateInput) => Promise<MarketingRuleTemplate> =
+  realCreateMarketingRuleTemplate;
+
+export const updateMarketingRuleTemplate: (
+  id: number,
+  data: MarketingRuleTemplateInput,
+) => Promise<MarketingRuleTemplate> =
+  realUpdateMarketingRuleTemplate;
+
+export const previewMarketingRuleTemplateAudience: (id: number) => Promise<AudiencePreview> =
+  realPreviewMarketingRuleTemplateAudience;
+
+export const enableMarketingRuleTemplate: (
+  id: number,
+  data?: MarketingRuleTemplateInput,
+) => Promise<{ strategy: MarketingAutomationStrategy; preview: AudiencePreview; template: MarketingRuleTemplate }> =
+  realEnableMarketingRuleTemplate;
+
+export const disableMarketingRuleTemplate: (id: number) => Promise<MarketingRuleTemplate> =
+  realDisableMarketingRuleTemplate;
+
+export const getMarketingRuleTemplateEffects: (id: number) => Promise<MarketingRuleEffectSummary> =
+  realGetMarketingRuleTemplateEffects;
+
+export const batchCreateMarketingFollowUpTasks: (
+  recommendationId: number,
+  data: TerminalFollowUpTaskCreateRequest,
+) => Promise<TerminalFollowUpTaskBatchCreateResponse> =
+  realBatchCreateMarketingFollowUpTasks;
+
+export const getMarketingFollowUpTasks: (
+  params?: TerminalFollowUpTaskQuery,
+) => Promise<TerminalFollowUpTaskListResponse> =
+  realGetMarketingFollowUpTasks;
+
+export const getMarketingFollowUpTaskSummary: () => Promise<TerminalFollowUpTaskSummary> =
+  realGetMarketingFollowUpTaskSummary;
+
+export const assignMarketingFollowUpTask: (
+  id: number,
+  data: Pick<TerminalFollowUpTask, 'assigneeRole' | 'assigneeUserId' | 'assigneeBeauticianId'> & { note?: string },
+) => Promise<TerminalFollowUpTask> =
+  realAssignMarketingFollowUpTask;
+
+export const cancelMarketingFollowUpTask: (id: number, note?: string) => Promise<TerminalFollowUpTask> =
+  realCancelMarketingFollowUpTask;
 
 export const getAutomationStrategiesPaginated: (
   params: PaginationParams & { keyword?: string; status?: string },
@@ -106,6 +198,12 @@ export const getAutomationExecutionById: (id: number) => Promise<MarketingAutoma
 export const getAutomationEffects: () => Promise<MarketingAutomationEffect[]> =
   realGetAutomationEffects;
 
+export const getUnifiedMarketingEffects: (params?: {
+  objectType?: 'all' | MarketingEffectObjectType;
+  storeId?: number;
+}) => Promise<UnifiedMarketingEffectsResponse> =
+  realGetUnifiedMarketingEffects;
+
 export const runPredictions: (storeId?: number) => Promise<PredictionRunSummary> =
   realRunPredictions;
 
@@ -128,6 +226,12 @@ export const getCustomerPrediction: (customerId: number) => Promise<{
   history: Array<Pick<CustomerPredictionSnapshot, 'id' | 'runId' | 'churnScore' | 'repurchase30dScore' | 'marketingResponseScore' | 'ltv6m' | 'ltv12m' | 'createdAt'>>;
 }> =
   realGetCustomerPrediction;
+
+export const getInvitationCandidates: (params?: {
+  storeId?: number;
+  limit?: number;
+}) => Promise<InvitationCandidateResponse> =
+  realGetInvitationCandidates;
 
 export const recordCustomerBehaviorEvent: (data: {
   storeId: number;

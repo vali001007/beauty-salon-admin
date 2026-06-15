@@ -1,7 +1,11 @@
 export interface Store {
   id: number;
   name: string;
+  city?: string;
   address: string;
+  phone?: string;
+  status?: string;
+  shiftRequired?: boolean;
   skuCount: number;
   totalValue: number;
   healthScore: number;

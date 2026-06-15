@@ -2,8 +2,13 @@ import type { BehaviorProfile } from '@/utils/customerSegmentation';
 import type { Recommendation } from '@/utils/marketingRecommendation';
 import apiClient from '../client';
 
-export async function realGetMarketingRecommendations(): Promise<Recommendation[]> {
-  return apiClient.get('/marketing/recommendations');
+export type MarketingRecommendationQuery = {
+  scope?: 'all' | 'customer' | 'product-project';
+  type?: string;
+};
+
+export async function realGetMarketingRecommendations(params?: MarketingRecommendationQuery): Promise<Recommendation[]> {
+  return apiClient.get('/marketing/recommendations', { params });
 }
 
 export async function realGetMarketingRecommendationAudience(recommendationId: number): Promise<BehaviorProfile[]> {

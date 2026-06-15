@@ -9,9 +9,10 @@ import {
   realGetMarketingRecommendationAudience,
   realGetMarketingRecommendations,
   realUpdateRecommendation,
+  type MarketingRecommendationQuery,
 } from './real/recommendation';
 
-export const getMarketingRecommendations: () => Promise<Recommendation[]> =
+export const getMarketingRecommendations: (params?: MarketingRecommendationQuery) => Promise<Recommendation[]> =
   realGetMarketingRecommendations;
 
 export const getMarketingRecommendationAudience: (recommendationId: number) => Promise<BehaviorProfile[]> =

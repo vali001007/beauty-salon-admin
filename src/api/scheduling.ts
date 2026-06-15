@@ -6,6 +6,15 @@ import {
   realGetSchedulePaginated,
   realCreateScheduleSlot,
   realDeleteScheduleSlot,
+  realPreviewSmartSchedule,
+  realEvaluateSmartSchedule,
+  realPublishSmartSchedule,
+  realGetSchedulingDemand,
+} from './real/scheduling';
+import type {
+  SchedulingDemandResult,
+  SmartSchedulingOptions,
+  SmartSchedulingResult,
 } from './real/scheduling';
 
 export const getSchedule: (params: {
@@ -37,3 +46,25 @@ export const createScheduleSlot: (data: { beauticianId: number; date: string; ti
 
 export const deleteScheduleSlot: (id: number) => Promise<void> =
   realDeleteScheduleSlot;
+
+export type {
+  SchedulingDemandResult,
+  SchedulingDemandSlot,
+  SmartScheduleItem,
+  SmartSchedulingConflict,
+  SmartSchedulingOptions,
+  SmartSchedulingResult,
+  SmartSchedulingSummary,
+} from './real/scheduling';
+
+export const previewSmartSchedule: (data: SmartSchedulingOptions) => Promise<SmartSchedulingResult> =
+  realPreviewSmartSchedule;
+
+export const evaluateSmartSchedule: (data: SmartSchedulingOptions) => Promise<SmartSchedulingResult> =
+  realEvaluateSmartSchedule;
+
+export const publishSmartSchedule: (data: SmartSchedulingOptions) => Promise<SmartSchedulingResult> =
+  realPublishSmartSchedule;
+
+export const getSchedulingDemand: (params: { weekStart: string }) => Promise<SchedulingDemandResult> =
+  realGetSchedulingDemand;

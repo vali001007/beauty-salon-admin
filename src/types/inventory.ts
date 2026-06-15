@@ -70,7 +70,10 @@ export interface ReplenishmentSuggestion {
   safetyStock: number;
   inTransit: number;
   suggestedQty: number;
+  supplierId?: number;
   supplier: string;
+  supplyPrice?: number;
+  moq?: number | null;
   estimatedAmount: number;
   checked: boolean;
 }

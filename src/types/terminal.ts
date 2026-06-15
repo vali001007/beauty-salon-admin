@@ -6,11 +6,57 @@ import type { ExpiringProduct, ReplenishmentSuggestion, StockItem } from '@/type
 import type { Product } from '@/types/product';
 import type { Project } from '@/types/project';
 import type { Store } from '@/types/store';
-import type { AuraBootstrap } from './aura';
+import type { AuraBootstrap, AuraRole } from './aura';
 
-export type TerminalDeviceStatus = 'online' | 'offline' | 'disabled' | 'pending_unbind';
+export type TerminalDeviceStatus = 'online' | 'offline' | 'disabled' | 'pending_unbind' | 'unactivated';
 export type TerminalServiceTaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
 export type TerminalRecommendationEventType = 'shown' | 'accepted' | 'skipped' | 'converted';
+export type TerminalConversationRole = 'manager' | 'reception' | 'beautician';
+
+export interface TerminalConversationMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  type?: string;
+  title?: string;
+}
+
+export interface TerminalConversationRecord {
+  id: number;
+  deviceId: string;
+  storeId: number;
+  role: TerminalConversationRole;
+  operatorId?: number | null;
+  date: string;
+  messages: TerminalConversationMessage[];
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string | null;
+}
+
+export interface SaveTerminalConversationRequest {
+  role: TerminalConversationRole;
+  operatorId?: number | null;
+  date?: string;
+  messages: TerminalConversationMessage[];
+  messageCount?: number;
+}
+
+export interface TerminalConversationHistoryParams {
+  page?: number;
+  pageSize?: number;
+  days?: number;
+  startDate?: string;
+  endDate?: string;
+  role?: TerminalConversationRole;
+  operatorId?: number | null;
+}
+
+export interface TerminalBootstrapParams {
+  operatorId?: number | null;
+  role?: AuraRole;
+}
 
 export interface TerminalDevice {
   id: number;
@@ -24,6 +70,9 @@ export interface TerminalDevice {
   firmwareVersion: string;
   batteryLevel: number;
   networkStatus: 'online' | 'offline' | 'unstable';
+  printerStatus?: string;
+  scannerStatus?: string;
+  cameraStatus?: string;
   lastOnlineAt: string;
   boundAt: string;
 }
@@ -67,6 +116,23 @@ export interface TerminalDeviceHeartbeatRequest {
   appVersion: string;
   firmwareVersion?: string;
   networkStatus: 'online' | 'offline' | 'unstable';
+  printerStatus?: string;
+  scannerStatus?: string;
+  cameraStatus?: string;
+}
+
+export interface TerminalDeviceProvisionRequest {
+  storeId?: number;
+  deviceCode?: string;
+  activationCode?: string;
+  name?: string;
+  model?: string;
+  appVersion?: string;
+  firmwareVersion?: string;
+}
+
+export interface TerminalDeviceProvisionResponse extends TerminalDevice {
+  activationCode: string;
 }
 
 export interface TerminalConfig {
@@ -270,6 +336,146 @@ export interface TerminalRoleDashboard {
   reception: TerminalReceptionDashboard;
 }
 
+export interface TerminalBeauticianCommissionRecord {
+  id: number;
+  type: string;
+  amount: number;
+  sourceAmount: number;
+  status: string;
+  orderNo?: string;
+  ruleName?: string;
+  orderItem?: { id: number; name?: string };
+  createdAt?: string;
+}
+
+export interface TerminalBeauticianCommissionBreakdownItem {
+  type: string;
+  label: string;
+  amount: number;
+  sourceAmount: number;
+  pendingAmount: number;
+  confirmedAmount: number;
+  count: number;
+}
+
+export interface TerminalBeauticianCommissionSummary {
+  todayAmount: number;
+  monthAmount: number;
+  monthPendingAmount: number;
+  monthConfirmedAmount: number;
+  todayCount: number;
+  monthCount: number;
+  breakdown?: TerminalBeauticianCommissionBreakdownItem[];
+  recentRecords: TerminalBeauticianCommissionRecord[];
+  monthRecords?: TerminalBeauticianCommissionRecord[];
+}
+
+export interface TerminalBeauticianQualitySummary {
+  completedCount: number;
+  activeTaskCount: number;
+  recordedCount: number;
+  completionRate: number;
+  recordRate: number;
+  averageServiceDurationMinutes: number;
+  repeatCustomerCount: number;
+  repurchaseOpportunityCount: number;
+  revenueContributionAmount: number;
+  highlights: string[];
+  suggestions: string[];
+}
+
+export interface TerminalBeauticianMe extends Beautician {
+  beauticianId?: number;
+  roleMode?: 'self' | 'manager_delegate';
+}
+
+export interface TerminalBeauticianDashboard {
+  beautician: TerminalBeauticianMe;
+  date: string;
+  schedule: {
+    todaySlots: Array<{ time: string; period?: '上午' | '下午' | string; available?: boolean; status?: string }>;
+    weekSlots?: Array<Array<{ time: string; period?: '上午' | '下午' | string; available?: boolean; status?: string }>>;
+    weekStart?: string;
+    utilization: string;
+  };
+  tasks: {
+    pending: TerminalServiceTask[];
+    inProgress: TerminalServiceTask[];
+    needRecord: TerminalServiceTask[];
+    completedToday: TerminalServiceTask[];
+    nextTask?: TerminalServiceTask;
+  };
+  commission: TerminalBeauticianCommissionSummary;
+  quality: TerminalBeauticianQualitySummary;
+  alerts: Array<{
+    type: 'next_task' | 'record_missing' | 'customer_advice' | 'commission_pending' | string;
+    title: string;
+    description: string;
+    relatedId?: number;
+  }>;
+  summary: string;
+}
+
+export interface TerminalCashierShift {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  deviceId?: number;
+  deviceName?: string;
+  operatorType: string;
+  startedAt: string;
+  endedAt?: string;
+  status: 'open' | 'closed' | 'reconciled';
+  openingCash: number;
+  closingCash?: number;
+  systemCash?: number;
+  cashDiff?: number;
+  summary?: Record<string, number>;
+  alertLevel?: 'normal' | 'warning';
+}
+
+export interface TerminalCustomerGrowthDashboard {
+  title: string;
+  subtitle: string;
+  items: Array<string | TerminalDashboardInsight>;
+  summary: string;
+}
+
+export interface TerminalContextCustomer {
+  id: number;
+  name: string;
+  phone: string;
+  gender?: string;
+  memberLevel: string;
+  totalSpent?: number;
+  visitCount?: number;
+  lastVisitDate?: string;
+  tags: string[];
+  source?: string;
+  storeName?: string;
+  skinCondition?: string;
+  cashBalance?: number;
+  giftBalance?: number;
+  totalBalance?: number;
+  activeCustomerCardsCount?: number;
+  isAppointedToday?: boolean;
+  appointmentTime?: string;
+  appointmentProjectName?: string;
+}
+
+export interface TerminalCashierContext extends TerminalCatalogSync {
+  customers: TerminalContextCustomer[];
+  storeName: string;
+  shiftRequired?: boolean;
+  generatedAt: string;
+}
+
+export interface TerminalCardVerificationContext {
+  customers: TerminalContextCustomer[];
+  storeName: string;
+  generatedAt: string;
+}
+
 export interface TerminalQuickCreateCustomerRequest {
   name: string;
   phone: string;
@@ -366,9 +572,13 @@ export interface TerminalServiceTask {
 export interface TerminalCompleteServiceTaskRequest {
   beauticianId: number;
   result: string;
+  customerFeedback?: string;
+  nextSuggestion?: string;
   remark?: string;
   images?: string[];
   consumptionItems?: TerminalConsumptionItem[];
+  transferToCashier?: boolean;
+  nextReservationSuggestion?: string;
 }
 
 export interface TerminalCustomerCard {
@@ -671,9 +881,30 @@ export interface TerminalRecommendation {
   type: 'project' | 'card' | 'product' | 'script';
   title: string;
   reason: string;
+  matchFactors?: string[];
   targetId?: number;
   confidence: number;
   payload?: Record<string, unknown>;
+}
+
+export interface TerminalGrowthCandidate {
+  customerId: number;
+  name: string;
+  phone?: string;
+  lastVisitDate?: string | null;
+  totalSpent: number;
+  memberLevel?: string;
+  visitCount?: number;
+  tags?: string[];
+  source?: string;
+  churnScore: number;
+  churnLevel: string;
+  repurchase30dScore: number;
+  marketingResponseScore?: number;
+  ltvTier?: string;
+  reason: string;
+  recommendedActions?: unknown;
+  featureJson?: Record<string, unknown>;
 }
 
 export interface TerminalNextBestAction {
@@ -691,6 +922,13 @@ export interface TerminalNextBestActionsResponse {
   customerName: string;
   generatedAt: string;
   actions: TerminalNextBestAction[];
+  prediction?: {
+    churnScore: number;
+    churnLevel: string;
+    repurchase30dScore: number;
+    marketingResponseScore: number;
+    ltvTier: string;
+  } | null;
 }
 
 export interface TerminalRecommendationEventRequest {
@@ -704,9 +942,19 @@ export interface TerminalRecommendationEventRequest {
 
 export interface TerminalFollowUpTaskCreateRequest {
   customerId: number;
+  customerIds?: number[];
   recommendationId?: number;
+  sourceRecommendationKey?: string;
+  source?: string;
+  triggerType?: string;
+  title?: string;
+  priority?: 'urgent' | 'recommended' | 'opportunity' | string;
+  assigneeRole?: 'manager' | 'consultant' | 'reception' | string;
+  assigneeUserId?: number;
+  assigneeBeauticianId?: number;
   taskId?: number;
   orderId?: number;
+  reservationId?: number;
   channel?: 'phone' | 'wechat' | 'sms' | 'offline' | string;
   script?: string;
   note?: string;
@@ -719,20 +967,104 @@ export interface TerminalFollowUpTask {
   customerId: number;
   customerName?: string;
   customerPhone?: string;
-  status: 'pending' | 'completed' | string;
+  customerMemberLevel?: string;
+  recommendationId?: number;
+  sourceRecommendationKey?: string;
+  source?: string;
+  triggerType?: string;
+  title?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'expired' | string;
+  priority?: 'urgent' | 'recommended' | 'opportunity' | string;
+  assigneeRole?: 'manager' | 'consultant' | 'reception' | string;
+  assigneeUserId?: number;
+  assigneeUserName?: string;
+  assigneeBeauticianId?: number;
+  assigneeBeauticianName?: string;
+  assignmentReason?: string;
   channel?: string;
   script?: string;
+  note?: string;
   dueAt?: string;
+  resultType?: 'contacted' | 'booked' | 'not_reached' | 'refused' | 'converted' | string;
   result?: string;
+  resultNote?: string;
+  reservationId?: number;
+  orderId?: number;
+  serviceTaskId?: number;
   completionEventId?: number;
   createdAt?: string;
+  updatedAt?: string;
   completedAt?: string;
+  duplicated?: boolean;
 }
 
 export interface TerminalFollowUpTaskCompleteRequest {
+  resultType?: 'contacted' | 'booked' | 'not_reached' | 'refused' | 'converted' | string;
   result?: string;
   note?: string;
   orderId?: number;
+  reservationId?: number;
+}
+
+export interface TerminalFollowUpTaskQuery {
+  page?: number;
+  pageSize?: number;
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'expired' | string;
+  assigneeRole?: 'manager' | 'consultant' | 'reception' | string;
+  assigneeUserId?: number;
+  customerId?: number;
+  recommendationId?: number;
+  keyword?: string;
+}
+
+export interface TerminalFollowUpTaskSummary {
+  pending: number;
+  in_progress?: number;
+  inProgress?: number;
+  completed: number;
+  cancelled?: number;
+  expired: number;
+  overdue: number;
+  booked?: number;
+  converted?: number;
+  revenue?: number;
+  assigneeStats?: TerminalFollowUpAssigneeStat[];
+}
+
+export interface TerminalFollowUpAssigneeStat {
+  assigneeKey: string;
+  assigneeRole: 'manager' | 'consultant' | 'reception' | string;
+  assigneeRoleLabel: string;
+  assigneeUserId?: number;
+  assigneeBeauticianId?: number;
+  assigneeName: string;
+  total: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  overdue: number;
+  booked: number;
+  converted: number;
+  revenue: number;
+  completionRate: number;
+  conversionRate: number;
+}
+
+export interface TerminalFollowUpTaskListResponse {
+  items: TerminalFollowUpTask[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary?: TerminalFollowUpTaskSummary;
+}
+
+export interface TerminalFollowUpTaskBatchCreateResponse {
+  items: TerminalFollowUpTask[];
+  total: number;
+  createdCount: number;
+  duplicatedCount: number;
+  failedCount: number;
+  failures: Array<{ customerId: number; message: string }>;
 }
 
 export interface TerminalPromotion {

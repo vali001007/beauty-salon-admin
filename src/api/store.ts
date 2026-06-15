@@ -1,5 +1,13 @@
 import type { Store } from '@/types';
-import { realGetStores, realGetAccessibleStores, realCreateStore, realUpdateStore, realDeleteStore, realGetStoresPaginated } from './real/store';
+import {
+  realGetStores,
+  realGetAccessibleStores,
+  realCreateStore,
+  realUpdateStore,
+  realDeleteStore,
+  realGetStoresPaginated,
+  type StoreMutationPayload,
+} from './real/store';
 
 export const getStores: () => Promise<Store[]> =
   realGetStores;
@@ -7,10 +15,10 @@ export const getStores: () => Promise<Store[]> =
 export const getAccessibleStores: () => Promise<Store[]> =
   realGetAccessibleStores;
 
-export const createStore: (data: Omit<Store, 'id'>) => Promise<Store> =
+export const createStore: (data: StoreMutationPayload) => Promise<Store> =
   realCreateStore;
 
-export const updateStore: (id: number, data: Partial<Store>) => Promise<Store> =
+export const updateStore: (id: number, data: Partial<StoreMutationPayload>) => Promise<Store> =
   realUpdateStore;
 
 export const deleteStore: (id: number) => Promise<void> =

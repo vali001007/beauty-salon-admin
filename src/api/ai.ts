@@ -38,10 +38,14 @@ import {
   realRecommendNextBestAction,
   realResolveTerminalIntent,
   realSendAiChatMessage,
+  realStreamAiChatMessage,
 } from './real/ai';
 
 export const sendAiChatMessage: (data: AiChatRequest) => Promise<AiGenerationResult> =
   realSendAiChatMessage;
+
+export const streamAiChatMessage: (data: AiChatRequest) => AsyncGenerator<string> =
+  realStreamAiChatMessage;
 
 export const generateCustomerInvitationScript: (
   data: CustomerInvitationScriptRequest,

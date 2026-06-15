@@ -1,8 +1,19 @@
 import type {
   Customer,
+  CustomerCreatePayload,
   CustomerConsumptionRecord,
   CustomerHealthProfile,
   CustomerMiniappBehaviorAnalysis,
+  CustomerProfile,
+  CustomerProfileAnalytics,
+  CustomerProfileAnalyticsOverview,
+  CustomerProfileBehaviorAnalytics,
+  CustomerProfileBehaviorQuery,
+  CustomerProfilePredictionAnalytics,
+  CustomerProfilePredictionQuery,
+  CustomerProfileSegmentAnalytics,
+  CustomerProfileSkinAnalytics,
+  CustomerUpdatePayload,
 } from '@/types';
 import apiClient from '../client';
 
@@ -14,17 +25,21 @@ export async function realGetCustomerById(id: number): Promise<Customer | undefi
   return apiClient.get(`/customers/${id}`);
 }
 
-export async function realCreateCustomer(data: Omit<Customer, 'id' | 'totalSpent' | 'visitCount' | 'lastVisitDate' | 'createdAt'>): Promise<Customer> {
+export async function realGetCustomerProfile(id: number): Promise<CustomerProfile> {
+  return apiClient.get(`/customers/${id}/profile`);
+}
+
+export async function realCreateCustomer(data: CustomerCreatePayload): Promise<Customer> {
   return apiClient.post('/customers', data);
 }
 
-export async function realUpdateCustomer(id: number, data: Partial<Customer>): Promise<Customer> {
+export async function realUpdateCustomer(id: number, data: CustomerUpdatePayload): Promise<Customer> {
   return apiClient.put(`/customers/${id}`, data);
 }
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
-export async function realGetCustomersPaginated(params: PaginationParams & { keyword?: string; memberLevel?: string; storeName?: string }): Promise<PaginatedResponse<Customer>> {
+export async function realGetCustomersPaginated(params: PaginationParams & { keyword?: string; name?: string; phone?: string; memberLevel?: string; storeName?: string }): Promise<PaginatedResponse<Customer>> {
   return apiClient.get('/customers/paginated', { params });
 }
 
@@ -34,12 +49,38 @@ export async function realImportCustomers(data: Record<string, any>[]): Promise<
   return apiClient.post('/customers/import', { data });
 }
 
+export interface CustomerSegmentCountParams {
+  storeId?: number;
+  segment?: string;
+  skinType?: string;
+  memberLevel?: string;
+  daysSinceLastVisit?: number;
+  specialTags?: string[];
+}
+
+export interface CustomerSegmentCountResult {
+  count: number;
+  filters: CustomerSegmentCountParams;
+}
+
+export async function realGetCustomerSegmentCount(
+  params: CustomerSegmentCountParams = {},
+): Promise<CustomerSegmentCountResult> {
+  return apiClient.get('/customers/segment-count', { params });
+}
+
 export async function realDeleteCustomers(ids: number[]): Promise<void> {
   return apiClient.post('/customers/batch-delete', { ids });
 }
 
 export async function realGetCustomerConsumptionRecords(): Promise<CustomerConsumptionRecord[]> {
   return apiClient.get('/customers/consumption-records');
+}
+
+export async function realGetCustomerConsumptionRecordsPaginated(
+  params: PaginationParams & { keyword?: string } = { page: 1, pageSize: 10 },
+): Promise<PaginatedResponse<CustomerConsumptionRecord>> {
+  return apiClient.get('/customers/consumption-records/paginated', { params });
 }
 
 export async function realGetCustomerHealthProfiles(): Promise<CustomerHealthProfile[]> {
@@ -54,5 +95,56 @@ export async function realUpdateCustomerHealthProfile(
 }
 
 export async function realGetCustomerMiniappBehaviorAnalysis(): Promise<CustomerMiniappBehaviorAnalysis> {
-  return apiClient.get('/customers/miniapp-behavior-analysis');
+  return apiClient.get('/customers/miniapp-behavior-analysis', {
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
+}
+
+export async function realGetCustomerProfileAnalytics(): Promise<CustomerProfileAnalytics> {
+  return apiClient.get('/customers/profile-analytics', {
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
+}
+
+export async function realGetCustomerProfileAnalyticsOverview(): Promise<CustomerProfileAnalyticsOverview> {
+  return apiClient.get('/customers/profile-analytics/overview', {
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
+}
+
+export async function realGetCustomerProfileSegmentAnalytics(): Promise<CustomerProfileSegmentAnalytics> {
+  return apiClient.get('/customers/profile-analytics/segment', {
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
+}
+
+export async function realGetCustomerProfileSkinAnalytics(): Promise<CustomerProfileSkinAnalytics> {
+  return apiClient.get('/customers/profile-analytics/skin', {
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
+}
+
+export async function realGetCustomerProfileBehaviorAnalytics(
+  params: CustomerProfileBehaviorQuery = {},
+): Promise<CustomerProfileBehaviorAnalytics> {
+  return apiClient.get('/customers/profile-analytics/behavior', {
+    params,
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
+}
+
+export async function realGetCustomerProfilePredictionAnalytics(
+  params: CustomerProfilePredictionQuery = {},
+): Promise<CustomerProfilePredictionAnalytics> {
+  return apiClient.get('/customers/profile-analytics/prediction', {
+    params,
+    timeout: 8000,
+    skipRetry: true,
+  } as any);
 }

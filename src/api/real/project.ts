@@ -1,4 +1,4 @@
-import type { Project } from '@/types';
+import type { Project, ProjectBomItem } from '@/types';
 import apiClient from '../client';
 import { extractArray, normalizePaginatedResponse } from './response';
 
@@ -6,12 +6,40 @@ type ApiProject = Omit<Partial<Project>, 'type' | 'status'> & {
   store?: { name?: string };
   type?: string | { name?: string };
   status?: Project['status'] | 'active' | 'inactive' | 'disabled';
+  bomItems?: ApiProjectBomItem[];
 };
+
+type ApiProjectBomItem = Partial<ProjectBomItem> & {
+  product?: {
+    id?: number;
+    name?: string;
+    sku?: string;
+    unit?: string;
+  };
+};
+
+export type ProjectBomPayloadItem = {
+  productId: number;
+  standardQty: number;
+  unit: string;
+};
+
+function normalizeProjectBomItem(item: ApiProjectBomItem): NonNullable<Project['bom']>[number] {
+  return {
+    id: item.id === undefined ? undefined : Number(item.id),
+    productId: item.productId === undefined ? item.product?.id : Number(item.productId),
+    productName: item.productName ?? item.product?.name ?? '',
+    sku: item.sku ?? item.product?.sku ?? '',
+    standardQty: Number(item.standardQty ?? 0),
+    unit: item.unit ?? item.product?.unit ?? '',
+  };
+}
 
 function normalizeProject(item: ApiProject): Project {
   return {
     id: Number(item.id),
     name: item.name ?? '',
+    description: item.description ?? '',
     type: typeof item.type === 'string' ? item.type : item.type?.name ?? '护理项目',
     duration: Number(item.duration ?? 0),
     price: Number(item.price ?? 0),
@@ -22,7 +50,11 @@ function normalizeProject(item: ApiProject): Project {
     status: typeof item.status === 'boolean' ? item.status : item.status === undefined || item.status === 'active',
     sort: Number(item.sort ?? item.id ?? 0),
     image: item.image,
-    bom: item.bom,
+    bom: Array.isArray(item.bomItems)
+      ? item.bomItems.map(normalizeProjectBomItem)
+      : Array.isArray(item.bom)
+        ? item.bom.map(normalizeProjectBomItem)
+        : undefined,
   };
 }
 
@@ -44,6 +76,19 @@ export async function realCreateProject(data: Omit<Project, 'id'>): Promise<Proj
 export async function realUpdateProject(id: number, data: Partial<Project>): Promise<Project> {
   const item = await apiClient.put<unknown, ApiProject>(`/projects/${id}`, data);
   return normalizeProject(item);
+}
+
+export async function realGetProjectBom(id: number): Promise<NonNullable<Project['bom']>> {
+  const response = await apiClient.get<unknown, unknown>(`/projects/${id}/bom`);
+  return extractArray<ApiProjectBomItem>(response).map(normalizeProjectBomItem);
+}
+
+export async function realSetProjectBom(
+  id: number,
+  items: ProjectBomPayloadItem[],
+): Promise<NonNullable<Project['bom']>> {
+  const response = await apiClient.put<unknown, unknown>(`/projects/${id}/bom`, { items });
+  return extractArray<ApiProjectBomItem>(response).map(normalizeProjectBomItem);
 }
 
 export async function realDeleteProject(id: number): Promise<void> {

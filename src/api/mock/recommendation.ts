@@ -1,13 +1,11 @@
 import type { BehaviorProfile } from '@/utils/customerSegmentation';
 import { computeBehaviorProfiles } from '@/utils/customerSegmentation';
 import { generateRecommendations, type Recommendation } from '@/utils/marketingRecommendation';
-import rawCustomers from './data/customers.json';
-import rawConsumptionRecords from './data/consumption-records.json';
-import rawHealthProfiles from './data/health-profiles.json';
+import { FIXTURE_CONSUMPTION_RECORDS, FIXTURE_CUSTOMERS, FIXTURE_HEALTH_PROFILES } from './fixtures';
 
-const customers = (rawCustomers as any[]).map((customer) => ({ ...customer, tags: customer.tags || [] }));
-const consumptionRecords = rawConsumptionRecords as any[];
-const healthProfiles = rawHealthProfiles as any[];
+const customers = FIXTURE_CUSTOMERS.map((customer) => ({ ...customer, tags: customer.tags || [] }));
+const consumptionRecords = FIXTURE_CONSUMPTION_RECORDS as any[];
+const healthProfiles = FIXTURE_HEALTH_PROFILES as any[];
 
 export async function mockGetMarketingRecommendations(): Promise<Recommendation[]> {
   return generateRecommendations(customers, consumptionRecords, healthProfiles).map((item) => ({

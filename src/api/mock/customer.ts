@@ -1,20 +1,18 @@
 import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
 import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
 import type { ImportResult } from '@/types/excel';
-import rawCustomers from './data/customers.json';
-import rawConsumptionRecords from './data/consumption-records.json';
-import rawHealthProfiles from './data/health-profiles.json';
+import { FIXTURE_CONSUMPTION_RECORDS, FIXTURE_CUSTOMERS, FIXTURE_HEALTH_PROFILES } from './fixtures';
 
-const MOCK_CUSTOMERS: Customer[] = (rawCustomers as any[]).map((c) => ({
+const MOCK_CUSTOMERS: Customer[] = FIXTURE_CUSTOMERS.map((c) => ({
   ...c,
   tags: c.tags || [],
 }));
 
-const MOCK_CONSUMPTION_RECORDS: CustomerConsumptionRecord[] = (rawConsumptionRecords as any[]).map((item) => ({
+const MOCK_CONSUMPTION_RECORDS: CustomerConsumptionRecord[] = FIXTURE_CONSUMPTION_RECORDS.map((item) => ({
   ...item,
 }));
 
-const MOCK_HEALTH_PROFILES: CustomerHealthProfile[] = (rawHealthProfiles as any[]).map((item) => ({
+const MOCK_HEALTH_PROFILES: CustomerHealthProfile[] = FIXTURE_HEALTH_PROFILES.map((item) => ({
   ...item,
 }));
 

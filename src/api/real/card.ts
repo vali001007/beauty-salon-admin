@@ -11,11 +11,18 @@ type ApiCard = Omit<Partial<Card>, 'status'> & {
 
 type ApiCardOrder = {
   id?: string | number;
+  customerId?: number;
+  customerCardId?: number;
+  cardId?: number;
   cardName?: string;
   userName?: string;
   customerName?: string;
-  customer?: { name?: string };
-  card?: { price?: number | string };
+  customerPhone?: string;
+  customer?: { id?: number; name?: string; phone?: string };
+  card?: { id?: number; price?: number | string; projects?: unknown };
+  cardProjects?: unknown;
+  totalTimes?: number | string;
+  remainingTimes?: number | string;
   actualPrice?: number | string;
   amount?: number | string;
   price?: number | string;
@@ -57,6 +64,23 @@ function normalizeDateTime(value?: string): string {
 
 function normalizeCardOrder(item: ApiCardOrder) {
   const actualPrice = Number(item.actualPrice ?? item.amount ?? item.totalAmount ?? item.price ?? item.card?.price ?? 0);
+  const projects = extractArray<{
+    projectName?: string;
+    name?: string;
+    totalCount?: number | string;
+    timesPerCard?: number | string;
+    usedCount?: number | string;
+    remainCount?: number | string;
+  }>(item.cardProjects ?? item.card?.projects).map((project) => {
+    const totalCount = Number(project.totalCount ?? project.timesPerCard ?? 0);
+    const usedCount = Number(project.usedCount ?? 0);
+    return {
+      projectName: project.projectName ?? project.name ?? '',
+      totalCount,
+      usedCount,
+      remainCount: Number(project.remainCount ?? Math.max(totalCount - usedCount, 0)),
+    };
+  }).filter((project) => project.projectName);
   const status = item.status === 'voided' || item.status === '已作废'
     ? 'voided'
     : item.status === 'expired' || item.status === '已过期'
@@ -65,8 +89,15 @@ function normalizeCardOrder(item: ApiCardOrder) {
 
   return {
     id: String(item.id ?? ''),
+    customerId: Number(item.customerId ?? item.customer?.id ?? 0) || undefined,
+    customerCardId: Number(item.customerCardId ?? item.id ?? 0) || undefined,
+    cardId: Number(item.cardId ?? item.card?.id ?? 0) || undefined,
     cardName: item.cardName ?? '',
     userName: item.userName ?? item.customerName ?? item.customer?.name ?? '未知客户',
+    customerPhone: item.customerPhone ?? item.customer?.phone ?? '',
+    totalTimes: Number(item.totalTimes ?? 0),
+    remainingTimes: Number(item.remainingTimes ?? 0),
+    cardProjects: projects,
     actualPrice,
     status,
     purchaseTime: normalizeDateTime(item.purchaseTime ?? item.purchaseDate ?? item.createdAt),
@@ -97,7 +128,14 @@ export async function realCreateCardOrder(data: { cardId: number; userId: number
   return apiClient.post('/orders/card', data);
 }
 
-export async function realCreateCardUsage(data: { cardOrderId: string; projectName: string; consumedTimes: number }): Promise<any> {
+export async function realCreateCardUsage(data: {
+  cardOrderId?: string | number;
+  customerCardId?: string | number;
+  customerId?: number;
+  cardName?: string;
+  projectName: string;
+  consumedTimes: number;
+}): Promise<any> {
   return apiClient.post('/cards/usage', data);
 }
 
@@ -108,6 +146,8 @@ export async function realGetCardOrdersPaginated(params: PaginationParams & { us
   return normalizePaginatedResponse<ApiCardOrder, ReturnType<typeof normalizeCardOrder>>(response, normalizeCardOrder);
 }
 
-export async function realGetCardUsageRecordsPaginated(params: PaginationParams & { cardName?: string; userName?: string }): Promise<PaginatedResponse<any>> {
+export async function realGetCardUsageRecordsPaginated(
+  params: PaginationParams & { cardName?: string; userName?: string; projectName?: string },
+): Promise<PaginatedResponse<any>> {
   return apiClient.get('/orders/card-usage/paginated', { params });
 }

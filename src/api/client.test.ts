@@ -176,7 +176,7 @@ describe('API Client', () => {
       const originalHref = window.location.href;
       Object.defineProperty(window, 'location', {
         writable: true,
-        value: { href: originalHref },
+        value: { href: originalHref, pathname: '/dashboard' },
         configurable: true,
       });
 
@@ -189,6 +189,25 @@ describe('API Client', () => {
       await expect(responseErrorFn(error)).rejects.toThrow('Unauthorized');
       expect(localStorage.removeItem).toHaveBeenCalledWith('token');
       expect(window.location.href).toBe('/login');
+    });
+
+    it('does not hard refresh when a 401 happens on the login route', async () => {
+      const originalHref = window.location.href;
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: { href: originalHref, pathname: '/login' },
+        configurable: true,
+      });
+
+      const error = {
+        response: { status: 401, data: { message: 'Unauthorized' } },
+        config: { _retryCount: 0 },
+        message: 'Unauthorized',
+      } as unknown as AxiosError;
+
+      await expect(responseErrorFn(error)).rejects.toThrow('Unauthorized');
+      expect(localStorage.removeItem).toHaveBeenCalledWith('token');
+      expect(window.location.href).toBe(originalHref);
     });
 
     it('rejects after max retries on 5xx errors', async () => {

@@ -1,4 +1,4 @@
-import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
+﻿import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
 import type {
   TerminalBehaviorProfile,
   TerminalBomResponse,
@@ -47,8 +47,7 @@ import type { Customer } from '@/types/customer';
 import type { Project } from '@/types/project';
 import type { Store } from '@/types/store';
 import type { BOMItem } from '@/types/bom';
-import rawConsumptionRecords from './data/consumption-records.json';
-import rawHealthProfiles from './data/health-profiles.json';
+import { FIXTURE_CONSUMPTION_RECORDS, FIXTURE_HEALTH_PROFILES } from './fixtures';
 import { mockGetCustomers, mockCreateCustomer } from './customer';
 import { mockGetStores } from './store';
 import { mockGetProjects, mockGetReservationsPaginated } from './project';
@@ -61,6 +60,9 @@ import { buildAuraBootstrap } from '@/config/aura';
 import { hasPermission } from '@/config/permissions';
 import { computeBehaviorProfiles } from '@/utils/customerSegmentation';
 import { generateRecommendations } from '@/utils/marketingRecommendation';
+
+const mockConsumptionRecords = FIXTURE_CONSUMPTION_RECORDS.map((item) => ({ ...item }));
+const mockHealthProfiles: TerminalHealthProfile[] = FIXTURE_HEALTH_PROFILES.map((item) => ({ ...item }));
 
 interface TerminalState {
   currentDeviceId: number;
@@ -207,8 +209,8 @@ async function ensureState(): Promise<TerminalState> {
       mockGetBeauticians(),
     ]);
 
-    const healthProfiles = (rawHealthProfiles as any[]).map(toHealthProfile);
-    const consumptionRecords = (rawConsumptionRecords as any[]).map(toConsumptionRecord);
+    const healthProfiles = (mockHealthProfiles).map(toHealthProfile);
+    const consumptionRecords = (mockConsumptionRecords).map(toConsumptionRecord);
     const devices = stores.slice(0, 3).map((store, index) => createDevice(store, index + 1));
     const terminalCustomers = customers.slice(0, 30);
     const customerCards: TerminalCustomerCard[] = terminalCustomers.flatMap((customer, index) => {
@@ -644,7 +646,7 @@ export async function mockCancelTerminalReservation(id: number, reason?: string)
 }
 
 export async function mockGetTerminalCustomerHealthProfile(customerId: number): Promise<TerminalHealthProfile | undefined> {
-  const profile = (rawHealthProfiles as any[]).find((item) => item.customerId === customerId);
+  const profile = (mockHealthProfiles).find((item) => item.customerId === customerId);
   return profile ? toHealthProfile(profile) : undefined;
 }
 
@@ -652,7 +654,7 @@ export async function mockUpdateTerminalCustomerHealthProfile(
   customerId: number,
   data: Partial<TerminalHealthProfile>,
 ): Promise<TerminalHealthProfile> {
-  const existing = (rawHealthProfiles as any[]).find((item) => item.customerId === customerId);
+  const existing = (mockHealthProfiles).find((item) => item.customerId === customerId);
   if (!existing) {
     const created: TerminalHealthProfile = {
       id: Date.now(),
@@ -668,7 +670,7 @@ export async function mockUpdateTerminalCustomerHealthProfile(
       lastCheck: data.lastCheck || nowString(),
       photo: data.photo,
     };
-    (rawHealthProfiles as any[]).push(created);
+    (mockHealthProfiles).push(created);
     return created;
   }
   Object.assign(existing, data, { customerId });
@@ -677,7 +679,7 @@ export async function mockUpdateTerminalCustomerHealthProfile(
 
 export async function mockGetTerminalBehaviorProfile(customerId: number): Promise<TerminalBehaviorProfile | undefined> {
   const customers = await mockGetCustomers();
-  const behaviors = computeBehaviorProfiles(customers, rawConsumptionRecords as any[], rawHealthProfiles as any[]);
+  const behaviors = computeBehaviorProfiles(customers, mockConsumptionRecords, mockHealthProfiles);
   return behaviors.find((item) => item.customerId === customerId);
 }
 
@@ -702,7 +704,7 @@ export async function mockGetTerminalCustomerConsumptionRecordsPaginated(
   customerId: number,
   params: PaginationParams,
 ): Promise<PaginatedResponse<TerminalConsumptionRecord>> {
-  const records = (rawConsumptionRecords as any[])
+  const records = (mockConsumptionRecords)
     .filter((item) => item.customerId === customerId)
     .map(toConsumptionRecord);
   return paginate(records, params);
@@ -1087,8 +1089,8 @@ export async function mockGetTerminalSkinTestRecommendations(id: number): Promis
   if (!skinTest) return [];
   const recommendations = await generateRecommendations(
     (await mockGetCustomers()) as any,
-    (rawConsumptionRecords as any[]) as any,
-    (rawHealthProfiles as any[]) as any,
+    (mockConsumptionRecords) as any,
+    (mockHealthProfiles) as any,
   );
   return recommendations.slice(0, 5).map((item, index) => ({
     id: id * 100 + index,
@@ -1105,8 +1107,8 @@ export async function mockGetTerminalSkinTestRecommendations(id: number): Promis
 export async function mockGetTerminalCustomerRecommendations(customerId: number): Promise<TerminalRecommendation[]> {
   const recommendations = await generateRecommendations(
     (await mockGetCustomers()) as any,
-    (rawConsumptionRecords as any[]) as any,
-    (rawHealthProfiles as any[]) as any,
+    (mockConsumptionRecords) as any,
+    (mockHealthProfiles) as any,
   );
   return recommendations
     .filter((item) => item.targetCustomerIds?.includes(customerId))

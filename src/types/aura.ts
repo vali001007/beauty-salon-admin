@@ -1,4 +1,5 @@
 import type { AuthUser } from './auth';
+import type { Beautician } from './beautician';
 import type { DataScopes } from './permission';
 import type { Store } from './store';
 
@@ -18,6 +19,7 @@ export type AuraAction =
   | 'operation.print'
   | 'operation.service-complete'
   | 'beautician.schedule'
+  | 'beautician.commission'
   | 'beautician.customer'
   | 'beautician.record'
   | 'beautician.advice';
@@ -36,10 +38,21 @@ export interface AuraRoleDefinition {
   availableActions: AuraAction[];
 }
 
+export interface AuraTerminalUser extends AuthUser {
+  availableRoles: AuraRole[];
+  defaultRole: AuraRole;
+  roleLabel: string;
+  status?: string;
+  boundBeauticianId?: number;
+  boundBeauticianName?: string;
+  currentBeautician?: Beautician | null;
+}
+
 export interface AuraBootstrap {
   currentUser: AuthUser | null;
   currentStore: Store | null;
   availableStores: Store[];
+  terminalUsers: AuraTerminalUser[];
   currentRole: AuraRole;
   availableRoles: AuraRole[];
   availableActions: AuraAction[];
@@ -47,4 +60,5 @@ export interface AuraBootstrap {
   permissions: string[];
   dataScopes: Partial<DataScopes>;
   roleDefinition: AuraRoleDefinition;
+  currentBeautician?: Beautician | null;
 }

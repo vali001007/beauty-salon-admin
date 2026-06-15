@@ -15,7 +15,9 @@ import type {
   TerminalBalanceConsumeRequest,
   TerminalBalanceRefundRequest,
   TerminalBomResponse,
+  TerminalBeauticianCommissionSummary,
   TerminalBootstrap,
+  TerminalBootstrapParams,
   TerminalCardUsagePreview,
   TerminalCardUsagePreviewRequest,
   TerminalCardUsageRecord,
@@ -23,6 +25,9 @@ import type {
   TerminalCatalogSync,
   TerminalCompleteServiceTaskRequest,
   TerminalConfig,
+  TerminalContextCustomer,
+  TerminalConversationHistoryParams,
+  TerminalConversationRecord,
   TerminalConsumptionRecord,
   TerminalConsumptionRecordCreateRequest,
   TerminalCustomerCard,
@@ -31,11 +36,23 @@ import type {
   TerminalDeviceHeartbeatRequest,
   TerminalDeviceLoginRequest,
   TerminalDeviceLoginResponse,
+  TerminalDeviceProvisionRequest,
+  TerminalDeviceProvisionResponse,
   TerminalDeviceStatusOverview,
   TerminalFollowUpTask,
+  TerminalFollowUpTaskBatchCreateResponse,
   TerminalFollowUpTaskCompleteRequest,
   TerminalFollowUpTaskCreateRequest,
+  TerminalFollowUpTaskListResponse,
+  TerminalFollowUpTaskQuery,
+  TerminalGrowthCandidate,
   TerminalHealthProfile,
+  TerminalCardVerificationContext,
+  TerminalBeauticianDashboard,
+  TerminalBeauticianMe,
+  TerminalCashierContext,
+  TerminalCashierShift,
+  TerminalCustomerGrowthDashboard,
   TerminalInventoryAlertsResponse,
   TerminalInventoryStockParams,
   TerminalInventoryStockResponse,
@@ -67,6 +84,7 @@ import type {
   TerminalServiceTaskStatus,
   TerminalSkinTest,
   TerminalCreateSkinTestRequest,
+  SaveTerminalConversationRequest,
 } from '@/types/terminal';
 import type { Customer } from '@/types/customer';
 
@@ -76,6 +94,7 @@ import {
   realBindTerminalSkinTestCustomer,
   realCancelTerminalServiceTask,
   realCancelTerminalReservation,
+  realBatchCreateRecommendationFollowUpTasks,
   realCompleteTerminalServiceTask,
   realCompleteTerminalFollowUpTask,
   realConsumeTerminalBalance,
@@ -92,6 +111,8 @@ import {
   realCheckInTerminalReservation,
   realConfirmTerminalReservation,
   realCompleteTerminalPayment,
+  realDeleteTerminalDevice,
+  realDeleteTerminalConversation,
   realGetTerminalReservations,
   realDisableTerminalDevice,
   realGetTerminalBehaviorProfile,
@@ -107,6 +128,19 @@ import {
   realGetTerminalCardUsageRecordsPaginated,
   realGetTerminalCatalogSync,
   realGetTerminalConfig,
+  realGetTerminalConversationDetail,
+  realGetTerminalConversationHistory,
+  realGetTerminalCardVerificationContext,
+  realGetTerminalBeauticianCommission,
+  realGetCurrentTerminalBeautician,
+  realGetCurrentTerminalBeauticianCommission,
+  realGetCurrentTerminalBeauticianCustomers,
+  realGetCurrentTerminalBeauticianDashboard,
+  realGetCurrentTerminalBeauticianTasks,
+  realCloseTerminalCashierShift,
+  realGetTerminalCashierContext,
+  realGetTerminalCurrentCashierShift,
+  realGetTerminalCustomerGrowthDashboard,
   realGetTerminalCustomerCards,
   realGetTerminalCustomerBalance,
   realGetTerminalCustomerSummary,
@@ -114,16 +148,22 @@ import {
   realGetTerminalCustomerHealthProfile,
   realGetTerminalCustomerRecommendations,
   realGetTerminalCustomerNextBestActions,
+  realGetTerminalCustomerGrowthCandidates,
+  realGetTerminalFollowUpTasks,
   realGetTerminalDeviceMe,
   realGetTerminalDeviceStatus,
   realGetTerminalDevicesPaginated,
   realGetTerminalInventoryStock,
   realGetTerminalInventoryAlerts,
+  realGetTerminalInventoryAlertsDashboard,
+  realGetTerminalManagerDashboard,
   realGetTerminalPromotions,
   realGetTerminalPrintJobStatus,
   realGetTerminalPrintJobs,
   realGetTerminalReservationAvailability,
   realGetTerminalRoleDashboard,
+  realGetTerminalStaffSchedulesDashboard,
+  realGetTerminalTodayReservationsDashboard,
   realGetTerminalServiceRecord,
   realGetTerminalServiceTaskById,
   realGetTerminalServiceTasks,
@@ -131,6 +171,8 @@ import {
   realGetTerminalSkinTestRecommendations,
   realGetTerminalSkinTests,
   realLoginTerminalDevice,
+  realOpenTerminalCashierShift,
+  realProvisionTerminalDevice,
   realPreviewTerminalCardUsage,
   realQuickCreateTerminalCustomer,
   realRecordTerminalRecommendationEvent,
@@ -139,9 +181,12 @@ import {
   realRefundTerminalBalance,
   realRescheduleTerminalReservation,
   realRetryTerminalPrintJob,
+  realReturnTerminalFollowUpTask,
   realRunTerminalAutomationOnce,
   realRunDueTerminalAutomations,
+  realSaveTerminalConversation,
   realSearchTerminalCustomers,
+  realStartTerminalFollowUpTask,
   realStartTerminalServiceTask,
   realUpdateTerminalCustomerHealthProfile,
   realUpdateTerminalDevice,
@@ -164,6 +209,15 @@ export const getTerminalDeviceMe: () => Promise<TerminalDevice> =
 export const getTerminalDeviceStatus: () => Promise<TerminalDeviceStatusOverview> =
   realGetTerminalDeviceStatus;
 
+export const getTerminalCurrentCashierShift: () => Promise<TerminalCashierShift | null> =
+  realGetTerminalCurrentCashierShift;
+
+export const openTerminalCashierShift: (openingCash: number) => Promise<TerminalCashierShift> =
+  realOpenTerminalCashierShift;
+
+export const closeTerminalCashierShift: (shiftId: number | undefined, closingCash: number) => Promise<TerminalCashierShift> =
+  realCloseTerminalCashierShift;
+
 export const heartbeatTerminalDevice: (req: TerminalDeviceHeartbeatRequest) => Promise<TerminalDevice> =
   realHeartbeatTerminalDevice;
 
@@ -174,6 +228,10 @@ export const getTerminalDevicesPaginated: (
   params: PaginationParams & { keyword?: string; storeId?: number; status?: string },
 ) => Promise<PaginatedResponse<TerminalDevice>> = realGetTerminalDevicesPaginated;
 
+export const provisionTerminalDevice: (
+  data: TerminalDeviceProvisionRequest,
+) => Promise<TerminalDeviceProvisionResponse> = realProvisionTerminalDevice;
+
 export const updateTerminalDevice: (id: number, data: Partial<TerminalDevice>) => Promise<TerminalDevice> =
   realUpdateTerminalDevice;
 
@@ -183,7 +241,10 @@ export const disableTerminalDevice: (id: number) => Promise<TerminalDevice> =
 export const approveTerminalDeviceUnbind: (id: number, approved: boolean) => Promise<TerminalDevice> =
   realApproveTerminalDeviceUnbind;
 
-export const getTerminalBootstrap: () => Promise<TerminalBootstrap> =
+export const deleteTerminalDevice: (id: number) => Promise<{ success: boolean; id: number }> =
+  realDeleteTerminalDevice;
+
+export const getTerminalBootstrap: (params?: TerminalBootstrapParams) => Promise<TerminalBootstrap> =
   realGetTerminalBootstrap;
 
 export const getTerminalCatalogSync: (params?: { since?: string }) => Promise<TerminalCatalogSync> =
@@ -192,8 +253,81 @@ export const getTerminalCatalogSync: (params?: { since?: string }) => Promise<Te
 export const getTerminalConfig: () => Promise<TerminalConfig> =
   realGetTerminalConfig;
 
+export const saveTerminalConversation: (
+  data: SaveTerminalConversationRequest,
+) => Promise<TerminalConversationRecord> =
+  realSaveTerminalConversation;
+
+export const getTerminalConversationHistory: (
+  params?: TerminalConversationHistoryParams,
+) => Promise<PaginatedResponse<TerminalConversationRecord>> =
+  realGetTerminalConversationHistory;
+
+export const getTerminalConversationDetail: (id: number) => Promise<TerminalConversationRecord> =
+  realGetTerminalConversationDetail;
+
+export const deleteTerminalConversation: (id: number) => Promise<{ success: boolean; id: number }> =
+  realDeleteTerminalConversation;
+
 export const getTerminalRoleDashboard: () => Promise<TerminalRoleDashboard> =
   realGetTerminalRoleDashboard;
+
+export const getTerminalManagerDashboard: () => Promise<TerminalRoleDashboard['manager']> =
+  realGetTerminalManagerDashboard;
+
+export const getTerminalStaffSchedulesDashboard: () => Promise<TerminalRoleDashboard['staff']> =
+  realGetTerminalStaffSchedulesDashboard;
+
+export const getTerminalTodayReservationsDashboard: () => Promise<TerminalRoleDashboard['reception']> =
+  realGetTerminalTodayReservationsDashboard;
+
+export const getTerminalCustomerGrowthDashboard: () => Promise<TerminalCustomerGrowthDashboard> =
+  realGetTerminalCustomerGrowthDashboard;
+
+export const getTerminalInventoryAlertsDashboard: () => Promise<TerminalInventoryAlertsResponse> =
+  realGetTerminalInventoryAlertsDashboard;
+
+export const getTerminalCashierContext: () => Promise<TerminalCashierContext> =
+  realGetTerminalCashierContext;
+
+export const getTerminalCardVerificationContext: (params?: { keyword?: string }) => Promise<TerminalCardVerificationContext> =
+  realGetTerminalCardVerificationContext;
+
+export const getTerminalBeauticianCommission: (
+  beauticianId: number,
+  period?: 'today' | 'month',
+  detailLimit?: number,
+) => Promise<TerminalBeauticianCommissionSummary> =
+  realGetTerminalBeauticianCommission;
+
+export const getCurrentTerminalBeautician: (params?: { operatorId?: number }) => Promise<TerminalBeauticianMe> =
+  realGetCurrentTerminalBeautician;
+
+export const getCurrentTerminalBeauticianDashboard: (params?: {
+  date?: string;
+  operatorId?: number;
+}) => Promise<TerminalBeauticianDashboard> =
+  realGetCurrentTerminalBeauticianDashboard;
+
+export const getCurrentTerminalBeauticianTasks: (params?: {
+  date?: string;
+  status?: TerminalServiceTaskStatus;
+  operatorId?: number;
+}) => Promise<TerminalServiceTask[]> =
+  realGetCurrentTerminalBeauticianTasks;
+
+export const getCurrentTerminalBeauticianCommission: (params?: {
+  period?: 'today' | 'month';
+  detailLimit?: number;
+  operatorId?: number;
+}) => Promise<TerminalBeauticianCommissionSummary> =
+  realGetCurrentTerminalBeauticianCommission;
+
+export const getCurrentTerminalBeauticianCustomers: (params?: {
+  keyword?: string;
+  operatorId?: number;
+}) => Promise<TerminalContextCustomer[]> =
+  realGetCurrentTerminalBeauticianCustomers;
 
 export const getTerminalAutomations: () => Promise<TerminalAutomationStrategy[]> =
   realGetTerminalAutomations;
@@ -303,6 +437,7 @@ export const getTerminalBehaviorProfile: (customerId: number) => Promise<Termina
 export const getTerminalServiceTasks: (params?: {
   date?: string;
   status?: TerminalServiceTaskStatus;
+  beauticianId?: number;
 }) => Promise<TerminalServiceTask[]> = realGetTerminalServiceTasks;
 
 export const getTerminalServiceTaskById: (id: number) => Promise<TerminalServiceTask | undefined> =
@@ -435,17 +570,35 @@ export const getTerminalCustomerRecommendations: (customerId: number) => Promise
 export const getTerminalCustomerNextBestActions: (customerId: number) => Promise<TerminalNextBestActionsResponse> =
   realGetTerminalCustomerNextBestActions;
 
+export const getTerminalCustomerGrowthCandidates: (limit?: number) => Promise<TerminalGrowthCandidate[]> =
+  realGetTerminalCustomerGrowthCandidates;
+
 export const recordTerminalRecommendationEvent: (data: TerminalRecommendationEventRequest) => Promise<{ id: number; createdAt: string }> =
   realRecordTerminalRecommendationEvent;
 
 export const createTerminalFollowUpTask: (data: TerminalFollowUpTaskCreateRequest) => Promise<TerminalFollowUpTask> =
   realCreateTerminalFollowUpTask;
 
+export const getTerminalFollowUpTasks: (params?: TerminalFollowUpTaskQuery) => Promise<TerminalFollowUpTaskListResponse> =
+  realGetTerminalFollowUpTasks;
+
+export const batchCreateRecommendationFollowUpTasks: (
+  recommendationId: number,
+  data: TerminalFollowUpTaskCreateRequest,
+) => Promise<TerminalFollowUpTaskBatchCreateResponse> =
+  realBatchCreateRecommendationFollowUpTasks;
+
+export const startTerminalFollowUpTask: (id: number) => Promise<TerminalFollowUpTask> =
+  realStartTerminalFollowUpTask;
+
 export const completeTerminalFollowUpTask: (
   id: number,
   data: TerminalFollowUpTaskCompleteRequest,
 ) => Promise<TerminalFollowUpTask> =
   realCompleteTerminalFollowUpTask;
+
+export const returnTerminalFollowUpTask: (id: number, note?: string) => Promise<TerminalFollowUpTask> =
+  realReturnTerminalFollowUpTask;
 
 export const getTerminalPromotions: (params?: { customerId?: number; projectId?: number }) => Promise<TerminalPromotion[]> =
   realGetTerminalPromotions;

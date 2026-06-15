@@ -28,6 +28,7 @@ export const storeSchema = z.object({
   name: z.string().min(1, '门店名称不能为空'),
   address: z.string().min(1, '门店地址不能为空'),
   mode: z.enum(['集中', '独立'], { error: '请选择管理模式' }),
+  shiftRequired: z.boolean().default(true),
 });
 
 export type StoreFormData = z.infer<typeof storeSchema>;

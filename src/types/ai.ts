@@ -95,13 +95,20 @@ export interface AiChatRequest {
 }
 
 export interface CustomerInvitationScriptRequest {
+  scenario?: 'project' | 'promotion' | 'custom';
   customerId?: number;
   customerName?: string;
+  skinType?: string;
+  lastVisit?: string;
   projectName?: string;
+  activityName?: string;
   promotionName?: string;
+  offer?: string;
+  targetAudience?: string;
   invitationReason?: string;
   preferredTime?: string;
   specialOffer?: string;
+  evidence?: string[];
   channel?: 'sms' | 'wechat' | 'miniapp' | 'group' | 'store' | 'moments';
 }
 

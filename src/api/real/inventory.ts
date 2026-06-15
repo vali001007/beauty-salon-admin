@@ -36,8 +36,7 @@ type ApiPurchaseOrder = Partial<Omit<PurchaseOrder, 'items' | 'totalAmount'>> & 
 function normalizeStockItem(item: ApiStockItem): StockItem {
   const currentStock = Number(item.currentStock ?? 0);
   const safetyStock = Number(item.safetyStock ?? 0);
-  const status: StockItem['status'] =
-    currentStock <= 0 ? '缺货' : currentStock < safetyStock ? '低库存' : currentStock > safetyStock * 4 ? '积压' : '正常';
+  const status = item.status ?? '正常';
   return {
     id: Number(item.id),
     productName: item.productName ?? item.name ?? '',

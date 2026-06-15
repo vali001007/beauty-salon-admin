@@ -18,9 +18,7 @@ import type {
 } from '@/types';
 import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
 import { computeChurnScores, computeLTVPredictions } from '@/utils/advancedAnalytics';
-import rawCustomers from './data/customers.json';
-import rawConsumptionRecords from './data/consumption-records.json';
-import rawHealthProfiles from './data/health-profiles.json';
+import { FIXTURE_CONSUMPTION_RECORDS, FIXTURE_CUSTOMERS, FIXTURE_HEALTH_PROFILES } from './fixtures';
 
 export interface MarketingStrategy {
   id: number;
@@ -53,8 +51,8 @@ const MOCK_STRATEGY_EFFECTS: StrategyEffectSummary[] = [
 ];
 
 const MODEL_VERSION = 'rules-v1';
-const mockCustomers = (rawCustomers as Customer[]).map((customer) => ({ ...customer, tags: customer.tags || [] }));
-const mockConsumptionRecords = rawConsumptionRecords as Array<{ customerId: number; consumeContent: string; consumeType: string; amount: string; consumeTime: string }>;
+const mockCustomers = FIXTURE_CUSTOMERS.map((customer) => ({ ...customer, tags: customer.tags || [] }));
+const mockConsumptionRecords = FIXTURE_CONSUMPTION_RECORDS as Array<{ customerId: number; consumeContent: string; consumeType: string; amount: string; consumeTime: string }>;
 
 function buildMockPredictionSnapshots(runId = 1): CustomerPredictionSnapshot[] {
   const churnScores = computeChurnScores(mockCustomers, mockConsumptionRecords);
@@ -378,8 +376,8 @@ const TRIGGER_OPTIONS: MarketingTriggerOption[] = [
   },
 ];
 
-const automationCustomers = (rawCustomers as Customer[]).map((customer) => ({ ...customer, tags: customer.tags || [] }));
-const healthProfiles = rawHealthProfiles as Array<{ customerId: number; skinType: string }>;
+const automationCustomers = FIXTURE_CUSTOMERS.map((customer) => ({ ...customer, tags: customer.tags || [] }));
+const healthProfiles = FIXTURE_HEALTH_PROFILES as Array<{ customerId: number; skinType: string }>;
 const skinTypeAliases: Record<string, string[]> = {
   dry: ['干', '偏干'], oily: ['油'], sensitive: ['敏感'], combination: ['混合', '混油'], normal: ['中性'],
 };

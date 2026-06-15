@@ -8,6 +8,9 @@ import {
   realGetProjectById,
   realCreateProject,
   realUpdateProject,
+  realGetProjectBom,
+  realSetProjectBom,
+  type ProjectBomPayloadItem,
   realDeleteProject,
   realGetProjectsPaginated,
   realGetReservationById,
@@ -27,6 +30,14 @@ export const createProject: (data: Omit<Project, 'id'>) => Promise<Project> =
 
 export const updateProject: (id: number, data: Partial<Project>) => Promise<Project> =
   realUpdateProject;
+
+export type { ProjectBomPayloadItem };
+
+export const getProjectBom: (id: number) => Promise<NonNullable<Project['bom']>> =
+  realGetProjectBom;
+
+export const setProjectBom: (id: number, items: ProjectBomPayloadItem[]) => Promise<NonNullable<Project['bom']>> =
+  realSetProjectBom;
 
 export const deleteProject: (id: number) => Promise<void> =
   realDeleteProject;
