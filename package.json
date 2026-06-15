@@ -20,6 +20,7 @@
     "db:seed:demo-full": "npm --prefix packages/server-v2 run db:seed:demo-full",
     "db:seed:demo-full:dry-run": "npm --prefix packages/server-v2 run db:seed:demo-full:dry-run",
     "db:studio:v2": "npm --prefix packages/server-v2 run db:studio",
+    "check:no-runtime-mock": "node scripts/check-no-runtime-mock-boundary.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
