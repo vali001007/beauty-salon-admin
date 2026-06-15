@@ -25,6 +25,7 @@ import {
   getAutomationExecutionsPaginated,
   getAutomationStrategiesPaginated,
   getAutomationTriggerOptions,
+  getMarketingRuleTemplatesPaginated,
   pauseAutomationStrategy,
   previewAutomationAudience,
   saveAutomationStrategyDraft,
@@ -40,6 +41,10 @@ import type {
   MarketingAutomationStrategy,
   MarketingParamValue,
   MarketingRuleRelation,
+  MarketingRuleTemplate,
+  MarketingRuleTemplateSource,
+  MarketingRuleTemplateStatus,
+  MarketingSchedule,
   MarketingStrategyInput,
   MarketingTriggerOption,
   MarketingTriggerRule,
@@ -48,16 +53,30 @@ import type {
 import { createTriggerRuleFromOption, customizeTriggerRule, formatMarketingRuleParams } from '@/utils/marketingAutomation';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { MarketingRuleLibrary } from './MarketingRuleLibrary';
 
 interface StrategyForm {
   name: string;
   description: string;
   executionType: 'auto' | 'manual';
   executionTime: string;
+  source?: MarketingAutomationStrategy['source'];
+  ruleTemplateId?: number;
+  ruleTemplateVersion?: string;
   ruleRelation: MarketingRuleRelation;
   triggerRules: MarketingTriggerRule[];
   actions: MarketingAction[];
 }
+
+type RuleLibraryTriggerOption = MarketingTriggerOption & {
+  ruleTemplateId?: number;
+  ruleTemplateVersion?: string;
+  ruleTemplateSource?: MarketingRuleTemplateSource;
+  ruleTemplateStatus?: MarketingRuleTemplateStatus;
+  scenario?: string;
+  recommendedActions?: MarketingAction[];
+  scheduleDefault?: MarketingSchedule;
+};
 
 interface MarketingCopyContext {
   targetAudience?: string;
@@ -74,6 +93,7 @@ const emptyForm = (): StrategyForm => ({
   description: '',
   executionType: 'auto',
   executionTime: '09:00',
+  source: 'manual',
   ruleRelation: 'AND',
   triggerRules: [],
   actions: [],
@@ -323,6 +343,12 @@ const STATUS_LABEL: Record<MarketingAutomationStrategy['status'], string> = {
   archived: '已归档',
 };
 
+const STRATEGY_SOURCE_LABEL: Record<NonNullable<MarketingAutomationStrategy['source']>, string> = {
+  manual: '手动创建',
+  rule_library: '规则库',
+  recommendation: '智能推荐',
+};
+
 const CHANNEL_OPTIONS: Array<{ value: NonNullable<MarketingAction['channel']>; label: string }> = [
   { value: 'sms', label: '短信' },
   { value: 'miniapp', label: '小程序' },
@@ -339,6 +365,9 @@ function createInput(form: StrategyForm): MarketingStrategyInput {
     name: form.name.trim(),
     description: form.description.trim(),
     executionType: form.executionType,
+    source: form.source,
+    ruleTemplateId: form.ruleTemplateId,
+    ruleTemplateVersion: form.ruleTemplateVersion,
     schedule: { type: form.executionType === 'auto' ? 'daily' : 'realtime', time: form.executionTime },
     triggerRules: form.triggerRules,
     ruleRelation: form.ruleRelation,
@@ -353,6 +382,9 @@ function createForm(strategy: MarketingAutomationStrategy): StrategyForm {
     description: normalized.description,
     executionType: normalized.executionType,
     executionTime: normalized.schedule.time || '09:00',
+    source: normalized.source ?? 'manual',
+    ruleTemplateId: normalized.ruleTemplateId,
+    ruleTemplateVersion: normalized.ruleTemplateVersion,
     ruleRelation: normalized.ruleRelation,
     triggerRules: normalized.triggerRules.map((rule) => ({
       ...rule,
@@ -362,9 +394,87 @@ function createForm(strategy: MarketingAutomationStrategy): StrategyForm {
   };
 }
 
+const SELECTABLE_RULE_TEMPLATE_STATUSES = new Set<MarketingRuleTemplateStatus>(['recommended', 'enabled']);
+
+function mapRuleTemplateToTriggerOption(template: MarketingRuleTemplate): RuleLibraryTriggerOption {
+  return {
+    type: template.triggerType,
+    category: template.categoryLabel,
+    label: template.name,
+    description: template.description || template.recommendationReason || '',
+    priority: template.priority,
+    paramSchema: template.paramSchema ?? [],
+    defaultParams: template.defaultParams ?? {},
+    ruleTemplateId: template.id,
+    ruleTemplateVersion: template.version,
+    ruleTemplateSource: template.source,
+    ruleTemplateStatus: template.status,
+    scenario: template.scenario,
+    recommendedActions: template.recommendedActions ?? [],
+    scheduleDefault: template.scheduleDefault,
+  };
+}
+
+function optionKey(option: RuleLibraryTriggerOption) {
+  return option.ruleTemplateId ? `template:${option.ruleTemplateId}` : `type:${option.type}`;
+}
+
+function findOptionByKey(options: RuleLibraryTriggerOption[], key: string) {
+  if (key.startsWith('template:')) {
+    const id = Number(key.replace('template:', ''));
+    return options.find((option) => option.ruleTemplateId === id);
+  }
+  if (key.startsWith('type:')) {
+    const type = key.replace('type:', '') as MarketingTriggerType;
+    return options.find((option) => option.type === type);
+  }
+  return undefined;
+}
+
+function findOptionForRule(
+  options: RuleLibraryTriggerOption[],
+  rule?: MarketingTriggerRule,
+  ruleTemplateId?: number,
+) {
+  if (ruleTemplateId) {
+    const byTemplate = options.find((option) => option.ruleTemplateId === ruleTemplateId);
+    if (byTemplate) return byTemplate;
+  }
+  return rule ? options.find((option) => option.type === rule.type) : undefined;
+}
+
+async function loadTriggerOptionsFromRuleLibrary(): Promise<RuleLibraryTriggerOption[]> {
+  try {
+    const response = await getMarketingRuleTemplatesPaginated({
+      page: 1,
+      pageSize: 100,
+      source: 'all',
+      category: 'all',
+      scenario: 'all',
+      priority: 'all',
+      status: 'all',
+    });
+    const templates = asArray(response.items ?? response.data)
+      .filter((template) => SELECTABLE_RULE_TEMPLATE_STATUSES.has(template.status))
+      .sort((a, b) => {
+        const sourceWeight = (item: MarketingRuleTemplate) => (item.source === 'store' ? 0 : 1);
+        const priorityWeight = (item: MarketingRuleTemplate) => Number(String(item.priority).replace('P', '')) || 9;
+        return sourceWeight(a) - sourceWeight(b) || priorityWeight(a) - priorityWeight(b) || a.id - b.id;
+      });
+
+    if (templates.length) return templates.map(mapRuleTemplateToTriggerOption);
+  } catch {
+    // Fall back to the legacy trigger-option endpoint below.
+  }
+
+  const options = await getAutomationTriggerOptions();
+  return asArray(options).map(normalizeTriggerOption);
+}
+
 export function CreateMarketing() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [triggerOptions, setTriggerOptions] = useState<MarketingTriggerOption[]>([]);
+  const [activeTab, setActiveTab] = useState<'strategies' | 'rules'>('strategies');
+  const [triggerOptions, setTriggerOptions] = useState<RuleLibraryTriggerOption[]>([]);
   const [strategies, setStrategies] = useState<MarketingAutomationStrategy[]>([]);
   const [effects, setEffects] = useState<MarketingAutomationEffect[]>([]);
   const [executions, setExecutions] = useState<MarketingAutomationExecution[]>([]);
@@ -400,11 +510,11 @@ export function CreateMarketing() {
       setLoading(true);
       setLoadError('');
       try {
-        const options = await getAutomationTriggerOptions();
-        setTriggerOptions(asArray(options).map(normalizeTriggerOption));
+        const options = await loadTriggerOptionsFromRuleLibrary();
+        setTriggerOptions(options);
         await loadList('', 'all');
       } catch {
-        setLoadError('自动营销数据加载失败，请稍后重试。');
+        setLoadError('自动触达数据加载失败，请稍后重试。');
       } finally {
         setLoading(false);
       }
@@ -417,6 +527,9 @@ export function CreateMarketing() {
     const next = emptyForm();
     next.name = searchParams.get('name') || '';
     next.description = searchParams.get('desc') || '';
+    if (searchParams.get('sourceRecommendationId')) {
+      next.source = 'recommendation';
+    }
     const nextContext: MarketingCopyContext = {
       targetAudience: searchParams.get('targetAudience') || undefined,
       offer: searchParams.get('offer') || undefined,
@@ -437,8 +550,12 @@ export function CreateMarketing() {
           params: { ...rule.params, ...triggerParams },
           parameterSource: Object.keys(triggerParams).length ? 'system_default' : rule.parameterSource,
         }];
+        next.ruleTemplateId = option.ruleTemplateId;
+        next.ruleTemplateVersion = option.ruleTemplateVersion;
       } catch {
         next.triggerRules = [rule];
+        next.ruleTemplateId = option.ruleTemplateId;
+        next.ruleTemplateVersion = option.ruleTemplateVersion;
       }
     }
     try {
@@ -458,6 +575,7 @@ export function CreateMarketing() {
       next.actions = [];
     }
     setMode('create');
+    setActiveTab('strategies');
     setForm(next);
     setCopyContext(nextContext);
     setPreview(null);
@@ -512,11 +630,23 @@ export function CreateMarketing() {
     setExecutions(asArray(response.items ?? response.data));
   };
 
-  const selectRule = (option: MarketingTriggerOption | undefined) => {
+  const selectRule = (option: RuleLibraryTriggerOption | undefined) => {
+    const nextRule = option ? createTriggerRuleFromOption(option) : undefined;
+    const templateActions = option?.recommendedActions?.length ? option.recommendedActions.map((action) => ({ ...action })) : [];
     setForm((current) => ({
       ...current,
+      source: option?.ruleTemplateId ? 'rule_library' : 'manual',
+      ruleTemplateId: option?.ruleTemplateId,
+      ruleTemplateVersion: option?.ruleTemplateVersion,
+      executionTime: option?.scheduleDefault?.time || current.executionTime,
       ruleRelation: 'AND',
-      triggerRules: option ? [createTriggerRuleFromOption(option)] : [],
+      triggerRules: nextRule
+        ? [{
+            ...nextRule,
+            parameterSource: option?.ruleTemplateSource === 'store' ? 'customized' : 'system_default',
+          }]
+        : [],
+      actions: templateActions.length ? templateActions : current.actions,
     }));
     setPreview(null);
   };
@@ -550,7 +680,8 @@ export function CreateMarketing() {
   };
 
   const selectedRule = form.triggerRules[0];
-  const selectedOption = selectedRule ? triggerOptions.find((item) => item.type === selectedRule.type) : undefined;
+  const selectedOption = findOptionForRule(triggerOptions, selectedRule, form.ruleTemplateId);
+  const selectedRuleKey = selectedOption ? optionKey(selectedOption) : '';
 
   const generateActionCopy = useCallback(async (index: number) => {
     const action = form.actions[index];
@@ -600,7 +731,7 @@ export function CreateMarketing() {
 
   const handlePreview = async () => {
     if (!form.triggerRules.length) {
-      toast.error('请至少选择一条触发规则');
+      toast.error('请至少选择一个提醒条件');
       return;
     }
     setPreviewLoading(true);
@@ -618,9 +749,9 @@ export function CreateMarketing() {
   };
 
   const validateForm = () => {
-    if (!form.name.trim()) return '请输入策略名称';
-    if (!form.triggerRules.length) return '请至少选择一条触发规则';
-    if (!form.actions.length || form.actions.some((action) => !action.value.trim())) return '请配置至少一项完整营销动作';
+    if (!form.name.trim()) return '请输入触达名称';
+    if (!form.triggerRules.length) return '请至少选择一个提醒条件';
+    if (!form.actions.length || form.actions.some((action) => !action.value.trim())) return '请配置至少一项完整触达动作';
     return '';
   };
 
@@ -635,18 +766,18 @@ export function CreateMarketing() {
       const payload = createInput(form);
       if (mode === 'edit' && selected) {
         await updateAutomationStrategy(selected.id, payload);
-        toast.success('策略已更新');
+        toast.success('自动触达已更新');
       } else if (draft) {
         await saveAutomationStrategyDraft(payload);
         toast.success('已保存为草稿');
       } else {
         await createAutomationStrategy(payload);
-        toast.success('策略已创建并启用');
+        toast.success('自动触达已创建并启用');
       }
       setShowEditor(false);
       await loadList(keyword, status);
     } catch {
-      toast.error('策略保存失败');
+      toast.error('自动触达保存失败');
     } finally {
       setSubmitting(false);
     }
@@ -657,10 +788,10 @@ export function CreateMarketing() {
     try {
       if (strategy.status === 'enabled') {
         await pauseAutomationStrategy(strategy.id);
-        toast.success('策略已暂停');
+        toast.success('自动触达已暂停');
       } else {
         await enableAutomationStrategy(strategy.id);
-        toast.success('策略已启用');
+        toast.success('自动触达已启用');
       }
       await loadList(keyword, status);
     } catch {
@@ -684,11 +815,11 @@ export function CreateMarketing() {
   };
 
   const removeStrategy = async (strategy: MarketingAutomationStrategy) => {
-    if (!window.confirm(`确认删除策略“${strategy.name}”吗？`)) return;
+    if (!window.confirm(`确认删除自动触达“${strategy.name}”吗？`)) return;
     setOperatingId(strategy.id);
     try {
       await deleteAutomationStrategy(strategy.id);
-      toast.success('策略已删除');
+      toast.success('自动触达已删除');
       await loadList(keyword, status);
     } catch {
       toast.error('删除失败');
@@ -698,7 +829,7 @@ export function CreateMarketing() {
   };
 
   if (loading) {
-    return <div className="flex h-72 items-center justify-center text-sm text-gray-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" />加载自动营销策略...</div>;
+    return <div className="flex h-72 items-center justify-center text-sm text-gray-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" />加载自动触达...</div>;
   }
 
   if (loadError) {
@@ -714,14 +845,54 @@ export function CreateMarketing() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">自动营销</h1>
-          <p className="mt-1 text-sm text-gray-500">基于客户画像与消费行为配置自动触发策略</p>
+          <h1 className="text-xl font-semibold text-gray-900">自动触达</h1>
+          <p className="mt-1 text-sm text-gray-500">让系统按客户状态自动提醒，并把需要人工处理的机会交给门店跟进。</p>
         </div>
-        <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" />新建策略</Button>
+        {activeTab === 'strategies' && (
+          <Button variant="outline" onClick={() => setActiveTab('rules')}>
+            从规则模板新建
+          </Button>
+        )}
       </div>
 
+      <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1">
+        {[
+          { id: 'strategies' as const, label: '运行策略', desc: '已启用、草稿和暂停的自动触达' },
+          { id: 'rules' as const, label: '规则模板', desc: '先选模板，再生成自动触达' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex min-w-[180px] flex-col rounded-md px-4 py-3 text-left transition-colors ${
+              activeTab === tab.id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <span className="text-sm font-medium">{tab.label}</span>
+            <span className="mt-0.5 text-xs text-gray-500">{tab.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'rules' ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+            <div>
+              <div className="text-sm font-medium text-blue-900">从规则模板创建触达</div>
+              <div className="mt-1 text-xs text-blue-700">建议优先启用系统推荐或门店自定义规则；需要临时触达时，也可以新建一条触达策略。</div>
+            </div>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              新建触达
+            </Button>
+          </div>
+          <MarketingRuleLibrary embedded />
+        </div>
+      ) : (
+        <>
+
       <div className="grid grid-cols-3 gap-4">
-        <Stat title="策略总数" value={strategies.length} icon={<Sparkles className="h-5 w-5 text-blue-600" />} />
+        <Stat title="触达总数" value={strategies.length} icon={<Sparkles className="h-5 w-5 text-blue-600" />} />
         <Stat title="启用中" value={strategies.filter((item) => item.status === 'enabled').length} icon={<Play className="h-5 w-5 text-green-600" />} />
         <Stat title="预计覆盖客户" value={strategies.filter((item) => item.status === 'enabled').reduce((sum, item) => sum + item.targetCount, 0)} icon={<Users className="h-5 w-5 text-purple-600" />} />
       </div>
@@ -729,7 +900,7 @@ export function CreateMarketing() {
       <div className="flex items-center gap-3 border-y border-gray-200 py-4">
         <div className="relative w-72">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索策略名称" className="pl-9" />
+          <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索触达名称" className="pl-9" />
         </div>
         <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm">
           <option value="all">全部状态</option>
@@ -741,16 +912,20 @@ export function CreateMarketing() {
       </div>
 
       {strategies.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center border border-dashed border-gray-300 text-sm text-gray-500">
+        <div className="flex h-48 flex-col items-center justify-center gap-3 border border-dashed border-gray-300 text-sm text-gray-500">
           <Target className="mb-3 h-8 w-8 text-gray-300" />
-          暂无符合条件的自动营销策略
+          <div>暂无符合条件的自动触达</div>
+          <Button variant="outline" size="sm" onClick={() => setActiveTab('rules')}>
+            去规则模板创建
+          </Button>
         </div>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>策略</TableHead>
-              <TableHead>触发规则</TableHead>
+              <TableHead>触达</TableHead>
+              <TableHead>来源</TableHead>
+              <TableHead>提醒条件</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>覆盖客户</TableHead>
               <TableHead>效果</TableHead>
@@ -767,10 +942,15 @@ export function CreateMarketing() {
                     <div className="mt-1 max-w-64 text-xs text-gray-500">{strategy.description}</div>
                   </TableCell>
                   <TableCell>
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                      {strategy.source ? STRATEGY_SOURCE_LABEL[strategy.source] ?? strategy.source : '手动创建'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {asArray(strategy.triggerRules).map((rule) => (
                         <span key={rule.type} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                          {triggerOptions.find((option) => option.type === rule.type)?.label || rule.type}
+                          {findOptionForRule(triggerOptions, rule, strategy.ruleTemplateId)?.label || rule.type}
                         </span>
                       ))}
                       <span className="text-xs text-gray-400">{strategy.ruleRelation}</span>
@@ -780,7 +960,7 @@ export function CreateMarketing() {
                   <TableCell className="font-medium text-gray-900">{strategy.targetCount} 人</TableCell>
                   <TableCell className="text-xs text-gray-600">
                     <div>回店率 {effect?.returnRate || '-'}</div>
-                    <div className="mt-1">ROI {effect?.roi || '-'}</div>
+                    <div className="mt-1">回报 {effect?.roi || '-'}</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -803,10 +983,15 @@ export function CreateMarketing() {
 
       <Dialog open={showEditor} onOpenChange={setShowEditor}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto" aria-describedby="strategy-editor-description">
-          <DialogHeader><DialogTitle>{mode === 'create' ? '新建自动营销策略' : '编辑自动营销策略'}</DialogTitle></DialogHeader>
-          <span id="strategy-editor-description" className="sr-only">配置触发规则、营销动作和执行方式</span>
+          <DialogHeader><DialogTitle>{mode === 'create' ? '新建自动触达' : '编辑自动触达'}</DialogTitle></DialogHeader>
+          <span id="strategy-editor-description" className="sr-only">配置提醒条件、触达动作和执行方式</span>
+          {copyContext.sourceRecommendationId && (
+            <div className="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              来自营销工作台推荐，已带入建议客户、权益和触达文案，可直接确认后启用。
+            </div>
+          )}
           <div className="mb-5 flex gap-6 border-b border-gray-200 pb-3 text-sm">
-            {['触发规则', '营销动作', '确认提交'].map((label, index) => (
+            {['什么时候提醒', '怎么联系客户', '覆盖多少客户'].map((label, index) => (
               <span key={label} className={step === index + 1 ? 'font-medium text-blue-600' : 'text-gray-400'}>
                 {index + 1}. {label}
               </span>
@@ -815,7 +1000,7 @@ export function CreateMarketing() {
           {step === 1 && (
             <div className="space-y-5">
               <div className="grid grid-cols-3 gap-3">
-                <label className="text-sm text-gray-600">策略名称<Input className="mt-1" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+                <label className="text-sm text-gray-600">触达名称<Input className="mt-1" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
                 <label className="text-sm text-gray-600">执行方式
                   <select className="mt-1 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm" value={form.executionType} onChange={(event) => setForm({ ...form, executionType: event.target.value as 'auto' | 'manual' })}>
                     <option value="auto">自动执行</option>
@@ -824,23 +1009,23 @@ export function CreateMarketing() {
                 </label>
                 <label className="text-sm text-gray-600">执行时间<Input type="time" className="mt-1" value={form.executionTime} onChange={(event) => setForm({ ...form, executionTime: event.target.value })} /></label>
               </div>
-              <label className="block text-sm text-gray-600">策略说明
+              <label className="block text-sm text-gray-600">触达说明
                 <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" rows={2} />
               </label>
               <div>
                 <label className="block text-sm font-medium text-gray-800">
-                  触发规则
+                  什么时候提醒
                   <select
                     className="mt-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800"
-                    value={selectedRule?.type || ''}
-                    onChange={(event) => selectRule(triggerOptions.find((option) => option.type === event.target.value))}
+                    value={selectedRuleKey}
+                    onChange={(event) => selectRule(findOptionByKey(triggerOptions, event.target.value))}
                   >
                     <option value="">请选择一个触发场景</option>
                     {(['时间触发', '行为触发', '属性触发'] as const).map((category) => (
                       <optgroup key={category} label={category}>
                         {triggerOptions.filter((option) => option.category === category).map((option) => (
-                          <option key={option.type} value={option.type}>
-                            {option.label}
+                          <option key={optionKey(option)} value={optionKey(option)}>
+                            {option.ruleTemplateSource === 'store' ? `${option.label}（我的规则）` : option.label}
                           </option>
                         ))}
                       </optgroup>
@@ -854,11 +1039,18 @@ export function CreateMarketing() {
                       <span className="rounded bg-white px-2 py-0.5 text-xs text-blue-700">{selectedOption.priority}</span>
                     </div>
                     <div className="mt-1 text-xs leading-relaxed text-blue-700">{selectedOption.description}</div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-blue-700">
+                      <span className="rounded bg-white px-2 py-0.5">
+                        来源：{selectedOption.ruleTemplateSource === 'store' ? '规则库 / 我的规则' : selectedOption.ruleTemplateId ? '规则库 / 系统推荐' : '内置兜底'}
+                      </span>
+                      {selectedOption.scenario && <span className="rounded bg-white px-2 py-0.5">场景：{selectedOption.scenario}</span>}
+                      {selectedOption.ruleTemplateStatus && <span className="rounded bg-white px-2 py-0.5">状态：{selectedOption.ruleTemplateStatus === 'enabled' ? '已启用' : '推荐'}</span>}
+                    </div>
                   </div>
                 )}
               </div>
               {asArray(form.triggerRules).map((rule) => {
-                const option = triggerOptions.find((item) => item.type === rule.type);
+                const option = findOptionForRule(triggerOptions, rule, form.ruleTemplateId);
                 if (!option) return null;
                 return (
                   <div key={rule.type} className="rounded-md border border-gray-200 p-4">
@@ -885,7 +1077,7 @@ export function CreateMarketing() {
           {step === 2 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-800">营销动作与触达渠道</h3>
+                <h3 className="text-sm font-medium text-gray-800">怎么联系客户</h3>
                 <Button variant="outline" size="sm" onClick={addAction}><Plus className="mr-1 h-3.5 w-3.5" />添加动作</Button>
               </div>
               {form.actions.length === 0 && <div className="rounded-md border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">请添加优惠或触达动作</div>}
@@ -929,10 +1121,10 @@ export function CreateMarketing() {
             <div className="space-y-5">
               <div className="rounded-md bg-gray-50 p-4 text-sm text-gray-700">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>策略名称：<span className="font-medium text-gray-900">{form.name || '-'}</span></div>
+                  <div>触达名称：<span className="font-medium text-gray-900">{form.name || '-'}</span></div>
                   <div>执行方式：<span className="font-medium text-gray-900">{form.executionType === 'auto' ? '自动执行' : '手动执行'}</span></div>
-                  <div>触发规则：<span className="font-medium text-gray-900">{selectedOption?.label || '-'}</span></div>
-                  <div>营销动作：<span className="font-medium text-gray-900">{form.actions.length} 项</span></div>
+                  <div>提醒条件：<span className="font-medium text-gray-900">{selectedOption?.label || '-'}</span></div>
+                  <div>触达动作：<span className="font-medium text-gray-900">{form.actions.length} 项</span></div>
                 </div>
               </div>
               <div>
@@ -986,7 +1178,7 @@ export function CreateMarketing() {
 
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto" aria-describedby="strategy-detail-description">
-          <DialogHeader><DialogTitle>策略详情</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>自动触达详情</DialogTitle></DialogHeader>
           <span id="strategy-detail-description" className="sr-only">查看触发参数、效果与执行记录</span>
           {selected && (
             <div className="space-y-5">
@@ -996,13 +1188,14 @@ export function CreateMarketing() {
               </div>
               <p className="text-sm text-gray-600">{selected.description}</p>
               <div>
-                <h4 className="mb-2 text-sm font-medium text-gray-800">触发规则</h4>
+                <h4 className="mb-2 text-sm font-medium text-gray-800">提醒条件</h4>
                 <div className="space-y-2">
                   {asArray(selected.triggerRules).map((rule) => (
-                    <div key={rule.type} className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
-                      <span className="font-medium">{triggerOptions.find((item) => item.type === rule.type)?.label || rule.type}</span>
-                      <span className="ml-3 text-blue-600">{formatMarketingRuleParams(rule, triggerOptions.find((item) => item.type === rule.type))}</span>
-                    </div>
+                    <RuleParamSummary
+                      key={rule.type}
+                      rule={rule}
+                      option={findOptionForRule(triggerOptions, rule, selected.ruleTemplateId)}
+                    />
                   ))}
                 </div>
               </div>
@@ -1035,6 +1228,8 @@ export function CreateMarketing() {
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }
@@ -1055,6 +1250,21 @@ function Metric({ title, value }: { title: string; value: string }) {
 function StatusBadge({ status }: { status: MarketingAutomationStrategy['status'] }) {
   const style = status === 'enabled' ? 'bg-green-50 text-green-700' : status === 'paused' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-700';
   return <span className={`rounded px-2 py-1 text-xs ${style}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function RuleParamSummary({
+  rule,
+  option,
+}: {
+  rule: MarketingTriggerRule;
+  option?: RuleLibraryTriggerOption;
+}) {
+  return (
+    <div className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+      <span className="font-medium">{option?.label || rule.type}</span>
+      <span className="ml-3 text-blue-600">{formatMarketingRuleParams(rule, option)}</span>
+    </div>
+  );
 }
 
 function IconButton({ title, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { title: string }) {

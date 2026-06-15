@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Search, Shield } from 'lucide-react';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import type { SystemUser, SystemUserCreateInput, SystemUserUpdateInput } from '@/types';
+import type { Store, SystemUser, SystemUserCreateInput, SystemUserUpdateInput } from '@/types';
 import { createUser, getUsersPaginated, updateUser } from '@/api/user';
+import { getStores } from '@/api/store';
 import { usePagination } from '@/hooks/usePagination';
 import { toast } from 'sonner';
 import {
@@ -23,13 +24,6 @@ const ROLE_OPTIONS = [
   { code: 'inventory_manager', name: '库存管理员' },
 ];
 
-const STORES = [
-  { id: 1, name: '凤仪阁美容养生会所' },
-  { id: 2, name: '心悦美容养生会所' },
-  { id: 3, name: '兰亭美容SPA馆' },
-  { id: 4, name: '心悦芸美容养生会所' },
-];
-
 interface UserDraft {
   id?: number;
   username: string;
@@ -44,7 +38,7 @@ interface UserDraft {
   deniedPermissionsText: string;
 }
 
-const createUserDraft = (): UserDraft => ({
+const createUserDraft = (stores: Store[]): UserDraft => ({
   username: '',
   password: '',
   name: '',
@@ -52,7 +46,7 @@ const createUserDraft = (): UserDraft => ({
   email: '',
   primaryRole: 'store_manager',
   roles: ['store_manager'],
-  storeIds: [1],
+  storeIds: stores[0] ? [stores[0].id] : [],
   extraPermissionsText: '',
   deniedPermissionsText: '',
 });
@@ -65,9 +59,37 @@ export function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('');
   const [draft, setDraft] = useState<UserDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storesLoading, setStoresLoading] = useState(false);
 
   const filters = useMemo(() => ({}), []);
   const { data: users, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<SystemUser>(getUsersPaginated, filters);
+  const storeNameById = useMemo(() => new Map(stores.map((store) => [store.id, store.name])), [stores]);
+
+  useEffect(() => {
+    let active = true;
+    setStoresLoading(true);
+    getStores()
+      .then((items) => {
+        if (active) {
+          setStores(items);
+        }
+      })
+      .catch((err: any) => {
+        if (active) {
+          toast.error(err?.message || '加载门店列表失败');
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setStoresLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredUsers = users.filter((user) => {
     const searchHit =
@@ -79,7 +101,17 @@ export function UserManagement() {
     return searchHit && roleHit;
   });
 
-  const openAddDialog = () => setDraft(createUserDraft());
+  const normalizeStoreIds = (storeIds: number[]) => {
+    if (!stores.length) return storeIds;
+    return storeIds.filter((id) => storeNameById.has(id));
+  };
+
+  const formatStoreScope = (storeIds: number[]) => {
+    if (!storeIds.length) return '全部门店';
+    return storeIds.map((id) => storeNameById.get(id) ?? `未匹配门店（ID ${id}）`).join('、');
+  };
+
+  const openAddDialog = () => setDraft(createUserDraft(stores));
 
   const openEditDialog = (user: SystemUser) => {
     setDraft({
@@ -91,7 +123,7 @@ export function UserManagement() {
       email: user.email,
       primaryRole: user.primaryRole ?? user.roles[0] ?? 'store_manager',
       roles: user.roles,
-      storeIds: user.storeIds,
+      storeIds: normalizeStoreIds(user.storeIds ?? []),
       extraPermissionsText: toText(user.extraPermissions),
       deniedPermissionsText: toText(user.deniedPermissions),
     });
@@ -132,6 +164,22 @@ export function UserManagement() {
     }
 
     const primaryRole = draft.primaryRole || draft.roles[0] || 'store_manager';
+    const selectedStoreIds = normalizeStoreIds(draft.storeIds);
+    if (primaryRole !== 'super_admin') {
+      if (storesLoading) {
+        toast.error('门店列表仍在加载，请稍后再保存');
+        return;
+      }
+      if (!stores.length) {
+        toast.error('当前没有可用门店，请先创建门店后再分配用户范围');
+        return;
+      }
+      if (!selectedStoreIds.length) {
+        toast.error('非超级管理员请至少选择一个门店范围');
+        return;
+      }
+    }
+
     const rolePermissions = draft.roles.flatMap((role) => ROLE_PERMISSIONS[role] ?? []);
     const extraPermissions = fromText(draft.extraPermissionsText);
     const deniedPermissions = fromText(draft.deniedPermissionsText);
@@ -144,7 +192,7 @@ export function UserManagement() {
       roles: draft.roles,
       extraPermissions: normalizePermissions([...rolePermissions, ...extraPermissions]),
       deniedPermissions,
-      storeIds: draft.storeIds,
+      storeIds: selectedStoreIds,
       platformScopes: DEFAULT_PLATFORM_SCOPES[primaryRole] ?? { core: true, assist: false, terminal: false },
       dataScopes: DEFAULT_DATA_SCOPES[primaryRole] ?? DEFAULT_DATA_SCOPES.store_manager,
       fieldScopes: DEFAULT_FIELD_SCOPES[primaryRole] ?? DEFAULT_FIELD_SCOPES.store_manager,
@@ -244,7 +292,7 @@ export function UserManagement() {
                   {user.roles.map((role) => ROLE_OPTIONS.find((item) => item.code === role)?.name ?? role).join('、')}
                 </TableCell>
                 <TableCell className="text-sm text-gray-600">
-                  {user.storeIds.length === 0 ? '全部门店' : user.storeIds.map((id) => STORES.find((store) => store.id === id)?.name).filter(Boolean).join('、')}
+                  {storesLoading ? '门店加载中...' : formatStoreScope(user.storeIds ?? [])}
                 </TableCell>
                 <TableCell className="text-xs text-gray-500">
                   +{user.extraPermissions?.length ?? 0} / -{user.deniedPermissions?.length ?? 0}
@@ -336,14 +384,24 @@ export function UserManagement() {
 
               <div>
                 <div className="text-sm font-medium text-gray-700 mb-2">门店范围</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {STORES.map((store) => (
-                    <label key={store.id} className="flex items-center gap-2 border border-gray-200 rounded-md px-3 py-2 text-sm">
-                      <input type="checkbox" checked={draft.storeIds.includes(store.id)} onChange={() => toggleStore(store.id)} />
-                      {store.name}
-                    </label>
-                  ))}
-                </div>
+                {storesLoading ? (
+                  <div className="flex items-center text-sm text-gray-500 py-2">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 正在加载门店...
+                  </div>
+                ) : stores.length ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {stores.map((store) => (
+                      <label key={store.id} className="flex items-center gap-2 border border-gray-200 rounded-md px-3 py-2 text-sm">
+                        <input type="checkbox" checked={draft.storeIds.includes(store.id)} onChange={() => toggleStore(store.id)} />
+                        {store.name}
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-gray-200 px-3 py-2 text-sm text-gray-500">
+                    暂无可用门店，请先在门店管理中创建门店。
+                  </div>
+                )}
                 <p className="text-xs text-gray-400 mt-1">超级管理员可不勾选门店，表示全部门店。</p>
               </div>
 

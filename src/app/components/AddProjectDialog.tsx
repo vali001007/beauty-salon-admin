@@ -1,13 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Plus, Minus, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Sparkles, Loader2 } from 'lucide-react';
+import {
+  X,
+  Upload,
+  Plus,
+  Minus,
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Sparkles,
+  Loader2,
+  Trash2,
+} from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
-import { createProject } from '@/api/project';
+import { createProject, setProjectBom } from '@/api/project';
 import { getProjectTypes, type ProjectType } from '@/api/projectType';
+import { getProducts } from '@/api/product';
 import { toast } from 'sonner';
+import type { Product } from '@/types';
 import '../../styles/tiptap.css';
 
 interface AddProjectDialogProps {
@@ -15,9 +31,19 @@ interface AddProjectDialogProps {
   onClose: () => void;
 }
 
-export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
-  const [projectTypeList, setProjectTypeList] = useState<ProjectType[]>([]);
-  const [formData, setFormData] = useState({
+type DialogStep = 'basic' | 'bom';
+
+type BomDraftItem = {
+  rowId: string;
+  productId: number | '';
+  productName: string;
+  sku: string;
+  standardQty: number;
+  unit: string;
+};
+
+function createInitialFormData() {
+  return {
     name: '',
     type: '',
     price: 0,
@@ -29,14 +55,32 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
     summary: '',
     headerImage: null as File | null,
     detailImages: [] as File[],
-  });
+  };
+}
 
+export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
+  const [projectTypeList, setProjectTypeList] = useState<ProjectType[]>([]);
+  const [productList, setProductList] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState<DialogStep>('basic');
+  const [formData, setFormData] = useState(createInitialFormData);
+  const [bomItems, setBomItems] = useState<BomDraftItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
   useEffect(() => {
     if (open) {
-      getProjectTypes().then((types) => setProjectTypeList(types.filter((t) => t.status === '启用'))).catch(() => {});
+      setCurrentStep('basic');
+      setFormData(createInitialFormData());
+      setBomItems([]);
+      getProjectTypes()
+        .then((types) => setProjectTypeList(types.filter((t) => t.status === '启用')))
+        .catch(() => {});
+      setProductsLoading(true);
+      getProducts()
+        .then((products) => setProductList(products.filter((product) => product.status === '在售')))
+        .catch(() => toast.error('商品列表加载失败，BOM 商品暂不可选'))
+        .finally(() => setProductsLoading(false));
     }
   }, [open]);
 
@@ -51,6 +95,12 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
     ],
     content: '<p>请输入项目详情...</p>',
   });
+
+  useEffect(() => {
+    if (open) {
+      editor?.commands.setContent('<p>请输入项目详情...</p>');
+    }
+  }, [editor, open]);
 
   const handleNumberChange = (field: 'price' | 'discountPrice' | 'sortOrder', delta: number) => {
     setFormData(prev => ({
@@ -79,18 +129,93 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddBomItem = () => {
+    setBomItems((prev) => [
+      ...prev,
+      {
+        rowId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        productId: '',
+        productName: '',
+        sku: '',
+        standardQty: 1,
+        unit: '件',
+      },
+    ]);
+  };
+
+  const handleRemoveBomItem = (rowId: string) => {
+    setBomItems((prev) => prev.filter((item) => item.rowId !== rowId));
+  };
+
+  const handleBomProductChange = (rowId: string, productIdValue: string) => {
+    const productId = Number(productIdValue);
+    const product = productList.find((item) => item.id === productId);
+    setBomItems((prev) =>
+      prev.map((item) =>
+        item.rowId === rowId
+          ? {
+              ...item,
+              productId: product?.id ?? '',
+              productName: product?.name ?? '',
+              sku: product?.sku ?? '',
+              unit: product?.unit ?? item.unit,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const handleBomQtyChange = (rowId: string, value: number) => {
+    setBomItems((prev) =>
+      prev.map((item) =>
+        item.rowId === rowId
+          ? {
+              ...item,
+              standardQty: Math.max(0.01, value || 0),
+            }
+          : item,
+      ),
+    );
+  };
+
+  const handleBomUnitChange = (rowId: string, unit: string) => {
+    setBomItems((prev) => prev.map((item) => (item.rowId === rowId ? { ...item, unit } : item)));
+  };
+
+  const validateBasicInfo = () => {
     if (!formData.name.trim()) {
       toast.error('项目名称不能为空');
+      return false;
+    }
+    if (!formData.type) {
+      toast.error('请选择项目类型');
+      return false;
+    }
+    return true;
+  };
+
+  const handleNextStep = () => {
+    if (!validateBasicInfo()) return;
+    setCurrentStep('bom');
+  };
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!validateBasicInfo()) {
+      return;
+    }
+    const validBomItems = bomItems.filter((item) => item.productId);
+    if (bomItems.some((item) => !item.productId)) {
+      toast.error('BOM 明细中存在未选择商品的行，请补充或删除');
       return;
     }
     setIsSubmittingForm(true);
     try {
-      await createProject({
+      const project = await createProject({
         name: formData.name,
         type: formData.type || '面部护理',
-        duration: 0,
+        description: formData.summary,
+        duration: 60,
         price: formData.price,
         storeName: '心悦芸美容养生会所',
         recommend: formData.isRecommended,
@@ -99,7 +224,17 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
         status: true,
         sort: formData.sortOrder,
       });
-      toast.success('项目创建成功');
+      if (validBomItems.length > 0) {
+        await setProjectBom(
+          project.id,
+          validBomItems.map((item) => ({
+            productId: Number(item.productId),
+            standardQty: item.standardQty,
+            unit: item.unit || '件',
+          })),
+        );
+      }
+      toast.success(validBomItems.length > 0 ? '项目及 BOM 创建成功' : '项目创建成功');
       onClose();
     } catch (err: any) {
       toast.error(err?.message || '创建项目失败');
@@ -162,7 +297,46 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (currentStep === 'basic') {
+                handleNextStep();
+                return;
+              }
+              void handleSubmit();
+            }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setCurrentStep('basic')}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  currentStep === 'basic' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:bg-white'
+                }`}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600">
+                  1
+                </span>
+                基本信息
+              </button>
+              <div className="h-px flex-1 bg-gray-200" />
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  currentStep === 'bom' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:bg-white'
+                }`}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600">
+                  2
+                </span>
+                BOM 配置
+              </button>
+            </div>
+            {currentStep === 'basic' && (
+              <>
             {/* Basic Info Grid */}
             <div className="grid grid-cols-2 gap-6">
               {/* Project Name */}
@@ -480,6 +654,113 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
                 </div>
               )}
             </div>
+              </>
+            )}
+
+            {currentStep === 'bom' && (
+              <div className="space-y-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-800">项目标准耗材 BOM</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      配置项目服务时默认消耗的商品/耗材，后续可用于服务消耗、库存扣减和成本核算。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddBomItem}
+                    disabled={productsLoading || productList.length === 0}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    添加耗材
+                  </button>
+                </div>
+
+                {productsLoading && (
+                  <div className="flex items-center justify-center rounded-lg border border-gray-200 py-8 text-sm text-gray-500">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-500" />
+                    正在加载商品耗材...
+                  </div>
+                )}
+
+                {!productsLoading && productList.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                    暂无可选商品。可先保存项目，待商品资料完善后再维护 BOM。
+                  </div>
+                )}
+
+                {!productsLoading && productList.length > 0 && bomItems.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                    暂未配置耗材，保存后该项目不会自动扣减库存。
+                  </div>
+                )}
+
+                {!productsLoading && bomItems.length > 0 && (
+                  <div className="overflow-hidden rounded-lg border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-left text-gray-600">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">商品/耗材</th>
+                          <th className="px-4 py-3 font-medium">SKU</th>
+                          <th className="w-32 px-4 py-3 font-medium">标准用量</th>
+                          <th className="w-28 px-4 py-3 font-medium">单位</th>
+                          <th className="w-16 px-4 py-3 text-right font-medium">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {bomItems.map((item) => (
+                          <tr key={item.rowId} className="bg-white">
+                            <td className="px-4 py-3">
+                              <select
+                                value={item.productId}
+                                onChange={(event) => handleBomProductChange(item.rowId, event.target.value)}
+                                className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                              >
+                                <option value="">请选择商品/耗材</option>
+                                {productList.map((product) => (
+                                  <option key={product.id} value={product.id}>
+                                    {product.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">{item.sku || '-'}</td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={item.standardQty}
+                                onChange={(event) => handleBomQtyChange(item.rowId, Number(event.target.value))}
+                                className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                value={item.unit}
+                                onChange={(event) => handleBomUnitChange(item.rowId, event.target.value)}
+                                className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBomItem(item.rowId)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
+                                aria-label="删除耗材"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         </div>
 
@@ -491,13 +772,22 @@ export function AddProjectDialog({ open, onClose }: AddProjectDialogProps) {
           >
             取消
           </button>
+          {currentStep === 'bom' && (
+            <button
+              type="button"
+              onClick={() => setCurrentStep('basic')}
+              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              上一步
+            </button>
+          )}
           <button
-            onClick={handleSubmit}
+            onClick={currentStep === 'basic' ? handleNextStep : () => handleSubmit()}
             disabled={isSubmittingForm}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSubmittingForm && <Loader2 className="w-4 h-4 animate-spin" />}
-            确定
+            {currentStep === 'basic' ? '下一步' : '确定'}
           </button>
         </div>
       </div>

@@ -1,18 +1,33 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Search, Plus, RotateCcw, X, Minus, Loader2 } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { getCards, getCardOrdersPaginated } from '@/api/card';
+import { createCardUsage, getCards, getCardOrdersPaginated } from '@/api/card';
 import { usePagination } from '@/hooks/usePagination';
 import type { Card } from '@/types/card';
+import { toast } from 'sonner';
 
 interface CardOrder {
   id: string;
+  customerId?: number;
+  customerCardId?: number;
+  cardId?: number;
   cardName: string;
   userName: string;
+  customerPhone?: string;
+  totalTimes?: number;
+  remainingTimes?: number;
+  cardProjects?: ConsumeProject[];
   actualPrice: number;
   status: 'active' | 'expired' | 'voided';
   purchaseTime: string;
   expireTime: string;
+}
+
+interface ConsumeProject {
+  projectName: string;
+  totalCount: number;
+  usedCount: number;
+  remainCount: number;
 }
 
 interface ProjectItem {
@@ -62,7 +77,7 @@ export function CardOrderManagement() {
     userName: searchUserName || undefined,
     cardName: searchCardName || undefined,
   }), [searchUserName, searchCardName]);
-  const { data: orders, total, page, pageSize, loading, setPage, setPageSize } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
+  const { data: orders, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
   const [cards, setCards] = useState<Card[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
 
@@ -115,33 +130,59 @@ export function CardOrderManagement() {
 
   // 次卡消费弹窗 state
   const [isConsumeDialogOpen, setIsConsumeDialogOpen] = useState(false);
-  const [, setConsumeOrderId] = useState<string | null>(null);
+  const [consumeOrder, setConsumeOrder] = useState<CardOrder | null>(null);
   const [consumeProject, setConsumeProject] = useState('');
   const [consumeCount, setConsumeCount] = useState(1);
+  const [consumeSubmitting, setConsumeSubmitting] = useState(false);
 
-  // Mock project data for consumption
-  const MOCK_CONSUME_PROJECTS = [
-    { name: '膏方灸', totalCount: 20, usedCount: 17, remainCount: 3 },
-    { name: '面部护理', totalCount: 30, usedCount: 12, remainCount: 18 },
-    { name: '身体护理', totalCount: 15, usedCount: 10, remainCount: 5 },
-  ];
+  const consumeProjects = consumeOrder?.cardProjects ?? [];
+  const selectedConsumeProject = consumeProjects.find(project => project.projectName === consumeProject);
 
-  const selectedConsumeProject = MOCK_CONSUME_PROJECTS.find(p => p.name === consumeProject);
-
-  const handleOpenConsumeDialog = (orderId: string) => {
-    setConsumeOrderId(orderId);
-    setConsumeProject(MOCK_CONSUME_PROJECTS[0].name);
+  const handleOpenConsumeDialog = (order: CardOrder) => {
+    const availableProjects = order.cardProjects?.filter(project => project.remainCount > 0) ?? [];
+    setConsumeOrder(order);
+    setConsumeProject(availableProjects[0]?.projectName ?? order.cardProjects?.[0]?.projectName ?? '');
     setConsumeCount(1);
     setIsConsumeDialogOpen(true);
   };
 
   const handleCloseConsumeDialog = () => {
     setIsConsumeDialogOpen(false);
-    setConsumeOrderId(null);
+    setConsumeOrder(null);
+    setConsumeProject('');
+    setConsumeCount(1);
   };
 
-  const handleConsumeSubmit = () => {
-    setIsConsumeDialogOpen(false);
+  const handleConsumeSubmit = async () => {
+    if (!consumeOrder) return;
+    if (!consumeProject || !selectedConsumeProject) {
+      toast.error('请选择当前次卡包含的消费项目');
+      return;
+    }
+    if (consumeCount > selectedConsumeProject.remainCount) {
+      toast.error('消费次数不能超过该项目剩余次数');
+      return;
+    }
+
+    setConsumeSubmitting(true);
+    try {
+      await createCardUsage({
+        cardOrderId: consumeOrder.customerCardId ?? consumeOrder.id,
+        customerCardId: consumeOrder.customerCardId,
+        customerId: consumeOrder.customerId,
+        cardName: consumeOrder.cardName,
+        projectName: consumeProject,
+        consumedTimes: consumeCount,
+      });
+      toast.success('次卡核销成功');
+      handleCloseConsumeDialog();
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡核销失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setConsumeSubmitting(false);
+    }
   };
 
   const getStatusConfig = (status: CardOrder['status']) => {
@@ -317,7 +358,7 @@ export function CardOrderManagement() {
                   <div className="flex items-center justify-end gap-3 text-sm">
                     <button className="text-blue-500 hover:text-blue-600">查看</button>
                     <button className="text-blue-500 hover:text-blue-600">编辑</button>
-                    <button className="text-blue-500 hover:text-blue-600" onClick={() => handleOpenConsumeDialog(order.id)}>次卡核销</button>
+                    <button className="text-blue-500 hover:text-blue-600" onClick={() => handleOpenConsumeDialog(order)}>次卡核销</button>
                     {order.status !== 'voided' && (
                       <button className="text-red-500 hover:text-red-600" onClick={() => handleVoid(order.id)}>作废</button>
                     )}
@@ -756,6 +797,16 @@ export function CardOrderManagement() {
 
             {/* Dialog Body */}
             <div className="p-6 space-y-7">
+              {consumeOrder && (
+                <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  <div className="font-medium">{consumeOrder.cardName}</div>
+                  <div className="mt-1 text-xs text-blue-700">
+                    客户：{consumeOrder.userName}{consumeOrder.customerPhone ? ` · ${consumeOrder.customerPhone}` : ''}；整卡剩余：
+                    {consumeOrder.remainingTimes ?? '-'} / {consumeOrder.totalTimes ?? '-'} 次
+                  </div>
+                </div>
+              )}
+
               {/* 消费项目 */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-0.5 min-w-[80px] justify-end">
@@ -768,13 +819,18 @@ export function CardOrderManagement() {
                   onChange={(e) => setConsumeProject(e.target.value)}
                 >
                   <option value="">请选择项目</option>
-                  {MOCK_CONSUME_PROJECTS.map(project => (
-                    <option key={project.name} value={project.name}>
-                      {project.name}（剩余 {project.remainCount} 次）
+                  {consumeProjects.map(project => (
+                    <option key={project.projectName} value={project.projectName} disabled={project.remainCount <= 0}>
+                      {project.projectName}（剩余 {project.remainCount} 次）
                     </option>
                   ))}
                 </select>
               </div>
+              {consumeProjects.length === 0 && (
+                <div className="ml-[92px] rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                  当前次卡没有配置可核销项目，请先在次卡管理中维护项目明细。
+                </div>
+              )}
 
               {/* 消费次数 */}
               <div className="flex flex-col gap-2">
@@ -787,6 +843,7 @@ export function CardOrderManagement() {
                     <button
                       className="w-9 h-10 border border-gray-300 rounded-l-md flex items-center justify-center hover:bg-gray-50 text-gray-500 bg-gray-50"
                       onClick={() => setConsumeCount(Math.max(1, consumeCount - 1))}
+                      disabled={!selectedConsumeProject}
                     >
                       <Minus className="w-4 h-4" />
                     </button>
@@ -794,14 +851,21 @@ export function CardOrderManagement() {
                       type="number"
                       className="w-20 h-10 rounded-none border-x-0 text-center"
                       value={consumeCount}
-                      onChange={(e) => setConsumeCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      min={1}
+                      max={selectedConsumeProject?.remainCount ?? 1}
+                      onChange={(e) => {
+                        const max = selectedConsumeProject?.remainCount ?? 1;
+                        setConsumeCount(Math.min(max, Math.max(1, parseInt(e.target.value) || 1)));
+                      }}
+                      disabled={!selectedConsumeProject}
                     />
                     <button
                       className="w-9 h-10 border border-gray-300 rounded-r-md flex items-center justify-center hover:bg-gray-50 text-gray-500 bg-gray-50"
                       onClick={() => {
-                        const max = selectedConsumeProject?.remainCount ?? 99;
+                        const max = selectedConsumeProject?.remainCount ?? 1;
                         setConsumeCount(Math.min(max, consumeCount + 1));
                       }}
+                      disabled={!selectedConsumeProject}
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -809,7 +873,8 @@ export function CardOrderManagement() {
                 </div>
                 {selectedConsumeProject && (
                   <div className="ml-[92px] text-sm text-gray-500">
-                    已消费：{selectedConsumeProject.usedCount} 次；可用剩余：{selectedConsumeProject.remainCount} 次
+                    本卡项目总次数：{selectedConsumeProject.totalCount} 次；已核销：{selectedConsumeProject.usedCount} 次；可用剩余：
+                    {selectedConsumeProject.remainCount} 次
                   </div>
                 )}
               </div>
@@ -834,8 +899,12 @@ export function CardOrderManagement() {
               <Button variant="outline" onClick={handleCloseConsumeDialog}>
                 取 消
               </Button>
-              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleConsumeSubmit}>
-                确 定
+              <Button
+                className="bg-[#1890ff] hover:bg-[#40a9ff]"
+                onClick={handleConsumeSubmit}
+                disabled={consumeSubmitting || !selectedConsumeProject || consumeCount > (selectedConsumeProject?.remainCount ?? 0)}
+              >
+                {consumeSubmitting ? '提交中...' : '确 定'}
               </Button>
             </div>
           </div>

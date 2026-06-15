@@ -27,9 +27,10 @@ export const AURA_ACTION_META: Record<AuraAction, { label: string; icon: string 
   'operation.card': { label: '办卡', icon: 'Wallet' },
   'operation.recharge': { label: '充值', icon: 'Wallet' },
   'operation.print': { label: '打印', icon: 'Printer' },
-  'operation.service-complete': { label: '完成服务', icon: 'CheckSquare' },
+  'operation.service-complete': { label: '服务记录', icon: 'FileText' },
   'beautician.schedule': { label: '我的预约', icon: 'CalendarCheck' },
-  'beautician.customer': { label: '客户档案', icon: 'Users' },
+  'beautician.commission': { label: '我的提成', icon: 'Wallet' },
+  'beautician.customer': { label: '我的客户', icon: 'Users' },
   'beautician.record': { label: '服务记录', icon: 'FileText' },
   'beautician.advice': { label: '护理建议', icon: 'HeartPulse' },
 };
@@ -54,10 +55,10 @@ export const AURA_ROLE_ACTIONS: Record<AuraRole, AuraAction[]> = {
   ],
   beautician: [
     'beautician.schedule',
+    'beautician.commission',
     'beautician.customer',
     'beautician.record',
     'beautician.advice',
-    'operation.service-complete',
   ],
 };
 
@@ -84,12 +85,7 @@ export const AURA_ROLE_PERMISSIONS: Record<AuraRole, string[]> = {
     'aura:card-order:create',
     'aura:recharge:create',
   ],
-  beautician: [
-    'aura:beautician:view',
-    'aura:customer:read',
-    'aura:appointment:read',
-    'aura:service-record:create',
-  ],
+  beautician: ['aura:beautician:view', 'aura:customer:read', 'aura:appointment:read', 'aura:service-record:create'],
 };
 
 export const AURA_ROLE_DATA_SCOPES: Record<AuraRole, Partial<DataScopes>> = {
@@ -165,6 +161,17 @@ export function buildAuraBootstrap(params: {
     currentUser: params.user,
     currentStore: params.store,
     availableStores: params.stores,
+    terminalUsers: params.user
+      ? [
+          {
+            ...params.user,
+            availableRoles: resolveAuraAvailableRoles(params.user),
+            defaultRole: resolveAuraRole(params.user),
+            roleLabel: AURA_ROLE_LABELS[resolveAuraRole(params.user)],
+            status: 'active',
+          },
+        ]
+      : [],
     currentRole,
     availableRoles: resolveAuraAvailableRoles(params.user),
     availableActions: [...roleDefinition.availableActions],

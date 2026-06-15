@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ElementRef } from 'react';
+import { useNavigate } from 'react-router';
 import QRCode from 'qrcode';
 import {
   Check,
@@ -74,7 +75,8 @@ function getPageUrl(page: MarketingPage) {
   return page.shareUrl || buildMarketingPageUrl(page.slug);
 }
 
-export function MarketingPageManagement() {
+export function MarketingPageManagement({ embedded = false }: { embedded?: boolean }) {
+  const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('all');
   const [sourceType, setSourceType] = useState('all');
@@ -246,17 +248,19 @@ export function MarketingPageManagement() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-sm text-gray-500">首页 / 智能营销 / 营销页面</div>
-          <h2 className="mt-2 text-xl font-semibold text-gray-800">营销页面</h2>
-          <p className="mt-1 text-sm text-gray-500">统一管理商品、项目、活动生成的 H5/小程序推广页，支持链接分发和基础效果统计。</p>
+      {!embedded && (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm text-gray-500">首页 / 智能营销 / 营销页面</div>
+            <h2 className="mt-2 text-xl font-semibold text-gray-800">营销页面</h2>
+            <p className="mt-1 text-sm text-gray-500">统一管理商品、项目、活动生成的 H5/小程序推广页，支持链接分发和基础效果统计。</p>
+          </div>
+          <Button variant="outline" className="gap-2" onClick={refresh}>
+            <RefreshCw className="h-4 w-4" />
+            刷新
+          </Button>
         </div>
-        <Button variant="outline" className="gap-2" onClick={refresh}>
-          <RefreshCw className="h-4 w-4" />
-          刷新
-        </Button>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
         <div className="relative">
@@ -383,8 +387,16 @@ export function MarketingPageManagement() {
                         <QrCode className="h-3.5 w-3.5" />
                         渠道链接
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => navigate(`/customer-marketing/effect-analysis?objectType=page&objectId=${item.id}`)}
+                      >
+                        数据复盘
+                      </Button>
                       <Button variant="outline" size="sm" className="gap-1" onClick={() => openEffects(item)}>
-                        效果
+                        明细
                       </Button>
                       <Button
                         variant="outline"

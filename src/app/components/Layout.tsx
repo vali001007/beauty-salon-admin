@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronRight, Menu, UserCircle, LogOut,
   MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
-  Settings, Shield, Lock, Building2
+  Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -19,11 +19,11 @@ export function cn(...inputs: ClassValue[]) {
 
 const MENU_ITEMS = [
   {
-    title: '仪表盘',
+    title: '工作台',
     icon: Home,
     path: '/dashboard',
     children: [
-      { title: '数据概览', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
+      { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
     ],
   },
   {
@@ -41,11 +41,10 @@ const MENU_ITEMS = [
     icon: Megaphone,
     path: '/customer-marketing',
     children: [
-      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: MessageSquare, permission: 'core:marketing:recommend' },
-      { title: '自动营销', path: '/customer-marketing/strategy-templates', icon: FileText, permission: 'core:marketing:template' },
-      { title: '营销页面', path: '/customer-marketing/pages', icon: Megaphone, permission: 'core:marketing:view' },
-      { title: '活动管理', path: '/customer-marketing/activity-management', icon: LayoutGrid, permission: 'core:marketing:view' },
-      { title: '效果分析', path: '/customer-marketing/effect-analysis', icon: ClipboardList, permission: 'core:marketing:analytics' },
+      { title: '营销工作台', path: '/customer-marketing/workbench', icon: Sparkles, permission: 'core:marketing:view' },
+      { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:template' },
+      { title: '推广资产', path: '/customer-marketing/assets', icon: Megaphone, permission: 'core:marketing:view' },
+      { title: '数据复盘', path: '/customer-marketing/effect-analysis', icon: BarChart3, permission: 'core:marketing:analytics' },
     ],
   },
   {
@@ -98,6 +97,30 @@ const MENU_ITEMS = [
     ],
   },
   {
+    title: '财务管理',
+    icon: WalletCards,
+    path: '/finance',
+    children: [
+      { title: '日结报表', path: '/finance/daily-settlement', icon: ClipboardList, permission: 'core:finance:view' },
+      { title: '提成规则', path: '/finance/commission-rules', icon: Settings, permission: 'core:finance:manage' },
+      { title: '提成明细', path: '/finance/commission-records', icon: BarChart3, permission: 'core:finance:view' },
+      { title: '月度结算', path: '/finance/monthly-settlement', icon: WalletCards, permission: 'core:finance:view' },
+      { title: '数字员工绩效', path: '/finance/ami-performance', icon: BarChart3, permission: 'core:finance:view' },
+      { title: '数字员工账单', path: '/finance/ami-billing', icon: WalletCards, permission: 'core:finance:view' },
+      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:finance:view' },
+    ],
+  },
+  {
+    title: '供应链',
+    icon: PackagePlus,
+    path: '/supply-chain',
+    children: [
+      { title: '供应商管理', path: '/supply-chain/suppliers', icon: Building2, permission: 'core:supply:view' },
+      { title: '采购订单', path: '/supply-chain/orders', icon: ShoppingCart, permission: 'core:supply:view' },
+      { title: '供应商结算', path: '/supply-chain/settlements', icon: WalletCards, permission: 'core:supply:view' },
+    ],
+  },
+  {
     title: '系统设置',
     icon: Settings,
     path: '/system',
@@ -106,6 +129,7 @@ const MENU_ITEMS = [
       { title: '角色管理', path: '/system/roles', icon: Shield, permission: 'core:system:roles' },
       { title: '权限管理', path: '/system/permissions', icon: Lock, permission: 'core:system:permissions' },
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
+      { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
       { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
     ],
   },
@@ -120,6 +144,8 @@ export function Layout() {
     '/goods': true,
     '/orders': true,
     '/inventory': true,
+    '/finance': true,
+    '/supply-chain': true,
     '/system': true,
   });
   const location = useLocation();

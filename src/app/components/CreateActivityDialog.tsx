@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   Target, Users, Sparkles, Save,
@@ -10,20 +11,20 @@ import { marketingActivitySchema, type MarketingActivityFormData, type Marketing
 import { generateActivityPage, generateMarketingCopy } from '@/api/ai';
 import { createMarketingActivity } from '@/api/marketing';
 import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
+import { getCustomerSegmentCount } from '@/api/customer';
+import { getProducts } from '@/api/product';
 import { getProjects } from '@/api/project';
+import { useStoreStore } from '@/stores/storeStore';
 import { toast } from 'sonner';
 import { ActivityMiniPage } from './ActivityMiniPage';
 import { MARKETING_POSTER_TEMPLATES } from '@/config/marketingAssets';
-import rawCustomers from '@/api/mock/data/customers.json';
-import rawHealthProfiles from '@/api/mock/data/health-profiles.json';
-import type { AudienceSnapshot, Customer, RecommendedItem, RecommendedOffer } from '@/types';
+import type { AudienceSnapshot, Product, RecommendedItem, RecommendedOffer, Store } from '@/types';
 import type {
   GenerateActivityPageResult,
   MarketingCopyChannel,
   MarketingCopyStructured,
   MarketingCopyStyleInstruction,
 } from '@/types/ai';
-import { classifyCustomer, classifySkin } from '@/utils/customerSegmentation';
 import {
   buildMarketingActivityPageSchema,
   buildMarketingPagePayloadFromActivity,
@@ -59,6 +60,7 @@ const ACTIVITY_TYPES = [
   { value: '储值赠送', label: '储值赠送', desc: '充值送额度或礼品' },
   { value: '体验价', label: '体验价', desc: '新项目/新客体验特价' },
   { value: '老带新', label: '老带新', desc: '推荐新客双方获益' },
+  { value: '会员权益', label: '会员权益', desc: '会员等级权益维护' },
   { value: '生日特权', label: '生日特权', desc: '生日月专属优惠' },
   { value: '节日活动', label: '节日活动', desc: '节假日主题促销' },
 ];
@@ -96,41 +98,11 @@ const TARGET_SPECIAL_TAGS = [
   { value: 'VIP客户', label: 'VIP客户' },
 ];
 
-const STORE_NAME = '心悦芸美容养生会所';
-const STORE_PHONE = '0571-88888888';
-
 const ACTIVITY_STEPS = [
   { key: 1, title: '活动核心', desc: '名称、类型、时间与权益' },
   { key: 2, title: '目标客户', desc: '客户范围、规则与渠道' },
   { key: 3, title: '预览发布', desc: '文案、海报和小程序预览' },
 ] as const;
-
-// Pre-compute customer classifications
-const allCustomers: Customer[] = (rawCustomers as any[]).map((c) => ({ ...c, tags: c.tags || [] }));
-const hpMap = new Map<number, any>();
-for (const p of (rawHealthProfiles as any[])) hpMap.set(p.customerId, p);
-
-const customerClassifications = allCustomers.map((c) => ({
-  id: c.id,
-  segment: classifyCustomer(c).segment,
-  skinType: classifySkin(c, hpMap.get(c.id)),
-  isActive: c.visitCount > 5 && c.lastVisitDate >= '2026-01-01',
-  isBirthday: c.birthday ? parseInt(c.birthday.slice(5, 7)) === new Date().getMonth() + 1 : false,
-  isVIP: c.memberLevel === '金卡会员' || c.memberLevel === '钻石会员',
-}));
-
-function countMatchingCustomers(segment: string, skinType: string, specialTags: string[]): number {
-  return customerClassifications.filter((c) => {
-    if (segment && c.segment !== segment) return false;
-    if (skinType && c.skinType !== skinType) return false;
-    for (const tag of specialTags) {
-      if (tag === '活跃会员' && !c.isActive) return false;
-      if (tag === '本月生日' && !c.isBirthday) return false;
-      if (tag === 'VIP客户' && !c.isVIP) return false;
-    }
-    return true;
-  }).length;
-}
 
 const CHANNELS: Array<{ value: string; label: string; icon: string; apiChannel: MarketingCopyChannel }> = [
   { value: '短信', label: '短信通知', icon: '📱', apiChannel: 'sms' },
@@ -154,6 +126,9 @@ const INTERNAL_COPY_PATTERNS = [
   '生成了',
   '拟了',
   '内部',
+  'LTV',
+  '位客户',
+  '需要维护',
   '流失风险客户',
   '高价值客户',
   '潜在价值客户',
@@ -172,7 +147,7 @@ function getCustomerFacingCampaignName(input?: string) {
   if (/新客|首单|首次/.test(signal)) return '新客首护体验礼';
   if (/敏感|修护|舒缓/.test(signal)) return '敏感肌舒缓护理季';
   if (/补水|保湿|干性/.test(signal)) return '补水保湿护理季';
-  if (/VIP|会员|高价值|铂金|黄金/.test(signal)) return '会员专属护理礼遇';
+  if (/LTV|VIP|会员|高价值|铂金|黄金|尊享|权益|优先权/.test(signal)) return 'VIP尊享护理礼遇';
   return signal && !includesInternalCopyLanguage(signal) ? signal : '会员专属护理礼遇';
 }
 
@@ -238,10 +213,19 @@ function normalizeBooleanValue(value: boolean | string | undefined) {
 }
 
 export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: CreateActivityDialogProps) {
+  const navigate = useNavigate();
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const stores = useStoreStore((state) => state.stores);
+  const loadStores = useStoreStore((state) => state.loadStores);
   const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['短信', '小程序推送']);
   const [projectList, setProjectList] = useState<Array<{ id: number; name: string; type: string; price: number }>>([]);
+  const [productList, setProductList] = useState<Array<{ id: number; name: string; category: string; price: number }>>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [segmentCount, setSegmentCount] = useState<number | null>(null);
+  const [isLoadingSegmentCount, setIsLoadingSegmentCount] = useState(false);
+  const [segmentCountError, setSegmentCountError] = useState<string | null>(null);
   const [targetSegment, setTargetSegment] = useState('');
   const [targetSkinType, setTargetSkinType] = useState('');
   const [targetSpecialTags, setTargetSpecialTags] = useState<string[]>([]);
@@ -272,12 +256,51 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
   const watchedDiscountValue = watch('discountValue');
   const watchedStartDate = watch('startDate');
   const watchedEndDate = watch('endDate');
+  const currentStore = (currentStoreId
+    ? stores.find((store) => store.id === currentStoreId)
+    : stores[0]) as (Store & { phone?: string; city?: string }) | undefined;
+  const storeName = currentStore?.name ?? '当前门店';
+  const storePhone = currentStore?.phone ?? '';
+  const storeAddress = currentStore?.address ?? '';
+
+  useEffect(() => {
+    if (open && stores.length === 0) {
+      loadStores().catch(() => {});
+    }
+  }, [loadStores, open, stores.length]);
 
   // Load projects from API
   useEffect(() => {
     if (open) {
       getProjects().then((list) => setProjectList(list.map((p: any) => ({ id: p.id, name: p.name, type: p.type, price: p.price })))).catch(() => {});
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let ignore = false;
+    setIsLoadingProducts(true);
+
+    getProducts({ status: 'active' })
+      .then((items: Product[]) => {
+        if (ignore) return;
+        setProductList(items.map((product) => ({
+          id: product.id,
+          name: product.name,
+          category: product.categoryName || product.brand || '商品',
+          price: Number(product.salePrice ?? product.retailPrice ?? 0),
+        })));
+      })
+      .catch(() => {
+        if (!ignore) setProductList([]);
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingProducts(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, [open]);
 
   // Reset form when dialog opens with new initialData
@@ -297,7 +320,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       if (cat.includes('wake') || cat.includes('churn')) activityType = '折扣促销';
       else if (cat.includes('cross-sell')) activityType = '满减活动';
       else if (cat.includes('viral')) activityType = '拼团活动';
-      else if (cat.includes('member-care') || cat.includes('ltv')) activityType = '生日特权';
+      else if (cat.includes('member-care') || cat.includes('ltv')) activityType = '会员权益';
       else if (cat.includes('seasonal')) activityType = '节日活动';
 
       // Auto-map target customer segment from targetCustomers text
@@ -348,13 +371,37 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
     }
   }, [open, initialData, reset]);
 
-  const products = [
-    { id: 1, name: '玻尿酸精华液', price: 280, category: '护肤品' },
-    { id: 2, name: '修复面膜套装', price: 180, category: '护肤品' },
-    { id: 3, name: '美白精华', price: 350, category: '护肤品' },
-    { id: 4, name: '眼霜套装', price: 220, category: '护肤品' },
-    { id: 5, name: '防晒喷雾', price: 150, category: '护肤品' },
-  ];
+  useEffect(() => {
+    if (!open) return;
+    let ignore = false;
+    setIsLoadingSegmentCount(true);
+    setSegmentCountError(null);
+
+    getCustomerSegmentCount({
+      storeId: currentStoreId ?? undefined,
+      segment: targetSegment || undefined,
+      skinType: targetSkinType || undefined,
+      specialTags: targetSpecialTags,
+    })
+      .then((result) => {
+        if (!ignore) setSegmentCount(result.count);
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setSegmentCount(null);
+          setSegmentCountError(error instanceof Error ? error.message : '客户计数加载失败');
+        }
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingSegmentCount(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentStoreId, open, targetSegment, targetSkinType, targetSpecialTags]);
+
+  const products = productList;
 
   const getSelectedProjectItems = (): ActivityMarketingPageItem[] =>
     projectList
@@ -426,7 +473,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
         productNames: products.filter((p) => selectedProducts.includes(p.id)).map((p) => p.name),
         startDate: watchedStartDate,
         endDate: watchedEndDate,
-        storeName: 'Ami_Core',
+        storeName,
         styleInstruction,
       });
       const fallback = buildCustomerFacingCopyFallback({
@@ -478,8 +525,8 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       maxUsagePerPerson: data.maxUsagePerPerson,
       minSpend: data.minSpend,
       stackable: data.stackable,
-      storeName: STORE_NAME,
-      storePhone: STORE_PHONE,
+      storeName,
+      storePhone,
     });
     let pageSchema = localPageSchema;
     let pageAiGenerationId = `activity-page-${Date.now()}`;
@@ -500,8 +547,9 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
             productNames: selectedProductItems.map((item) => item.name),
             startDate: data.startDate,
             endDate: data.endDate,
-            storeName: STORE_NAME,
-            storePhone: STORE_PHONE,
+            storeName,
+            storePhone,
+            storeAddress,
           });
           const aiSchema = result.pageVariants?.[0]?.pageSchema ?? result.pageSchema;
           if (!aiSchema || result.safety?.blocked || aiSchema.safety?.blocked) {
@@ -560,7 +608,16 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
         }),
       );
       await publishMarketingPage(page.id);
-      toast.success('活动和公开 H5 已发布，可在营销页面库分发链接');
+      toast.success('活动和公开 H5 已发布，可在推广资产分发链接', {
+        action: {
+          label: '查看推广页',
+          onClick: () => navigate('/customer-marketing/assets?tab=pages'),
+        },
+        cancel: {
+          label: '查看数据复盘',
+          onClick: () => navigate('/customer-marketing/effect-analysis?objectType=activity'),
+        },
+      });
       onClose();
       onSuccess?.();
     } catch (err: any) {
@@ -583,7 +640,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
 
   const currentPoster = selectedPoster ? generatedPosters.find((p) => p.id === selectedPoster) : null;
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-  const matchedCustomerCount = countMatchingCustomers(targetSegment, targetSkinType, targetSpecialTags);
+  const matchedCustomerCount = isLoadingSegmentCount ? '加载中' : segmentCountError ? '—' : String(segmentCount ?? '—');
   const recommendationDriven = Boolean(initialData?.sourceRecommendationId || initialData?.predictionRunId || initialData?.title);
 
   return (
@@ -598,6 +655,12 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
             if (firstError?.message) toast.error(String(firstError.message));
           })}>
           <div className="space-y-6 mt-2">
+            {!storePhone && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                请先在系统设置中完善门店联系方式，发布后的小程序活动页将展示当前门店真实电话。
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-3">
               {ACTIVITY_STEPS.map((item) => (
                 <button
@@ -702,7 +765,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center gap-2">
                     <Users className="w-4 h-4 text-blue-600" />
                     <span className="text-sm text-blue-800">
-                      符合条件的客户：<span className="font-semibold">{matchedCustomerCount}</span> 人
+                      符合条件的客户：<span className="font-semibold">{matchedCustomerCount}</span>{matchedCustomerCount === '—' || matchedCustomerCount === '加载中' ? '' : ' 人'}
                       {!targetSegment && !targetSkinType && targetSpecialTags.length === 0 && <span className="text-blue-500 ml-1">（全部客户）</span>}
                     </span>
                   </div>
@@ -756,7 +819,9 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
                     <span className="text-xs text-blue-600">已选 {selectedProducts.length} 项</span>
                   </div>
                   <div className="border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto">
-                    {products.map((p) => (
+                    {isLoadingProducts && <div className="text-sm text-gray-400 text-center py-2">商品加载中</div>}
+                    {!isLoadingProducts && products.length === 0 && <div className="text-sm text-gray-400 text-center py-2">暂无可选商品</div>}
+                    {!isLoadingProducts && products.map((p) => (
                       <label key={p.id} className="flex items-center gap-3 p-1.5 hover:bg-gray-50 rounded cursor-pointer">
                         <input type="checkbox" checked={selectedProducts.includes(p.id)} onChange={() => setSelectedProducts((prev) => prev.includes(p.id) ? prev.filter((i) => i !== p.id) : [...prev, p.id])} className="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                         <div className="flex-1"><span className="text-sm text-gray-900">{p.name}</span><span className="text-xs text-gray-500 ml-2">{p.category}</span></div>
@@ -1010,8 +1075,8 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
             posterTitleColor: currentPoster?.titleColor,
             projects: projectList.filter((p) => selectedProjects.includes(p.id)).map((p) => ({ name: p.name, price: p.price, type: p.type })),
             products: products.filter((p) => selectedProducts.includes(p.id)).map((p) => ({ name: p.name, price: p.price, category: p.category })),
-            storeName: '心悦芸美容养生会所',
-            storePhone: STORE_PHONE,
+            storeName,
+            storePhone,
             layout: 'classic',
             pageSchema: buildMarketingActivityPageSchema({
               title: watchedTitle || '活动名称',
@@ -1028,8 +1093,9 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
               maxUsagePerPerson: watch('maxUsagePerPerson'),
               minSpend: watch('minSpend'),
               stackable: normalizeBooleanValue(watch('stackable')),
-              storeName: STORE_NAME,
-              storePhone: STORE_PHONE,
+              storeName,
+              storePhone,
+              storeAddress,
             }),
           }}
           onClose={() => setShowMiniPreview(false)}

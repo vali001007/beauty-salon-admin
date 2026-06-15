@@ -1,10 +1,11 @@
 /* global HTMLCanvasElement, HTMLVideoElement, MediaStream, FileReader */
 import { useEffect, useState, useMemo, useRef, type ChangeEvent } from 'react';
+import { useSearchParams } from 'react-router';
 import { Search, Plus, Trash2, Upload, Eye, Loader2, Download, FileDown, Edit2, Camera, Sparkles } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ImportDialog } from '../components/ImportDialog';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { customerSchema, type CustomerFormData } from '@/schemas/customer';
 import {
@@ -14,21 +15,23 @@ import {
   updateCustomer,
   importCustomers,
   deleteCustomers,
-  getCustomerConsumptionRecords,
+  getCustomerConsumptionRecordsPaginated,
   getCustomerHealthProfiles,
+  getCustomerProfile,
   updateCustomerHealthProfile,
 } from '@/api/customer';
 import { analyzeSkinPhoto } from '@/api/ai';
 import { usePagination } from '@/hooks/usePagination';
 import { exportToExcel, downloadTemplate } from '@/utils/excel';
 import { toast } from 'sonner';
-import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
+import type { Customer, CustomerCreatePayload, CustomerConsumptionRecord, CustomerHealthProfile, CustomerProfile } from '@/types';
 import type { SkinPhotoAnalyzeResult } from '@/types/ai';
 import type { ExportColumn } from '@/types/excel';
 import { PasswordConfirmDialog } from '../components/PasswordConfirmDialog';
 import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
 import { formatScopedValue } from '@/utils/fieldMask';
+import { CustomerAppEventTable } from '../components/CustomerAppEventTable';
 
 const CUSTOMER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'name', header: '客户名称', width: 15 },
@@ -81,6 +84,12 @@ const CUSTOMER_IMPORT_SAMPLE = [
   { name: '示例客户', storeName: '心悦芸美容养生会所', email: '', phone: '13800138000', wechat: '', gender: '女', maritalStatus: '未知', birthday: '1996-01-01', age: 30, occupation: '', workplace: '', address: '', hasAllergy: '无', hasSurgery: '无', skinCondition: '', memberLevel: '无', source: '门店', remark: '' },
 ];
 
+const CUSTOMER_DATA_TABS = ['base', 'spend', 'health', 'miniapp', 'profile'] as const;
+type CustomerDataTab = (typeof CUSTOMER_DATA_TABS)[number];
+
+const getCustomerDataTabFromQuery = (tab: string | null): CustomerDataTab =>
+  CUSTOMER_DATA_TABS.includes(tab as CustomerDataTab) ? (tab as CustomerDataTab) : 'base';
+
 const cleanHealthText = (value?: string | null) => (value && value !== '-' ? value : '');
 
 const formatHealthDate = (value?: string | null) => {
@@ -88,8 +97,58 @@ const formatHealthDate = (value?: string | null) => {
   return value.includes('T') ? value.slice(0, 10) : value;
 };
 
+const PROFILE_REASON_TYPE_LABELS: Record<string, string> = {
+  churn: '流失风险',
+  repurchase: '预约/复购意愿',
+  marketing_response: '活动响应',
+  response: '活动响应',
+  ltv: '预计消费价值',
+};
+
+const PROFILE_REASON_IMPACT_LABELS: Record<string, string> = {
+  positive: '有利信号',
+  negative: '需关注',
+  neutral: '参考信号',
+};
+
+const localizeProfileTerm = (value?: string | number | null) =>
+  String(value ?? '')
+    .replace(/\bmarketing_response\b/gi, '活动响应')
+    .replace(/\brepurchase\b/gi, '预约/复购意愿')
+    .replace(/\bresponse\b/gi, '活动响应')
+    .replace(/\bchurn\b/gi, '流失风险')
+    .replace(/\bLTV\b/g, '预计消费价值')
+    .replace(/\bltv\b/gi, '预计消费价值')
+    .replace(/\bpositive\b/gi, '有利信号')
+    .replace(/\bnegative\b/gi, '需关注')
+    .replace(/\bneutral\b/gi, '参考信号');
+
+const formatProfileReasonTitle = (type?: string, label?: string) => {
+  const typeKey = String(type ?? '').trim();
+  const title = PROFILE_REASON_TYPE_LABELS[typeKey] ?? localizeProfileTerm(typeKey || '判断依据');
+  const rawLabel = localizeProfileTerm(label).trim();
+  if (!rawLabel || rawLabel === '-') return title;
+
+  if (typeKey === 'churn' && /^-\d+/.test(rawLabel)) {
+    return `${title}：风险降低 ${rawLabel.replace('-', '').replace(/分$/, '')} 分`;
+  }
+  if (typeKey === 'churn' && /^[+]?\d+/.test(rawLabel)) {
+    return `${title}：风险 ${rawLabel.replace('+', '').replace(/分$/, '')} 分`;
+  }
+  if ((typeKey === 'repurchase' || typeKey === 'marketing_response' || typeKey === 'response') && /^\d+/.test(rawLabel)) {
+    return `${title}：${rawLabel.replace(/分$/, '')} 分`;
+  }
+  return `${title}：${rawLabel}`;
+};
+
+const formatProfileReasonImpact = (impact?: string) => {
+  const key = String(impact ?? '').trim();
+  return PROFILE_REASON_IMPACT_LABELS[key] ?? localizeProfileTerm(key || '参考信号');
+};
+
 export function CustomerData() {
-  const [activeTab, setActiveTab] = useState('base');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<CustomerDataTab>(getCustomerDataTabFromQuery(searchParams.get('tab')));
   const fieldScopes = useAuthStore((state) => state.user?.fieldScopes);
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const stores = useStoreStore((state) => state.stores);
@@ -97,12 +156,18 @@ export function CustomerData() {
     () => stores.find((store) => store.id === currentStoreId)?.name,
     [currentStoreId, stores],
   );
+  const defaultStoreId = currentStoreId ?? stores[0]?.id;
+
   const defaultStoreName = currentStoreName ?? stores[0]?.name ?? '心悦美容养生会所';
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [customerNameInput, setCustomerNameInput] = useState('');
+  const [customerPhoneInput, setCustomerPhoneInput] = useState('');
+  const [customerNameFilter, setCustomerNameFilter] = useState('');
+  const [customerPhoneFilter, setCustomerPhoneFilter] = useState('');
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[]>([]);
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
@@ -112,17 +177,29 @@ export function CustomerData() {
   const [healthLoading, setHealthLoading] = useState(false);
   const [spendError, setSpendError] = useState<string | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [profileCustomerId, setProfileCustomerId] = useState<number | ''>('');
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveTab(getCustomerDataTabFromQuery(searchParams.get('tab')));
+    const customerId = Number(searchParams.get('customerId'));
+    if (Number.isFinite(customerId) && customerId > 0) setProfileCustomerId(customerId);
+  }, [searchParams]);
   const [insightReloadKey, setInsightReloadKey] = useState(0);
 
   // Pagination for consumption records
   const [spendPage, setSpendPage] = useState(1);
-  const [spendPageSize, setSpendPageSize] = useState(50);
-  const spendTotal = spendRecords.length;
-  const spendData = spendRecords.slice((spendPage - 1) * spendPageSize, spendPage * spendPageSize);
+  const [spendPageSize, setSpendPageSize] = useState(10);
+  const [spendSearchInput, setSpendSearchInput] = useState('');
+  const [spendSearchKeyword, setSpendSearchKeyword] = useState('');
+  const [spendTotal, setSpendTotal] = useState(0);
+  const spendData = spendRecords;
 
   // Pagination for health profiles - merged with all customers
   const [healthPage, setHealthPage] = useState(1);
-  const [healthPageSize, setHealthPageSize] = useState(50);
+  const [healthPageSize, setHealthPageSize] = useState(10);
   const [healthSearch, setHealthSearch] = useState('');
   const [healthSkinFilter, setHealthSkinFilter] = useState('');
   const [editingHealth, setEditingHealth] = useState<any>(null);
@@ -143,33 +220,12 @@ export function CustomerData() {
   useEffect(() => {
     let cancelled = false;
 
-    setSpendLoading(true);
     setHealthLoading(true);
-    setSpendError(null);
     setHealthError(null);
-    setSpendRecords([]);
     setHealthProfiles([]);
     setAllCustomers([]);
 
     const loadInsights = () => {
-      void getCustomerConsumptionRecords()
-        .then((records) => {
-          if (!cancelled) {
-            setSpendRecords(records);
-            setSpendError(null);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            const message = error instanceof Error ? error.message : '消费记录加载失败';
-            setSpendError(message);
-            toast.error(message);
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setSpendLoading(false);
-        });
-
       void getCustomerHealthProfiles()
         .then((profiles) => {
           if (!cancelled) {
@@ -201,6 +257,41 @@ export function CustomerData() {
       cancelled = true;
     };
   }, [currentStoreId, currentStoreName, insightReloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSpendLoading(true);
+    setSpendError(null);
+
+    void getCustomerConsumptionRecordsPaginated({
+      page: spendPage,
+      pageSize: spendPageSize,
+      keyword: spendSearchKeyword.trim() || undefined,
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setSpendRecords(result.items ?? result.data ?? []);
+          setSpendTotal(result.total ?? 0);
+          setSpendError(null);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : '消费记录加载失败';
+          setSpendError(message);
+          setSpendRecords([]);
+          setSpendTotal(0);
+          toast.error(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSpendLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [spendPage, spendPageSize, spendSearchKeyword, currentStoreId, insightReloadKey]);
 
   // Build health profile map by customerId
   const healthProfileMap = useMemo(() => {
@@ -277,8 +368,63 @@ export function CustomerData() {
     [allCustomers, skinAiCustomerId],
   );
 
-  const filters = useMemo(() => ({ storeName: currentStoreName }), [currentStoreName]);
+  useEffect(() => {
+    if (!profileCustomerId) {
+      setCustomerProfile(null);
+      setProfileError(null);
+      return;
+    }
+    let cancelled = false;
+    setProfileLoading(true);
+    setProfileError(null);
+    void getCustomerProfile(Number(profileCustomerId))
+      .then((profile) => {
+        if (!cancelled) setCustomerProfile(profile);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : '客户画像加载失败';
+          setProfileError(message);
+          setCustomerProfile(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profileCustomerId]);
+
+  const profileReasons = useMemo(() => {
+    const reasons = customerProfile?.prediction?.reasonJson;
+    return Array.isArray(reasons) ? reasons : [];
+  }, [customerProfile]);
+
+  const profileActions = useMemo(() => {
+    const value = customerProfile?.prediction?.recommendedActionsJson;
+    if (Array.isArray(value)) return value.map((item) => String(item));
+    if (typeof value === 'string') return [value];
+    if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>).map((item) => String(item));
+    return [];
+  }, [customerProfile]);
+
+  const filters = useMemo(
+    () => ({
+      storeName: currentStoreName,
+      name: customerNameFilter.trim() || undefined,
+      phone: customerPhoneFilter.trim() || undefined,
+    }),
+    [currentStoreName, customerNameFilter, customerPhoneFilter],
+  );
   const { data: customers, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<Customer>(getCustomersPaginated, filters);
+
+  const handleCustomerSearch = () => {
+    setCustomerNameFilter(customerNameInput.trim());
+    setCustomerPhoneFilter(customerPhoneInput.trim());
+    setSelectedIds([]);
+    setPage(1);
+  };
 
   useEffect(() => {
     setSelectedIds([]);
@@ -286,6 +432,26 @@ export function CustomerData() {
     setSpendPage(1);
     setHealthPage(1);
   }, [currentStoreId, setPage]);
+
+  useEffect(() => {
+    if (!spendSearchInput.trim() && spendSearchKeyword) {
+      setSpendSearchKeyword('');
+      setSpendPage(1);
+    }
+  }, [spendSearchInput, spendSearchKeyword]);
+
+  useEffect(() => {
+    if (!customerNameInput.trim() && customerNameFilter) {
+      setCustomerNameFilter('');
+      setSelectedIds([]);
+      setPage(1);
+    }
+    if (!customerPhoneInput.trim() && customerPhoneFilter) {
+      setCustomerPhoneFilter('');
+      setSelectedIds([]);
+      setPage(1);
+    }
+  }, [customerNameInput, customerNameFilter, customerPhoneInput, customerPhoneFilter, setPage]);
 
   useEffect(() => {
     if (videoRef.current && cameraStream) {
@@ -301,32 +467,48 @@ export function CustomerData() {
   }, [cameraStream]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<CustomerFormData>({
-    resolver: zodResolver(customerSchema),
+    resolver: zodResolver(customerSchema) as Resolver<CustomerFormData>,
     defaultValues: {
       gender: '女',
       maritalStatus: '未知',
       hasAllergy: '无',
       hasSurgery: '无',
+      skinType: '',
       memberLevel: '无',
       source: '',
       tags: [],
     },
   });
 
+  const buildCustomerPayload = (data: CustomerFormData): CustomerCreatePayload => {
+    const { storeName: _storeName, ...payload } = data;
+    const cleaned = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== '' && !Number.isNaN(value)),
+    ) as Partial<CustomerCreatePayload>;
+    return {
+      ...cleaned,
+      name: data.name,
+      gender: data.gender,
+      storeId: defaultStoreId,
+      phone: data.phone ?? '',
+      source: data.source ?? '',
+      memberLevel: data.memberLevel ?? '无',
+      tags: data.tags ?? [],
+    };
+  };
+
   const onSubmit = async (data: CustomerFormData) => {
     try {
+      if (!defaultStoreId) {
+        toast.error('请先选择或创建门店');
+        return;
+      }
+      const payload = buildCustomerPayload(data);
       if (editingCustomer) {
-        await updateCustomer(editingCustomer.id, data);
+        await updateCustomer(editingCustomer.id, payload);
         toast.success('客户更新成功');
       } else {
-        await createCustomer({
-          ...data,
-          phone: data.phone ?? '',
-          source: data.source ?? '',
-          memberLevel: data.memberLevel ?? '无',
-          tags: data.tags ?? [],
-          storeName: data.storeName || defaultStoreName,
-        });
+        await createCustomer(payload);
         toast.success('客户创建成功');
       }
       handleCloseDialog();
@@ -343,6 +525,7 @@ export function CustomerData() {
       maritalStatus: '未知',
       hasAllergy: '无',
       hasSurgery: '无',
+      skinType: '',
       memberLevel: '无',
       source: '',
       tags: [],
@@ -356,14 +539,36 @@ export function CustomerData() {
     reset({
       name: customer.name,
       phone: customer.phone,
+      email: customer.email,
+      landline: customer.landline,
+      wechat: customer.wechat,
       gender: customer.gender,
+      maritalStatus: customer.maritalStatus ?? '未知',
+      birthday: customer.birthday,
       age: customer.age,
+      height: customer.height,
+      weight: customer.weight,
+      occupation: customer.occupation,
+      workplace: customer.workplace,
+      address: customer.address,
+      hasAllergy: customer.hasAllergy ?? '无',
+      hasSurgery: customer.hasSurgery ?? '无',
+      skinType: customer.skinType,
+      skinCondition: customer.skinCondition,
+      totalSpent: customer.totalSpent,
+      lastVisitDate: customer.lastVisitDate,
       memberLevel: customer.memberLevel,
       tags: customer.tags,
       source: customer.source,
       storeName: customer.storeName,
+      remark: customer.remark,
     });
     setShowAddDialog(true);
+  };
+
+  const handleOpenProfile = (customer: Customer) => {
+    setProfileCustomerId(customer.id);
+    setActiveTab('profile');
   };
 
   const handleCloseDialog = () => {
@@ -665,15 +870,30 @@ export function CustomerData() {
           { id: 'base', label: '基础信息' },
           { id: 'spend', label: '消费记录' },
           { id: 'health', label: '肌肤档案' },
-        ].map((tab) => (
+          { id: 'profile', label: '客户画像' },
+          { id: 'miniapp', label: '小程序行为' },
+        ].sort((left, right) =>
+          ['base', 'spend', 'health', 'miniapp', 'profile'].indexOf(left.id) -
+          ['base', 'spend', 'health', 'miniapp', 'profile'].indexOf(right.id)
+        ).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              const nextTab = tab.id as CustomerDataTab;
+              setActiveTab(nextTab);
+              if (nextTab === 'base') {
+                setSearchParams({});
+              } else if (nextTab === 'profile' && profileCustomerId) {
+                setSearchParams({ tab: nextTab, customerId: String(profileCustomerId) });
+              } else {
+                setSearchParams({ tab: nextTab });
+              }
+            }}
             className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
               activeTab === tab.id ? 'text-blue-500' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {tab.label}
+            {tab.id === 'miniapp' ? '小程序行为明细' : tab.label}
             {activeTab === tab.id && (
               <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
             )}
@@ -688,13 +908,29 @@ export function CustomerData() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 whitespace-nowrap">客户名称</label>
-              <Input placeholder="请输入客户名称" className="w-48" />
+              <Input
+                placeholder="请输入客户名称"
+                className="w-48"
+                value={customerNameInput}
+                onChange={(event) => setCustomerNameInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') handleCustomerSearch();
+                }}
+              />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 whitespace-nowrap">手机号码</label>
-              <Input placeholder="请输入手机号码" className="w-48" />
+              <Input
+                placeholder="请输入手机号码"
+                className="w-48"
+                value={customerPhoneInput}
+                onChange={(event) => setCustomerPhoneInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') handleCustomerSearch();
+                }}
+              />
             </div>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handleCustomerSearch}>
               <Search className="w-4 h-4" /> 搜索
             </Button>
             <Button variant="default" className="gap-2 bg-[#1890ff]" onClick={handleOpenAdd}>
@@ -761,6 +997,9 @@ export function CustomerData() {
                   <TableCell>{customer.lastVisitDate}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-3 text-sm">
+                      <button className="flex items-center gap-1 text-emerald-600 hover:text-emerald-700" onClick={() => handleOpenProfile(customer)}>
+                        <Sparkles className="w-4 h-4" /> 画像
+                      </button>
                       <button className="flex items-center gap-1 text-blue-500 hover:text-blue-600" onClick={() => handleOpenEdit(customer)}>
                         <Eye className="w-4 h-4" /> 编辑
                       </button>
@@ -798,9 +1037,26 @@ export function CustomerData() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 whitespace-nowrap">用户名称</label>
-              <Input placeholder="请输入用户名称" className="w-48" />
+              <Input
+                placeholder="请输入用户名称"
+                className="w-48"
+                value={spendSearchInput}
+                onChange={(event) => setSpendSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    setSpendSearchKeyword(spendSearchInput);
+                    setSpendPage(1);
+                  }
+                }}
+              />
             </div>
-            <Button className="gap-2">
+            <Button
+              className="gap-2"
+              onClick={() => {
+                setSpendSearchKeyword(spendSearchInput);
+                setSpendPage(1);
+              }}
+            >
               <Search className="w-4 h-4" /> 搜索
             </Button>
           </div>
@@ -878,7 +1134,7 @@ export function CustomerData() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={8} className="py-10 text-center text-gray-500">
-                    暂无消费记录
+                    {spendSearchKeyword ? '没有匹配的消费记录' : '暂无消费记录'}
                   </TableCell>
                 </TableRow>
               )}
@@ -1035,6 +1291,156 @@ export function CustomerData() {
         </>
       )}
 
+      {activeTab === 'miniapp' && (
+        <CustomerAppEventTable
+          mode="customerDetail"
+          defaultFilters={{ storeId: currentStoreId }}
+          initialKeyword={searchParams.get('keyword') ?? ''}
+          exportFileName="小程序行为明细"
+        />
+      )}
+
+      {activeTab === 'profile' && (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
+            <div>
+              <div className="text-sm font-semibold text-emerald-900">客户画像与预测</div>
+              <div className="text-xs text-emerald-700">统一读取健康档案、消费、卡项、预测快照、触达和推荐反馈。</div>
+            </div>
+            <select
+              className="ml-auto h-9 min-w-[220px] rounded-md border border-emerald-200 bg-white px-3 text-sm"
+              value={profileCustomerId}
+              onChange={(event) => {
+                const nextCustomerId = event.target.value ? Number(event.target.value) : '';
+                setProfileCustomerId(nextCustomerId);
+                if (nextCustomerId) {
+                  setSearchParams({ tab: 'profile', customerId: String(nextCustomerId) });
+                } else {
+                  setSearchParams({ tab: 'profile' });
+                }
+              }}
+            >
+              <option value="">选择客户</option>
+              {allCustomers.map((customer) => (
+                <option key={customer.id} value={customer.id}>{customer.name} {customer.phone ? `(${customer.phone})` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          {profileLoading && (
+            <div className="flex items-center justify-center rounded-xl border border-gray-100 bg-white py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+              <span className="ml-2 text-sm text-gray-500">画像加载中...</span>
+            </div>
+          )}
+
+          {!profileLoading && profileError && (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">{profileError}</div>
+          )}
+
+          {!profileLoading && !customerProfile && !profileError && (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+              请选择一个客户查看画像、预测分和推荐闭环数据。
+            </div>
+          )}
+
+          {!profileLoading && customerProfile && (
+            <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">{customerProfile.basic.name}</h2>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {customerProfile.basic.memberLevel || '普通客户'} · 到店 {customerProfile.basic.visitCount} 次 · 累计 ¥{Number(customerProfile.basic.totalSpent ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
+                      {customerProfile.prediction?.ltvTier ?? '暂无预测'}
+                    </span>
+                  </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { label: '流失风险', value: customerProfile.prediction?.churnScore ?? 0, hint: customerProfile.prediction?.churnLevel ?? '-' },
+                      { label: '近期预约/复购意愿', value: customerProfile.prediction?.repurchase30dScore ?? 0, hint: '适合护理周期提醒' },
+                      { label: '活动响应', value: customerProfile.prediction?.marketingResponseScore ?? 0, hint: '参与活动可能性' },
+                      {
+                        label: '半年预计消费',
+                        value: Math.min(100, Math.round(Number(customerProfile.prediction?.ltv6m ?? 0) / 100)),
+                        displayValue: `¥${Number(customerProfile.prediction?.ltv6m ?? 0).toLocaleString()}`,
+                        hint: '预计金额',
+                      },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                        <div className="flex items-center justify-between text-xs text-gray-500"><span>{item.label}</span><span>{item.hint}</span></div>
+                        <div className="mt-2 h-2 rounded-full bg-gray-200">
+                          <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, Math.max(0, Number(item.value)))}%` }} />
+                        </div>
+                        <div className="mt-2 text-xl font-semibold text-gray-900">{item.displayValue ?? item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-900">预测原因</h3>
+                  <div className="mt-3 space-y-3">
+                    {profileReasons.length ? profileReasons.map((reason, index) => (
+                      <div key={`${reason.type ?? 'reason'}-${index}`} className="rounded-xl bg-gray-50 p-3">
+                        <div className="flex items-center justify-between text-sm font-medium text-gray-800">
+                          <span>{formatProfileReasonTitle(reason.type, reason.label)}</span>
+                          <span className="text-xs text-gray-500">{formatProfileReasonImpact(reason.impact)}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600">{localizeProfileTerm(reason.detail ?? '-')}</p>
+                      </div>
+                    )) : <div className="text-sm text-gray-500">暂无预测原因，需先运行营销预测。</div>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-900">推荐动作</h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {profileActions.length ? profileActions.map((action, index) => (
+                      <span key={`${action}-${index}`} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{action}</span>
+                    )) : <span className="text-sm text-gray-500">暂无推荐动作</span>}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-900">健康与消费摘要</h3>
+                  <div className="mt-3 space-y-2 text-sm text-gray-600">
+                    <div>肤质：{customerProfile.health?.skinType ?? customerProfile.basic.skinType ?? '-'}</div>
+                    <div>诉求：{customerProfile.health?.goals ?? customerProfile.health?.mainProblems ?? '-'}</div>
+                    <div>最近到店：{customerProfile.consumption.lastVisitDays ?? '-'} 天前</div>
+                    <div>客单均值：¥{Number(customerProfile.consumption.avgSpentPerVisit ?? 0).toLocaleString()}</div>
+                    <div>有效卡项：{customerProfile.cards.activeCards.length} 张，到期预警 {customerProfile.cards.expiringCards.length} 张</div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-900">触达与反馈</h3>
+                  <div className="mt-3 space-y-3 text-sm text-gray-600">
+                    <div>
+                      <div className="mb-1 font-medium text-gray-800">最近营销触达</div>
+                      {customerProfile.touchHistory.length ? customerProfile.touchHistory.slice(0, 3).map((touch: any) => (
+                        <div key={touch.id} className="rounded-lg bg-gray-50 px-3 py-2">{touch.channel ?? 'channel'} · {touch.status ?? '-'} · {touch.touchedAt ?? '-'}</div>
+                      )) : <div className="text-gray-500">暂无触达记录</div>}
+                    </div>
+                    <div>
+                      <div className="mb-1 font-medium text-gray-800">推荐反馈</div>
+                      {customerProfile.recommendationEvents.length ? customerProfile.recommendationEvents.slice(0, 3).map((event: any) => (
+                        <div key={event.id} className="rounded-lg bg-gray-50 px-3 py-2">{event.eventType ?? '-'} · #{event.recommendationId ?? '-'} · {event.createdAt ?? '-'}</div>
+                      )) : <div className="text-gray-500">暂无推荐反馈</div>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {/* Health Edit Dialog */}
       <Dialog open={showHealthEditDialog} onOpenChange={setShowHealthEditDialog}>
         <DialogContent className="max-w-lg" aria-describedby="health-edit-desc">
@@ -1427,10 +1833,23 @@ export function CustomerData() {
               </div>
             </div>
 
-            {/* Row 11: Skin Condition */}
-            <div className="flex items-start gap-3">
-              <label className="text-sm font-medium text-gray-700 whitespace-nowrap w-24 text-right mt-2">皮肤状况</label>
-              <textarea placeholder="请输入皮肤状况" rows={2} className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" {...register('skinCondition')} />
+            {/* Row 11: Skin */}
+            <div className="grid grid-cols-[1fr_2fr] gap-6">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap w-24 text-right">肤质类型</label>
+                <select className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md" {...register('skinType')}>
+                  <option value="">请选择肤质</option>
+                  <option value="干性肌肤">干性肌肤</option>
+                  <option value="油性肌肤">油性肌肤</option>
+                  <option value="敏感肌肤">敏感肌肤</option>
+                  <option value="混合肌肤">混合肌肤</option>
+                  <option value="中性肌肤">中性肌肤</option>
+                </select>
+              </div>
+              <div className="flex items-start gap-3">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap w-24 text-right mt-2">皮肤状况</label>
+                <textarea placeholder="请输入皮肤状况" rows={2} className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" {...register('skinCondition')} />
+              </div>
             </div>
 
             {/* Row 12: Total Spent */}

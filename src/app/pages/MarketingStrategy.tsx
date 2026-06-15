@@ -215,7 +215,7 @@ export function MarketingStrategy() {
                   <Smartphone className="w-4 h-4" /> 查看活动页
                 </button>
                 <button
-                  onClick={() => navigate(`/customer-marketing/activity-effect/${activity.id}`)}
+                  onClick={() => navigate(`/customer-marketing/effect-analysis?objectType=activity&objectId=${activity.id}`)}
                   className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <TrendingUp className="w-4 h-4" /> 查看效果
@@ -356,10 +356,10 @@ export function MarketingStrategy() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
-                  onClick={() => { setShowDetailDialog(false); navigate(`/customer-marketing/activity-effect/${selectedActivity.id}`); }}
+                  onClick={() => { setShowDetailDialog(false); navigate(`/customer-marketing/effect-analysis?objectType=activity&objectId=${selectedActivity.id}`); }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
                 >
-                  <TrendingUp className="w-4 h-4" /> 查看效果分析
+                  <TrendingUp className="w-4 h-4" /> 查看数据复盘
                 </button>
               </div>
             </div>

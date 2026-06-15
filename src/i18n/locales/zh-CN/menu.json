@@ -1,6 +1,6 @@
 {
   "groups": {
-    "dashboard": "仪表盘",
+    "dashboard": "工作台",
     "customer": "客户管理",
     "marketing": "智能营销",
     "store": "门店管理",
@@ -10,7 +10,7 @@
     "system": "系统设置"
   },
   "items": {
-    "dataOverview": "数据概览",
+    "dataOverview": "我的工作台",
     "customerData": "客户数据",
     "customerProfile": "客户画像",
     "smartInvitation": "智能邀约",

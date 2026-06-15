@@ -31,9 +31,14 @@ const ExpiryManagement = lazyWithRetry(() => import('./pages/ExpiryManagement').
 const StoreTransfer = lazyWithRetry(() => import('./pages/StoreTransfer').then(m => ({ default: m.StoreTransfer })), 'StoreTransfer');
 const ServiceConsumption = lazyWithRetry(() => import('./pages/ServiceConsumption').then(m => ({ default: m.ServiceConsumption })), 'ServiceConsumption');
 const MarketingStrategy = lazyWithRetry(() => import('./pages/MarketingStrategy').then(m => ({ default: m.MarketingStrategy })), 'MarketingStrategy');
+const MarketingWorkbench = lazyWithRetry(() => import('./pages/MarketingWorkbench').then(m => ({ default: m.MarketingWorkbench })), 'MarketingWorkbench');
 const MarketingRecommendation = lazyWithRetry(() => import('./pages/MarketingRecommendation').then(m => ({ default: m.MarketingRecommendation })), 'MarketingRecommendation');
 const MarketingPageManagement = lazyWithRetry(() => import('./pages/MarketingPageManagement').then(m => ({ default: m.MarketingPageManagement })), 'MarketingPageManagement');
+const PromotionManagement = lazyWithRetry(() => import('./pages/PromotionManagement').then(m => ({ default: m.PromotionManagement })), 'PromotionManagement');
+const AmiGlowManagement = lazyWithRetry(() => import('./pages/AmiGlowManagement').then(m => ({ default: m.AmiGlowManagement })), 'AmiGlowManagement');
+const MarketingAssets = lazyWithRetry(() => import('./pages/MarketingAssets').then(m => ({ default: m.MarketingAssets })), 'MarketingAssets');
 const CreateMarketing = lazyWithRetry(() => import('./pages/CreateMarketing').then(m => ({ default: m.CreateMarketing })), 'CreateMarketing');
+const MarketingRuleLibrary = lazyWithRetry(() => import('./pages/MarketingRuleLibrary').then(m => ({ default: m.MarketingRuleLibrary })), 'MarketingRuleLibrary');
 const MarketingAnalytics = lazyWithRetry(() => import('./pages/MarketingAnalytics').then(m => ({ default: m.MarketingAnalytics })), 'MarketingAnalytics');
 const MarketingActivityEffect = lazyWithRetry(() => import('./pages/MarketingActivityEffect').then(m => ({ default: m.MarketingActivityEffect })), 'MarketingActivityEffect');
 const GoodsTypeManagement = lazyWithRetry(() => import('./pages/GoodsTypeManagement').then(m => ({ default: m.GoodsTypeManagement })), 'GoodsTypeManagement');
@@ -45,7 +50,18 @@ const UserManagement = lazyWithRetry(() => import('./pages/system/UserManagement
 const RoleManagement = lazyWithRetry(() => import('./pages/system/RoleManagement').then(m => ({ default: m.RoleManagement })), 'RoleManagement');
 const PermissionManagement = lazyWithRetry(() => import('./pages/system/PermissionManagement').then(m => ({ default: m.PermissionManagement })), 'PermissionManagement');
 const StoreSettings = lazyWithRetry(() => import('./pages/system/StoreSettings').then(m => ({ default: m.StoreSettings })), 'StoreSettings');
+const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManagement').then(m => ({ default: m.DeviceManagement })), 'DeviceManagement');
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
+const CommissionRules = lazyWithRetry(() => import('./pages/finance/CommissionRules').then(m => ({ default: m.CommissionRules })), 'CommissionRules');
+const CommissionRecords = lazyWithRetry(() => import('./pages/finance/CommissionRecords').then(m => ({ default: m.CommissionRecords })), 'CommissionRecords');
+const MonthlySettlement = lazyWithRetry(() => import('./pages/finance/MonthlySettlement').then(m => ({ default: m.MonthlySettlement })), 'MonthlySettlement');
+const DailySettlement = lazyWithRetry(() => import('./pages/finance/DailySettlement').then(m => ({ default: m.DailySettlement })), 'DailySettlement');
+const AmiPerformance = lazyWithRetry(() => import('./pages/finance/AmiPerformance').then(m => ({ default: m.AmiPerformance })), 'AmiPerformance');
+const AmiBilling = lazyWithRetry(() => import('./pages/finance/AmiBilling').then(m => ({ default: m.AmiBilling })), 'AmiBilling');
+const PlatformRevenue = lazyWithRetry(() => import('./pages/finance/PlatformRevenue').then(m => ({ default: m.PlatformRevenue })), 'PlatformRevenue');
+const SupplierManagement = lazyWithRetry(() => import('./pages/supply-chain/SupplierManagement').then(m => ({ default: m.SupplierManagement })), 'SupplierManagement');
+const PurchaseOrders = lazyWithRetry(() => import('./pages/supply-chain/PurchaseOrders').then(m => ({ default: m.PurchaseOrders })), 'PurchaseOrders');
+const SupplierSettlements = lazyWithRetry(() => import('./pages/supply-chain/SupplierSettlements').then(m => ({ default: m.SupplierSettlements })), 'SupplierSettlements');
 
 // Placeholder for unbuilt pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -114,10 +130,17 @@ export const router = createBrowserRouter([
 
       // Customer Marketing
       { path: 'customer-marketing/activity-management', element: withGuard('core:marketing:view', MarketingStrategy) },
+      { path: 'customer-marketing', element: withGuard('core:marketing:view', MarketingWorkbench) },
+      { path: 'customer-marketing/workbench', element: withGuard('core:marketing:view', MarketingWorkbench) },
+      { path: 'customer-marketing/ami-glow', element: withGuard('core:marketing:view', AmiGlowManagement) },
       { path: 'customer-marketing/pages', element: withGuard('core:marketing:view', MarketingPageManagement) },
+      { path: 'customer-marketing/promotions', element: withGuard('core:marketing:view', PromotionManagement) },
       { path: 'customer-marketing/activity-effect/:id', element: withGuard('core:marketing:view', MarketingActivityEffect) },
       { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:recommend', MarketingRecommendation) },
+      { path: 'customer-marketing/assets', element: withGuard('core:marketing:view', MarketingAssets) },
+      { path: 'customer-marketing/automation', element: withGuard('core:marketing:template', CreateMarketing) },
       { path: 'customer-marketing/strategy-templates', element: withGuard('core:marketing:template', CreateMarketing) },
+      { path: 'customer-marketing/rule-library', element: withGuard('core:marketing:template', MarketingRuleLibrary) },
       { path: 'customer-marketing/effect-analysis', element: withGuard('core:marketing:analytics', MarketingAnalytics) },
 
       // Stores
@@ -149,11 +172,26 @@ export const router = createBrowserRouter([
       { path: 'inventory/transfer', element: withGuard('core:inventory:transfer', StoreTransfer) },
       { path: 'inventory/consumption', element: withGuard('core:inventory:consumption', ServiceConsumption) },
 
+      // Finance
+      { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailySettlement) },
+      { path: 'finance/commission-rules', element: withGuard('core:finance:manage', CommissionRules) },
+      { path: 'finance/commission-records', element: withGuard('core:finance:view', CommissionRecords) },
+      { path: 'finance/monthly-settlement', element: withGuard('core:finance:view', MonthlySettlement) },
+      { path: 'finance/ami-performance', element: withGuard('core:finance:view', AmiPerformance) },
+      { path: 'finance/ami-billing', element: withGuard('core:finance:view', AmiBilling) },
+      { path: 'finance/platform-revenue', element: withGuard('core:finance:view', PlatformRevenue) },
+
+      // Supply Chain
+      { path: 'supply-chain/suppliers', element: withGuard('core:supply:view', SupplierManagement) },
+      { path: 'supply-chain/orders', element: withGuard('core:supply:view', PurchaseOrders) },
+      { path: 'supply-chain/settlements', element: withGuard('core:supply:view', SupplierSettlements) },
+
       // System Settings
       { path: 'system/users', element: withGuard('core:system:users', UserManagement) },
       { path: 'system/roles', element: withGuard('core:system:roles', RoleManagement) },
       { path: 'system/permissions', element: withGuard('core:system:permissions', PermissionManagement) },
       { path: 'system/stores', element: withGuard('core:system:stores', StoreSettings) },
+      { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
 
       // Fallback

@@ -1,6 +1,6 @@
 {
   "groups": {
-    "dashboard": "Dashboard",
+    "dashboard": "Workbench",
     "customer": "Customers",
     "marketing": "Marketing",
     "store": "Store",
@@ -10,7 +10,7 @@
     "system": "Settings"
   },
   "items": {
-    "dataOverview": "Overview",
+    "dataOverview": "My Workbench",
     "customerData": "Customer Data",
     "customerProfile": "Customer Profiles",
     "smartInvitation": "Smart Invitations",

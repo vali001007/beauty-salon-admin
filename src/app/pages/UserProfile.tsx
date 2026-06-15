@@ -1,23 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Sparkles, Droplets, Flame, AlertCircle, Layers, Heart, Smartphone, MousePointer, CalendarCheck, TrendingUp } from 'lucide-react';
-import rawCustomers from '@/api/mock/data/customers.json';
-import rawHealthProfiles from '@/api/mock/data/health-profiles.json';
-import rawConsumptionRecords from '@/api/mock/data/consumption-records.json';
-import { getCustomerMiniappBehaviorAnalysis } from '@/api/customer';
-import type { Customer, CustomerMiniappBehaviorAnalysis } from '@/types';
 import {
-  computeSegmentStats, computeSkinStats, computeBehaviorProfiles,
+  getCustomerMiniappBehaviorAnalysis,
+  getCustomerProfileAnalyticsOverview,
+  getCustomerProfileBehaviorAnalytics,
+  getCustomerProfilePredictionAnalytics,
+  getCustomerProfileSegmentAnalytics,
+  getCustomerProfileSkinAnalytics,
+} from '@/api/customer';
+import { useStoreStore } from '@/stores/storeStore';
+import type { CustomerMiniappBehaviorAnalysis, CustomerProfileAnalytics } from '@/types';
+import {
   AI_RECOMMENDATIONS, SKIN_AI_RECOMMENDATIONS, SKIN_SERVICES,
-  type SegmentType,
 } from '@/utils/customerSegmentation';
-import { computeChurnScores, computeLTVPredictions } from '@/utils/advancedAnalytics';
 
-const customers: Customer[] = (rawCustomers as any[]).map((c) => ({ ...c, tags: c.tags || [] }));
-const healthProfiles = rawHealthProfiles as any[];
-const consumptionRecords = rawConsumptionRecords as any[];
-
-const SEGMENT_INDICATORS: Record<SegmentType, string> = {
+const SEGMENT_INDICATORS: Record<string, string> = {
   '高价值客户': 'bg-green-500', '潜在价值客户': 'bg-blue-500', '稳定客户': 'bg-purple-500',
   '流失风险客户': 'bg-red-500', '新客户': 'bg-yellow-500',
 };
@@ -44,51 +42,167 @@ const LEVEL_COLORS: Record<string, string> = {
 export function UserProfile() {
   const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior' | 'miniapp' | 'prediction'>('segment');
   const navigate = useNavigate();
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const [analytics, setAnalytics] = useState<CustomerProfileAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+  const [loadedSections, setLoadedSections] = useState<Record<string, boolean>>({});
+  const [sectionLoading, setSectionLoading] = useState('');
+  const [sectionError, setSectionError] = useState('');
   const [miniappAnalysis, setMiniappAnalysis] = useState<CustomerMiniappBehaviorAnalysis | null>(null);
   const [miniappLoading, setMiniappLoading] = useState(false);
   const [miniappError, setMiniappError] = useState('');
 
-  const segmentStats = useMemo(() => computeSegmentStats(customers), []);
-  const skinStats = useMemo(() => computeSkinStats(customers, healthProfiles), []);
-  const behaviorProfiles = useMemo(() => computeBehaviorProfiles(customers, consumptionRecords, healthProfiles), []);
-  const predictionRows = useMemo(() => {
-    const churnScores = computeChurnScores(customers, consumptionRecords);
-    const ltvPredictions = computeLTVPredictions(customers, consumptionRecords);
-    return customers.map((customer) => {
-      const churn = churnScores.find((item) => item.customerId === customer.id);
-      const ltv = ltvPredictions.find((item) => item.customerId === customer.id);
-      const repurchase30dScore = Math.max(5, Math.min(95, 78 - (churn?.churnProbability || 20) + (customer.visitCount > 8 ? 12 : 0)));
-      const marketingResponseScore = Math.max(5, Math.min(95, Math.round(repurchase30dScore * 0.65 + (customer.totalSpent > 10000 ? 18 : 8))));
-      return {
-        customer,
-        churnScore: churn?.churnProbability || 20,
-        churnLevel: churn?.riskLevel || '低',
-        repurchase30dScore,
-        marketingResponseScore,
-        ltvTier: ltv?.ltvTier || '青铜',
-        ltv12m: ltv?.predictedLTV12M || 0,
-        reasons: [
-          churn?.factors?.[0] || '暂无明显流失风险',
-          `30天复购概率 ${repurchase30dScore} 分`,
-          `预计12个月价值 ¥${(ltv?.predictedLTV12M || 0).toLocaleString()}`,
-        ],
-      };
-    }).sort((a, b) => b.churnScore - a.churnScore);
-  }, []);
+  const segmentStats = analytics?.segmentStats ?? [];
+  const skinStats = analytics?.skinStats ?? [];
+  const behaviorProfiles = analytics?.behaviorProfiles ?? [];
+  const predictionRows = analytics?.predictionRows ?? [];
+  const totalCustomers = analytics?.totalCustomers ?? 0;
   const [behaviorPage, setBehaviorPage] = useState(1);
-  const [behaviorPageSize, setBehaviorPageSize] = useState(50);
+  const [behaviorPageSize, setBehaviorPageSize] = useState(10);
+  const [behaviorTotal, setBehaviorTotal] = useState(0);
   const [behaviorSegmentFilter, setBehaviorSegmentFilter] = useState('');
   const [behaviorSkinFilter, setBehaviorSkinFilter] = useState('');
+  const [predictionPage, setPredictionPage] = useState(1);
+  const [predictionPageSize, setPredictionPageSize] = useState(10);
+  const [predictionTotal, setPredictionTotal] = useState(0);
+  const behaviorData = behaviorProfiles;
 
-  const filteredBehaviorProfiles = useMemo(() => {
-    let list = behaviorProfiles;
-    if (behaviorSegmentFilter) list = list.filter((b) => b.segment === behaviorSegmentFilter);
-    if (behaviorSkinFilter) list = list.filter((b) => b.skinType === behaviorSkinFilter);
-    return list;
-  }, [behaviorProfiles, behaviorSegmentFilter, behaviorSkinFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadAnalytics = async () => {
+      setAnalyticsLoading(true);
+      setAnalyticsError('');
+      try {
+        const result = await getCustomerProfileAnalyticsOverview();
+        if (!cancelled) {
+          setAnalytics({
+            ...result,
+            segmentStats: [],
+            skinStats: [],
+            behaviorProfiles: [],
+            predictionRows: [],
+          });
+        }
+      } catch {
+        if (!cancelled) setAnalyticsError('\u5ba2\u6237\u753b\u50cf\u6982\u89c8\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u786e\u8ba4\u540e\u7aef\u670d\u52a1\u3001\u767b\u5f55\u72b6\u6001\u548c\u5ba2\u6237\u753b\u50cf\u6743\u9650\u6b63\u5e38\u3002');
+      } finally {
+        if (!cancelled) setAnalyticsLoading(false);
+      }
+    };
 
-  const behaviorTotal = filteredBehaviorProfiles.length;
-  const behaviorData = filteredBehaviorProfiles.slice((behaviorPage - 1) * behaviorPageSize, behaviorPage * behaviorPageSize);
+    setAnalytics(null);
+    setLoadedSections({});
+    setSectionError('');
+    setSectionLoading('');
+    setBehaviorPage(1);
+    setBehaviorTotal(0);
+    setPredictionPage(1);
+    setPredictionTotal(0);
+    void loadAnalytics();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStoreId]);
+
+  useEffect(() => {
+    setLoadedSections({});
+    setSectionError('');
+    setMiniappAnalysis(null);
+    setMiniappError('');
+  }, [currentStoreId]);
+
+  useEffect(() => {
+    if (analyticsLoading) return;
+    let cancelled = false;
+
+    const mergeAnalytics = (partial: Partial<CustomerProfileAnalytics>) => {
+      setAnalytics((previous) => ({
+        generatedAt: partial.generatedAt ?? previous?.generatedAt ?? '',
+        storeId: partial.storeId ?? previous?.storeId,
+        totalCustomers: partial.totalCustomers ?? previous?.totalCustomers ?? 0,
+        segmentStats: partial.segmentStats ?? previous?.segmentStats ?? [],
+        skinStats: partial.skinStats ?? previous?.skinStats ?? [],
+        behaviorProfiles: partial.behaviorProfiles ?? previous?.behaviorProfiles ?? [],
+        predictionRows: partial.predictionRows ?? previous?.predictionRows ?? [],
+      }));
+    };
+
+    const loadSection = async () => {
+      setSectionError('');
+      try {
+        if (activeTab === 'segment') {
+          if (loadedSections.segment) return;
+          setSectionLoading('segment');
+          const result = await getCustomerProfileSegmentAnalytics();
+          if (!cancelled) {
+            mergeAnalytics(result);
+            setLoadedSections((prev) => ({ ...prev, segment: true }));
+          }
+        } else if (activeTab === 'skin') {
+          if (loadedSections.skin) return;
+          setSectionLoading('skin');
+          const result = await getCustomerProfileSkinAnalytics();
+          if (!cancelled) {
+            mergeAnalytics(result);
+            setLoadedSections((prev) => ({ ...prev, skin: true }));
+          }
+        } else if (activeTab === 'behavior') {
+          setSectionLoading('behavior');
+          const result = await getCustomerProfileBehaviorAnalytics({
+            page: behaviorPage,
+            pageSize: behaviorPageSize,
+            segment: behaviorSegmentFilter || undefined,
+            skinType: behaviorSkinFilter || undefined,
+          });
+          if (!cancelled) {
+            mergeAnalytics({
+              generatedAt: result.generatedAt,
+              storeId: result.storeId,
+              totalCustomers: result.totalCustomers,
+              behaviorProfiles: result.items ?? result.data ?? [],
+            });
+            setBehaviorTotal(result.total);
+          }
+        } else if (activeTab === 'prediction') {
+          setSectionLoading('prediction');
+          const result = await getCustomerProfilePredictionAnalytics({
+            page: predictionPage,
+            pageSize: predictionPageSize,
+          });
+          if (!cancelled) {
+            mergeAnalytics({
+              generatedAt: result.generatedAt,
+              storeId: result.storeId,
+              totalCustomers: result.totalCustomers,
+              predictionRows: result.items ?? result.data ?? [],
+            });
+            setPredictionTotal(result.total);
+          }
+        }
+      } catch {
+        if (!cancelled) setSectionError('当前页签数据加载失败，请稍后重试。');
+      } finally {
+        if (!cancelled) setSectionLoading('');
+      }
+    };
+
+    void loadSection();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    analyticsLoading,
+    loadedSections.segment,
+    loadedSections.skin,
+    behaviorPage,
+    behaviorPageSize,
+    behaviorSegmentFilter,
+    behaviorSkinFilter,
+    predictionPage,
+    predictionPageSize,
+  ]);
 
   useEffect(() => {
     if (activeTab !== 'miniapp' || miniappAnalysis || miniappLoading) return;
@@ -144,30 +258,57 @@ export function UserProfile() {
       trigger: template.trigger,
       actions: JSON.stringify(template.actions),
     });
-    navigate(`/customer-marketing/strategy-templates?${params.toString()}`);
+    navigate(`/customer-marketing/automation?${params.toString()}`);
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-800 mb-2">用户画像</h1>
-        <p className="text-sm text-gray-500">基于 {customers.length} 位客户数据自动分析，实时计算客户画像</p>
+        <p className="text-sm text-gray-500">
+          基于 {totalCustomers} 位真实客户数据自动分析，数据来自当前门店的 Core 业务记录
+          {analytics?.generatedAt ? `，生成时间：${analytics.generatedAt}` : ''}
+        </p>
       </div>
+
+      {analyticsLoading && (
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          正在加载客户画像分析...
+        </div>
+      )}
+
+      {analyticsError && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">
+          {analyticsError}
+        </div>
+      )}
 
       <div className="flex gap-4 bg-gray-100 p-1 rounded-lg">
         {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像'], ['miniapp', '小程序行为'], ['prediction', '预测视角']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex-1 py-3 px-6 rounded-lg transition-all ${activeTab === key ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-600 hover:text-gray-800'}`}>
-            {label}
+            {key === 'miniapp' ? '小程序行为分析' : label}
           </button>
         ))}
       </div>
+
+      {sectionLoading === activeTab && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-center text-sm text-blue-700">
+          正在加载当前页签数据...
+        </div>
+      )}
+
+      {sectionError && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">
+          {sectionError}
+        </div>
+      )}
 
       {/* 客户细分 */}
       {activeTab === 'segment' && (
         <div className="grid grid-cols-2 gap-6">
           {segmentStats.map((seg) => {
-            const rec = AI_RECOMMENDATIONS[seg.segment];
+            const rec = AI_RECOMMENDATIONS[seg.segment as keyof typeof AI_RECOMMENDATIONS] ?? AI_RECOMMENDATIONS['稳定客户'];
             return (
               <div key={seg.segment} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between mb-6">
@@ -511,7 +652,16 @@ export function UserProfile() {
                           <td className="px-6 py-4 text-sm text-gray-700">{customer.reservationCount} / {customer.orderCount}</td>
                           <td className="px-6 py-4 text-sm text-gray-700">{customer.marketingTouchCount} 次</td>
                           <td className="px-6 py-4 text-sm text-gray-700">{customer.lastActiveAt || '-'}</td>
-                          <td className="max-w-72 px-6 py-4 text-sm text-gray-600">{customer.nextAction}</td>
+                          <td className="max-w-72 px-6 py-4 text-sm text-gray-600">
+                            <div>{customer.nextAction}</div>
+                            <button
+                              type="button"
+                              className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+                              onClick={() => navigate(`/customers/data?tab=miniapp&keyword=${encodeURIComponent(customer.phone || customer.name)}`)}
+                            >
+                              查看行为明细
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -561,7 +711,7 @@ export function UserProfile() {
                 </tr>
               </thead>
               <tbody>
-                {predictionRows.slice(0, 50).map((row) => (
+                {predictionRows.map((row) => (
                   <tr key={row.customer.id} className="border-b border-gray-100 hover:bg-blue-50/30">
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-800">{row.customer.name}</div>
@@ -583,6 +733,40 @@ export function UserProfile() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+            <div className="text-sm text-gray-600">共 {predictionTotal} 条</div>
+            <div className="flex items-center gap-2">
+              <select
+                value={predictionPageSize}
+                onChange={(e) => {
+                  setPredictionPageSize(Number(e.target.value));
+                  setPredictionPage(1);
+                }}
+                className="h-8 px-2 text-sm border border-gray-300 rounded"
+              >
+                <option value={10}>10条/页</option>
+                <option value={20}>20条/页</option>
+                <option value={50}>50条/页</option>
+              </select>
+              <button
+                disabled={predictionPage <= 1}
+                onClick={() => setPredictionPage(predictionPage - 1)}
+                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+              >
+                上一页
+              </button>
+              <span className="text-sm text-gray-600">
+                {predictionPage} / {Math.ceil(predictionTotal / predictionPageSize) || 1}
+              </span>
+              <button
+                disabled={predictionPage >= Math.ceil(predictionTotal / predictionPageSize)}
+                onClick={() => setPredictionPage(predictionPage + 1)}
+                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+              >
+                下一页
+              </button>
+            </div>
           </div>
         </div>
       )}
