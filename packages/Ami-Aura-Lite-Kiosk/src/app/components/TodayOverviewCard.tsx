@@ -1,20 +1,31 @@
 import React from "react";
-import { mockData } from "../types";
-import {
-  TrendingUp,
-  CalendarCheck,
-  Clock,
-  UserCheck,
-  AlertCircle,
-} from "lucide-react";
+import { AlertCircle, CalendarCheck, Clock, TrendingUp, UserCheck } from "lucide-react";
+
+export interface TodayOverviewStats {
+  todayRevenue: number;
+  appointments: number;
+  pendingArrivals: number;
+  arrivals: number;
+}
+
+const EMPTY_OVERVIEW: TodayOverviewStats = {
+  todayRevenue: 0,
+  appointments: 0,
+  pendingArrivals: 0,
+  arrivals: 0,
+};
 
 export function TodayOverviewCard({
+  overview = EMPTY_OVERVIEW,
+  loading = false,
+  error,
   onQuickAction,
 }: {
+  overview?: TodayOverviewStats;
+  loading?: boolean;
+  error?: string;
   onQuickAction: (action: string) => void;
 }) {
-  const { overview } = mockData;
-
   const stats = [
     {
       label: "今日营业额",
@@ -59,22 +70,30 @@ export function TodayOverviewCard({
         </span>
       </div>
 
+      {error ? (
+        <div className="flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-4 gap-4">
-        {stats.map((stat, idx) => (
-          <div
-            key={idx}
+        {stats.map((stat) => (
+          <button
+            key={stat.label}
+            type="button"
             onClick={() => onQuickAction(stat.action)}
-            className="flex flex-col items-center justify-center p-5 rounded-2xl bg-[#F7F5F2] cursor-pointer hover:bg-black/5 transition-colors"
+            disabled={loading}
+            className="flex flex-col items-center justify-center rounded-2xl bg-[#F7F5F2] p-5 text-center transition-colors hover:bg-black/5 disabled:cursor-wait disabled:opacity-70"
           >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${stat.color}`}>
-              <stat.icon className="w-6 h-6" />
+            <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ${stat.color}`}>
+              <stat.icon className="h-6 w-6" />
             </div>
-            <div className="text-3xl font-bold text-[#1F1B2D] mb-1">{stat.value}</div>
-            <div className="text-sm text-[#6F6678] font-medium">{stat.label}</div>
-          </div>
+            <div className="mb-1 text-3xl font-bold text-[#1F1B2D]">{loading ? "..." : stat.value}</div>
+            <div className="text-sm font-medium text-[#6F6678]">{stat.label}</div>
+          </button>
         ))}
       </div>
-
     </div>
   );
 }

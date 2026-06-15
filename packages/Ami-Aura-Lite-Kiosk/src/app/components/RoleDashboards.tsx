@@ -2,6 +2,7 @@
 import {
   AlertTriangle,
   CalendarCheck,
+  ChevronDown,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 import type {
   AppointmentCardData,
+  BeauticianCustomerListData,
+  CoreDataStatus,
   CustomerCardData,
   DashboardCardData,
   InventoryAlertCardData,
@@ -31,16 +34,30 @@ import {
   cancelAppointmentFromTerminal,
   checkInAppointmentFromTerminal,
   confirmAppointmentFromTerminal,
+  closeCashierShift,
   createAppointmentFromTerminal,
   getAppointmentCreateOptions,
   getAppointmentEditOptions,
   getAppointments,
+  getCashierShiftStatus,
+  isShiftRequired,
+  invalidateTerminalScheduleCaches,
+  openCashierShift,
+  refreshShiftRequired,
   updateAppointmentFromTerminal,
   type AppointmentCreateOptions,
   type AppointmentEditOptions,
 } from "../services/auraCoreService";
-import { createTerminalPrintJob, saveSchedule } from "@/api";
+import {
+  completeTerminalFollowUpTask,
+  createTerminalPrintJob,
+  getTerminalBeauticianCommission,
+  getTerminalReservationAvailability,
+  saveSchedule,
+  startTerminalFollowUpTask,
+} from "@/api";
 import type { ScheduleSlot } from "@/types";
+import type { TerminalCashierShift, TerminalReservationAvailability } from "@/types/terminal";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
@@ -56,11 +73,12 @@ type TerminalDisplaySlot = {
   sourceTimes: string[];
 };
 
-type TerminalEditingSlot = {
-  beauticianId: number;
-  dayIndex: number;
-  slotLabel: string;
-} | null;
+type ReservationSlotOption = {
+  value: string;
+  label: string;
+  available: boolean;
+  reason?: string;
+};
 
 const TERMINAL_DISPLAY_SLOTS: TerminalDisplaySlot[] = [
   { label: "09:00-10:00", end: "10:00", sourceTimes: ["09:00", "09:30"] },
@@ -80,8 +98,16 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function getTerminalCurrentWeekStart() {
+  const date = new Date();
+  const day = date.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
 function getTerminalWeekDays(weekStart?: string) {
-  const start = weekStart || new Date().toISOString().slice(0, 10);
+  const start = weekStart || getTerminalCurrentWeekStart();
   const names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   return names.map((name, index) => {
     const fullDate = addDays(start, index);
@@ -133,11 +159,11 @@ function getTerminalStatusClass(status: TerminalScheduleStatus) {
   return styles[status];
 }
 
-function getTerminalStatusLabel(status: TerminalScheduleStatus, slot: TerminalDisplaySlot) {
+function getTerminalStatusLabel(status: TerminalScheduleStatus) {
   const labels: Record<TerminalScheduleStatus, string> = {
-    normal: slot.label,
+    normal: "正常",
     booked: "已预约",
-    expired: slot.label,
+    expired: "已过时",
     leave: "请假",
     busy: "忙碌",
   };
@@ -152,9 +178,14 @@ function cloneTerminalWeekSlots(weekSlots: StaffScheduleCardData["weekSlots"]) {
   return safeArray(weekSlots).map((day) => safeArray(day).map((slot) => ({ ...slot })));
 }
 
+function normalizeTerminalWeekSlots(weekSlots: StaffScheduleCardData["weekSlots"]) {
+  const cloned = cloneTerminalWeekSlots(weekSlots);
+  return Array.from({ length: 7 }, (_, index) => cloned[index] ?? []);
+}
+
 function buildTerminalScheduleMap(items: StaffScheduleCardData[]) {
   return Object.fromEntries(
-    safeArray(items).map((item) => [item.beautician.id, cloneTerminalWeekSlots(item.weekSlots)]),
+    safeArray(items).map((item) => [item.beautician.id, normalizeTerminalWeekSlots(item.weekSlots)]),
   ) as Record<number, ScheduleSlot[][]>;
 }
 
@@ -163,9 +194,23 @@ function setTerminalDisplaySlotStatus(
   slot: TerminalDisplaySlot,
   status: TerminalEditableScheduleStatus,
 ) {
-  return safeArray(daySlots).map((item) =>
-    slot.sourceTimes.includes(item.time) ? { ...item, available: status === "normal", status } : item,
+  const sourceTimes = new Set(slot.sourceTimes);
+  const period = Number(slot.sourceTimes[0]?.slice(0, 2) ?? 0) < 12 ? "上午" : "下午";
+  const nextSlots = safeArray(daySlots).map((item) =>
+    sourceTimes.has(item.time) ? { ...item, available: status === "normal", status } : item,
   );
+
+  slot.sourceTimes.forEach((time) => {
+    if (nextSlots.some((item) => item.time === time)) return;
+    nextSlots.push({
+      time,
+      period,
+      available: status === "normal",
+      status,
+    });
+  });
+
+  return nextSlots.sort((a, b) => a.time.localeCompare(b.time));
 }
 
 function getTerminalEditOptions() {
@@ -182,6 +227,10 @@ function getTerminalDayUtilization(daySlots: StaffScheduleCardData["todaySlots"]
   return scopedSlots.length ? `${Math.round((busyCount / scopedSlots.length) * 100)}%` : "0%";
 }
 
+function formatTerminalMoney(value?: number) {
+  return `¥${Number(value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function getTerminalSlotKey(beauticianId: number, dayIndex: number, slot: TerminalDisplaySlot) {
   return `${beauticianId}:${dayIndex}:${slot.label}`;
 }
@@ -189,49 +238,51 @@ function getTerminalSlotKey(beauticianId: number, dayIndex: number, slot: Termin
 function TerminalScheduleSlotButton({
   slot,
   status,
-  menuOpen,
   saving,
-  onOpen,
   onSelect,
 }: {
   slot: TerminalDisplaySlot;
   status: TerminalScheduleStatus;
-  menuOpen: boolean;
   saving: boolean;
-  onOpen: () => void;
   onSelect: (status: TerminalEditableScheduleStatus) => void;
 }) {
-  const disabled = status === "booked" || status === "expired" || saving;
-  return (
-    <div className="relative">
+  const locked = status === "booked" || status === "expired";
+  const editableStatus: TerminalEditableScheduleStatus = status === "busy" || status === "leave" ? status : "normal";
+
+  if (locked) {
+    return (
       <button
         type="button"
-        disabled={disabled}
-        onClick={onOpen}
-        className={`flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-medium transition ${getTerminalStatusClass(status)} ${
-          disabled ? "cursor-not-allowed opacity-80" : "cursor-pointer hover:shadow-sm active:scale-[0.98]"
-        }`}
+        disabled
+        className={`flex min-h-9 w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-medium opacity-80 transition ${getTerminalStatusClass(status)}`}
       >
         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-        {getTerminalStatusLabel(status, slot)}
+        {getTerminalStatusLabel(status)}
       </button>
-      {menuOpen ? (
-        <div className="absolute left-1/2 top-full z-30 mt-1 w-28 -translate-x-1/2 rounded-xl border border-black/10 bg-white p-1 shadow-xl shadow-black/10">
-          {getTerminalEditOptions().map(([nextStatus, label]) => (
-            <button
-              key={nextStatus}
-              type="button"
-              onClick={() => (nextStatus === status ? onOpen() : onSelect(nextStatus))}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-medium hover:bg-[#F7F5F2] ${
-                nextStatus === status ? "bg-[#2D1B69]/6 text-[#2D1B69]" : "text-[#1F1B2D]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    );
+  }
+
+  return (
+    <label className="relative block">
+      <select
+        aria-label={`${slot.label} 排班状态`}
+        value={editableStatus}
+        disabled={saving}
+        onChange={(event) => onSelect(event.target.value as TerminalEditableScheduleStatus)}
+        className={`h-9 w-full appearance-none rounded-lg border px-3 pr-8 text-center text-xs font-medium outline-none transition hover:shadow-sm focus:ring-2 focus:ring-[#2D1B69]/20 active:scale-[0.98] disabled:cursor-wait disabled:opacity-80 ${getTerminalStatusClass(status)}`}
+      >
+        {getTerminalEditOptions().map(([nextStatus, label]) => (
+          <option key={nextStatus} value={nextStatus}>
+            {label}
+          </option>
+        ))}
+      </select>
+      {saving ? (
+        <Loader2 className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin opacity-70" />
+      ) : (
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-70" />
+      )}
+    </label>
   );
 }
 
@@ -318,6 +369,7 @@ function KpiTile({
 }
 
 function getManagerKpiIcon(label: string) {
+  if (label.includes("Ami")) return Sparkles;
   if (label.includes("营业额")) return TrendingUp;
   if (label.includes("预约")) return CalendarCheck;
   if (label.includes("到店")) return CheckCircle2;
@@ -325,7 +377,8 @@ function getManagerKpiIcon(label: string) {
   return Users;
 }
 
-function getManagerKpiTone(label: string): "purple" | "gold" | "green" | "red" {
+function getManagerKpiTone(label: string, value?: string): "purple" | "gold" | "green" | "red" {
+  if (label.includes("Ami")) return "green";
   if (label.includes("营业额")) return "gold";
   if (label.includes("预约")) return "green";
   if (label.includes("到店")) return "purple";
@@ -366,6 +419,19 @@ function getDashboardInsightContent(value: DashboardCardData["risks"][number] | 
     reason: String(value),
     action: "",
   };
+}
+
+function getFallbackRiskAction(reason: string, highlightAction?: string) {
+  if (reason.includes("库存") || reason.includes("补货")) {
+    return "打开库存预警，优先处理影响今日项目交付的耗材，并为低于安全库存的商品创建补货单。";
+  }
+  if (reason.includes("预约")) {
+    return "进入预约工作台，按预约时间确认到店；临近或超时未到店客户由前台先电话提醒。";
+  }
+  if (reason.includes("排班") || reason.includes("负载") || reason.includes("员工")) {
+    return "打开员工排班，检查忙碌时段和预约分配，必要时把新增预约分流给空闲美容师。";
+  }
+  return highlightAction || "进入对应工作台查看明细，并分配负责人跟进。";
 }
 
 function AppointmentStatusBadge({ status, text }: { status: string; text: string }) {
@@ -432,8 +498,27 @@ function toDateTimeLocalValue(value?: string) {
   return local.toISOString().slice(0, 16);
 }
 
+function toAppointmentDateValue(value?: string) {
+  const localValue = toDateTimeLocalValue(value);
+  return localValue ? localValue.slice(0, 10) : getDefaultAppointmentDate();
+}
+
+function toAppointmentSlotValue(value?: string) {
+  const localValue = toDateTimeLocalValue(value);
+  return localValue ? localValue.slice(11, 16) : "";
+}
+
+function getDefaultAppointmentDate() {
+  return getDefaultAppointmentLocalTime().slice(0, 10);
+}
+
 function toApiDateTime(value: string) {
   return value.includes("T") ? `${value}:00` : value;
+}
+
+function toApiDateTimeFromSlot(date: string, slotStart: string) {
+  if (!date || !slotStart) return "";
+  return `${date}T${slotStart}:00`;
 }
 
 function getDefaultAppointmentLocalTime() {
@@ -441,6 +526,44 @@ function getDefaultAppointmentLocalTime() {
   date.setHours(date.getHours() + 1, 0, 0, 0);
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
+}
+
+function toTimeRangeLabel(startTime: string, duration: number) {
+  const [hour, minute] = startTime.split(":").map((item) => Number(item));
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return startTime;
+  const start = hour * 60 + minute;
+  const end = start + Math.max(1, duration || 60);
+  const endHour = Math.floor(end / 60);
+  const endMinute = end % 60;
+  return `${startTime}-${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
+}
+
+function getSlotOptionsFromAvailability(
+  availability: TerminalReservationAvailability | null,
+  beauticianId: string,
+  duration: string,
+): ReservationSlotOption[] {
+  if (!availability) return [];
+  const durationMinutes = Number(duration) || availability.duration || 60;
+  const groups = beauticianId
+    ? availability.items.filter((item) => String(item.beauticianId) === beauticianId)
+    : availability.items;
+  const seen = new Set<string>();
+  return groups.flatMap((group) =>
+    group.slots.flatMap((slot) => {
+      const key = `${slot.time}:${group.beauticianId}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [
+        {
+          value: slot.time,
+          label: `${toTimeRangeLabel(slot.time, durationMinutes)} · ${group.beauticianName}`,
+          available: slot.available,
+          reason: slot.reason,
+        },
+      ];
+    }),
+  );
 }
 
 function canEditAppointment(status: string) {
@@ -743,9 +866,135 @@ function CardShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <SectionHeader title={title} desc={subtitle} />
       {children}
+    </div>
+  );
+}
+
+function DataUnavailableNotice({ status }: { status?: CoreDataStatus }) {
+  if (status?.source !== "fallback") return null;
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <div className="font-semibold">数据暂不可用</div>
+          <div className="mt-0.5 text-xs leading-5 text-amber-700">
+            {status.label ? `${status.label} 已降级显示` : "Ami_Core 接口暂时不可达，当前为降级空态。"}
+            {status.error ? `：${status.error}` : ""}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatShiftTime(value?: string) {
+  if (!value) return "--:--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function CashierShiftPanel({
+  shift,
+  openingCash,
+  closingCash,
+  loading,
+  error,
+  onOpeningCashChange,
+  onClosingCashChange,
+  onOpen,
+  onClose,
+}: {
+  shift: TerminalCashierShift | null;
+  openingCash: string;
+  closingCash: string;
+  loading: boolean;
+  error?: string | null;
+  onOpeningCashChange: (value: string) => void;
+  onClosingCashChange: (value: string) => void;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const isOpen = shift?.status === "open";
+  const diff = shift?.cashDiff ?? 0;
+  return (
+    <div className="mt-4 rounded-2xl border border-[#2D1B69]/10 bg-[#FAF9F7] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-[#1F1B2D]">收银班次</div>
+          <div className="mt-1 text-xs text-[#6F6678]">
+            {isOpen ? `当前班次 ${formatShiftTime(shift?.startedAt)} 起` : shift?.endedAt ? `上次关班 ${formatShiftTime(shift.endedAt)}` : "当前未开班"}
+          </div>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-medium ${isOpen ? "bg-emerald-50 text-emerald-700" : "bg-[#ECE7DF] text-[#6F6678]"}`}>
+          {isOpen ? "开班中" : "未开班"}
+        </span>
+      </div>
+      {error ? <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</div> : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl bg-white p-3">
+          <div className="text-xs text-[#6F6678]">备用金</div>
+          <div className="mt-1 text-lg font-semibold text-[#1F1B2D]">{formatTerminalMoney(shift?.openingCash)}</div>
+        </div>
+        <div className="rounded-xl bg-white p-3">
+          <div className="text-xs text-[#6F6678]">系统应收现金</div>
+          <div className="mt-1 text-lg font-semibold text-[#1F1B2D]">{formatTerminalMoney(shift?.systemCash)}</div>
+        </div>
+        <div className="rounded-xl bg-white p-3">
+          <div className="text-xs text-[#6F6678]">现金差异</div>
+          <div className={`mt-1 text-lg font-semibold ${Math.abs(diff) > 50 ? "text-rose-600" : "text-[#1F1B2D]"}`}>
+            {formatTerminalMoney(shift?.cashDiff)}
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {isOpen ? (
+          <>
+            <input
+              type="number"
+              min={0}
+              value={closingCash}
+              onChange={(event) => onClosingCashChange(event.target.value)}
+              placeholder="实收现金"
+              className="h-10 w-36 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69]"
+            />
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#2D1B69] px-4 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              关班
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              type="number"
+              min={0}
+              value={openingCash}
+              onChange={(event) => onOpeningCashChange(event.target.value)}
+              placeholder="备用金"
+              className="h-10 w-36 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69]"
+            />
+            <button
+              type="button"
+              onClick={onOpen}
+              disabled={loading}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#2D1B69] px-4 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+              开班
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -761,12 +1010,14 @@ export function ManagerDashboardCard({
   const riskItems = risks.map((riskItem, index) => {
     const risk = getDashboardInsightContent(riskItem, "风险提示");
     const highlight = getDashboardInsightContent(highlights[index], "Ami 建议");
+    const riskReason = risk?.reason ?? "";
+    const riskAction = risk?.action || getFallbackRiskAction(riskReason, highlight?.action);
 
     return {
       title: risk?.title ?? "经营关注事项",
       severity: risk?.severity,
-      reason: risk?.reason ?? "",
-      action: risk?.action || highlight?.action || highlight?.reason || "",
+      reason: riskReason,
+      action: riskAction,
     };
   });
   const fallbackHighlightItems = riskItems.length
@@ -785,6 +1036,7 @@ export function ManagerDashboardCard({
 
   return (
     <CardShell title={data.title} subtitle={data.subtitle}>
+      <DataUnavailableNotice status={data.apiStatus} />
       <div className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur-sm">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <div className="grid min-w-[900px] gap-3" style={{ gridTemplateColumns: `repeat(${Math.max(kpis.length, 1)}, minmax(0, 1fr))` }}>
@@ -795,7 +1047,7 @@ export function ManagerDashboardCard({
                 value={item.value}
                 hint={item.hint}
                 icon={getManagerKpiIcon(item.label)}
-                tone={getManagerKpiTone(item.label)}
+                tone={getManagerKpiTone(item.label, item.value)}
               />
             ))}
           </div>
@@ -855,28 +1107,167 @@ export function ReceptionDashboardCard({
   });
   const [createForm, setCreateForm] = React.useState({
     customerId: "",
-    appointmentTime: getDefaultAppointmentLocalTime(),
+    appointmentDate: getDefaultAppointmentDate(),
+    appointmentSlot: "",
     projectId: "",
     beauticianId: "",
     duration: "60",
     remark: "",
   });
   const [editForm, setEditForm] = React.useState({
-    appointmentTime: "",
+    appointmentDate: "",
+    appointmentSlot: "",
     projectId: "",
     beauticianId: "",
     duration: "60",
     remark: "",
   });
+  const [createAvailability, setCreateAvailability] = React.useState<TerminalReservationAvailability | null>(null);
+  const [editAvailability, setEditAvailability] = React.useState<TerminalReservationAvailability | null>(null);
+  const [createSlotsLoading, setCreateSlotsLoading] = React.useState(false);
+  const [editSlotsLoading, setEditSlotsLoading] = React.useState(false);
+  const [slotError, setSlotError] = React.useState<string | null>(null);
   const [cancelReason, setCancelReason] = React.useState("");
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [optionsLoading, setOptionsLoading] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const [cashierShift, setCashierShift] = React.useState<TerminalCashierShift | null>(null);
+  const [shiftLoading, setShiftLoading] = React.useState(false);
+  const [shiftError, setShiftError] = React.useState<string | null>(null);
+  const [openingCash, setOpeningCash] = React.useState("0");
+  const [closingCash, setClosingCash] = React.useState("");
   const items = safeArray<AppointmentItem>(currentData.items);
+  const [shiftRequired, setShiftRequired] = React.useState(() => isShiftRequired());
+  const createSlotOptions = React.useMemo(
+    () => getSlotOptionsFromAvailability(createAvailability, createForm.beauticianId, createForm.duration),
+    [createAvailability, createForm.beauticianId, createForm.duration],
+  );
+  const editSlotOptions = React.useMemo(
+    () => getSlotOptionsFromAvailability(editAvailability, editForm.beauticianId, editForm.duration),
+    [editAvailability, editForm.beauticianId, editForm.duration],
+  );
 
   React.useEffect(() => {
     setCurrentData(data);
   }, [data]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    refreshShiftRequired().then((required) => {
+      if (mounted) setShiftRequired(required);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [data.subtitle]);
+
+  React.useEffect(() => {
+    if (!shiftRequired) {
+      setCashierShift(null);
+      setShiftError(null);
+      return;
+    }
+    let mounted = true;
+    getCashierShiftStatus()
+      .then((shift) => {
+        if (mounted) setCashierShift(shift);
+      })
+      .catch((err) => {
+        if (mounted) setShiftError(err instanceof Error ? err.message : "班次状态加载失败");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [shiftRequired]);
+
+  React.useEffect(() => {
+    if (!creatingAppointment || !createForm.appointmentDate || !createForm.beauticianId) {
+      setCreateAvailability(null);
+      return;
+    }
+
+    let mounted = true;
+    setCreateSlotsLoading(true);
+    setSlotError(null);
+    getTerminalReservationAvailability({
+      date: createForm.appointmentDate,
+      projectId: createForm.projectId ? Number(createForm.projectId) : undefined,
+      beauticianId: Number(createForm.beauticianId),
+      duration: Number(createForm.duration) || undefined,
+    })
+      .then((availability) => {
+        if (!mounted) return;
+        setCreateAvailability(availability);
+        const slots = getSlotOptionsFromAvailability(availability, createForm.beauticianId, createForm.duration);
+        setCreateForm((prev) => {
+          const hasCurrent = slots.some((slot) => slot.available && slot.value === prev.appointmentSlot);
+          return hasCurrent ? prev : { ...prev, appointmentSlot: slots.find((slot) => slot.available)?.value ?? "" };
+        });
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setCreateAvailability(null);
+        setCreateForm((prev) => ({ ...prev, appointmentSlot: "" }));
+        setSlotError(err instanceof Error ? err.message : "可预约时段加载失败");
+      })
+      .finally(() => {
+        if (mounted) setCreateSlotsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    creatingAppointment,
+    createForm.appointmentDate,
+    createForm.beauticianId,
+    createForm.projectId,
+    createForm.duration,
+  ]);
+
+  React.useEffect(() => {
+    if (!editingAppointment || !editForm.appointmentDate || !editForm.beauticianId) {
+      setEditAvailability(null);
+      return;
+    }
+
+    let mounted = true;
+    setEditSlotsLoading(true);
+    setSlotError(null);
+    getTerminalReservationAvailability({
+      date: editForm.appointmentDate,
+      projectId: editForm.projectId ? Number(editForm.projectId) : undefined,
+      beauticianId: Number(editForm.beauticianId),
+      duration: Number(editForm.duration) || undefined,
+    })
+      .then((availability) => {
+        if (!mounted) return;
+        setEditAvailability(availability);
+        const slots = getSlotOptionsFromAvailability(availability, editForm.beauticianId, editForm.duration);
+        setEditForm((prev) => {
+          const hasCurrent = slots.some((slot) => slot.value === prev.appointmentSlot);
+          return hasCurrent ? prev : { ...prev, appointmentSlot: slots.find((slot) => slot.available)?.value ?? "" };
+        });
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setEditAvailability(null);
+        setSlotError(err instanceof Error ? err.message : "可预约时段加载失败");
+      })
+      .finally(() => {
+        if (mounted) setEditSlotsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    editingAppointment,
+    editForm.appointmentDate,
+    editForm.beauticianId,
+    editForm.projectId,
+    editForm.duration,
+  ]);
 
   const refreshAppointments = async () => {
     try {
@@ -891,17 +1282,49 @@ export function ReceptionDashboardCard({
     await refreshAppointments();
   };
 
+  const handleOpenShift = async () => {
+    setShiftLoading(true);
+    setShiftError(null);
+    try {
+      const shift = await openCashierShift(Number(openingCash) || 0);
+      setCashierShift(shift);
+      setClosingCash("");
+    } catch (err) {
+      setShiftError(err instanceof Error ? err.message : "开班失败，请稍后重试");
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
+  const handleCloseShift = async () => {
+    if (!cashierShift?.id) return;
+    setShiftLoading(true);
+    setShiftError(null);
+    try {
+      const shift = await closeCashierShift(cashierShift.id, Number(closingCash) || 0);
+      setCashierShift(shift);
+      setClosingCash("");
+    } catch (err) {
+      setShiftError(err instanceof Error ? err.message : "关班失败，请稍后重试");
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
   const openCreateDialog = async () => {
     setLocalError(null);
     setCreatingAppointment(true);
     setCreateForm({
       customerId: "",
-      appointmentTime: getDefaultAppointmentLocalTime(),
+      appointmentDate: getDefaultAppointmentDate(),
+      appointmentSlot: "",
       projectId: "",
       beauticianId: "",
       duration: "60",
       remark: "",
     });
+    setCreateAvailability(null);
+    setSlotError(null);
     setOptionsLoading(true);
     try {
       const options = await getAppointmentCreateOptions();
@@ -915,8 +1338,13 @@ export function ReceptionDashboardCard({
   };
 
   const handleCreateAppointment = async () => {
-    if (!createForm.customerId || !createForm.appointmentTime || !createForm.projectId || !createForm.beauticianId) {
-      setLocalError("请完善客户、预约时间、项目和美容师");
+    if (!createForm.customerId || !createForm.appointmentDate || !createForm.appointmentSlot || !createForm.projectId || !createForm.beauticianId) {
+      setLocalError("请完善客户、预约日期、预约时间段、项目和美容师");
+      return;
+    }
+    const selectedSlot = createSlotOptions.find((slot) => slot.value === createForm.appointmentSlot);
+    if (selectedSlot && !selectedSlot.available) {
+      setLocalError(selectedSlot.reason || "请选择可预约时间段");
       return;
     }
     setActionLoading("create");
@@ -924,7 +1352,7 @@ export function ReceptionDashboardCard({
     try {
       const result = await createAppointmentFromTerminal({
         customerId: Number(createForm.customerId),
-        appointmentTime: toApiDateTime(createForm.appointmentTime),
+        appointmentTime: toApiDateTimeFromSlot(createForm.appointmentDate, createForm.appointmentSlot),
         projectId: Number(createForm.projectId),
         beauticianId: Number(createForm.beauticianId),
         duration: Number(createForm.duration) || 60,
@@ -942,8 +1370,11 @@ export function ReceptionDashboardCard({
   const openEditDialog = async (item: AppointmentItem) => {
     setLocalError(null);
     setEditingAppointment(item);
+    setEditAvailability(null);
+    setSlotError(null);
     setEditForm({
-      appointmentTime: toDateTimeLocalValue(item.appointmentTime),
+      appointmentDate: toAppointmentDateValue(item.appointmentTime),
+      appointmentSlot: toAppointmentSlotValue(item.appointmentTime),
       projectId: item.projectId ? String(item.projectId) : "",
       beauticianId: item.beauticianId ? String(item.beauticianId) : "",
       duration: String(item.duration || 60),
@@ -973,8 +1404,14 @@ export function ReceptionDashboardCard({
 
   const handleSaveEdit = async () => {
     if (!editingAppointment) return;
-    if (!editForm.appointmentTime) {
-      setLocalError("请选择预约时间");
+    if (!editForm.appointmentDate || !editForm.appointmentSlot) {
+      setLocalError("请选择预约日期和时间段");
+      return;
+    }
+    const selectedSlot = editSlotOptions.find((slot) => slot.value === editForm.appointmentSlot);
+    const originalSlot = toAppointmentSlotValue(editingAppointment.appointmentTime);
+    if (selectedSlot && !selectedSlot.available && selectedSlot.value !== originalSlot) {
+      setLocalError(selectedSlot.reason || "请选择可预约时间段");
       return;
     }
     const project = appointmentOptions.projects.find((item) => String(item.id) === editForm.projectId);
@@ -983,7 +1420,7 @@ export function ReceptionDashboardCard({
     setLocalError(null);
     try {
       const result = await updateAppointmentFromTerminal(editingAppointment.id, {
-        appointmentTime: toApiDateTime(editForm.appointmentTime),
+        appointmentTime: toApiDateTimeFromSlot(editForm.appointmentDate, editForm.appointmentSlot),
         projectId: project?.id ?? editingAppointment.projectId,
         projectName: project?.name ?? editingAppointment.projectName,
         beauticianId: beautician?.id ?? editingAppointment.beauticianId,
@@ -1042,6 +1479,7 @@ export function ReceptionDashboardCard({
 
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+      <DataUnavailableNotice status={data.apiStatus} />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-[#1F1B2D]">今日预约</h2>
@@ -1059,6 +1497,20 @@ export function ReceptionDashboardCard({
           </button>
         </div>
       </div>
+
+      {shiftRequired ? (
+        <CashierShiftPanel
+          shift={cashierShift}
+          openingCash={openingCash}
+          closingCash={closingCash}
+          loading={shiftLoading}
+          error={shiftError}
+          onOpeningCashChange={setOpeningCash}
+          onClosingCashChange={setClosingCash}
+          onOpen={() => void handleOpenShift()}
+          onClose={() => void handleCloseShift()}
+        />
+      ) : null}
 
       {localError ? (
         <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-600">
@@ -1171,15 +1623,42 @@ export function ReceptionDashboardCard({
                 ))}
               </select>
             </label>
-            <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
-              预约时间
-              <input
-                type="datetime-local"
-                value={createForm.appointmentTime}
-                onChange={(event) => setCreateForm((prev) => ({ ...prev, appointmentTime: event.target.value }))}
-                className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69]"
-              />
-            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
+                预约日期
+                <input
+                  type="date"
+                  value={createForm.appointmentDate}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, appointmentDate: event.target.value, appointmentSlot: "" }))}
+                  className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69]"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
+                预约时间段
+                <select
+                  value={createForm.appointmentSlot}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, appointmentSlot: event.target.value }))}
+                  disabled={!createForm.beauticianId || createSlotsLoading || !createSlotOptions.length}
+                  className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69] disabled:bg-[#F7F5F2]"
+                >
+                  <option value="">
+                    {!createForm.beauticianId
+                      ? "请先选择美容师"
+                      : createSlotsLoading
+                        ? "正在加载排班时段"
+                        : createSlotOptions.length
+                          ? "请选择时间段"
+                          : "当前无可用时段"}
+                  </option>
+                  {createSlotOptions.map((slot) => (
+                    <option key={slot.value} value={slot.value} disabled={!slot.available}>
+                      {slot.label}
+                      {!slot.available && slot.reason ? ` · ${slot.reason}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
                 项目
@@ -1280,15 +1759,45 @@ export function ReceptionDashboardCard({
             <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm text-[#6F6678]">
               {editingAppointment?.customerName} · {editingAppointment?.customerPhone} · {editingAppointment?.projectName}
             </div>
-            <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
-              预约时间
-              <input
-                type="datetime-local"
-                value={editForm.appointmentTime}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, appointmentTime: event.target.value }))}
-                className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69]"
-              />
-            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
+                预约日期
+                <input
+                  type="date"
+                  value={editForm.appointmentDate}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, appointmentDate: event.target.value, appointmentSlot: "" }))}
+                  className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69]"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
+                预约时间段
+                <select
+                  value={editForm.appointmentSlot}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, appointmentSlot: event.target.value }))}
+                  disabled={!editForm.beauticianId || editSlotsLoading || !editSlotOptions.length}
+                  className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69] disabled:bg-[#F7F5F2]"
+                >
+                  <option value="">
+                    {!editForm.beauticianId
+                      ? "请先选择美容师"
+                      : editSlotsLoading
+                        ? "正在加载排班时段"
+                        : editSlotOptions.length
+                          ? "请选择时间段"
+                          : "当前无可用时段"}
+                  </option>
+                  {editSlotOptions.map((slot) => {
+                    const originalSlot = editingAppointment ? toAppointmentSlotValue(editingAppointment.appointmentTime) : "";
+                    return (
+                      <option key={slot.value} value={slot.value} disabled={!slot.available && slot.value !== originalSlot}>
+                        {slot.label}
+                        {!slot.available && slot.reason ? ` · ${slot.reason}` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
                 项目
@@ -1427,41 +1936,68 @@ export function ReceptionDashboardCard({
 
 export function BeauticianDashboardCard({
   data,
+  focus,
 }: {
   data: StaffScheduleCardData;
+  focus?: "schedule" | "commission";
 }) {
-  const specialties = safeArray(data.beautician.specialties);
-  const dayOptions = getTerminalDayOptions(data.weekStart);
+  const resolvedWeekStart = data.weekStart ?? getTerminalCurrentWeekStart();
+  const dayOptions = getTerminalDayOptions(resolvedWeekStart);
   const [activeDayIndex, setActiveDayIndex] = React.useState(0);
-  const [weekSlots, setWeekSlots] = React.useState<ScheduleSlot[][]>(() => cloneTerminalWeekSlots(data.weekSlots));
-  const [editingSlot, setEditingSlot] = React.useState<TerminalEditingSlot>(null);
+  const [weekSlots, setWeekSlots] = React.useState<ScheduleSlot[][]>(() => normalizeTerminalWeekSlots(data.weekSlots));
   const [savingSlot, setSavingSlot] = React.useState<string | null>(null);
   const [scheduleError, setScheduleError] = React.useState<string | null>(null);
+  const [commissionExpanded, setCommissionExpanded] = React.useState(focus === "commission");
+  const [commissionLoading, setCommissionLoading] = React.useState(false);
+  const [commissionError, setCommissionError] = React.useState<string | null>(null);
+  const [commissionDetail, setCommissionDetail] = React.useState(data.commission);
   const activeDay = dayOptions[activeDayIndex] ?? dayOptions[0];
   const activeSlots = activeDay.dayIndex >= 0 ? (weekSlots[activeDay.dayIndex] ?? []) : [];
-  const activeUtilization = getTerminalDayUtilization(activeSlots);
+  const commission = commissionDetail ?? data.commission;
+  const quality = data.quality;
+  const displayedCommissionRecords = commissionExpanded ? safeArray(commission?.monthRecords ?? commission?.recentRecords) : safeArray(commission?.recentRecords);
+  const showSchedule = focus !== "commission";
+  const showCommission = focus !== "schedule";
+  const showQuality = !focus && Boolean(quality);
+  const dashboardTitle = focus === "commission" ? "我的提成" : focus === "schedule" ? "我的预约" : data.title;
 
   React.useEffect(() => {
-    setWeekSlots(cloneTerminalWeekSlots(data.weekSlots));
-    setEditingSlot(null);
+    setWeekSlots(normalizeTerminalWeekSlots(data.weekSlots));
     setScheduleError(null);
   }, [data.beautician.id, data.weekSlots]);
 
+  React.useEffect(() => {
+    setCommissionDetail(data.commission);
+    setCommissionError(null);
+  }, [data.beautician.id, data.commission]);
+
+  React.useEffect(() => {
+    if (focus === "commission") setCommissionExpanded(true);
+  }, [focus]);
+
+  React.useEffect(() => {
+    if (!commissionExpanded || !data.beautician.id) return;
+    if (safeArray(commissionDetail?.monthRecords).length > safeArray(data.commission?.recentRecords).length) return;
+    let mounted = true;
+    setCommissionLoading(true);
+    setCommissionError(null);
+    getTerminalBeauticianCommission(data.beautician.id, "month", 50)
+      .then((next) => {
+        if (mounted) setCommissionDetail(next);
+      })
+      .catch((error) => {
+        if (mounted) setCommissionError(error instanceof Error ? error.message : "提成明细加载失败");
+      })
+      .finally(() => {
+        if (mounted) setCommissionLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [commissionExpanded, commissionDetail?.monthRecords, data.beautician.id, data.commission?.recentRecords]);
+
   const handleDayChange = (index: number) => {
     setActiveDayIndex(index);
-    setEditingSlot(null);
-  };
-
-  const openSlotMenu = (dayIndex: number, slot: TerminalDisplaySlot) => {
-    if (!data.weekStart || dayIndex < 0) return;
-    const currentSlots = weekSlots[dayIndex] ?? [];
-    const currentStatus = getTerminalDisplaySlotStatus(currentSlots, activeDay, slot);
-    if (currentStatus === "expired" || currentStatus === "booked") return;
-    setEditingSlot((current) =>
-      current?.beauticianId === data.beautician.id && current.dayIndex === dayIndex && current.slotLabel === slot.label
-        ? null
-        : { beauticianId: data.beautician.id, dayIndex, slotLabel: slot.label },
-    );
   };
 
   const handleSlotStatusChange = async (
@@ -1469,22 +2005,22 @@ export function BeauticianDashboardCard({
     slot: TerminalDisplaySlot,
     status: TerminalEditableScheduleStatus,
   ) => {
-    if (!data.weekStart || dayIndex < 0) {
-      setScheduleError("当前排班缺少周起始日期，暂时无法保存。");
+    if (dayIndex < 0) {
+      setScheduleError("当前日期不在本周排班范围内，暂时无法保存。");
       return;
     }
     const key = getTerminalSlotKey(data.beautician.id, dayIndex, slot);
-    const previousSlots = cloneTerminalWeekSlots(weekSlots);
-    const nextSlots = cloneTerminalWeekSlots(weekSlots);
+    const previousSlots = normalizeTerminalWeekSlots(weekSlots);
+    const nextSlots = normalizeTerminalWeekSlots(weekSlots);
     nextSlots[dayIndex] = setTerminalDisplaySlotStatus(nextSlots[dayIndex] ?? [], slot, status);
 
     setSavingSlot(key);
-    setEditingSlot(null);
     setScheduleError(null);
     setWeekSlots(nextSlots);
 
     try {
-      await saveSchedule({ beauticianId: data.beautician.id, weekStart: data.weekStart, slots: nextSlots });
+      await saveSchedule({ beauticianId: data.beautician.id, weekStart: resolvedWeekStart, slots: nextSlots });
+      invalidateTerminalScheduleCaches();
     } catch (error) {
       console.warn("保存终端排班失败", error);
       setWeekSlots(previousSlots);
@@ -1495,29 +2031,140 @@ export function BeauticianDashboardCard({
   };
 
   return (
-    <CardShell title={data.title} subtitle={data.subtitle}>
-      <div className="rounded-2xl border border-[#2D1B69]/10 bg-[#2D1B69]/6 p-4">
-        <div className="text-base font-semibold text-[#1F1B2D]">{data.beautician.name}</div>
-        <p className="mt-1 text-sm text-[#6F6678]">
-          {activeDay.label}共有 {activeSlots.length} 个排班时段，占用率 {activeUtilization}。
-        </p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
+    <CardShell title={dashboardTitle} subtitle={data.subtitle}>
+      <DataUnavailableNotice status={data.apiStatus} />
+      {showQuality && quality ? (
         <div className="rounded-2xl border border-black/5 bg-white p-4">
-          <div className="text-xs text-[#6F6678]">状态</div>
-          <div className="mt-2 text-lg font-semibold text-[#1F1B2D]">{data.beautician.status}</div>
-          <div className="mt-1 text-sm text-[#6F6678]">{activeDay.label}占用率 {activeUtilization}</div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-[#1F1B2D]">服务质量与复购贡献</div>
+              <div className="mt-1 text-xs text-[#6F6678]">按本人本月服务任务、服务记录和提成来源汇总</div>
+            </div>
+            <div className="rounded-full bg-[#F7F5F2] px-3 py-1 text-xs font-medium text-[#6F6678]">
+              完成 {quality.completedCount}/{quality.activeTaskCount}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl bg-[#F7F5F2] p-3">
+              <div className="text-xs text-[#6F6678]">完成率</div>
+              <div className="mt-1 text-lg font-bold text-[#1F1B2D]">{quality.completionRate}%</div>
+            </div>
+            <div className="rounded-xl bg-[#F7F5F2] p-3">
+              <div className="text-xs text-[#6F6678]">记录完整率</div>
+              <div className="mt-1 text-lg font-bold text-[#1F1B2D]">{quality.recordRate}%</div>
+            </div>
+            <div className="rounded-xl bg-[#F7F5F2] p-3">
+              <div className="text-xs text-[#6F6678]">复购客户</div>
+              <div className="mt-1 text-lg font-bold text-[#1F1B2D]">{quality.repurchaseOpportunityCount} 位</div>
+            </div>
+            <div className="rounded-xl bg-[#F7F5F2] p-3">
+              <div className="text-xs text-[#6F6678]">关联收入</div>
+              <div className="mt-1 text-lg font-bold text-[#1F1B2D]">{formatTerminalMoney(quality.revenueContributionAmount)}</div>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-black/5 bg-[#FAF9F7] p-3">
+              <div className="mb-2 text-xs font-medium text-[#6F6678]">分析结论</div>
+              <ul className="space-y-1 text-sm leading-6 text-[#1F1B2D]">
+                {safeArray(quality.highlights).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-[#C9956C]/20 bg-[#C9956C]/10 p-3">
+              <div className="mb-2 text-xs font-medium text-[#A8764D]">下步建议</div>
+              <ul className="space-y-1 text-sm leading-6 text-[#1F1B2D]">
+                {safeArray(quality.suggestions).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
-        <div className="rounded-2xl border border-black/5 bg-white p-4">
-          <div className="text-xs text-[#6F6678]">专长</div>
-          <div className="mt-2 text-sm text-[#1F1B2D]">{specialties.join("、") || "暂无专长信息"}</div>
-        </div>
-        <div className="rounded-2xl border border-black/5 bg-white p-4">
-          <div className="text-xs text-[#6F6678]">门店</div>
-          <div className="mt-2 text-sm text-[#1F1B2D]">{data.beautician.storeName}</div>
-        </div>
-      </div>
+      ) : null}
 
+      {showCommission ? (
+      <div className="rounded-2xl border border-black/5 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-[#1F1B2D]">我的提成</div>
+            <div className="mt-1 text-xs text-[#6F6678]">包含待确认与已确认流水</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCommissionExpanded((current) => !current)}
+            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+          >
+            {commissionExpanded ? "收起月度明细" : `展开本月 ${commission?.monthCount ?? 0} 笔`}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+            <div className="text-xs text-emerald-700">今日提成</div>
+            <div className="mt-2 text-xl font-bold text-[#1F1B2D]">{formatTerminalMoney(commission?.todayAmount)}</div>
+            <div className="mt-1 text-xs text-[#6F6678]">{commission?.todayCount ?? 0} 笔</div>
+          </div>
+          <div className="rounded-2xl border border-[#2D1B69]/10 bg-[#2D1B69]/6 p-4">
+            <div className="text-xs text-[#2D1B69]">本月累计</div>
+            <div className="mt-2 text-xl font-bold text-[#1F1B2D]">{formatTerminalMoney(commission?.monthAmount)}</div>
+            <div className="mt-1 text-xs text-[#6F6678]">待确认 {formatTerminalMoney(commission?.monthPendingAmount)}</div>
+          </div>
+          <div className="rounded-2xl border border-[#C9956C]/20 bg-[#C9956C]/10 p-4">
+            <div className="text-xs text-[#A8764D]">已确认/结算</div>
+            <div className="mt-2 text-xl font-bold text-[#1F1B2D]">{formatTerminalMoney(commission?.monthConfirmedAmount)}</div>
+            <div className="mt-1 text-xs text-[#6F6678]">实时随订单更新</div>
+          </div>
+        </div>
+        {safeArray(commission?.breakdown).length ? (
+          <div className="mt-4 rounded-2xl border border-black/5 bg-[#FAF9F7] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-[#1F1B2D]">本月构成</div>
+              <div className="text-xs text-[#6F6678]">按项目、商品、开卡、充值拆分</div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {safeArray(commission?.breakdown).map((item) => (
+                <div key={item.type} className="rounded-xl border border-black/5 bg-white px-3 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-[#1F1B2D]">{item.label || item.type}</div>
+                    <div className="text-sm font-semibold text-[#1F1B2D]">{formatTerminalMoney(item.amount)}</div>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6F6678]">
+                    <span>{item.count} 笔</span>
+                    <span>来源 {formatTerminalMoney(item.sourceAmount)}</span>
+                    <span>待确认 {formatTerminalMoney(item.pendingAmount)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {commissionLoading ? (
+          <div className="mt-4 rounded-2xl border border-black/5 bg-[#FAF9F7] px-4 py-3 text-sm text-[#6F6678]">
+            正在加载完整月度提成明细...
+          </div>
+        ) : null}
+        {commissionError ? (
+          <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+            {commissionError}
+          </div>
+        ) : null}
+        {displayedCommissionRecords.length ? (
+          <div className="mt-4 divide-y divide-black/5 overflow-hidden rounded-2xl border border-black/5">
+            {displayedCommissionRecords.map((record) => (
+              <div key={record.id} className="flex items-center justify-between gap-3 bg-[#FAF9F7] px-4 py-3 text-sm">
+                <div>
+                  <div className="font-medium text-[#1F1B2D]">{record.orderItem?.name ?? record.ruleName ?? record.type}</div>
+                  <div className="text-xs text-[#6F6678]">{record.orderNo ?? "未关联订单"} · {record.status}</div>
+                </div>
+                <div className="font-semibold text-[#1F1B2D]">{formatTerminalMoney(record.amount)}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      ) : null}
+
+      {showSchedule ? (
       <div className="overflow-hidden rounded-2xl border border-black/5 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 bg-[#F7F5F2] px-4 py-3">
           <div>
@@ -1527,30 +2174,33 @@ export function BeauticianDashboardCard({
           <TerminalScheduleDayTabs options={dayOptions} activeIndex={activeDayIndex} onChange={handleDayChange} />
         </div>
         {scheduleError ? <div className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-600">{scheduleError}</div> : null}
-        <div className="grid gap-2 p-4 md:grid-cols-3">
-          {TERMINAL_DISPLAY_SLOTS.map((slot) => {
-            const status = getTerminalDisplaySlotStatus(activeSlots, activeDay, slot);
-            const key = getTerminalSlotKey(data.beautician.id, activeDay.dayIndex, slot);
-            const menuOpen =
-              editingSlot?.beauticianId === data.beautician.id &&
-              editingSlot.dayIndex === activeDay.dayIndex &&
-              editingSlot.slotLabel === slot.label;
+        {activeSlots.length ? (
+          <div className="grid gap-2 p-4 md:grid-cols-3">
+            {TERMINAL_DISPLAY_SLOTS.map((slot) => {
+              const status = getTerminalDisplaySlotStatus(activeSlots, activeDay, slot);
+              const key = getTerminalSlotKey(data.beautician.id, activeDay.dayIndex, slot);
 
-            return (
-              <div key={`${data.beautician.id}-${activeDay.fullDate}-${slot.label}`} className="bg-[#FAF9F7] p-1">
-                <TerminalScheduleSlotButton
-                  slot={slot}
-                  status={status}
-                  menuOpen={menuOpen}
-                  saving={savingSlot === key}
-                  onOpen={() => openSlotMenu(activeDay.dayIndex, slot)}
-                  onSelect={(nextStatus) => void handleSlotStatusChange(activeDay.dayIndex, slot, nextStatus)}
-                />
-              </div>
-            );
-          })}
-        </div>
+              return (
+                <div key={`${data.beautician.id}-${activeDay.fullDate}-${slot.label}`} className="bg-[#FAF9F7] p-1">
+                  <TerminalScheduleSlotButton
+                    slot={slot}
+                    status={status}
+                    saving={savingSlot === key}
+                    onSelect={(nextStatus) => void handleSlotStatusChange(activeDay.dayIndex, slot, nextStatus)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-4">
+            <div className="rounded-2xl border border-dashed border-black/10 bg-[#F7F5F2] px-4 py-6 text-center text-sm text-[#6F6678]">
+              暂无排班数据
+            </div>
+          </div>
+        )}
       </div>
+      ) : null}
     </CardShell>
   );
 }
@@ -1561,39 +2211,23 @@ export function StaffPerformanceCard({
   items: StaffScheduleCardData[];
 }) {
   const staffItems = safeArray(items);
-  const weekStart = staffItems.find((item) => item.weekStart)?.weekStart;
-  const dayOptions = getTerminalDayOptions(weekStart);
+  const resolvedWeekStart = staffItems.find((item) => item.weekStart)?.weekStart ?? getTerminalCurrentWeekStart();
+  const dayOptions = getTerminalDayOptions(resolvedWeekStart);
   const [activeDayIndex, setActiveDayIndex] = React.useState(0);
   const [scheduleByBeautician, setScheduleByBeautician] = React.useState<Record<number, ScheduleSlot[][]>>(() =>
     buildTerminalScheduleMap(staffItems),
   );
-  const [editingSlot, setEditingSlot] = React.useState<TerminalEditingSlot>(null);
   const [savingSlot, setSavingSlot] = React.useState<string | null>(null);
   const [scheduleError, setScheduleError] = React.useState<string | null>(null);
   const activeDay = dayOptions[activeDayIndex] ?? dayOptions[0];
 
   React.useEffect(() => {
     setScheduleByBeautician(buildTerminalScheduleMap(staffItems));
-    setEditingSlot(null);
     setScheduleError(null);
   }, [items]);
 
   const handleDayChange = (index: number) => {
     setActiveDayIndex(index);
-    setEditingSlot(null);
-  };
-
-  const openSlotMenu = (item: StaffScheduleCardData, dayIndex: number, slot: TerminalDisplaySlot) => {
-    const targetWeekStart = item.weekStart ?? weekStart;
-    if (!targetWeekStart || dayIndex < 0) return;
-    const currentSlots = scheduleByBeautician[item.beautician.id]?.[dayIndex] ?? [];
-    const currentStatus = getTerminalDisplaySlotStatus(currentSlots, activeDay, slot);
-    if (currentStatus === "expired" || currentStatus === "booked") return;
-    setEditingSlot((current) =>
-      current?.beauticianId === item.beautician.id && current.dayIndex === dayIndex && current.slotLabel === slot.label
-        ? null
-        : { beauticianId: item.beautician.id, dayIndex, slotLabel: slot.label },
-    );
   };
 
   const handleSlotStatusChange = async (
@@ -1602,25 +2236,25 @@ export function StaffPerformanceCard({
     slot: TerminalDisplaySlot,
     status: TerminalEditableScheduleStatus,
   ) => {
-    const targetWeekStart = item.weekStart ?? weekStart;
-    if (!targetWeekStart || dayIndex < 0) {
-      setScheduleError("当前排班缺少周起始日期，暂时无法保存。");
+    const targetWeekStart = item.weekStart ?? resolvedWeekStart;
+    if (dayIndex < 0) {
+      setScheduleError("当前日期不在本周排班范围内，暂时无法保存。");
       return;
     }
 
     const beauticianId = item.beautician.id;
     const key = getTerminalSlotKey(beauticianId, dayIndex, slot);
-    const previousSlots = cloneTerminalWeekSlots(scheduleByBeautician[beauticianId] ?? item.weekSlots);
-    const nextSlots = cloneTerminalWeekSlots(scheduleByBeautician[beauticianId] ?? item.weekSlots);
+    const previousSlots = normalizeTerminalWeekSlots(scheduleByBeautician[beauticianId] ?? item.weekSlots);
+    const nextSlots = normalizeTerminalWeekSlots(scheduleByBeautician[beauticianId] ?? item.weekSlots);
     nextSlots[dayIndex] = setTerminalDisplaySlotStatus(nextSlots[dayIndex] ?? [], slot, status);
 
     setSavingSlot(key);
-    setEditingSlot(null);
     setScheduleError(null);
     setScheduleByBeautician((current) => ({ ...current, [beauticianId]: nextSlots }));
 
     try {
       await saveSchedule({ beauticianId, weekStart: targetWeekStart, slots: nextSlots });
+      invalidateTerminalScheduleCaches();
     } catch (error) {
       console.warn("保存终端排班失败", error);
       setScheduleByBeautician((current) => ({ ...current, [beauticianId]: previousSlots }));
@@ -1650,51 +2284,44 @@ export function StaffPerformanceCard({
         <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-rose-200 bg-rose-50" />请假</span>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-black/5 bg-white">
-        <div className="overflow-x-auto">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-black/5 bg-white">
+        <div className="max-w-full overflow-x-auto pb-2">
           <div
             className="grid"
             style={{
-              minWidth: `${Math.max(760, 128 + staffItems.length * 150)}px`,
-              gridTemplateColumns: `128px repeat(${Math.max(staffItems.length, 1)}, minmax(150px, 1fr))`,
+              minWidth: `${Math.max(680, 112 + staffItems.length * 124)}px`,
+              gridTemplateColumns: `112px repeat(${Math.max(staffItems.length, 1)}, minmax(124px, 1fr))`,
             }}
           >
-            <div className="border-b border-r border-black/5 bg-[#F7F5F2] px-3 py-3 text-center text-xs font-medium text-[#6F6678]">
+            <div className="border-b border-r border-black/5 bg-[#F7F5F2] px-2 py-3 text-center text-xs font-medium text-[#6F6678]">
               时段
             </div>
             {staffItems.map((item) => {
               const daySlots = scheduleByBeautician[item.beautician.id]?.[activeDay.dayIndex] ?? [];
               return (
-                <div key={item.beautician.id} className="border-b border-r border-black/5 bg-[#F7F5F2] px-3 py-3 text-center">
-                  <div className="text-sm font-semibold text-[#1F1B2D]">{item.beautician.name}</div>
-                  <div className="mt-0.5 text-[11px] text-[#6F6678]">
-                    {item.beautician.level} · 占用率 {getTerminalDayUtilization(daySlots)}
-                  </div>
+                <div key={item.beautician.id} className="min-w-0 border-b border-r border-black/5 bg-[#F7F5F2] px-2 py-3 text-center">
+                  <div className="truncate text-sm font-semibold text-[#1F1B2D]">{item.beautician.name}</div>
+                  <div className="mt-0.5 truncate text-[11px] text-[#6F6678]">{item.beautician.level}</div>
+                  <div className="mt-0.5 text-[11px] text-[#9B92A3]">占用 {getTerminalDayUtilization(daySlots)}</div>
                 </div>
               );
             })}
 
             {TERMINAL_DISPLAY_SLOTS.map((slot) => (
               <React.Fragment key={`${activeDay.fullDate}-${slot.label}`}>
-                <div className="border-b border-r border-black/5 bg-[#FAF9F7] px-3 py-3 text-center text-xs font-medium text-[#6F6678]">
+                <div className="border-b border-r border-black/5 bg-[#FAF9F7] px-2 py-3 text-center text-xs font-medium text-[#6F6678]">
                   {slot.label}
                 </div>
                 {staffItems.map((item) => {
                   const daySlots = scheduleByBeautician[item.beautician.id]?.[activeDay.dayIndex] ?? [];
                   const status = getTerminalDisplaySlotStatus(daySlots, activeDay, slot);
                   const key = getTerminalSlotKey(item.beautician.id, activeDay.dayIndex, slot);
-                  const menuOpen =
-                    editingSlot?.beauticianId === item.beautician.id &&
-                    editingSlot.dayIndex === activeDay.dayIndex &&
-                    editingSlot.slotLabel === slot.label;
                   return (
-                    <div key={`${item.beautician.id}-${activeDay.fullDate}-${slot.label}`} className="border-b border-r border-black/5 bg-[#FAF9F7] p-2">
+                    <div key={`${item.beautician.id}-${activeDay.fullDate}-${slot.label}`} className="min-w-0 border-b border-r border-black/5 bg-[#FAF9F7] p-1.5">
                       <TerminalScheduleSlotButton
                         slot={slot}
                         status={status}
-                        menuOpen={menuOpen}
                         saving={savingSlot === key}
-                        onOpen={() => openSlotMenu(item, activeDay.dayIndex, slot)}
                         onSelect={(nextStatus) => void handleSlotStatusChange(item, activeDay.dayIndex, slot, nextStatus)}
                       />
                     </div>
@@ -1715,19 +2342,74 @@ export function CustomerGrowthCard({
   customers: CustomerCardData[];
 }) {
   const customerItems = safeArray(customers);
+  const [updatingTaskIds, setUpdatingTaskIds] = React.useState<Set<number>>(new Set());
+  const [completionTask, setCompletionTask] = React.useState<CustomerCardData | null>(null);
+  const [completionResultType, setCompletionResultType] = React.useState("contacted");
+  const [completionNote, setCompletionNote] = React.useState("");
+  const updateFollowUpTask = async (taskId: number, action: "start" | "complete") => {
+    setUpdatingTaskIds((current) => new Set(current).add(taskId));
+    try {
+      if (action === "start") {
+        await startTerminalFollowUpTask(taskId);
+      } else {
+        await completeTerminalFollowUpTask(taskId, {
+          resultType: completionResultType,
+          result: completionNote || "终端已完成客户跟进",
+        });
+        setCompletionTask(null);
+        setCompletionNote("");
+        setCompletionResultType("contacted");
+      }
+    } finally {
+      setUpdatingTaskIds((current) => {
+        const next = new Set(current);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
   return (
-    <CardShell title="客户增长与流失风险" subtitle="直接使用 Ami_Core 客户数据">
+    <CardShell title="客户增长与流失风险" subtitle="优先展示管理端下发任务，无任务时展示系统建议">
       <div className="flex flex-col gap-3">
         {customerItems.map((item) => (
-          <div key={item.customer.id} className="rounded-2xl border border-black/5 bg-white p-4">
+          <div key={item.followUpTask ? `task-${item.followUpTask.id}` : `customer-${item.customer.id}`} className="rounded-2xl border border-black/5 bg-white p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
                   <div className="text-base font-semibold text-[#1F1B2D]">{item.customer.name}</div>
                   <span className="rounded-full bg-[#2D1B69]/6 px-2 py-0.5 text-[11px] text-[#2D1B69]">{item.customer.memberLevel}</span>
+                  {item.followUpTask && (
+                    <span className="rounded-full bg-[#E8F6EF] px-2 py-0.5 text-[11px] text-[#157A4A]">
+                      管理端下发
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-[#6F6678]">{item.summary}</p>
               </div>
+              {item.followUpTask && (
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    disabled={updatingTaskIds.has(item.followUpTask.id) || item.followUpTask.status === "in_progress"}
+                    onClick={() => void updateFollowUpTask(item.followUpTask!.id, "start")}
+                    className="rounded-full border border-[#2D1B69]/20 px-3 py-1 text-xs text-[#2D1B69] disabled:opacity-50"
+                  >
+                    开始处理
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updatingTaskIds.has(item.followUpTask.id)}
+                    onClick={() => {
+                      setCompletionTask(item);
+                      setCompletionResultType("contacted");
+                      setCompletionNote("");
+                    }}
+                    className="rounded-full bg-[#2D1B69] px-3 py-1 text-xs text-white disabled:opacity-50"
+                  >
+                    标记完成
+                  </button>
+                </div>
+              )}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {safeArray(item.reasons).map((reason) => (
@@ -1739,6 +2421,58 @@ export function CustomerGrowthCard({
           </div>
         ))}
       </div>
+      <Dialog open={Boolean(completionTask)} onOpenChange={(open) => !open && setCompletionTask(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>完成跟进</DialogTitle>
+            <DialogDescription>
+              {completionTask?.customer.name || '客户'} 的终端跟进结果会回写管理端，用于营销闭环复盘。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <label className="block text-sm text-[#6F6678]">
+              跟进结果
+              <select
+                value={completionResultType}
+                onChange={(event) => setCompletionResultType(event.target.value)}
+                className="mt-2 h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-[#1F1B2D]"
+              >
+                <option value="contacted">已联系</option>
+                <option value="booked">已预约</option>
+                <option value="not_reached">未接通</option>
+                <option value="refused">客户拒绝</option>
+                <option value="converted">已成交</option>
+              </select>
+            </label>
+            <label className="block text-sm text-[#6F6678]">
+              跟进备注
+              <textarea
+                value={completionNote}
+                onChange={(event) => setCompletionNote(event.target.value)}
+                className="mt-2 min-h-24 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-[#1F1B2D]"
+                placeholder="记录客户反馈、预约意向或下次跟进时间"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setCompletionTask(null)}
+              className="rounded-full border border-black/10 px-4 py-2 text-sm text-[#6F6678]"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={!completionTask?.followUpTask || updatingTaskIds.has(completionTask.followUpTask.id)}
+              onClick={() => completionTask?.followUpTask && void updateFollowUpTask(completionTask.followUpTask.id, "complete")}
+              className="rounded-full bg-[#2D1B69] px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              确认完成
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CardShell>
   );
 }
@@ -1752,6 +2486,7 @@ export function InventoryAlertsCard({
   const expiring = safeArray(data.expiring);
   return (
     <CardShell title={data.title} subtitle={data.subtitle}>
+      <DataUnavailableNotice status={data.apiStatus} />
       <div className="rounded-2xl border border-black/5 bg-[#F7F5F2] p-4 text-sm text-[#6F6678]">{data.summary}</div>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-2xl border border-black/5 bg-white p-4">
@@ -1828,6 +2563,103 @@ export function CustomerProfileCard({
             </div>
           ))}
         </div>
+      </div>
+    </CardShell>
+  );
+}
+
+export function BeauticianCustomerListCard({
+  data,
+  onViewDetail,
+}: {
+  data: BeauticianCustomerListData;
+  onViewDetail: (action: string) => void;
+}) {
+  const groups = safeArray(data.groups);
+  const items = safeArray(data.items);
+  return (
+    <CardShell title={data.title} subtitle={data.subtitle}>
+      <div className="rounded-2xl border border-black/5 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-[#1F1B2D]">客户标签统计</div>
+            <div className="mt-1 text-xs text-[#6F6678]">{data.summary}</div>
+          </div>
+          <div className="rounded-full bg-[#2D1B69]/6 px-3 py-1 text-xs font-medium text-[#2D1B69]">
+            共 {data.total} 位
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
+          {groups.map((group) => (
+            <div key={group.key} className="rounded-xl bg-[#F7F5F2] px-3 py-3">
+              <div className="text-sm font-semibold text-[#1F1B2D]">{group.title}</div>
+              <div className="mt-1 text-xl font-bold text-[#2D1B69]">{safeArray(group.items).length}</div>
+              <div className="mt-1 text-xs leading-5 text-[#6F6678]">{group.description}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-black/5 bg-white p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-[#1F1B2D]">客户列表</div>
+            <div className="mt-1 text-xs text-[#6F6678]">同一客户仅展示一次，通过标签标识稳定客户或最近到店周期。</div>
+          </div>
+          <span className="rounded-full bg-[#F7F5F2] px-3 py-1 text-xs text-[#6F6678]">{items.length} 位</span>
+        </div>
+        {items.length ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {items.map((item) => (
+              <div key={item.customer.id} className="rounded-2xl border border-black/5 bg-[#FAF9F7] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="truncate text-base font-semibold text-[#1F1B2D]">{item.customer.name}</div>
+                      <span className="rounded-full bg-[#2D1B69]/6 px-2 py-0.5 text-[11px] text-[#2D1B69]">
+                        {item.groupLabel}
+                      </span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#6F6678]">
+                        {item.customer.memberLevel}
+                      </span>
+                      {item.daysSinceVisit !== undefined ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
+                          {item.daysSinceVisit} 天未到店
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[#6F6678]">{item.basicInfo}</div>
+                    <div className="mt-1 text-xs leading-5 text-[#6F6678]">{item.memberSummary}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onViewDetail(item.detailAction)}
+                    className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-medium text-[#2D1B69] shadow-sm transition hover:bg-[#2D1B69]/6"
+                  >
+                    查看详情
+                  </button>
+                </div>
+                {safeArray(item.tags).length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {safeArray(item.tags).map((tag) => (
+                      <span key={tag} className="rounded-full bg-white px-2 py-1 text-[11px] text-[#6F6678]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="mt-3 rounded-xl border border-[#C9956C]/20 bg-[#C9956C]/10 px-3 py-2 text-xs leading-5 text-[#1F1B2D]">
+                  <span className="font-medium text-[#A8764D]">服务建议：</span>
+                  {item.serviceAdvice}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-black/10 bg-[#F7F5F2] px-4 py-6 text-center text-sm text-[#6F6678]">
+            暂无当前美容师服务客户
+          </div>
+        )}
       </div>
     </CardShell>
   );

@@ -7,7 +7,7 @@ import type { AuraResolvedIntent } from "./intentTypes";
 import { parseRuleIntent } from "./ruleIntentParser";
 import { buildSlots } from "./slotUtils";
 
-const MIN_AI_CONFIDENCE = 0.65;
+const MIN_AI_CONFIDENCE = 0.55;
 
 function getDefaultAction(role: RoleDefinition["role"], definition: RoleDefinition): AuraAction | null {
   const preferred =
@@ -53,14 +53,18 @@ function buildRuleDefault(params: {
   definition: RoleDefinition;
   source: AuraCommandSource;
 }) {
-  return buildResolvedFromAction({
+  const result = buildResolvedFromAction({
     command: params.command,
     role: params.role,
     source: params.source,
-    action: getDefaultAction(params.role, params.definition),
-    confidence: 0.45,
-    reason: "AI 意图解析暂不可用，已回退到当前角色默认入口",
+    action: null,
+    confidence: 0.35,
   });
+  return {
+    ...result,
+    deniedReason: undefined,
+    loadingLabel: "正在基于 Ami_Core 生成回答",
+  };
 }
 
 export async function parseAiIntentFallback(params: {
@@ -83,7 +87,10 @@ export async function parseAiIntentFallback(params: {
 
     const allowed = new Set(params.definition.availableActions as string[]);
     const action = result.action && allowed.has(result.action) ? (result.action as AuraAction) : null;
-    if (!action || result.confidence < MIN_AI_CONFIDENCE) {
+    const missingSlots = Array.isArray(result.missingSlots) ? result.missingSlots : [];
+    const confidentEnough = result.confidence >= MIN_AI_CONFIDENCE;
+    const explicitCompleteAction = Boolean(action && missingSlots.length === 0 && result.confidence >= 0.5);
+    if (!action || (!confidentEnough && !explicitCompleteAction)) {
       return buildRuleDefault(params);
     }
 
@@ -94,7 +101,7 @@ export async function parseAiIntentFallback(params: {
       action,
       confidence: result.confidence,
       slots: result.slots,
-      missingSlots: result.missingSlots,
+      missingSlots,
       reason: result.reason,
     });
   } catch (error) {

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { CustomerSelectItem, RechargeConfirmInput, RechargeFlowData } from "../types";
 import { cn } from "./ui/utils";
 import { CustomerSelectList } from "./CustomerSelectList";
+import { GiftProjectDetails } from "./GiftProjectDetails";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -29,10 +30,6 @@ export function RechargeFlowCard({
 
   const rechargeAmount = Math.max(0, Number(amount) || 0);
   const gift = Math.max(0, Number(giftAmount) || 0);
-
-  const toggleGiftProject = (project: string) => {
-    setGiftProjects((prev) => prev.includes(project) ? prev.filter((item) => item !== project) : [...prev, project]);
-  };
 
   const submit = async () => {
     if (!selectedCustomer || rechargeAmount <= 0) return;
@@ -92,16 +89,11 @@ export function RechargeFlowCard({
               <input value={giftAmount} onChange={(event) => setGiftAmount(event.target.value)} type="number" min={0} placeholder="输入优惠/赠送金额" className="h-12 rounded-xl border border-black/10 px-4 outline-none focus:border-[#C9956C]" />
             </label>
           </div>
-          <div>
-            <div className="mb-2 text-sm font-medium text-[#6F6678]">赠送项目</div>
-            <div className="flex flex-wrap gap-2">
-              {availableGiftProjects.map((project) => (
-                <button key={project} type="button" onClick={() => toggleGiftProject(project)} className={cn("rounded-xl border px-3 py-2 text-sm", giftProjects.includes(project) ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white text-[#1F1B2D]")}>
-                  {project}
-                </button>
-              ))}
-            </div>
-          </div>
+          <GiftProjectDetails
+            projects={availableGiftProjects}
+            selectedProjects={giftProjects}
+            onChange={setGiftProjects}
+          />
           <div className="grid grid-cols-4 gap-2">
             {PAYMENT_METHODS.map((method) => (
               <button key={method} type="button" onClick={() => setPaymentMethod(method)} className={cn("h-12 rounded-xl border text-sm font-medium", paymentMethod === method ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white")}>

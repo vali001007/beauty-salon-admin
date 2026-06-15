@@ -49,7 +49,7 @@ export function CustomerSelectList<T extends CustomerSelectOption>({
   searchPlaceholder?: string;
   emptyText?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const safeCustomers = useMemo(() => safeArray(customers), [customers]);

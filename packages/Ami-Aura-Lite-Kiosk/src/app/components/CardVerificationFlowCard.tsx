@@ -163,6 +163,7 @@ export function CardVerificationFlowCard({
             onViewDetails={setDetailCustomer}
             loadingCustomerId={pendingCustomerId}
             disabled={loading}
+            emptyText="未找到有可用次卡的客户，请检查姓名或手机号。"
           />
         </div>
       ) : null}

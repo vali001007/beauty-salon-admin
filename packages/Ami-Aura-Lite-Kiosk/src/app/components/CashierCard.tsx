@@ -1,27 +1,25 @@
-import React, { useState } from "react";
-import { Plus, Minus, Trash2, Check, Printer, X, CheckCircle, AlertCircle, Loader } from "lucide-react";
-import { mockData } from "../types";
-import { SearchableSelect } from "./SearchableSelect";
+import React, { useMemo, useState } from "react";
+import { AlertCircle, CheckCircle, Minus, Plus, Printer, Trash2, X } from "lucide-react";
 import { PaymentStep } from "./PaymentStep";
+import { SearchableSelect } from "./SearchableSelect";
 
-const CUSTOMERS = ["张三 138****5678", "李四 139****1234", "王五 137****5566", "赵六 136****7788", "陈七 135****9900"];
-const SERVICES = [
-  { id: "s1", name: "面部护理", price: 280 },
-  { id: "s2", name: "全身SPA", price: 480 },
-  { id: "s3", name: "头皮护理", price: 180 },
-  { id: "s4", name: "美甲", price: 120 },
-  { id: "s5", name: "睫毛嫁接", price: 350 },
-  { id: "s6", name: "纹绣", price: 680 },
-  { id: "s7", name: "精油推拿", price: 380 },
-  { id: "s8", name: "肩颈护理", price: 160 },
-];
-const PAY_METHODS = [
-  { key: "wechat", label: "微信" },
-  { key: "alipay", label: "支付宝" },
-  { key: "card", label: "刷卡" },
-  { key: "cash", label: "现金" },
-  { key: "balance", label: "会员余额" },
-];
+export interface CashierCustomerOption {
+  id: string;
+  label: string;
+}
+
+export interface CashierServiceOption {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export interface CashierSubmitPayload {
+  customerId: string;
+  items: Array<{ id: string; name: string; price: number; qty: number }>;
+  discount: number;
+  payMethod: string;
+}
 
 interface CartItem {
   id: string;
@@ -31,14 +29,14 @@ interface CartItem {
 }
 
 type Step = "order" | "pay" | "done";
-type PrintStatus = "idle" | "preview" | "printing" | "success" | "error";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-semibold text-[#6F6678] uppercase tracking-wide mb-2">{children}</p>;
+  return <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6F6678]">{children}</p>;
 }
 
-// ── Receipt preview + print status overlay ───────────────
 function ReceiptOverlay({
+  storeName,
+  cashierName,
   customer,
   cart,
   total,
@@ -49,6 +47,8 @@ function ReceiptOverlay({
   paidAt,
   onClose,
 }: {
+  storeName?: string;
+  cashierName?: string;
   customer: string;
   cart: CartItem[];
   total: number;
@@ -59,75 +59,38 @@ function ReceiptOverlay({
   paidAt: Date;
   onClose: () => void;
 }) {
-  const [printStatus, setPrintStatus] = useState<PrintStatus>("preview");
-
-  const handlePrint = () => {
-    setPrintStatus("printing");
-    // simulate: sending → printing (1.2s) → success or error
-    setTimeout(() => {
-      // 90% success rate simulation
-      setPrintStatus(Math.random() > 0.1 ? "success" : "error");
-    }, 1800);
-  };
-
-  const payLabel = PAY_METHODS.find((method) => method.key === payMethod)?.label ?? payMethod;
   const dateStr = paidAt.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
   const timeStr = paidAt.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-[400px] max-h-[90vh] flex flex-col overflow-hidden">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/8">
+      <div className="flex max-h-[90vh] w-[400px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-black/8 px-5 py-4">
           <p className="font-semibold text-[#1F1B2D]">小票预览</p>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 text-[#6F6678] transition-colors">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6F6678] hover:bg-black/5">
+            <X className="h-4 w-4" />
           </button>
         </div>
-
-        {/* Receipt paper */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* Simulated thermal receipt */}
-          <div className="bg-[#FAFAF8] border border-black/8 rounded-xl p-5 font-mono text-sm flex flex-col gap-0.5" style={{ fontFamily: "'Courier New', monospace" }}>
-            {/* Store header */}
-            <div className="text-center mb-3">
-              <p className="font-bold text-base text-[#1F1B2D]">{mockData.storeName}</p>
-              <p className="text-xs text-[#6F6678] mt-0.5">消费小票</p>
+          <div className="flex flex-col gap-0.5 rounded-xl border border-black/8 bg-[#FAFAF8] p-5 text-sm" style={{ fontFamily: "'Courier New', monospace" }}>
+            <div className="mb-3 text-center">
+              <p className="text-base font-bold text-[#1F1B2D]">{storeName || "当前门店"}</p>
+              <p className="mt-0.5 text-xs text-[#6F6678]">消费小票</p>
             </div>
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
-            {/* Meta */}
-            <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>单号</span>
-              <span>{receiptNo}</span>
-            </div>
-            <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>日期</span>
-              <span>{dateStr}</span>
-            </div>
-            <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>时间</span>
-              <span>{timeStr}</span>
-            </div>
-            <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>客户</span>
-              <span>{customer.split(" ")[0]}</span>
-            </div>
-            <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>收银员</span>
-              <span>{mockData.employeeName}</span>
-            </div>
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
-            {/* Items */}
-            <div className="flex justify-between text-xs text-[#6F6678] mb-1">
-              <span className="flex-1">项目</span>
-              <span className="w-8 text-center">数量</span>
-              <span className="w-16 text-right">金额</span>
-            </div>
+            <div className="my-2 border-t border-dashed border-black/20" />
+            {[
+              ["单号", receiptNo],
+              ["日期", dateStr],
+              ["时间", timeStr],
+              ["客户", customer],
+              ["收银员", cashierName || "当前操作员"],
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between text-xs text-[#6F6678]">
+                <span>{label}</span>
+                <span>{value}</span>
+              </div>
+            ))}
+            <div className="my-2 border-t border-dashed border-black/20" />
             {cart.map((item) => (
               <div key={item.id} className="flex justify-between text-xs text-[#1F1B2D]">
                 <span className="flex-1 truncate">{item.name}</span>
@@ -135,325 +98,239 @@ function ReceiptOverlay({
                 <span className="w-16 text-right">¥{(item.price * item.qty).toFixed(2)}</span>
               </div>
             ))}
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
-            {/* Totals */}
+            <div className="my-2 border-t border-dashed border-black/20" />
             <div className="flex justify-between text-xs text-[#6F6678]">
               <span>小计</span>
               <span>¥{subtotal.toFixed(2)}</span>
             </div>
-            {discountAmt > 0 && (
+            {discountAmt > 0 ? (
               <div className="flex justify-between text-xs text-[#6F6678]">
                 <span>优惠</span>
                 <span>-¥{discountAmt.toFixed(2)}</span>
               </div>
-            )}
-            <div className="flex justify-between text-sm font-bold text-[#1F1B2D] mt-1">
+            ) : null}
+            <div className="mt-1 flex justify-between text-sm font-bold text-[#1F1B2D]">
               <span>实付</span>
               <span>¥{total.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs text-[#6F6678]">
               <span>支付方式</span>
-              <span>{payLabel}</span>
-            </div>
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
-            {/* Footer */}
-            <div className="text-center text-xs text-[#B0A8BB] leading-relaxed">
-              <p>感谢您的惠顾</p>
-              <p>欢迎下次光临</p>
+              <span>{payMethod}</span>
             </div>
           </div>
         </div>
-
-        {/* Print action area */}
-        <div className="px-5 pb-5 pt-3 border-t border-black/8">
-          {printStatus === "preview" && (
-            <button
-              onClick={handlePrint}
-              className="w-full py-3 bg-[#2D1B69] text-white rounded-xl text-sm font-medium hover:bg-[#3d2a8a] transition-colors active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Printer className="w-4 h-4" />
-              发送打印
+        <div className="border-t border-black/8 px-5 pb-5 pt-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[#2D1B69]">
+              <Printer className="h-5 w-5" />
+              <span className="text-sm font-medium">请通过真实打印任务发送小票</span>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-lg bg-black/5 px-4 py-2 text-sm text-[#1F1B2D] hover:bg-black/10">
+              关闭
             </button>
-          )}
-
-          {printStatus === "printing" && (
-            <div className="flex flex-col items-center gap-2 py-1">
-              <div className="flex items-center gap-2 text-[#2D1B69]">
-                <Loader className="w-4 h-4 animate-spin" />
-                <span className="text-sm font-medium">打印中，请稍候…</span>
-              </div>
-              <div className="w-full bg-black/8 rounded-full h-1.5 overflow-hidden">
-                <div className="h-full bg-[#2D1B69] rounded-full animate-[progress_1.8s_ease-in-out_forwards]" style={{ animation: "width 1.8s ease-in-out forwards", width: "100%" }} />
-              </div>
-            </div>
-          )}
-
-          {printStatus === "success" && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">打印成功</span>
-              </div>
-              <button onClick={onClose} className="px-4 py-2 bg-black/5 rounded-lg text-sm text-[#1F1B2D] hover:bg-black/10 transition-colors active:scale-95">
-                关闭
-              </button>
-            </div>
-          )}
-
-          {printStatus === "error" && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-red-500">
-                <AlertCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">打印失败，请检查打印机连接</span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPrintStatus("preview")}
-                  className="flex-1 py-2.5 border border-black/15 rounded-xl text-sm text-[#1F1B2D] hover:bg-black/5 transition-colors active:scale-95"
-                >
-                  重试
-                </button>
-                <button onClick={onClose} className="flex-1 py-2.5 bg-black/5 rounded-xl text-sm text-[#1F1B2D] hover:bg-black/10 transition-colors active:scale-95">
-                  跳过
-                </button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-export function CashierCard() {
+export function CashierCard({
+  customers = [],
+  services = [],
+  storeName,
+  cashierName,
+  onSubmit,
+}: {
+  customers?: CashierCustomerOption[];
+  services?: CashierServiceOption[];
+  storeName?: string;
+  cashierName?: string;
+  onSubmit?: (payload: CashierSubmitPayload) => void | Promise<void>;
+}) {
   const [step, setStep] = useState<Step>("order");
-  const [customer, setCustomer] = useState("");
+  const [customerLabel, setCustomerLabel] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState("");
-  const [payMethod, setPayMethod] = useState("wechat");
-  const [payMethodLabel, setPayMethodLabel] = useState("微信支付");
+  const [payMethodLabel, setPayMethodLabel] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
   const [paidAt] = useState(new Date());
-  const [receiptNo] = useState(() => "RC" + Date.now().toString().slice(-8));
-
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const [receiptNo] = useState(() => `RC${Date.now().toString().slice(-8)}`);
+  const customerOptions = customers.map((customer) => customer.label);
+  const selectedCustomer = customers.find((customer) => customer.label === customerLabel);
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
   const discountAmt = Math.min(subtotal, Math.max(0, Number(discount) || 0));
   const total = subtotal - discountAmt;
+  const canSubmit = Boolean(selectedCustomer && cart.length && total >= 0 && onSubmit);
 
-  const addItem = (svc: typeof SERVICES[0]) => {
+  const serviceById = useMemo(() => new Map(services.map((service) => [service.id, service])), [services]);
+
+  const addItem = (service: CashierServiceOption) => {
     setCart((prev) => {
-      const existing = prev.find((i) => i.id === svc.id);
-      if (existing) return prev.map((i) => i.id === svc.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { ...svc, qty: 1 }];
+      const existing = prev.find((item) => item.id === service.id);
+      if (existing) return prev.map((item) => (item.id === service.id ? { ...item, qty: item.qty + 1 } : item));
+      return [...prev, { ...service, qty: 1 }];
     });
-  };
-
-  const updatePrice = (id: string, value: string) => {
-    const num = parseFloat(value);
-    if (isNaN(num) || num < 0) return;
-    setCart((prev) => prev.map((i) => i.id === id ? { ...i, price: num } : i));
   };
 
   const changeQty = (id: string, delta: number) => {
     setCart((prev) =>
-      prev.flatMap((i) => {
-        if (i.id !== id) return [i];
-        const next = i.qty + delta;
-        return next <= 0 ? [] : [{ ...i, qty: next }];
-      })
+      prev.flatMap((item) => {
+        if (item.id !== id) return [item];
+        const next = item.qty + delta;
+        return next <= 0 ? [] : [{ ...item, qty: next }];
+      }),
     );
   };
 
-  // ── Step 1: 开单 ─────────────────────────────────────────
+  const updatePrice = (id: string, value: string) => {
+    const next = Number(value);
+    if (Number.isNaN(next) || next < 0) return;
+    setCart((prev) => prev.map((item) => (item.id === id ? { ...item, price: next } : item)));
+  };
+
+  const handleConfirm = async (_key: string, label: string) => {
+    if (!selectedCustomer || !onSubmit) return;
+    await onSubmit({
+      customerId: selectedCustomer.id,
+      items: cart,
+      discount: discountAmt,
+      payMethod: label,
+    });
+    setPayMethodLabel(label);
+    setStep("done");
+  };
+
   if (step === "order") {
     return (
       <div className="flex flex-col gap-5">
         <h3 className="text-lg font-semibold text-[#1F1B2D]">收银开单</h3>
 
-        {/* 客户 */}
+        {!customers.length || !services.length ? (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertCircle className="h-4 w-4" />
+            暂无真实客户或项目目录，请接入收银上下文后使用。
+          </div>
+        ) : null}
+
         <div>
           <SectionTitle>客户</SectionTitle>
-          <SearchableSelect
-            value={customer}
-            onChange={setCustomer}
-            options={CUSTOMERS}
-            placeholder="请选择客户"
-            className="flex-none"
-          />
+          <SearchableSelect value={customerLabel} onChange={setCustomerLabel} options={customerOptions} placeholder="请选择客户" />
         </div>
 
-        {/* 项目快选 */}
         <div>
-          <SectionTitle>添加项目</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            {SERVICES.map((svc) => {
-              const inCart = cart.find((i) => i.id === svc.id);
-              return (
+          <SectionTitle>项目/商品</SectionTitle>
+          <div className="grid max-h-48 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-black/8 bg-[#F7F5F2] p-3">
+            {services.length ? (
+              services.map((service) => (
                 <button
-                  key={svc.id}
-                  onClick={() => addItem(svc)}
-                  className={`px-3 py-2 rounded-lg text-sm border transition-colors active:scale-95 flex items-center gap-1.5 ${
-                    inCart
-                      ? "bg-[#2D1B69] border-[#2D1B69] text-white"
-                      : "bg-white border-black/15 text-[#1F1B2D] hover:border-[#2D1B69]/40"
-                  }`}
+                  key={service.id}
+                  type="button"
+                  onClick={() => addItem(service)}
+                  className="rounded-lg bg-white px-3 py-2 text-left text-sm transition-colors hover:bg-[#2D1B69]/5"
                 >
-                  {inCart && <span className="text-xs bg-white/25 rounded px-1">{inCart.qty}</span>}
-                  {svc.name}
-                  <span className="text-xs opacity-70">¥{svc.price}</span>
+                  <div className="truncate font-medium text-[#1F1B2D]">{service.name}</div>
+                  <div className="mt-0.5 text-xs text-[#C9956C]">¥{service.price.toFixed(2)}</div>
                 </button>
-              );
-            })}
+              ))
+            ) : (
+              <div className="col-span-4 py-6 text-center text-sm text-[#9B92A3]">暂无项目目录</div>
+            )}
           </div>
         </div>
 
-        {/* 已选项目 */}
-        {cart.length > 0 && (
-          <div>
-            <SectionTitle>已选项目</SectionTitle>
-            <div className="border border-black/8 rounded-xl overflow-hidden">
-              {cart.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between px-4 py-3 ${idx < cart.length - 1 ? "border-b border-black/5" : ""}`}
-                >
-                  <span className="text-sm text-[#1F1B2D] flex-1">{item.name}</span>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => changeQty(item.id, -1)} className="w-7 h-7 rounded-full border border-black/15 flex items-center justify-center hover:bg-black/5 active:scale-95">
-                        <Minus className="w-3 h-3 text-[#6F6678]" />
-                      </button>
-                      <span className="text-sm w-5 text-center text-[#1F1B2D]">{item.qty}</span>
-                      <button onClick={() => changeQty(item.id, 1)} className="w-7 h-7 rounded-full border border-black/15 flex items-center justify-center hover:bg-black/5 active:scale-95">
-                        <Plus className="w-3 h-3 text-[#6F6678]" />
-                      </button>
-                    </div>
-                    <div className="flex items-center w-24 justify-end">
-                      <span className="text-sm text-[#6F6678] mr-0.5">¥</span>
-                      <input
-                        type="number"
-                        value={item.price}
-                        onChange={(e) => updatePrice(item.id, e.target.value)}
-                        className="w-16 text-right text-sm font-medium text-[#1F1B2D] bg-transparent border-b border-dashed border-black/20 outline-none focus:border-[#2D1B69] py-0.5"
-                        min={0}
-                        step={10}
-                      />
-                    </div>
-                    <button onClick={() => setCart((p) => p.filter((i) => i.id !== item.id))} className="text-red-300 hover:text-red-400 ml-1">
-                      <Trash2 className="w-4 h-4" />
+        <div>
+          <SectionTitle>已选明细</SectionTitle>
+          <div className="overflow-hidden rounded-xl border border-black/8">
+            {cart.length === 0 ? (
+              <div className="py-8 text-center text-sm text-[#B0A8BB]">请添加项目或商品</div>
+            ) : (
+              cart.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 border-b border-black/5 px-4 py-3 last:border-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-[#1F1B2D]">{item.name}</div>
+                  </div>
+                  <input
+                    type="number"
+                    value={item.price}
+                    onChange={(e) => updatePrice(item.id, e.target.value)}
+                    className="w-24 rounded-lg border border-black/10 px-2 py-1.5 text-right text-sm"
+                  />
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => changeQty(item.id, -1)} className="flex h-7 w-7 items-center justify-center rounded bg-black/5">
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-8 text-center text-sm">{item.qty}</span>
+                    <button type="button" onClick={() => changeQty(item.id, 1)} className="flex h-7 w-7 items-center justify-center rounded bg-black/5">
+                      <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  <button type="button" onClick={() => setCart((prev) => prev.filter((row) => row.id !== item.id))} className="text-red-400">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-              ))}
-              <div className="flex items-center justify-between px-4 py-3 bg-[#F7F5F2] border-t border-black/8">
-                <span className="text-sm text-[#6F6678]">小计</span>
-                <span className="text-base font-semibold text-[#1F1B2D]">¥{subtotal.toFixed(2)}</span>
-              </div>
-            </div>
+              ))
+            )}
           </div>
-        )}
+        </div>
 
-        <button
-          onClick={() => setStep("pay")}
-          disabled={!customer || cart.length === 0}
-          className="w-full py-3 bg-[#C9956C] text-white rounded-xl font-medium text-base hover:bg-[#b0825c] transition-colors active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          去收款 {cart.length > 0 && `· ¥${subtotal.toFixed(2)}`}
-        </button>
+        <div className="flex items-end justify-between border-t border-black/8 pt-4">
+          <div className="w-48">
+            <label className="mb-1.5 block text-sm text-[#6F6678]">优惠金额</label>
+            <input value={discount} onChange={(e) => setDiscount(e.target.value)} type="number" className="w-full rounded-lg border border-black/15 px-3 py-2.5 text-sm" />
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-[#6F6678]">应收</div>
+            <div className="text-3xl font-bold text-[#1F1B2D]">¥{total.toFixed(2)}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("pay")}
+            disabled={!canSubmit}
+            className="rounded-xl bg-[#2D1B69] px-8 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            去收款
+          </button>
+        </div>
       </div>
     );
   }
 
-  // ── Step 2: 收款 ─────────────────────────────────────────
   if (step === "pay") {
     return (
       <div className="flex flex-col gap-5">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setStep("order")} className="text-[#6F6678] hover:text-[#1F1B2D] text-sm transition-colors">← 返回</button>
-          <h3 className="text-lg font-semibold text-[#1F1B2D]">确认收款</h3>
-        </div>
-
-        {/* 金额汇总 */}
-        <div className="bg-[#2D1B69] rounded-2xl p-5 text-white flex flex-col gap-3">
-          <div className="flex justify-between text-sm text-white/70">
-            <span>{customer}</span>
-            <span>{cart.length} 个项目</span>
-          </div>
-          <div className="flex items-end gap-2">
-            <span className="text-sm text-white/70">应收</span>
-            <span className="text-4xl font-bold tracking-tight">¥{total.toFixed(2)}</span>
-          </div>
-          {discountAmt > 0 && (
-            <div className="text-sm text-white/60">已优惠 ¥{discountAmt.toFixed(2)}</div>
-          )}
-        </div>
-
-        {/* 优惠金额 */}
-        <div className="w-1/2 pr-2.5">
-          <SectionTitle>优惠金额（选填）</SectionTitle>
-          <input
-            type="number"
-            value={discount}
-            onChange={(e) => setDiscount(e.target.value)}
-            placeholder="输入优惠金额"
-            className="w-full px-3 py-2.5 border border-black/15 rounded-lg text-sm text-[#1F1B2D] bg-white outline-none focus:border-[#2D1B69] placeholder:text-[#B0A8BB]"
-          />
-        </div>
-
-        <PaymentStep
-          amount={total}
-          methods={PAY_METHODS}
-          confirmLabel={`确认收款 ¥${total.toFixed(2)}`}
-          onConfirm={(key, label) => { setPayMethod(key); setPayMethodLabel(label); setStep("done"); }}
-          onCancel={() => setStep("order")}
-        />
+        <h3 className="text-lg font-semibold text-[#1F1B2D]">确认收款</h3>
+        <PaymentStep amount={total} disabled={!canSubmit} onConfirm={handleConfirm} onCancel={() => setStep("order")} />
       </div>
     );
   }
 
-  // ── Step 3: 完成 ─────────────────────────────────────────
   return (
-    <>
-      {showReceipt && (
+    <div className="flex flex-col items-center gap-4 py-8 text-center">
+      {showReceipt ? (
         <ReceiptOverlay
-          customer={customer}
+          storeName={storeName}
+          cashierName={cashierName}
+          customer={customerLabel}
           cart={cart}
           total={total}
           subtotal={subtotal}
           discountAmt={discountAmt}
-          payMethod={payMethod}
+          payMethod={payMethodLabel}
           receiptNo={receiptNo}
           paidAt={paidAt}
           onClose={() => setShowReceipt(false)}
         />
-      )}
-
-      <div className="flex items-center gap-4 py-1">
-        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-          <Check className="w-5 h-5 text-green-600" />
-        </div>
-        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-          <p className="text-base font-semibold text-[#1F1B2D]">收款成功</p>
-          <p className="text-sm text-[#6F6678]">
-            {customer} · {payMethodLabel} · 实收
-            <span className="text-[#2D1B69] font-medium"> ¥{total.toFixed(2)}</span>
-            {discountAmt > 0 && (
-              <span className="text-[#C9956C]"> · 优惠 ¥{discountAmt.toFixed(2)}</span>
-            )}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowReceipt(true)}
-          className="flex items-center gap-1.5 px-4 py-2 border border-black/15 text-[#1F1B2D] rounded-lg text-sm font-medium hover:bg-black/5 transition-colors active:scale-95 shrink-0"
-        >
-          <Printer className="w-3.5 h-3.5" />
-          打印小票
-        </button>
+      ) : null}
+      <CheckCircle className="h-12 w-12 text-green-600" />
+      <div>
+        <h3 className="text-xl font-semibold text-[#1F1B2D]">收款完成</h3>
+        <p className="mt-1 text-sm text-[#6F6678]">订单已提交到真实收银回调。</p>
       </div>
-    </>
+      <button type="button" onClick={() => setShowReceipt(true)} className="flex items-center gap-2 rounded-xl border border-black/10 px-5 py-2.5 text-sm text-[#1F1B2D]">
+        <Printer className="h-4 w-4" />
+        查看小票
+      </button>
+    </div>
   );
 }

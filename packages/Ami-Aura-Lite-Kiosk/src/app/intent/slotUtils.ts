@@ -1,6 +1,9 @@
 import type { AuraIntentSlots } from "./intentTypes";
 
 const CUSTOMER_PREFIXES = [
+  "帮我查一下",
+  "帮我看一下",
+  "查一下",
   "查",
   "查询",
   "搜索",
@@ -15,6 +18,7 @@ const CUSTOMER_PREFIXES = [
 const CUSTOMER_NOISE_WORDS = [
   "今天",
   "现在",
+  "一下",
   "的",
   "客户",
   "会员",

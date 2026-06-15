@@ -19,6 +19,7 @@ export type AuraIntentName =
   | "recharge.create"
   | "customer.quick_create"
   | "beautician.schedule.view"
+  | "beautician.commission.view"
   | "beautician.customer.view"
   | "service_record.create"
   | "care_advice.generate"
@@ -61,4 +62,3 @@ export interface ResolveIntentOptions {
   definition: RoleDefinition;
   source?: AuraCommandSource;
 }
-

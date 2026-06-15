@@ -1,5 +1,6 @@
 import { parseAiIntentFallback } from "./aiIntentParser";
 import type { AuraResolvedIntent, ResolveIntentOptions } from "./intentTypes";
+import { isBusinessRelevant } from "./relevanceGuard";
 import { parseRuleIntent } from "./ruleIntentParser";
 
 export async function resolveCommandIntent(options: ResolveIntentOptions): Promise<AuraResolvedIntent> {
@@ -7,6 +8,10 @@ export async function resolveCommandIntent(options: ResolveIntentOptions): Promi
   const ruleResult = parseRuleIntent(options.command, options.role, options.definition, source);
 
   if (ruleResult.name !== "unknown.clarify" || ruleResult.deniedReason) {
+    return ruleResult;
+  }
+
+  if (!isBusinessRelevant(options.command)) {
     return ruleResult;
   }
 

@@ -38,6 +38,9 @@ export default defineConfig({
   server: {
     host: devHost,
     port: devPort,
+    watch: {
+      ignored: ['**/dist/**'],
+    },
     fs: {
       allow: [rootDir],
     },

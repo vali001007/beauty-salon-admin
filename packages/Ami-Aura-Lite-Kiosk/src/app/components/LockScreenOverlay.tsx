@@ -4,9 +4,11 @@ import { Fingerprint, Lock } from "lucide-react";
 export function LockScreenOverlay({
   storeName,
   onUnlock,
+  onSwitchAccount,
 }: {
   storeName: string;
   onUnlock: () => void;
+  onSwitchAccount?: () => void;
 }) {
   const [pin, setPin] = useState("");
 
@@ -68,7 +70,11 @@ export function LockScreenOverlay({
         ))}
       </div>
 
-      <button type="button" className="mt-auto pb-8 text-sm text-[#6F6678] transition-colors hover:text-[#1F1B2D]">
+      <button
+        type="button"
+        onClick={onSwitchAccount}
+        className="mt-auto pb-8 text-sm text-[#6F6678] transition-colors hover:text-[#1F1B2D]"
+      >
         切换账号登录
       </button>
     </div>

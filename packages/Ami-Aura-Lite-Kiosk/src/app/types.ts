@@ -10,28 +10,35 @@ import type {
   ScheduleSlot,
   StockItem,
   Store,
-} from "../../../../src/types";
-import type { AuraAction, AuraQuickAction, AuraRole, AuraRoleDefinition } from "../../../../src/types/aura";
-import type { NextBestActionStructured, TerminalServiceAdviceStructured } from "../../../../src/types/ai";
-import type { TerminalSkinMetric } from "../../../../src/types/terminal";
+} from '../../../../src/types';
+import type { AuraAction, AuraQuickAction, AuraRole, AuraRoleDefinition } from '../../../../src/types/aura';
+import type { NextBestActionStructured, TerminalServiceAdviceStructured } from '../../../../src/types/ai';
+import type {
+  TerminalBeauticianCommissionSummary,
+  TerminalBeauticianQualitySummary,
+  TerminalFollowUpTask,
+  TerminalSkinMetric,
+} from '../../../../src/types/terminal';
 
 export type Role = AuraRole;
 
 export type MessageType =
-  | "dashboard"
-  | "query"
-  | "operation"
-  | "ai"
-  | "automation"
-  | "cardVerification"
-  | "cashier"
-  | "cardOpening"
-  | "registration"
-  | "recharge"
-  | "loading"
-  | "success"
-  | "error"
-  | "system";
+  | 'dashboard'
+  | 'query'
+  | 'operation'
+  | 'ai'
+  | 'automation'
+  | 'cardVerification'
+  | 'cashier'
+  | 'cardOpening'
+  | 'registration'
+  | 'recharge'
+  | 'serviceRecord'
+  | 'beauticianSchedule'
+  | 'loading'
+  | 'success'
+  | 'error'
+  | 'system';
 
 export interface Message {
   id: string;
@@ -48,9 +55,15 @@ export interface KpiItem {
   hint?: string;
 }
 
+export interface CoreDataStatus {
+  source: 'api' | 'fallback';
+  label?: string;
+  error?: string;
+}
+
 export interface DashboardInsightItem {
   title: string;
-  severity?: "high" | "medium" | "low" | string;
+  severity?: 'high' | 'medium' | 'low' | string;
   reason: string;
   action: string;
   relatedType?: string;
@@ -64,6 +77,7 @@ export interface DashboardCardData {
   kpis: KpiItem[];
   risks: Array<string | DashboardInsightItem>;
   highlights: Array<string | DashboardInsightItem>;
+  apiStatus?: CoreDataStatus;
 }
 
 export interface CustomerCardData {
@@ -71,6 +85,38 @@ export interface CustomerCardData {
   summary: string;
   reasons: string[];
   recentVisits: string[];
+  followUpTask?: TerminalFollowUpTask;
+}
+
+export type BeauticianCustomerGroupKey = 'stable' | 'recent30' | 'recent60' | 'recent90';
+
+export interface BeauticianCustomerListItem {
+  customer: Customer;
+  group: BeauticianCustomerGroupKey;
+  groupLabel: string;
+  daysSinceVisit?: number;
+  basicInfo: string;
+  memberSummary: string;
+  tags: string[];
+  serviceAdvice: string;
+  detailAction: string;
+}
+
+export interface BeauticianCustomerListGroup {
+  key: BeauticianCustomerGroupKey;
+  title: string;
+  description: string;
+  items: BeauticianCustomerListItem[];
+}
+
+export interface BeauticianCustomerListData {
+  title: string;
+  subtitle: string;
+  summary: string;
+  items: BeauticianCustomerListItem[];
+  groups: BeauticianCustomerListGroup[];
+  total: number;
+  generatedAt: string;
 }
 
 export interface AppointmentViewItem {
@@ -99,6 +145,7 @@ export interface AppointmentCardData {
   subtitle: string;
   items: AppointmentViewItem[];
   summary: string;
+  apiStatus?: CoreDataStatus;
 }
 
 export interface StaffScheduleCardData {
@@ -110,6 +157,9 @@ export interface StaffScheduleCardData {
   weekStart?: string;
   utilization: string;
   summary: string;
+  commission?: TerminalBeauticianCommissionSummary;
+  quality?: TerminalBeauticianQualitySummary;
+  apiStatus?: CoreDataStatus;
 }
 
 export interface InventoryAlertCardData {
@@ -119,6 +169,7 @@ export interface InventoryAlertCardData {
   expiring: ExpiringProduct[];
   replenishment: ReplenishmentSuggestion[];
   summary: string;
+  apiStatus?: CoreDataStatus;
 }
 
 export interface CardVerificationCustomer {
@@ -183,7 +234,7 @@ export interface CashierCustomer {
 
 export interface CashierCatalogItem {
   id: string;
-  itemType: "project" | "product";
+  itemType: 'project' | 'product';
   itemId: number;
   name: string;
   category: string;
@@ -195,23 +246,45 @@ export interface CashierFlowData {
   subtitle: string;
   source: string;
   generatedAt: string;
+  shiftRequired?: boolean;
   customers: CashierCustomer[];
   catalog: CashierCatalogItem[];
 }
 
 export interface CashierOrderItemInput {
-  itemType: "project" | "product";
+  itemType: 'project' | 'product';
   itemId: number;
   name: string;
   quantity: number;
   unitPrice: number;
 }
 
+export type TerminalPaymentMethod =
+  | '现金'
+  | '微信'
+  | '支付宝'
+  | '银行卡'
+  | '次卡抵扣'
+  | '会员余额'
+  | 'cash'
+  | 'wechat'
+  | 'alipay'
+  | 'card'
+  | 'customer_card'
+  | 'member_balance';
+
+export type TerminalOrderPaymentMethod = Exclude<
+  TerminalPaymentMethod,
+  '次卡抵扣' | '会员余额' | 'customer_card' | 'member_balance'
+>;
+
 export interface CashierConfirmInput {
   customerId: number;
+  customerName?: string;
+  customerPhone?: string;
   items: CashierOrderItemInput[];
   discountAmount: number;
-  paymentMethod: "现金" | "微信" | "支付宝" | "银行卡" | "次卡抵扣" | "会员余额";
+  paymentMethod: TerminalPaymentMethod;
 }
 
 export interface CustomerSelectItem {
@@ -241,6 +314,7 @@ export interface CardOpeningFlowData {
   generatedAt: string;
   customers: CustomerSelectItem[];
   cards: CardOpenOption[];
+  giftProjects: string[];
 }
 
 export interface CardOpeningConfirmInput {
@@ -248,7 +322,7 @@ export interface CardOpeningConfirmInput {
   cardId: number;
   discountAmount: number;
   giftProjects: string[];
-  paymentMethod: "现金" | "微信" | "支付宝" | "银行卡";
+  paymentMethod: TerminalOrderPaymentMethod;
 }
 
 export interface RegistrationFlowData {
@@ -276,7 +350,7 @@ export interface RegistrationSkinAnalysisData {
 export interface RegistrationConfirmInput {
   name: string;
   phone: string;
-  gender: "男" | "女";
+  gender: '男' | '女';
   birthday?: string;
   source: string;
   remark?: string;
@@ -308,16 +382,77 @@ export interface RechargeConfirmInput {
   amount: number;
   giftAmount: number;
   giftProjects: string[];
-  paymentMethod: "现金" | "微信" | "支付宝" | "银行卡";
+  paymentMethod: TerminalOrderPaymentMethod;
 }
 
 export interface OperationResultData {
   title: string;
   subtitle: string;
-  status: "success" | "warning" | "error";
+  status: 'success' | 'warning' | 'error';
   description: string;
   nextSteps: string[];
   receipt?: OperationReceiptData;
+}
+
+export interface ServiceRecordTaskOption {
+  id: number;
+  taskNo: string;
+  customerId: number;
+  customerName: string;
+  customerPhone: string;
+  projectId: number;
+  projectName: string;
+  beauticianId: number;
+  beauticianName: string;
+  storeName: string;
+  appointmentTime: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
+  consumptionItems: Array<{
+    productId?: number;
+    productName: string;
+    sku: string;
+    standardQty: number;
+    actualQty: number;
+    unit: string;
+  }>;
+}
+
+export interface ServiceRecordFlowData {
+  title: string;
+  subtitle: string;
+  source: string;
+  generatedAt: string;
+  beauticianId: number;
+  beauticianName: string;
+  tasks: ServiceRecordTaskOption[];
+}
+
+export interface BeauticianScheduleFlowData {
+  title: string;
+  subtitle: string;
+  generatedAt: string;
+  beauticianName: string;
+  tasks: ServiceRecordTaskOption[];
+  summary: string;
+}
+
+export interface ServiceRecordConfirmInput {
+  taskId?: number;
+  customerId: number;
+  projectId?: number;
+  beauticianId: number;
+  result: string;
+  customerFeedback?: string;
+  customerInfoUpdate?: string;
+  attentionItems?: string;
+  nextSuggestion?: string;
+  remark?: string;
+  images?: string[];
+  beforeImages?: string[];
+  afterImages?: string[];
+  customerSignature?: string;
+  consumptionItems?: ServiceRecordTaskOption['consumptionItems'];
+  transferToCashier?: boolean;
 }
 
 export interface OperationReceiptItem {
@@ -328,7 +463,7 @@ export interface OperationReceiptItem {
 }
 
 export interface OperationReceiptData {
-  sourceType: "cashier_order" | "card_order" | "recharge_order" | "card_usage" | "reservation" | "custom";
+  sourceType: 'cashier_order' | 'card_order' | 'recharge_order' | 'card_usage' | 'reservation' | 'custom';
   sourceId?: number;
   receiptNo: string;
   businessTitle?: string;
@@ -348,23 +483,23 @@ export interface OperationReceiptData {
 export interface AiSuggestionData {
   title: string;
   text: string;
-  source: "Ami AI";
+  source: 'Ami AI';
   structured?: TerminalServiceAdviceStructured | NextBestActionStructured;
 }
 
 export interface AutomationDraftData {
   id: string;
   persistedStrategyId?: number;
-  persistedStatus?: "draft" | "enabled" | "paused" | "archived";
+  persistedStatus?: 'draft' | 'enabled' | 'paused' | 'archived';
   title: string;
-  status: "needs_info" | "draft_ready";
+  status: 'needs_info' | 'draft_ready';
   summary: string;
   sourceText: string;
   trigger: string;
   audience: string;
   action: string;
   frequencyCap: string;
-  riskLevel: "low" | "medium" | "high";
+  riskLevel: 'low' | 'medium' | 'high';
   requiresApproval: boolean;
   missingFields: string[];
   question?: string;
@@ -373,7 +508,7 @@ export interface AutomationDraftData {
 
 export interface AutomationPreviewData {
   targetCount: number;
-  riskLevel: "low" | "medium" | "high";
+  riskLevel: 'low' | 'medium' | 'high';
   requiresApproval: boolean;
   trigger: string;
   audience: string;
@@ -391,7 +526,7 @@ export interface AutomationTemplateData {
   defaultTrigger: string;
   defaultAudience: string;
   defaultAction: string;
-  riskLevel: "low" | "medium" | "high";
+  riskLevel: 'low' | 'medium' | 'high';
 }
 
 export interface AutomationExecutionSummaryData {
@@ -440,10 +575,10 @@ export interface AutomationTodaySummaryData {
   latestStrategies: Array<{
     id: number;
     title: string;
-    status: "draft" | "enabled" | "paused" | "archived";
+    status: 'draft' | 'enabled' | 'paused' | 'archived';
     trigger: string;
     action: string;
-    riskLevel: "low" | "medium" | "high";
+    riskLevel: 'low' | 'medium' | 'high';
     requiresApproval: boolean;
     lastExecutedAt?: string;
   }>;
@@ -473,67 +608,3 @@ export interface CoreSnapshot {
   user: AuthUser | null;
   store: Store | null;
 }
-
-interface LegacyAppointment {
-  id: string;
-  customerName: string;
-  project: string;
-  time: string;
-  beautician: string;
-  status: string;
-}
-
-export const mockData: {
-  storeName: string;
-  employeeName: string;
-  appointments: LegacyAppointment[];
-  customer: {
-    name: string;
-    level: string;
-    phone: string;
-    lastVisit: string;
-    availableItems: number;
-  };
-  overview: {
-    todayRevenue: number;
-    appointments: number;
-    pendingArrivals: number;
-    arrivals: number;
-  };
-} = {
-  storeName: "凤仪阁美容养生会所",
-  employeeName: "Ami 前台",
-  customer: {
-    name: "张三",
-    level: "金卡会员",
-    phone: "138****5678",
-    lastVisit: "2026-05-20",
-    availableItems: 2,
-  },
-  overview: {
-    todayRevenue: 12800,
-    appointments: 12,
-    pendingArrivals: 5,
-    arrivals: 7,
-  },
-  appointments: [
-    {
-      id: "legacy-1",
-      customerName: "张三",
-      project: "面部护理",
-      time: "10:00",
-      beautician: "李芳",
-      status: "pending",
-    },
-    {
-      id: "legacy-2",
-      customerName: "李四",
-      project: "肩颈护理",
-      time: "14:30",
-      beautician: "王磊",
-      status: "confirmed",
-    },
-  ],
-};
-
-export const LEGACY_FIGMA_COMPAT_DATA = mockData as Record<string, unknown>;

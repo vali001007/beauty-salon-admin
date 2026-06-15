@@ -1,8 +1,9 @@
 import type {
-  getAiSuggestion,
   createAutomationDraft,
   getAutomationTodaySummary,
+  getBeauticianCustomerList,
   getBeauticianDashboard,
+  getBeauticianScheduleFlow,
   getCardOpeningFlow,
   getCardVerificationFlow,
   getCashierFlow,
@@ -14,14 +15,18 @@ import type {
   getReceptionDashboard,
   getRechargeFlow,
   getRegistrationFlow,
+  getServiceRecordFlow,
   getStaffSchedules,
+  getTerminalBusinessAnswer,
 } from "../services/auraCoreService";
-import type { MessageType } from "../types";
+import type { MessageType, Role } from "../types";
 
 export type AuraPayload =
   | { kind: "manager"; data: Awaited<ReturnType<typeof getManagerDashboard>> }
   | { kind: "reception"; data: Awaited<ReturnType<typeof getReceptionDashboard>> }
-  | { kind: "beautician"; data: Awaited<ReturnType<typeof getBeauticianDashboard>> }
+  | { kind: "beautician"; data: Awaited<ReturnType<typeof getBeauticianDashboard>>; focus?: "schedule" | "commission" }
+  | { kind: "beauticianCustomers"; data: Awaited<ReturnType<typeof getBeauticianCustomerList>> }
+  | { kind: "beauticianSchedule"; data: Awaited<ReturnType<typeof getBeauticianScheduleFlow>> }
   | { kind: "staff"; data: Awaited<ReturnType<typeof getStaffSchedules>> }
   | { kind: "growth"; data: Awaited<ReturnType<typeof getCustomerGrowthCandidates>> }
   | { kind: "inventory"; data: Awaited<ReturnType<typeof getInventoryAlerts>> }
@@ -31,10 +36,11 @@ export type AuraPayload =
   | { kind: "cardOpening"; data: Awaited<ReturnType<typeof getCardOpeningFlow>> }
   | { kind: "registration"; data: Awaited<ReturnType<typeof getRegistrationFlow>> }
   | { kind: "recharge"; data: Awaited<ReturnType<typeof getRechargeFlow>> }
+  | { kind: "serviceRecord"; data: Awaited<ReturnType<typeof getServiceRecordFlow>> }
   | { kind: "operation"; data: Awaited<ReturnType<typeof getOperationResult>> }
   | { kind: "automation"; data: Awaited<ReturnType<typeof createAutomationDraft>> }
   | { kind: "automationSummary"; data: Awaited<ReturnType<typeof getAutomationTodaySummary>> }
-  | { kind: "ai"; data: Awaited<ReturnType<typeof getAiSuggestion>> };
+  | { kind: "ai"; data: Awaited<ReturnType<typeof getTerminalBusinessAnswer>> };
 
 export interface MicroAppMessage {
   type: MessageType;
@@ -44,6 +50,19 @@ export interface MicroAppMessage {
 
 export interface MicroAppRunResult {
   messages: MicroAppMessage[];
+  aiStream?: {
+    role: Role;
+    command: string;
+    businessContext?: string;
+  };
   aiSummary?: string;
   aiCommand?: string;
+  cacheMeta?: {
+    key: string;
+    refreshStatus: 'idle' | 'refreshing' | 'failed';
+    updatedAt?: number;
+    isStale?: boolean;
+    error?: string;
+  };
+  refresh?: Promise<MicroAppRunResult>;
 }

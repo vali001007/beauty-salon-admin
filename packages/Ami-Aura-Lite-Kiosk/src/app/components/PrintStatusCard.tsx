@@ -1,237 +1,258 @@
 import React, { useState } from "react";
-import { Printer, AlertCircle, RefreshCw, CheckCircle, Loader, RotateCcw, X } from "lucide-react";
-import { mockData } from "../types";
+import { AlertCircle, CheckCircle, Loader, Printer, RefreshCw, X } from "lucide-react";
 
-const PENDING_RECEIPTS = [
-  { id: "r1", receiptNo: "RC20240101", customer: "张三", items: [{ name: "面部护理", qty: 1, price: 280 }], amount: 280, time: "10:32", payMethod: "微信" },
-  { id: "r2", receiptNo: "RC20240102", customer: "李四", items: [{ name: "全身SPA", qty: 1, price: 480 }, { name: "美甲", qty: 1, price: 120 }], amount: 600, time: "11:05", payMethod: "支付宝" },
-  { id: "r3", receiptNo: "RC20240103", customer: "王五", items: [{ name: "头皮护理", qty: 2, price: 180 }], amount: 360, time: "14:18", payMethod: "现金" },
-  { id: "r4", receiptNo: "RC20240104", customer: "赵六", items: [{ name: "睫毛嫁接", qty: 1, price: 350 }], amount: 350, time: "15:40", payMethod: "刷卡" },
-];
+export interface PrintReceiptItem {
+  name: string;
+  qty: number;
+  price: number;
+}
 
-type Receipt = typeof PENDING_RECEIPTS[0];
-type PrintStatus = "idle" | "printing" | "success" | "error";
+export interface PrintReceipt {
+  id: string;
+  receiptNo: string;
+  customer: string;
+  items: PrintReceiptItem[];
+  amount: number;
+  time: string;
+  payMethod: string;
+  storeName?: string;
+  cashierName?: string;
+}
+
+type PrintStatus = "preview" | "printing" | "success" | "error";
 
 function ReceiptPreviewOverlay({
   receipt,
+  onRetry,
   onClose,
 }: {
-  receipt: Receipt;
+  receipt: PrintReceipt;
+  onRetry?: (id: string) => Promise<void> | void;
   onClose: () => void;
 }) {
-  const [printStatus, setPrintStatus] = useState<"preview" | "printing" | "success" | "error">("preview");
+  const [printStatus, setPrintStatus] = useState<PrintStatus>("preview");
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    if (!onRetry) return;
     setPrintStatus("printing");
-    setTimeout(() => {
-      setPrintStatus(Math.random() > 0.1 ? "success" : "error");
-    }, 1800);
+    setError(null);
+    try {
+      await onRetry(receipt.id);
+      setPrintStatus("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "打印任务重试失败");
+      setPrintStatus("error");
+    }
   };
 
   const today = new Date();
-  const dateStr = today.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "/");
+  const dateStr = today.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
   const timeStr = today.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-[400px] max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/8">
+      <div className="flex max-h-[90vh] w-[400px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-black/8 px-5 py-4">
           <p className="font-semibold text-[#1F1B2D]">小票预览</p>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 text-[#6F6678] transition-colors">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6F6678] hover:bg-black/5">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          <div className="bg-[#FAFAF8] border border-black/8 rounded-xl p-5 flex flex-col gap-0.5" style={{ fontFamily: "'Courier New', monospace" }}>
-            <div className="text-center mb-3">
-              <p className="font-bold text-base text-[#1F1B2D]">{mockData.storeName}</p>
-              <p className="text-xs text-[#6F6678] mt-0.5">消费小票</p>
+          <div className="flex flex-col gap-0.5 rounded-xl border border-black/8 bg-[#FAFAF8] p-5" style={{ fontFamily: "'Courier New', monospace" }}>
+            <div className="mb-3 text-center">
+              <p className="text-base font-bold text-[#1F1B2D]">{receipt.storeName || "当前门店"}</p>
+              <p className="mt-0.5 text-xs text-[#6F6678]">消费小票</p>
             </div>
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
+            <div className="my-2 border-t border-dashed border-black/20" />
             {[
               ["单号", receipt.receiptNo],
               ["日期", dateStr],
               ["时间", timeStr],
               ["客户", receipt.customer],
-              ["收银员", mockData.employeeName],
+              ["收银员", receipt.cashierName || "当前操作员"],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between text-xs text-[#6F6678]">
-                <span>{label}</span><span>{value}</span>
+                <span>{label}</span>
+                <span>{value}</span>
               </div>
             ))}
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
-            <div className="flex justify-between text-xs text-[#6F6678] mb-1">
+            <div className="my-2 border-t border-dashed border-black/20" />
+            <div className="mb-1 flex justify-between text-xs text-[#6F6678]">
               <span className="flex-1">项目</span>
               <span className="w-8 text-center">数量</span>
               <span className="w-20 text-right">金额</span>
             </div>
-            {receipt.items.map((item, i) => (
-              <div key={i} className="flex justify-between text-xs text-[#1F1B2D]">
-                <span className="flex-1">{item.name}</span>
+            {receipt.items.map((item, index) => (
+              <div key={`${item.name}-${index}`} className="flex justify-between text-xs text-[#1F1B2D]">
+                <span className="flex-1 truncate">{item.name}</span>
                 <span className="w-8 text-center">x{item.qty}</span>
                 <span className="w-20 text-right">¥{(item.price * item.qty).toFixed(2)}</span>
               </div>
             ))}
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-
-            <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>小计</span><span>¥{receipt.amount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold text-[#1F1B2D] mt-1">
-              <span>实付</span><span>¥{receipt.amount.toFixed(2)}</span>
+            <div className="my-2 border-t border-dashed border-black/20" />
+            <div className="mt-1 flex justify-between text-sm font-bold text-[#1F1B2D]">
+              <span>实付</span>
+              <span>¥{receipt.amount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs text-[#6F6678]">
-              <span>支付方式</span><span>{receipt.payMethod}</span>
-            </div>
-
-            <div className="border-t border-dashed border-black/20 my-2" />
-            <div className="text-center text-xs text-[#B0A8BB] leading-relaxed">
-              <p>感谢您的惠顾</p>
-              <p>欢迎下次光临</p>
+              <span>支付方式</span>
+              <span>{receipt.payMethod}</span>
             </div>
           </div>
         </div>
 
-        <div className="px-5 pb-5 pt-3 border-t border-black/8">
-          {printStatus === "preview" && (
+        <div className="border-t border-black/8 px-5 pb-5 pt-3">
+          {printStatus === "preview" ? (
             <button
+              type="button"
               onClick={handlePrint}
-              className="w-full py-3 bg-[#2D1B69] text-white rounded-xl text-sm font-medium hover:bg-[#3d2a8a] transition-colors active:scale-95 flex items-center justify-center gap-2"
+              disabled={!onRetry}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2D1B69] py-3 text-sm font-medium text-white transition-colors hover:bg-[#3d2a8a] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="h-4 w-4" />
               发送打印
             </button>
-          )}
-          {printStatus === "printing" && (
+          ) : null}
+          {printStatus === "printing" ? (
             <div className="flex flex-col items-center gap-2 py-1">
               <div className="flex items-center gap-2 text-[#2D1B69]">
-                <Loader className="w-4 h-4 animate-spin" />
-                <span className="text-sm font-medium">打印中，请稍候…</span>
-              </div>
-              <div className="w-full bg-black/8 rounded-full h-1.5 overflow-hidden">
-                <div className="h-full bg-[#2D1B69] rounded-full" style={{ width: "100%", transition: "width 1.8s ease-in-out" }} />
+                <Loader className="h-4 w-4 animate-spin" />
+                <span className="text-sm font-medium">正在提交打印任务</span>
               </div>
             </div>
-          )}
-          {printStatus === "success" && (
+          ) : null}
+          {printStatus === "success" ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">打印成功</span>
+                <CheckCircle className="h-5 w-5" />
+                <span className="text-sm font-medium">打印任务已提交</span>
               </div>
-              <button onClick={onClose} className="px-4 py-2 bg-black/5 rounded-lg text-sm text-[#1F1B2D] hover:bg-black/10 transition-colors active:scale-95">关闭</button>
+              <button type="button" onClick={onClose} className="rounded-lg bg-black/5 px-4 py-2 text-sm text-[#1F1B2D] hover:bg-black/10">
+                关闭
+              </button>
             </div>
-          )}
-          {printStatus === "error" && (
+          ) : null}
+          {printStatus === "error" ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 text-red-500">
-                <AlertCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">打印失败，请检查打印机连接</span>
+                <AlertCircle className="h-5 w-5" />
+                <span className="text-sm font-medium">{error || "打印失败，请检查打印机连接"}</span>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setPrintStatus("preview")} className="flex-1 py-2.5 border border-black/15 rounded-xl text-sm text-[#1F1B2D] hover:bg-black/5 transition-colors active:scale-95">重试</button>
-                <button onClick={onClose} className="flex-1 py-2.5 bg-black/5 rounded-xl text-sm text-[#1F1B2D] hover:bg-black/10 transition-colors active:scale-95">跳过</button>
+                <button type="button" onClick={() => setPrintStatus("preview")} className="flex-1 rounded-xl border border-black/15 py-2.5 text-sm text-[#1F1B2D] hover:bg-black/5">
+                  重试
+                </button>
+                <button type="button" onClick={onClose} className="flex-1 rounded-xl bg-black/5 py-2.5 text-sm text-[#1F1B2D] hover:bg-black/10">
+                  关闭
+                </button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
 
-function ReceiptRow({ receipt }: { receipt: Receipt }) {
+function ReceiptRow({ receipt, onRetry }: { receipt: PrintReceipt; onRetry?: (id: string) => Promise<void> | void }) {
   const [showPreview, setShowPreview] = useState(false);
-  const itemSummary = receipt.items.map((i) => `${i.name} x${i.qty}`).join("、");
+  const itemSummary = receipt.items.map((item) => `${item.name} x${item.qty}`).join("、");
 
   return (
     <>
-      {showPreview && <ReceiptPreviewOverlay receipt={receipt} onClose={() => setShowPreview(false)} />}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/5 last:border-0">
-        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+      {showPreview ? <ReceiptPreviewOverlay receipt={receipt} onRetry={onRetry} onClose={() => setShowPreview(false)} /> : null}
+      <div className="flex items-center justify-between border-b border-black/5 px-4 py-3.5 last:border-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-[#1F1B2D]">{receipt.customer}</span>
-            <span className="text-xs text-[#6F6678] bg-black/5 px-1.5 py-0.5 rounded">{receipt.payMethod}</span>
+            <span className="rounded bg-black/5 px-1.5 py-0.5 text-xs text-[#6F6678]">{receipt.payMethod}</span>
             <span className="text-xs text-[#B0A8BB]">{receipt.time}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#6F6678] truncate max-w-[220px]">{itemSummary}</span>
-            <span className="text-xs font-medium text-[#1F1B2D] shrink-0">¥{receipt.amount.toFixed(2)}</span>
+            <span className="max-w-[220px] truncate text-xs text-[#6F6678]">{itemSummary || "无明细"}</span>
+            <span className="shrink-0 text-xs font-medium text-[#1F1B2D]">¥{receipt.amount.toFixed(2)}</span>
           </div>
           <span className="text-[11px] text-[#B0A8BB]">{receipt.receiptNo}</span>
         </div>
-
-        <div className="ml-4 shrink-0">
-          <button
-            onClick={() => setShowPreview(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-[#C9956C]/40 text-[#C9956C] rounded-lg text-xs font-medium hover:bg-[#C9956C]/5 transition-colors active:scale-95"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            补打
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowPreview(true)}
+          className="ml-4 flex shrink-0 items-center gap-1.5 rounded-lg border border-[#C9956C]/40 px-3 py-1.5 text-xs font-medium text-[#C9956C] transition-colors hover:bg-[#C9956C]/5"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          补打
+        </button>
       </div>
     </>
   );
 }
 
-export function PrintStatusCard() {
+export function PrintStatusCard({
+  receipts = [],
+  connected = false,
+  onReconnect,
+  onTestPrint,
+  onRetry,
+}: {
+  receipts?: PrintReceipt[];
+  connected?: boolean;
+  onReconnect?: () => void | Promise<void>;
+  onTestPrint?: () => void | Promise<void>;
+  onRetry?: (id: string) => Promise<void> | void;
+}) {
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-[#1F1B2D]">打印机状态</h2>
-        <div className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-xs font-medium border border-amber-100 flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
-          未连接
+        <div
+          className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${
+            connected ? "border-green-100 bg-green-50 text-green-600" : "border-amber-100 bg-amber-50 text-amber-600"
+          }`}
+        >
+          <AlertCircle className="h-3 w-3" />
+          {connected ? "已连接" : "未连接"}
         </div>
       </div>
 
-      
-
-      <div className="bg-white border border-black/10 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-black/8 bg-[#F7F5F2]">
+      <div className="overflow-hidden rounded-xl border border-black/10 bg-white">
+        <div className="flex items-center justify-between border-b border-black/8 bg-[#F7F5F2] px-4 py-3">
           <div className="text-sm">
             <span className="text-[#6F6678]">待补打记录</span>
-            <span className="font-bold text-[#1F1B2D] ml-2">{PENDING_RECEIPTS.length} 笔</span>
+            <span className="ml-2 font-bold text-[#1F1B2D]">{receipts.length} 笔</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="py-1.5 px-3 bg-[#1F1B2D] text-white rounded-lg text-xs font-medium flex items-center gap-1.5">
-              <RefreshCw className="w-3.5 h-3.5" />
+            <button type="button" onClick={onReconnect} disabled={!onReconnect} className="flex items-center gap-1.5 rounded-lg bg-[#1F1B2D] px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              <RefreshCw className="h-3.5 w-3.5" />
               重新连接
             </button>
-            <button className="py-1.5 px-3 bg-white border border-black/10 text-[#1F1B2D] rounded-lg text-xs font-medium flex items-center gap-1.5">
+            <button type="button" onClick={onTestPrint} disabled={!onTestPrint} className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-[#1F1B2D] disabled:cursor-not-allowed disabled:opacity-50">
               测试打印
             </button>
           </div>
         </div>
-        {PENDING_RECEIPTS.map((r) => (
-          <ReceiptRow key={r.id} receipt={r} />
-        ))}
+        {receipts.length ? (
+          receipts.map((receipt) => <ReceiptRow key={receipt.id} receipt={receipt} onRetry={onRetry} />)
+        ) : (
+          <div className="py-8 text-center text-sm text-[#9B92A3]">暂无真实待补打记录</div>
+        )}
       </div>
-
     </div>
   );
 }
 
 export function PlaceholderFlowCard({ title }: { title: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-8 gap-4">
-      <div className="w-16 h-16 rounded-full bg-[#F7F5F2] flex items-center justify-center mb-2">
-        <span className="text-2xl">🚀</span>
+    <div className="flex flex-col items-center justify-center gap-4 py-8">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#F7F5F2]">
+        <span className="text-2xl">...</span>
       </div>
       <h3 className="text-xl font-semibold text-[#1F1B2D]">{title}</h3>
-      <p className="text-[#6F6678] text-sm text-center max-w-xs">
-        {title}功能正在开发中，即将在此版本开放。我们致力于为您提供更完整的门店运营体验。
+      <p className="max-w-xs text-center text-sm text-[#6F6678]">
+        该入口需要接入真实终端接口后开放。
       </p>
-      <div className="mt-4 px-4 py-2 bg-[#C9956C]/10 text-[#C9956C] rounded-full text-sm font-medium">
-        即将开放
-      </div>
     </div>
   );
 }

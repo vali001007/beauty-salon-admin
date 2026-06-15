@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   AlarmClock,
   CheckCircle2,
@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import type { AutomationExecutionDetailData, AutomationTodaySummaryData } from "../types";
+import type { AutomationExecutionDetailData, AutomationExecutionSummaryData, AutomationTodaySummaryData } from "../types";
 
 function statusText(status: string) {
   if (status === "enabled") return "已启用";
@@ -37,7 +37,7 @@ export function AutomationTodayCard({
   onRefresh?: () => void;
   onEnableStrategy?: (strategyId: number) => Promise<void>;
   onPauseStrategy?: (strategyId: number) => Promise<void>;
-  onRunStrategyOnce?: (strategyId: number) => Promise<void>;
+  onRunStrategyOnce?: (strategyId: number) => Promise<AutomationExecutionSummaryData>;
   onCreateTemplate?: (command: string) => Promise<void>;
   onLoadExecutionDetail?: (executionId: number) => Promise<AutomationExecutionDetailData>;
   onMarkTouchFollowedUp?: (touchId: number) => Promise<AutomationExecutionDetailData["touches"][number]>;
@@ -49,13 +49,18 @@ export function AutomationTodayCard({
   const [expandedExecutionId, setExpandedExecutionId] = useState<number | null>(null);
   const [loadingExecutionId, setLoadingExecutionId] = useState<number | null>(null);
   const [followingTouchId, setFollowingTouchId] = useState<number | null>(null);
+  const [localExecutions, setLocalExecutions] = useState<AutomationExecutionSummaryData[]>([]);
   const [executionDetails, setExecutionDetails] = useState<Record<number, AutomationExecutionDetailData>>({});
   const [actionError, setActionError] = useState<string | null>(null);
+  const latestExecutions = useMemo(() => {
+    const dataExecutionIds = new Set(data.latestExecutions.map((item) => item.id));
+    return [...localExecutions.filter((item) => !dataExecutionIds.has(item.id)), ...data.latestExecutions];
+  }, [data.latestExecutions, localExecutions]);
   const kpis = [
     { label: "自动化策略", value: data.strategyCount },
     { label: "已启用", value: data.enabledCount },
     { label: "待确认", value: data.waitingApprovalCount },
-    { label: "今日执行", value: data.executedCount },
+    { label: "今日执行", value: data.executedCount + localExecutions.filter((item) => !data.latestExecutions.some((execution) => execution.id === item.id)).length },
   ];
 
   const handleEnableStrategy = async (strategyId: number) => {
@@ -89,7 +94,20 @@ export function AutomationTodayCard({
     setRunningId(strategyId);
     setActionError(null);
     try {
-      await onRunStrategyOnce(strategyId);
+      const execution = await onRunStrategyOnce(strategyId);
+      setLocalExecutions((prev) => [execution, ...prev.filter((item) => item.id !== execution.id)]);
+      setExpandedExecutionId(execution.id);
+      if (onLoadExecutionDetail) {
+        try {
+          setLoadingExecutionId(execution.id);
+          const detail = await onLoadExecutionDetail(execution.id);
+          setExecutionDetails((prev) => ({ ...prev, [execution.id]: detail }));
+        } catch (err) {
+          setActionError(err instanceof Error ? `已执行成功，但详情加载失败：${err.message}` : "已执行成功，但详情加载失败，请稍后刷新");
+        } finally {
+          setLoadingExecutionId(null);
+        }
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "只有已启用的自动化才能立即执行");
     } finally {
@@ -285,9 +303,9 @@ export function AutomationTodayCard({
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             今日执行记录
           </div>
-          {data.latestExecutions.length ? (
+          {latestExecutions.length ? (
             <div className="space-y-3">
-              {data.latestExecutions.slice(0, 5).map((item) => {
+              {latestExecutions.slice(0, 5).map((item) => {
                 const expanded = expandedExecutionId === item.id;
                 const detail = executionDetails[item.id];
                 return (

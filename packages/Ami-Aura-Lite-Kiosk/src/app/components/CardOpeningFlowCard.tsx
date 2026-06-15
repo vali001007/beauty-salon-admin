@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CreditCard } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import type { CardOpeningConfirmInput, CardOpeningFlowData, CardOpenOption, CustomerSelectItem } from "../types";
 import { cn } from "./ui/utils";
 import { CustomerSelectList } from "./CustomerSelectList";
+import { GiftProjectDetails } from "./GiftProjectDetails";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -20,7 +21,6 @@ export function CardOpeningFlowCard({
   const [step, setStep] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSelectItem | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardOpenOption | null>(null);
-  const [selectedCardType, setSelectedCardType] = useState("全部");
   const [discountAmount, setDiscountAmount] = useState("");
   const [giftProjects, setGiftProjects] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<CardOpeningConfirmInput["paymentMethod"]>("微信");
@@ -28,23 +28,40 @@ export function CardOpeningFlowCard({
   const [error, setError] = useState<string | null>(null);
   const customers = safeArray(data.customers);
   const cards = safeArray(data.cards);
-  const cardTypeOptions = useMemo(() => ["全部", ...Array.from(new Set(cards.map((card) => card.type).filter(Boolean)))], [cards]);
-  const visibleCards = useMemo(
-    () => selectedCardType === "全部" ? cards : cards.filter((card) => card.type === selectedCardType),
-    [cards, selectedCardType],
-  );
+  const availableGiftProjects = safeArray(data.giftProjects);
+  const cardsByType = useMemo(() => {
+    const groups = new Map<string, CardOpenOption[]>();
+    cards.forEach((card) => {
+      const type = card.type || "其他";
+      groups.set(type, [...(groups.get(type) ?? []), card]);
+    });
+    return Array.from(groups.entries());
+  }, [cards]);
 
   const discount = Math.min(selectedCard?.price ?? 0, Math.max(0, Number(discountAmount) || 0));
   const receivable = Math.max(0, (selectedCard?.price ?? 0) - discount);
+  const includedProjects = safeArray(selectedCard?.projects);
 
   useEffect(() => {
-    if (selectedCard && selectedCardType !== "全部" && selectedCard.type !== selectedCardType) {
+    if (selectedCard && !cards.some((card) => card.id === selectedCard.id)) {
       setSelectedCard(null);
+      setGiftProjects([]);
     }
-  }, [selectedCard, selectedCardType]);
+  }, [cards, selectedCard]);
 
-  const toggleGiftProject = (project: string) => {
-    setGiftProjects((prev) => prev.includes(project) ? prev.filter((item) => item !== project) : [...prev, project]);
+  useEffect(() => {
+    setGiftProjects((prev) => {
+      const next = prev.filter((project) => availableGiftProjects.includes(project));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [availableGiftProjects]);
+
+  const selectCard = (cardId: string) => {
+    const nextCard = cards.find((card) => String(card.id) === cardId) ?? null;
+    setSelectedCard(nextCard);
+    if (nextCard?.id !== selectedCard?.id) {
+      setGiftProjects([]);
+    }
   };
 
   const submit = async () => {
@@ -87,55 +104,48 @@ export function CardOpeningFlowCard({
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-[#6F6678]">第二步：选择次卡</div>
-              <div className="text-xs text-[#9B92A3]">共 {visibleCards.length} 张，选中后继续</div>
+              <div className="text-xs text-[#9B92A3]">共 {cards.length} 张，选中后继续</div>
             </div>
-            {cardTypeOptions.length > 2 ? (
-              <div className="mb-3 flex gap-1 overflow-x-auto rounded-xl bg-[#F7F5F2] p-1">
-                {cardTypeOptions.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setSelectedCardType(type)}
-                    className={cn(
-                      "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
-                      selectedCardType === type ? "bg-white text-[#1F1B2D] shadow-sm" : "text-[#6F6678] hover:bg-white/70",
-                    )}
-                  >
-                    {type}
-                  </button>
+            <div className="rounded-2xl border border-black/5 bg-[#F7F5F2] p-4">
+              <select
+                value={selectedCard ? String(selectedCard.id) : ""}
+                onChange={(event) => selectCard(event.target.value)}
+                disabled={!cards.length}
+                className="h-12 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20 disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-[#9B92A3]"
+              >
+                <option value="">{cards.length ? "请选择次卡" : "暂无可售次卡"}</option>
+                {cardsByType.map(([type, items]) => (
+                  <optgroup key={type} label={type}>
+                    {items.map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.name} · {card.totalTimes} 次 · ￥{card.price.toLocaleString()}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
-              </div>
-            ) : null}
-            <div className="max-h-[236px] overflow-y-auto pr-1">
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {visibleCards.map((card) => (
-                  <button
-                    key={card.id}
-                    type="button"
-                    onClick={() => setSelectedCard(card)}
-                    className={cn(
-                      "min-h-[76px] rounded-xl border px-3 py-2.5 text-left transition active:scale-[0.99]",
-                      selectedCard?.id === card.id
-                        ? "border-[#2D1B69] bg-[#2D1B69]/6 shadow-[0_0_0_1px_rgba(45,27,105,0.08)]"
-                        : "border-black/5 bg-[#F7F5F2] hover:border-[#C9956C]/50 hover:bg-white",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <CreditCard className="h-4 w-4 shrink-0 text-[#2D1B69]" />
-                          <span className="truncate text-sm font-semibold text-[#1F1B2D]">{card.name}</span>
-                        </div>
-                        <div className="mt-1 text-xs text-[#6F6678]">{card.type} · {card.totalTimes} 次</div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-base font-bold text-[#1F1B2D]">￥{card.price.toLocaleString()}</div>
-                        {selectedCard?.id === card.id ? <CheckCircle2 className="ml-auto mt-1 h-4 w-4 text-[#C9956C]" /> : null}
-                      </div>
+              </select>
+              {selectedCard ? (
+                <div className="mt-3 grid gap-2 rounded-xl bg-white px-4 py-3 text-sm sm:grid-cols-4">
+                  <div className="flex min-w-0 items-center gap-2 sm:col-span-2">
+                    <CreditCard className="h-4 w-4 shrink-0 text-[#2D1B69]" />
+                    <span className="truncate font-semibold text-[#1F1B2D]">{selectedCard.name}</span>
+                  </div>
+                  <div className="text-[#6F6678]">
+                    {selectedCard.type} · {selectedCard.totalTimes} 次
+                  </div>
+                  <div className="font-semibold text-[#1F1B2D] sm:text-right">￥{selectedCard.price.toLocaleString()}</div>
+                  {includedProjects.length ? (
+                    <div className="text-xs text-[#9B92A3] sm:col-span-4">
+                      包含项目：{includedProjects.slice(0, 3).join("、")}
+                      {includedProjects.length > 3 ? ` 等 ${includedProjects.length} 项` : ""}
                     </div>
-                  </button>
-                ))}
-              </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-black/10 bg-white px-4 py-5 text-center text-sm text-[#6F6678]">
+                  选择次卡后将显示价格、次数和包含项目。
+                </div>
+              )}
             </div>
           </div>
           <button
@@ -158,16 +168,11 @@ export function CardOpeningFlowCard({
             <span className="text-sm font-medium text-[#6F6678]">优惠金额</span>
             <input value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} type="number" min={0} placeholder="输入优惠金额" className="h-12 rounded-xl border border-black/10 px-4 outline-none focus:border-[#C9956C]" />
           </label>
-          <div>
-            <div className="mb-2 text-sm font-medium text-[#6F6678]">赠送项目</div>
-            <div className="flex flex-wrap gap-2">
-              {safeArray(selectedCard?.projects).map((project) => (
-                <button key={project} type="button" onClick={() => toggleGiftProject(project)} className={cn("rounded-xl border px-3 py-2 text-sm", giftProjects.includes(project) ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white text-[#1F1B2D]")}>
-                  {project}
-                </button>
-              ))}
-            </div>
-          </div>
+          <GiftProjectDetails
+            projects={availableGiftProjects}
+            selectedProjects={giftProjects}
+            onChange={setGiftProjects}
+          />
           <div className="grid grid-cols-4 gap-2">
             {PAYMENT_METHODS.map((method) => (
               <button key={method} type="button" onClick={() => setPaymentMethod(method)} className={cn("h-12 rounded-xl border text-sm font-medium", paymentMethod === method ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white")}>

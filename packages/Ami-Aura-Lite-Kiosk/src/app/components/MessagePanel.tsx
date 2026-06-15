@@ -21,12 +21,17 @@ export function MessagePanel({
   children?: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastMessage = messages[messages.length - 1];
 
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [messages.length]);
+    const container = containerRef.current;
+    const content = container?.firstElementChild;
+    const messageList = content?.lastElementChild as HTMLElement | null;
+    const latestMessage = messageList?.lastElementChild as HTMLElement | null;
+    if (!container || !content || !messageList || !latestMessage) return;
+
+    container.scrollTop = Math.max(0, latestMessage.offsetTop - (content as HTMLElement).offsetTop - 8);
+  }, [messages.length, lastMessage?.id, lastMessage?.title, lastMessage?.type]);
 
   return (
     <main

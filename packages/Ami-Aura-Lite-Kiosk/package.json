@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "check:no-mock": "node scripts/check-no-local-mock.mjs",
     "build": "tsc --noEmit && vite build",
     "dev": "vite"
   },
