@@ -1,6 +1,6 @@
 # 美业管理平台 API 契约草案
 
-本文用于当前 MVP 联调阶段。前端通过 `VITE_API_MODE=mock|real` 切换实现，`real` 模式下所有请求基于 `VITE_API_BASE_URL`，默认回退 `/api`。
+本文用于当前 MVP 联调阶段。管理端运行时 API 已统一走 `src/api/real/*` 与 `server-v2`，不再通过 `VITE_API_MODE` 在 mock/real 之间切换。所有请求基于 `VITE_API_BASE_URL`，默认回退 `/api`。
 
 ## 通用约定
 
@@ -48,6 +48,7 @@
 | GET | `/customers/paginated` | 客户分页 |
 | GET | `/customers/consumption-records` | 客户消费记录 |
 | GET | `/customers/health-profiles` | 客户健康档案 |
+| GET | `/customers/profile-analytics` | 客户画像聚合分析 |
 
 ### 库存与调拨
 

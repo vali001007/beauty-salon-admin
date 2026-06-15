@@ -163,16 +163,15 @@
 5. THE Platform SHALL 使用 `usePermission` Hook 控制页面内操作按钮（如创建、编辑、删除、导出）的显示/隐藏
 6. THE Platform SHALL 支持以下预置角色的权限配置：超级管理员（全部权限）、门店管理员（本店运营权限）、美容师（查看排班和预约）、收银员（订单和核销权限）、库存管理员（库存和采购权限）
 
-### 需求 11：API 层 Mock/真实模式切换
+### 需求 11：API 层真实后端主线
 
-**用户故事：** 作为开发者，我希望 API 层能够通过环境变量在 Mock 数据和真实后端 API 之间无缝切换，以便在无后端环境下继续前端开发。
+**用户故事：** 作为开发者，我希望管理端 API 层统一调用真实后端，并通过轻量 fixture 保留少量离线样例，以避免长期维护本地 Mock 与生产数据两套口径。
 
 #### 验收标准
 
-1. THE Platform SHALL 通过环境变量 `VITE_API_MODE`（值为 `mock` 或 `real`）控制 API_Layer 的运行模式
-2. WHILE VITE_API_MODE 为 `mock` 时，THE API_Layer SHALL 返回本地 Mock 数据，行为与当前实现一致
-3. WHILE VITE_API_MODE 为 `real` 时，THE API_Layer SHALL 通过 Axios apiClient 调用后端 REST API
-4. THE API_Layer SHALL 为每个 API 模块（product、inventory、customer、order 及新增模块）同时维护 Mock 实现和真实 API 调用实现
-5. THE Platform SHALL 确保 Mock 模式和真实模式下 API 函数的签名（参数和返回类型）完全一致
-6. WHEN VITE_API_MODE 环境变量未设置时，THE Platform SHALL 默认使用 `mock` 模式
-7. THE Platform SHALL 为新增的业务模块（认证、排班、门店、角色权限、营销、BOM 消耗等）补充对应的 API 模块文件
+1. THE Platform SHALL 固定通过 `src/api/real/*` 与 Axios `apiClient` 调用后端 REST API。
+2. THE Platform SHALL 使用 `src/api/<module>.ts` 作为门面文件，直接导出真实 API 实现。
+3. THE Platform SHALL NOT 通过 `VITE_API_MODE` 在运行时切换 Mock/Real 数据源。
+4. THE Platform SHALL 在请求中自动附加认证 Token、`X-Store-Id` 与 CSRF 相关信息。
+5. THE Platform SHALL 仅在测试或离线样例中保留轻量 fixture，不再维护本地大样本演示 JSON。
+6. THE Platform SHALL 为新增业务模块优先实现 `server-v2` 接口、`src/api/real/*` 调用和门面导出。

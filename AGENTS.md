@@ -13,9 +13,9 @@ This file provides guidance to Codex / coding agents when working in this reposi
 
 ## 当前状态快照
 
-截至 2026-05-30，本仓库处在较大的集成分支状态：
+截至 2026-06-10，本仓库处在较大的集成分支状态：
 
-- 当前分支：集成分支，终端主线为 `packages/Ami-Aura-Lite-Kiosk`
+- 当前分支：`codex/ami-aura-lite-kiosk`，终端主线为 `packages/Ami-Aura-Lite-Kiosk`
 - 主应用 `npm run build` 已通过。
 - `npm run check:api` 指向 `packages/server-v2` 构建检查。
 - `npm run test` 已通过：65/65 通过。Vitest 默认强制 `VITE_API_MODE=mock`，避免本地 `.env real` 干扰单测。
@@ -23,10 +23,95 @@ This file provides guidance to Codex / coding agents when working in this reposi
 - `npx tsc --noEmit -p tsconfig.json`、`npm run lint` 已通过。
 - `packages/server-v2` 的 `npm run build`、`npm run test`、`npm run lint` 已通过；lint 仍有少量未使用变量 warning，不阻塞。
 - `packages/Ami-Aura-Lite-Kiosk npm run build` 是当前主线终端构建；5175 端口用于 Ami Aura Lite 智能终端。
+- 根项目已提供 `dev:marketing-h5`、`build:marketing-h5`、`preview:marketing-h5`，对应 `packages/marketing-h5`；开发端口默认 5176。
 - 构建仍存在大 chunk 警告，主要是客户健康档案、消耗记录等数据/页面包体偏大，不阻塞构建，但后续可优化懒加载和拆包。
 - 根目录有若干中文文档从单文件迁移到 `01-市场调研/`、`02-产品设计/`、`03-开发计划/`、`04-测试数据/`、`05-市场营销/` 等目录的迹象。不要把这些当作可随手清理的废文件。
 
 ## 常用命令
+
+### 本地运行
+
+本项目在 Windows + PowerShell 环境下开发时，优先使用 `npm.cmd`，避免 PowerShell 执行策略拦截 `npm.ps1`。
+
+管理端：
+
+```powershell
+npm.cmd run dev -- --host 127.0.0.1 --port 5173
+```
+
+访问地址：
+
+```text
+http://127.0.0.1:5173
+```
+
+后端 API：
+
+```powershell
+npm.cmd run dev:api
+```
+
+默认 API 地址：
+
+```text
+http://localhost:8080/api
+http://localhost:8080/docs
+```
+
+Ami Aura Lite 智能终端：
+
+```powershell
+Set-Location "packages/Ami-Aura-Lite-Kiosk"
+npm.cmd run dev -- --host 127.0.0.1 --port 5175
+```
+
+访问地址：
+
+```text
+http://127.0.0.1:5175
+```
+
+Ami Glow 客户服务小程序：
+
+```powershell
+Set-Location "packages/Ami-Glow-MiniApp"
+npm.cmd install
+npm.cmd run typecheck
+```
+
+看到下面这种输出且没有报错，表示 TypeScript 检查已通过；它不会启动服务，也不会输出访问地址：
+
+```text
+> ami-glow-miniapp@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+```
+
+本地预览方式：
+
+1. 安装并打开微信开发者工具。
+2. 在启动页选择“小程序”，然后选择“导入项目”。如果已经在工具内，可从项目列表或菜单进入“导入项目”。
+3. 项目目录选择：
+
+```text
+D:\AI coding\beauty-salon-admin\packages\Ami-Glow-MiniApp
+```
+
+4. 不要选择里面的 `miniprogram` 子目录；`project.config.json` 已配置 `miniprogramRoot: "miniprogram/"`，工具会自动识别小程序源码目录。
+5. AppID 使用当前配置里的 `touristappid`，或在没有正式小程序 AppID 时选择“测试号/无 AppID”模式；有正式 AppID 后再替换为真实 AppID。
+6. 项目名称填写 `Ami-Glow-MiniApp`，云开发不启用。
+7. 点击“导入/确定”后，进入开发者工具主界面，点击顶部“编译”。
+8. 左侧模拟器能看到 Ami Glow 页面即表示本地预览成功；如果需要联调真实接口，先在仓库根目录执行 `npm.cmd run dev:api` 启动后端 API。
+
+常见处理：
+
+- 如果提示域名、HTTPS 或证书校验问题：在微信开发者工具“详情/本地设置”里勾选不校验合法域名相关选项，仅用于本地调试。
+- 如果导入后找不到页面：确认导入的是 `packages/Ami-Glow-MiniApp`，不是仓库根目录，也不是 `miniprogram` 子目录。
+- 如果模拟器空白并报 `module 'components/.../index.js' is not defined`：确认 `project.config.json` 里的 `setting.useCompilerPlugins` 包含 `typescript`，并在微信开发者工具里重新编译；必要时关闭并重新打开项目，让工具重新读取配置。
+- 如果只是看到 `tsc --noEmit -p tsconfig.json` 输出且无报错：这是 `typecheck` 检查通过，不代表已经打开预览，需要继续用微信开发者工具导入项目。
+
+说明：Ami Glow 是原生微信小程序工程，当前没有 Vite/Web dev server；`npm.cmd run typecheck` 只用于本地代码检查，实际页面预览在微信开发者工具里编译运行。
+
+常用本地组合：先启动后端 API，再启动管理端；管理端默认通过 Vite `/api` 代理访问 `http://localhost:8080`。Ami Glow 小程序需要联调接口时，也先启动后端 API。
 
 所有根项目命令在仓库根目录执行：
 
@@ -43,6 +128,9 @@ npm run format        # Prettier 格式化 src/
 npm run dev:api       # 启动 packages/server-v2 开发模式
 npm run start:api     # 启动 packages/server-v2 生产模式
 npm run check:api     # 构建检查 packages/server-v2
+npm run dev:marketing-h5     # 启动营销 H5，默认 http://127.0.0.1:5176
+npm run build:marketing-h5   # 构建营销 H5
+npm run preview:marketing-h5 # 预览营销 H5，默认 http://127.0.0.1:4176
 
 npx vitest run src/test/api.test.ts
 npx vitest run src/test/auth-store.test.ts
@@ -74,6 +162,14 @@ npm run dev           # http://127.0.0.1:5175
 npm run build         # tsc --noEmit && vite build
 ```
 
+Ami Glow 客户服务小程序 `packages/Ami-Glow-MiniApp`：
+
+```bash
+cd "packages/Ami-Glow-MiniApp"
+npm run typecheck     # TypeScript 检查；无报错即通过，不会启动预览服务
+# 本地预览：用微信开发者工具打开 packages/Ami-Glow-MiniApp
+```
+
 移动/助手端 `packages/app`：
 
 ```bash
@@ -95,6 +191,8 @@ npm run preview
 src/                         # 管理端主应用
 packages/server-v2           # NestJS + Prisma 主线后端、AI Gateway、旧 /v1/messages 兼容入口
 packages/Ami-Aura-Lite-Kiosk # Ami Aura Lite 智能终端 kiosk 主线
+packages/Ami-Glow-MiniApp    # Ami Glow 客户服务小程序
+packages/marketing-h5        # 营销 H5 子应用
 packages/app                 # 移动/AI 助手端应用
 docs/                        # API 契约、终端接口、生产计划等文档
 e2e/                         # Playwright 用例
@@ -145,14 +243,15 @@ outputs/                     # 生成产物/演示输出，谨慎改动
 ```text
 src/api/real/<module>.ts  # 真实 HTTP 实现
 src/api/<module>.ts       # 门面文件，直接导出 real 实现
-src/api/mock/             # 历史 mock 样例与演示/seed fixture
+src/api/mock/             # 历史 mock 样例与轻量 fixture
 ```
 
 当前约定：
 
 - `src/api/mode.ts` 固定为 `real`，`VITE_API_MODE` 不再控制管理端运行时 API 模式。
-- `src/api/mock/data/*.json` 可继续作为演示数据、页面 fixture 或 `server-v2` seed 数据来源。
+- `src/api/mock/fixtures.ts` 只保留少量字段样例；本地大样本 JSON 已退役，不再作为页面或 `server-v2` seed 数据来源。
 - `src/api/mock/*.ts` 作为历史测试/离线样例暂时保留，方便对照字段结构；新增业务不要求同步实现一份 mock API。
+- 新增业务、页面联调或接口补齐必须走 `server-v2` + `src/api/real/*` 主线，不再采用本地 mock 的方式补项目能力或绕过后端实现。
 
 新增 API 模块时优先顺序：
 
@@ -161,7 +260,7 @@ src/api/mock/             # 历史 mock 样例与演示/seed fixture
 - 在 `src/api/*.ts` 门面直接导出 real 实现。
 - 在 `src/api/index.ts` 导出。
 - 保持分页、错误、响应解包格式一致。
-- 只有演示页、离线样例或 seed 明确需要固定样例数据时，才补充 `src/api/mock/data` 或轻量 fixture。
+- 只有单测或离线样例明确需要固定样例数据时，才补充轻量 fixture；不要再新增本地大样本 JSON。
 
 当前 API 模块包括：
 
@@ -409,6 +508,7 @@ docker run --rm -p 8080:8080 ami-core-admin
 ## 关键约定
 
 - API 以 `server-v2` + `src/api/real/*` 为主线；不要再默认要求 mock/real 双写，避免长期双维护。
+- 不再采用本地 mock 的方式补齐新增业务；mock 仅保留给单测、离线样例或历史结构对照。
 - 所有路由集中在 `src/app/routes.tsx`。
 - 权限码要保持新旧兼容，不要随意删除 legacy 映射。
 - API 调用方默认拿到已解包数据，不要重复 `.data.data`。

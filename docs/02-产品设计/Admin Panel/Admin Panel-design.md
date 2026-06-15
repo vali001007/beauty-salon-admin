@@ -4,7 +4,7 @@
 
 本设计文档描述将美业管理平台从静态 UI 原型升级为完整可交互业务系统的技术方案。当前项目已完成 33 个功能页面的 UI 搭建，使用 Mock 数据，但缺少登录认证、表单提交逻辑、服务端分页、权限控制、数据导入导出、暗色主题切换、门店切换等关键功能。
 
-本设计覆盖 11 项需求：用户登录与认证、路由守卫与 Token 管理、冗余文件清理、表单弹窗提交逻辑、排班管理增强、服务端分页、数据导入导出、暗色主题切换、门店切换器、RBAC 权限控制、API 层 Mock/真实模式切换。
+本设计覆盖 11 项需求：用户登录与认证、路由守卫与 Token 管理、冗余文件清理、表单弹窗提交逻辑、排班管理增强、服务端分页、数据导入导出、暗色主题切换、门店切换器、RBAC 权限控制、API 层真实后端主线。
 
 技术栈：React 18 + TypeScript、Vite 6、Tailwind CSS 4 + shadcn/ui (Radix UI)、React Router 7、Zustand、Axios、Zod + react-hook-form、Recharts、Sonner、Vitest + React Testing Library。
 
@@ -33,8 +33,8 @@ graph TB
     end
 
     subgraph API抽象层["API 抽象层 (src/api/)"]
-        ApiSwitch["Mock/Real 模式切换<br/>VITE_API_MODE"]
-        MockImpl["Mock 实现"]
+        ApiSwitch["API 门面<br/>src/api/*.ts"]
+        MockImpl["轻量 fixture<br/>测试/离线样例"]
         RealImpl["Real 实现 (Axios)"]
     end
 
@@ -210,22 +210,21 @@ function usePagination<T>(
 - 职责：文件选择 → 解析预览 → 错误标记 → 确认导入
 - 接受 `.xlsx` 和 `.xls` 格式
 
-### 8. API 层 Mock/Real 切换
+### 8. API 层真实后端主线
 
-#### 切换机制
-- 环境变量：`VITE_API_MODE = 'mock' | 'real'`（默认 `'mock'`）
+#### 运行机制
+- 管理端运行时固定走 `src/api/real/*` 与 `server-v2`，不再通过环境变量切换 Mock/Real。
 - 每个 API 模块文件结构：
 
 ```typescript
 // src/api/product.ts
-import { mockGetProducts, mockCreateProduct } from './mock/product';
 import { realGetProducts, realCreateProduct } from './real/product';
 
-const isReal = import.meta.env.VITE_API_MODE === 'real';
-
-export const getProducts = isReal ? realGetProducts : mockGetProducts;
-export const createProduct = isReal ? realCreateProduct : mockCreateProduct;
+export const getProducts = realGetProducts;
+export const createProduct = realCreateProduct;
 ```
+
+`src/api/mock` 仅保留轻量 fixture 和历史离线样例，不作为管理端运行时数据源。
 
 #### 新增 API 模块
 - `src/api/auth.ts` — 登录、登出、获取用户信息
