@@ -1,14 +1,21 @@
 import {
   Injectable,
+  Optional,
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
+  ConflictException,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { ServiceTaskStatus } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
+import { CommissionService } from '../commission/commission.service.js';
+import { CustomerProfileService } from '../customers/customer-profile.service.js';
+import { TerminalDashboardCacheService } from './terminal-dashboard-cache.service.js';
 import { DeviceLoginDto } from './dto/device-login.dto.js';
 import { DeviceHeartbeatDto } from './dto/device-heartbeat.dto.js';
 import { QuickCreateCustomerDto } from './dto/quick-create-customer.dto.js';
@@ -28,6 +35,18 @@ import {
 import { AdjustBalanceDto, ConsumeBalanceDto, RefundBalanceDto } from './dto/balance.dto.js';
 import { CreateTerminalServiceRecordDto } from './dto/service-record.dto.js';
 import { CreateTerminalAutomationDto, UpdateTerminalAutomationDto } from './dto/automation.dto.js';
+import { QueryTerminalConversationsDto, SaveTerminalConversationDto } from './dto/conversation.dto.js';
+import {
+  ProvisionTerminalDeviceDto,
+  QueryTerminalDevicesDto,
+  UpdateTerminalDeviceDto,
+} from './dto/terminal-device-admin.dto.js';
+import {
+  AssignTerminalFollowUpTaskDto,
+  CompleteTerminalFollowUpTaskDto,
+  CreateTerminalFollowUpTaskDto,
+  QueryTerminalFollowUpTasksDto,
+} from './dto/follow-up-task.dto.js';
 
 type TerminalDashboardInsight = {
   title: string;
@@ -43,6 +62,12 @@ type TerminalDashboardInsights = {
   suggestions: TerminalDashboardInsight[];
 };
 
+type TerminalContextCustomerOptions = {
+  keyword?: string;
+  onlyWithActiveCards?: boolean;
+  customerIds?: number[];
+};
+
 @Injectable()
 export class TerminalService implements OnModuleInit, OnModuleDestroy {
   private automationScheduler?: NodeJS.Timeout;
@@ -53,6 +78,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private aiService: AiService,
+    private commissionService: CommissionService,
+    private terminalDashboardCache: TerminalDashboardCacheService = new TerminalDashboardCacheService(),
+    @Optional() private customerProfileService?: CustomerProfileService,
   ) {}
 
   onModuleInit() {
@@ -87,8 +115,321 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return `${year}-${month}-${day}`;
   }
 
+  private getTerminalConversationModel() {
+    return (this.prisma as any).terminalConversation;
+  }
+
+  private getDateOnly(value?: string | Date | null) {
+    if (!value) return new Date(new Date().toISOString().slice(0, 10));
+    if (value instanceof Date) return new Date(value.toISOString().slice(0, 10));
+    const raw = String(value).trim();
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : raw.slice(0, 10);
+    const date = new Date(`${normalized}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid conversation date');
+    return date;
+  }
+
+  private mapTerminalConversation(record: any) {
+    return {
+      id: record.id,
+      deviceId: record.deviceId,
+      storeId: record.storeId,
+      role: record.role,
+      operatorId: record.operatorId ?? null,
+      date: this.toLocalDateText(record.date),
+      messages: Array.isArray(record.messages) ? record.messages : [],
+      messageCount: record.messageCount ?? 0,
+      createdAt: this.toIso(record.createdAt),
+      updatedAt: this.toIso(record.updatedAt),
+      archivedAt: this.toIso(record.archivedAt) || null,
+    };
+  }
+
+  private getUserRoleKeys(user: any): Set<string> {
+    const roles = (user?.roles ?? [])
+      .map((item: any) => item.role?.key)
+      .filter((key: unknown): key is string => typeof key === 'string' && key.length > 0);
+    return new Set<string>(roles);
+  }
+
+  private getUserPermissionList(user: any): string[] {
+    const permissions = (user?.roles ?? [])
+      .flatMap((item: any) => (Array.isArray(item.role?.permissions) ? item.role.permissions : []))
+      .filter((permission: unknown): permission is string => typeof permission === 'string');
+    return [...new Set<string>(permissions)];
+  }
+
+  private hasRoleKeyLike(roleKeys: Set<string>, keywords: string[]) {
+    return [...roleKeys].some((key) => {
+      const normalized = key.toLowerCase();
+      return keywords.some((keyword) => normalized === keyword || normalized.includes(keyword));
+    });
+  }
+
+  private hasAnyPermission(permissions: Set<string>, values: string[]) {
+    return values.some((permission) => permissions.has(permission));
+  }
+
+  private hasTerminalPermissionPrefix(permissions: Set<string>, prefixes: string[]) {
+    return [...permissions].some((permission) => prefixes.some((prefix) => permission.startsWith(prefix)));
+  }
+
+  private getAuraAvailableRolesForUser(user: any): string[] {
+    if (!user) return ['reception'];
+    const roleKeys = this.getUserRoleKeys(user);
+    const permissions = new Set(this.getUserPermissionList(user));
+    const isManager =
+      this.hasRoleKeyLike(roleKeys, ['super_admin', 'store_manager', 'manager', 'admin']) ||
+      permissions.has('*') ||
+      permissions.has('aura:manager:view');
+
+    if (isManager) {
+      return ['manager', 'reception', 'beautician'];
+    }
+
+    const availableRoles: string[] = [];
+    if (
+      this.hasRoleKeyLike(roleKeys, ['cashier', 'reception', 'frontdesk']) ||
+      this.hasAnyPermission(permissions, [
+        'aura:reception:view',
+        'aura:cashier:create',
+        'core:order:create',
+        'core:order:products',
+        'core:order:projects',
+        'core:goods:cards',
+      ]) ||
+      this.hasTerminalPermissionPrefix(permissions, ['terminal:cashier:', 'terminal:reception:'])
+    ) {
+      availableRoles.push('reception');
+    }
+    if (
+      this.hasRoleKeyLike(roleKeys, ['beautician']) ||
+      permissions.has('aura:beautician:view') ||
+      this.hasTerminalPermissionPrefix(permissions, ['terminal:service:', 'terminal:beautician:'])
+    ) {
+      availableRoles.push('beautician');
+    }
+    if (isManager) {
+      availableRoles.unshift('manager');
+    }
+
+    return [...new Set(availableRoles)];
+  }
+
+  private hasTerminalRoleSignal(user: any) {
+    return this.getAuraAvailableRolesForUser(user).length > 0;
+  }
+
+  private mapTerminalAuthUser(user: any) {
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      phone: user.phone ?? '',
+      email: user.email ?? undefined,
+      roles: [...this.getUserRoleKeys(user)],
+      permissions: this.getUserPermissionList(user),
+      storeIds: (user.stores ?? []).map((item: any) => item.storeId),
+      status: user.status,
+    };
+  }
+
+  private mapTerminalBeautician(beautician: any, storeName?: string) {
+    if (!beautician) return null;
+    return {
+      id: beautician.id,
+      userId: beautician.userId ?? undefined,
+      name: beautician.name,
+      phone: beautician.phone ?? '',
+      level: beautician.level?.name ?? '美容师',
+      specialties: ['面部护理', '身体护理'],
+      status: beautician.status === 'active' ? '在职' : beautician.status,
+      storeId: beautician.storeId,
+      storeName: storeName ?? beautician.store?.name ?? '当前门店',
+      joinDate: beautician.createdAt.toISOString().slice(0, 10),
+      createdAt: beautician.createdAt.toISOString(),
+    };
+  }
+
+  private mapTerminalUserOption(user: any, beauticianByUserId?: Map<number, any>, storeName?: string) {
+    const labels: Record<string, string> = {
+      manager: '店长',
+      reception: '前台',
+      beautician: '美容师',
+    };
+    const availableRoles = this.getAuraAvailableRolesForUser(user);
+    const defaultRole = availableRoles[0] ?? 'reception';
+    const boundBeautician = beauticianByUserId?.get(user.id);
+    return {
+      ...this.mapTerminalAuthUser(user),
+      availableRoles,
+      defaultRole,
+      roleLabel: availableRoles.map((role) => labels[role] ?? role).join(' / '),
+      boundBeauticianId: boundBeautician?.id,
+      boundBeauticianName: boundBeautician?.name,
+      currentBeautician: boundBeautician ? this.mapTerminalBeautician(boundBeautician, storeName) : undefined,
+    };
+  }
+
+  private async assertTerminalOperatorAllowed(storeId: number, operatorId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: operatorId,
+        deletedAt: null,
+        status: 'active',
+        OR: [
+          { stores: { some: { storeId } } },
+          { roles: { some: { role: { key: { in: ['super_admin', 'store_manager'] } } } } },
+        ],
+      },
+      include: { roles: { include: { role: true } }, stores: true },
+    });
+    if (!user || !this.hasTerminalRoleSignal(user)) {
+      throw new BadRequestException('当前账号无权使用此门店终端');
+    }
+    return user;
+  }
+
+  private async resolveConversationOperatorId(
+    storeId: number,
+    userId: number | undefined,
+    requestedOperatorId?: number,
+  ) {
+    const operatorId = Number.isFinite(requestedOperatorId) ? requestedOperatorId : userId;
+    if (!operatorId) return null;
+    if (requestedOperatorId && requestedOperatorId !== userId) {
+      await this.assertTerminalOperatorAllowed(storeId, operatorId);
+    }
+    return operatorId;
+  }
+
+  private async resolveTerminalBeautician(storeId: number, userId: number | undefined, requestedOperatorId?: number) {
+    const operatorId = await this.resolveConversationOperatorId(storeId, userId, requestedOperatorId);
+    if (!operatorId) {
+      throw new BadRequestException('当前设备未绑定操作账号，无法识别美容师');
+    }
+    const beautician = await this.prisma.beautician.findFirst({
+      where: {
+        storeId,
+        userId: operatorId,
+        status: 'active',
+      },
+      include: { level: true, store: true, user: true },
+    });
+    if (!beautician) {
+      throw new BadRequestException('当前账号未绑定美容师档案，请在管理端美容师管理中绑定账号');
+    }
+    return {
+      operatorId,
+      beautician,
+      profile: {
+        ...this.mapTerminalBeautician(beautician, beautician.store?.name),
+        beauticianId: beautician.id,
+        roleMode: requestedOperatorId && requestedOperatorId !== userId ? 'manager_delegate' : 'self',
+      },
+    };
+  }
+
   private toTerminalDeviceId(deviceId?: number | null): number | undefined {
     return deviceId && deviceId > 0 ? deviceId : undefined;
+  }
+
+  private getDashboardCacheKey(parts: Array<string | number | undefined | null>) {
+    return this.terminalDashboardCache.getKey(parts);
+  }
+
+  private async withTerminalDashboardCache<T>(
+    keyParts: Array<string | number | undefined | null>,
+    ttlMs: number,
+    loader: () => Promise<T>,
+  ): Promise<T> {
+    const startedAt = Date.now();
+    const key = this.getDashboardCacheKey(keyParts);
+    const cached = this.terminalDashboardCache.get<T>(key);
+    const endpoint = String(keyParts[0] ?? 'unknown');
+    const storeId = keyParts[1];
+    if (cached && cached.expiresAt > Date.now()) {
+      this.logTerminalDashboardMetric(endpoint, storeId, Date.now() - startedAt, cached.value, true, 0);
+      return cached.value;
+    }
+    try {
+      const { value, queryCount } =
+        typeof this.prisma.runWithQueryCounter === 'function'
+          ? await this.prisma.runWithQueryCounter(loader)
+          : { value: await loader(), queryCount: undefined };
+      this.terminalDashboardCache.set(key, value, ttlMs);
+      this.logTerminalDashboardMetric(endpoint, storeId, Date.now() - startedAt, value, false, queryCount);
+      return value;
+    } catch (error) {
+      this.logTerminalDashboardMetric(endpoint, storeId, Date.now() - startedAt, undefined, false, undefined, error);
+      throw error;
+    }
+  }
+
+  private logTerminalDashboardMetric(
+    endpoint: string,
+    storeId: string | number | undefined | null,
+    durationMs: number,
+    value: unknown,
+    cacheHit: boolean,
+    dbQueryCount?: number,
+    error?: unknown,
+  ) {
+    const responseSize = value === undefined ? 0 : Buffer.byteLength(JSON.stringify(value), 'utf8');
+    const candidate = error as { code?: unknown; status?: unknown; name?: unknown };
+    const metric = {
+      endpoint,
+      storeId,
+      durationMs,
+      dbQueryCount,
+      responseSize,
+      cacheHit,
+      errorCode: error ? String(candidate?.code ?? candidate?.status ?? candidate?.name ?? 'UNKNOWN') : undefined,
+    };
+    if (durationMs >= 1200 || error) {
+      console.warn('Ami Core terminal dashboard metric', metric);
+      return;
+    }
+    console.info('Ami Core terminal dashboard metric', metric);
+  }
+
+  private invalidateTerminalDashboardCache(storeId: number | undefined | null, prefixes: string[]) {
+    this.terminalDashboardCache.invalidate(storeId, prefixes);
+  }
+
+  private invalidateReservationDashboardCache(storeId?: number | null, includeStaff = false) {
+    this.invalidateTerminalDashboardCache(storeId, [
+      'role',
+      'manager',
+      'today-reservations',
+      ...(includeStaff ? ['staff-schedules'] : []),
+    ]);
+  }
+
+  private invalidateCashierDashboardCache(storeId?: number | null) {
+    this.invalidateTerminalDashboardCache(storeId, ['role', 'manager', 'customer-growth', 'cashier-context']);
+  }
+
+  private invalidateCardDashboardCache(storeId?: number | null) {
+    this.invalidateTerminalDashboardCache(storeId, ['role', 'manager', 'customer-growth', 'card-verification-context']);
+  }
+
+  private invalidateCustomerDashboardCache(storeId?: number | null) {
+    this.invalidateTerminalDashboardCache(storeId, [
+      'role',
+      'manager',
+      'customer-growth',
+      'cashier-context',
+      'card-verification-context',
+    ]);
+  }
+
+  private invalidateAutomationDashboardCache(storeId?: number | null) {
+    this.invalidateTerminalDashboardCache(storeId, ['role', 'manager', 'customer-growth']);
+  }
+
+  private invalidateInventoryDashboardCache(storeId?: number | null) {
+    this.invalidateTerminalDashboardCache(storeId, ['role', 'manager', 'inventory-alerts']);
   }
 
   private isMissingOptionalTableError(error: unknown) {
@@ -145,7 +486,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       /自动(?:发送|取消|扣次|核销|收款|创建收款|发放|下发)|扣次|核销|收款|取消预约|优惠|折扣|短信|微信|企微|小程序|支付|退款|储值|充值/;
     const highRiskPattern = /扣次|核销|收款|取消预约|退款|储值|充值|支付/;
     const requiresApproval = dto.riskLevel === 'high' || dto.requiresApproval || approvalPattern.test(text);
-    const riskLevel = dto.riskLevel === 'high' || highRiskPattern.test(text) ? 'high' : requiresApproval ? 'medium' : dto.riskLevel;
+    const riskLevel =
+      dto.riskLevel === 'high' || highRiskPattern.test(text) ? 'high' : requiresApproval ? 'medium' : dto.riskLevel;
 
     return { riskLevel, requiresApproval };
   }
@@ -244,7 +586,19 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private parseTerminalAutomationChineseHour(text: string) {
     const normalized = text.replace(/两/g, '二');
-    const map: Record<string, number> = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+    const map: Record<string, number> = {
+      零: 0,
+      一: 1,
+      二: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+      十: 10,
+    };
     if (/^\d+$/.test(normalized)) return Number(normalized);
     if (normalized === '十') return 10;
     if (normalized.startsWith('十')) return 10 + (map[normalized.slice(1)] ?? 0);
@@ -257,7 +611,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private parseTerminalAutomationSpokenTime(trigger: string) {
-    const matched = trigger.match(/(?:每天|每日)?\s*(上午|下午|晚上|晚间|早上|中午)?\s*([0-9一二三四五六七八九十两]{1,3})[:：点](半|\d{0,2})/);
+    const matched = trigger.match(
+      /(?:每天|每日)?\s*(上午|下午|晚上|晚间|早上|中午)?\s*([0-9一二三四五六七八九十两]{1,3})[:：点](半|\d{0,2})/,
+    );
     if (!matched) return null;
     const [, period, hourText, minuteText] = matched;
     let hour = this.parseTerminalAutomationChineseHour(hourText) ?? Number(hourText);
@@ -269,7 +625,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   }
 
-  private buildTerminalAutomationPayload(storeId: number, userId: number | undefined, dto: CreateTerminalAutomationDto) {
+  private buildTerminalAutomationPayload(
+    storeId: number,
+    userId: number | undefined,
+    dto: CreateTerminalAutomationDto,
+  ) {
     const marker = this.getTerminalAutomationMarker(storeId);
     const draftMarker = this.getTerminalAutomationDraftMarker(dto.draftId);
     const risk = this.resolveTerminalAutomationRisk(dto);
@@ -378,7 +738,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return new Date(`${dateText}T${reservation.startTime || '00:00'}:00`);
   }
 
-  private isReservationReminderDue(reservation: { date: Date | string; startTime?: string | null }, offsetMinutes: number, now = new Date()) {
+  private isReservationReminderDue(
+    reservation: { date: Date | string; startTime?: string | null },
+    offsetMinutes: number,
+    now = new Date(),
+  ) {
     const appointmentAt = this.getReservationAppointmentDate(reservation);
     const remindAt = new Date(appointmentAt.getTime() - offsetMinutes * 60000);
     const windowEnd = new Date(remindAt.getTime() + 10 * 60000);
@@ -480,7 +844,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       target.setDate(target.getDate() + 7);
       const targetMonth = target.getMonth();
       const targetDate = target.getDate();
-      return customers.filter((item) => item.birthday?.getMonth() === targetMonth && item.birthday?.getDate() === targetDate).length;
+      return customers.filter(
+        (item) => item.birthday?.getMonth() === targetMonth && item.birthday?.getDate() === targetDate,
+      ).length;
     }
 
     return 1;
@@ -519,7 +885,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         take: 200,
       });
       const targetReservations = /预约前|来店前|到店前/.test(text)
-        ? reservations.filter((item) => this.isReservationReminderDue(item, this.parseReservationReminderOffsetMinutes(text)))
+        ? reservations.filter((item) =>
+            this.isReservationReminderDue(item, this.parseReservationReminderOffsetMinutes(text)),
+          )
         : reservations;
       return Array.from(new Set(targetReservations.map((item) => item.customerId).filter(Boolean)));
     }
@@ -602,7 +970,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return eligibleCustomerIds.length;
   }
 
-  private buildTerminalAutomationExecutionInsight(strategy: any, execution: { triggeredCount: number; reachedCount: number }) {
+  private buildTerminalAutomationExecutionInsight(
+    strategy: any,
+    execution: { triggeredCount: number; reachedCount: number },
+  ) {
     const mapped = this.mapTerminalAutomationStrategy(strategy);
     const text = `${mapped.title} ${mapped.summary} ${mapped.trigger} ${mapped.audience} ${mapped.action}`;
     const hasTargets = execution.triggeredCount > 0;
@@ -612,7 +983,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (/库存|补货|低库存/.test(text)) {
       return {
         reason: `${targetText}，系统按当前库存和安全库存阈值完成扫描。`,
-        nextActions: hasTargets ? ['查看低库存商品清单', '确认补货数量', '安排采购或调拨'] : ['保持当前安全库存设置', '明天继续自动扫描'],
+        nextActions: hasTargets
+          ? ['查看低库存商品清单', '确认补货数量', '安排采购或调拨']
+          : ['保持当前安全库存设置', '明天继续自动扫描'],
         primaryActionLabel: hasTargets ? '处理补货待办' : '查看库存规则',
         detailLines: baseLines,
       };
@@ -621,7 +994,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (/未收款|未付款|未支付|收款/.test(text)) {
       return {
         reason: `${targetText}，系统已筛出仍处于待支付状态的订单。`,
-        nextActions: hasTargets ? ['核对订单金额', '提醒前台跟进收款', '必要时联系顾客确认支付方式'] : ['无需处理未收款', '闭店前继续自动复核'],
+        nextActions: hasTargets
+          ? ['核对订单金额', '提醒前台跟进收款', '必要时联系顾客确认支付方式']
+          : ['无需处理未收款', '闭店前继续自动复核'],
         primaryActionLabel: hasTargets ? '处理收款提醒' : '查看收款规则',
         detailLines: baseLines,
       };
@@ -630,7 +1005,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (/未完成服务|服务任务|护理回访|护理周期|服务完成/.test(text)) {
       return {
         reason: `${targetText}，系统按服务任务状态和护理周期完成筛选。`,
-        nextActions: hasTargets ? ['查看待回访顾客', '分配美容师跟进', '记录回访结果或预约意向'] : ['无需新增回访', '继续按护理周期自动扫描'],
+        nextActions: hasTargets
+          ? ['查看待回访顾客', '分配美容师跟进', '记录回访结果或预约意向']
+          : ['无需新增回访', '继续按护理周期自动扫描'],
         primaryActionLabel: hasTargets ? '处理回访待办' : '查看回访规则',
         detailLines: baseLines,
       };
@@ -639,7 +1016,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (/次卡|卡项|到期|续卡/.test(text)) {
       return {
         reason: `${targetText}，系统按剩余次数和到期时间完成筛选。`,
-        nextActions: hasTargets ? ['查看即将到期卡项', '生成续卡/使用提醒话术', '安排前台跟进'] : ['无需处理卡项风险', '继续按频控自动扫描'],
+        nextActions: hasTargets
+          ? ['查看即将到期卡项', '生成续卡/使用提醒话术', '安排前台跟进']
+          : ['无需处理卡项风险', '继续按频控自动扫描'],
         primaryActionLabel: hasTargets ? '处理卡项待办' : '查看卡项规则',
         detailLines: baseLines,
       };
@@ -648,7 +1027,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (/迟到|预约|到店/.test(text)) {
       return {
         reason: `${targetText}，系统按今日预约状态完成检查。`,
-        nextActions: hasTargets ? ['查看预约名单', '提醒前台电话确认', '必要时标记迟到/未到店'] : ['当前预约无需处理', '下一轮继续按预约时间扫描'],
+        nextActions: hasTargets
+          ? ['查看预约名单', '提醒前台电话确认', '必要时标记迟到/未到店']
+          : ['当前预约无需处理', '下一轮继续按预约时间扫描'],
         primaryActionLabel: hasTargets ? '处理预约提醒' : '查看预约规则',
         detailLines: baseLines,
       };
@@ -657,7 +1038,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (/生日/.test(text)) {
       return {
         reason: `${targetText}，系统按生日提前提醒规则完成筛选。`,
-        nextActions: hasTargets ? ['预览生日关怀话术', '确认优惠或祝福内容', '安排员工触达顾客'] : ['暂无生日关怀对象', '保持生日信息完整'],
+        nextActions: hasTargets
+          ? ['预览生日关怀话术', '确认优惠或祝福内容', '安排员工触达顾客']
+          : ['暂无生日关怀对象', '保持生日信息完整'],
         primaryActionLabel: hasTargets ? '处理关怀待办' : '查看生日规则',
         detailLines: baseLines,
       };
@@ -665,15 +1048,25 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     return {
       reason: `${targetText}，系统已按当前自动化规则完成扫描。`,
-      nextActions: hasTargets ? ['查看命中对象', '确认提醒内容', '安排员工跟进'] : ['暂无待处理事项', '继续按规则自动扫描'],
+      nextActions: hasTargets
+        ? ['查看命中对象', '确认提醒内容', '安排员工跟进']
+        : ['暂无待处理事项', '继续按规则自动扫描'],
       primaryActionLabel: hasTargets ? '处理自动化待办' : '查看自动化规则',
       detailLines: baseLines,
     };
   }
 
   private async executeTerminalAutomationStrategy(strategy: any, storeId: number): Promise<any>;
-  private async executeTerminalAutomationStrategy(strategy: any, storeId: number, options: { skipWhenNoTargets: true }): Promise<any | null>;
-  private async executeTerminalAutomationStrategy(strategy: any, storeId: number, options?: { skipWhenNoTargets?: boolean }) {
+  private async executeTerminalAutomationStrategy(
+    strategy: any,
+    storeId: number,
+    options: { skipWhenNoTargets: true },
+  ): Promise<any | null>;
+  private async executeTerminalAutomationStrategy(
+    strategy: any,
+    storeId: number,
+    options?: { skipWhenNoTargets?: boolean },
+  ) {
     const targetCount = await this.countTerminalAutomationTargets(storeId, strategy);
     if (targetCount === 0 && options?.skipWhenNoTargets) return null;
 
@@ -741,7 +1134,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       return {
         itemType,
         itemId: itemId === undefined || itemId === null ? undefined : Number(itemId),
-        name: String(item.name ?? item.productName ?? item.projectName ?? item.cardName ?? `${itemType}#${itemId ?? ''}`),
+        name: String(
+          item.name ?? item.productName ?? item.projectName ?? item.cardName ?? `${itemType}#${itemId ?? ''}`,
+        ),
         quantity,
         unitPrice,
         subtotal,
@@ -751,13 +1146,59 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async createOrderItems(tx: any, orderId: number, rawItems: any[] = []) {
+  private isQuestionPlaceholder(value: unknown) {
+    const text = String(value ?? '').trim();
+    return /^\?+(?:\s*x\s*\d+)?$/i.test(text);
+  }
+
+  private async resolveOrderItemNames(rawItems: any[] = [], tx: any = this.prisma) {
     const items = this.normalizeOrderItems(rawItems);
+    if (!items.length) return items;
+
+    const projectIds = new Set<number>();
+    const productIds = new Set<number>();
+    const cardIds = new Set<number>();
+    for (const item of items) {
+      if (!item.itemId) continue;
+      const type = String(item.itemType ?? '').toLowerCase();
+      if (type === 'project') projectIds.add(item.itemId);
+      if (type === 'product') productIds.add(item.itemId);
+      if (type === 'card') cardIds.add(item.itemId);
+    }
+
+    const [projects, products, cards] = await Promise.all([
+      projectIds.size
+        ? tx.project.findMany({ where: { id: { in: [...projectIds] } }, select: { id: true, name: true } })
+        : [],
+      productIds.size
+        ? tx.product.findMany({ where: { id: { in: [...productIds] } }, select: { id: true, name: true } })
+        : [],
+      cardIds.size ? tx.card.findMany({ where: { id: { in: [...cardIds] } }, select: { id: true, name: true } }) : [],
+    ]);
+
+    const projectNameById = new Map(projects.map((item: any) => [item.id, item.name]));
+    const productNameById = new Map(products.map((item: any) => [item.id, item.name]));
+    const cardNameById = new Map(cards.map((item: any) => [item.id, item.name]));
+
+    return items.map((item) => {
+      const type = String(item.itemType ?? '').toLowerCase();
+      const resolvedName =
+        (type === 'project' ? projectNameById.get(item.itemId) : undefined) ||
+        (type === 'product' ? productNameById.get(item.itemId) : undefined) ||
+        (type === 'card' ? cardNameById.get(item.itemId) : undefined);
+      if (resolvedName) return { ...item, name: resolvedName };
+      if (this.isQuestionPlaceholder(item.name)) return { ...item, name: `${item.itemType}#${item.itemId ?? ''}` };
+      return item;
+    });
+  }
+
+  private async createOrderItems(tx: any, orderId: number, rawItems: any[] = []) {
+    const items = await this.resolveOrderItemNames(rawItems, tx);
     if (!items.length) return items;
 
     try {
       await tx.orderItem.createMany({
-        data: items.map((item) => ({
+        data: items.map((item, index) => ({
           orderId,
           itemType: item.itemType,
           itemId: item.itemId,
@@ -766,6 +1207,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           unitPrice: item.unitPrice,
           subtotal: item.subtotal,
           discount: item.discount,
+          beauticianId: this.toNumber(rawItems[index]?.beauticianId) || undefined,
           payload: item.payload,
         })),
       });
@@ -799,6 +1241,34 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       if (this.warnOptionalTableSkipped('PaymentRecord', error)) return null;
       throw error;
+    }
+  }
+
+  private async calculateTerminalCommissions(input: {
+    storeId: number;
+    orderId: number;
+    beauticianId?: number;
+    isDesignated?: boolean;
+    items: Array<{ itemType: string; itemId?: number; subtotal: number; orderItemId?: number }>;
+  }) {
+    if (!input.beauticianId) return [];
+    try {
+      const beautician = await this.prisma.beautician.findFirst({
+        where: { id: input.beauticianId, storeId: input.storeId },
+        select: { id: true, levelId: true },
+      });
+      if (!beautician) return [];
+      return this.commissionService.calculateOrderCommissions({
+        storeId: input.storeId,
+        orderId: input.orderId,
+        beauticianId: input.beauticianId,
+        levelId: beautician.levelId ?? undefined,
+        isDesignated: input.isDesignated,
+        items: input.items,
+      });
+    } catch (error) {
+      console.warn('终端提成流水生成失败', error);
+      return [];
     }
   }
 
@@ -949,6 +1419,28 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           actualRevenue: { increment: amount },
         },
       });
+      const category = String(touch.conversionType ?? touch.metadata?.category ?? touch.metadata?.strategyType ?? '')
+        .toLowerCase()
+        .includes('churn')
+        ? 'churn_recovery'
+        : 'marketing_conversion';
+      await this.commissionService.recordAmiContribution(
+        {
+          storeId: this.toNumber((order as any).storeId),
+          category,
+          triggerType: 'automation',
+          triggerId: touch.id,
+          customerId: order.customerId,
+          orderId: order.id,
+          revenueAmount: amount,
+          metadata: {
+            strategyId: touch.strategyId,
+            executionId: touch.executionId,
+            attributionWindowDays: touch.attributionWindowDays ?? 30,
+          },
+        },
+        tx,
+      );
     } catch (error) {
       if (!this.warnOptionalTableSkipped('MarketingAttribution/MarketingAutomationTouch', error)) throw error;
     }
@@ -974,14 +1466,20 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     await tx.product.update({
       where: { id: product.id },
-      data: signedQuantity < 0 ? { currentStock: { decrement: Math.abs(signedQuantity) } } : { currentStock: { increment: signedQuantity } },
+      data:
+        signedQuantity < 0
+          ? { currentStock: { decrement: Math.abs(signedQuantity) } }
+          : { currentStock: { increment: signedQuantity } },
     });
 
     const batchId = item.batchId ? Number(item.batchId) : undefined;
     if (batchId) {
       await tx.stockBatch.updateMany({
         where: { id: batchId, productId: product.id },
-        data: signedQuantity < 0 ? { stock: { decrement: Math.abs(signedQuantity) } } : { stock: { increment: signedQuantity } },
+        data:
+          signedQuantity < 0
+            ? { stock: { decrement: Math.abs(signedQuantity) } }
+            : { stock: { increment: signedQuantity } },
       });
     }
 
@@ -1004,10 +1502,118 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  private async consumeProjectBomForCheckout(
+    tx: any,
+    storeId: number,
+    order: { id: number; orderNo?: string | null },
+    items: any[],
+    remark?: string,
+  ) {
+    const projectItems = items.filter(
+      (item) => String(item.itemType ?? item.type).toLowerCase() === 'project' && (item.itemId ?? item.projectId),
+    );
+    if (!projectItems.length) return false;
+
+    const existed = await tx.stockMovement.findFirst({
+      where: { sourceType: 'project_order', sourceId: order.id, movementType: 'service_consume' },
+      select: { id: true },
+    });
+    if (existed) return false;
+
+    const projectIds = [...new Set(projectItems.map((item) => Number(item.itemId ?? item.projectId)).filter(Boolean))];
+    const bomItems = await tx.projectBomItem.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { projectId: true, productId: true, standardQty: true, unit: true },
+    });
+    if (!bomItems.length) return false;
+
+    const bomByProject = new Map<number, typeof bomItems>();
+    for (const bomItem of bomItems) {
+      const list = bomByProject.get(bomItem.projectId) ?? [];
+      list.push(bomItem);
+      bomByProject.set(bomItem.projectId, list);
+    }
+
+    let consumed = false;
+    for (const item of projectItems) {
+      const projectId = Number(item.itemId ?? item.projectId);
+      const multiplier = this.toNumber(item.quantity ?? item.qty ?? 1) || 1;
+      for (const bomItem of bomByProject.get(projectId) ?? []) {
+        await this.createStockMovementForItem(
+          tx,
+          storeId,
+          { productId: bomItem.productId, quantity: this.toNumber(bomItem.standardQty) * multiplier },
+          'service_consume',
+          {
+            type: 'project_order',
+            id: order.id,
+            no: order.orderNo ?? undefined,
+            remark: remark ?? `项目收银自动扣耗材：${item.name ?? item.projectName ?? `项目#${projectId}`}`,
+          },
+        );
+        consumed = true;
+      }
+    }
+    return consumed;
+  }
+
+  private async consumeProjectBomForCardUsage(
+    tx: any,
+    storeId: number,
+    projectId: number,
+    times: number,
+    record: { id: number; cardName?: string | null; projectName?: string | null },
+  ) {
+    if (!storeId || !projectId || times <= 0) return false;
+
+    const existed = await tx.stockMovement.findFirst({
+      where: { sourceType: 'card_usage', sourceId: record.id, movementType: 'service_consume' },
+      select: { id: true },
+    });
+    if (existed) return false;
+
+    const bomItems = await tx.projectBomItem.findMany({
+      where: { projectId },
+      select: { productId: true, standardQty: true },
+    });
+    if (!bomItems.length) return false;
+
+    let consumed = false;
+    for (const bomItem of bomItems) {
+      await this.createStockMovementForItem(
+        tx,
+        storeId,
+        { productId: bomItem.productId, quantity: this.toNumber(bomItem.standardQty) * times },
+        'service_consume',
+        {
+          type: 'card_usage',
+          id: record.id,
+          no: record.cardName ?? undefined,
+          remark: `次卡核销自动扣耗材：${record.projectName ?? `项目#${projectId}`}`,
+        },
+      );
+      consumed = true;
+    }
+    return consumed;
+  }
+
   private async getStore(storeId: number) {
     const store = await this.prisma.store.findUnique({ where: { id: storeId } });
     if (!store) throw new NotFoundException('门店不存在');
     return store;
+  }
+
+  private mapStoreConfig(store: any) {
+    return {
+      id: store.id,
+      name: store.name,
+      address: store.address ?? '',
+      skuCount: Number(store.skuCount ?? 0),
+      totalValue: Number(store.totalValue ?? 0),
+      healthScore: Number(store.healthScore ?? 100),
+      mode: store.mode ?? '独立',
+      shiftRequired: store.shiftRequired !== false,
+    };
   }
 
   private async mapReservation(reservation: any) {
@@ -1048,7 +1654,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       this.prisma.store.findUnique({ where: { id: task.storeId } }),
       this.prisma.customer.findUnique({ where: { id: task.customerId } }),
       this.prisma.project.findUnique({ where: { id: task.projectId } }),
-      task.beauticianId ? this.prisma.beautician.findUnique({ where: { id: task.beauticianId } }) : Promise.resolve(null),
+      task.beauticianId
+        ? this.prisma.beautician.findUnique({ where: { id: task.beauticianId } })
+        : Promise.resolve(null),
     ]);
     return {
       id: task.id,
@@ -1094,6 +1702,203 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   // ─── Device Management ──────────────────────────────────────────────────────
 
+  private mapTerminalDevice(device: any, options: { includeActivationCode?: boolean } = {}) {
+    const viewStatus = device.status === 'offline' && !device.boundAt ? 'unactivated' : device.status;
+    const mapped: any = {
+      id: device.id,
+      deviceCode: device.deviceCode,
+      name: device.name,
+      model: device.model,
+      storeId: device.storeId,
+      storeName: device.store?.name ?? '',
+      status: viewStatus,
+      appVersion: device.appVersion ?? '',
+      firmwareVersion: device.firmwareVersion ?? '',
+      batteryLevel: device.batteryLevel ?? 0,
+      networkStatus: device.networkStatus ?? 'offline',
+      printerStatus: device.printerStatus ?? 'unknown',
+      scannerStatus: device.scannerStatus ?? 'unknown',
+      cameraStatus: device.cameraStatus ?? 'unknown',
+      lastOnlineAt: this.toIso(device.lastOnlineAt),
+      boundAt: this.toIso(device.boundAt),
+    };
+    if (options.includeActivationCode) {
+      mapped.activationCode = device.activationCode;
+    }
+    return mapped;
+  }
+
+  private generateActivationCode() {
+    return `AURA-${randomBytes(3).toString('hex').toUpperCase()}`;
+  }
+
+  private async generateDeviceCode(storeId: number) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const suffix = randomBytes(2).toString('hex').toUpperCase();
+      const candidate = `AURA-${String(storeId).padStart(4, '0')}-${suffix}`;
+      const existing = await this.prisma.terminalDevice.findUnique({ where: { deviceCode: candidate } });
+      if (!existing) return candidate;
+    }
+    throw new ConflictException('Unable to generate a unique device code');
+  }
+
+  private resolveTerminalDeviceStoreId(dtoStoreId?: number, headerStoreId?: number) {
+    const storeId = dtoStoreId ?? headerStoreId;
+    if (!storeId || !Number.isFinite(storeId)) {
+      throw new BadRequestException('storeId is required');
+    }
+    return storeId;
+  }
+
+  async findTerminalDevicesPaginated(query: QueryTerminalDevicesDto, headerStoreId?: number) {
+    const { page = 1, pageSize = 20, keyword, status } = query;
+    const where: any = {};
+    const storeId = query.storeId ?? headerStoreId;
+    const normalizedKeyword = keyword?.trim();
+
+    if (storeId) where.storeId = storeId;
+    if (status) where.status = status;
+    if (normalizedKeyword) {
+      where.OR = [
+        { deviceCode: { contains: normalizedKeyword, mode: 'insensitive' } },
+        { name: { contains: normalizedKeyword, mode: 'insensitive' } },
+        { model: { contains: normalizedKeyword, mode: 'insensitive' } },
+        { store: { name: { contains: normalizedKeyword, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [devices, total] = await Promise.all([
+      this.prisma.terminalDevice.findMany({
+        where,
+        include: { store: true },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { id: 'desc' },
+      }),
+      this.prisma.terminalDevice.count({ where }),
+    ]);
+    const items = devices.map((device) => this.mapTerminalDevice(device));
+    return { items, data: items, total, page, pageSize };
+  }
+
+  async provisionTerminalDevice(dto: ProvisionTerminalDeviceDto, headerStoreId?: number) {
+    const storeId = this.resolveTerminalDeviceStoreId(dto.storeId, headerStoreId);
+    const store = await this.getStore(storeId);
+    const deviceCode = dto.deviceCode?.trim() || (await this.generateDeviceCode(storeId));
+    const activationCode = dto.activationCode?.trim() || this.generateActivationCode();
+
+    const existing = await this.prisma.terminalDevice.findUnique({ where: { deviceCode } });
+    if (existing) throw new ConflictException('Device code already exists');
+
+    const device = await this.prisma.terminalDevice.create({
+      data: {
+        storeId,
+        deviceCode,
+        activationCode,
+        name: dto.name?.trim() || `${store.name} Ami Aura Lite`,
+        model: dto.model?.trim() || 'Ami Aura Lite',
+        status: 'offline',
+        appVersion: dto.appVersion?.trim() || '1.0.0',
+        firmwareVersion: dto.firmwareVersion?.trim() || '1.0.0',
+        batteryLevel: 100,
+        networkStatus: 'offline',
+        printerStatus: 'unknown',
+        scannerStatus: 'unknown',
+        cameraStatus: 'unknown',
+      },
+      include: { store: true },
+    });
+
+    return this.mapTerminalDevice(device, { includeActivationCode: true });
+  }
+
+  async updateTerminalDevice(id: number, dto: UpdateTerminalDeviceDto) {
+    const current = await this.prisma.terminalDevice.findUnique({
+      where: { id },
+      include: { store: true },
+    });
+    if (!current) throw new NotFoundException('Device not found');
+
+    const data: any = {};
+    const stringFields: Array<keyof UpdateTerminalDeviceDto> = [
+      'deviceCode',
+      'activationCode',
+      'name',
+      'model',
+      'appVersion',
+      'firmwareVersion',
+      'networkStatus',
+      'printerStatus',
+      'scannerStatus',
+      'cameraStatus',
+    ];
+    for (const field of stringFields) {
+      const value = dto[field];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed && ['deviceCode', 'activationCode', 'name', 'model'].includes(field)) {
+          throw new BadRequestException(`${field} cannot be empty`);
+        }
+        data[field] = trimmed;
+      }
+    }
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.batteryLevel !== undefined) data.batteryLevel = dto.batteryLevel;
+
+    if (data.deviceCode && data.deviceCode !== current.deviceCode) {
+      const existing = await this.prisma.terminalDevice.findUnique({ where: { deviceCode: data.deviceCode } });
+      if (existing) throw new ConflictException('Device code already exists');
+    }
+
+    if (!Object.keys(data).length) return this.mapTerminalDevice(current);
+
+    const updated = await this.prisma.terminalDevice.update({
+      where: { id },
+      data,
+      include: { store: true },
+    });
+    return this.mapTerminalDevice(updated);
+  }
+
+  async disableTerminalDevice(id: number) {
+    await this.ensureTerminalDevice(id);
+    const updated = await this.prisma.terminalDevice.update({
+      where: { id },
+      data: { status: 'disabled' },
+      include: { store: true },
+    });
+    return this.mapTerminalDevice(updated);
+  }
+
+  async approveTerminalDeviceUnbind(id: number, approved: boolean) {
+    await this.ensureTerminalDevice(id);
+    const updated = await this.prisma.terminalDevice.update({
+      where: { id },
+      data: approved ? { status: 'offline', boundAt: null } : { status: 'online' },
+      include: { store: true },
+    });
+    return this.mapTerminalDevice(updated);
+  }
+
+  async deleteTerminalDevice(id: number) {
+    await this.ensureTerminalDevice(id);
+    await this.prisma.$transaction([
+      this.prisma.serviceTask.updateMany({ where: { deviceId: id }, data: { deviceId: null } }),
+      this.prisma.skinTest.updateMany({ where: { deviceId: id }, data: { deviceId: null } }),
+      this.prisma.cardUsageRecord.updateMany({ where: { deviceId: id }, data: { deviceId: null } }),
+      this.prisma.recommendationEvent.updateMany({ where: { deviceId: id }, data: { deviceId: null } }),
+      this.prisma.aiAuditLog.updateMany({ where: { deviceId: id }, data: { deviceId: null } }),
+      this.prisma.terminalDevice.delete({ where: { id } }),
+    ]);
+    return { success: true, id };
+  }
+
+  private async ensureTerminalDevice(id: number) {
+    const device = await this.prisma.terminalDevice.findUnique({ where: { id } });
+    if (!device) throw new NotFoundException('Device not found');
+    return device;
+  }
+
   async deviceLogin(dto: DeviceLoginDto) {
     const device = await this.prisma.terminalDevice.findUnique({
       where: { deviceCode: dto.deviceCode },
@@ -1138,6 +1943,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         storeId: device.storeId,
         storeName: device.store.name,
       },
+      store: this.mapStoreConfig(device.store),
     };
   }
 
@@ -1151,6 +1957,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (dto.firmwareVersion) updateData.firmwareVersion = dto.firmwareVersion;
     if (dto.batteryLevel !== undefined) updateData.batteryLevel = dto.batteryLevel;
     if (dto.networkStatus) updateData.networkStatus = dto.networkStatus;
+    if (dto.printerStatus) updateData.printerStatus = dto.printerStatus;
+    if (dto.scannerStatus) updateData.scannerStatus = dto.scannerStatus;
+    if (dto.cameraStatus) updateData.cameraStatus = dto.cameraStatus;
 
     const result = await this.prisma.terminalDevice.updateMany({
       where: { id: deviceId },
@@ -1195,8 +2004,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       firmwareVersion: device.firmwareVersion,
       batteryLevel: device.batteryLevel,
       networkStatus: device.networkStatus,
+      printerStatus: device.printerStatus ?? 'unknown',
+      scannerStatus: device.scannerStatus ?? 'unknown',
+      cameraStatus: device.cameraStatus ?? 'unknown',
       lastOnlineAt: device.lastOnlineAt,
       boundAt: device.boundAt,
+      shiftRequired: device.store.shiftRequired !== false,
+      store: this.mapStoreConfig(device.store),
     };
   }
 
@@ -1212,8 +2026,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       this.prisma.printJob.count({ where: { storeId, status: 'failed' } }),
       this.prisma.printJob.findFirst({ where: { storeId }, orderBy: { createdAt: 'desc' } }),
     ]);
-    const networkStatus = device.networkStatus || 'online';
-    const printerStatus = failedPrintCount > 0 ? 'warning' : pendingPrintCount > 0 ? 'printing' : 'online';
+    const networkStatus = device.networkStatus || 'unknown';
+    const reportedPrinterStatus = device.printerStatus || 'unknown';
+    const printerStatus = failedPrintCount > 0 ? 'warning' : pendingPrintCount > 0 ? 'printing' : reportedPrinterStatus;
+    const scannerStatus = device.scannerStatus || 'unknown';
+    const cameraStatus = device.cameraStatus || 'unknown';
 
     return {
       device: {
@@ -1227,6 +2044,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         firmwareVersion: device.firmwareVersion,
         batteryLevel: device.batteryLevel ?? 100,
         networkStatus,
+        printerStatus,
+        scannerStatus,
+        cameraStatus,
         lastOnlineAt: this.toIso(device.lastOnlineAt),
       },
       peripherals: {
@@ -1243,16 +2063,135 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           latestJobId: latestPrintJob?.id,
         },
         scanner: {
-          status: 'online',
-          label: '扫码器正常',
+          status: scannerStatus,
+          label:
+            scannerStatus === 'online' ? '扫码器正常' : scannerStatus === 'offline' ? '扫码器离线' : '扫码器状态未知',
         },
         camera: {
-          status: 'online',
-          label: '摄像头正常',
+          status: cameraStatus,
+          label:
+            cameraStatus === 'online' ? '摄像头正常' : cameraStatus === 'offline' ? '摄像头离线' : '摄像头状态未知',
         },
       },
       serverTime: new Date().toISOString(),
     };
+  }
+
+  async saveConversation(
+    storeId: number,
+    deviceKey: string,
+    userId: number | undefined,
+    dto: SaveTerminalConversationDto,
+  ) {
+    const model = this.getTerminalConversationModel();
+    if (!model)
+      throw new BadRequestException(
+        'TerminalConversation model is not available. Please run Prisma migration and generate.',
+      );
+
+    const date = this.getDateOnly(dto.date);
+    const operatorId = await this.resolveConversationOperatorId(storeId, userId, dto.operatorId);
+    const messages = (dto.messages ?? [])
+      .filter((item) => item?.content?.trim())
+      .slice(-300)
+      .map((item) => ({
+        role: item.role,
+        content: item.content.trim().slice(0, 4000),
+        timestamp: Number.isFinite(item.timestamp) ? item.timestamp : Date.now(),
+        type: item.type,
+        title: item.title,
+      }));
+    const messageCount = Math.max(0, dto.messageCount ?? messages.length);
+
+    const where = {
+      deviceId: deviceKey,
+      role: dto.role,
+      date,
+      operatorId,
+    };
+    const existing = await model.findFirst({ where });
+    const data = {
+      storeId,
+      operatorId,
+      messages,
+      messageCount,
+      archivedAt: new Date(),
+    };
+    const record = existing
+      ? await model.update({
+          where: { id: existing.id },
+          data,
+        })
+      : await model.create({
+          data: {
+            ...data,
+            deviceId: deviceKey,
+            role: dto.role,
+            date,
+          },
+        });
+
+    return this.mapTerminalConversation(record);
+  }
+
+  async getConversationHistory(storeId: number, deviceKey: string, query: QueryTerminalConversationsDto) {
+    const model = this.getTerminalConversationModel();
+    if (!model) return { items: [], data: [], total: 0, page: query.page ?? 1, pageSize: query.pageSize ?? 20 };
+
+    const page = Number(query.page ?? 1);
+    const pageSize = Math.min(100, Number(query.pageSize ?? 20));
+    const endDate = this.getDateOnly(query.endDate);
+    const startDate = query.startDate
+      ? this.getDateOnly(query.startDate)
+      : new Date(endDate.getTime() - Math.max(1, query.days ?? 30) * 86_400_000);
+    const where = {
+      storeId,
+      deviceId: deviceKey,
+      ...(query.role ? { role: query.role } : {}),
+      ...(query.operatorId ? { operatorId: query.operatorId } : {}),
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+    };
+
+    const [items, total] = await Promise.all([
+      model.findMany({
+        where,
+        orderBy: [{ date: 'desc' }, { updatedAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      model.count({ where }),
+    ]);
+    const mapped = items.map((item: any) => this.mapTerminalConversation(item));
+    return { items: mapped, data: mapped, total, page, pageSize };
+  }
+
+  async getConversationDetail(storeId: number, deviceKey: string, id: number) {
+    const model = this.getTerminalConversationModel();
+    if (!model) throw new NotFoundException('Conversation not found');
+    const record = await model.findFirst({ where: { id, storeId, deviceId: deviceKey } });
+    if (!record) throw new NotFoundException('Conversation not found');
+    return this.mapTerminalConversation(record);
+  }
+
+  async deleteConversation(storeId: number, deviceKey: string, id: number) {
+    const model = this.getTerminalConversationModel();
+    if (!model) throw new NotFoundException('Conversation not found');
+    const record = await model.findFirst({ where: { id, storeId, deviceId: deviceKey } });
+    if (!record) throw new NotFoundException('Conversation not found');
+    await model.delete({ where: { id } });
+    return { success: true, id };
+  }
+
+  async deleteConversationAsAdmin(id: number, storeId?: number) {
+    const model = this.getTerminalConversationModel();
+    if (!model) throw new NotFoundException('Conversation not found');
+    const record = await model.findFirst({ where: { id, ...(storeId ? { storeId } : {}) } });
+    if (!record) throw new NotFoundException('Conversation not found');
+    await model.delete({ where: { id } });
+    return { success: true, id };
   }
 
   async getConfig() {
@@ -1277,15 +2216,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private getAuraRoleConfig(user: any, requestedRole?: string) {
-    const roleKeys = new Set((user?.roles ?? []).map((item: any) => item.role?.key).filter(Boolean));
-    const availableRoles = roleKeys.has('super_admin') || roleKeys.has('store_manager')
-      ? ['manager', 'reception', 'beautician']
-      : roleKeys.has('beautician')
-        ? ['beautician']
-        : ['reception'];
-    const currentRole = requestedRole && availableRoles.includes(requestedRole) ? requestedRole : availableRoles[0] ?? 'reception';
+    const availableRoles = this.getAuraAvailableRolesForUser(user);
+    const currentRole =
+      requestedRole && availableRoles.includes(requestedRole) ? requestedRole : (availableRoles[0] ?? 'reception');
     const actionMap: Record<string, string[]> = {
-      manager: ['manager.dashboard', 'manager.staff', 'manager.customers', 'manager.inventory', 'reception.appointments', 'operation.cashier'],
+      manager: [
+        'manager.dashboard',
+        'manager.staff',
+        'manager.customers',
+        'manager.inventory',
+        'reception.appointments',
+        'operation.cashier',
+      ],
       reception: [
         'reception.appointments',
         'operation.verify',
@@ -1295,7 +2237,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         'operation.recharge',
         'operation.print',
       ],
-      beautician: ['beautician.schedule', 'beautician.customer', 'beautician.record', 'beautician.advice', 'operation.service-complete'],
+      beautician: [
+        'beautician.schedule',
+        'beautician.commission',
+        'beautician.customer',
+        'beautician.record',
+        'beautician.advice',
+      ],
     };
     const labelMap: Record<string, string> = {
       manager: '店长',
@@ -1312,9 +2260,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       'operation.card': '办卡',
       'operation.recharge': '充值',
       'operation.print': '打印',
-      'operation.service-complete': '完成服务',
+      'operation.service-complete': '服务记录',
       'beautician.schedule': '我的预约',
-      'beautician.customer': '客户档案',
+      'beautician.commission': '我的提成',
+      'beautician.customer': '我的客户',
       'beautician.record': '服务记录',
       'beautician.advice': '护理建议',
     };
@@ -1330,8 +2279,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       'operation.card': 'Wallet',
       'operation.recharge': 'Wallet',
       'operation.print': 'Printer',
-      'operation.service-complete': 'CheckSquare',
+      'operation.service-complete': 'FileText',
       'beautician.schedule': 'CalendarCheck',
+      'beautician.commission': 'Wallet',
       'beautician.customer': 'Users',
       'beautician.record': 'FileText',
       'beautician.advice': 'HeartPulse',
@@ -1398,63 +2348,79 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async getBootstrap(storeId: number, userId?: number, requestedRole?: string) {
-    const [store, stores, user, beauticians, projects, cards, products, config] = await Promise.all([
-      this.getStore(storeId),
-      this.prisma.store.findMany({ where: { deletedAt: null, status: 'active' }, orderBy: { id: 'asc' } }),
-      userId
-        ? this.prisma.user.findUnique({
-            where: { id: userId },
-            include: { roles: { include: { role: true } }, stores: true },
-          })
-        : Promise.resolve(null),
-      this.prisma.beautician.findMany({ where: { storeId, status: 'active' }, include: { level: true }, take: 50 }),
-      this.prisma.project.findMany({ where: { storeId, deletedAt: null, status: 'active' }, include: { type: true }, take: 80 }),
-      this.prisma.card.findMany({ where: { status: 'active' }, take: 80 }),
-      this.prisma.product.findMany({ where: { storeId, deletedAt: null, status: 'active' }, include: { category: true }, take: 120 }),
-      this.getConfig(),
-    ]);
-    const role = this.getAuraRoleConfig(user, requestedRole);
-    const storeDtos = stores.map((item) => ({
-      id: item.id,
-      name: item.name,
-      address: item.address ?? '',
-      skuCount: 0,
-      totalValue: 0,
-      healthScore: 100,
-      mode: '独立',
-    }));
-    const currentUser = user
-      ? {
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          phone: user.phone ?? '',
-          email: user.email ?? undefined,
-          roles: user.roles.map((item) => item.role.key),
-          permissions: [...new Set(user.roles.flatMap((item) => item.role.permissions))],
-          storeIds: user.stores.map((item) => item.storeId),
-        }
-      : null;
+  async getBootstrap(storeId: number, userId?: number, requestedRole?: string, requestedOperatorId?: number) {
+    const [store, stores, authUser, terminalUserCandidates, beauticians, projects, cards, products, config] =
+      await Promise.all([
+        this.getStore(storeId),
+        this.prisma.store.findMany({ where: { deletedAt: null, status: 'active' }, orderBy: { id: 'asc' } }),
+        userId
+          ? this.prisma.user.findUnique({
+              where: { id: userId },
+              include: { roles: { include: { role: true } }, stores: true },
+            })
+          : Promise.resolve(null),
+        this.prisma.user.findMany({
+          where: {
+            deletedAt: null,
+            status: 'active',
+            OR: [
+              { stores: { some: { storeId } } },
+              { roles: { some: { role: { key: { in: ['super_admin', 'store_manager'] } } } } },
+            ],
+          },
+          include: { roles: { include: { role: true } }, stores: true },
+          orderBy: [{ id: 'asc' }],
+        }),
+        this.prisma.beautician.findMany({
+          where: { storeId, status: 'active' },
+          include: { level: true, user: true },
+          take: 50,
+        }),
+        this.prisma.project.findMany({
+          where: { storeId, deletedAt: null, status: 'active' },
+          include: { type: true },
+          take: 80,
+        }),
+        this.prisma.card.findMany({ where: { status: 'active' }, take: 80 }),
+        this.prisma.product.findMany({
+          where: { storeId, deletedAt: null, status: 'active' },
+          include: { category: true },
+          take: 120,
+        }),
+        this.getConfig(),
+      ]);
+    const terminalUsersRaw = terminalUserCandidates.filter((user) => this.hasTerminalRoleSignal(user));
+    const requestedId = Number.isFinite(requestedOperatorId) ? requestedOperatorId : undefined;
+    let selectedUser = requestedId ? terminalUsersRaw.find((item) => item.id === requestedId) : undefined;
+    if (requestedId && !selectedUser) {
+      throw new BadRequestException('当前账号无权使用此门店终端');
+    }
+    if (!selectedUser && authUser && this.hasTerminalRoleSignal(authUser)) {
+      selectedUser = terminalUsersRaw.find((item) => item.id === authUser.id) ?? authUser;
+    }
+    selectedUser = selectedUser ?? terminalUsersRaw[0] ?? authUser ?? null;
+
+    const role = this.getAuraRoleConfig(selectedUser, requestedRole);
+    const storeDtos = stores.map((item) => this.mapStoreConfig(item));
+    const currentUser = selectedUser ? this.mapTerminalAuthUser(selectedUser) : null;
+    const beauticianByUserId = new Map(
+      beauticians.filter((item) => item.userId).map((item) => [item.userId as number, item]),
+    );
+    const currentBeautician = selectedUser ? beauticianByUserId.get(selectedUser.id) : undefined;
+    const terminalUsers = terminalUsersRaw.map((item) =>
+      this.mapTerminalUserOption(item, beauticianByUserId, store.name),
+    );
 
     return {
       currentUser,
+      currentBeautician: currentBeautician ? this.mapTerminalBeautician(currentBeautician, store.name) : null,
       currentStore: storeDtos.find((item) => item.id === storeId) ?? null,
       availableStores: storeDtos,
+      terminalUsers,
       ...role,
       store: storeDtos.find((item) => item.id === storeId) ?? null,
       stores: storeDtos,
-      beauticians: beauticians.map((item) => ({
-        id: item.id,
-        name: item.name,
-        phone: item.phone ?? '',
-        level: item.level?.name ?? '美容师',
-        specialties: ['面部护理', '身体护理'],
-        status: item.status === 'active' ? '在职' : item.status,
-        storeName: store.name,
-        joinDate: item.createdAt.toISOString().slice(0, 10),
-        createdAt: item.createdAt.toISOString(),
-      })),
+      beauticians: beauticians.map((item) => this.mapTerminalBeautician(item, store.name)),
       projects: projects.map((item) => ({
         id: item.id,
         name: item.name,
@@ -1526,10 +2492,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: {
         storeId,
         deletedAt: null,
-        OR: [
-          { name: { contains: keyword, mode: 'insensitive' } },
-          { phone: { contains: keyword } },
-        ],
+        OR: [{ name: { contains: keyword, mode: 'insensitive' } }, { phone: { contains: keyword } }],
       },
       select: {
         id: true,
@@ -1545,6 +2508,139 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     });
 
     return customers;
+  }
+
+  private async getTerminalContextCustomers(
+    storeId: number,
+    keywordOrOptions: string | TerminalContextCustomerOptions = '',
+  ) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const options = typeof keywordOrOptions === 'string' ? { keyword: keywordOrOptions } : (keywordOrOptions ?? {});
+    const normalizedKeyword = options.keyword?.trim() ?? '';
+    const activeCardWhere = { status: 'active', remainingTimes: { gt: 0 } } as const;
+    const onlyWithActiveCards = Boolean(options.onlyWithActiveCards);
+    const scopedCustomerIds = Array.isArray(options.customerIds)
+      ? Array.from(new Set(options.customerIds.map(Number).filter(Number.isFinite)))
+      : [];
+    const customerKeywordWhere = normalizedKeyword
+      ? {
+          OR: [
+            { name: { contains: normalizedKeyword, mode: 'insensitive' as const } },
+            { phone: { contains: normalizedKeyword } },
+          ],
+        }
+      : {};
+    const contextCustomerWhere = {
+      ...(scopedCustomerIds.length ? { id: { in: scopedCustomerIds } } : {}),
+      ...(onlyWithActiveCards ? { customerCards: { some: activeCardWhere } } : {}),
+      ...customerKeywordWhere,
+    };
+    const customerSelect = {
+      id: true,
+      name: true,
+      phone: true,
+      gender: true,
+      memberLevel: true,
+      source: true,
+      totalSpent: true,
+      visitCount: true,
+      lastVisitDate: true,
+      skinCondition: true,
+      tags: true,
+      balanceAccounts: {
+        orderBy: { updatedAt: 'desc' },
+        take: 1,
+        select: { cashBalance: true, giftBalance: true },
+      },
+      customerCards: {
+        where: activeCardWhere,
+        select: { id: true },
+        take: 20,
+      },
+    } as const;
+
+    const [store, reservations, customers] = await Promise.all([
+      this.getStore(storeId),
+      this.prisma.reservation.findMany({
+        where: {
+          storeId,
+          date: { gte: today, lt: tomorrow },
+          status: { not: 'cancelled' },
+          ...(Object.keys(contextCustomerWhere).length ? { customer: contextCustomerWhere } : {}),
+        },
+        include: { customer: { select: customerSelect }, project: { select: { name: true } } },
+        orderBy: { startTime: 'asc' },
+        take: 20,
+      }),
+      this.prisma.customer.findMany({
+        where: {
+          storeId,
+          deletedAt: null,
+          ...contextCustomerWhere,
+        },
+        select: customerSelect,
+        orderBy: normalizedKeyword ? { lastVisitDate: 'desc' } : { totalSpent: 'desc' },
+        take: normalizedKeyword ? 20 : 30,
+      }),
+    ]);
+
+    const byCustomerId = new Map<number, (typeof reservations)[number]>();
+    reservations.forEach((reservation) => {
+      if (!byCustomerId.has(reservation.customerId)) {
+        byCustomerId.set(reservation.customerId, reservation);
+      }
+    });
+
+    const customerMap = new Map<number, (typeof customers)[number]>();
+    reservations.forEach((reservation) => {
+      if (reservation.customer) {
+        customerMap.set(reservation.customer.id, reservation.customer as (typeof customers)[number]);
+      }
+    });
+    customers.forEach((customer) => customerMap.set(customer.id, customer));
+    const normalizedKeywordLower = normalizedKeyword.toLowerCase();
+
+    return Array.from(customerMap.values())
+      .filter((customer) => !onlyWithActiveCards || (customer.customerCards?.length ?? 0) > 0)
+      .filter(
+        (customer) =>
+          !normalizedKeywordLower ||
+          customer.name.toLowerCase().includes(normalizedKeywordLower) ||
+          (customer.phone ?? '').includes(normalizedKeyword),
+      )
+      .slice(0, 30)
+      .map((customer) => {
+        const reservation = byCustomerId.get(customer.id);
+        const account = Array.isArray(customer.balanceAccounts) ? customer.balanceAccounts[0] : undefined;
+        const cashBalance = this.toNumber(account?.cashBalance);
+        const giftBalance = this.toNumber(account?.giftBalance);
+        return {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone ?? '',
+          gender: customer.gender ?? '女',
+          memberLevel: customer.memberLevel ?? '普通客户',
+          totalSpent: this.toNumber(customer.totalSpent),
+          visitCount: customer.visitCount ?? 0,
+          lastVisitDate: this.toIso(customer.lastVisitDate) || '',
+          tags: customer.tags ?? [],
+          source: customer.source ?? 'terminal',
+          storeName: store.name,
+          skinCondition: customer.skinCondition ?? '',
+          cashBalance,
+          giftBalance,
+          totalBalance: cashBalance + giftBalance,
+          activeCustomerCardsCount: customer.customerCards?.length ?? 0,
+          isAppointedToday: Boolean(reservation),
+          appointmentTime: reservation
+            ? `${this.toLocalDateText(reservation.date)} ${reservation.startTime || '00:00'}:00`
+            : undefined,
+          appointmentProjectName: reservation?.project?.name,
+        };
+      });
   }
 
   async quickCreateCustomer(storeId: number, dto: QuickCreateCustomerDto) {
@@ -1563,6 +2659,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
+    this.invalidateCustomerDashboardCache(storeId);
     return customer;
   }
 
@@ -1655,6 +2752,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
       include: { customer: { select: { name: true } } },
     });
+    this.invalidateCustomerDashboardCache(customer.storeId);
 
     return {
       id: profile.id,
@@ -1716,7 +2814,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     const orderTotal = customer.productOrders.reduce((total, order) => total + this.toNumber(order.totalAmount), 0);
     const avgSpend = customer.productOrders.length ? Math.round(orderTotal / customer.productOrders.length) : 0;
-    const preferredService = customer.cardUsageRecords[0]?.projectName ?? customer.reservations[0]?.project?.name ?? '待识别';
+    const preferredService =
+      customer.cardUsageRecords[0]?.projectName ?? customer.reservations[0]?.project?.name ?? '待识别';
 
     return {
       customerId,
@@ -1756,101 +2855,401 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getCustomerRecommendations(customerId: number) {
-    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer) throw new NotFoundException('客户不存在');
-    const projects = await this.prisma.project.findMany({
-      where: { storeId: customer.storeId, deletedAt: null, status: 'active' },
-      take: 3,
-      orderBy: { id: 'asc' },
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        healthProfile: true,
+        customerCards: { where: { status: 'active' }, include: { card: true } },
+      },
     });
-    return projects.map((project, index) => ({
-      id: project.id,
-      customerId,
-      type: 'project',
-      title: project.name,
-      reason: index === 0 ? '结合客户最近到店和肤质信息，优先推荐该护理项目。' : '可作为后续复购或加项建议。',
-      targetId: project.id,
-      confidence: 0.82 - index * 0.08,
-      payload: { price: this.toNumber(project.price), duration: project.duration },
-    }));
+    if (!customer) throw new NotFoundException('客户不存在');
+
+    const [prediction, recentConsumptions, projects] = await Promise.all([
+      this.prisma.customerPredictionSnapshot.findFirst({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.consumptionRecord.findMany({
+        where: { customerId },
+        orderBy: { consumeTime: 'desc' },
+        take: 10,
+      }),
+      this.prisma.project.findMany({
+        where: { storeId: customer.storeId, deletedAt: null, status: 'active' },
+        include: { type: true },
+        orderBy: { id: 'asc' },
+      }),
+    ]);
+
+    return this.scoreProjectsForCustomer(projects, customer, prediction, recentConsumptions)
+      .slice(0, 5)
+      .map((item) => ({
+        id: item.project.id,
+        customerId,
+        type: 'project',
+        title: item.project.name,
+        reason: item.reason,
+        matchFactors: item.factors,
+        targetId: item.project.id,
+        confidence: Math.round((item.score / 100) * 100) / 100,
+        payload: { price: this.toNumber(item.project.price), duration: item.project.duration },
+      }));
   }
 
   async getCustomerNextBestActions(storeId: number, customerId: number) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, storeId, deletedAt: null },
       include: {
+        healthProfile: true,
         reservations: { include: { project: { select: { name: true } } }, orderBy: { date: 'desc' }, take: 3 },
         productOrders: { orderBy: { createdAt: 'desc' }, take: 3 },
         cardUsageRecords: { orderBy: { verifiedAt: 'desc' }, take: 3 },
+        customerCards: { where: { status: 'active' }, include: { card: true } },
       },
     });
     if (!customer) throw new NotFoundException('客户不存在');
 
-    const recommendations = await this.getCustomerRecommendations(customerId);
-    const latestReservation = customer.reservations?.[0];
-    const latestOrder = customer.productOrders?.[0];
-    const latestUsage = customer.cardUsageRecords?.[0];
-    const actions: any[] = recommendations.slice(0, 2).map((item, index) => ({
-      id: `recommendation-${item.id}`,
-      type: 'recommend_project',
-      title: item.title,
-      reason: item.reason,
-      priority: index === 0 ? 'high' : 'medium',
-      actionLabel: '推荐给客户',
-      payload: item,
-    }));
-
-    if (!latestReservation || !['pending', 'confirmed'].includes(latestReservation.status)) {
-      actions.push({
-        id: 'follow-up-reservation',
-        type: 'create_follow_up',
-        title: '安排邀约跟进',
-        reason: latestUsage
-          ? `上次核销 ${latestUsage.projectName} 后可回访护理效果`
-          : '客户近期没有待到店预约，建议前台做一次轻量邀约',
-        priority: 'medium',
-        actionLabel: '创建跟进任务',
-        payload: { customerId, preferredProjectName: latestReservation?.project?.name },
-      });
-    }
-
-    if (latestOrder) {
-      actions.push({
-        id: 'post-order-care',
-        type: 'service_care',
-        title: '消费后护理提醒',
-        reason: `最近消费金额 ￥${this.toNumber(latestOrder.totalAmount).toLocaleString('zh-CN')}，可结合项目做护理建议`,
-        priority: 'low',
-        actionLabel: '生成护理话术',
-        payload: { orderId: latestOrder.id },
-      });
-    }
+    const [prediction, recommendations] = await Promise.all([
+      this.prisma.customerPredictionSnapshot.findFirst({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.getCustomerRecommendations(customerId),
+    ]);
+    const actions = this.buildActionsFromPrediction(customer, prediction, recommendations);
 
     return {
       customerId,
       customerName: customer.name,
       generatedAt: new Date().toISOString(),
       actions,
+      prediction: prediction
+        ? {
+            churnScore: prediction.churnScore,
+            churnLevel: prediction.churnLevel,
+            repurchase30dScore: prediction.repurchase30dScore,
+            marketingResponseScore: prediction.marketingResponseScore,
+            ltvTier: prediction.ltvTier,
+          }
+        : null,
     };
   }
 
-  // ─── Service Tasks ──────────────────────────────────────────────────────────
+  async getTerminalCustomerProfile(storeId: number, customerId: number) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, storeId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('客户不存在');
+    if (!this.customerProfileService) throw new BadRequestException('客户画像服务未启用');
+    return this.customerProfileService.getCustomerProfile(customerId);
+  }
 
-  async listTasks(storeId: number, deviceId: number) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  async getGrowthCandidates(storeId: number, limit = 10) {
+    const latestRun = await this.prisma.predictionRun.findFirst({
+      where: { storeId, status: 'completed' },
+      orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
+    });
+    if (!latestRun) return [];
+
+    const snapshots = await this.prisma.customerPredictionSnapshot.findMany({
+      where: {
+        runId: latestRun.id,
+        storeId,
+        OR: [{ churnLevel: { in: ['高', '极高', 'high', 'critical'] } }, { repurchase30dScore: { gte: 60 } }],
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            lastVisitDate: true,
+            totalSpent: true,
+            memberLevel: true,
+            visitCount: true,
+            tags: true,
+            source: true,
+          },
+        },
+      },
+      orderBy: [{ churnScore: 'desc' }, { repurchase30dScore: 'desc' }],
+      take: Math.min(Math.max(Number(limit) || 10, 1), 50),
+    });
+
+    return snapshots.map((snapshot: any) => ({
+      customerId: snapshot.customer.id,
+      name: snapshot.customer.name,
+      phone: snapshot.customer.phone,
+      lastVisitDate: snapshot.customer.lastVisitDate?.toISOString?.() ?? null,
+      totalSpent: this.toNumber(snapshot.customer.totalSpent),
+      memberLevel: snapshot.customer.memberLevel,
+      visitCount: snapshot.customer.visitCount,
+      tags: snapshot.customer.tags ?? [],
+      source: snapshot.customer.source,
+      churnScore: snapshot.churnScore,
+      churnLevel: snapshot.churnLevel,
+      repurchase30dScore: snapshot.repurchase30dScore,
+      marketingResponseScore: snapshot.marketingResponseScore,
+      ltvTier: snapshot.ltvTier,
+      reason: this.getGrowthCandidateReason(snapshot),
+      recommendedActions: snapshot.recommendedActionsJson,
+      featureJson: snapshot.featureJson,
+    }));
+  }
+
+  private scoreProjectsForCustomer(projects: any[], customer: any, prediction: any | null, recentConsumptions: any[]) {
+    const recentText = recentConsumptions
+      .map((record) => `${record.consumeContent ?? ''} ${record.consumeType ?? ''}`)
+      .join(' ');
+    const healthText = [
+      customer.healthProfile?.skinType,
+      customer.healthProfile?.skinStatus,
+      customer.healthProfile?.mainProblems,
+      customer.healthProfile?.goals,
+      customer.skinType,
+      customer.skinCondition,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const highChurn = this.isHighChurn(prediction?.churnLevel);
+    const highLtv = this.isHighLtv(prediction?.ltvTier);
+
+    return projects
+      .map((project) => {
+        const factors: string[] = [];
+        let score = 45;
+        const projectText = `${project.name ?? ''} ${project.description ?? ''} ${project.type?.name ?? ''}`;
+
+        if (recentText && this.containsRelatedKeyword(recentText, projectText)) {
+          score += 14;
+          factors.push('近期消费偏好匹配');
+        }
+
+        if (healthText && this.containsRelatedKeyword(healthText, projectText)) {
+          score += 16;
+          factors.push('健康档案/肤质诉求匹配');
+        }
+
+        if ((customer.customerCards ?? []).some((card: any) => this.cardMatchesProject(card, project))) {
+          score += 14;
+          factors.push('客户持有可关联次卡');
+        }
+
+        if (highChurn) {
+          const price = this.toNumber(project.price);
+          score += price <= 500 ? 12 : 4;
+          factors.push('高流失风险，优先低门槛回店项目');
+        } else if (Number(prediction?.repurchase30dScore ?? 0) >= 60) {
+          score += 10;
+          factors.push('处于复购窗口');
+        }
+
+        if (highLtv) {
+          const price = this.toNumber(project.price);
+          score += price >= 600 ? 10 : 5;
+          factors.push('高 LTV 客户，适合升级护理');
+        }
+
+        if (!factors.length) factors.push('门店活跃项目，适合作为兜底推荐');
+        return {
+          project,
+          score: Math.min(96, Math.max(55, score)),
+          factors,
+          reason: this.buildProjectRecommendationReason(factors, prediction),
+        };
+      })
+      .sort((a, b) => b.score - a.score || this.toNumber(b.project.price) - this.toNumber(a.project.price));
+  }
+
+  private buildActionsFromPrediction(customer: any, prediction: any | null, recommendations: any[]) {
+    const actions: any[] = [];
+    const topRecommendation = recommendations[0];
+
+    if (this.isHighChurn(prediction?.churnLevel)) {
+      const lastVisitDays =
+        (prediction?.featureJson as any)?.lastVisitDays ?? this.daysBetween(customer.lastVisitDate, new Date());
+      actions.push({
+        id: 'prediction-care-reminder',
+        type: 'send_care_reminder',
+        title: '流失风险唤醒',
+        reason: `流失分 ${prediction?.churnScore ?? '-'}，已 ${lastVisitDays} 天未到店，建议先做顾问关怀。`,
+        priority: 'high',
+        urgency: 'high',
+        actionLabel: '发起关怀触达',
+        payload: { customerId: customer.id, predictionId: prediction?.id },
+      });
+    }
+
+    if (Number(prediction?.repurchase30dScore ?? 0) >= 60 && topRecommendation) {
+      actions.push({
+        id: `recommendation-${topRecommendation.id}`,
+        type: 'recommend_project',
+        title: topRecommendation.title,
+        reason: `复购分 ${prediction?.repurchase30dScore}，${topRecommendation.reason}`,
+        priority: 'high',
+        actionLabel: '推荐给客户',
+        payload: topRecommendation,
+      });
+    } else {
+      actions.push(
+        ...recommendations.slice(0, 2).map((item, index) => ({
+          id: `recommendation-${item.id}`,
+          type: 'recommend_project',
+          title: item.title,
+          reason: item.reason,
+          priority: index === 0 ? 'medium' : 'low',
+          actionLabel: '推荐给客户',
+          payload: item,
+        })),
+      );
+    }
+
+    const expiringCards = (customer.customerCards ?? []).filter(
+      (card: any) => card.remainingTimes > 0 && this.daysUntil(card.expiryDate) <= 30,
+    );
+    if (expiringCards.length) {
+      actions.push({
+        id: `card-expiry-${expiringCards[0].id}`,
+        type: 'card_expiry_reminder',
+        title: `${expiringCards[0].cardName} 即将到期`,
+        reason: `剩余 ${expiringCards[0].remainingTimes} 次，${this.daysUntil(expiringCards[0].expiryDate)} 天后到期。`,
+        priority: 'high',
+        actionLabel: '提醒核销/预约',
+        payload: { cardId: expiringCards[0].id, customerId: customer.id },
+      });
+    }
+
+    if (this.isHighLtv(prediction?.ltvTier)) {
+      actions.push({
+        id: 'ltv-card-offer',
+        type: 'offer_card',
+        title: '升单办卡建议',
+        reason: `客户 LTV 层级 ${prediction?.ltvTier}，适合提供会员权益或护理套餐。`,
+        priority: 'medium',
+        actionLabel: '推荐卡项/套餐',
+        payload: { customerId: customer.id, ltvTier: prediction?.ltvTier },
+      });
+    }
+
+    if (!actions.length) {
+      actions.push({
+        id: 'light-follow-up',
+        type: 'create_follow_up',
+        title: '轻量回访',
+        reason: '当前预测信号不足，建议先记录客户偏好并做一次轻量回访。',
+        priority: 'low',
+        actionLabel: '创建跟进',
+        payload: { customerId: customer.id },
+      });
+    }
+
+    return actions.slice(0, 5);
+  }
+
+  private buildProjectRecommendationReason(factors: string[], prediction: any | null) {
+    const prefix = factors.slice(0, 3).join('、');
+    if (this.isHighChurn(prediction?.churnLevel)) return `${prefix}；客户流失风险较高，建议用低压力体验恢复到店关系。`;
+    if (Number(prediction?.repurchase30dScore ?? 0) >= 60) return `${prefix}；客户处于复购窗口，可作为本次重点推荐。`;
+    return `${prefix}；可作为本次护理或后续加项建议。`;
+  }
+
+  private getGrowthCandidateReason(snapshot: any) {
+    if (this.isHighChurn(snapshot.churnLevel)) {
+      const churnScore = this.toNumber(snapshot.churnScore);
+      const isCritical = String(snapshot.churnLevel ?? '').includes('极高') || churnScore >= 75;
+      const contactWindow = isCritical ? '24 小时内' : '48 小时内';
+      const activity = isCritical ? '老客回归护理礼' : '回店关怀护理券';
+      return `流失风险 ${snapshot.churnLevel}（${snapshot.churnScore} 分）：建议 ${contactWindow}由专属顾问电话/企微邀约回店，推送「${activity}」（补水修护体验或专属券包，7 天内预约有效）；到店后复测肤况并锁定下一次护理。`;
+    }
+    if (Number(snapshot.repurchase30dScore ?? 0) >= 60) {
+      return `复购分 ${snapshot.repurchase30dScore}：客户进入 30 天复购窗口，建议 3 天内发送同系列护理邀约，搭配次卡/套餐权益或加项礼，引导预约下一次护理。`;
+    }
+    return `营销响应 ${snapshot.marketingResponseScore} 分：建议纳入轻量触达池，发送小程序券包或季节护理活动，48 小时后由前台跟进有浏览/领取动作的客户。`;
+  }
+
+  private cardMatchesProject(card: any, project: any) {
+    const cardProjects = Array.isArray(card.card?.projects) ? card.card.projects : [];
+    const projectName = String(project.name ?? '').toLowerCase();
+    return cardProjects.some((item: any) => {
+      const itemName = String(item.projectName ?? item.name ?? item.title ?? '').toLowerCase();
+      const itemId = Number(item.projectId ?? item.id ?? 0);
+      return itemId === project.id || (itemName && (itemName.includes(projectName) || projectName.includes(itemName)));
+    });
+  }
+
+  private containsRelatedKeyword(source: string, target: string) {
+    const normalizedSource = source.toLowerCase();
+    const normalizedTarget = target.toLowerCase();
+    const keywords = [
+      '补水',
+      '保湿',
+      '修护',
+      '敏感',
+      '清洁',
+      '祛痘',
+      '抗衰',
+      '美白',
+      '舒缓',
+      '护理',
+      '面部',
+      '身体',
+      '肩颈',
+      '体验',
+    ];
+    return keywords.some((keyword) => normalizedSource.includes(keyword) && normalizedTarget.includes(keyword));
+  }
+
+  private isHighChurn(level?: string | null) {
+    return ['高', '极高', 'high', 'critical'].includes(String(level ?? '').toLowerCase());
+  }
+
+  private isHighLtv(level?: string | null) {
+    return ['铂金', '黄金', 'premium', 'high'].includes(String(level ?? '').toLowerCase());
+  }
+
+  private daysUntil(date?: Date | null) {
+    if (!date) return 9999;
+    return Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
+  }
+
+  private daysBetween(from?: Date | string | null, to = new Date()) {
+    if (!from) return 9999;
+    return Math.max(0, Math.floor((to.getTime() - new Date(from).getTime()) / 86400000));
+  }
+
+  // Service Tasks
+  async listTasks(
+    storeId: number,
+    deviceId: number,
+    query?: { date?: string; status?: string; beauticianId?: number },
+  ) {
+    const day = query?.date ? new Date(query.date) : new Date();
+    if (Number.isNaN(day.getTime())) {
+      throw new BadRequestException('date 参数格式不正确');
+    }
+    day.setHours(0, 0, 0, 0);
+    const nextDay = new Date(day);
+    nextDay.setDate(nextDay.getDate() + 1);
     const terminalDeviceId = this.toTerminalDeviceId(deviceId);
+    const status = Object.values(ServiceTaskStatus).includes(query?.status as ServiceTaskStatus)
+      ? (query?.status as ServiceTaskStatus)
+      : undefined;
+    const beauticianId = Number.isFinite(Number(query?.beauticianId)) ? Number(query?.beauticianId) : undefined;
 
     const tasks = await this.prisma.serviceTask.findMany({
       where: {
         storeId,
-        OR: [
-          ...(terminalDeviceId ? [{ deviceId: terminalDeviceId }] : []),
-          { status: { in: ['pending', 'in_progress'] } },
-        ],
-        appointmentTime: { gte: today, lt: tomorrow },
+        ...(beauticianId ? { beauticianId } : {}),
+        ...(status
+          ? { status }
+          : {
+              OR: [
+                ...(terminalDeviceId ? [{ deviceId: terminalDeviceId }] : []),
+                { status: { in: ['pending', 'in_progress'] } },
+              ],
+            }),
+        appointmentTime: { gte: day, lt: nextDay },
       },
       include: { project: true },
       orderBy: { appointmentTime: 'asc' },
@@ -1881,15 +3280,14 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         customerId: dto.customerId,
         projectId: dto.projectId,
         beauticianId: dto.beauticianId,
-        appointmentTime: dto.appointmentTime
-          ? new Date(dto.appointmentTime)
-          : new Date(),
+        appointmentTime: dto.appointmentTime ? new Date(dto.appointmentTime) : new Date(),
         duration: dto.duration || 60,
         remark: dto.remark,
         status: 'pending',
       },
       include: { project: true },
     });
+    this.invalidateReservationDashboardCache(storeId, true);
 
     return this.mapServiceTask(task);
   }
@@ -1914,6 +3312,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
       include: { project: true },
     });
+    this.invalidateReservationDashboardCache(task.storeId);
     return this.mapServiceTask(updated);
   }
 
@@ -1953,6 +3352,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
       return completedTask;
     });
+    this.invalidateReservationDashboardCache(updated.storeId);
+    if (Array.isArray(dto?.consumptionItems) && dto.consumptionItems.length) {
+      this.invalidateInventoryDashboardCache(updated.storeId);
+    }
     return this.mapServiceTask(updated);
   }
 
@@ -1971,6 +3374,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       data: { status: 'cancelled', ...(reason ? { remark: reason } : {}) },
       include: { project: true },
     });
+    this.invalidateReservationDashboardCache(task.storeId);
     return this.mapServiceTask(updated);
   }
 
@@ -2013,9 +3417,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const consumptionItems = Array.isArray(dto.consumptionItems) ? dto.consumptionItems : [];
     const note = [dto.result, dto.customerFeedback, dto.nextSuggestion, dto.remark].filter(Boolean).join('\n');
     const result = await this.prisma.$transaction(async (tx) => {
-      const existingTask = dto.taskId
-        ? await tx.serviceTask.findFirst({ where: { id: dto.taskId, storeId } })
-        : null;
+      const existingTask = dto.taskId ? await tx.serviceTask.findFirst({ where: { id: dto.taskId, storeId } }) : null;
       const customerId = existingTask?.customerId ?? dto.customerId;
       const projectId = existingTask?.projectId ?? dto.projectId;
       if (!customerId) throw new BadRequestException('服务记录必须选择客户');
@@ -2084,6 +3486,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
       return { task, consumptionRecord };
     });
+    this.invalidateReservationDashboardCache(storeId, true);
+    this.invalidateCustomerDashboardCache(storeId);
+    if (consumptionItems.length) {
+      this.invalidateInventoryDashboardCache(storeId);
+    }
 
     return {
       task: await this.mapServiceTask(result.task),
@@ -2171,9 +3578,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     // 如果指定了项目，检查卡项是否包含该项目
     if (dto.projectId && customerCard.card.projects) {
       const projects = customerCard.card.projects as any[];
-      const projectIncluded = projects.some(
-        (p: any) => p.projectId === dto.projectId || p.id === dto.projectId,
-      );
+      const projectIncluded = projects.some((p: any) => p.projectId === dto.projectId || p.id === dto.projectId);
       if (!projectIncluded) {
         return { valid: false, reason: '该卡项不包含此项目' };
       }
@@ -2220,52 +3625,174 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id: dto.projectId },
     });
 
-    // 扣减次数
-    const updatedCard = await this.prisma.customerCard.update({
-      where: { id: dto.customerCardId },
-      data: { remainingTimes: customerCard.remainingTimes - times },
-    });
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updatedCard = await tx.customerCard.update({
+        where: { id: dto.customerCardId },
+        data: { remainingTimes: customerCard.remainingTimes - times },
+      });
 
-    // 记录核销
-    const record = await this.prisma.cardUsageRecord.create({
-      data: {
-        customerId,
-        customerName: customerCard.customer.name,
-        cardName: customerCard.cardName,
-        projectName: project?.name || '未知项目',
+      const record = await tx.cardUsageRecord.create({
+        data: {
+          customerId,
+          customerName: customerCard.customer.name,
+          cardName: customerCard.cardName,
+          projectName: project?.name || '未知项目',
+          times,
+          remainingTimes: updatedCard.remainingTimes,
+          beauticianId,
+          deviceId: terminalDeviceId,
+        },
+      });
+
+      const consumedProjectBom = await this.consumeProjectBomForCardUsage(
+        tx,
+        customerCard.customer.storeId,
+        dto.projectId,
         times,
-        remainingTimes: updatedCard.remainingTimes,
-        beauticianId,
-        deviceId: terminalDeviceId,
-      },
+        { id: record.id, cardName: customerCard.cardName, projectName: project?.name || '未知项目' },
+      );
+
+      return { updatedCard, record, consumedProjectBom };
     });
 
+    if (beauticianId) {
+      try {
+        const beautician = await this.prisma.beautician.findFirst({
+          where: { id: beauticianId, storeId: customerCard.customer.storeId },
+          select: { id: true, levelId: true },
+        });
+        const cardUnitPrice = customerCard.card.totalTimes
+          ? (this.toNumber(customerCard.card.price) / customerCard.card.totalTimes) * times
+          : 0;
+        if (beautician && cardUnitPrice > 0) {
+          await this.commissionService.calculateCommission({
+            storeId: customerCard.customer.storeId,
+            beauticianId,
+            type: 'project',
+            itemId: dto.projectId,
+            sourceAmount: cardUnitPrice,
+            levelId: beautician.levelId ?? undefined,
+            isDesignated: false,
+            remark: `次卡核销：${customerCard.cardName}`,
+          });
+        }
+      } catch (error) {
+        console.warn('次卡核销提成流水生成失败', error);
+      }
+    }
+
+    this.invalidateCardDashboardCache(customerCard.customer.storeId);
+    if (result.consumedProjectBom) {
+      this.invalidateInventoryDashboardCache(customerCard.customer.storeId);
+    }
     return {
-      id: record.id,
+      id: result.record.id,
       customerId,
       customerName: customerCard.customer.name,
       cardName: customerCard.cardName,
       projectName: project?.name || '未知项目',
       times,
-      remainingTimes: updatedCard.remainingTimes,
+      remainingTimes: result.updatedCard.remainingTimes,
       beauticianId,
       deviceId: terminalDeviceId,
-      verifiedAt: record.verifiedAt,
+      verifiedAt: result.record.verifiedAt,
     };
   }
 
   // ─── Cashier ────────────────────────────────────────────────────────────────
 
-  async checkout(storeId: number, dto: CheckoutDto) {
+  private async ensureOpenCashierShift(storeId: number, deviceId?: number) {
+    if (!deviceId) return;
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { shiftRequired: true },
+    });
+    if (store?.shiftRequired === false) return;
+    const shift = await this.prisma.cashierShift.findFirst({
+      where: { storeId, deviceId, status: 'open' },
+      select: { id: true },
+      orderBy: { startedAt: 'desc' },
+    });
+    if (!shift) throw new BadRequestException('当前终端未开班，请先开班后再收银');
+  }
+
+  private scheduleCheckoutPostCommitTasks(input: {
+    storeId: number;
+    dto: CheckoutDto;
+    order: { id: number; customerId?: number | null };
+    totalAmount: number;
+    paymentMethod: string;
+    itemCount: number;
+    deviceId?: number;
+  }) {
+    setTimeout(() => {
+      void this.runCheckoutPostCommitTasks(input).catch((error) => {
+        console.warn('Terminal checkout post-commit tasks failed', error);
+      });
+    }, 0);
+  }
+
+  private async runCheckoutPostCommitTasks(input: {
+    storeId: number;
+    dto: CheckoutDto;
+    order: { id: number; customerId?: number | null };
+    totalAmount: number;
+    paymentMethod: string;
+    itemCount: number;
+    deviceId?: number;
+  }) {
+    await Promise.allSettled([
+      this.applyMarketingAttribution(this.prisma, input.order, input.totalAmount),
+      this.recordCheckoutRecommendationConversion(
+        input.storeId,
+        input.dto,
+        input.order.id,
+        input.totalAmount,
+        input.deviceId,
+      ),
+      this.commissionService.recordAmiContribution({
+        storeId: input.storeId,
+        category: 'cashier_assist',
+        triggerType: 'terminal_checkout',
+        triggerId: input.order.id,
+        customerId: input.dto.customerId,
+        orderId: input.order.id,
+        workMinutes: 2,
+        metadata: { paymentMethod: input.paymentMethod, itemCount: input.itemCount },
+      }),
+    ]);
+
+    const persistedOrderItems = await this.prisma.orderItem.findMany({ where: { orderId: input.order.id } });
+    await this.calculateTerminalCommissions({
+      storeId: input.storeId,
+      orderId: input.order.id,
+      beauticianId: input.dto.beauticianId,
+      isDesignated: Boolean(input.dto.isDesignated),
+      items: persistedOrderItems.map((item: any) => ({
+        itemType: item.itemType,
+        itemId: item.itemId,
+        beauticianId: item.beauticianId,
+        subtotal: this.toNumber(item.subtotal),
+        orderItemId: item.id,
+      })),
+    });
+  }
+
+  async checkout(storeId: number, dto: CheckoutDto, deviceId?: number) {
+    await this.ensureOpenCashierShift(storeId, deviceId);
     const subtotalAmount = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const discountAmount = Math.min(subtotalAmount, Math.max(0, this.toNumber(dto.discountAmount)));
     const totalAmount = Math.max(0, subtotalAmount - discountAmount);
     const paymentMethod = this.getPaymentMethod(dto.payMethod);
     const store = await this.getStore(storeId);
-    const normalizedItems = this.normalizeOrderItems(dto.items as any[]);
+    const normalizedItems = await this.resolveOrderItemNames(dto.items as any[]);
     const result = await this.prisma.$transaction(async (tx) => {
       const orderNo = `PO${Date.now().toString(36).toUpperCase()}`;
-      const customer = dto.customerId ? await tx.customer.findUnique({ where: { id: dto.customerId } }) : null;
+      const shouldLoadCustomer = paymentMethod === 'member_balance' || !dto.customerName;
+      const customer =
+        dto.customerId && shouldLoadCustomer ? await tx.customer.findUnique({ where: { id: dto.customerId } }) : null;
+      const customerName = customer?.name ?? dto.customerName;
+      const customerPhone = customer?.phone ?? dto.customerPhone;
       if (paymentMethod === 'member_balance' && !customer) {
         throw new BadRequestException('会员余额支付必须选择客户');
       }
@@ -2273,15 +3800,37 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         data: {
           orderNo,
           customerId: dto.customerId,
-          customerName: customer?.name,
+          customerName,
           storeId,
           totalAmount,
           payMethod: paymentMethod,
+          source: 'terminal',
           status: 'completed',
-          items: dto.items as any,
+          items: normalizedItems.map((item) => ({
+            itemType: item.itemType,
+            itemId: item.itemId,
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            discount: item.discount,
+          })),
           remark: dto.remark,
         },
       });
+
+      await this.createOrderItems(
+        tx,
+        order.id,
+        (dto.items as any[]).map((item) => ({ ...item, beauticianId: item.beauticianId ?? dto.beauticianId })),
+      );
+      const consumedProjectBom = await this.consumeProjectBomForCheckout(
+        tx,
+        storeId,
+        order,
+        dto.items as any[],
+        dto.remark,
+      );
 
       for (const item of dto.items as any[]) {
         if (item.itemType === 'product' || item.productId) {
@@ -2294,7 +3843,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      if (customer) {
+      if (dto.customerId) {
         await tx.customer.update({
           where: { id: dto.customerId! },
           data: {
@@ -2319,26 +3868,40 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           data: {
             customerId: dto.customerId!,
             consumeType: '消费',
-            consumeContent: normalizedItems.map((i) => `${i.itemType}#${i.itemId ?? ''}x${i.quantity}`).join(', '),
+            consumeContent: normalizedItems.map((item) => `${item.name} x${item.quantity}`).join('、'),
             payMethod: paymentMethod,
             amount: totalAmount,
           },
         });
       }
 
-      return { order, customer };
+      return { order, customer, customerName, customerPhone, consumedProjectBom };
     });
-    const orderItems = await this.createOrderItems(this.prisma, result.order.id, dto.items as any[]);
     await this.createPaymentRecord(this.prisma, result.order.id, paymentMethod, totalAmount);
-    await this.applyMarketingAttribution(this.prisma, result.order, totalAmount);
-    const responseItems = orderItems.length ? orderItems : normalizedItems;
+    this.scheduleCheckoutPostCommitTasks({
+      storeId,
+      dto,
+      order: result.order,
+      totalAmount,
+      paymentMethod,
+      itemCount: normalizedItems.length,
+      deviceId,
+    });
+    const responseItems = normalizedItems;
+    this.invalidateCashierDashboardCache(storeId);
+    if (
+      result.consumedProjectBom ||
+      (dto.items as any[]).some((item) => item.itemType === 'product' || item.productId)
+    ) {
+      this.invalidateInventoryDashboardCache(storeId);
+    }
 
     return {
       id: result.order.id,
       orderNo: result.order.orderNo,
       customerId: dto.customerId,
-      customerName: result.customer?.name ?? '',
-      customerPhone: result.customer?.phone ?? '',
+      customerName: result.order.customerName ?? result.customerName ?? result.customer?.name ?? '',
+      customerPhone: result.customerPhone ?? result.customer?.phone ?? '',
       storeId,
       storeName: store.name,
       items: responseItems.map((item) => ({
@@ -2369,7 +3932,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
     });
     const paidAmount = amount || this.toNumber(order.totalAmount);
-    await this.createPaymentRecord(this.prisma, order.id, dto.paymentMethod ?? order.payMethod, paidAmount, dto.transactionNo);
+    await this.createPaymentRecord(
+      this.prisma,
+      order.id,
+      dto.paymentMethod ?? order.payMethod,
+      paidAmount,
+      dto.transactionNo,
+    );
     await this.applyMarketingAttribution(this.prisma, order, paidAmount);
     const store = order.storeId ? await this.getStore(order.storeId) : null;
     return {
@@ -2440,6 +4009,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           storeId,
           totalAmount: amount,
           payMethod: this.getPaymentMethod(dto.paymentMethod),
+          source: 'terminal',
           status: 'completed',
           items: [{ itemType: 'card', itemId: card.id, quantity: 1, unitPrice: amount, discountAmount, giftProjects }],
           remark: `办卡：${card.name}`,
@@ -2467,11 +4037,27 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         unitPrice: amount,
         subtotal: amount,
         discount: discountAmount,
+        beauticianId: dto.beauticianId,
         giftProjects,
       },
     ]);
     await this.createPaymentRecord(this.prisma, result.order.id, dto.paymentMethod, amount, dto.transactionNo);
     await this.applyMarketingAttribution(this.prisma, result.order, amount);
+    const cardOrderItems = await this.prisma.orderItem.findMany({ where: { orderId: result.order.id } });
+    await this.calculateTerminalCommissions({
+      storeId,
+      orderId: result.order.id,
+      beauticianId: dto.beauticianId,
+      items: cardOrderItems.map((item: any) => ({
+        itemType: item.itemType,
+        itemId: item.itemId,
+        beauticianId: item.beauticianId,
+        subtotal: this.toNumber(item.subtotal),
+        orderItemId: item.id,
+      })),
+    });
+    this.invalidateCardDashboardCache(storeId);
+    this.invalidateCashierDashboardCache(storeId);
 
     return {
       id: result.customerCard?.id ?? result.order.id,
@@ -2515,6 +4101,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           storeId,
           totalAmount: amount,
           payMethod: this.getPaymentMethod(dto.paymentMethod),
+          source: 'terminal',
           status: 'completed',
           items: [{ itemType: 'recharge', quantity: 1, unitPrice: amount, giftAmount, giftProjects }],
           remark: dto.remark ?? '会员充值',
@@ -2585,10 +4172,32 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       return { order: created, balanceAccount: updatedAccount, balanceTransaction };
     });
     await this.createOrderItems(this.prisma, result.order.id, [
-      { itemType: 'recharge', name: '会员充值', quantity: 1, unitPrice: amount, giftAmount, giftProjects },
+      {
+        itemType: 'recharge',
+        name: '会员充值',
+        quantity: 1,
+        unitPrice: amount,
+        beauticianId: dto.beauticianId,
+        giftAmount,
+        giftProjects,
+      },
     ]);
     await this.createPaymentRecord(this.prisma, result.order.id, dto.paymentMethod, amount, dto.transactionNo);
     await this.applyMarketingAttribution(this.prisma, result.order, amount);
+    const rechargeOrderItems = await this.prisma.orderItem.findMany({ where: { orderId: result.order.id } });
+    await this.calculateTerminalCommissions({
+      storeId,
+      orderId: result.order.id,
+      beauticianId: dto.beauticianId,
+      items: rechargeOrderItems.map((item: any) => ({
+        itemType: item.itemType,
+        itemId: item.itemId,
+        beauticianId: item.beauticianId,
+        subtotal: this.toNumber(item.subtotal),
+        orderItemId: item.id,
+      })),
+    });
+    this.invalidateCashierDashboardCache(storeId);
     return {
       id: result.order.id,
       orderNo: result.order.orderNo,
@@ -2808,6 +4417,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         mainProblems: dto.mainProblems,
       },
     });
+    const customer = dto.customerId
+      ? await this.prisma.customer.findUnique({ where: { id: dto.customerId }, select: { storeId: true } })
+      : null;
+    this.invalidateCustomerDashboardCache(customer?.storeId);
 
     return skinTest;
   }
@@ -2839,7 +4452,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   async bindSkinTestCustomer(id: number, customerId: number) {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) throw new NotFoundException('客户不存在');
-    return this.prisma.skinTest.update({ where: { id }, data: { customerId } });
+    const updated = await this.prisma.skinTest.update({ where: { id }, data: { customerId } });
+    this.invalidateCustomerDashboardCache(customer.storeId);
+    return updated;
   }
 
   async getSkinTestRecommendations(id: number) {
@@ -2919,7 +4534,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       }),
     ]);
     const toMinutes = (time?: string | null) => {
-      const [hour, minute] = String(time || '00:00').split(':').map((item) => Number(item));
+      const [hour, minute] = String(time || '00:00')
+        .split(':')
+        .map((item) => Number(item));
       return hour * 60 + (minute || 0);
     };
     const toTime = (minutes: number) =>
@@ -2931,7 +4548,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         : [{ start: 10 * 60, end: 20 * 60 }];
       const occupied = reservations
         .filter((item) => item.beauticianId === beautician.id)
-        .map((item) => ({ start: toMinutes(item.startTime), end: toMinutes(item.endTime) || toMinutes(item.startTime) + duration }));
+        .map((item) => ({
+          start: toMinutes(item.startTime),
+          end: toMinutes(item.endTime) || toMinutes(item.startTime) + duration,
+        }));
       const slots = windows.flatMap((window) => {
         const result: Array<{ time: string; available: boolean; reason?: string }> = [];
         for (let cursor = window.start; cursor + duration <= window.end; cursor += 30) {
@@ -2977,13 +4597,17 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const project = dto.projectId
       ? await this.prisma.project.findUnique({ where: { id: dto.projectId } })
       : dto.projectName
-        ? await this.prisma.project.findFirst({ where: { storeId, name: { contains: dto.projectName }, deletedAt: null } })
+        ? await this.prisma.project.findFirst({
+            where: { storeId, name: { contains: dto.projectName }, deletedAt: null },
+          })
         : await this.prisma.project.findFirst({ where: { storeId, deletedAt: null, status: 'active' } });
     if (!project) throw new BadRequestException('当前门店没有可预约项目');
     const beautician = dto.beauticianId
       ? await this.prisma.beautician.findFirst({ where: { id: dto.beauticianId, storeId } })
       : dto.beauticianName
-        ? await this.prisma.beautician.findFirst({ where: { storeId, name: { contains: dto.beauticianName }, status: 'active' } })
+        ? await this.prisma.beautician.findFirst({
+            where: { storeId, name: { contains: dto.beauticianName }, status: 'active' },
+          })
         : null;
     const startTime = appointment.toTimeString().slice(0, 5);
     const end = new Date(appointment);
@@ -3001,6 +4625,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         remark: dto.remark,
       },
     });
+    this.invalidateReservationDashboardCache(storeId, true);
     return this.mapReservation(reservation);
   }
 
@@ -3051,6 +4676,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id: reservationId },
       data: updateData,
     });
+    this.invalidateReservationDashboardCache(reservation.storeId, true);
     return this.mapReservation(updated);
   }
 
@@ -3074,6 +4700,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id: reservationId },
       data: { status: 'no_show', remark: reason || reservation.remark },
     });
+    this.invalidateReservationDashboardCache(reservation.storeId);
     return this.mapReservation(updated);
   }
 
@@ -3083,7 +4710,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (['cancelled', 'no_show'].includes(reservation.status)) {
       throw new BadRequestException('已取消或爽约的预约不能创建服务任务');
     }
-    const appointmentTime = new Date(`${this.toLocalDateText(reservation.date)}T${reservation.startTime || '00:00'}:00`);
+    const appointmentTime = new Date(
+      `${this.toLocalDateText(reservation.date)}T${reservation.startTime || '00:00'}:00`,
+    );
     const existing = await this.prisma.serviceTask.findFirst({
       where: {
         storeId: reservation.storeId,
@@ -3126,6 +4755,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id: reservationId },
       data: { status: 'confirmed' },
     });
+    this.invalidateReservationDashboardCache(reservation.storeId);
     return this.mapReservation(updated);
   }
 
@@ -3153,6 +4783,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       this.mapReservation(updated),
       this.createTaskFromReservation(reservationId, deviceId).catch(() => null),
     ]);
+    this.invalidateReservationDashboardCache(reservation.storeId);
     return { ...mapped, serviceTask: serviceTask ?? undefined };
   }
 
@@ -3166,6 +4797,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id: reservationId },
       data: { status: 'cancelled', remark: reason || reservation.remark },
     });
+    this.invalidateReservationDashboardCache(reservation.storeId, true);
     return this.mapReservation(updated);
   }
 
@@ -3332,6 +4964,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
       return created;
     });
+    if (storeId) {
+      this.invalidateInventoryDashboardCache(storeId);
+      this.invalidateCustomerDashboardCache(storeId);
+    }
     return { ...dto, id: record.id, createdAt: record.consumeTime.toISOString() };
   }
 
@@ -3354,13 +4990,119 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return { ...event, createdAt: event.createdAt.toISOString() };
   }
 
-  async createFollowUpTask(storeId: number, deviceId: number | undefined, dto: any) {
+  private async recordCheckoutRecommendationConversion(
+    storeId: number,
+    dto: CheckoutDto,
+    orderId: number,
+    totalAmount: number,
+    deviceId?: number,
+  ) {
+    const recommendationId = dto.matchedRecommendationId ?? dto.recommendationId;
+    if (!dto.customerId || !recommendationId) return;
+    await this.prisma.recommendationEvent.create({
+      data: {
+        storeId,
+        customerId: Number(dto.customerId),
+        deviceId: this.toTerminalDeviceId(deviceId),
+        recommendationId: Number(recommendationId),
+        eventType: 'converted',
+        orderId,
+        payload: {
+          amount: totalAmount,
+          payMethod: dto.payMethod,
+          itemCount: dto.items.length,
+          items: dto.items.map((item) => ({ ...item })),
+          source: 'terminal_checkout',
+        } as any,
+      },
+    });
+  }
+
+  async createFollowUpTask(
+    storeId: number,
+    deviceId: number | undefined,
+    dto: CreateTerminalFollowUpTaskDto,
+    assignedByUserId?: number,
+  ) {
     if (!dto.customerId) throw new BadRequestException('customerId is required');
     const customer = await this.prisma.customer.findFirst({
       where: { id: Number(dto.customerId), storeId, deletedAt: null },
     });
     if (!customer) throw new NotFoundException('客户不存在');
     const terminalDeviceId = this.toTerminalDeviceId(deviceId);
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    const assignment = await this.inferFollowUpAssignment(storeId, customer.id, dto);
+    const dueAt = dto.dueAt ? new Date(dto.dueAt) : this.inferFollowUpDueAt(dto);
+    const title = dto.title ?? this.buildFollowUpTaskTitle(dto);
+    const priority = this.normalizeFollowUpPriority(dto.priority, dto);
+    const note = dto.note ?? dto.remark ?? undefined;
+
+    if (taskDelegate?.findFirst && taskDelegate?.create) {
+      try {
+        const dedupeOr = [
+          ...(dto.recommendationId ? [{ recommendationId: Number(dto.recommendationId) }] : []),
+          ...(dto.sourceRecommendationKey ? [{ sourceRecommendationKey: dto.sourceRecommendationKey }] : []),
+        ];
+        const existing = dedupeOr.length
+          ? await taskDelegate.findFirst({
+              where: {
+                storeId,
+                customerId: customer.id,
+                deletedAt: null,
+                status: { in: ['pending', 'in_progress', 'expired'] },
+                OR: dedupeOr,
+              },
+              include: this.followUpTaskInclude(),
+            })
+          : null;
+        if (existing) {
+          return this.mapFollowUpTask(existing, { duplicated: true });
+        }
+
+        const task = await taskDelegate.create({
+          data: {
+            storeId,
+            customerId: customer.id,
+            recommendationId: dto.recommendationId ? Number(dto.recommendationId) : null,
+            sourceRecommendationKey: dto.sourceRecommendationKey ?? null,
+            source: dto.source ?? 'recommendation',
+            triggerType: dto.triggerType ?? null,
+            title,
+            script: dto.script ?? note ?? null,
+            note: note ?? null,
+            priority,
+            assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
+            assigneeUserId: dto.assigneeUserId ? Number(dto.assigneeUserId) : assignment.assigneeUserId ?? null,
+            assigneeBeauticianId: dto.assigneeBeauticianId
+              ? Number(dto.assigneeBeauticianId)
+              : assignment.assigneeBeauticianId ?? null,
+            assignedByUserId: assignedByUserId ?? null,
+            assignedAt: new Date(),
+            dueAt,
+            status: 'pending',
+            orderId: dto.orderId ? Number(dto.orderId) : null,
+            serviceTaskId: dto.taskId ? Number(dto.taskId) : null,
+            reservationId: dto.reservationId ? Number(dto.reservationId) : null,
+            deviceId: terminalDeviceId ?? null,
+            payload: {
+              channel: dto.channel ?? 'phone',
+              assignmentReason: assignment.reason,
+              sourcePayload: dto,
+            },
+          },
+          include: this.followUpTaskInclude(),
+        });
+        await this.recordFollowUpTaskEvent(storeId, customer.id, terminalDeviceId, 'follow_up_created', task, {
+          ...dto,
+          status: 'pending',
+          assignmentReason: assignment.reason,
+        });
+        return this.mapFollowUpTask(task);
+      } catch (error) {
+        if (!this.isMissingFollowUpTaskTableError(error)) throw error;
+      }
+    }
+
     const event = await this.prisma.recommendationEvent.create({
       data: {
         storeId,
@@ -3377,6 +5119,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           source: 'aura_lite_terminal',
           dueAt: dto.dueAt,
           channel: dto.channel ?? 'phone',
+          assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
+          assigneeUserId: dto.assigneeUserId ?? assignment.assigneeUserId,
+          assigneeBeauticianId: dto.assigneeBeauticianId ?? assignment.assigneeBeauticianId,
+          assignmentReason: assignment.reason,
         },
       },
     });
@@ -3389,11 +5135,294 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       channel: dto.channel ?? 'phone',
       script: dto.script ?? dto.note ?? '',
       dueAt: dto.dueAt,
+      title,
+      priority,
+      assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
+      assigneeUserId: dto.assigneeUserId ?? assignment.assigneeUserId,
+      assigneeBeauticianId: dto.assigneeBeauticianId ?? assignment.assigneeBeauticianId,
+      assignmentReason: assignment.reason,
       createdAt: event.createdAt.toISOString(),
     };
   }
 
-  async completeFollowUpTask(storeId: number, id: number, dto: any) {
+  async batchCreateFollowUpTasks(storeId: number, dto: CreateTerminalFollowUpTaskDto & { customerIds?: number[] }, assignedByUserId?: number) {
+    const customerIds = Array.from(new Set((dto.customerIds ?? [dto.customerId]).map((id) => Number(id)).filter(Boolean)));
+    if (!customerIds.length) throw new BadRequestException('customerIds is required');
+    const results = await Promise.allSettled(
+      customerIds.map((customerId) =>
+        this.createFollowUpTask(
+          storeId,
+          undefined,
+          {
+            ...dto,
+            customerId,
+          },
+          assignedByUserId,
+        ),
+      ),
+    );
+    const items = results
+      .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
+      .map((result) => result.value);
+    const failures = results
+      .map((result, index) => ({ result, customerId: customerIds[index] }))
+      .filter((item): item is { result: PromiseRejectedResult; customerId: number } => item.result.status === 'rejected')
+      .map((item) => ({
+        customerId: item.customerId,
+        message: item.result.reason instanceof Error ? item.result.reason.message : '创建失败',
+      }));
+    return {
+      items,
+      total: customerIds.length,
+      createdCount: items.filter((item) => !item.duplicated).length,
+      duplicatedCount: items.filter((item) => item.duplicated).length,
+      failedCount: failures.length,
+      failures,
+    };
+  }
+
+  async getFollowUpTasks(storeId: number, query: QueryTerminalFollowUpTasksDto = {}) {
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 10)));
+    if (!taskDelegate?.findMany || !taskDelegate?.count) {
+      return this.getLegacyFollowUpTasks(storeId, page, pageSize);
+    }
+    try {
+      await this.expireOverdueFollowUpTasks(storeId);
+
+      const where: any = {
+        storeId,
+        deletedAt: null,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.assigneeRole ? { assigneeRole: query.assigneeRole } : {}),
+        ...(query.assigneeUserId ? { assigneeUserId: Number(query.assigneeUserId) } : {}),
+        ...(query.customerId ? { customerId: Number(query.customerId) } : {}),
+        ...(query.recommendationId ? { recommendationId: Number(query.recommendationId) } : {}),
+      };
+      if (query.keyword) {
+        const keyword = String(query.keyword).trim();
+        where.OR = [
+          { title: { contains: keyword, mode: 'insensitive' } },
+          { note: { contains: keyword, mode: 'insensitive' } },
+          { customer: { name: { contains: keyword, mode: 'insensitive' } } },
+          { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
+        ];
+      }
+      const [items, total, grouped, booked, converted, convertedTasks, assigneeTasks] = await Promise.all([
+        taskDelegate.findMany({
+          where,
+          include: this.followUpTaskInclude(),
+          orderBy: [{ status: 'asc' }, { dueAt: 'asc' }, { createdAt: 'desc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        taskDelegate.count({ where }),
+        taskDelegate.groupBy({
+          by: ['status'],
+          where: { storeId, deletedAt: null },
+          _count: { _all: true },
+        }),
+        taskDelegate.count({
+          where: {
+            storeId,
+            deletedAt: null,
+            status: 'completed',
+            OR: [{ resultType: 'booked' }, { reservationId: { not: null } }],
+          },
+        }),
+        taskDelegate.count({
+          where: {
+            storeId,
+            deletedAt: null,
+            status: 'completed',
+            OR: [{ resultType: 'converted' }, { orderId: { not: null } }],
+          },
+        }),
+        taskDelegate.findMany({
+          where: {
+            storeId,
+            deletedAt: null,
+            status: 'completed',
+            orderId: { not: null },
+          },
+          select: { order: { select: { totalAmount: true } } },
+          take: 1000,
+        }),
+        taskDelegate.findMany({
+          where: {
+            storeId,
+            deletedAt: null,
+          },
+          include: {
+            assigneeUser: { select: { id: true, name: true, username: true } },
+            assigneeBeautician: { select: { id: true, name: true } },
+            order: { select: { totalAmount: true } },
+          },
+          take: 5000,
+        }),
+      ]);
+      const now = new Date();
+      const overdue = await taskDelegate.count({
+        where: {
+          storeId,
+          deletedAt: null,
+          status: { in: ['pending', 'in_progress'] },
+          dueAt: { lt: now },
+        },
+      });
+      const summary = grouped.reduce(
+        (acc: Record<string, number>, item: any) => {
+          acc[item.status] = item._count?._all ?? 0;
+          return acc;
+        },
+        {
+          pending: 0,
+          in_progress: 0,
+          completed: 0,
+          cancelled: 0,
+          expired: 0,
+          overdue,
+          booked,
+          converted,
+          revenue: convertedTasks.reduce((sum: number, task: any) => sum + Number(task.order?.totalAmount ?? 0), 0),
+        },
+      );
+      const assigneeStats = this.buildFollowUpAssigneeStats(assigneeTasks);
+      return {
+        items: items.map((item: any) => this.mapFollowUpTask(item)),
+        total,
+        page,
+        pageSize,
+        summary: { ...summary, assigneeStats },
+      };
+    } catch (error) {
+      if (this.isMissingFollowUpTaskTableError(error)) {
+        return this.getLegacyFollowUpTasks(storeId, page, pageSize);
+      }
+      throw error;
+    }
+  }
+
+  async startFollowUpTask(storeId: number, id: number, userId?: number) {
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    if (taskDelegate?.findFirst && taskDelegate?.update) {
+      try {
+        const existing = await taskDelegate.findFirst({ where: { id, storeId, deletedAt: null } });
+        if (!existing) throw new NotFoundException('跟进任务不存在');
+        const task = await taskDelegate.update({
+          where: { id },
+          data: {
+            status: existing.status === 'pending' || existing.status === 'expired' ? 'in_progress' : existing.status,
+            assigneeUserId: existing.assigneeUserId ?? userId ?? null,
+          },
+          include: this.followUpTaskInclude(),
+        });
+        await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_started', task, {
+          userId,
+          previousStatus: existing.status,
+        });
+        return this.mapFollowUpTask(task);
+      } catch (error) {
+        if (!this.isMissingFollowUpTaskTableError(error)) throw error;
+      }
+    }
+    const existing = await this.prisma.recommendationEvent.findFirst({
+      where: { id, storeId, eventType: 'follow_up_created' },
+      include: { customer: true },
+    });
+    if (!existing) throw new NotFoundException('跟进任务不存在');
+    await this.prisma.recommendationEvent.create({
+      data: {
+        storeId,
+        customerId: existing.customerId,
+        deviceId: existing.deviceId,
+        recommendationId: existing.recommendationId,
+        eventType: 'follow_up_started',
+        taskId: existing.taskId,
+        orderId: existing.orderId,
+        note: '终端开始处理客户邀约跟进',
+        payload: { sourceFollowUpTaskId: existing.id, status: 'in_progress', userId },
+      },
+    });
+    return { ...this.mapLegacyFollowUpEvent(existing), status: 'in_progress' };
+  }
+
+  async assignFollowUpTask(storeId: number, id: number, dto: AssignTerminalFollowUpTaskDto) {
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    if (taskDelegate?.findFirst && taskDelegate?.update) {
+      try {
+        const existing = await taskDelegate.findFirst({ where: { id, storeId, deletedAt: null } });
+        if (!existing) throw new NotFoundException('跟进任务不存在');
+        const task = await taskDelegate.update({
+          where: { id },
+          data: {
+            assigneeRole: dto.assigneeRole,
+            assigneeUserId: dto.assigneeUserId ? Number(dto.assigneeUserId) : null,
+            assigneeBeauticianId: dto.assigneeBeauticianId ? Number(dto.assigneeBeauticianId) : null,
+            status: existing.status === 'completed' || existing.status === 'cancelled' ? existing.status : 'pending',
+            note: dto.note ?? existing.note,
+          },
+          include: this.followUpTaskInclude(),
+        });
+        await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_assigned', task, dto);
+        return this.mapFollowUpTask(task);
+      } catch (error) {
+        if (!this.isMissingFollowUpTaskTableError(error)) throw error;
+      }
+    }
+    const existing = await this.prisma.recommendationEvent.findFirst({
+      where: { id, storeId, eventType: 'follow_up_created' },
+      include: { customer: true },
+    });
+    if (!existing) throw new NotFoundException('跟进任务不存在');
+    await this.prisma.recommendationEvent.create({
+      data: {
+        storeId,
+        customerId: existing.customerId,
+        deviceId: existing.deviceId,
+        recommendationId: existing.recommendationId,
+        eventType: 'follow_up_assigned',
+        taskId: existing.taskId,
+        orderId: existing.orderId,
+        note: dto.note ?? '终端跟进任务改派',
+        payload: { ...dto, sourceFollowUpTaskId: existing.id, status: 'pending' },
+      },
+    });
+    return { ...this.mapLegacyFollowUpEvent(existing), ...dto, status: 'pending' };
+  }
+
+  async completeFollowUpTask(
+    storeId: number,
+    id: number,
+    dto: CompleteTerminalFollowUpTaskDto,
+    completedByUserId?: number,
+  ) {
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    if (taskDelegate?.findFirst && taskDelegate?.update) {
+      try {
+        const existing = await taskDelegate.findFirst({ where: { id, storeId, deletedAt: null } });
+        if (!existing) throw new NotFoundException('跟进任务不存在');
+        const task = await taskDelegate.update({
+          where: { id },
+          data: {
+            status: 'completed',
+            resultType: dto.resultType ?? (dto.orderId ? 'converted' : dto.reservationId ? 'booked' : 'contacted'),
+            resultNote: dto.result ?? dto.note ?? null,
+            orderId: dto.orderId ? Number(dto.orderId) : existing.orderId,
+            reservationId: dto.reservationId ? Number(dto.reservationId) : existing.reservationId,
+            completedByUserId: completedByUserId ?? null,
+            completedAt: new Date(),
+          },
+          include: this.followUpTaskInclude(),
+        });
+        const completionEvent = await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_completed', task, dto);
+        return { ...this.mapFollowUpTask(task), completionEventId: completionEvent?.id };
+      } catch (error) {
+        if (!this.isMissingFollowUpTaskTableError(error)) throw error;
+      }
+    }
+
     const existing = await this.prisma.recommendationEvent.findFirst({
       where: { id, storeId, eventType: 'follow_up_created' },
     });
@@ -3422,7 +5451,422 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       customerId: existing.customerId,
       status: 'completed',
       result: dto.result ?? dto.note ?? '',
+      resultType: dto.resultType ?? (dto.orderId ? 'converted' : 'contacted'),
       completedAt: event.createdAt.toISOString(),
+    };
+  }
+
+  async cancelFollowUpTask(storeId: number, id: number, note?: string) {
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    if (taskDelegate?.findFirst && taskDelegate?.update) {
+      try {
+        const existing = await taskDelegate.findFirst({ where: { id, storeId, deletedAt: null } });
+        if (!existing) throw new NotFoundException('跟进任务不存在');
+        const task = await taskDelegate.update({
+          where: { id },
+          data: { status: 'cancelled', resultNote: note ?? null },
+          include: this.followUpTaskInclude(),
+        });
+        await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_cancelled', task, { note });
+        return this.mapFollowUpTask(task);
+      } catch (error) {
+        if (!this.isMissingFollowUpTaskTableError(error)) throw error;
+      }
+    }
+    const existing = await this.prisma.recommendationEvent.findFirst({
+      where: { id, storeId, eventType: 'follow_up_created' },
+      include: { customer: true },
+    });
+    if (!existing) throw new NotFoundException('跟进任务不存在');
+    await this.prisma.recommendationEvent.create({
+      data: {
+        storeId,
+        customerId: existing.customerId,
+        deviceId: existing.deviceId,
+        recommendationId: existing.recommendationId,
+        eventType: 'follow_up_cancelled',
+        taskId: existing.taskId,
+        orderId: existing.orderId,
+        note: note ?? '终端跟进任务取消',
+        payload: { sourceFollowUpTaskId: existing.id, status: 'cancelled', note },
+      },
+    });
+    return { ...this.mapLegacyFollowUpEvent(existing), status: 'cancelled', resultNote: note };
+  }
+
+  private getFollowUpTaskDelegate() {
+    return (this.prisma as any).terminalFollowUpTask;
+  }
+
+  private async getLegacyFollowUpTasks(storeId: number, page: number, pageSize: number) {
+    const events = await this.prisma.recommendationEvent.findMany({
+      where: { storeId, eventType: 'follow_up_created' },
+      include: { customer: true },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    const total = await this.prisma.recommendationEvent.count({ where: { storeId, eventType: 'follow_up_created' } });
+    return {
+      items: events.map((event) => this.mapLegacyFollowUpEvent(event)),
+      total,
+      page,
+      pageSize,
+      summary: {
+        pending: total,
+        inProgress: 0,
+        completed: 0,
+        expired: 0,
+        overdue: 0,
+        booked: 0,
+        converted: 0,
+        revenue: 0,
+        assigneeStats: [],
+      },
+    };
+  }
+
+  private isMissingFollowUpTaskTableError(error: unknown) {
+    const candidate = error as { code?: string; meta?: { modelName?: string; driverAdapterError?: { cause?: { kind?: string } } } };
+    return (
+      candidate?.code === 'P2021' &&
+      candidate.meta?.modelName === 'TerminalFollowUpTask' &&
+      candidate.meta?.driverAdapterError?.cause?.kind === 'TableDoesNotExist'
+    );
+  }
+
+  private async expireOverdueFollowUpTasks(storeId: number) {
+    const taskDelegate = this.getFollowUpTaskDelegate();
+    if (!taskDelegate?.findMany || !taskDelegate?.update) return;
+    const overdueTasks = await taskDelegate.findMany({
+      where: {
+        storeId,
+        deletedAt: null,
+        status: { in: ['pending', 'in_progress'] },
+        dueAt: { lt: new Date() },
+      },
+      select: {
+        id: true,
+        priority: true,
+        assigneeRole: true,
+        resultNote: true,
+      },
+      take: 200,
+    });
+    await Promise.all(
+      overdueTasks.map((task: any) =>
+        taskDelegate.update({
+          where: { id: task.id },
+          data: {
+            status: 'expired',
+            assigneeRole: task.priority === 'urgent' ? 'manager' : task.assigneeRole,
+            resultNote: task.resultNote ?? (task.priority === 'urgent' ? '任务已逾期，升级至店长队列' : '任务已逾期'),
+          },
+        }),
+      ),
+    );
+  }
+
+  private followUpTaskInclude() {
+    return {
+      customer: { select: { id: true, name: true, phone: true, memberLevel: true, totalSpent: true, visitCount: true } },
+      assigneeUser: { select: { id: true, name: true, username: true, phone: true } },
+      assigneeBeautician: { select: { id: true, name: true, phone: true, userId: true } },
+      assignedByUser: { select: { id: true, name: true, username: true } },
+      completedByUser: { select: { id: true, name: true, username: true } },
+    };
+  }
+
+  private async inferFollowUpAssignment(storeId: number, customerId: number, dto: Partial<CreateTerminalFollowUpTaskDto>) {
+    const text = [dto.triggerType, dto.source, dto.title, dto.note, dto.remark, dto.script].filter(Boolean).join(' ').toLowerCase();
+    const explicitRole = dto.assigneeRole;
+    const role =
+      explicitRole ??
+      (/(booking|appointment|reservation|预约|到店|未接通|浏览|放弃)/i.test(text)
+        ? 'reception'
+        : /(inventory|expiry|stock|capacity|临期|库存|低峰|排期|产能|补货)/i.test(text)
+          ? 'manager'
+          : 'consultant');
+
+    if (role === 'consultant') {
+      const recentTask = await this.prisma.serviceTask.findFirst({
+        where: { storeId, customerId, beauticianId: { not: null } },
+        include: { beautician: true },
+        orderBy: [{ completedAt: 'desc' }, { appointmentTime: 'desc' }],
+      });
+      if (recentTask?.beautician) {
+        return {
+          assigneeRole: 'consultant',
+          assigneeUserId: recentTask.beautician.userId ?? undefined,
+          assigneeBeauticianId: recentTask.beautician.id,
+          reason: `优先分派给最近服务美容师 ${recentTask.beautician.name}`,
+        };
+      }
+      const recentReservation = await this.prisma.reservation.findFirst({
+        where: { storeId, customerId, beauticianId: { not: null } },
+        include: { beautician: true },
+        orderBy: { date: 'desc' },
+      });
+      if (recentReservation?.beautician) {
+        return {
+          assigneeRole: 'consultant',
+          assigneeUserId: recentReservation.beautician.userId ?? undefined,
+          assigneeBeauticianId: recentReservation.beautician.id,
+          reason: `优先分派给最近预约美容师 ${recentReservation.beautician.name}`,
+        };
+      }
+    }
+
+    if (role === 'manager') {
+      const manager = await this.findUserByRoleSignal(storeId, ['store_manager', 'manager', '店长']);
+      return {
+        assigneeRole: 'manager',
+        assigneeUserId: manager?.id,
+        assigneeBeauticianId: undefined,
+        reason: manager ? `涉及经营协调，默认分派给店长 ${manager.name}` : '涉及经营协调，进入店长待分派队列',
+      };
+    }
+
+    if (role === 'reception') {
+      const reception = await this.findUserByRoleSignal(storeId, ['reception', 'frontdesk', 'cashier', '前台']);
+      return {
+        assigneeRole: 'reception',
+        assigneeUserId: reception?.id,
+        assigneeBeauticianId: undefined,
+        reason: reception ? `预约/邀约确认类任务，默认分派给前台 ${reception.name}` : '预约/邀约确认类任务，进入前台队列',
+      };
+    }
+
+    return {
+      assigneeRole: 'consultant',
+      assigneeUserId: undefined,
+      assigneeBeauticianId: undefined,
+      reason: '客户关系维护类任务，进入顾问/美容师队列',
+    };
+  }
+
+  private async findUserByRoleSignal(storeId: number, signals: string[]) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        status: 'active',
+        stores: { some: { storeId } },
+      },
+      include: { roles: { include: { role: true } } },
+      take: 50,
+    });
+    return users.find((user) =>
+      user.roles.some(({ role }) => {
+        const text = `${role.key} ${role.name}`.toLowerCase();
+        return signals.some((signal) => text.includes(signal.toLowerCase()));
+      }),
+    );
+  }
+
+  private normalizeFollowUpPriority(priority: string | undefined, dto: Partial<CreateTerminalFollowUpTaskDto>) {
+    if (priority) return priority === 'P0' ? 'urgent' : priority === 'P1' ? 'recommended' : priority;
+    const text = [dto.triggerType, dto.source, dto.title, dto.note].filter(Boolean).join(' ').toLowerCase();
+    if (/(urgent|expiry|临期|流失|逾期|低峰|排期|库存)/i.test(text)) return 'urgent';
+    return 'recommended';
+  }
+
+  private inferFollowUpDueAt(dto: Partial<CreateTerminalFollowUpTaskDto>) {
+    const text = [dto.triggerType, dto.source, dto.title, dto.note].filter(Boolean).join(' ').toLowerCase();
+    const now = new Date();
+    const due = new Date(now);
+    if (/(appointment|booking|预约|浏览|放弃)/i.test(text)) {
+      due.setHours(now.getHours() + 2);
+      return due;
+    }
+    if (/(expiry|临期|库存|低峰|排期|capacity)/i.test(text)) {
+      due.setHours(20, 0, 0, 0);
+      if (due.getTime() <= now.getTime()) due.setDate(due.getDate() + 1);
+      return due;
+    }
+    due.setDate(due.getDate() + 2);
+    return due;
+  }
+
+  private buildFollowUpTaskTitle(dto: Partial<CreateTerminalFollowUpTaskDto>) {
+    if (dto.triggerType?.includes('expiry')) return '临期权益客户跟进';
+    if (dto.triggerType?.includes('capacity')) return '低峰预约邀约跟进';
+    if (dto.triggerType?.includes('churn')) return '流失风险客户唤醒';
+    return '客户增长跟进';
+  }
+
+  private async recordFollowUpTaskEvent(
+    storeId: number,
+    customerId: number,
+    deviceId: number | undefined,
+    eventType: string,
+    task: any,
+    payload: Record<string, any>,
+  ) {
+    try {
+      return await this.prisma.recommendationEvent.create({
+        data: {
+          storeId,
+          customerId,
+          deviceId: this.toTerminalDeviceId(deviceId),
+          recommendationId: task.recommendationId ?? undefined,
+          eventType,
+          taskId: task.serviceTaskId ?? undefined,
+          orderId: task.orderId ?? undefined,
+          note: payload.note ?? payload.result ?? task.note ?? task.title,
+          payload: {
+            ...payload,
+            terminalFollowUpTaskId: task.id,
+            status: task.status,
+            assigneeRole: task.assigneeRole,
+            assigneeUserId: task.assigneeUserId,
+            assigneeBeauticianId: task.assigneeBeauticianId,
+            dueAt: task.dueAt,
+          },
+        },
+      });
+    } catch (error) {
+      console.warn('record terminal follow-up recommendation event failed', error);
+      return null;
+    }
+  }
+
+  private mapFollowUpTask(task: any, extra: Record<string, any> = {}) {
+    const payload = task.payload && typeof task.payload === 'object' ? task.payload : {};
+    return {
+      id: task.id,
+      customerId: task.customerId,
+      customerName: task.customer?.name,
+      customerPhone: task.customer?.phone,
+      customerMemberLevel: task.customer?.memberLevel,
+      recommendationId: task.recommendationId,
+      sourceRecommendationKey: task.sourceRecommendationKey,
+      source: task.source,
+      triggerType: task.triggerType,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      assigneeRole: task.assigneeRole,
+      assigneeUserId: task.assigneeUserId,
+      assigneeUserName: task.assigneeUser?.name ?? task.assigneeUser?.username,
+      assigneeBeauticianId: task.assigneeBeauticianId,
+      assigneeBeauticianName: task.assigneeBeautician?.name,
+      assignmentReason: payload.assignmentReason,
+      channel: payload.channel ?? 'phone',
+      script: task.script,
+      note: task.note,
+      dueAt: task.dueAt?.toISOString?.() ?? task.dueAt,
+      resultType: task.resultType,
+      result: task.resultNote,
+      resultNote: task.resultNote,
+      reservationId: task.reservationId,
+      orderId: task.orderId,
+      serviceTaskId: task.serviceTaskId,
+      completionEventId: extra.completionEventId,
+      createdAt: task.createdAt?.toISOString?.() ?? task.createdAt,
+      updatedAt: task.updatedAt?.toISOString?.() ?? task.updatedAt,
+      completedAt: task.completedAt?.toISOString?.() ?? task.completedAt,
+      ...extra,
+    };
+  }
+
+  private buildFollowUpAssigneeStats(tasks: any[]) {
+    const roleLabels: Record<string, string> = {
+      manager: '店长',
+      consultant: '顾问/美容师',
+      reception: '前台',
+    };
+    const stats = new Map<
+      string,
+      {
+        assigneeKey: string;
+        assigneeRole: string;
+        assigneeRoleLabel: string;
+        assigneeUserId?: number;
+        assigneeBeauticianId?: number;
+        assigneeName: string;
+        total: number;
+        pending: number;
+        inProgress: number;
+        completed: number;
+        overdue: number;
+        booked: number;
+        converted: number;
+        revenue: number;
+      }
+    >();
+    const now = new Date();
+    for (const task of tasks) {
+      const role = task.assigneeRole || 'manager';
+      const assigneeName =
+        task.assigneeBeautician?.name ||
+        task.assigneeUser?.name ||
+        task.assigneeUser?.username ||
+        (role === 'manager' ? '店长待分派' : role === 'reception' ? '前台队列' : '顾问/美容师队列');
+      const assigneeKey = `${role}:${task.assigneeUserId ?? ''}:${task.assigneeBeauticianId ?? ''}:${assigneeName}`;
+      const current =
+        stats.get(assigneeKey) ??
+        {
+          assigneeKey,
+          assigneeRole: role,
+          assigneeRoleLabel: roleLabels[role] ?? '门店人员',
+          assigneeUserId: task.assigneeUserId ?? undefined,
+          assigneeBeauticianId: task.assigneeBeauticianId ?? undefined,
+          assigneeName,
+          total: 0,
+          pending: 0,
+          inProgress: 0,
+          completed: 0,
+          overdue: 0,
+          booked: 0,
+          converted: 0,
+          revenue: 0,
+        };
+      current.total += 1;
+      if (task.status === 'pending') current.pending += 1;
+      if (task.status === 'in_progress') current.inProgress += 1;
+      if (task.status === 'completed') current.completed += 1;
+      if (
+        (task.status === 'pending' || task.status === 'in_progress') &&
+        task.dueAt &&
+        new Date(task.dueAt).getTime() < now.getTime()
+      ) {
+        current.overdue += 1;
+      }
+      if (task.status === 'completed' && (task.resultType === 'booked' || task.reservationId)) current.booked += 1;
+      if (task.status === 'completed' && (task.resultType === 'converted' || task.orderId)) current.converted += 1;
+      current.revenue += Number(task.order?.totalAmount ?? 0);
+      stats.set(assigneeKey, current);
+    }
+    return Array.from(stats.values())
+      .map((item) => ({
+        ...item,
+        completionRate: item.total ? Math.round((item.completed / item.total) * 1000) / 10 : 0,
+        conversionRate: item.completed ? Math.round((item.converted / item.completed) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.converted - a.converted || b.completed - a.completed || b.total - a.total)
+      .slice(0, 10);
+  }
+
+  private mapLegacyFollowUpEvent(event: any) {
+    const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
+    return {
+      id: event.id,
+      customerId: event.customerId,
+      customerName: event.customer?.name,
+      customerPhone: event.customer?.phone,
+      recommendationId: event.recommendationId,
+      title: payload.title ?? '客户增长跟进',
+      status: payload.status ?? 'pending',
+      priority: payload.priority ?? 'recommended',
+      assigneeRole: payload.assigneeRole ?? 'manager',
+      assigneeUserId: payload.assigneeUserId,
+      assigneeBeauticianId: payload.assigneeBeauticianId,
+      assignmentReason: payload.assignmentReason ?? '历史事件任务',
+      channel: payload.channel ?? 'phone',
+      script: payload.script ?? event.note,
+      note: event.note,
+      dueAt: payload.dueAt,
+      createdAt: event.createdAt?.toISOString?.() ?? event.createdAt,
     };
   }
 
@@ -3470,12 +5914,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [
-      todayOrders,
-      todayTasks,
-      todayReservations,
-      todayNewCustomers,
-    ] = await Promise.all([
+    const [todayOrders, todayTasks, todayReservations, todayNewCustomers] = await Promise.all([
       // 今日营收
       this.prisma.productOrder.aggregate({
         where: {
@@ -3575,7 +6014,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private buildManagerInsightFallback(context: any): TerminalDashboardInsights {
     const dormantCustomer = context.customersAtRisk?.[0];
-    const unarrivedCount = Math.max(0, Number(context.metrics?.reservationCount ?? 0) - Number(context.metrics?.arrivedReservationCount ?? 0));
+    const unarrivedCount = Math.max(
+      0,
+      Number(context.metrics?.reservationCount ?? 0) - Number(context.metrics?.arrivedReservationCount ?? 0),
+    );
     const lowStock = context.lowStock?.[0];
     const staffLoad = context.staffLoad?.[0];
     const risks: TerminalDashboardInsight[] = [];
@@ -3666,7 +6108,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return value;
   }
 
-  async getRoleDashboard(storeId: number, _requestedRole?: string) {
+  private async buildRoleDashboard(storeId: number, _requestedRole?: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -3685,77 +6127,84 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       recentOrders,
       beauticians,
       schedules,
+      amiDashboard,
     ] = await Promise.all([
-        this.getStore(storeId),
-        this.prisma.customer.count({ where: { storeId, deletedAt: null } }),
-        this.prisma.customer.count({ where: { storeId, deletedAt: null, visitCount: { gt: 0 } } }),
-        this.prisma.productOrder.aggregate({
-          where: { storeId, status: 'completed' },
-          _sum: { totalAmount: true },
-          _count: true,
-        }),
-        this.prisma.reservation.count({
-          where: {
-            storeId,
-            date: { gte: today, lt: tomorrow },
-            status: { not: 'cancelled' },
-          },
-        }),
-        this.prisma.reservation.findMany({
-          where: {
-            storeId,
-            date: { gte: today, lt: tomorrow },
-            status: { not: 'cancelled' },
-          },
-          orderBy: { startTime: 'asc' },
-          take: 12,
-        }),
-        this.prisma.reservation.count({
-          where: {
-            storeId,
-            date: { gte: today, lt: tomorrow },
-            status: { in: ['checked_in', 'completed'] },
-          },
-        }),
-        this.prisma.customer.findMany({
-          where: { storeId, deletedAt: null },
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            memberLevel: true,
-            totalSpent: true,
-            visitCount: true,
-            lastVisitDate: true,
-            tags: true,
-          },
-          orderBy: { totalSpent: 'desc' },
-          take: 40,
-        }),
-        this.prisma.product.findMany({
-          where: { storeId, deletedAt: null },
-          select: { id: true, name: true, currentStock: true, safetyStock: true, status: true },
-          orderBy: { currentStock: 'asc' },
-          take: 30,
-        }),
-        this.prisma.productOrder.findMany({
-          where: { storeId, status: 'completed' },
-          select: { id: true, orderNo: true, customerName: true, totalAmount: true, createdAt: true, payMethod: true },
-          orderBy: { createdAt: 'desc' },
-          take: 12,
-        }),
-        this.prisma.beautician.findMany({
-          where: { storeId, status: 'active' },
-          include: { level: true },
-          orderBy: { id: 'asc' },
-          take: 8,
-        }),
-        this.prisma.schedule.findMany({
-          where: { storeId, date: { gte: today, lt: tomorrow } },
-          orderBy: [{ beauticianId: 'asc' }, { startTime: 'asc' }],
-          take: 80,
-        }),
-      ]);
+      this.getStore(storeId),
+      this.prisma.customer.count({ where: { storeId, deletedAt: null } }),
+      this.prisma.customer.count({ where: { storeId, deletedAt: null, visitCount: { gt: 0 } } }),
+      this.prisma.productOrder.aggregate({
+        where: { storeId, status: 'completed' },
+        _sum: { totalAmount: true },
+        _count: true,
+      }),
+      this.prisma.reservation.count({
+        where: {
+          storeId,
+          date: { gte: today, lt: tomorrow },
+          status: { not: 'cancelled' },
+        },
+      }),
+      this.prisma.reservation.findMany({
+        where: {
+          storeId,
+          date: { gte: today, lt: tomorrow },
+          status: { not: 'cancelled' },
+        },
+        orderBy: { startTime: 'asc' },
+        take: 12,
+      }),
+      this.prisma.reservation.count({
+        where: {
+          storeId,
+          date: { gte: today, lt: tomorrow },
+          status: { in: ['checked_in', 'completed'] },
+        },
+      }),
+      this.prisma.customer.findMany({
+        where: { storeId, deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          memberLevel: true,
+          totalSpent: true,
+          visitCount: true,
+          lastVisitDate: true,
+          tags: true,
+        },
+        orderBy: { totalSpent: 'desc' },
+        take: 40,
+      }),
+      this.prisma.product.findMany({
+        where: { storeId, deletedAt: null },
+        select: { id: true, name: true, currentStock: true, safetyStock: true, status: true },
+        orderBy: { currentStock: 'asc' },
+        take: 30,
+      }),
+      this.prisma.productOrder.findMany({
+        where: { storeId, status: 'completed' },
+        select: { id: true, orderNo: true, customerName: true, totalAmount: true, createdAt: true, payMethod: true },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+      }),
+      this.prisma.beautician.findMany({
+        where: { storeId, status: 'active' },
+        include: { level: true },
+        orderBy: { id: 'asc' },
+        take: 8,
+      }),
+      this.prisma.schedule.findMany({
+        where: { storeId, date: { gte: today, lt: tomorrow } },
+        orderBy: [{ beauticianId: 'asc' }, { startTime: 'asc' }],
+        take: 80,
+      }),
+      this.commissionService.getAmiDashboard({ storeId }).catch((error) => {
+        if (!this.warnOptionalTableSkipped('AmiPerformanceRecord/AmiMonthlyBill', error)) {
+          console.warn('Ami Core manager dashboard Ami contribution skipped', error);
+        }
+        return { revenueGenerated: 0, totalFee: 0, roi: 0, recordCount: 0 };
+      }),
+    ]);
 
     const mappedReservations = await Promise.all(reservations.map((reservation) => this.mapReservation(reservation)));
     const scheduleByBeautician = new Map<number, typeof schedules>();
@@ -3817,7 +6266,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         tags: customer.tags,
         hasTodayReservation: reservationCustomerIds.has(customer.id),
       }))
-      .filter((customer) => !customer.hasTodayReservation && customer.totalSpent >= 1000 && customer.daysSinceVisit >= 45)
+      .filter(
+        (customer) => !customer.hasTodayReservation && customer.totalSpent >= 1000 && customer.daysSinceVisit >= 45,
+      )
       .sort((a, b) => b.totalSpent - a.totalSpent || b.daysSinceVisit - a.daysSinceVisit)
       .slice(0, 8);
     const lowStock = stockProducts
@@ -3871,6 +6322,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       })),
     };
     const insights = await this.getManagerDashboardInsights(storeId, insightContext);
+    const amiRevenue = this.toNumber((amiDashboard as any)?.revenueGenerated);
+    const amiFee = this.toNumber((amiDashboard as any)?.totalFee);
+    const amiRecordCount = this.toNumber((amiDashboard as any)?.recordCount);
 
     return {
       manager: {
@@ -3883,6 +6337,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           { label: '预约客户', value: String(reservationCount) },
           { label: '到店客户', value: String(arrivedReservationCount) },
           { label: '活跃客户', value: String(activeCustomerTotal) },
+          {
+            label: 'Ami关联收入 / 费用',
+            value: `￥${amiRevenue.toLocaleString()}`,
+            hint: `费用 ￥${amiFee.toLocaleString()} · ${amiRecordCount} 条贡献记录`,
+          },
         ],
         risks: insights.risks,
         highlights: insights.suggestions,
@@ -3892,12 +6351,332 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         title: '今日接待工作台',
         subtitle: store.name,
         items: mappedReservations,
-        summary: reservationCount > 0 ? `当前共有 ${reservationCount} 条今日预约待处理。` : '今日暂无预约，请按需新增预约或接待散客。',
+        summary:
+          reservationCount > 0
+            ? `当前共有 ${reservationCount} 条今日预约待处理。`
+            : '今日暂无预约，请按需新增预约或接待散客。',
       },
     };
   }
 
-  async createTerminalAutomationStrategy(storeId: number, userId: number | undefined, dto: CreateTerminalAutomationDto) {
+  async getRoleDashboard(storeId: number, requestedRole?: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return this.withTerminalDashboardCache(
+      ['role', storeId, this.toLocalDateText(today), requestedRole ?? 'all'],
+      30_000,
+      () => this.buildRoleDashboard(storeId, requestedRole),
+    );
+  }
+
+  async getManagerDashboard(storeId: number) {
+    return this.withTerminalDashboardCache(
+      ['manager', storeId, this.toLocalDateText(new Date())],
+      30_000,
+      async () => (await this.getRoleDashboard(storeId)).manager,
+    );
+  }
+
+  async getStaffSchedulesDashboard(storeId: number) {
+    return this.withTerminalDashboardCache(
+      ['staff-schedules', storeId, this.toLocalDateText(new Date())],
+      5 * 60_000,
+      async () => (await this.getRoleDashboard(storeId)).staff,
+    );
+  }
+
+  async getTerminalBeauticianMe(storeId: number, userId?: number, operatorId?: number) {
+    const { profile } = await this.resolveTerminalBeautician(storeId, userId, operatorId);
+    return profile;
+  }
+
+  async getTerminalBeauticianTasks(
+    storeId: number,
+    deviceId: number,
+    userId: number | undefined,
+    query?: { date?: string; status?: string; operatorId?: number },
+  ) {
+    const { beautician } = await this.resolveTerminalBeautician(storeId, userId, query?.operatorId);
+    return this.listTasks(storeId, deviceId, {
+      date: query?.date,
+      status: query?.status,
+      beauticianId: beautician.id,
+    });
+  }
+
+  async getTerminalBeauticianCommission(
+    storeId: number,
+    userId: number | undefined,
+    query?: { period?: string; detailLimit?: number | string; operatorId?: number },
+  ) {
+    const { beautician } = await this.resolveTerminalBeautician(storeId, userId, query?.operatorId);
+    return this.commissionService.getBeauticianSummary({
+      storeId,
+      beauticianId: beautician.id,
+      period: query?.period,
+      detailLimit: query?.detailLimit,
+    });
+  }
+
+  async getTerminalBeauticianCustomers(
+    storeId: number,
+    userId: number | undefined,
+    query?: { keyword?: string; operatorId?: number },
+  ) {
+    const { beautician } = await this.resolveTerminalBeautician(storeId, userId, query?.operatorId);
+    const [reservations, tasks] = await Promise.all([
+      this.prisma.reservation.findMany({
+        where: {
+          storeId,
+          beauticianId: beautician.id,
+          status: { not: 'cancelled' },
+        },
+        select: { customerId: true },
+        orderBy: { date: 'desc' },
+        take: 100,
+      }),
+      this.prisma.serviceTask.findMany({
+        where: {
+          storeId,
+          beauticianId: beautician.id,
+        },
+        select: { customerId: true },
+        orderBy: { appointmentTime: 'desc' },
+        take: 100,
+      }),
+    ]);
+    const customerIds = Array.from(new Set([...reservations, ...tasks].map((item) => item.customerId).filter(Boolean)));
+    if (!customerIds.length) return [];
+    return this.getTerminalContextCustomers(storeId, {
+      keyword: query?.keyword ?? '',
+      customerIds,
+    });
+  }
+
+  async getTerminalBeauticianDashboard(
+    storeId: number,
+    deviceId: number,
+    userId: number | undefined,
+    query?: { date?: string; operatorId?: number },
+  ) {
+    const { beautician, profile } = await this.resolveTerminalBeautician(storeId, userId, query?.operatorId);
+    const dateText =
+      query?.date && !Number.isNaN(new Date(query.date).getTime())
+        ? this.toLocalDateText(new Date(query.date))
+        : this.toLocalDateText(new Date());
+    const monthStart = new Date(`${dateText}T00:00:00`);
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [staffSchedules, tasks, commission, monthlyTasks] = await Promise.all([
+      this.getStaffSchedulesDashboard(storeId),
+      this.listTasks(storeId, deviceId, { date: dateText, beauticianId: beautician.id }),
+      this.commissionService.getBeauticianSummary({
+        storeId,
+        beauticianId: beautician.id,
+        period: 'month',
+        detailLimit: 20,
+      }),
+      this.prisma.serviceTask.findMany({
+        where: {
+          storeId,
+          beauticianId: beautician.id,
+          appointmentTime: { gte: monthStart },
+          status: { not: 'cancelled' },
+        },
+        select: {
+          customerId: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          remark: true,
+          images: true,
+        },
+        orderBy: { appointmentTime: 'desc' },
+        take: 300,
+      }),
+    ]);
+    const schedule = staffSchedules.find((item: any) => item?.beautician?.id === beautician.id);
+    const pending = tasks.filter((item: any) => item.status === 'pending');
+    const inProgress = tasks.filter((item: any) => item.status === 'in_progress');
+    const completedToday = tasks.filter((item: any) => item.status === 'completed');
+    const needRecord = tasks.filter((item: any) => ['pending', 'in_progress'].includes(item.status));
+    const monthlyActiveTasks = monthlyTasks.filter((item) => item.status !== 'no_show');
+    const monthlyCompletedTasks = monthlyTasks.filter((item) => item.status === 'completed');
+    const monthlyRecordedTasks = monthlyCompletedTasks.filter(
+      (item) => Boolean(item.remark?.trim()) || (item.images?.length ?? 0) > 0,
+    );
+    const completedDurations = monthlyCompletedTasks
+      .map((item) =>
+        item.startedAt && item.completedAt
+          ? Math.max(0, Math.round((item.completedAt.getTime() - item.startedAt.getTime()) / 60000))
+          : 0,
+      )
+      .filter((value) => value > 0);
+    const completedByCustomer = new Map<number, number>();
+    monthlyCompletedTasks.forEach((item) => {
+      completedByCustomer.set(item.customerId, (completedByCustomer.get(item.customerId) ?? 0) + 1);
+    });
+    const repeatCustomerCount = Array.from(completedByCustomer.values()).filter((count) => count >= 2).length;
+    const revenueContributionAmount = Array.isArray((commission as any).breakdown)
+      ? (commission as any).breakdown.reduce((sum: number, item: any) => sum + this.toNumber(item?.sourceAmount), 0)
+      : this.toNumber((commission as any).monthAmount);
+    const quality = {
+      completedCount: monthlyCompletedTasks.length,
+      activeTaskCount: monthlyActiveTasks.length,
+      recordedCount: monthlyRecordedTasks.length,
+      completionRate: monthlyActiveTasks.length
+        ? Math.round((monthlyCompletedTasks.length / monthlyActiveTasks.length) * 100)
+        : 0,
+      recordRate: monthlyCompletedTasks.length
+        ? Math.round((monthlyRecordedTasks.length / monthlyCompletedTasks.length) * 100)
+        : 0,
+      averageServiceDurationMinutes: completedDurations.length
+        ? Math.round(completedDurations.reduce((sum, value) => sum + value, 0) / completedDurations.length)
+        : 0,
+      repeatCustomerCount,
+      repurchaseOpportunityCount: repeatCustomerCount,
+      revenueContributionAmount,
+      highlights: [
+        `本月已完成 ${monthlyCompletedTasks.length} 次服务，服务记录完整率 ${monthlyCompletedTasks.length ? Math.round((monthlyRecordedTasks.length / monthlyCompletedTasks.length) * 100) : 0}%`,
+        `重复服务客户 ${repeatCustomerCount} 位，关联收入约 ￥${Math.round(revenueContributionAmount).toLocaleString()}`,
+      ],
+      suggestions: [
+        monthlyCompletedTasks.length && monthlyRecordedTasks.length < monthlyCompletedTasks.length
+          ? '优先补齐缺失服务记录，确保客户档案、耗材和后续护理建议可追溯。'
+          : '保持每次服务后补全客户反馈和下次护理建议。',
+        repeatCustomerCount
+          ? '对重复到店客户推荐同系列护理周期或次卡权益，承接复购机会。'
+          : '本月重复服务客户偏少，可从服务后回访和下次预约提醒提升复购承接。',
+      ],
+    };
+    const alerts = [
+      ...(inProgress.length
+        ? [
+            {
+              type: 'record_missing',
+              title: '服务记录待提交',
+              description: `${inProgress.length} 个服务记录待提交，提交后系统会自动完成服务任务。`,
+              relatedId: inProgress[0]?.id,
+            },
+          ]
+        : []),
+      ...(pending.length
+        ? [
+            {
+              type: 'next_task',
+              title: '待记录服务',
+              description: `${pending.length} 个预约客户待记录服务，优先补充最近到店客户的服务结果。`,
+              relatedId: pending[0]?.id,
+            },
+          ]
+        : []),
+      ...((commission as any).monthPendingAmount > 0
+        ? [
+            {
+              type: 'commission_pending',
+              title: '提成待确认',
+              description: `本月待确认提成 ￥${this.toNumber((commission as any).monthPendingAmount).toLocaleString()}。`,
+            },
+          ]
+        : []),
+    ];
+
+    return {
+      beautician: profile,
+      date: dateText,
+      schedule: {
+        todaySlots: (schedule as any)?.todaySlots ?? [],
+        weekSlots: (schedule as any)?.weekSlots ?? [],
+        weekStart: (schedule as any)?.weekStart ?? dateText,
+        utilization: (schedule as any)?.utilization ?? '0%',
+      },
+      tasks: {
+        pending,
+        inProgress,
+        needRecord,
+        completedToday,
+        nextTask: inProgress[0] ?? pending[0],
+      },
+      commission,
+      quality,
+      alerts,
+      summary: `${beautician.name} 今日 ${pending.length + inProgress.length} 个待提交记录、${completedToday.length} 个已记录服务。`,
+    };
+  }
+
+  async getTodayReservationsDashboard(storeId: number) {
+    return this.withTerminalDashboardCache(
+      ['today-reservations', storeId, this.toLocalDateText(new Date())],
+      30_000,
+      async () => (await this.getRoleDashboard(storeId)).reception,
+    );
+  }
+
+  async getCustomerGrowthDashboard(storeId: number) {
+    return this.withTerminalDashboardCache(['customer-growth', storeId], 3 * 60_000, async () => {
+      const dashboard = await this.getRoleDashboard(storeId);
+      const risks = dashboard.manager.risks.filter((item: any) => item?.relatedType === 'customer');
+      const highlights = dashboard.manager.highlights.filter((item: any) => item?.relatedType === 'customer');
+      return {
+        title: '客户增长与流失候选',
+        subtitle: dashboard.manager.subtitle,
+        items: [...risks, ...highlights].slice(0, 10),
+        summary:
+          risks.length || highlights.length ? '已筛选需要优先跟进的客户机会。' : '当前暂无高优先级客户流失或增长提醒。',
+      };
+    });
+  }
+
+  async getInventoryAlertsDashboard(storeId: number) {
+    return this.withTerminalDashboardCache(['inventory-alerts', storeId], 2 * 60_000, () =>
+      this.getInventoryAlerts(storeId),
+    );
+  }
+
+  async getCashierContext(storeId: number) {
+    return this.withTerminalDashboardCache(
+      ['cashier-context', storeId, this.toLocalDateText(new Date())],
+      10 * 60_000,
+      async () => {
+        const [catalog, customers, store] = await Promise.all([
+          this.getCatalogSync(storeId),
+          this.getTerminalContextCustomers(storeId),
+          this.getStore(storeId),
+        ]);
+        return {
+          ...catalog,
+          customers,
+          storeName: store.name,
+          shiftRequired: store.shiftRequired !== false,
+          generatedAt: new Date().toISOString(),
+        };
+      },
+    );
+  }
+
+  async getCardVerificationContext(storeId: number, keyword?: string) {
+    return this.withTerminalDashboardCache(
+      ['card-verification-context', storeId, this.toLocalDateText(new Date()), keyword ?? ''],
+      3 * 60_000,
+      async () => {
+        const [customers, store] = await Promise.all([
+          this.getTerminalContextCustomers(storeId, { keyword: keyword ?? '', onlyWithActiveCards: true }),
+          this.getStore(storeId),
+        ]);
+        return {
+          customers,
+          storeName: store.name,
+          generatedAt: new Date().toISOString(),
+        };
+      },
+    );
+  }
+
+  async createTerminalAutomationStrategy(
+    storeId: number,
+    userId: number | undefined,
+    dto: CreateTerminalAutomationDto,
+  ) {
     if (dto.missingFields?.length) {
       throw new BadRequestException('自动化草稿仍有缺失信息，请先补齐后再启用');
     }
@@ -3915,6 +6694,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       ? await this.prisma.marketingAutomationStrategy.update({ where: { id: existing.id }, data: payload as any })
       : await this.prisma.marketingAutomationStrategy.create({ data: payload as any });
 
+    this.invalidateAutomationDashboardCache(storeId);
     return this.mapTerminalAutomationStrategy(strategy);
   }
 
@@ -3975,7 +6755,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         const resolvedStoreId = this.getStoreIdFromTerminalAutomation(strategy);
         if (!resolvedStoreId) continue;
         try {
-          const execution = await this.executeTerminalAutomationStrategy(strategy, resolvedStoreId, { skipWhenNoTargets: true });
+          const execution = await this.executeTerminalAutomationStrategy(strategy, resolvedStoreId, {
+            skipWhenNoTargets: true,
+          });
           if (execution) executions.push(execution);
         } catch (error) {
           executions.push(await this.createFailedTerminalAutomationExecution(strategy, error));
@@ -4037,6 +6819,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         actions: payload.actions,
       } as any,
     });
+    this.invalidateAutomationDashboardCache(storeId);
     return this.mapTerminalAutomationStrategy(updated);
   }
 
@@ -4049,6 +6832,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id },
       data: { status: 'enabled' },
     });
+    this.invalidateAutomationDashboardCache(storeId);
     return this.mapTerminalAutomationStrategy(updated);
   }
 
@@ -4061,6 +6845,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       where: { id },
       data: { status: 'paused' },
     });
+    this.invalidateAutomationDashboardCache(storeId);
     return this.mapTerminalAutomationStrategy(updated);
   }
 
@@ -4072,7 +6857,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     if (strategy.status !== 'enabled') {
       throw new BadRequestException('自动化策略尚未启用，不能手动执行');
     }
-    return this.executeTerminalAutomationStrategy(strategy, storeId);
+    const execution = await this.executeTerminalAutomationStrategy(strategy, storeId);
+    this.invalidateAutomationDashboardCache(storeId);
+    return execution;
   }
 
   async getTerminalAutomationExecutionDetail(storeId: number, id: number) {
@@ -4141,6 +6928,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
       include: { customer: true },
     });
+    this.invalidateAutomationDashboardCache(storeId);
 
     return {
       id: updated.id,

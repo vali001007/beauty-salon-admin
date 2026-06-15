@@ -1,5 +1,6 @@
-import { Controller, Post, Get, Body, Query, UseGuards, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, UseGuards, Headers, Res } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { AiService } from './ai.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -16,6 +17,33 @@ export class AiController {
   @ApiOperation({ summary: '智能对话' })
   chat(@Body('messages') messages: any[], @CurrentUser('id') userId: number, @Headers('x-store-id') storeId?: string) {
     return this.aiService.chat(messages, userId, storeId ? +storeId : undefined);
+  }
+
+  @Post('chat/messages/stream')
+  @ApiOperation({ summary: '智能对话流式输出' })
+  async chatStream(
+    @Body('messages') messages: any[],
+    @CurrentUser('id') userId: number,
+    @Headers('x-store-id') storeId: string | undefined,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    try {
+      for await (const chunk of this.aiService.chatStream(messages, userId, storeId ? +storeId : undefined)) {
+        res.write(`data: ${JSON.stringify({ delta: chunk })}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI 生成暂时失败，请稍后重试。';
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.write('data: [DONE]\n\n');
+    } finally {
+      res.end();
+    }
   }
 
   @Post('generate/customer-invitation-script')

@@ -36,6 +36,21 @@ export class CheckoutDto {
   @IsInt()
   customerId?: number;
 
+  @ApiPropertyOptional({ description: 'Customer name from terminal context' })
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @ApiPropertyOptional({ description: 'Customer phone from terminal context' })
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+
+  @ApiPropertyOptional({ description: '美容师ID，用于提成归属' })
+  @IsOptional()
+  @IsInt()
+  beauticianId?: number;
+
   @ApiProperty({ description: '支付方式', example: 'wechat' })
   @IsString()
   payMethod: string;
@@ -45,6 +60,19 @@ export class CheckoutDto {
   @IsNumber()
   discountAmount?: number;
 
+  @ApiPropertyOptional({ description: '是否指定美容师' })
+  @IsOptional()
+  isDesignated?: boolean;
+
+  @ApiPropertyOptional({ description: 'Recommendation id that led to this checkout' })
+  @IsOptional()
+  @IsInt()
+  recommendationId?: number;
+
+  @ApiPropertyOptional({ description: 'Matched recommendation id, kept for client compatibility' })
+  @IsOptional()
+  @IsInt()
+  matchedRecommendationId?: number;
   @ApiProperty({ description: '结算项目', type: [CheckoutItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

@@ -190,7 +190,10 @@ export class OrdersController {
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('customerId') customerId?: number,
+    @Query('cardName') cardName?: string,
+    @Query('userName') userName?: string,
+    @Query('projectName') projectName?: string,
   ) {
-    return this.ordersService.findCardUsageRecordsPaginated({ page, pageSize, customerId });
+    return this.ordersService.findCardUsageRecordsPaginated({ page, pageSize, customerId, cardName, userName, projectName });
   }
 }

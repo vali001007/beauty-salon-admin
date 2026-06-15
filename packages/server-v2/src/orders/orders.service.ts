@@ -1,11 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CommissionService } from '../commission/commission.service.js';
 
 @Injectable()
 export class OrdersService {
   private readonly MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS = 30;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private commissionService: CommissionService,
+  ) {}
 
   private toNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
@@ -18,6 +22,14 @@ export class OrdersService {
 
   private createRefundNo() {
     return `REF${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  }
+
+  private createStockMovementNo(prefix = 'SM') {
+    return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  }
+
+  private isPaidLikeStatus(status?: string) {
+    return ['completed', 'paid'].includes(String(status));
   }
 
   private normalizeOrderStatus(status?: string) {
@@ -74,9 +86,172 @@ export class OrdersService {
         unitPrice,
         subtotal,
         discount,
+        beauticianId: this.toNumber(item.beauticianId) || undefined,
         payload: item,
       };
     });
+  }
+
+  private async createProjectBomStockMovement(
+    tx: any,
+    params: {
+      storeId: number;
+      productId: number;
+      quantity: number;
+      order: { id: number; orderNo?: string | null };
+      projectName?: string;
+      remark?: string;
+    },
+  ) {
+    if (!params.storeId || !params.productId || params.quantity <= 0) return;
+    const product = await tx.product.findFirst({
+      where: { id: params.productId, storeId: params.storeId, deletedAt: null },
+    });
+    if (!product) return;
+
+    const beforeStock = this.toNumber(product.currentStock);
+    const afterStock = beforeStock - params.quantity;
+
+    await tx.product.update({
+      where: { id: product.id },
+      data: { currentStock: { decrement: params.quantity } },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        storeId: params.storeId,
+        productId: product.id,
+        movementNo: this.createStockMovementNo('SM'),
+        movementType: 'service_consume',
+        quantity: -params.quantity,
+        beforeStock,
+        afterStock,
+        unit: product.unit,
+        sourceType: 'project_order',
+        sourceId: params.order.id,
+        sourceNo: params.order.orderNo,
+        remark: params.remark ?? (params.projectName ? `项目订单自动扣耗材：${params.projectName}` : '项目订单自动扣耗材'),
+      },
+    });
+  }
+
+  private async createProductOrderStockMovement(
+    tx: any,
+    params: {
+      storeId: number;
+      productId: number;
+      quantity: number;
+      order: { id: number; orderNo?: string | null };
+      remark?: string;
+    },
+  ) {
+    if (!params.storeId || !params.productId || params.quantity <= 0) return;
+    const product = await tx.product.findFirst({
+      where: { id: params.productId, storeId: params.storeId, deletedAt: null },
+    });
+    if (!product) return;
+
+    const beforeStock = this.toNumber(product.currentStock);
+    const afterStock = beforeStock - params.quantity;
+
+    await tx.product.update({
+      where: { id: product.id },
+      data: { currentStock: { decrement: params.quantity } },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        storeId: params.storeId,
+        productId: product.id,
+        movementNo: this.createStockMovementNo('SM'),
+        movementType: 'sale_out',
+        quantity: -params.quantity,
+        beforeStock,
+        afterStock,
+        unit: product.unit,
+        sourceType: 'product_order',
+        sourceId: params.order.id,
+        sourceNo: params.order.orderNo,
+        remark: params.remark ?? '商品订单自动扣库存',
+      },
+    });
+  }
+
+  private async consumeProductItemsForOrder(
+    tx: any,
+    order: { id: number; orderNo?: string | null; storeId?: number | null },
+    items: Array<{ itemType?: string; itemId?: number | null; productId?: number | null; quantity?: unknown }>,
+    remark?: string,
+  ) {
+    const storeId = this.toNumber(order.storeId);
+    if (!storeId) return;
+    const productItems = items.filter((item) => {
+      const type = String(item.itemType ?? 'product').toLowerCase();
+      return type === 'product' && (item.itemId ?? item.productId);
+    });
+    if (!productItems.length) return;
+
+    const existed = await tx.stockMovement.findFirst({
+      where: { sourceType: 'product_order', sourceId: order.id, movementType: 'sale_out' },
+      select: { id: true },
+    });
+    if (existed) return;
+
+    for (const item of productItems) {
+      await this.createProductOrderStockMovement(tx, {
+        storeId,
+        productId: Number(item.itemId ?? item.productId),
+        quantity: this.toNumber(item.quantity ?? 1) || 1,
+        order,
+        remark,
+      });
+    }
+  }
+
+  private async consumeProjectBomForOrder(
+    tx: any,
+    order: { id: number; orderNo?: string | null; storeId?: number | null },
+    items: Array<{ itemType?: string; itemId?: number | null; quantity?: unknown; name?: string }>,
+    remark?: string,
+  ) {
+    const storeId = this.toNumber(order.storeId);
+    if (!storeId) return;
+    const projectItems = items.filter((item) => String(item.itemType).toLowerCase() === 'project' && item.itemId);
+    if (!projectItems.length) return;
+
+    const existed = await tx.stockMovement.findFirst({
+      where: { sourceType: 'project_order', sourceId: order.id, movementType: 'service_consume' },
+      select: { id: true },
+    });
+    if (existed) return;
+
+    const projectIds = [...new Set(projectItems.map((item) => Number(item.itemId)).filter(Boolean))];
+    const bomItems = await tx.projectBomItem.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { projectId: true, productId: true, standardQty: true, unit: true },
+    });
+    if (!bomItems.length) return;
+
+    const bomByProject = new Map<number, typeof bomItems>();
+    for (const bomItem of bomItems) {
+      const list = bomByProject.get(bomItem.projectId) ?? [];
+      list.push(bomItem);
+      bomByProject.set(bomItem.projectId, list);
+    }
+
+    for (const item of projectItems) {
+      const multiplier = this.toNumber(item.quantity ?? 1) || 1;
+      for (const bomItem of bomByProject.get(Number(item.itemId)) ?? []) {
+        await this.createProjectBomStockMovement(tx, {
+          storeId,
+          productId: bomItem.productId,
+          quantity: this.toNumber(bomItem.standardQty) * multiplier,
+          order,
+          projectName: item.name,
+          remark,
+        });
+      }
+    }
   }
 
   private toProductOrderItem(item: any, index: number) {
@@ -118,6 +293,40 @@ export class OrdersService {
       createdAt: order.createdAt,
       completedAt: payment?.paidAt ?? undefined,
     };
+  }
+
+  private async calculateOrderCommissionIfNeeded(tx: any, order: any, data: any) {
+    const beauticianId = this.toNumber(data.beauticianId);
+    const storeId = this.toNumber(order.storeId ?? data.storeId);
+    if (!beauticianId || !storeId || !['completed', 'paid'].includes(String(order.status))) return;
+
+    try {
+      const [beautician, orderItems] = await Promise.all([
+        tx.beautician.findUnique({ where: { id: beauticianId }, select: { id: true, levelId: true } }),
+        tx.orderItem.findMany({ where: { orderId: order.id } }),
+      ]);
+      if (!beautician) return;
+
+      await this.commissionService.calculateOrderCommissions(
+        {
+          storeId,
+          orderId: order.id,
+          beauticianId,
+          levelId: this.toNumber(data.levelId) || beautician.levelId || undefined,
+          isDesignated: Boolean(data.isDesignated),
+          items: orderItems.map((item: any) => ({
+            itemType: item.itemType,
+            itemId: item.itemId,
+            beauticianId: item.beauticianId,
+            subtotal: this.toNumber(item.subtotal),
+            orderItemId: item.id,
+          })),
+        },
+        tx,
+      );
+    } catch (error) {
+      console.warn('提成流水生成失败', error);
+    }
   }
 
   private async resolveOrderCustomer(tx: any, data: any) {
@@ -180,6 +389,30 @@ export class OrdersService {
         actualRevenue: { increment: amount },
       },
     });
+
+    const category =
+      String(touch.conversionType ?? touch.metadata?.category ?? touch.metadata?.strategyType ?? '')
+        .toLowerCase()
+        .includes('churn')
+        ? 'churn_recovery'
+        : 'marketing_conversion';
+    await this.commissionService.recordAmiContribution(
+      {
+        storeId: this.toNumber((order as any).storeId),
+        category,
+        triggerType: 'automation',
+        triggerId: touch.id,
+        customerId: order.customerId,
+        orderId: order.id,
+        revenueAmount: amount,
+        metadata: {
+          strategyId: touch.strategyId,
+          executionId: touch.executionId,
+          attributionWindowDays: touch.attributionWindowDays ?? 30,
+        },
+      },
+      tx,
+    );
   }
 
   private async applyMarketingPageAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
@@ -412,6 +645,7 @@ export class OrdersService {
           totalAmount,
           status,
           payMethod,
+          source: data.source ?? 'admin',
           items: Array.isArray(data.items) ? data.items : [],
           remark: data.remark,
         },
@@ -428,16 +662,20 @@ export class OrdersService {
             unitPrice: item.unitPrice,
             subtotal: item.subtotal,
             discount: item.discount,
+            beauticianId: this.toNumber(item.beauticianId ?? data.beauticianId) || undefined,
             payload: item.payload,
           })),
         });
       }
 
-        if (['completed', 'paid'].includes(status)) {
+        if (this.isPaidLikeStatus(status)) {
           const paidAmount = this.toNumber(data.paidAmount ?? totalAmount);
           if (payMethod === 'member_balance') {
             await this.deductMemberBalanceForOrder(tx, order, paidAmount, data.remark);
           }
+
+          await this.consumeProductItemsForOrder(tx, order, items, data.remark);
+          await this.consumeProjectBomForOrder(tx, order, items, data.remark);
 
           await tx.paymentRecord.create({
             data: {
@@ -463,6 +701,7 @@ export class OrdersService {
         }
         await this.applyMarketingAttribution(tx, order, totalAmount);
         await this.applyMarketingPageAttribution(tx, order, totalAmount);
+        await this.calculateOrderCommissionIfNeeded(tx, order, data);
       }
 
       return tx.productOrder.findUnique({
@@ -509,6 +748,7 @@ export class OrdersService {
       delete updateData.refundRecords;
       if (data.customerId) updateData.customerId = Number(data.customerId);
       if (data.storeId) updateData.storeId = Number(data.storeId);
+      if (data.status !== undefined) updateData.status = this.normalizeOrderStatus(data.status);
 
       const order = await tx.productOrder.update({ where: { id }, data: updateData });
 
@@ -531,7 +771,11 @@ export class OrdersService {
         }
       }
 
-      if (['completed', 'paid'].includes(String(data.status))) {
+      if (this.isPaidLikeStatus(this.normalizeOrderStatus(data.status ?? order.status))) {
+        const orderItemsForConsumption = items ?? (await tx.orderItem.findMany({ where: { orderId: id } }));
+        await this.consumeProductItemsForOrder(tx, order, orderItemsForConsumption, data.remark ?? order.remark);
+        await this.consumeProjectBomForOrder(tx, order, orderItemsForConsumption, data.remark ?? order.remark);
+
         const paid = await tx.paymentRecord.findFirst({ where: { orderId: id, status: 'success' } });
         if (!paid) {
           const amount = this.toNumber(data.paidAmount ?? order.totalAmount);
@@ -587,6 +831,7 @@ export class OrdersService {
         });
       }
       await this.reverseMarketingAttribution(tx, id, amount);
+      await this.commissionService.reverseOrderCommissions(id, amount, tx);
 
       return tx.productOrder.findUnique({
         where: { id },
@@ -807,12 +1052,13 @@ export class OrdersService {
           totalAmount: rechargeAmount,
           status: 'completed',
           payMethod: this.normalizePaymentMethod(data.paymentMethod),
+          source: data.source ?? 'admin',
           items: [{ itemType: 'recharge', quantity: 1, unitPrice: rechargeAmount, giftAmount }],
           remark: data.remark ?? (type === 'open' ? '会员开卡' : '会员充值'),
         },
       });
 
-      await tx.orderItem.create({
+      await (tx as any).orderItem.create({
         data: {
           orderId: order.id,
           itemType: 'recharge',
@@ -821,6 +1067,7 @@ export class OrdersService {
           unitPrice: rechargeAmount,
           subtotal: rechargeAmount,
           discount: 0,
+          beauticianId: this.toNumber(data.beauticianId) || undefined,
           payload: { giftAmount, remark: data.remark },
         },
       });
@@ -996,8 +1243,8 @@ export class OrdersService {
       this.prisma.customerCard.findMany({
         where,
         include: {
-          customer: { select: { name: true } },
-          card: { select: { price: true } },
+          customer: { select: { id: true, name: true, phone: true } },
+          card: { select: { id: true, price: true, totalTimes: true, projects: true } },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -1005,24 +1252,175 @@ export class OrdersService {
       }),
       this.prisma.customerCard.count({ where }),
     ]);
-    return { items, data: items, total, page, pageSize };
+    const usageWhere =
+      items.length > 0
+        ? {
+            OR: items.map((item: any) => ({
+              customerId: item.customerId,
+              cardName: item.cardName,
+            })),
+          }
+        : {};
+    const usageRecords = items.length
+      ? await this.prisma.cardUsageRecord.findMany({
+          where: usageWhere,
+          select: { customerId: true, cardName: true, projectName: true, times: true, verifiedAt: true },
+        })
+      : [];
+
+    const mapped = items.map((item: any) => {
+      const projects = Array.isArray(item.card?.projects) ? item.card.projects : [];
+      return {
+        ...item,
+        customerId: item.customerId,
+        customerName: item.customer?.name ?? '',
+        customerPhone: item.customer?.phone ?? '',
+        cardId: item.cardId,
+        customerCardId: item.id,
+        totalTimes: item.totalTimes,
+        remainingTimes: item.remainingTimes,
+        cardProjects: projects
+          .map((project: any) => {
+            const projectName = String(project.projectName ?? project.name ?? '').trim();
+            if (!projectName) return null;
+            const totalCount = Number(project.timesPerCard ?? project.totalCount ?? project.times ?? item.totalTimes ?? 0);
+            const openedAt = new Date(item.createdAt).getTime();
+            const expiredAt = new Date(item.expiryDate).getTime();
+            const usedCount = usageRecords
+              .filter((record: any) => {
+                const verifiedAt = new Date(record.verifiedAt).getTime();
+                return (
+                  record.customerId === item.customerId &&
+                  record.cardName === item.cardName &&
+                  record.projectName === projectName &&
+                  (!Number.isFinite(openedAt) || verifiedAt >= openedAt) &&
+                  (!Number.isFinite(expiredAt) || verifiedAt <= expiredAt)
+                );
+              })
+              .reduce((sum: number, record: any) => sum + Number(record.times ?? 0), 0);
+            return {
+              projectName,
+              totalCount,
+              usedCount,
+              remainCount: Math.max(totalCount - usedCount, 0),
+            };
+          })
+          .filter(Boolean),
+      };
+    });
+    return { items: mapped, data: mapped, total, page, pageSize };
   }
 
   // Card usage records
-  async findCardUsageRecordsPaginated(query: { page?: number; pageSize?: number; customerId?: number }) {
-    const { page = 1, pageSize = 20, customerId } = query;
+  async findCardUsageRecordsPaginated(query: {
+    page?: number;
+    pageSize?: number;
+    customerId?: number;
+    cardName?: string;
+    userName?: string;
+    projectName?: string;
+  }) {
+    const page = Number(query.page ?? 1);
+    const pageSize = Number(query.pageSize ?? 10);
+    const customerId = query.customerId ? Number(query.customerId) : undefined;
+    const cardName = String(query.cardName ?? '').trim();
+    const userName = String(query.userName ?? '').trim();
+    const projectName = String(query.projectName ?? '').trim();
     const where: any = {};
     if (customerId) where.customerId = customerId;
+    if (cardName) where.cardName = { contains: cardName, mode: 'insensitive' };
+    if (projectName) where.projectName = { contains: projectName, mode: 'insensitive' };
+    if (userName) {
+      where.OR = [
+        { customerName: { contains: userName, mode: 'insensitive' } },
+        { customer: { name: { contains: userName, mode: 'insensitive' } } },
+        { customer: { phone: { contains: userName, mode: 'insensitive' } } },
+      ];
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.cardUsageRecord.findMany({
         where,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              store: { select: { id: true, name: true } },
+              customerCards: {
+                orderBy: { createdAt: 'desc' },
+                select: {
+                  id: true,
+                  cardName: true,
+                  totalTimes: true,
+                  remainingTimes: true,
+                  expiryDate: true,
+                  status: true,
+                  createdAt: true,
+                  card: { select: { id: true, price: true, totalTimes: true, projects: true } },
+                },
+              },
+            },
+          },
+          beautician: { select: { id: true, name: true } },
+          device: { select: { id: true, name: true, deviceCode: true, model: true } },
+        },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { verifiedAt: 'desc' },
       }),
       this.prisma.cardUsageRecord.count({ where }),
     ]);
-    return { items, data: items, total, page, pageSize };
+    const mapped = items.map((item: any) => {
+      const matchedCard =
+        item.customer?.customerCards?.find((card: any) => card.cardName === item.cardName) ??
+        item.customer?.customerCards?.[0];
+      const cardPrice = Number(matchedCard?.card?.price ?? 0);
+      const cardTotalTimes = Number(matchedCard?.card?.totalTimes ?? matchedCard?.totalTimes ?? 0);
+      const unitValue = cardTotalTimes > 0 ? Math.round((cardPrice / cardTotalTimes) * 100) / 100 : 0;
+      const times = Number(item.times ?? 0);
+      const remainingTimes = Number(item.remainingTimes ?? matchedCard?.remainingTimes ?? 0);
+      const beforeRemainingTimes = remainingTimes + times;
+
+      return {
+        id: item.id,
+        customerId: item.customerId,
+        customerName: item.customer?.name ?? item.customerName,
+        userName: item.customer?.name ?? item.customerName,
+        customerPhone: item.customer?.phone ?? '',
+        storeId: item.customer?.store?.id,
+        storeName: item.customer?.store?.name ?? '未关联门店',
+        customerCardId: matchedCard?.id,
+        cardId: matchedCard?.card?.id,
+        cardName: item.cardName,
+        cardStatus: matchedCard?.status ?? 'unknown',
+        cardTotalTimes: Number(matchedCard?.totalTimes ?? cardTotalTimes),
+        totalTimes: Number(matchedCard?.totalTimes ?? cardTotalTimes),
+        cardRemainingTimes: Number(matchedCard?.remainingTimes ?? remainingTimes),
+        remainingTimes,
+        beforeRemainingTimes,
+        projectName: item.projectName,
+        times,
+        usedTimes: times,
+        consumedTimes: times,
+        cardPrice,
+        unitValue,
+        consumedValue: Math.round(unitValue * times * 100) / 100,
+        expiryDate: matchedCard?.expiryDate,
+        openedAt: matchedCard?.createdAt,
+        verifiedAt: item.verifiedAt,
+        usageTime: item.verifiedAt,
+        beauticianId: item.beauticianId,
+        beauticianName: item.beautician?.name ?? '未记录',
+        operationPermission: item.beautician?.name ?? '未记录',
+        deviceId: item.deviceId,
+        deviceName: item.device?.name ?? '',
+        deviceCode: item.device?.deviceCode ?? '',
+        deviceModel: item.device?.model ?? '',
+        orderTime: matchedCard?.createdAt,
+      };
+    });
+    return { items: mapped, data: mapped, total, page, pageSize };
   }
 }

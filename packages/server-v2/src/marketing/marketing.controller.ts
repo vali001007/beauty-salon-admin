@@ -1,22 +1,37 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Headers, Patch } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { MarketingService } from './marketing.service.js';
+import { TerminalService } from '../terminal/terminal.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import {
+  AssignTerminalFollowUpTaskDto,
+  BatchCreateTerminalFollowUpTaskDto,
+  CancelTerminalFollowUpTaskDto,
+  QueryTerminalFollowUpTasksDto,
+} from '../terminal/dto/index.js';
 
 @ApiTags('Marketing')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('marketing')
 export class MarketingController {
-  constructor(private marketingService: MarketingService) {}
+  constructor(
+    private marketingService: MarketingService,
+    private terminalService: TerminalService,
+  ) {}
 
   // Recommendations
   @Get('recommendations')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销推荐列表' })
-  getRecommendations(@Headers('x-store-id') storeId?: string) {
-    return this.marketingService.getRecommendations(storeId ? Number(storeId) : undefined);
+  getRecommendations(
+    @Headers('x-store-id') storeId?: string,
+    @Query('scope') scope?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.marketingService.getRecommendations(storeId ? Number(storeId) : undefined, { scope, type });
   }
 
   @Get('recommendations/:id/audience')
@@ -68,11 +83,78 @@ export class MarketingController {
     return this.marketingService.createRecommendationAutomationDraft(id);
   }
 
+  @Post('recommendations/:id/follow-up-tasks')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '根据推荐批量下发终端跟进任务' })
+  async createRecommendationFollowUpTasks(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: BatchCreateTerminalFollowUpTaskDto,
+    @Headers('x-store-id') storeId?: string,
+    @CurrentUser('id') userId?: number,
+  ) {
+    const scopedStoreId = storeId ? Number(storeId) : Number((dto as any).storeId ?? 1);
+    return this.terminalService.batchCreateFollowUpTasks(scopedStoreId, {
+      ...dto,
+      recommendationId: id,
+      customerIds: dto.customerIds,
+      source: dto.source ?? 'recommendation',
+    }, userId);
+  }
+
+  @Get('follow-up-tasks')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '查询终端跟进任务' })
+  getFollowUpTasks(@Query() query: QueryTerminalFollowUpTasksDto, @Headers('x-store-id') storeId?: string) {
+    return this.terminalService.getFollowUpTasks(storeId ? Number(storeId) : 1, query);
+  }
+
+  @Get('follow-up-tasks/summary')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '终端跟进任务统计' })
+  async getFollowUpTaskSummary(@Headers('x-store-id') storeId?: string) {
+    const result = await this.terminalService.getFollowUpTasks(storeId ? Number(storeId) : 1, { page: 1, pageSize: 1 });
+    return result.summary;
+  }
+
+  @Patch('follow-up-tasks/:id/assign')
+  @Permissions('core:marketing:update')
+  @ApiOperation({ summary: '改派终端跟进任务' })
+  assignFollowUpTask(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignTerminalFollowUpTaskDto,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.terminalService.assignFollowUpTask(storeId ? Number(storeId) : 1, id, dto);
+  }
+
+  @Patch('follow-up-tasks/:id/cancel')
+  @Permissions('core:marketing:update')
+  @ApiOperation({ summary: '取消终端跟进任务' })
+  cancelFollowUpTask(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelTerminalFollowUpTaskDto,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.terminalService.cancelFollowUpTask(storeId ? Number(storeId) : 1, id, dto.note);
+  }
+
   @Post('customer-events')
   @Permissions('core:marketing:create')
   @ApiOperation({ summary: '写入客户小程序/营销行为事件' })
   recordCustomerBehaviorEvent(@Body() dto: any) {
     return this.marketingService.recordCustomerBehaviorEvent(dto);
+  }
+
+  @Get('invitation-candidates')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '获取客户邀约候选' })
+  getInvitationCandidates(
+    @Headers('x-store-id') headerStoreId?: string,
+    @Query('storeId') storeId?: number,
+    @Query('limit') limit?: number,
+  ) {
+    const scopedStoreId = storeId ? Number(storeId) : headerStoreId ? Number(headerStoreId) : undefined;
+    return this.marketingService.getInvitationCandidates({ storeId: scopedStoreId, limit: limit ? Number(limit) : undefined });
   }
 
   @Post('predictions/run')
@@ -127,6 +209,13 @@ export class MarketingController {
     return this.marketingService.findActivities({ page, pageSize, status });
   }
 
+  @Get('activities/:id')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '获取营销活动详情' })
+  getActivity(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.getActivityById(id);
+  }
+
   @Post('activities')
   @Permissions('core:marketing:create')
   @ApiOperation({ summary: '创建营销活动' })
@@ -154,6 +243,78 @@ export class MarketingController {
   @ApiOperation({ summary: '获取触发规则选项' })
   getTriggerOptions() {
     return this.marketingService.getTriggerOptions();
+  }
+
+  @Get('automation/rule-templates')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '分页获取自动营销规则库' })
+  findRuleTemplates(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('source') source?: string,
+    @Query('category') category?: string,
+    @Query('scenario') scenario?: string,
+    @Query('priority') priority?: string,
+    @Query('status') status?: string,
+    @Query('keyword') keyword?: string,
+  ) {
+    return this.marketingService.findRuleTemplates({ page, pageSize, source, category, scenario, priority, status, keyword });
+  }
+
+  @Get('automation/rule-templates/:id')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '获取自动营销规则详情' })
+  getRuleTemplateById(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.getRuleTemplateById(id);
+  }
+
+  @Post('automation/rule-templates/:id/clone')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '复制系统规则为门店自定义规则' })
+  cloneRuleTemplate(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.marketingService.cloneRuleTemplate(id, dto);
+  }
+
+  @Post('automation/rule-templates')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '创建门店自定义规则' })
+  createRuleTemplate(@Body() dto: any) {
+    return this.marketingService.createRuleTemplate(dto);
+  }
+
+  @Put('automation/rule-templates/:id')
+  @Permissions('core:marketing:update')
+  @ApiOperation({ summary: '更新门店自定义规则' })
+  updateRuleTemplate(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.marketingService.updateRuleTemplate(id, dto);
+  }
+
+  @Post('automation/rule-templates/:id/preview-audience')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '预估规则命中客户' })
+  previewRuleTemplateAudience(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.previewRuleTemplateAudience(id);
+  }
+
+  @Post('automation/rule-templates/:id/enable')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '基于规则创建并启用自动营销策略' })
+  enableRuleTemplate(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.marketingService.enableRuleTemplate(id, dto);
+  }
+
+  @Post('automation/rule-templates/:id/disable')
+  @Permissions('core:marketing:update')
+  @ApiOperation({ summary: '停用规则及关联策略' })
+  disableRuleTemplate(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.disableRuleTemplate(id);
+  }
+
+  @Get('automation/rule-templates/:id/effects')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '获取规则效果' })
+  getRuleTemplateEffects(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.getRuleTemplateEffects(id);
   }
 
   @Get('automation/strategies/paginated')
@@ -238,6 +399,18 @@ export class MarketingController {
   @ApiOperation({ summary: '获取策略效果' })
   getEffects() {
     return this.marketingService.getEffects();
+  }
+
+  @Get('effects/unified')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '获取统一营销效果分析' })
+  getUnifiedEffects(
+    @Query('objectType') objectType?: string,
+    @Query('storeId') storeId?: number,
+    @Headers('x-store-id') headerStoreId?: string,
+  ) {
+    const scopedStoreId = storeId ? Number(storeId) : headerStoreId ? Number(headerStoreId) : undefined;
+    return this.marketingService.getUnifiedEffects({ objectType, storeId: scopedStoreId });
   }
 
   @Get('strategies/effects')

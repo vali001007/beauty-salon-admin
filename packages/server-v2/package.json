@@ -24,6 +24,8 @@
     "db:seed:mvp:dry-run": "ts-node --esm prisma/seed-mvp.ts --dry-run",
     "db:seed:demo-full": "ts-node --esm prisma/seed-demo-full-store.ts --apply --yes",
     "db:seed:demo-full:dry-run": "ts-node --esm prisma/seed-demo-full-store.ts --dry-run",
+    "db:retain:ami-demo": "ts-node --esm prisma/retain-ami-full-demo-store.ts --apply --yes --confirm-retain-store-name=\"Ami 全量演示门店\"",
+    "db:retain:ami-demo:dry-run": "ts-node --esm prisma/retain-ami-full-demo-store.ts --dry-run",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -33,6 +35,7 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.3",
+    "@nestjs/schedule": "^6.1.3",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/throttler": "^6.4.0",
     "@prisma/adapter-pg": "^7.8.0",

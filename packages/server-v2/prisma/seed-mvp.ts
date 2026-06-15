@@ -2,11 +2,11 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 config({ path: resolve(import.meta.dirname, '..', '.env') });
 
-import { readFileSync } from 'fs';
 import { MarketingStrategyStatus, PrismaClient, ServiceTaskStatus, TerminalDeviceStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
-import { readSeedPassword } from './seed-env.js';
+import { readSeedPassword } from './seed-env.ts';
+import { seedMarketingRuleTemplates } from './seed-marketing-rule-templates.ts';
 
 const dryRun = process.argv.includes('--dry-run');
 
@@ -47,6 +47,7 @@ type CountKey =
   | 'marketingExecutions'
   | 'marketingTouches'
   | 'marketingAttributions'
+  | 'marketingRuleTemplates'
   | 'recommendationEvents'
   | 'promotions'
   | 'printJobs'
@@ -66,15 +67,6 @@ type Report = {
   skippedCounts: Partial<Record<CountKey, number>>;
   afterCounts: Record<CountKey, number>;
   warnings: string[];
-};
-
-type RawCustomer = {
-  id: number;
-  name: string;
-  storeName?: string;
-  phone?: string;
-  totalSpent?: number;
-  visitCount?: number;
 };
 
 const report: Report = {
@@ -135,11 +127,6 @@ const beauticianNames = [
   ['宋乔', '韩雨', '邱甜'],
 ];
 
-function readMockJson<T>(relativePath: string): T {
-  const filePath = resolve(import.meta.dirname, '..', '..', '..', relativePath);
-  return JSON.parse(readFileSync(filePath, 'utf8')) as T;
-}
-
 function inc(bucket: Partial<Record<CountKey, number>>, key: CountKey, by = 1) {
   bucket[key] = (bucket[key] ?? 0) + by;
 }
@@ -162,6 +149,7 @@ function timeText(date: Date) {
 }
 
 async function getCounts(): Promise<Record<CountKey, number>> {
+  const ruleTemplateDelegate = (prisma as any).marketingRuleTemplate;
   return {
     stores: await prisma.store.count(),
     users: await prisma.user.count({ where: { deletedAt: null } }),
@@ -191,6 +179,7 @@ async function getCounts(): Promise<Record<CountKey, number>> {
     marketingExecutions: await prisma.marketingAutomationExecution.count(),
     marketingTouches: await prisma.marketingAutomationTouch.count(),
     marketingAttributions: await prisma.marketingAttribution.count(),
+    marketingRuleTemplates: ruleTemplateDelegate?.count ? await ruleTemplateDelegate.count() : 0,
     recommendationEvents: await prisma.recommendationEvent.count(),
     promotions: await prisma.promotion.count(),
     printJobs: await prisma.printJob.count(),
@@ -1319,13 +1308,10 @@ async function ensureAdminStoreAccess(stores: Awaited<ReturnType<typeof ensureSt
 }
 
 async function main() {
-  const customers = readMockJson<RawCustomer[]>('src/api/mock/data/customers.json');
-  const consumptionRecords = readMockJson<unknown[]>('src/api/mock/data/consumption-records.json');
-  const healthProfiles = readMockJson<unknown[]>('src/api/mock/data/health-profiles.json');
   report.sourceCounts = {
-    customers: customers.length,
-    consumptionRecords: consumptionRecords.length,
-    healthProfiles: healthProfiles.length,
+    customerGenerator: 5 * 18,
+    operatingLoopGenerator: 5,
+    skinTestGenerator: 5,
     productCatalog: productCatalog.length,
     projectCatalog: projectCatalog.length,
     cardCatalog: cardCatalog.length,
@@ -1350,6 +1336,9 @@ async function main() {
   await seedCardUsage();
   await seedPurchaseAndTransfer(stores);
   await seedOperatingLoopClosure(stores);
+  const ruleTemplateSeedResult = await seedMarketingRuleTemplates(prisma, dryRun);
+  inc(report.createdCounts, 'marketingRuleTemplates', ruleTemplateSeedResult.created);
+  inc(report.skippedCounts, 'marketingRuleTemplates', ruleTemplateSeedResult.skipped);
 
   report.afterCounts = dryRun ? report.beforeCounts : await getCounts();
   console.log(JSON.stringify(report, null, 2));

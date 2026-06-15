@@ -13,6 +13,7 @@ export class CsrfMiddleware implements NestMiddleware {
     '/api/auth/register',
     '/api/auth/csrf-token',
     '/api/terminal', // device auth endpoints
+    '/api/customer-app', // Ami Glow miniapp uses its own bearer token
     '/api/public/marketing/pages', // public H5 event and lead submission
     '/v1/messages', // legacy public AI proxy
   ];
@@ -25,9 +26,10 @@ export class CsrfMiddleware implements NestMiddleware {
       return next();
     }
 
-    // Skip CSRF for whitelisted paths
+    // Skip CSRF for whitelisted paths. Customer-app admin routes are used by the
+    // management console and must keep the same CSRF protection as other admin APIs.
     const path = req.originalUrl || req.url;
-    if (this.skipPaths.some((skip) => path.startsWith(skip))) {
+    if (!path.startsWith('/api/customer-app/admin') && this.skipPaths.some((skip) => path.startsWith(skip))) {
       return next();
     }
 

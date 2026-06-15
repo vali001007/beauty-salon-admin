@@ -365,10 +365,42 @@ describe('App (e2e)', () => {
         });
     });
   });
+
+  describe('Supply chain permissions', () => {
+    it('returns 403 for authenticated users without supply permissions', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 2,
+        username: 'frontdesk',
+        passwordHash: validPasswordHash,
+        name: 'Front Desk',
+        phone: '13800138001',
+        email: 'frontdesk@test.com',
+        avatar: null,
+        status: 'active',
+        deletedAt: null,
+        roles: [{ role: { key: 'frontdesk', permissions: ['core:customer:view'] } }],
+        stores: [{ storeId: 1 }],
+      });
+      prisma.refreshToken.create.mockResolvedValue({
+        token: 'mock-refresh-token',
+      });
+
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ username: 'frontdesk', password: 'password123' });
+
+      await request(app.getHttpServer())
+        .get('/api/supply-chain/suppliers')
+        .set('Authorization', `Bearer ${loginRes.body.token}`)
+        .expect(403);
+
+      expect(prisma.supplier.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
 
 function createMockPrisma() {
-  return {
+  const prisma: any = {
     user: {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
@@ -517,13 +549,57 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
     },
+    supplier: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    supplierOrder: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    supplierSettlement: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      upsert: jest.fn(),
+      update: jest.fn(),
+    },
+    productSupplier: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+      upsert: jest.fn(),
+      delete: jest.fn(),
+    },
+    supplierOrderItem: {
+      findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn(),
+    },
+    stockBatch: {
+      create: jest.fn(),
+    },
+    stockMovement: {
+      create: jest.fn(),
+    },
     aiAuditLog: {
       create: jest.fn().mockResolvedValue({}),
     },
+    $transaction: jest.fn(async (input: any): Promise<any> => {
+      if (typeof input === 'function') return input(prisma);
+      if (Array.isArray(input)) return Promise.all(input);
+      return input;
+    }),
     $connect: jest.fn(),
     $disconnect: jest.fn(),
     $on: jest.fn(),
     onModuleInit: jest.fn(),
     onModuleDestroy: jest.fn(),
   };
+  return prisma;
 }

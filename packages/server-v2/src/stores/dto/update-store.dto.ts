@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsBoolean, IsString, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateStoreDto {
@@ -26,4 +26,9 @@ export class UpdateStoreDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  shiftRequired?: boolean;
 }

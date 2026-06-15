@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CustomersService } from './customers.service.js';
+import { CustomerProfileService } from './customer-profile.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { QueryCustomersDto } from './dto/query-customers.dto.js';
@@ -15,7 +16,10 @@ import { PaginationDto } from '../common/dto/pagination.dto.js';
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
 export class CustomersController {
-  constructor(private customersService: CustomersService) {}
+  constructor(
+    private customersService: CustomersService,
+    private customerProfileService: CustomerProfileService,
+  ) {}
 
   @Get()
   @Permissions('core:customer:view')
@@ -41,6 +45,16 @@ export class CustomersController {
     return this.customersService.getAllConsumptionRecords(storeId ? +storeId : undefined);
   }
 
+  @Get('consumption-records/paginated')
+  @Permissions('core:customer:view')
+  @ApiOperation({ summary: '分页获取客户消费记录' })
+  getConsumptionRecordsPaginated(
+    @Query() query: PaginationDto & { keyword?: string },
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.customersService.getConsumptionRecordsPaginated(query, storeId ? +storeId : undefined);
+  }
+
   @Get('health-profiles')
   @Permissions('core:customer:view')
   @ApiOperation({ summary: '获取客户健康档案列表' })
@@ -53,6 +67,74 @@ export class CustomersController {
   @ApiOperation({ summary: '获取客户小程序行为分析' })
   getMiniappBehaviorAnalysis(@Headers('x-store-id') storeId?: string) {
     return this.customersService.getMiniappBehaviorAnalysis(storeId ? +storeId : undefined);
+  }
+
+  @Get('segment-count')
+  @Permissions('core:customer:view')
+  @ApiOperation({ summary: '获取客户分群计数' })
+  getSegmentCount(
+    @Query() query: any,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.customersService.getSegmentCount({
+      ...query,
+      storeId: query.storeId ?? storeId,
+    });
+  }
+
+  @Get('profile-analytics')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '获取客户画像聚合分析' })
+  getProfileAnalytics(@Headers('x-store-id') storeId?: string) {
+    return this.customersService.getProfileAnalytics(storeId ? +storeId : undefined);
+  }
+
+  @Get('profile-analytics/overview')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '获取客户画像首屏概览' })
+  getProfileAnalyticsOverview(@Headers('x-store-id') storeId?: string) {
+    return this.customersService.getProfileAnalyticsOverview(storeId ? +storeId : undefined);
+  }
+
+  @Get('profile-analytics/segment')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '获取客户画像客户细分' })
+  getProfileAnalyticsSegment(@Headers('x-store-id') storeId?: string) {
+    return this.customersService.getProfileAnalyticsSegment(storeId ? +storeId : undefined);
+  }
+
+  @Get('profile-analytics/skin')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '获取客户画像肌质分析' })
+  getProfileAnalyticsSkin(@Headers('x-store-id') storeId?: string) {
+    return this.customersService.getProfileAnalyticsSkin(storeId ? +storeId : undefined);
+  }
+
+  @Get('profile-analytics/behavior')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '分页获取客户消费画像' })
+  getProfileAnalyticsBehavior(
+    @Query() query: PaginationDto & { segment?: string; skinType?: string },
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.customersService.getProfileAnalyticsBehavior(query, storeId ? +storeId : undefined);
+  }
+
+  @Get('profile-analytics/prediction')
+  @Permissions('core:customer:profile')
+  @ApiOperation({ summary: '分页获取客户预测视角' })
+  getProfileAnalyticsPrediction(
+    @Query() query: PaginationDto,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.customersService.getProfileAnalyticsPrediction(query, storeId ? +storeId : undefined);
+  }
+
+  @Get(':id/profile')
+  @Permissions('core:customer:view')
+  @ApiOperation({ summary: '获取客户统一画像' })
+  getCustomerProfile(@Param('id', ParseIntPipe) id: number) {
+    return this.customerProfileService.getCustomerProfile(id);
   }
 
   @Get(':id')

@@ -4,6 +4,13 @@ import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { QueryCustomersDto } from './dto/query-customers.dto.js';
 
+type ConsumptionNameMaps = {
+  projects?: Map<number, string>;
+  products?: Map<number, string>;
+  cards?: Map<number, string>;
+  fallbackByRecordId?: Map<number, string>;
+};
+
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
@@ -44,14 +51,290 @@ export class CustomersService {
     };
   }
 
-  private toConsumptionRecordView(record: any) {
+  private toConsumptionRecordView(
+    record: any,
+    names: ConsumptionNameMaps = {},
+  ) {
     return {
       ...record,
       userName: record.customer?.name ?? record.userName ?? '',
       storeName: record.customer?.store?.name ?? '',
+      consumeContent: names.fallbackByRecordId?.get(record.id) ?? this.formatConsumptionContent(record.consumeContent, names),
       amount: this.formatMoney(record.amount),
       consumeTime: this.formatDateTime(record.consumeTime),
       customer: undefined,
+    };
+  }
+
+  private tryParseJson(value: unknown) {
+    if (typeof value !== 'string') return null;
+    const text = value.trim();
+    if (!text || (!text.startsWith('{') && !text.startsWith('['))) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+
+  private addNumberRef(target: Set<number>, value: unknown) {
+    const id = Number(value);
+    if (Number.isFinite(id) && id > 0) target.add(id);
+  }
+
+  private collectConsumptionRefs(records: any[]) {
+    const refs = {
+      projectIds: new Set<number>(),
+      productIds: new Set<number>(),
+      cardIds: new Set<number>(),
+    };
+
+    for (const record of records) {
+      const content = String(record.consumeContent ?? '');
+      for (const match of content.matchAll(/\b(project|product|card)#(\d+)x\d+/gi)) {
+        const [, type, id] = match;
+        if (type.toLowerCase() === 'project') this.addNumberRef(refs.projectIds, id);
+        if (type.toLowerCase() === 'product') this.addNumberRef(refs.productIds, id);
+        if (type.toLowerCase() === 'card') this.addNumberRef(refs.cardIds, id);
+      }
+
+      const parsed = this.tryParseJson(content);
+      const payloads = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+      for (const payload of payloads) {
+        this.addNumberRef(refs.projectIds, payload?.projectId);
+        this.addNumberRef(refs.productIds, payload?.productId);
+        this.addNumberRef(refs.cardIds, payload?.cardId);
+        const items = Array.isArray(payload?.consumptionItems) ? payload.consumptionItems : Array.isArray(payload?.items) ? payload.items : [];
+        for (const item of items) {
+          this.addNumberRef(refs.projectIds, item?.projectId ?? (item?.itemType === 'project' ? item?.itemId : undefined));
+          this.addNumberRef(refs.productIds, item?.productId ?? (item?.itemType === 'product' ? item?.itemId : undefined));
+          this.addNumberRef(refs.cardIds, item?.cardId ?? (item?.itemType === 'card' ? item?.itemId : undefined));
+        }
+      }
+    }
+
+    return refs;
+  }
+
+  private isQuestionPlaceholder(value: unknown) {
+    const text = String(value ?? '').trim();
+    return /^\?+(?:\s*x\s*\d+)?$/i.test(text);
+  }
+
+  private async resolveMalformedConsumptionNames(records: any[]) {
+    const malformedRecords = records.filter((record) => this.isQuestionPlaceholder(record.consumeContent));
+    if (!malformedRecords.length) return new Map<number, string>();
+
+    const customerIds = [...new Set(malformedRecords.map((record) => Number(record.customerId)).filter(Boolean))];
+    const times = malformedRecords
+      .map((record) => (record.consumeTime ? new Date(record.consumeTime).getTime() : 0))
+      .filter((time) => Number.isFinite(time) && time > 0);
+    if (!customerIds.length || !times.length) return new Map<number, string>();
+
+    const windowMs = 10 * 60 * 1000;
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        customerId: { in: customerIds },
+        createdAt: {
+          gte: new Date(Math.min(...times) - windowMs),
+          lte: new Date(Math.max(...times) + windowMs),
+        },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        totalAmount: true,
+        createdAt: true,
+        items: true,
+        orderItems: { select: { itemType: true, itemId: true, name: true, quantity: true, unitPrice: true } },
+      },
+    });
+
+    const projectIds = new Set<number>();
+    const productIds = new Set<number>();
+    const cardIds = new Set<number>();
+    const orderItemsByOrderId = new Map<number, any[]>();
+
+    for (const order of orders) {
+      const orderItems: any[] = Array.isArray(order.orderItems) && order.orderItems.length
+        ? (order.orderItems as any[])
+        : Array.isArray(order.items)
+          ? (order.items as any[])
+          : [];
+      orderItemsByOrderId.set(order.id, orderItems);
+      for (const item of orderItems) {
+        const type = String(item.itemType ?? item.type ?? '').toLowerCase();
+        const id = Number(item.itemId ?? item.productId ?? item.projectId ?? item.cardId);
+        if (!Number.isFinite(id) || id <= 0) continue;
+        if (type === 'project') projectIds.add(id);
+        if (type === 'product') productIds.add(id);
+        if (type === 'card') cardIds.add(id);
+      }
+    }
+
+    const amountValues = [...new Set(malformedRecords.map((record) => Number(record.amount)).filter((amount) => amount > 0))];
+    const [projectsById, productsById, cardsById, projectsByPrice] = await Promise.all([
+      projectIds.size
+        ? this.prisma.project.findMany({ where: { id: { in: [...projectIds] } }, select: { id: true, name: true } })
+        : [],
+      productIds.size
+        ? this.prisma.product.findMany({ where: { id: { in: [...productIds] } }, select: { id: true, name: true } })
+        : [],
+      cardIds.size ? this.prisma.card.findMany({ where: { id: { in: [...cardIds] } }, select: { id: true, name: true } }) : [],
+      amountValues.length
+        ? this.prisma.project.findMany({
+            where: { deletedAt: null, status: 'active', price: { in: amountValues } },
+            select: { id: true, name: true, price: true },
+          })
+        : [],
+    ]);
+
+    const projectNameById = new Map(projectsById.map((item) => [item.id, item.name]));
+    const productNameById = new Map(productsById.map((item) => [item.id, item.name]));
+    const cardNameById = new Map(cardsById.map((item) => [item.id, item.name]));
+    const uniqueProjectNameByPrice = new Map<number, string>();
+    for (const amount of amountValues) {
+      const matches = (projectsByPrice as any[]).filter((project) => Number(project.price) === amount);
+      if (matches.length === 1) uniqueProjectNameByPrice.set(amount, matches[0].name);
+    }
+
+    const fallbackByRecordId = new Map<number, string>();
+    for (const record of malformedRecords) {
+      const recordTime = record.consumeTime ? new Date(record.consumeTime).getTime() : 0;
+      const amount = Number(record.amount);
+      const order = orders
+        .filter((item) => Number(item.customerId) === Number(record.customerId) && Number(item.totalAmount) === amount)
+        .sort((a, b) => Math.abs(new Date(a.createdAt).getTime() - recordTime) - Math.abs(new Date(b.createdAt).getTime() - recordTime))[0];
+      const items = order ? orderItemsByOrderId.get(order.id) ?? [] : [];
+      const labels = items.map((item) => {
+        const type = String(item.itemType ?? item.type ?? '').toLowerCase();
+        const id = Number(item.itemId ?? item.productId ?? item.projectId ?? item.cardId);
+        const quantity = Number(item.quantity ?? item.qty ?? 1) || 1;
+        const rawName = item.name ?? item.productName ?? item.projectName ?? item.cardName;
+        const resolvedName =
+          (type === 'project' ? projectNameById.get(id) : undefined) ||
+          (type === 'product' ? productNameById.get(id) : undefined) ||
+          (type === 'card' ? cardNameById.get(id) : undefined) ||
+          (!this.isQuestionPlaceholder(rawName) ? String(rawName ?? '').trim() : '') ||
+          (type === 'project' ? uniqueProjectNameByPrice.get(amount) : undefined);
+        return resolvedName ? `${resolvedName} x${quantity}` : '';
+      }).filter(Boolean);
+
+      if (labels.length) {
+        fallbackByRecordId.set(record.id, labels.join('、'));
+      } else {
+        const fallback = uniqueProjectNameByPrice.get(amount);
+        if (fallback) fallbackByRecordId.set(record.id, `${fallback} x1`);
+      }
+    }
+
+    return fallbackByRecordId;
+  }
+
+  private async resolveConsumptionNames(records: any[]) {
+    const refs = this.collectConsumptionRefs(records);
+    const [projects, products, cards, fallbackByRecordId] = await Promise.all([
+      refs.projectIds.size
+        ? this.prisma.project.findMany({ where: { id: { in: [...refs.projectIds] } }, select: { id: true, name: true } })
+        : [],
+      refs.productIds.size
+        ? this.prisma.product.findMany({ where: { id: { in: [...refs.productIds] } }, select: { id: true, name: true } })
+        : [],
+      refs.cardIds.size ? this.prisma.card.findMany({ where: { id: { in: [...refs.cardIds] } }, select: { id: true, name: true } }) : [],
+      this.resolveMalformedConsumptionNames(records),
+    ]);
+
+    return {
+      projects: new Map(projects.map((item) => [item.id, item.name])),
+      products: new Map(products.map((item) => [item.id, item.name])),
+      cards: new Map(cards.map((item) => [item.id, item.name])),
+      fallbackByRecordId,
+    };
+  }
+
+  private getNamedItem(
+    type: string,
+    id: unknown,
+    quantity: unknown,
+    names: {
+      projects?: Map<number, string>;
+      products?: Map<number, string>;
+      cards?: Map<number, string>;
+    },
+    fallbackName?: string,
+  ) {
+    const itemId = Number(id);
+    const qty = Number(quantity ?? 1) || 1;
+    const normalizedType = String(type || '').toLowerCase();
+    const name =
+      fallbackName ||
+      (normalizedType === 'project' ? names.projects?.get(itemId) : undefined) ||
+      (normalizedType === 'product' ? names.products?.get(itemId) : undefined) ||
+      (normalizedType === 'card' ? names.cards?.get(itemId) : undefined);
+    const typeLabel =
+      normalizedType === 'project' ? '项目' : normalizedType === 'product' ? '商品' : normalizedType === 'card' ? '卡项' : '消费项目';
+
+    return `${name || typeLabel} x${qty}`;
+  }
+
+  private formatConsumptionItem(item: any, names: ConsumptionNameMaps) {
+    const type = String(item?.itemType ?? item?.type ?? (item?.projectId ? 'project' : item?.productId ? 'product' : item?.cardId ? 'card' : ''));
+    const id = item?.itemId ?? item?.projectId ?? item?.productId ?? item?.cardId;
+    const fallbackName = item?.name ?? item?.projectName ?? item?.productName ?? item?.cardName;
+    if (!type && fallbackName) return `${fallbackName}${item?.quantity ? ` x${item.quantity}` : ''}`;
+    return this.getNamedItem(type, id, item?.quantity ?? item?.qty, names, fallbackName);
+  }
+
+  private formatConsumptionContent(
+    value: unknown,
+    names: ConsumptionNameMaps,
+  ) {
+    const content = String(value ?? '').trim();
+    if (!content) return '-';
+
+    const parsed = this.tryParseJson(content);
+    if (parsed && !Array.isArray(parsed)) {
+      const projectName = parsed.projectName ?? (parsed.projectId ? names.projects?.get(Number(parsed.projectId)) : undefined);
+      const result = parsed.result ? String(parsed.result) : '服务记录';
+      const parts = [projectName ? `${result}：${projectName}` : result];
+      const items = Array.isArray(parsed.consumptionItems) ? parsed.consumptionItems : [];
+      if (items.length) {
+        parts.push(`消耗物料：${items.map((item: any) => this.formatConsumptionItem(item, names)).join('、')}`);
+      }
+      if (parsed.nextSuggestion) parts.push(`护理建议：${parsed.nextSuggestion}`);
+      if (parsed.nextReservationSuggestion) parts.push(`下次预约建议：${parsed.nextReservationSuggestion}`);
+      return parts.filter(Boolean).join('；');
+    }
+
+    if (Array.isArray(parsed)) {
+      const formatted = parsed.map((item) => this.formatConsumptionItem(item, names)).filter(Boolean);
+      return formatted.length ? formatted.join('、') : '-';
+    }
+
+    const formatted = [...content.matchAll(/\b(project|product|card|recharge)#(\d+)x(\d+)/gi)].map((match) => {
+      const [, type, id, quantity] = match;
+      if (type.toLowerCase() === 'recharge') return `会员充值 x${quantity || 1}`;
+      return this.getNamedItem(type, id, quantity, names);
+    });
+
+    return formatted.length ? formatted.join('、') : content;
+  }
+
+  private async toConsumptionRecordViews(records: any[]) {
+    const names = await this.resolveConsumptionNames(records);
+    return records.map((record) => this.toConsumptionRecordView(record, names));
+  }
+
+  private getCustomerConsumptionWhere(extra: Record<string, any> = {}) {
+    return {
+      ...extra,
+      NOT: [
+        {
+          consumeType: '服务记录',
+          payMethod: 'service',
+          amount: 0,
+        },
+      ],
     };
   }
 
@@ -62,6 +345,20 @@ export class CustomersService {
       lastCheck: this.formatDate(profile.lastCheck),
       customer: undefined,
     };
+  }
+
+  private normalizeCustomerPayload(dto: CreateCustomerDto | UpdateCustomerDto): Record<string, any> {
+    const data: Record<string, any> = { ...dto };
+    if (data.birthday) data.birthday = new Date(data.birthday);
+    if (data.lastVisitDate) data.lastVisitDate = new Date(data.lastVisitDate);
+    for (const key of ['age', 'height', 'weight']) {
+      if (data[key] === '' || data[key] === null) {
+        delete data[key];
+      } else if (data[key] !== undefined) {
+        data[key] = Number(data[key]);
+      }
+    }
+    return data;
   }
 
   async findAll(storeId?: number) {
@@ -80,7 +377,7 @@ export class CustomersService {
   }
 
   async findPaginated(query: QueryCustomersDto, storeId?: number) {
-    const { page = 1, pageSize = 20, keyword, memberLevel, storeName } = query;
+    const { page = 1, pageSize = 20, keyword, name, phone, memberLevel, storeName } = query;
     const where: any = { deletedAt: null };
 
     if (storeId) where.storeId = storeId;
@@ -90,6 +387,8 @@ export class CustomersService {
         { phone: { contains: keyword } },
       ];
     }
+    if (name) where.name = { contains: name, mode: 'insensitive' };
+    if (phone) where.phone = { contains: phone };
     if (memberLevel) where.memberLevel = memberLevel;
     if (storeName) where.store = { name: storeName };
 
@@ -122,12 +421,45 @@ export class CustomersService {
   }
 
   async create(dto: CreateCustomerDto) {
-    return this.prisma.customer.create({ data: dto });
+    const data = this.normalizeCustomerPayload(dto);
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.create({ data: data as any });
+      await tx.customerHealthProfile.create({
+        data: {
+          customerId: customer.id,
+          skinType: data.skinType || data.skinCondition || '未记录',
+          skinStatus: data.skinCondition,
+          allergyHistory: data.hasAllergy,
+        },
+      });
+      return customer;
+    });
   }
 
   async update(id: number, dto: UpdateCustomerDto) {
     await this.findById(id);
-    return this.prisma.customer.update({ where: { id }, data: dto });
+    const data = this.normalizeCustomerPayload(dto);
+    const healthData: Record<string, unknown> = {};
+    if (data.skinType !== undefined) healthData.skinType = data.skinType || '未记录';
+    if (data.skinCondition !== undefined) healthData.skinStatus = data.skinCondition;
+    if (data.hasAllergy !== undefined) healthData.allergyHistory = data.hasAllergy;
+
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.update({ where: { id }, data: data as any });
+      if (Object.keys(healthData).length > 0) {
+        await tx.customerHealthProfile.upsert({
+          where: { customerId: id },
+          update: healthData,
+          create: {
+            customerId: id,
+            skinType: String(healthData.skinType ?? data.skinType ?? data.skinCondition ?? '未记录'),
+            skinStatus: data.skinCondition,
+            allergyHistory: data.hasAllergy,
+          },
+        });
+      }
+      return customer;
+    });
   }
 
   async remove(ids: number[]) {
@@ -138,7 +470,7 @@ export class CustomersService {
   }
 
   async getConsumptionRecords(customerId: number, page = 1, pageSize = 20) {
-    const where = { customerId };
+    const where = this.getCustomerConsumptionWhere({ customerId });
     const [items, total] = await Promise.all([
       this.prisma.consumptionRecord.findMany({
         where,
@@ -164,12 +496,12 @@ export class CustomersService {
       }),
       this.prisma.consumptionRecord.count({ where }),
     ]);
-    const viewItems = items.map((record) => this.toConsumptionRecordView(record));
+    const viewItems = await this.toConsumptionRecordViews(items);
     return { items: viewItems, data: viewItems, total, page, pageSize };
   }
 
   async getAllConsumptionRecords(storeId?: number) {
-    const where: any = {};
+    const where: any = this.getCustomerConsumptionWhere();
     if (storeId) {
       where.customer = {
         storeId,
@@ -177,7 +509,7 @@ export class CustomersService {
       };
     }
 
-    return this.prisma.consumptionRecord.findMany({
+    const records = await this.prisma.consumptionRecord.findMany({
       where,
       select: {
         id: true,
@@ -196,7 +528,71 @@ export class CustomersService {
         },
       },
       orderBy: { consumeTime: 'desc' },
-    }).then((records) => records.map((record) => this.toConsumptionRecordView(record)));
+    });
+    return this.toConsumptionRecordViews(records);
+  }
+
+  async getConsumptionRecordsPaginated(
+    query: { page?: number | string; pageSize?: number | string; keyword?: string } = {},
+    storeId?: number,
+  ) {
+    const page = Math.max(1, Number(query.page || 1));
+    const pageSize = Math.min(50, Math.max(10, Number(query.pageSize || 10)));
+    const keyword = String(query.keyword ?? '').trim();
+    const where: any = this.getCustomerConsumptionWhere();
+    const and: any[] = [];
+
+    if (storeId) {
+      and.push({
+        customer: {
+          storeId,
+          deletedAt: null,
+        },
+      });
+    }
+
+    if (keyword) {
+      and.push({
+        OR: [
+          { consumeType: { contains: keyword, mode: 'insensitive' } },
+          { consumeContent: { contains: keyword, mode: 'insensitive' } },
+          { payMethod: { contains: keyword, mode: 'insensitive' } },
+          { campaign: { contains: keyword, mode: 'insensitive' } },
+          { customer: { name: { contains: keyword, mode: 'insensitive' } } },
+          { customer: { phone: { contains: keyword } } },
+        ],
+      });
+    }
+
+    if (and.length) where.AND = and;
+
+    const [items, total] = await Promise.all([
+      this.prisma.consumptionRecord.findMany({
+        where,
+        select: {
+          id: true,
+          customerId: true,
+          consumeType: true,
+          consumeContent: true,
+          payMethod: true,
+          amount: true,
+          campaign: true,
+          consumeTime: true,
+          customer: {
+            select: {
+              name: true,
+              store: { select: { name: true } },
+            },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { consumeTime: 'desc' },
+      }),
+      this.prisma.consumptionRecord.count({ where }),
+    ]);
+    const viewItems = await this.toConsumptionRecordViews(items);
+    return { items: viewItems, data: viewItems, total, page, pageSize };
   }
 
   async getHealthProfile(customerId: number) {
@@ -453,6 +849,592 @@ export class CustomersService {
         { field: 'payload', label: '脱敏后的扩展字段，如停留时长、来源页面、活动版本', required: false },
       ],
     };
+  }
+
+  private buildProfileAnalyticsWhere(storeId?: number) {
+    const where: any = { deletedAt: null };
+    if (storeId) where.storeId = storeId;
+    return where;
+  }
+
+  private getProfileAnalyticsPage(query?: { page?: number | string; pageSize?: number | string }) {
+    const page = Math.max(1, Number(query?.page || 1));
+    const pageSize = Math.min(50, Math.max(10, Number(query?.pageSize || 10)));
+    return { page, pageSize };
+  }
+
+  private getProfileCustomerSelect(includeHealthProfile = true) {
+    return {
+      id: true,
+      storeId: true,
+      name: true,
+      phone: true,
+      birthday: true,
+      age: true,
+      skinCondition: true,
+      memberLevel: true,
+      totalSpent: true,
+      visitCount: true,
+      lastVisitDate: true,
+      skinType: true,
+      tags: true,
+      createdAt: true,
+      store: { select: { id: true, name: true } },
+      ...(includeHealthProfile
+        ? {
+          healthProfile: {
+            select: {
+              customerId: true,
+              skinType: true,
+              skinStatus: true,
+              mainProblems: true,
+              recommendedCare: true,
+              lastCheck: true,
+            },
+          },
+        }
+        : {}),
+    };
+  }
+
+  private buildProfileHealthProfiles(customers: any[]) {
+    return customers
+      .filter((customer) => customer.healthProfile)
+      .map((customer) => ({
+        ...customer.healthProfile,
+        name: customer.name,
+        lastCheck: this.formatDate(customer.healthProfile?.lastCheck),
+      }));
+  }
+
+  private async loadProfileCustomers(storeId?: number, take = 500, includeHealthProfile = true) {
+    const where = this.buildProfileAnalyticsWhere(storeId);
+    const [totalCustomers, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        select: this.getProfileCustomerSelect(includeHealthProfile),
+        orderBy: [{ totalSpent: 'desc' }, { id: 'asc' }],
+        take,
+      }),
+    ]);
+    const customerViews = customers.map((customer) => this.toCustomerView(customer));
+    return {
+      totalCustomers,
+      customers,
+      customerViews,
+      healthProfiles: includeHealthProfile ? this.buildProfileHealthProfiles(customers) : [],
+    };
+  }
+
+  private async loadProfileConsumptionViews(customerIds: number[], take = 2000) {
+    if (customerIds.length === 0) return [];
+    const consumptionRecords = await this.prisma.consumptionRecord.findMany({
+      where: {
+        customerId: { in: customerIds },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        consumeType: true,
+        consumeContent: true,
+        payMethod: true,
+        amount: true,
+        campaign: true,
+        consumeTime: true,
+      },
+      orderBy: { consumeTime: 'desc' },
+      take,
+    });
+    return consumptionRecords.map((record) => this.toConsumptionRecordView(record));
+  }
+
+  async getProfileAnalyticsOverview(storeId?: number) {
+    const now = new Date();
+    const totalCustomers = await this.prisma.customer.count({ where: this.buildProfileAnalyticsWhere(storeId) });
+    return {
+      generatedAt: this.formatDateTime(now),
+      storeId,
+      totalCustomers,
+    };
+  }
+
+  async getProfileAnalyticsSegment(storeId?: number) {
+    const now = new Date();
+    const { totalCustomers, customerViews } = await this.loadProfileCustomers(storeId, 500, false);
+    return {
+      generatedAt: this.formatDateTime(now),
+      storeId,
+      totalCustomers,
+      segmentStats: this.computeProfileSegmentStats(customerViews, now),
+    };
+  }
+
+  async getProfileAnalyticsSkin(storeId?: number) {
+    const now = new Date();
+    const { totalCustomers, customerViews, healthProfiles } = await this.loadProfileCustomers(storeId, 500, true);
+    return {
+      generatedAt: this.formatDateTime(now),
+      storeId,
+      totalCustomers,
+      skinStats: this.computeProfileSkinStats(customerViews, healthProfiles),
+    };
+  }
+
+  async getProfileAnalyticsBehavior(
+    query: { page?: number | string; pageSize?: number | string; segment?: string; skinType?: string } = {},
+    storeId?: number,
+  ) {
+    const now = new Date();
+    const { page, pageSize } = this.getProfileAnalyticsPage(query);
+    const { totalCustomers, customerViews, healthProfiles } = await this.loadProfileCustomers(storeId, 300, true);
+    const consumptionViews = await this.loadProfileConsumptionViews(customerViews.map((customer) => customer.id), 2000);
+    let rows = this.computeProfileBehaviorProfiles(customerViews, consumptionViews, healthProfiles, now);
+    if (query.segment) rows = rows.filter((row) => row.segment === String(query.segment));
+    if (query.skinType) rows = rows.filter((row) => row.skinType === String(query.skinType));
+    const total = rows.length;
+    const items = rows.slice((page - 1) * pageSize, page * pageSize);
+
+    return {
+      generatedAt: this.formatDateTime(now),
+      storeId,
+      totalCustomers,
+      items,
+      data: items,
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async getProfileAnalyticsPrediction(
+    query: { page?: number | string; pageSize?: number | string } = {},
+    storeId?: number,
+  ) {
+    const now = new Date();
+    const { page, pageSize } = this.getProfileAnalyticsPage(query);
+    const { totalCustomers, customerViews } = await this.loadProfileCustomers(storeId, 300, false);
+    const consumptionViews = await this.loadProfileConsumptionViews(customerViews.map((customer) => customer.id), 2000);
+    const rows = this.computeProfilePredictionRows(customerViews, consumptionViews, now);
+    const total = rows.length;
+    const items = rows.slice((page - 1) * pageSize, page * pageSize);
+
+    return {
+      generatedAt: this.formatDateTime(now),
+      storeId,
+      totalCustomers,
+      items,
+      data: items,
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async getProfileAnalytics(storeId?: number) {
+    const now = new Date();
+    const { totalCustomers, customerViews, healthProfiles } = await this.loadProfileCustomers(storeId, 500, true);
+
+    return {
+      generatedAt: this.formatDateTime(now),
+      storeId,
+      totalCustomers,
+      segmentStats: this.computeProfileSegmentStats(customerViews, now),
+      skinStats: this.computeProfileSkinStats(customerViews, healthProfiles),
+      behaviorProfiles: [],
+      predictionRows: [],
+    };
+  }
+
+  async getSegmentCount(query: {
+    storeId?: number | string;
+    segment?: string;
+    skinType?: string;
+    memberLevel?: string;
+    daysSinceLastVisit?: number | string;
+    specialTags?: string[] | string;
+  }) {
+    const storeId = Number(query.storeId || 0);
+    const daysSinceLastVisit = Number(query.daysSinceLastVisit || 0);
+    const specialTags = this.normalizeQueryStringArray(query.specialTags);
+    const where: any = { deletedAt: null };
+    if (storeId > 0) where.storeId = storeId;
+    if (query.memberLevel) where.memberLevel = String(query.memberLevel);
+
+    const customers = await this.prisma.customer.findMany({
+      where,
+      include: { healthProfile: true },
+    });
+
+    const now = new Date();
+    const count = customers.filter((customer) => {
+      if (query.segment && this.getCustomerSegment(customer, now) !== query.segment) return false;
+      if (query.skinType && this.getCustomerSkinType(customer) !== query.skinType) return false;
+      if (daysSinceLastVisit > 0) {
+        if (!customer.lastVisitDate) return false;
+        const gapDays = Math.floor((now.getTime() - customer.lastVisitDate.getTime()) / 86400000);
+        if (gapDays < daysSinceLastVisit) return false;
+      }
+      return specialTags.every((tag) => this.matchesSpecialSegmentTag(customer, tag, now));
+    }).length;
+
+    return {
+      count,
+      filters: {
+        storeId: storeId > 0 ? storeId : undefined,
+        segment: query.segment,
+        skinType: query.skinType,
+        memberLevel: query.memberLevel,
+        daysSinceLastVisit: daysSinceLastVisit > 0 ? daysSinceLastVisit : undefined,
+        specialTags,
+      },
+    };
+  }
+
+  private normalizeQueryStringArray(value?: string[] | string) {
+    if (!value) return [];
+    const raw = Array.isArray(value) ? value : [value];
+    return raw.flatMap((item) => String(item).split(',')).map((item) => item.trim()).filter(Boolean);
+  }
+
+  private formatPercent(count: number, total: number) {
+    return total > 0 ? `${Math.round((count / total) * 100)}%` : '0%';
+  }
+
+  private formatCurrencyAmount(value: number) {
+    return `¥${Math.round(value).toLocaleString('zh-CN')}`;
+  }
+
+  private formatLargeCurrency(value: number) {
+    return value >= 10000 ? `¥${(value / 10000).toFixed(1)}万` : this.formatCurrencyAmount(value);
+  }
+
+  private parseFormattedAmount(value: unknown) {
+    if (typeof value === 'number') return value;
+    return Number(String(value ?? '0').replace(/[¥￥,]/g, '')) || 0;
+  }
+
+  private daysSinceDate(value: string | Date | null | undefined, now: Date) {
+    if (!value) return 9999;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return 9999;
+    return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86400000));
+  }
+
+  private monthsSinceDate(value: string | Date | null | undefined, now: Date) {
+    const days = this.daysSinceDate(value, now);
+    if (days >= 9999) return 12;
+    return Math.max(1, Math.floor(days / 30));
+  }
+
+  private scoreProfileRecency(lastVisitDate: string | Date | null | undefined, now: Date) {
+    const days = this.daysSinceDate(lastVisitDate, now);
+    if (days <= 14) return 5;
+    if (days <= 30) return 4;
+    if (days <= 60) return 3;
+    if (days <= 120) return 2;
+    if (days <= 365) return 1;
+    return 0;
+  }
+
+  private scoreProfileFrequency(visitCount: number, createdAt: string | Date | null | undefined, now: Date) {
+    const freq = Number(visitCount ?? 0) / this.monthsSinceDate(createdAt, now);
+    if (freq >= 4) return 5;
+    if (freq >= 2) return 4;
+    if (freq >= 1) return 3;
+    if (freq >= 0.5) return 2;
+    if (freq > 0) return 1;
+    return 0;
+  }
+
+  private scoreProfileMonetary(totalSpent: number) {
+    const amount = Number(totalSpent ?? 0);
+    if (amount >= 50000) return 5;
+    if (amount >= 20000) return 4;
+    if (amount >= 8000) return 3;
+    if (amount >= 3000) return 2;
+    if (amount > 0) return 1;
+    return 0;
+  }
+
+  private classifyProfileSegment(customer: any, now: Date) {
+    const recency = this.scoreProfileRecency(customer.lastVisitDate, now);
+    const frequency = this.scoreProfileFrequency(Number(customer.visitCount ?? 0), customer.createdAt, now);
+    const monetary = this.scoreProfileMonetary(Number(customer.totalSpent ?? 0));
+    const registeredDays = this.daysSinceDate(customer.createdAt, now);
+
+    if (registeredDays <= 90 || Number(customer.visitCount ?? 0) <= 2) return '新客户';
+    if (recency <= 1 || (recency <= 2 && frequency <= 1)) return '流失风险客户';
+    if (recency >= 4 && frequency >= 3 && monetary >= 4) return '高价值客户';
+    if (recency >= 3 && Number(customer.age ?? 30) < 35 && monetary <= 3) return '潜在价值客户';
+    return '稳定客户';
+  }
+
+  private classifyProfileSkin(customer: any, healthProfile?: any) {
+    const values = [
+      healthProfile?.skinType,
+      customer.skinType,
+      customer.skinCondition,
+      ...(Array.isArray(customer.tags) ? customer.tags : []),
+      healthProfile?.skinStatus,
+      healthProfile?.mainProblems,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    if (!values) return '未分类';
+    if ((values.includes('干') || values.includes('缺水') || values.includes('干纹')) && !values.includes('混')) return '干性肌肤';
+    if ((values.includes('油') || values.includes('出油') || values.includes('痘')) && !values.includes('混')) return '油性肌肤';
+    if (values.includes('敏感') || values.includes('泛红') || values.includes('过敏') || values.includes('红血丝')) return '敏感肌肤';
+    if (values.includes('混合') || values.includes('混干') || values.includes('混油') || values.includes('T区')) return '混合肌肤';
+    if (values.includes('中性') || values.includes('水油平衡') || values.includes('状态良好')) return '中性肌肤';
+    return '未分类';
+  }
+
+  private computeProfileSegmentStats(customers: any[], now: Date) {
+    const order = ['高价值客户', '潜在价值客户', '稳定客户', '流失风险客户', '新客户'];
+    const groups = new Map<string, any[]>(order.map((segment) => [segment, []]));
+    for (const customer of customers) {
+      groups.get(this.classifyProfileSegment(customer, now))?.push(customer);
+    }
+
+    const totalSpentAll = customers.reduce((sum, customer) => sum + Number(customer.totalSpent ?? 0), 0);
+    const charMap: Record<string, string[]> = {
+      高价值客户: ['消费频次高', '客单价高', '忠诚度高'],
+      潜在价值客户: ['年轻群体', '消费潜力大', '价格敏感'],
+      稳定客户: ['定期消费', '服务满意', '推荐意愿强'],
+      流失风险客户: ['消费下降', '到店频次低', '需要唤醒'],
+      新客户: ['首次消费', '了解需求', '体验为主'],
+    };
+
+    return order.map((segment) => {
+      const list = groups.get(segment) ?? [];
+      const total = list.reduce((sum, customer) => sum + Number(customer.totalSpent ?? 0), 0);
+      const avg = list.length ? Math.round(total / list.length) : 0;
+      const avgAge = list.length ? Math.round(list.reduce((sum, customer) => sum + Number(customer.age ?? 30), 0) / list.length) : 0;
+      return {
+        segment,
+        customerCount: list.length,
+        percentage: this.formatPercent(list.length, customers.length),
+        avgSpend: this.formatCurrencyAmount(avg),
+        totalSpend: this.formatLargeCurrency(total),
+        spendContribution: this.formatPercent(total, totalSpentAll),
+        avgAge,
+        characteristics: charMap[segment],
+        customerIds: list.map((customer) => customer.id),
+      };
+    });
+  }
+
+  private computeProfileSkinStats(customers: any[], healthProfiles: any[]) {
+    const order = ['干性肌肤', '油性肌肤', '敏感肌肤', '混合肌肤', '中性肌肤'];
+    const groups = new Map<string, any[]>([...order, '未分类'].map((skinType) => [skinType, []]));
+    const profileMap = new Map(healthProfiles.map((profile) => [profile.customerId, profile]));
+    for (const customer of customers) {
+      groups.get(this.classifyProfileSkin(customer, profileMap.get(customer.id)))?.push(customer);
+    }
+
+    const totalSpentAll = customers.reduce((sum, customer) => sum + Number(customer.totalSpent ?? 0), 0);
+    const featuresMap: Record<string, string[]> = {
+      干性肌肤: ['缺水紧绷', '细纹明显', '易敏感'],
+      油性肌肤: ['出油旺盛', '毛孔粗大', '易生痘痘'],
+      敏感肌肤: ['易泛红', '角质层薄', '不耐受'],
+      混合肌肤: ['T区油腻', 'U区干燥', '需分区护理'],
+      中性肌肤: ['水油平衡', '肤质健康', '状态稳定'],
+    };
+
+    return order.map((skinType) => {
+      const list = groups.get(skinType) ?? [];
+      const total = list.reduce((sum, customer) => sum + Number(customer.totalSpent ?? 0), 0);
+      const avg = list.length ? Math.round(total / list.length) : 0;
+      const avgAge = list.length ? Math.round(list.reduce((sum, customer) => sum + Number(customer.age ?? 30), 0) / list.length) : 0;
+      const youngRatio = list.length ? list.filter((customer) => Number(customer.age ?? 30) < 30).length / list.length : 0;
+      return {
+        skinType,
+        customerCount: list.length,
+        percentage: this.formatPercent(list.length, customers.length),
+        avgSpend: this.formatCurrencyAmount(avg),
+        avgAge: `${avgAge}岁`,
+        totalSpend: this.formatLargeCurrency(total),
+        spendContribution: this.formatPercent(total, totalSpentAll),
+        skinFeatures: featuresMap[skinType],
+        customerIds: list.map((customer) => customer.id),
+        trend: youngRatio > 0.4 ? `+${Math.round(youngRatio * 30)}%` : `+${Math.round(youngRatio * 15)}%`,
+      };
+    });
+  }
+
+  private computeProfileBehaviorProfiles(customers: any[], consumptionRecords: any[], healthProfiles: any[], now: Date) {
+    const recordsByCustomer = new Map<number, any[]>();
+    for (const record of consumptionRecords) {
+      if (!recordsByCustomer.has(record.customerId)) recordsByCustomer.set(record.customerId, []);
+      recordsByCustomer.get(record.customerId)!.push(record);
+    }
+    const profileMap = new Map(healthProfiles.map((profile) => [profile.customerId, profile]));
+
+    return [...customers].sort((a, b) => Number(b.totalSpent ?? 0) - Number(a.totalSpent ?? 0)).map((customer) => {
+      const records = recordsByCustomer.get(customer.id) ?? [];
+      const freqPerMonth = Number(customer.visitCount ?? 0) / this.monthsSinceDate(customer.createdAt, now);
+      const visitFrequency =
+        freqPerMonth >= 8
+          ? '每周2次'
+          : freqPerMonth >= 4
+            ? '每周1次'
+            : freqPerMonth >= 2
+              ? '每月2-3次'
+              : freqPerMonth >= 1
+                ? '每月1次'
+                : Number(customer.visitCount ?? 0) <= 2
+                  ? '首次消费'
+                  : '偶尔到店';
+      const avgSpend = Number(customer.visitCount ?? 0) > 0 ? Math.round(Number(customer.totalSpent ?? 0) / Number(customer.visitCount)) : 0;
+      const typeCounts: Record<string, number> = {};
+      for (const record of records) {
+        const key = record.consumeType || '面部护理';
+        typeCounts[key] = (typeCounts[key] ?? 0) + 1;
+      }
+      const preferredService = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '面部护理';
+      const promoCount = records.filter((record) => record.campaign && record.campaign !== '无').length;
+      const promoSensitivity = records.length ? Math.round((promoCount / records.length) * 100) : 50;
+      const repurchase = Number(customer.visitCount ?? 0) > 1 ? Math.min(95, 50 + Number(customer.visitCount ?? 0)) : 0;
+      const loyalty = Math.min(
+        99,
+        Math.round(
+          ((this.scoreProfileRecency(customer.lastVisitDate, now) +
+            this.scoreProfileFrequency(Number(customer.visitCount ?? 0), customer.createdAt, now)) /
+            10) *
+            100,
+        ),
+      );
+      const monthCounts = [0, 0, 0, 0];
+      for (const record of records) {
+        const month = Number(String(record.consumeTime ?? '').slice(5, 7));
+        if (!month) continue;
+        if (month <= 3) monthCounts[0]++;
+        else if (month <= 6) monthCounts[1]++;
+        else if (month <= 9) monthCounts[2]++;
+        else monthCounts[3]++;
+      }
+      const seasons = ['春季高峰', '夏季活跃', '秋季偏好', '冬季偏好'];
+      const maxQuarter = monthCounts.indexOf(Math.max(...monthCounts));
+
+      return {
+        customerId: customer.id,
+        name: customer.name,
+        segment: this.classifyProfileSegment(customer, now),
+        skinType: this.classifyProfileSkin(customer, profileMap.get(customer.id)),
+        visitFrequency,
+        avgSpend: this.formatCurrencyAmount(avgSpend),
+        preferredService,
+        promotionSensitivity: `${promoSensitivity}%`,
+        repurchaseRate: `${repurchase}%`,
+        loyalty: `${loyalty}%`,
+        seasonalTrend: records.length >= 3 ? seasons[maxQuarter] : '待观察',
+      };
+    });
+  }
+
+  private computeProfilePredictionRows(customers: any[], consumptionRecords: any[], now: Date) {
+    const recordsByCustomer = new Map<number, any[]>();
+    for (const record of consumptionRecords) {
+      if (!recordsByCustomer.has(record.customerId)) recordsByCustomer.set(record.customerId, []);
+      recordsByCustomer.get(record.customerId)!.push(record);
+    }
+
+    return customers.map((customer) => {
+      const records = recordsByCustomer.get(customer.id) ?? [];
+      const lastVisitDays = this.daysSinceDate(customer.lastVisitDate, now);
+      const avgGap = records.length >= 2 ? Math.max(7, Math.round(lastVisitDays / Math.max(1, records.length))) : 30;
+      let churnScore = 0;
+      const reasons: string[] = [];
+      if (lastVisitDays > 180) {
+        churnScore += 35;
+        reasons.push('超过6个月未到店');
+      } else if (lastVisitDays > 90) {
+        churnScore += 25;
+        reasons.push('超过3个月未到店');
+      } else if (lastVisitDays > 60) {
+        churnScore += 15;
+        reasons.push('超过2个月未到店');
+      }
+      if (lastVisitDays / Math.max(avgGap, 7) > 2) {
+        churnScore += 25;
+        reasons.push('到店间隔偏长');
+      }
+      if (Number(customer.visitCount ?? 0) <= 2) {
+        churnScore += 12;
+        reasons.push('到店次数较少');
+      }
+      if (Number(customer.totalSpent ?? 0) >= 20000) churnScore -= 8;
+      churnScore = Math.max(0, Math.min(95, Math.round(churnScore)));
+      const churnLevel = churnScore >= 70 ? '极高' : churnScore >= 45 ? '高' : churnScore >= 25 ? '中' : '低';
+      const repurchase30dScore = Math.max(
+        5,
+        Math.min(95, Math.round(78 - churnScore + (Number(customer.visitCount ?? 0) > 8 ? 12 : 0))),
+      );
+      const marketingResponseScore = Math.max(
+        5,
+        Math.min(95, Math.round(repurchase30dScore * 0.65 + (Number(customer.totalSpent ?? 0) > 10000 ? 18 : 8))),
+      );
+      const monthlyAvg = this.monthsSinceDate(customer.createdAt, now) > 0
+        ? Number(customer.totalSpent ?? 0) / this.monthsSinceDate(customer.createdAt, now)
+        : 0;
+      const ltv12m = Math.round(Number(customer.totalSpent ?? 0) + monthlyAvg * 12 * (repurchase30dScore / 80));
+      const ltvTier = ltv12m >= 50000 ? '铂金' : ltv12m >= 25000 ? '黄金' : ltv12m >= 10000 ? '白银' : '青铜';
+
+      return {
+        customer,
+        churnScore,
+        churnLevel,
+        repurchase30dScore,
+        marketingResponseScore,
+        ltvTier,
+        ltv12m,
+        reasons: [
+          reasons[0] || '暂无明显流失风险',
+          `30天复购概率 ${repurchase30dScore} 分`,
+          `预计12个月价值 ¥${ltv12m.toLocaleString('zh-CN')}`,
+        ],
+      };
+    }).sort((a, b) => b.churnScore - a.churnScore);
+  }
+
+  private getCustomerSegment(customer: any, now: Date) {
+    const totalSpent = Number(customer.totalSpent ?? 0);
+    const visitCount = Number(customer.visitCount ?? 0);
+    const memberLevel = String(customer.memberLevel ?? '');
+    const createdGapDays = Math.floor((now.getTime() - customer.createdAt.getTime()) / 86400000);
+    const lastVisitGapDays = customer.lastVisitDate
+      ? Math.floor((now.getTime() - customer.lastVisitDate.getTime()) / 86400000)
+      : Number.POSITIVE_INFINITY;
+
+    if (createdGapDays <= 30 || visitCount <= 1) return '新客户';
+    if (memberLevel.includes('钻') || memberLevel.includes('铂') || memberLevel.toUpperCase().includes('VIP') || totalSpent >= 5000) {
+      return '高价值客户';
+    }
+    if (lastVisitGapDays >= 60) return '流失风险客户';
+    if (totalSpent >= 1000 || visitCount >= 3) return '稳定客户';
+    return '潜在价值客户';
+  }
+
+  private getCustomerSkinType(customer: any) {
+    return customer.healthProfile?.skinType || customer.skinType || customer.skinCondition || '';
+  }
+
+  private matchesSpecialSegmentTag(customer: any, tag: string, now: Date) {
+    if (tag === '活跃会员') {
+      if (!customer.lastVisitDate) return false;
+      const gapDays = Math.floor((now.getTime() - customer.lastVisitDate.getTime()) / 86400000);
+      return Number(customer.visitCount ?? 0) > 5 && gapDays <= 180;
+    }
+    if (tag === '本月生日') {
+      return Boolean(customer.birthday && customer.birthday.getMonth() === now.getMonth());
+    }
+    if (tag === 'VIP客户') {
+      const memberLevel = String(customer.memberLevel ?? '');
+      return memberLevel.includes('金') || memberLevel.includes('钻') || memberLevel.includes('铂') || memberLevel.toUpperCase().includes('VIP');
+    }
+    return Array.isArray(customer.tags) && customer.tags.includes(tag);
   }
 
   async importCustomers(customers: CreateCustomerDto[]) {

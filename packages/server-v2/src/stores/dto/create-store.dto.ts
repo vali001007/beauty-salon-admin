@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsBoolean, IsString, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateStoreDto {
@@ -20,4 +20,9 @@ export class CreateStoreDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  shiftRequired?: boolean;
 }

@@ -52,4 +52,11 @@ export class CardsController {
   verifyUsage(@Body() dto: any) {
     return this.cardsService.verifyCardUsage(dto);
   }
+
+  @Post('usage')
+  @Permissions('core:order:card-usage')
+  @ApiOperation({ summary: '次卡核销（兼容入口）' })
+  createUsage(@Body() dto: any) {
+    return this.cardsService.verifyCardUsage(dto);
+  }
 }

@@ -1,14 +1,58 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProductProjectRecommendationService } from './product-project-recommendation.service.js';
 
-type PageQuery = { page?: number; pageSize?: number; status?: string; strategyId?: number };
+type PageQuery = {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  strategyId?: number;
+  keyword?: string;
+  source?: string;
+  category?: string;
+  scenario?: string;
+  priority?: string;
+};
 type PredictionQuery = PageQuery & {
   storeId?: number;
   churnLevel?: string;
   ltvTier?: string;
   minRepurchaseScore?: number;
   minMarketingResponseScore?: number;
+};
+type InvitationCandidateQuery = {
+  storeId?: number;
+  limit?: number;
+};
+type UnifiedEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'glow';
+type UnifiedEffectQuery = {
+  objectType?: string;
+  storeId?: number;
+};
+type RecommendationQueryOptions = {
+  scope?: string;
+  type?: string;
+};
+type UnifiedEffectItem = {
+  id: string;
+  objectId: number | string;
+  objectType: UnifiedEffectObjectType;
+  objectTypeLabel: string;
+  objectName: string;
+  status: string;
+  exposureCount: number;
+  clickCount: number;
+  conversionCount: number;
+  revenue: number;
+  cost: number;
+  roi: string;
+  conversionRate: string;
+  dateRange?: string;
+  lastEventAt?: string;
+  detailPath?: string;
+  emptyReason?: string;
+  metricsSource: string;
 };
 
 type PredictionReason = {
@@ -21,6 +65,7 @@ type PredictionReason = {
 
 const MODEL_VERSION = 'rules-v2';
 const DEFAULT_ATTRIBUTION_WINDOW_DAYS = 30;
+const RULE_TEMPLATE_VERSION = '1.0.0';
 
 @Injectable()
 export class MarketingService {
@@ -45,6 +90,7 @@ export class MarketingService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    @Optional() private productProjectRecommendationService?: ProductProjectRecommendationService,
   ) {
     this.defaultRecommendationImage = this.config.get(
       'MARKETING_RECOMMENDATION_IMAGE_URL',
@@ -52,7 +98,11 @@ export class MarketingService {
     );
   }
 
-  async getRecommendations(storeId?: number) {
+  async getRecommendations(storeId?: number, options: RecommendationQueryOptions = {}) {
+    if (options.scope === 'product-project') {
+      return this.getProductProjectRecommendationCards(storeId, options.type);
+    }
+
     try {
       let latestRun: any = null;
       try {
@@ -75,7 +125,11 @@ export class MarketingService {
       const totalCustomers = latestRun?.customerCount ?? latestRun?.snapshotCount ?? 0;
 
       if (!latestRun || latestRun.snapshotCount === 0) {
-        return this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId));
+        return this.mergeRecommendationCards(
+          this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId)),
+          storeId,
+          options,
+        );
       }
 
     const summary = latestRun.summaryJson ?? {};
@@ -500,9 +554,34 @@ export class MarketingService {
       expectedLtv6m,
     }));
 
-      return cards.length ? cards : this.buildFallbackRecommendationCards(totalCustomers, latestRun);
+      return this.mergeRecommendationCards(
+        cards.length ? cards : this.buildFallbackRecommendationCards(totalCustomers, latestRun),
+        storeId,
+        options,
+      );
     } catch {
-      return this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId));
+      return this.mergeRecommendationCards(
+        this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId)),
+        storeId,
+        options,
+      );
+    }
+  }
+
+  private async mergeRecommendationCards(customerCards: any[], storeId?: number, options: RecommendationQueryOptions = {}) {
+    const scope = options.scope ?? 'all';
+    const visibleCustomerCards = scope === 'product-project' ? [] : customerCards;
+    const productProjectCards = scope === 'customer' ? [] : await this.getProductProjectRecommendationCards(storeId, options.type);
+    const cards = [...visibleCustomerCards, ...productProjectCards];
+    if (!options.type) return cards;
+    return cards.filter((card: any) => card.recommendationType === options.type || card.triggerType === options.type || card.predictionType === options.type);
+  }
+
+  private async getProductProjectRecommendationCards(storeId?: number, type?: string) {
+    try {
+      return await this.productProjectRecommendationService?.getCards(storeId, { type }) ?? [];
+    } catch {
+      return [];
     }
   }
 
@@ -565,6 +644,7 @@ export class MarketingService {
       predictionType: 'strategy',
       predictionRunFinishedAt: latestRun?.finishedAt ?? latestRun?.startedAt,
       dataEvidence: ['预测数据暂不可用，先展示可创建活动的兼容推荐，避免运营流程中断'],
+      isFallback: true,
     }));
   }
 
@@ -982,6 +1062,10 @@ export class MarketingService {
   }
 
   async getRecommendationAudience(recommendationId: number, storeId?: number) {
+    if (this.productProjectRecommendationService?.isProductProjectRecommendationId(recommendationId)) {
+      return this.productProjectRecommendationService.getAudience(recommendationId, storeId);
+    }
+
     const latestRun =
       (await this.getLatestRunForRecommendations(storeId, { todayOnly: true })) ??
       (await this.getLatestRunForRecommendations(storeId));
@@ -1013,6 +1097,8 @@ export class MarketingService {
               skinType: true,
               visitCount: true,
               totalSpent: true,
+              lastVisitDate: true,
+              store: { select: { name: true } },
             },
           },
         },
@@ -1025,6 +1111,8 @@ export class MarketingService {
         phone: snapshot.customer.phone,
         segment: snapshot.customer.memberLevel || '普通会员',
         skinType: snapshot.customer.skinType,
+        storeName: snapshot.customer.store?.name ?? '',
+        lastVisitDate: snapshot.customer.lastVisitDate?.toISOString?.().slice(0, 10) ?? '',
         visitCount: snapshot.customer.visitCount ?? 0,
         totalSpent: Number(snapshot.customer.totalSpent ?? 0),
         recommendationId,
@@ -1192,6 +1280,9 @@ export class MarketingService {
         sourceSignalsJson: recommendation.sourceSignals ?? [],
         offerJson: recommendation.offer,
         recommendedItemsJson: recommendation.recommendedItems ?? [],
+        inventorySnapshotJson: recommendation.inventorySnapshot,
+        capacitySnapshotJson: recommendation.capacitySnapshot,
+        riskWarningsJson: recommendation.riskWarnings ?? [],
       },
       pageSeed: {
         campaignName: recommendation.title,
@@ -1200,6 +1291,8 @@ export class MarketingService {
         projectNames: recommendation.recommendedItems?.filter((item: any) => item.type === 'project').map((item: any) => item.name) ?? [],
         productNames: recommendation.recommendedItems?.filter((item: any) => item.type === 'product').map((item: any) => item.name) ?? [],
         primaryItemName: primaryItem?.name,
+        usableTimeRange: recommendation.offer?.usableTimeRange,
+        riskWarnings: recommendation.riskWarnings ?? [],
         startDate: period.startDate,
         endDate: period.endDate,
       },
@@ -1289,6 +1382,7 @@ export class MarketingService {
 
   async runPredictions(storeId?: number) {
     const where = { deletedAt: null, ...(storeId ? { storeId: Number(storeId) } : {}) };
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
     const run = await this.prisma.predictionRun.create({
       data: {
         storeId: storeId ? Number(storeId) : null,
@@ -1305,6 +1399,13 @@ export class MarketingService {
         consumptionRecords: { orderBy: { consumeTime: 'asc' } },
         customerCards: true,
         healthProfile: true,
+        marketingTouches: {
+          where: {
+            touchedAt: { gte: thirtyDaysAgo },
+            OR: [{ status: 'converted' }, { convertedAt: { not: null } }],
+          },
+          select: { id: true, status: true, convertedAt: true, actualRevenue: true, touchedAt: true },
+        },
       },
       orderBy: { id: 'asc' },
     });
@@ -1404,6 +1505,52 @@ export class MarketingService {
     };
   }
 
+  async getInvitationCandidates(query: InvitationCandidateQuery = {}) {
+    const limit = Math.max(1, Math.min(Number(query.limit ?? 10), 30));
+    const latestRun = await this.prisma.predictionRun.findFirst({
+      where: { status: 'completed', ...(query.storeId ? { storeId: Number(query.storeId) } : {}) },
+      orderBy: { finishedAt: 'desc' },
+    });
+
+    if (latestRun) {
+      const snapshots = await this.prisma.customerPredictionSnapshot.findMany({
+        where: { runId: latestRun.id, ...(query.storeId ? { storeId: Number(query.storeId) } : {}) },
+        include: { customer: { include: { healthProfile: true } } },
+        take: limit,
+        orderBy: [
+          { marketingResponseScore: 'desc' },
+          { repurchase30dScore: 'desc' },
+          { churnScore: 'desc' },
+        ],
+      });
+      if (snapshots.length) {
+        return {
+          items: snapshots.map((item: any) => this.toInvitationCandidateFromSnapshot(item)),
+          generatedAt: new Date().toISOString(),
+          source: 'prediction',
+        };
+      }
+    }
+
+    const customers = await this.prisma.customer.findMany({
+      where: { ...(query.storeId ? { storeId: Number(query.storeId) } : {}) },
+      include: { healthProfile: true },
+      take: limit,
+      orderBy: [
+        { lastVisitDate: 'asc' },
+        { totalSpent: 'desc' },
+        { visitCount: 'desc' },
+      ],
+    });
+
+    return {
+      items: customers.map((customer: any) => this.toInvitationCandidateFromCustomer(customer)),
+      generatedAt: new Date().toISOString(),
+      source: 'customer_profile',
+      emptyReason: customers.length ? undefined : '当前门店暂无可邀约客户，请先补充客户资料或导入消费记录。',
+    };
+  }
+
   async findActivities(query: PageQuery = {}) {
     const { page = 1, pageSize = 20, status } = query;
     const where = status ? { status } : {};
@@ -1416,7 +1563,69 @@ export class MarketingService {
       }),
       this.prisma.marketingActivity.count({ where }),
     ]);
-    return { items, data: items, total, page, pageSize };
+    const refreshedItems = await Promise.all(items.map((item: any) => this.refreshActivityMetrics(item.id, item)));
+    return { items: refreshedItems, data: refreshedItems, total, page, pageSize };
+  }
+
+  async getActivityById(id: number) {
+    const activity = await this.prisma.marketingActivity.findUnique({ where: { id } });
+    if (!activity) throw new NotFoundException('Marketing activity not found');
+    return this.refreshActivityMetrics(id, activity);
+  }
+
+  async refreshActivityMetrics(activityId: number, activity?: any) {
+    const current = activity ?? (await this.prisma.marketingActivity.findUnique({ where: { id: activityId } }));
+    if (!current) throw new NotFoundException('Marketing activity not found');
+
+    const activityKey = String(activityId);
+    const pageWhere = {
+      OR: [
+        { activityId },
+        { sourceType: 'activity', sourceId: activityKey },
+      ],
+    };
+    const pages = await this.prisma.marketingPage.findMany({
+      where: pageWhere,
+      select: { id: true },
+    });
+    const pageIds = pages.map((page: any) => page.id);
+
+    const [leadCount, convertedLeadCount, orderCount] = await Promise.all([
+      pageIds.length
+        ? this.prisma.marketingPageLead.count({
+            where: { pageId: { in: pageIds } },
+          })
+        : Promise.resolve(0),
+      pageIds.length
+        ? this.prisma.marketingPageLead.count({
+            where: {
+              pageId: { in: pageIds },
+              OR: [{ status: 'converted' }, { convertedAt: { not: null } }],
+            },
+          })
+        : Promise.resolve(0),
+      pageIds.length
+        ? this.prisma.productOrder.count({
+            where: {
+              pageAttributions: { some: { pageId: { in: pageIds } } },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
+
+    const participants = leadCount || Number(current.participants ?? 0);
+    const convertedCount = Math.max(convertedLeadCount, orderCount);
+    const conversionRate = participants ? Math.round((convertedCount / participants) * 1000) / 10 : 0;
+    const conversion = participants ? `${conversionRate}%` : current.conversion ?? '0%';
+
+    if (participants !== current.participants || conversion !== current.conversion) {
+      return this.prisma.marketingActivity.update({
+        where: { id: activityId },
+        data: { participants, conversion },
+      });
+    }
+
+    return current;
   }
 
   private normalizeActivityData(dto: any) {
@@ -1483,7 +1692,7 @@ export class MarketingService {
     return { success: true };
   }
 
-  getTriggerOptions() {
+  private buildDefaultTriggerOptions() {
     const option = (type: string, category: string, label: string, description: string, priority: string, defaultParams: any, paramSchema: any[] = []) => ({
       type,
       name: label,
@@ -1518,7 +1727,13 @@ export class MarketingService {
       option('dormant', '行为触发', '沉睡客户唤醒', '超过指定天数未到店，排除近期购买或已有预约客户。', 'P0',
         { days: 60, excludePurchasedRecently: true, excludeBooked: true, wakeLevel: 'medium', channels: ['sms', 'miniapp'] },
         [numberField('days', '未到店超过'), booleanField('excludePurchasedRecently', '排除近期已购'), booleanField('excludeBooked', '排除已有预约'), multiChannelField]),
-      option('care_cycle', '时间触发', '护理周期到期', '上次护理后按 21-45 天周期提醒复购预约。', 'P1',
+      option('product_expiry_clearance', '行为触发', '商品临期消化', '商品批次临期且自然销量无法覆盖时，生成项目搭赠、会员权益或顾问跟进。', 'P0',
+        { beforeDays: 60, minGapQty: 5, excludeDaysToExpiryLessThan: 7, channels: ['miniapp', 'store'] },
+        [numberField('beforeDays', '临期窗口'), numberField('minGapQty', '最小缺口数量', '件', 0, 10000), numberField('excludeDaysToExpiryLessThan', '小于此天数仅经营提醒'), multiChannelField]),
+      option('project_idle_capacity', '行为触发', '美容师排期不满', '未来 1-7 天低峰可预约工时充足且预约占用率低时，推荐低峰权益或顾问邀约。', 'P0',
+        { windowDays: 7, maxUtilizationRate: 0.6, minIdleMinutes: 120, timeRanges: ['14:00-17:00'], channels: ['miniapp', 'store'] },
+        [numberField('windowDays', '观察窗口'), { key: 'maxUtilizationRate', label: '最高占用率', type: 'number', min: 0, max: 1, suffix: '' }, { key: 'minIdleMinutes', label: '最少空闲分钟', type: 'number', min: 30, max: 1440, suffix: '分钟' }, multiChannelField]),
+      option('care_cycle', '时间触发', '护理周期到期', '上次护理后按 21-45 天周期提醒复购预约。', 'P0',
         { cycleDays: 28, lastServiceType: 'facial_care', remindDaysBefore: 3, channels: ['miniapp', 'sms'] },
         [numberField('cycleDays', '护理周期'), numberField('remindDaysBefore', '提前提醒'), multiChannelField]),
       option('browse_abandonment', '行为触发', '小程序浏览未预约', '浏览项目/活动页后 24 小时未预约，自动推送项目案例和体验券。', 'P1',
@@ -1546,9 +1761,9 @@ export class MarketingService {
           { label: '白金会员', value: 'platinum' },
           { label: '钻石会员', value: 'diamond' },
         ] }, multiChannelField]),
-      option('product_replenishment', '行为触发', '商品补货提醒', '按护肤品消耗周期提醒补货或搭配护理。', 'P2',
-        { replenishmentDays: 45, productCategory: 'skin_care', channels: ['miniapp', 'wechat'] },
-        [numberField('replenishmentDays', '预计消耗周期'), multiChannelField]),
+      option('product_replenishment', '行为触发', '商品补货提醒', '按护肤品消耗周期提醒补货或搭配护理。', 'P0',
+        { replenishmentDays: 45, productCategory: 'skin_care', excludePurchasedRecently: true, sameProductOnly: true, channels: ['miniapp', 'wechat'] },
+        [numberField('replenishmentDays', '预计消耗周期'), booleanField('excludePurchasedRecently', '排除近期已购'), booleanField('sameProductOnly', '同款优先'), multiChannelField]),
       option('referral_campaign', '行为触发', '老带新/闺蜜同行', '稳定客户、分享意愿强客户触发裂变活动。', 'P3',
         { minVisitCount: 3, rewardType: 'coupon', channels: ['miniapp', 'moments', 'group'] },
         [{ key: 'minVisitCount', label: '最低到店次数', type: 'number', min: 1, max: 100, suffix: '次' }, multiChannelField]),
@@ -1594,6 +1809,473 @@ export class MarketingService {
     ];
   }
 
+  async getTriggerOptions() {
+    const delegate = this.ruleTemplateDelegate();
+    if (delegate?.findMany) {
+      try {
+        await this.ensureSystemRuleTemplates();
+        const templates = await delegate.findMany({
+          where: { source: 'system', status: { not: 'archived' } },
+          orderBy: [{ priority: 'asc' }, { id: 'asc' }],
+        });
+        if (templates.length) return templates.map((template: any) => this.mapTemplateToTriggerOption(template));
+      } catch {
+        return this.buildDefaultTriggerOptions();
+      }
+    }
+    return this.buildDefaultTriggerOptions();
+  }
+
+  private ruleTemplateDelegate() {
+    return (this.prisma as any).marketingRuleTemplate;
+  }
+
+  private strategyDelegate() {
+    return (this.prisma as any).marketingAutomationStrategy;
+  }
+
+  private mapCategoryToCode(category: string) {
+    if (category === '时间触发') return 'time';
+    if (category === '属性触发') return 'attribute';
+    return 'behavior';
+  }
+
+  private mapCategoryToLabel(category: string) {
+    if (category === 'time') return '时间触发';
+    if (category === 'attribute') return '属性触发';
+    return '行为触发';
+  }
+
+  private mapRulePriorityFilter(priority?: string) {
+    if (!priority || priority === 'all') return [];
+    if (priority === 'urgent' || priority === '紧急') return ['P0'];
+    if (priority === 'recommended' || priority === '推荐') return ['P1'];
+    if (priority === 'opportunity' || priority === '机会') return ['P2', 'P3'];
+    return String(priority)
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private inferScenario(type: string) {
+    const scenarioByType: Record<string, string> = {
+      coupon_expiry: '到期提醒',
+      card_expiry: '到期提醒',
+      care_cycle: '到期提醒',
+      dormant: '流失召回',
+      last_visit: '流失召回',
+      visit_gap: '流失召回',
+      browse_abandonment: '转化召回',
+      coupon_claimed_unused: '转化召回',
+      booking_abandonment: '转化召回',
+      birthday: '会员经营',
+      member_level: '会员经营',
+      vip_privilege_care: '会员经营',
+      skin_type: '个性化推荐',
+      service_interest: '个性化推荐',
+      seasonal_skin_care: '个性化推荐',
+      seasonal: '个性化推荐',
+      product_replenishment: '个性化推荐',
+      new_customer: '转化召回',
+      referral_campaign: '裂变营销',
+      holiday: '活动营销',
+      holiday_campaign: '活动营销',
+    };
+    return scenarioByType[type] ?? '自动营销';
+  }
+
+  private inferDataDependencies(type: string) {
+    const dependenciesByType: Record<string, string[]> = {
+      coupon_expiry: ['优惠券', '预约记录'],
+      coupon_claimed_unused: ['优惠券', '订单记录', '预约记录'],
+      card_expiry: ['客户卡项', '核销记录'],
+      care_cycle: ['服务记录', '项目记录'],
+      dormant: ['客户档案', '消费记录', '预约记录'],
+      last_visit: ['客户档案', '消费记录'],
+      visit_gap: ['消费记录', '客户画像'],
+      browse_abandonment: ['Ami Glow 小程序行为', '预约记录'],
+      booking_abandonment: ['预约流程行为', '预约记录'],
+      birthday: ['客户档案'],
+      member_level: ['客户档案'],
+      vip_privilege_care: ['客户档案', '消费记录'],
+      skin_type: ['肌肤档案', 'Ami Aura Lite 检测'],
+      service_interest: ['项目订单', '消费记录'],
+      product_replenishment: ['商品订单', '商品消耗周期'],
+      new_customer: ['客户档案', '订单记录'],
+    };
+    return dependenciesByType[type] ?? ['客户档案'];
+  }
+
+  private inferRecommendedActions(option: any) {
+    const channels = Array.isArray(option.defaultParams?.channels) ? option.defaultParams.channels : ['miniapp'];
+    const valueByType: Record<string, string> = {
+      dormant: '回归专享满300减80',
+      card_expiry: '次卡续费/消耗提醒',
+      coupon_expiry: '优惠券即将到期提醒',
+      coupon_claimed_unused: '已领优惠券使用提醒',
+      browse_abandonment: '项目体验券',
+      booking_abandonment: '继续预约提醒',
+      birthday: '生日月专属权益',
+      care_cycle: '护理周期复购提醒',
+    };
+    return channels.map((channel: string) => ({
+      type: channel === 'sms' ? 'sms' : 'push',
+      value: valueByType[option.type] ?? option.label,
+      channel,
+    }));
+  }
+
+  private inferScheduleDefault(option: any) {
+    if (['browse_abandonment', 'booking_abandonment'].includes(option.type)) {
+      return { type: 'realtime' };
+    }
+    return { type: 'daily', time: option.type === 'birthday' ? '08:00' : '09:00' };
+  }
+
+  private inferFrequencyCap(option: any) {
+    return {
+      sameCustomerDays: ['birthday', 'card_expiry', 'coupon_expiry'].includes(option.type) ? 1 : 7,
+      sameChannelDays: 1,
+      maxTouchesPerDay: 1,
+    };
+  }
+
+  private buildDefaultRuleTemplates() {
+    return this.buildDefaultTriggerOptions().map((option: any) => {
+      const category = this.mapCategoryToCode(option.category);
+      return {
+        code: `system_${option.type}`,
+        name: option.label,
+        description: option.description,
+        source: 'system',
+        category,
+        categoryLabel: option.category,
+        scenario: this.inferScenario(option.type),
+        priority: option.priority,
+        status: option.priority === 'P0' || ['birthday', 'care_cycle', 'last_visit', 'visit_gap', 'member_level', 'skin_type', 'new_customer'].includes(option.type)
+          ? 'recommended'
+          : 'disabled',
+        version: RULE_TEMPLATE_VERSION,
+        triggerType: option.type,
+        paramSchema: option.paramSchema,
+        defaultParams: option.defaultParams,
+        recommendedActions: this.inferRecommendedActions(option),
+        scheduleDefault: this.inferScheduleDefault(option),
+        frequencyCap: this.inferFrequencyCap(option),
+        dataDependencies: this.inferDataDependencies(option.type),
+        recommendationReason: option.description,
+      };
+    });
+  }
+
+  private mapTemplateToTriggerOption(template: any) {
+    return {
+      type: template.triggerType,
+      name: template.name,
+      category: template.categoryLabel ?? this.mapCategoryToLabel(template.category),
+      label: template.name,
+      description: template.description ?? '',
+      priority: template.priority,
+      defaultParams: template.defaultParams ?? {},
+      paramSchema: template.paramSchema ?? [],
+    };
+  }
+
+  private serializeRuleTemplate(template: any, effect?: any) {
+    return {
+      ...template,
+      categoryLabel: template.categoryLabel ?? this.mapCategoryToLabel(template.category),
+      paramSchema: template.paramSchema ?? [],
+      defaultParams: template.defaultParams ?? {},
+      recommendedActions: template.recommendedActions ?? [],
+      scheduleDefault: template.scheduleDefault ?? { type: 'daily', time: '09:00' },
+      frequencyCap: template.frequencyCap ?? {},
+      dataDependencies: template.dataDependencies ?? [],
+      effect: effect ?? template.effect,
+    };
+  }
+
+  private async ensureSystemRuleTemplates() {
+    const delegate = this.ruleTemplateDelegate();
+    if (!delegate?.count || !delegate?.createMany) return;
+    const count = await delegate.count({ where: { source: 'system' } });
+    if (count > 0) return;
+    await delegate.createMany({
+      data: this.buildDefaultRuleTemplates(),
+      skipDuplicates: true,
+    });
+  }
+
+  private async fallbackRuleTemplates(query: PageQuery = {}) {
+    const page = Number(query.page ?? 1);
+    const pageSize = Number(query.pageSize ?? 10);
+    const keyword = String(query.keyword ?? '').trim().toLowerCase();
+    let items = this.buildDefaultRuleTemplates().map((template, index) => ({
+      ...template,
+      id: index + 1,
+      storeId: null,
+      baseTemplateId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+    if (query.source && query.source !== 'all') items = items.filter((item) => item.source === query.source);
+    if (query.category && query.category !== 'all') items = items.filter((item) => item.category === query.category || item.categoryLabel === query.category);
+    if (query.scenario && query.scenario !== 'all') items = items.filter((item) => item.scenario === query.scenario);
+    const priorityValues = this.mapRulePriorityFilter(query.priority);
+    if (priorityValues.length) items = items.filter((item) => priorityValues.includes(item.priority));
+    if (query.status && query.status !== 'all') items = items.filter((item) => item.status === query.status);
+    if (keyword) {
+      items = items.filter((item) => [item.name, item.description, item.triggerType, item.scenario].some((value) => String(value ?? '').toLowerCase().includes(keyword)));
+    }
+    const total = items.length;
+    const pageItems = items.slice((page - 1) * pageSize, page * pageSize).map((item) => this.serializeRuleTemplate(item));
+    return { items: pageItems, data: pageItems, total, page, pageSize };
+  }
+
+  async findRuleTemplates(query: PageQuery = {}) {
+    const delegate = this.ruleTemplateDelegate();
+    if (!delegate?.findMany) return this.fallbackRuleTemplates(query);
+    try {
+      await this.ensureSystemRuleTemplates();
+      const page = Number(query.page ?? 1);
+      const pageSize = Number(query.pageSize ?? 10);
+      const keyword = String(query.keyword ?? '').trim();
+      const priorityValues = this.mapRulePriorityFilter(query.priority);
+      const where: any = {
+        ...(query.source && query.source !== 'all' ? { source: query.source } : {}),
+        ...(query.category && query.category !== 'all' ? { category: query.category } : {}),
+        ...(query.scenario && query.scenario !== 'all' ? { scenario: query.scenario } : {}),
+        ...(priorityValues.length ? { priority: { in: priorityValues } } : {}),
+        ...(query.status && query.status !== 'all' ? { status: query.status } : { status: { not: 'archived' } }),
+        ...(keyword
+          ? {
+              OR: [
+                { name: { contains: keyword, mode: 'insensitive' } },
+                { description: { contains: keyword, mode: 'insensitive' } },
+                { triggerType: { contains: keyword, mode: 'insensitive' } },
+                { scenario: { contains: keyword, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      };
+      const [items, total] = await Promise.all([
+        delegate.findMany({
+          where,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          orderBy: [{ priority: 'asc' }, { updatedAt: 'desc' }],
+        }),
+        delegate.count({ where }),
+      ]);
+      const effects = await this.getRuleEffectsForTemplates(items.map((item: any) => item.id));
+      const mapped = items.map((item: any) => this.serializeRuleTemplate(item, effects.get(item.id)));
+      return { items: mapped, data: mapped, total, page, pageSize };
+    } catch {
+      return this.fallbackRuleTemplates(query);
+    }
+  }
+
+  async getRuleTemplateById(id: number) {
+    const delegate = this.ruleTemplateDelegate();
+    if (delegate?.findUnique) {
+      try {
+        const template = await delegate.findUnique({ where: { id } });
+        if (template) {
+          const effect = await this.getRuleTemplateEffects(id);
+          return this.serializeRuleTemplate(template, effect);
+        }
+      } catch {
+        // If Prisma Client was generated but the migration has not been applied yet,
+        // keep read-only rule browsing alive through the built-in template catalog.
+      }
+    }
+    const fallback = (await this.fallbackRuleTemplates({ page: 1, pageSize: 100 })).items.find((item: any) => item.id === id);
+    if (!fallback) throw new NotFoundException('Rule template not found');
+    return fallback;
+  }
+
+  async cloneRuleTemplate(id: number, dto: any = {}) {
+    const delegate = this.ruleTemplateDelegate();
+    if (!delegate?.create) throw new NotFoundException('Rule template storage is not available');
+    await this.ensureSystemRuleTemplates();
+    const template = await delegate.findUnique({ where: { id } });
+    if (!template) throw new NotFoundException('Rule template not found');
+    const storeId = dto.storeId ? Number(dto.storeId) : template.storeId ?? null;
+    const cloned = await delegate.create({
+      data: {
+        code: `${template.code}_copy_${Date.now()}`,
+        name: dto.name ?? `${template.name}（我的规则）`,
+        description: dto.description ?? template.description,
+        source: 'store',
+        category: template.category,
+        categoryLabel: template.categoryLabel,
+        scenario: template.scenario,
+        priority: template.priority,
+        status: dto.status ?? 'draft',
+        version: template.version ?? RULE_TEMPLATE_VERSION,
+        baseTemplateId: template.id,
+        storeId,
+        triggerType: template.triggerType,
+        paramSchema: template.paramSchema,
+        defaultParams: dto.defaultParams ?? template.defaultParams,
+        recommendedActions: dto.recommendedActions ?? template.recommendedActions,
+        scheduleDefault: dto.scheduleDefault ?? template.scheduleDefault,
+        frequencyCap: dto.frequencyCap ?? template.frequencyCap,
+        dataDependencies: template.dataDependencies,
+        recommendationReason: template.recommendationReason,
+        createdBy: dto.createdBy ? Number(dto.createdBy) : null,
+      },
+    });
+    return this.serializeRuleTemplate(cloned);
+  }
+
+  createRuleTemplate(dto: any) {
+    const delegate = this.ruleTemplateDelegate();
+    if (!delegate?.create) throw new NotFoundException('Rule template storage is not available');
+    return delegate.create({
+      data: {
+        code: dto.code ?? `store_${dto.triggerType}_${Date.now()}`,
+        name: dto.name,
+        description: dto.description ?? '',
+        source: 'store',
+        category: dto.category ?? this.mapCategoryToCode(dto.categoryLabel ?? '行为触发'),
+        categoryLabel: dto.categoryLabel ?? this.mapCategoryToLabel(dto.category),
+        scenario: dto.scenario ?? this.inferScenario(dto.triggerType),
+        priority: dto.priority ?? 'P1',
+        status: dto.status ?? 'draft',
+        version: dto.version ?? RULE_TEMPLATE_VERSION,
+        baseTemplateId: dto.baseTemplateId ? Number(dto.baseTemplateId) : null,
+        storeId: dto.storeId ? Number(dto.storeId) : null,
+        triggerType: dto.triggerType,
+        paramSchema: dto.paramSchema ?? [],
+        defaultParams: dto.defaultParams ?? {},
+        recommendedActions: dto.recommendedActions ?? [],
+        scheduleDefault: dto.scheduleDefault ?? { type: 'daily', time: '09:00' },
+        frequencyCap: dto.frequencyCap ?? { sameCustomerDays: 7, sameChannelDays: 1 },
+        dataDependencies: dto.dataDependencies ?? this.inferDataDependencies(dto.triggerType),
+        recommendationReason: dto.recommendationReason ?? dto.description ?? '',
+        createdBy: dto.createdBy ? Number(dto.createdBy) : null,
+      },
+    });
+  }
+
+  async updateRuleTemplate(id: number, dto: any) {
+    const delegate = this.ruleTemplateDelegate();
+    if (!delegate?.update) throw new NotFoundException('Rule template storage is not available');
+    const template = await delegate.findUnique({ where: { id } });
+    if (!template) throw new NotFoundException('Rule template not found');
+    if (template.source === 'system') throw new NotFoundException('System rule templates must be cloned before editing');
+    const updated = await delegate.update({
+      where: { id },
+      data: {
+        name: dto.name ?? template.name,
+        description: dto.description ?? template.description,
+        scenario: dto.scenario ?? template.scenario,
+        priority: dto.priority ?? template.priority,
+        status: dto.status ?? template.status,
+        paramSchema: dto.paramSchema ?? template.paramSchema,
+        defaultParams: dto.defaultParams ?? template.defaultParams,
+        recommendedActions: dto.recommendedActions ?? template.recommendedActions,
+        scheduleDefault: dto.scheduleDefault ?? template.scheduleDefault,
+        frequencyCap: dto.frequencyCap ?? template.frequencyCap,
+        dataDependencies: dto.dataDependencies ?? template.dataDependencies,
+        recommendationReason: dto.recommendationReason ?? template.recommendationReason,
+      },
+    });
+    return this.serializeRuleTemplate(updated);
+  }
+
+  async previewRuleTemplateAudience(id: number) {
+    const template = await this.getRuleTemplateById(id);
+    return this.previewAudience([{
+      type: template.triggerType,
+      params: template.defaultParams ?? {},
+      parameterSource: template.source === 'system' ? 'system_default' : 'customized',
+    }], 'AND');
+  }
+
+  async enableRuleTemplate(id: number, dto: any = {}) {
+    const template = await this.getRuleTemplateById(id);
+    const preview = await this.previewRuleTemplateAudience(id);
+    const strategy = await this.strategyDelegate().create({
+      data: {
+        name: dto.name ?? template.name,
+        description: dto.description ?? template.description,
+        status: 'enabled',
+        executionType: dto.executionType ?? 'auto',
+        source: 'rule_library',
+        ruleTemplateId: template.id,
+        ruleTemplateVersion: template.version ?? RULE_TEMPLATE_VERSION,
+        schedule: dto.schedule ?? template.scheduleDefault ?? { type: 'daily', time: '09:00' },
+        triggerRules: [{
+          type: template.triggerType,
+          params: dto.defaultParams ?? template.defaultParams ?? {},
+          parameterSource: template.source === 'system' ? 'system_default' : 'customized',
+        }],
+        ruleRelation: 'AND',
+        actions: dto.actions ?? template.recommendedActions ?? [],
+        targetCount: preview.total ?? preview.estimatedCount ?? 0,
+      },
+    });
+    const delegate = this.ruleTemplateDelegate();
+    if (delegate?.update && template.source === 'store') {
+      await delegate.update({ where: { id }, data: { status: 'enabled' } });
+    }
+    return { strategy, preview, template };
+  }
+
+  async disableRuleTemplate(id: number) {
+    const delegate = this.ruleTemplateDelegate();
+    if (!delegate?.update) throw new NotFoundException('Rule template storage is not available');
+    const template = await delegate.findUnique({ where: { id } });
+    if (!template) throw new NotFoundException('Rule template not found');
+    const updated = await delegate.update({ where: { id }, data: { status: 'disabled' } });
+    await this.strategyDelegate().updateMany?.({
+      where: { ruleTemplateId: id, status: 'enabled' },
+      data: { status: 'paused' },
+    });
+    return this.serializeRuleTemplate(updated);
+  }
+
+  private async getRuleEffectsForTemplates(ids: number[]) {
+    const entries = await Promise.all(ids.map(async (id) => [id, await this.getRuleTemplateEffects(id)] as const));
+    return new Map(entries);
+  }
+
+  async getRuleTemplateEffects(id: number) {
+    let strategies: any[] = [];
+    try {
+      strategies = await this.strategyDelegate().findMany?.({
+        where: { ruleTemplateId: id },
+        include: { executions: true, touches: true },
+      }) ?? [];
+    } catch {
+      strategies = [];
+    }
+    const strategyCount = strategies.length;
+    const activeStrategyCount = strategies.filter((strategy: any) => strategy.status === 'enabled').length;
+    const reachedCount = strategies.reduce((sum: number, strategy: any) => sum + (strategy.touches?.length || strategy.executions?.reduce((inner: number, item: any) => inner + item.reachedCount, 0) || 0), 0);
+    const convertedCount = strategies.reduce((sum: number, strategy: any) => sum + (strategy.touches?.filter((item: any) => item.status === 'converted').length ?? 0), 0);
+    const revenue = strategies.reduce((sum: number, strategy: any) => sum + (strategy.touches?.reduce((inner: number, item: any) => inner + Number(item.actualRevenue ?? 0), 0) ?? 0), 0);
+    const lastExecutedAt = strategies
+      .map((strategy: any) => strategy.lastExecutedAt)
+      .filter(Boolean)
+      .sort((a: any, b: any) => new Date(b).getTime() - new Date(a).getTime())[0];
+    return {
+      ruleTemplateId: id,
+      strategyCount,
+      activeStrategyCount,
+      reachedCount,
+      convertedCount,
+      conversionRate: reachedCount ? `${Math.round((convertedCount / reachedCount) * 1000) / 10}%` : '0%',
+      returnCount: convertedCount,
+      revenue,
+      cost: reachedCount * 2,
+      roi: revenue > 0 ? `${Math.round((revenue / Math.max(reachedCount * 2, 1)) * 10) / 10}x` : '0',
+      lastExecutedAt,
+    };
+  }
+
   async findStrategies(query: PageQuery = {}) {
     const { page = 1, pageSize = 20, status } = query;
     const where = status ? { status: status as any } : {};
@@ -1616,6 +2298,7 @@ export class MarketingService {
         description: dto.description,
         status: dto.status ?? 'draft',
         executionType: dto.executionType ?? 'manual',
+        source: dto.source ?? 'manual',
         schedule: dto.schedule ?? {},
         triggerRules: dto.triggerRules ?? [],
         ruleRelation: dto.ruleRelation ?? 'AND',
@@ -1858,6 +2541,362 @@ export class MarketingService {
     });
   }
 
+  async getUnifiedEffects(query: UnifiedEffectQuery = {}) {
+    const objectType = this.normalizeEffectObjectType(query.objectType);
+    const builders: Array<Promise<UnifiedEffectItem[]>> = [];
+
+    if (!objectType || objectType === 'activity') builders.push(this.buildActivityEffectItems(query.storeId));
+    if (!objectType || objectType === 'auto') builders.push(this.buildAutomationEffectItems());
+    if (!objectType || objectType === 'page') builders.push(this.buildPageEffectItems(query.storeId));
+    if (!objectType || objectType === 'promotion') builders.push(this.buildPromotionEffectItems(query.storeId));
+    if (!objectType || objectType === 'glow') builders.push(this.buildGlowEffectItems(query.storeId));
+
+    const items = (await Promise.all(builders))
+      .flat()
+      .sort((a, b) => b.revenue - a.revenue || b.exposureCount - a.exposureCount);
+    const summary = this.summarizeUnifiedEffectItems(items);
+    const emptyReasons = this.buildUnifiedEffectEmptyReasons(items);
+
+    return {
+      items,
+      summary,
+      emptyReasons,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private normalizeEffectObjectType(type?: string): UnifiedEffectObjectType | undefined {
+    if (!type || type === 'all') return undefined;
+    return ['activity', 'auto', 'page', 'promotion', 'glow'].includes(type)
+      ? (type as UnifiedEffectObjectType)
+      : undefined;
+  }
+
+  private summarizeUnifiedEffectItems(items: UnifiedEffectItem[]) {
+    const exposureCount = items.reduce((sum, item) => sum + item.exposureCount, 0);
+    const clickCount = items.reduce((sum, item) => sum + item.clickCount, 0);
+    const conversionCount = items.reduce((sum, item) => sum + item.conversionCount, 0);
+    const revenue = this.roundMoney(items.reduce((sum, item) => sum + item.revenue, 0));
+    const cost = this.roundMoney(items.reduce((sum, item) => sum + item.cost, 0));
+    return {
+      totalObjects: items.length,
+      exposureCount,
+      clickCount,
+      conversionCount,
+      revenue,
+      cost,
+      roi: this.formatRoi(revenue, cost),
+    };
+  }
+
+  private buildUnifiedEffectEmptyReasons(items: UnifiedEffectItem[]) {
+    const emptyReasons: Partial<Record<UnifiedEffectObjectType, string>> = {};
+    const fallback: Record<UnifiedEffectObjectType, string> = {
+      activity: '暂无营销活动效果数据，请先创建活动并发布营销页面。',
+      auto: '暂无自动营销执行数据，请先启用规则并产生触达记录。',
+      page: '暂无营销页面曝光/点击数据，请先发布页面或接入页面埋点。',
+      promotion: '暂无优惠活动领券/核销数据，请先在小程序或收银侧接入优惠事件。',
+      glow: '暂无 Ami Glow 曝光/点击数据，请确认小程序行为埋点已接入。',
+    };
+
+    (['activity', 'auto', 'page', 'promotion', 'glow'] as UnifiedEffectObjectType[]).forEach((type) => {
+      const typeItems = items.filter((item) => item.objectType === type);
+      if (typeItems.length === 0) {
+        emptyReasons[type] = fallback[type];
+        return;
+      }
+      if (typeItems.every((item) => item.exposureCount === 0 && item.clickCount === 0 && item.conversionCount === 0)) {
+        emptyReasons[type] = typeItems[0]?.emptyReason ?? fallback[type];
+      }
+    });
+
+    return emptyReasons;
+  }
+
+  private async buildActivityEffectItems(_storeId?: number): Promise<UnifiedEffectItem[]> {
+    const activities = await this.prisma.marketingActivity.findMany({ orderBy: { updatedAt: 'desc' } });
+
+    return Promise.all(
+      activities.map(async (activity: any) => {
+        const pages = await this.prisma.marketingPage.findMany({
+          where: {
+            OR: [
+              { activityId: activity.id },
+              { sourceType: 'activity', sourceId: String(activity.id) },
+            ],
+          },
+          include: { events: true, leads: true, attributions: true },
+        });
+        const events = pages.flatMap((page: any) => page.events ?? []);
+        const leads = pages.flatMap((page: any) => page.leads ?? []);
+        const attributions = pages.flatMap((page: any) => page.attributions ?? []);
+        const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length || activity.participants || 0;
+        const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType)).length;
+        const attributedConversions = attributions.length;
+        const leadConversions = leads.filter((lead: any) => lead.convertedAt || ['converted', 'booked', 'paid'].includes(lead.status)).length;
+        const fallbackConversions = Math.round((activity.participants || 0) * this.parsePercent(activity.conversion) / 100);
+        const conversionCount = attributedConversions || leadConversions || fallbackConversions;
+        const revenue = this.roundMoney(attributions.reduce((sum: number, item: any) => sum + Number(item.attributedRevenue ?? 0), 0));
+        const cost = this.estimateMarketingCost(exposureCount, clickCount);
+        const lastEventAt = this.getLatestDate(events.map((event: any) => event.occurredAt));
+
+        return {
+          id: `activity-${activity.id}`,
+          objectId: activity.id,
+          objectType: 'activity',
+          objectTypeLabel: '营销活动',
+          objectName: activity.title,
+          status: activity.status,
+          exposureCount,
+          clickCount,
+          conversionCount,
+          revenue,
+          cost,
+          roi: this.formatRoi(revenue, cost),
+          conversionRate: this.formatRate(conversionCount, exposureCount),
+          dateRange: [activity.startDate, activity.endDate].filter(Boolean).join(' 至 '),
+          lastEventAt,
+          detailPath: `/customer-marketing/activity-effect/${activity.id}`,
+          emptyReason: events.length === 0 && exposureCount === 0 ? '该活动暂无页面曝光或参与数据。' : undefined,
+          metricsSource: pages.length > 0 ? '活动关联营销页面事件、留资与归因' : '活动基础参与数据',
+        };
+      }),
+    );
+  }
+
+  private async buildAutomationEffectItems(): Promise<UnifiedEffectItem[]> {
+    const strategies = await this.prisma.marketingAutomationStrategy.findMany({
+      include: {
+        executions: true,
+        touches: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return strategies.map((strategy: any) => {
+      const reachedCount = strategy.touches.length || strategy.executions.reduce((sum: number, item: any) => sum + item.reachedCount, 0);
+      const clickCount = strategy.touches.filter((touch: any) => ['clicked', 'converted'].includes(touch.status)).length;
+      const conversionCount = strategy.touches.filter((touch: any) => touch.status === 'converted' || touch.convertedAt).length;
+      const revenue = this.roundMoney(strategy.touches.reduce((sum: number, item: any) => sum + Number(item.actualRevenue ?? 0), 0));
+      const cost = this.roundMoney(reachedCount * 2);
+
+      return {
+        id: `auto-${strategy.id}`,
+        objectId: strategy.id,
+        objectType: 'auto',
+        objectTypeLabel: '自动营销',
+        objectName: strategy.name,
+        status: strategy.status,
+        exposureCount: reachedCount,
+        clickCount,
+        conversionCount,
+        revenue,
+        cost,
+        roi: this.formatRoi(revenue, cost),
+        conversionRate: this.formatRate(conversionCount, reachedCount),
+        dateRange: strategy.lastExecutedAt ? `最近执行 ${strategy.lastExecutedAt.toISOString().slice(0, 10)}` : undefined,
+        lastEventAt: strategy.lastExecutedAt?.toISOString(),
+        detailPath: '/customer-marketing/automation',
+        emptyReason: reachedCount === 0 ? '该自动营销规则暂无执行或触达记录。' : undefined,
+        metricsSource: '自动营销执行、触达与转化记录',
+      };
+    });
+  }
+
+  private async buildPageEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
+    const pages = await this.prisma.marketingPage.findMany({
+      where: storeId ? { storeId } : {},
+      include: { events: true, leads: true, attributions: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return pages.map((page: any) => {
+      const events = page.events ?? [];
+      const leads = page.leads ?? [];
+      const attributions = page.attributions ?? [];
+      const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length;
+      const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType)).length;
+      const conversionCount =
+        attributions.length || leads.filter((lead: any) => lead.convertedAt || ['converted', 'booked', 'paid'].includes(lead.status)).length;
+      const revenue = this.roundMoney(attributions.reduce((sum: number, item: any) => sum + Number(item.attributedRevenue ?? 0), 0));
+      const cost = this.estimateMarketingCost(exposureCount, clickCount);
+
+      return {
+        id: `page-${page.id}`,
+        objectId: page.id,
+        objectType: 'page',
+        objectTypeLabel: '营销页面',
+        objectName: page.title,
+        status: page.status,
+        exposureCount,
+        clickCount,
+        conversionCount,
+        revenue,
+        cost,
+        roi: this.formatRoi(revenue, cost),
+        conversionRate: this.formatRate(conversionCount, exposureCount),
+        dateRange: page.publishedAt ? `发布于 ${page.publishedAt.toISOString().slice(0, 10)}` : undefined,
+        lastEventAt: this.getLatestDate(events.map((event: any) => event.occurredAt)),
+        detailPath: '/customer-marketing/assets',
+        emptyReason: events.length === 0 ? '该营销页面暂无浏览、点击或留资事件。' : undefined,
+        metricsSource: '营销页面事件、留资与订单归因',
+      };
+    });
+  }
+
+  private async buildPromotionEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
+    const promotions = await this.prisma.promotion.findMany({
+      where: storeId ? { storeId } : {},
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return Promise.all(
+      promotions.map(async (promotion: any) => {
+        const events = await this.prisma.customerAppEvent.findMany({
+          where: {
+            ...(storeId ? { storeId } : {}),
+            targetType: { in: ['promotion', 'coupon'] },
+            targetId: String(promotion.id),
+          },
+          orderBy: { occurredAt: 'desc' },
+        });
+        const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length;
+        const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType) || event.eventType.includes('claim')).length;
+        const conversionCount = events.filter((event: any) => this.isConversionEvent(event.eventType) || event.eventType.includes('redeem')).length;
+        const cost = this.estimateMarketingCost(exposureCount, clickCount);
+
+        return {
+          id: `promotion-${promotion.id}`,
+          objectId: promotion.id,
+          objectType: 'promotion',
+          objectTypeLabel: '优惠活动',
+          objectName: promotion.name,
+          status: promotion.status,
+          exposureCount,
+          clickCount,
+          conversionCount,
+          revenue: 0,
+          cost,
+          roi: this.formatRoi(0, cost),
+          conversionRate: this.formatRate(conversionCount, exposureCount || clickCount),
+          dateRange: [promotion.startAt?.toISOString().slice(0, 10), promotion.endAt?.toISOString().slice(0, 10)]
+            .filter(Boolean)
+            .join(' 至 '),
+          lastEventAt: events[0]?.occurredAt?.toISOString(),
+          detailPath: '/customer-marketing/assets',
+          emptyReason: events.length === 0 ? '该优惠活动暂无领券、点击或核销事件；收入归因需收银侧补充优惠核销关联。' : undefined,
+          metricsSource: '小程序优惠浏览、领取与核销事件',
+        };
+      }),
+    );
+  }
+
+  private async buildGlowEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
+    const configs = await this.prisma.amiGlowDisplayConfig.findMany({
+      where: storeId ? { storeId } : {},
+      orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
+    });
+
+    return Promise.all(
+      configs.map(async (config: any) => {
+        const events = await this.prisma.customerAppEvent.findMany({
+          where: {
+            storeId: config.storeId,
+            source: 'ami_glow',
+            targetType: config.objectType,
+            targetId: String(config.objectId),
+          },
+          orderBy: { occurredAt: 'desc' },
+        });
+        const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length;
+        const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType)).length;
+        const conversionCount = events.filter((event: any) => this.isConversionEvent(event.eventType)).length;
+        const cost = this.estimateMarketingCost(exposureCount, clickCount, 0.05, 0.2);
+
+        return {
+          id: `glow-${config.id}`,
+          objectId: config.id,
+          objectType: 'glow',
+          objectTypeLabel: 'Ami Glow',
+          objectName: config.summary || `${this.getGlowObjectTypeLabel(config.objectType)} #${config.objectId}`,
+          status: config.publishStatus,
+          exposureCount,
+          clickCount,
+          conversionCount,
+          revenue: 0,
+          cost,
+          roi: this.formatRoi(0, cost),
+          conversionRate: this.formatRate(conversionCount, exposureCount || clickCount),
+          dateRange: [config.startAt?.toISOString().slice(0, 10), config.endAt?.toISOString().slice(0, 10)]
+            .filter(Boolean)
+            .join(' 至 '),
+          lastEventAt: events[0]?.occurredAt?.toISOString(),
+          detailPath: '/customer-marketing/assets',
+          emptyReason: events.length === 0 ? '该小程序推荐位暂无曝光、点击或预约事件。' : undefined,
+          metricsSource: 'Ami Glow 小程序行为事件',
+        };
+      }),
+    );
+  }
+
+  private isExposureEvent(eventType?: string) {
+    return ['view', 'page_view', 'exposure', 'show', 'impression', 'display', 'browse'].some((keyword) =>
+      String(eventType ?? '').toLowerCase().includes(keyword),
+    );
+  }
+
+  private isClickEvent(eventType?: string) {
+    return ['click', 'tap', 'cta', 'share', 'claim'].some((keyword) => String(eventType ?? '').toLowerCase().includes(keyword));
+  }
+
+  private isConversionEvent(eventType?: string) {
+    return ['convert', 'booking', 'reservation', 'order_paid', 'paid', 'redeem', 'lead_submit'].some((keyword) =>
+      String(eventType ?? '').toLowerCase().includes(keyword),
+    );
+  }
+
+  private parsePercent(value?: string | number | null) {
+    if (typeof value === 'number') return value;
+    const parsed = Number(String(value ?? '').replace('%', '').trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private formatRate(part: number, total: number) {
+    return total > 0 ? `${Math.round((part / total) * 1000) / 10}%` : '0%';
+  }
+
+  private formatRoi(revenue: number, cost: number) {
+    if (!revenue || !cost) return '0';
+    return `${Math.round((revenue / Math.max(cost, 1)) * 10) / 10}x`;
+  }
+
+  private estimateMarketingCost(exposureCount: number, clickCount: number, exposureUnitCost = 0.2, clickUnitCost = 0.5) {
+    return this.roundMoney(exposureCount * exposureUnitCost + clickCount * clickUnitCost);
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((Number(value) || 0) * 100) / 100;
+  }
+
+  private getLatestDate(values: Array<Date | string | null | undefined>) {
+    const latest = values
+      .map((value) => (value ? new Date(value).getTime() : 0))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((a, b) => b - a)[0];
+    return latest ? new Date(latest).toISOString() : undefined;
+  }
+
+  private getGlowObjectTypeLabel(objectType?: string) {
+    const labels: Record<string, string> = {
+      project: '项目',
+      product: '商品',
+      promotion: '优惠',
+      activity: '活动',
+      page: '页面',
+    };
+    return labels[String(objectType ?? '')] ?? '推荐对象';
+  }
+
   private buildPredictionSnapshot(runId: number, customer: any) {
     const now = new Date();
     const records = [...(customer.consumptionRecords ?? [])].sort(
@@ -1871,6 +2910,9 @@ export class MarketingService {
       (card: any) => card.status === 'active' && card.remainingTimes > 0 && new Date(card.expiryDate) >= now,
     ).length;
     const cardExpiryUrgencyScore = this.calculateCardExpiryUrgencyScore(customer.customerCards ?? [], now);
+    const recentTouchConversions = (customer.marketingTouches ?? []).filter(
+      (touch: any) => touch.status === 'converted' || touch.convertedAt,
+    ).length;
 
     const churn = this.calculateChurnScore({
       lastVisitDays,
@@ -1897,6 +2939,7 @@ export class MarketingService {
       skinType: customer.healthProfile?.skinType ?? customer.skinType ?? customer.skinCondition,
       activeCardCount,
       totalSpent: Number(customer.totalSpent ?? 0),
+      recentTouchConversions,
     });
     const reasons: PredictionReason[] = [
       ...churn.reasons,
@@ -1944,6 +2987,7 @@ export class MarketingService {
         skinType: customer.healthProfile?.skinType ?? customer.skinType ?? customer.skinCondition ?? '未分类',
         activeCardCount,
         cardExpiryUrgencyScore,
+        recentTouchConversions,
         recordCount: records.length,
       },
       reasonJson: reasons,
@@ -1990,6 +3034,89 @@ export class MarketingService {
           }
         : undefined,
     };
+  }
+
+  private toInvitationCandidateFromSnapshot(item: any) {
+    const customer = item.customer ?? {};
+    const feature = item.featureJson ?? {};
+    const reasons = Array.isArray(item.reasonJson) ? item.reasonJson : [];
+    const topReason = this.formatTopReason(reasons);
+    const skinType = customer.healthProfile?.skinType ?? customer.skinType ?? customer.skinCondition ?? feature.skinType;
+    const lastVisitDays = Number(feature.lastVisitDays ?? 0);
+    const evidence = [
+      topReason,
+      Number.isFinite(lastVisitDays) && lastVisitDays > 0 ? `距上次到店 ${lastVisitDays} 天` : '',
+      `复购意愿 ${Math.round(Number(item.repurchase30dScore ?? 0))} 分`,
+      `活动响应 ${Math.round(Number(item.marketingResponseScore ?? 0))} 分`,
+      skinType ? `肤质/状态：${skinType}` : '',
+    ].filter(Boolean);
+
+    return {
+      customerId: item.customerId,
+      customerName: customer.name ?? `客户${item.customerId}`,
+      memberLevel: customer.memberLevel ?? undefined,
+      phoneMasked: this.maskPhone(customer.phone),
+      skinType: skinType || undefined,
+      lastVisitDate: customer.lastVisitDate?.toISOString?.().slice(0, 10) ?? undefined,
+      preferredProjectNames: this.pickInvitationProjectNames(item),
+      reason: topReason || '客户近期具备护理跟进价值，建议由顾问确认需求后邀约。',
+      evidence: evidence.slice(0, 5),
+      priority: this.toInvitationPriority(item),
+    };
+  }
+
+  private toInvitationCandidateFromCustomer(customer: any) {
+    const skinType = customer.healthProfile?.skinType ?? customer.skinType ?? customer.skinCondition;
+    const lastVisitDays = this.daysBetween(customer.lastVisitDate, new Date());
+    const evidence = [
+      lastVisitDays ? `距上次到店 ${lastVisitDays} 天` : '暂无最近到店记录',
+      customer.memberLevel ? `会员等级：${customer.memberLevel}` : '',
+      Number(customer.totalSpent ?? 0) > 0 ? `累计消费 ${Math.round(Number(customer.totalSpent))} 元` : '',
+      skinType ? `肤质/状态：${skinType}` : '',
+    ].filter(Boolean);
+
+    return {
+      customerId: customer.id,
+      customerName: customer.name,
+      memberLevel: customer.memberLevel ?? undefined,
+      phoneMasked: this.maskPhone(customer.phone),
+      skinType: skinType || undefined,
+      lastVisitDate: customer.lastVisitDate?.toISOString?.().slice(0, 10) ?? undefined,
+      preferredProjectNames: skinType ? [`${skinType}护理方案`] : ['到店护理评估'],
+      reason: lastVisitDays && lastVisitDays >= 30
+        ? `客户 ${lastVisitDays} 天未到店，适合安排护理关怀和预约提醒。`
+        : '基于真实客户资料生成候选，建议顾问结合近期需求做邀约。',
+      evidence: evidence.slice(0, 5),
+      priority: lastVisitDays && lastVisitDays >= 45 ? 'P0' : 'P1',
+    };
+  }
+
+  private maskPhone(phone?: string | null) {
+    const raw = String(phone ?? '').trim();
+    return raw.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2') || undefined;
+  }
+
+  private pickInvitationProjectNames(item: any) {
+    const actions = Array.isArray(item.recommendedActionsJson) ? item.recommendedActionsJson : [];
+    const projectNames = actions
+      .map((action: unknown) => String(action ?? '').trim())
+      .filter(Boolean)
+      .map((action: string) => action.replace(/^(推荐|邀约|发送|提醒)/, '').replace(/(优惠|权益|提醒|邀约)$/, '').trim())
+      .filter(Boolean)
+      .slice(0, 2);
+    if (projectNames.length) return projectNames;
+
+    const skinType = item.customer?.healthProfile?.skinType ?? item.customer?.skinType ?? item.featureJson?.skinType;
+    if (skinType) return [`${skinType}护理方案`];
+    if (Number(item.repurchase30dScore ?? 0) >= 60) return ['护理周期复购方案'];
+    if (Number(item.churnScore ?? 0) >= 70) return ['回店护理关怀方案'];
+    return ['到店护理评估'];
+  }
+
+  private toInvitationPriority(item: any) {
+    if (Number(item.marketingResponseScore ?? 0) >= 75 || Number(item.churnScore ?? 0) >= 80) return 'P0';
+    if (Number(item.repurchase30dScore ?? 0) >= 60 || Number(item.churnScore ?? 0) >= 60) return 'P1';
+    return 'P2';
   }
 
   private summarizeSnapshots(snapshots: any[]) {
@@ -2239,6 +3366,10 @@ export class MarketingService {
       vip_privilege_care: { levels: ['gold', 'platinum', 'diamond'], actionIntent: 'privilege_care', channels: ['wechat', 'store'] },
       member_level: { levels: ['gold', 'platinum', 'diamond'], actionIntent: 'privilege_care', channels: ['wechat', 'store'] },
       new_customer: { withinDays: 7, hasNoOrder: true, touchDay: 3, defaultAction: 'first_order_coupon' },
+      product_expiry_clearance: { beforeDays: 60, minGapQty: 5, excludeDaysToExpiryLessThan: 7, channels: ['miniapp', 'store'] },
+      project_idle_capacity: { windowDays: 7, maxUtilizationRate: 0.6, minIdleMinutes: 120, timeRanges: ['14:00-17:00'], channels: ['miniapp', 'store'] },
+      project_cycle_due: { cycleDays: 28, lastServiceType: 'project', excludeBooked: true, channels: ['miniapp', 'sms'] },
+      product_replenishment: { replenishmentDays: 45, excludePurchasedRecently: true, sameProductOnly: true, channels: ['miniapp', 'wechat'] },
     };
     return params[triggerType] ?? {};
   }
@@ -2320,6 +3451,7 @@ export class MarketingService {
     if (input.skinType) score += 6;
     if (input.activeCardCount > 0) score += 6;
     if (input.totalSpent >= 10000) score += 8;
+    score += Math.min(Number(input.recentTouchConversions ?? 0) * 5, 15);
     return this.clamp(score, 0, 100);
   }
 

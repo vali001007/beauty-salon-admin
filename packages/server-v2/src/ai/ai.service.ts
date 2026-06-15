@@ -65,6 +65,24 @@ type SkinPhotoAnalyzeRequest = {
   capturedAt?: string;
 };
 
+type CustomerInvitationScriptRequest = {
+  scenario?: 'project' | 'promotion' | 'custom';
+  customerId?: number;
+  customerName?: string;
+  skinType?: string;
+  lastVisit?: string;
+  projectName?: string;
+  activityName?: string;
+  promotionName?: string;
+  offer?: string;
+  targetAudience?: string;
+  invitationReason?: string;
+  preferredTime?: string;
+  specialOffer?: string;
+  channel?: string;
+  evidence?: string[];
+};
+
 type SkinPhotoAnalyzeResult = {
   id: string;
   customerId?: number;
@@ -187,6 +205,22 @@ export class AiService {
     );
   }
 
+  async *chatStream(messages: AiMessage[], userId?: number, storeId?: number): AsyncGenerator<string> {
+    const start = Date.now();
+    let text = '';
+    try {
+      for await (const chunk of this.streamChatChunks(messages)) {
+        text += chunk;
+        yield chunk;
+      }
+      await this.logAudit('chat_stream', userId, storeId, this.buildMockResult('chat_stream', text), Date.now() - start, 'success');
+    } catch (error) {
+      const result = this.buildFailureResult('chat_stream', error);
+      await this.logAudit('chat_stream', userId, storeId, result, Date.now() - start, 'failed');
+      yield result.text;
+    }
+  }
+
   async generateTerminalDashboardInsights(
     data: { storeName?: string; context: any; fallback: TerminalDashboardInsights },
     userId?: number,
@@ -224,15 +258,118 @@ export class AiService {
     });
   }
 
-  async generateInvitationScript(data: { customerName: string; skinType?: string; lastVisit?: string }, userId?: number, storeId?: number) {
-    const prompt = `请为客户「${data.customerName}」生成邀约话术。肤质：${data.skinType || '未知'}，上次到店：${data.lastVisit || '未知'}`;
-    return this.runScenario('customer-invitation-script', userId, storeId, () =>
-      this.isMockProvider()
-        ? this.buildMockResult(
-            'customer-invitation-script',
-            `亲爱的${data.customerName}，好久不见。根据您的${data.skinType || '肤质'}情况，我们为您准备了更适合当前状态的护理建议，方便的话这周可以预约到店体验。`,
-          )
-        : this.callLlm('customer-invitation-script', [{ role: 'user', content: prompt }]),
+  async generateInvitationScript(data: CustomerInvitationScriptRequest, userId?: number, storeId?: number) {
+    return this.runScenario('customer-invitation-script', userId, storeId, async () => {
+      const context = await this.buildInvitationScriptContext(data);
+      if (this.isMockProvider()) {
+        return this.buildInvitationScriptMockResult(data, context);
+      }
+
+      const prompt = this.buildInvitationScriptPrompt(data, context);
+      const result = await this.callLlm('customer-invitation-script', [{ role: 'user', content: prompt }]);
+      return {
+        ...result,
+        scenario: 'customer_invitation_script',
+        structured: {
+          ...(((result as AiGenerationResult).structured as Record<string, unknown> | undefined) ?? {}),
+          context,
+        },
+      };
+    });
+  }
+
+  private async buildInvitationScriptContext(data: CustomerInvitationScriptRequest) {
+    const customerId = Number(data.customerId || 0);
+    let customer: any = null;
+    if (customerId && this.prisma.customer?.findUnique) {
+      customer = await this.prisma.customer.findUnique({
+        where: { id: customerId },
+        include: {
+          healthProfile: true,
+          consumptionRecords: {
+            orderBy: { consumeTime: 'desc' },
+            take: 3,
+          },
+        },
+      }).catch(() => null);
+    }
+
+    const evidence = [
+      ...(Array.isArray(data.evidence) ? data.evidence : []),
+      customer?.lastVisitDate ? `上次到店：${customer.lastVisitDate.toISOString?.().slice(0, 10)}` : '',
+      customer?.healthProfile?.skinType || data.skinType ? `肤质：${customer?.healthProfile?.skinType ?? data.skinType}` : '',
+      ...(customer?.consumptionRecords ?? [])
+        .map((record: any) => record.consumeContent || record.projectName || record.consumeType)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((item: string) => `近期消费：${item}`),
+    ].filter(Boolean).slice(0, 6);
+
+    return {
+      customerId: customer?.id ?? data.customerId,
+      customerName: customer?.name ?? data.customerName ?? '会员',
+      memberLevel: customer?.memberLevel,
+      skinType: customer?.healthProfile?.skinType ?? customer?.skinType ?? data.skinType,
+      lastVisit: customer?.lastVisitDate?.toISOString?.().slice(0, 10) ?? data.lastVisit,
+      scenario: data.scenario ?? 'custom',
+      projectName: data.projectName,
+      activityName: data.activityName ?? data.promotionName,
+      offer: data.offer ?? data.specialOffer,
+      targetAudience: data.targetAudience,
+      invitationReason: data.invitationReason,
+      preferredTime: data.preferredTime,
+      channel: data.channel ?? 'wechat',
+      evidence,
+    };
+  }
+
+  private buildInvitationScriptPrompt(data: CustomerInvitationScriptRequest, context: Record<string, any>) {
+    return [
+      '你是美容门店顾问的客户邀约助手。请生成一段客户可见的邀约话术。',
+      '要求：只基于输入数据和证据生成，不编造客户事实；不得暴露 LTV、流失风险、模型分、内部标签；不承诺疗效；语气温暖、简洁、适合微信私聊。',
+      JSON.stringify({
+        scenario: data.scenario ?? context.scenario,
+        customer: {
+          name: context.customerName,
+          memberLevel: context.memberLevel,
+          skinType: context.skinType,
+          lastVisit: context.lastVisit,
+        },
+        campaign: {
+          projectName: data.projectName,
+          activityName: data.activityName ?? data.promotionName,
+          offer: data.offer ?? data.specialOffer,
+          targetAudience: data.targetAudience,
+          invitationReason: data.invitationReason,
+          preferredTime: data.preferredTime,
+          channel: data.channel,
+        },
+        evidence: context.evidence,
+      }),
+    ].join('\n');
+  }
+
+  private buildInvitationScriptMockResult(data: CustomerInvitationScriptRequest, context: Record<string, any>) {
+    const name = this.sanitizeMarketingInputText(String(context.customerName || data.customerName || '会员')) || '会员';
+    const project = this.sanitizeMarketingInputText(String(data.projectName || context.projectName || '适合您的护理方案')) || '适合您的护理方案';
+    const offer = this.sanitizeMarketingInputText(String(data.offer || data.specialOffer || context.offer || '到店可享专属护理建议')) || '到店可享专属护理建议';
+    const evidenceText = Array.isArray(context.evidence) && context.evidence.length
+      ? `结合${context.evidence.slice(0, 2).join('、')}`
+      : '结合您近期的护理需求';
+    const text = [
+      `${name}您好，${evidenceText}，门店这边为您准备了「${project}」。`,
+      `${offer}，到店后顾问会先确认您的肌肤状态和时间安排，再为您细化护理方案。`,
+      context.preferredTime ? `如果方便，可以优先为您预留 ${context.preferredTime}。` : '这周有空的话，可以帮您先预留一个合适时段。',
+    ].join('\n');
+
+    return this.buildMockResult(
+      'customer_invitation_script',
+      text,
+      {
+        context,
+        channel: data.channel ?? 'wechat',
+        customerFacing: true,
+      },
     );
   }
 
@@ -512,6 +649,7 @@ export class AiService {
 
   async generateTerminalServiceAdvice(data: { customerId?: number; projectId?: number; taskId?: number; skinTestId?: number }, userId?: number, storeId?: number) {
     const fallback = this.buildTerminalServiceAdviceFallback(data);
+    const customerProfile = data.customerId ? await this.buildCustomerProfileContext(data.customerId) : null;
     return this.runScenario('terminal_service_advice', userId, storeId, async () => {
       if (this.isMockProvider()) {
         return this.buildMockResult(
@@ -527,7 +665,7 @@ export class AiService {
           content:
             '你是美容门店服务规划助手。只能基于用户提供的 JSON 数据输出服务建议，不得编造项目名称、客户信息或耗材数量。必须输出合法 JSON，格式为 {"preChecks":[],"keySteps":[],"materialUsage":[],"followUpAdvice":"","nextBookingHint":""}。数组最多 4 条，每条不超过 30 字。',
         },
-        { role: 'user', content: JSON.stringify({ input: data, fallback }) },
+        { role: 'user', content: JSON.stringify({ input: data, customerProfile, fallback }) },
       ]);
       const structured = this.normalizeTerminalServiceAdvice(this.safeParseJsonObject(result.text), fallback);
       return {
@@ -539,7 +677,11 @@ export class AiService {
   }
 
   async recommendNextBestAction(data: { customerId: number; context: any }, userId?: number, storeId?: number) {
-    const fallback = this.buildNextBestActionFallback(data);
+    const enrichedData = {
+      ...data,
+      context: await this.buildNextBestActionContext(data.customerId, data.context),
+    };
+    const fallback = this.buildNextBestActionFallback(enrichedData);
     return this.runScenario('next_best_action', userId, storeId, async () => {
       if (this.isMockProvider()) {
         return this.buildMockResult('next_best_action', this.formatNextBestActionText(fallback), fallback);
@@ -551,7 +693,7 @@ export class AiService {
           content:
             '你是客户下一步行动推荐助手。只能从 recommend_project、send_care_reminder、offer_card、escalate_to_consultant 中选择 action，基于用户提供的 JSON 给出唯一最优建议。必须输出合法 JSON，格式为 {"action":"","reason":"","projectName":"","urgency":"","confidence":0}。reason 必须引用具体数据证据，不得泛泛而谈。',
         },
-        { role: 'user', content: JSON.stringify({ input: data, fallback }) },
+        { role: 'user', content: JSON.stringify({ input: enrichedData, fallback }) },
       ]);
       const structured = this.normalizeNextBestAction(this.safeParseJsonObject(result.text), fallback);
       return {
@@ -685,6 +827,9 @@ export class AiService {
       /护理周期复购方案/,
       /高流失风险/,
       /流失风险/,
+      /高价值客户/,
+      /高\s*LTV/i,
+      /客户需要维护/,
       /即将流失/,
       /沉睡客户/,
       /待唤醒/,
@@ -716,6 +861,8 @@ export class AiService {
       .replace(/进入\s*\d+\s*天复购窗口[。；，,、\s]*/g, '')
       .replace(/\d+\s*天复购窗口/g, '护理焕新')
       .replace(/高流失风险客户|流失风险客户|即将流失客户|沉睡客户|待唤醒客户/g, '老朋友')
+      .replace(/高\s*LTV\s*客户|高价值客户/g, 'VIP会员')
+      .replace(/客户需要维护/g, '会员权益维护')
       .replace(/护理周期复购方案/g, '护理焕新方案')
       .replace(/复购窗口/g, '护理焕新')
       .replace(/推荐命中|命中客户|客户群体|智能推荐|策略名称|营销策略|策略|触发规则|自动规则|规则条件/g, '')
@@ -736,10 +883,24 @@ export class AiService {
     if (/新客|首单|首次/.test(signal)) return '新客首护体验礼';
     if (/敏感|修护|舒缓/.test(signal)) return '敏感肌舒缓护理季';
     if (/补水|保湿|干性/.test(signal)) return '补水保湿护理季';
-    if (/VIP|会员|高价值|铂金|黄金/.test(signal)) return '会员专属护理礼遇';
+    if (/LTV|VIP|会员|高价值|铂金|黄金|尊享|权益|优先权/.test(signal)) return 'VIP尊享护理礼遇';
 
     const candidate = this.sanitizeMarketingInputText(data.campaignName || data.activityName || '');
     return candidate && !this.hasInternalMarketingCopyTerms(candidate) ? candidate : '会员专属护理活动';
+  }
+
+  private toCustomerFacingActivityTitle(data: any, campaignName: string) {
+    const signal = this.getMarketingCopySignal(data);
+    if (/流失|沉睡|唤醒|回归|未到店/.test(signal)) return '老朋友回店护理礼已为你留好';
+    if (/复购窗口|护理周期|30\s*天复购|复购/.test(signal)) return '本期护理焕新权益已开启';
+    if (/次卡|套餐|卡项|核销|划扣/.test(signal)) return '你的卡项护理权益待预约';
+    if (/优惠券|券/.test(signal)) return '专属护理优惠限时可领';
+    if (/生日|寿星/.test(signal)) return '生日月护理礼遇已送达';
+    if (/新客|首单|首次/.test(signal)) return '新客首护体验权益已开启';
+    if (/敏感|修护|舒缓/.test(signal)) return '敏感肌舒缓修护权益已开启';
+    if (/补水|保湿|干性/.test(signal)) return '补水保湿护理权益已开启';
+    if (/LTV|VIP|会员|高价值|铂金|黄金|尊享|权益|优先权/.test(signal)) return '本期VIP专属护理权益已开启';
+    return campaignName;
   }
 
   private toCustomerFacingMarketingAudience(data: any) {
@@ -747,6 +908,7 @@ export class AiService {
     if (/流失|沉睡|唤醒|回归|未到店/.test(signal)) return '老朋友';
     if (/生日|寿星/.test(signal)) return '寿星会员';
     if (/新客|首单|首次/.test(signal)) return '新朋友';
+    if (/LTV|VIP|高价值|铂金|黄金|尊享|权益|优先权/.test(signal)) return 'VIP会员';
     return '会员';
   }
 
@@ -793,18 +955,16 @@ export class AiService {
     ].filter(Boolean).join(' ');
     const isReturnCare = /流失|沉睡|未到店|回归|唤醒/.test(signal);
     const isBirthday = /生日|寿星/.test(signal);
-    const title = isReturnCare
-      ? '老朋友回店护理礼'
-      : isBirthday
-        ? '生日月专属护理礼'
-        : data.campaignName || '会员专属护理活动';
-    const audienceLabel = isReturnCare ? '老朋友' : isBirthday ? '寿星会员' : data.targetAudience || '会员';
+    const title = this.toCustomerFacingMarketingCampaignName(data);
+    const heroTitle = this.toCustomerFacingActivityTitle(data, title);
+    const audienceLabel = this.toCustomerFacingMarketingAudience(data);
     const offer = data.offer || '到店可享专属护理权益';
     const startDate = data.startDate || new Date().toISOString().slice(0, 10);
     const endDate = data.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const rawProjectNames = Array.isArray(data.projectNames) ? data.projectNames : [];
     const projectNames = rawProjectNames
-      .filter((name: string) => !/流失|沉睡|高风险|风险|唤醒|挽回|LTV|转化率|算法|分层/.test(String(name)))
+      .map((name: string) => this.sanitizeMarketingInputText(name))
+      .filter((name: string) => name && !this.hasInternalMarketingCopyTerms(name))
       .slice(0, 3);
     if (projectNames.length === 0) {
       projectNames.push(isReturnCare ? '回店护理关怀方案' : '补水修护护理', '舒缓清洁护理');
@@ -826,7 +986,7 @@ export class AiService {
         {
           type: 'hero',
           badge: '限时活动',
-          title,
+          title: heroTitle,
           subtitle: isReturnCare ? '回店护理礼已为你准备好' : '本期护理权益已开启',
           description: isReturnCare
             ? '不打扰，只是提醒你可以把护理节奏重新接上。到店后顾问会根据当前肤况安排更合适的项目。'
@@ -1067,6 +1227,56 @@ export class AiService {
       'chat',
       `收到您的消息：「${lastMessage.slice(0, 80)}」。我会基于 Ami Core 的业务数据给出解释和下一步建议。`,
     );
+  }
+
+  private async *streamChatChunks(messages: AiMessage[]): AsyncGenerator<string> {
+    if (this.isMockProvider()) {
+      yield* this.chunkText(this.mockChat(messages).text);
+      return;
+    }
+
+    if (this.provider === 'deepseek' || this.provider === 'openai_compatible') {
+      try {
+        yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
+          provider: this.provider,
+          model: this.model,
+          apiKey: this.apiKey,
+          baseUrl: this.baseUrl,
+          chatPath: this.chatPath,
+          timeoutMs: this.timeoutMs,
+        });
+        return;
+      } catch (error) {
+        if (!this.hasFallbackProvider()) throw error;
+      }
+    }
+
+    if (this.hasFallbackProvider()) {
+      try {
+        yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
+          provider: this.fallbackProvider === 'openai-compat' ? 'openai_compatible' : this.fallbackProvider,
+          model: this.fallbackModel,
+          apiKey: this.fallbackApiKey,
+          baseUrl: this.fallbackBaseUrl,
+          chatPath: this.fallbackChatPath || this.chatPath,
+          timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+        });
+        return;
+      } catch {
+        // Fall through to non-stream response.
+      }
+    }
+
+    const result = await this.callLlm('chat', messages);
+    yield* this.chunkText(result.text);
+  }
+
+  private async *chunkText(text: string): AsyncGenerator<string> {
+    const source = text || '';
+    for (let index = 0; index < source.length; index += 12) {
+      yield source.slice(index, index + 12);
+      await new Promise((resolve) => setTimeout(resolve, 16));
+    }
   }
 
   private buildSkinPhotoAnalyzeResult(data: SkinPhotoAnalyzeRequest): SkinPhotoAnalyzeResult {
@@ -1638,6 +1848,99 @@ export class AiService {
     };
   }
 
+  private async *callOpenAiCompatibleStream(
+    scenario: string,
+    messages: AiMessage[],
+    providerConfig: {
+      provider: string;
+      model: string;
+      apiKey: string;
+      baseUrl: string;
+      chatPath: string;
+      timeoutMs: number;
+    },
+  ): AsyncGenerator<string> {
+    if (!providerConfig.apiKey) {
+      throw new AiProviderError('CONFIG_MISSING', 'AI 服务尚未配置 API Key');
+    }
+
+    const body: Record<string, unknown> = {
+      model: providerConfig.model,
+      messages: this.normalizeMessages(messages),
+      max_tokens: this.maxTokens,
+      temperature: this.temperature,
+      stream: true,
+    };
+
+    if (providerConfig.provider === 'deepseek') {
+      if (this.thinking === 'enabled') {
+        body.thinking = { type: 'enabled' };
+        if (this.reasoningEffort) {
+          body.reasoning_effort = this.reasoningEffort;
+        }
+      } else if (this.thinking === 'disabled') {
+        body.thinking = { type: 'disabled' };
+      }
+    }
+
+    const response = await fetch(this.getOpenAiCompatibleUrlFor(providerConfig.baseUrl, providerConfig.chatPath), {
+      method: 'POST',
+      signal: AbortSignal.timeout(providerConfig.timeoutMs),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${providerConfig.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    }).catch((error) => {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new AiProviderError('TIMEOUT', 'AI 服务请求超时');
+      }
+      throw new AiProviderError('NETWORK_ERROR', 'AI 服务网络请求失败');
+    });
+
+    if (!response.ok) {
+      throw new AiProviderError('UPSTREAM_ERROR', `AI 服务返回 ${response.status}`, response.status);
+    }
+
+    if (!response.body) {
+      const result = await this.callOpenAiCompatibleWithConfig(scenario, messages, providerConfig);
+      yield* this.chunkText(result.text);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? '';
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+
+        try {
+          const data = JSON.parse(payload);
+          const delta =
+            data.choices?.[0]?.delta?.content ??
+            data.choices?.[0]?.message?.content ??
+            data.choices?.[0]?.text ??
+            '';
+          if (delta) yield String(delta);
+        } catch {
+          if (payload) yield payload;
+        }
+      }
+    }
+  }
+
   private async callAnthropicCompatible(scenario: string, messages: AiMessage[]) {
     const response = await fetch(this.baseUrl, {
       method: 'POST',
@@ -1696,6 +1999,92 @@ export class AiService {
     } catch {
       return null;
     }
+  }
+
+  private async buildCustomerProfileContext(customerId: number) {
+    if (!this.prisma.customer?.findUnique || !this.prisma.customerPredictionSnapshot?.findFirst) return null;
+    const [customer, prediction] = await Promise.all([
+      this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: {
+          id: true,
+          name: true,
+          skinType: true,
+          skinCondition: true,
+          memberLevel: true,
+          visitCount: true,
+          totalSpent: true,
+          lastVisitDate: true,
+          healthProfile: {
+            select: {
+              skinType: true,
+              skinStatus: true,
+              mainProblems: true,
+              allergyHistory: true,
+              goals: true,
+              recommendedCare: true,
+            },
+          },
+        },
+      }),
+      this.prisma.customerPredictionSnapshot.findFirst({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          churnScore: true,
+          churnLevel: true,
+          repurchase30dScore: true,
+          marketingResponseScore: true,
+          ltvTier: true,
+          featureJson: true,
+          reasonJson: true,
+          recommendedActionsJson: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+    if (!customer && !prediction) return null;
+    return {
+      customer: customer
+        ? {
+            id: customer.id,
+            name: customer.name,
+            memberLevel: customer.memberLevel,
+            visitCount: customer.visitCount,
+            totalSpent: Number(customer.totalSpent ?? 0),
+            lastVisitDate: customer.lastVisitDate?.toISOString?.() ?? null,
+            skinType: customer.healthProfile?.skinType ?? customer.skinType,
+            skinCondition: customer.skinCondition,
+            skinStatus: customer.healthProfile?.skinStatus,
+            mainProblems: customer.healthProfile?.mainProblems,
+            allergyHistory: customer.healthProfile?.allergyHistory,
+            goals: customer.healthProfile?.goals,
+            recommendedCare: customer.healthProfile?.recommendedCare,
+          }
+        : null,
+      prediction: prediction
+        ? {
+            churnScore: prediction.churnScore,
+            churnLevel: prediction.churnLevel,
+            repurchase30dScore: prediction.repurchase30dScore,
+            marketingResponseScore: prediction.marketingResponseScore,
+            ltvTier: prediction.ltvTier,
+            featureJson: prediction.featureJson,
+            reasonJson: prediction.reasonJson,
+            recommendedActionsJson: prediction.recommendedActionsJson,
+            updatedAt: prediction.createdAt.toISOString(),
+          }
+        : null,
+    };
+  }
+
+  private async buildNextBestActionContext(customerId: number, context: any) {
+    const customerProfile = await this.buildCustomerProfileContext(customerId);
+    return {
+      ...(context ?? {}),
+      customerProfile,
+      prediction: customerProfile?.prediction ?? null,
+    };
   }
 
   private buildTerminalServiceAdviceFallback(data: { customerId?: number; projectId?: number; taskId?: number; skinTestId?: number }): TerminalServiceAdviceStructured {

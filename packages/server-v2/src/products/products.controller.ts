@@ -3,6 +3,8 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ProductsService } from './products.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { CreateProductDto } from './dto/create-product.dto.js';
+import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -83,15 +85,15 @@ export class ProductsController {
   @Post()
   @Permissions('core:goods:products')
   @ApiOperation({ summary: '创建商品' })
-  create(@Body() dto: any) {
-    return this.productsService.create(dto);
+  create(@Body() dto: CreateProductDto, @Headers('x-store-id') storeId?: string) {
+    return this.productsService.create(dto, storeId ? +storeId : undefined);
   }
 
   @Put(':id')
   @Permissions('core:goods:products')
   @ApiOperation({ summary: '更新商品' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.productsService.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto, @Headers('x-store-id') storeId?: string) {
+    return this.productsService.update(id, dto, storeId ? +storeId : undefined);
   }
 
   @Delete(':id')

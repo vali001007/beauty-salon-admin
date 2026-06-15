@@ -44,15 +44,15 @@ export class BeauticiansController {
   @Post('beauticians')
   @Permissions('core:store:beauticians')
   @ApiOperation({ summary: '创建美容师' })
-  create(@Body() dto: any) {
-    return this.beauticiansService.create(dto);
+  create(@Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.beauticiansService.create(dto, storeId ? +storeId : undefined);
   }
 
   @Put('beauticians/:id')
   @Permissions('core:store:beauticians')
   @ApiOperation({ summary: '更新美容师' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.beauticiansService.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.beauticiansService.update(id, dto, storeId ? +storeId : undefined);
   }
 
   @Delete('beauticians/:id')

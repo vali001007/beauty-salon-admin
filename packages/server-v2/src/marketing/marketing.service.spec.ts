@@ -37,10 +37,20 @@ describe('MarketingService', () => {
     const mockPrisma = {
       marketingActivity: {
         findMany: jest.fn(),
+        findUnique: jest.fn(),
         count: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      marketingPage: {
+        findMany: jest.fn(),
+      },
+      marketingPageLead: {
+        count: jest.fn(),
+      },
+      productOrder: {
+        count: jest.fn(),
       },
       marketingAutomationStrategy: {
         findMany: jest.fn(),
@@ -48,7 +58,16 @@ describe('MarketingService', () => {
         count: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
         delete: jest.fn(),
+      },
+      marketingRuleTemplate: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        count: jest.fn(),
+        create: jest.fn(),
+        createMany: jest.fn(),
+        update: jest.fn(),
       },
       marketingAutomationExecution: {
         findMany: jest.fn(),
@@ -98,12 +117,17 @@ describe('MarketingService', () => {
       const activities = [mockActivity];
       prisma.marketingActivity.findMany.mockResolvedValue(activities);
       prisma.marketingActivity.count.mockResolvedValue(1);
+      prisma.marketingPage.findMany.mockResolvedValue([]);
+      prisma.marketingPageLead.count.mockResolvedValue(0);
+      prisma.productOrder.count.mockResolvedValue(0);
+      prisma.marketingActivity.update.mockImplementation(async ({ data }: any) => ({ ...mockActivity, ...data }));
 
       const result = await service.findActivities({ page: 1, pageSize: 20 });
 
+      const refreshedActivities = [{ ...mockActivity, conversion: '0%' }];
       expect(result).toEqual({
-        items: activities,
-        data: activities,
+        items: refreshedActivities,
+        data: refreshedActivities,
         total: 1,
         page: 1,
         pageSize: 20,
@@ -113,6 +137,9 @@ describe('MarketingService', () => {
     it('should filter activities by status', async () => {
       prisma.marketingActivity.findMany.mockResolvedValue([]);
       prisma.marketingActivity.count.mockResolvedValue(0);
+      prisma.marketingPage.findMany.mockResolvedValue([]);
+      prisma.marketingPageLead.count.mockResolvedValue(0);
+      prisma.productOrder.count.mockResolvedValue(0);
 
       await service.findActivities({ page: 1, pageSize: 20, status: 'active' });
 
@@ -168,13 +195,13 @@ describe('MarketingService', () => {
     it('should return upgraded trigger types', async () => {
       const result = await service.getTriggerOptions();
 
-      expect(result).toHaveLength(24);
+      expect(result).toHaveLength(26);
     });
 
     it('should include expected trigger categories', async () => {
       const result = await service.getTriggerOptions();
 
-      const categories = [...new Set(result.map((t) => t.category))];
+      const categories = [...new Set(result.map((t: any) => t.category))];
       expect(categories).toContain('时间触发');
       expect(categories).toContain('行为触发');
       expect(categories).toContain('属性触发');
@@ -183,7 +210,7 @@ describe('MarketingService', () => {
     it('should include birthday trigger', async () => {
       const result = await service.getTriggerOptions();
 
-      const birthday = result.find((t) => t.type === 'birthday');
+      const birthday = result.find((t: any) => t.type === 'birthday');
       expect(birthday).toBeDefined();
       expect(birthday!.name).toBe('生日触发');
       expect(birthday!.category).toBe('时间触发');
@@ -194,7 +221,7 @@ describe('MarketingService', () => {
     it('should include all expected trigger types', async () => {
       const result = await service.getTriggerOptions();
 
-      const types = result.map((t) => t.type);
+      const types = result.map((t: any) => t.type);
       expect(types).toContain('birthday');
       expect(types).toContain('last_visit');
       expect(types).toContain('dormant');
@@ -209,6 +236,8 @@ describe('MarketingService', () => {
       expect(types).toContain('coupon_claimed_unused');
       expect(types).toContain('browse_abandonment');
       expect(types).toContain('booking_abandonment');
+      expect(types).toContain('product_expiry_clearance');
+      expect(types).toContain('project_idle_capacity');
       expect(types).toContain('seasonal_skin_care');
       expect(types).toContain('holiday_campaign');
       expect(types).toContain('vip_privilege_care');
@@ -219,6 +248,87 @@ describe('MarketingService', () => {
       expect(types).toContain('service_interest');
       expect(types).toContain('new_customer');
       expect(types).toContain('age_range');
+    });
+  });
+
+  describe('rule templates', () => {
+    const template = {
+      id: 1,
+      code: 'system_dormant',
+      name: '沉睡客户唤醒',
+      description: '超过指定天数未到店。',
+      source: 'system',
+      category: 'behavior',
+      categoryLabel: '行为触发',
+      scenario: '流失召回',
+      priority: 'P0',
+      status: 'recommended',
+      version: '1.0.0',
+      triggerType: 'dormant',
+      paramSchema: [],
+      defaultParams: { days: 60, channels: ['miniapp'] },
+      recommendedActions: [{ type: 'push', value: '回归专享', channel: 'miniapp' }],
+      scheduleDefault: { type: 'daily', time: '09:00' },
+      frequencyCap: { sameCustomerDays: 7 },
+      dataDependencies: ['客户档案'],
+      recommendationReason: '自动唤醒长期未到店客户',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('should return paginated rule templates', async () => {
+      prisma.marketingRuleTemplate.count.mockResolvedValue(1);
+      prisma.marketingRuleTemplate.findMany.mockResolvedValue([template]);
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([]);
+
+      const result = await service.findRuleTemplates({ page: 1, pageSize: 10, source: 'system' });
+
+      expect(result.total).toBe(1);
+      expect(result.items[0]).toMatchObject({ name: '沉睡客户唤醒', effect: expect.any(Object) });
+      expect(prisma.marketingRuleTemplate.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ source: 'system' }),
+          take: 10,
+        }),
+      );
+    });
+
+    it('should clone a system rule as store rule', async () => {
+      prisma.marketingRuleTemplate.count.mockResolvedValue(1);
+      prisma.marketingRuleTemplate.findUnique.mockResolvedValue(template);
+      prisma.marketingRuleTemplate.create.mockResolvedValue({ ...template, id: 2, source: 'store', baseTemplateId: 1 });
+
+      const result = await service.cloneRuleTemplate(1, { storeId: 1 });
+
+      expect(result).toMatchObject({ id: 2, source: 'store', baseTemplateId: 1 });
+      expect(prisma.marketingRuleTemplate.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ source: 'store', storeId: 1, baseTemplateId: 1 }),
+        }),
+      );
+    });
+
+    it('should enable a rule template by creating an automation strategy', async () => {
+      prisma.marketingRuleTemplate.findUnique.mockResolvedValue(template);
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([]);
+      prisma.customer.count.mockResolvedValue(0);
+      prisma.predictionRun.findFirst.mockResolvedValue(null);
+      prisma.customer.findMany.mockResolvedValue([]);
+      prisma.marketingAutomationStrategy.create.mockResolvedValue({ id: 9, name: template.name, status: 'enabled' });
+
+      const result = await service.enableRuleTemplate(1);
+
+      expect(result.strategy).toMatchObject({ id: 9, status: 'enabled' });
+      expect(prisma.marketingAutomationStrategy.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            source: 'rule_library',
+            ruleTemplateId: 1,
+            ruleTemplateVersion: '1.0.0',
+            status: 'enabled',
+          }),
+        }),
+      );
     });
   });
 

@@ -49,6 +49,28 @@ describe('AiService', () => {
     expect(result.safety).toMatchObject({ masked: true, blocked: false });
   });
 
+  it('generates customer invitation script from structured scenario fields', async () => {
+    const result = await service.generateInvitationScript({
+      scenario: 'project',
+      customerName: '王女士',
+      skinType: '干性肌肤',
+      projectName: '补水护理',
+      offer: '到店享护理建议',
+      evidence: ['距上次到店 35 天', '偏好补水项目'],
+    });
+
+    expect(result.scenario).toBe('customer_invitation_script');
+    expect(result.text).toContain('王女士');
+    expect(result.text).toContain('补水护理');
+    expect(result.text).not.toContain('LTV');
+    expect(result.text).not.toContain('流失风险');
+    expect(result.structured?.context).toMatchObject({
+      customerName: '王女士',
+      skinType: '干性肌肤',
+      projectName: '补水护理',
+    });
+  });
+
   it('generates terminal service advice with structured fields', async () => {
     const result = await service.generateTerminalServiceAdvice({ customerId: 1, projectId: 2 });
 
@@ -178,6 +200,26 @@ describe('AiService', () => {
 
     expect(result.action).toBe('operation.verify');
     expect(result.confidence).toBeGreaterThanOrEqual(0.65);
+  });
+
+  it('streams chat chunks and records a successful audit log', async () => {
+    const chunks: string[] = [];
+
+    for await (const chunk of service.chatStream([{ role: 'user', content: '今日经营怎么样' }], 7, 1)) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.join('')).toContain('今日经营怎么样');
+    expect((service as any).prisma.aiAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scenario: 'chat_stream',
+        provider: 'mock',
+        status: 'success',
+        userId: 7,
+        storeId: 1,
+      }),
+    });
   });
 
   it('normalizes terminal intent when AI returns an unauthorized action', () => {
@@ -505,5 +547,34 @@ describe('AiService', () => {
     expect(output).not.toContain('营销策略');
     expect(output).not.toContain('RFM');
     expect(output).not.toContain('算法');
+  });
+
+  it('generates customer-facing activity page names for high LTV recommendations', async () => {
+    const result = await service.generateActivityPage({
+      campaignName: '305 位高 LTV 客户需要维护',
+      targetAudience: '高 LTV 客户（305人）',
+      offer: 'VIP专属权益',
+      source: 'LTV 分层显示这些客户未来 12 个月价值高，建议提供权益维护与预约优先权。',
+      segment: '高 LTV 客户',
+      triggerReasons: ['LTV 模型命中', '高价值客户'],
+      projectNames: ['VIP护理权益方案'],
+    });
+
+    const pageSchema = result.pageSchema;
+    expect(pageSchema).toBeDefined();
+    const output = JSON.stringify({
+      title: pageSchema!.title,
+      hero: pageSchema!.sections.find((section) => section.type === 'hero'),
+      audienceLabel: pageSchema!.audienceLabel,
+    });
+
+    expect(result.scenario).toBe('activity-page');
+    expect(result.safety.blocked).toBe(false);
+    expect(pageSchema!.title).toBe('VIP尊享护理礼遇');
+    expect(output).toContain('本期VIP专属护理权益已开启');
+    expect(output).not.toContain('305');
+    expect(output).not.toContain('LTV');
+    expect(output).not.toContain('高价值客户');
+    expect(output).not.toContain('需要维护');
   });
 });

@@ -1,5 +1,8 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentDevice } from './decorators/current-device.decorator.js';
 import {
@@ -16,6 +19,7 @@ import {
   DeviceHeartbeatDto,
   DeviceLoginDto,
   QuickCreateCustomerDto,
+  QueryTerminalConversationsDto,
   RefundBalanceDto,
   ReservationAvailabilityQueryDto,
   RescheduleReservationDto,
@@ -23,7 +27,12 @@ import {
   UpdateReservationDto,
   UpdateTerminalAutomationDto,
   AdjustBalanceDto,
+  SaveTerminalConversationDto,
   VerifyCardDto,
+  AssignTerminalFollowUpTaskDto,
+  CompleteTerminalFollowUpTaskDto,
+  CreateTerminalFollowUpTaskDto,
+  QueryTerminalFollowUpTasksDto,
 } from './dto/index.js';
 import { DeviceAuthGuard } from './guards/device-auth.guard.js';
 import { TerminalService } from './terminal.service.js';
@@ -85,9 +94,10 @@ export class TerminalBootstrapController {
   bootstrap(
     @CurrentDevice('storeId') storeId: number,
     @CurrentDevice('userId') userId?: number,
+    @Query('operatorId') operatorId?: string,
     @Query('role') role?: string,
   ) {
-    return this.terminalService.getBootstrap(storeId, userId, role);
+    return this.terminalService.getBootstrap(storeId, userId, role, operatorId ? Number(operatorId) : undefined);
   }
 
   @Get('config')
@@ -100,6 +110,61 @@ export class TerminalBootstrapController {
   @ApiOperation({ summary: '终端目录同步' })
   catalog(@CurrentDevice('storeId') storeId: number, @Query('since') since?: string) {
     return this.terminalService.getCatalogSync(storeId, since);
+  }
+}
+
+@ApiTags('Terminal - 对话历史')
+@ApiBearerAuth()
+@UseGuards(DeviceAuthGuard)
+@Controller('terminal/conversations')
+export class TerminalConversationController {
+  constructor(private terminalService: TerminalService) {}
+
+  @Post('save')
+  @ApiOperation({ summary: '保存终端当天对话' })
+  save(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('deviceCode') deviceCode: string,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() dto: SaveTerminalConversationDto,
+  ) {
+    return this.terminalService.saveConversation(storeId, deviceCode, userId, dto);
+  }
+
+  @Get('history')
+  @ApiOperation({ summary: '查询终端历史对话' })
+  history(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('deviceCode') deviceCode: string,
+    @Query() query: QueryTerminalConversationsDto,
+  ) {
+    return this.terminalService.getConversationHistory(storeId, deviceCode, query);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: '查看终端历史对话详情' })
+  detail(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('deviceCode') deviceCode: string,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.terminalService.getConversationDetail(storeId, deviceCode, id);
+  }
+
+}
+
+@ApiTags('Terminal - 对话历史')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Controller('terminal/conversations')
+export class TerminalConversationAdminController {
+  constructor(private terminalService: TerminalService) {}
+
+  @Delete(':id')
+  @Permissions('core:system:stores')
+  @ApiOperation({ summary: '管理员删除终端历史对话' })
+  delete(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.terminalService.deleteConversationAsAdmin(id, storeId ? +storeId : undefined);
   }
 }
 
@@ -122,6 +187,17 @@ export class TerminalCustomerController {
     return this.terminalService.quickCreateCustomer(storeId, dto);
   }
 
+  @Get('growth-candidates')
+  @ApiOperation({ summary: 'Customer growth candidates from latest prediction run' })
+  getGrowthCandidates(@CurrentDevice('storeId') storeId: number, @Query('limit') limit?: string) {
+    return this.terminalService.getGrowthCandidates(storeId, limit ? Number(limit) : 10);
+  }
+
+  @Get(':id/profile')
+  @ApiOperation({ summary: 'Terminal customer profile' })
+  getProfile(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.terminalService.getTerminalCustomerProfile(storeId, id);
+  }
   @Get(':id/summary')
   @ApiOperation({ summary: '客户摘要' })
   getSummary(@Param('id', ParseIntPipe) id: number) {
@@ -189,8 +265,18 @@ export class TerminalTaskController {
 
   @Get()
   @ApiOperation({ summary: '今日服务任务' })
-  list(@CurrentDevice('storeId') storeId: number, @CurrentDevice('id') deviceId: number) {
-    return this.terminalService.listTasks(storeId, deviceId);
+  list(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('id') deviceId: number,
+    @Query('date') date?: string,
+    @Query('status') status?: string,
+    @Query('beauticianId') beauticianId?: string,
+  ) {
+    return this.terminalService.listTasks(storeId, deviceId, {
+      date,
+      status,
+      beauticianId: beauticianId ? Number(beauticianId) : undefined,
+    });
   }
 
   @Get(':id/service-record')
@@ -271,8 +357,8 @@ export class TerminalCashierController {
 
   @Post('checkout')
   @ApiOperation({ summary: '收银开单并收款' })
-  checkout(@CurrentDevice('storeId') storeId: number, @Body() dto: CheckoutDto) {
-    return this.terminalService.checkout(storeId, dto);
+  checkout(@CurrentDevice('storeId') storeId: number, @CurrentDevice('id') deviceId: number, @Body() dto: CheckoutDto) {
+    return this.terminalService.checkout(storeId, dto, deviceId);
   }
 
   @Get('payment-methods')
@@ -375,14 +461,54 @@ export class TerminalOrderController {
 
   @Post('follow-up-tasks')
   @ApiOperation({ summary: '创建客户邀约跟进任务' })
-  createFollowUpTask(@CurrentDevice('storeId') storeId: number, @CurrentDevice('id') deviceId: number, @Body() dto: any) {
-    return this.terminalService.createFollowUpTask(storeId, deviceId, dto);
+  createFollowUpTask(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('id') deviceId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() dto: CreateTerminalFollowUpTaskDto,
+  ) {
+    return this.terminalService.createFollowUpTask(storeId, deviceId, dto, userId);
+  }
+
+  @Get('follow-up-tasks')
+  @ApiOperation({ summary: '查询终端待跟进任务' })
+  getFollowUpTasks(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Query() query: QueryTerminalFollowUpTasksDto,
+  ) {
+    return this.terminalService.getFollowUpTasks(storeId, { ...query, assigneeUserId: query.assigneeUserId ?? userId });
+  }
+
+  @Patch('follow-up-tasks/:id/start')
+  @ApiOperation({ summary: '开始客户邀约跟进任务' })
+  startFollowUpTask(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.terminalService.startFollowUpTask(storeId, id, userId);
   }
 
   @Patch('follow-up-tasks/:id/complete')
   @ApiOperation({ summary: '完成客户邀约跟进任务' })
-  completeFollowUpTask(@CurrentDevice('storeId') storeId: number, @Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.terminalService.completeFollowUpTask(storeId, id, dto);
+  completeFollowUpTask(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CompleteTerminalFollowUpTaskDto,
+  ) {
+    return this.terminalService.completeFollowUpTask(storeId, id, dto, userId);
+  }
+
+  @Patch('follow-up-tasks/:id/return')
+  @ApiOperation({ summary: '退回客户邀约跟进任务到店长队列' })
+  returnFollowUpTask(
+    @CurrentDevice('storeId') storeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignTerminalFollowUpTaskDto,
+  ) {
+    return this.terminalService.assignFollowUpTask(storeId, id, { ...dto, assigneeRole: 'manager' });
   }
 }
 
@@ -636,5 +762,141 @@ export class TerminalDashboardController {
   @ApiOperation({ summary: 'Ami Aura Lite 角色首页聚合数据' })
   getRoleDashboard(@CurrentDevice('storeId') storeId: number, @Query('role') role?: string) {
     return this.terminalService.getRoleDashboard(storeId, role);
+  }
+
+  @Get('manager')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 店长经营看板轻量数据' })
+  getManagerDashboard(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getManagerDashboard(storeId);
+  }
+
+  @Get('staff-schedules')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 员工排班摘要轻量数据' })
+  getStaffSchedules(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getStaffSchedulesDashboard(storeId);
+  }
+
+  @Get('today-reservations')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 今日预约轻量数据' })
+  getTodayReservations(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getTodayReservationsDashboard(storeId);
+  }
+
+  @Get('customer-growth')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 客户增长与流失候选轻量数据' })
+  getCustomerGrowth(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getCustomerGrowthDashboard(storeId);
+  }
+
+  @Get('inventory-alerts')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 库存预警轻量数据' })
+  getInventoryAlerts(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getInventoryAlertsDashboard(storeId);
+  }
+}
+
+@ApiTags('Terminal - 美容师工作台')
+@ApiBearerAuth()
+@UseGuards(DeviceAuthGuard)
+@Controller('terminal/beautician')
+export class TerminalBeauticianController {
+  constructor(private terminalService: TerminalService) {}
+
+  @Get('me')
+  @ApiOperation({ summary: '当前终端美容师上下文' })
+  me(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId?: number,
+    @Query('operatorId') operatorId?: string,
+  ) {
+    return this.terminalService.getTerminalBeauticianMe(storeId, userId, operatorId ? Number(operatorId) : undefined);
+  }
+
+  @Get('dashboard')
+  @ApiOperation({ summary: '当前美容师首页聚合数据' })
+  dashboard(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('id') deviceId: number,
+    @CurrentDevice('userId') userId?: number,
+    @Query('date') date?: string,
+    @Query('operatorId') operatorId?: string,
+  ) {
+    return this.terminalService.getTerminalBeauticianDashboard(storeId, deviceId, userId, {
+      date,
+      operatorId: operatorId ? Number(operatorId) : undefined,
+    });
+  }
+
+  @Get('tasks')
+  @ApiOperation({ summary: '当前美容师服务任务' })
+  tasks(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('id') deviceId: number,
+    @CurrentDevice('userId') userId?: number,
+    @Query('date') date?: string,
+    @Query('status') status?: string,
+    @Query('operatorId') operatorId?: string,
+  ) {
+    return this.terminalService.getTerminalBeauticianTasks(storeId, deviceId, userId, {
+      date,
+      status,
+      operatorId: operatorId ? Number(operatorId) : undefined,
+    });
+  }
+
+  @Get('commission')
+  @ApiOperation({ summary: '当前美容师提成汇总' })
+  commission(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId?: number,
+    @Query('period') period?: string,
+    @Query('detailLimit') detailLimit?: string,
+    @Query('operatorId') operatorId?: string,
+  ) {
+    return this.terminalService.getTerminalBeauticianCommission(storeId, userId, {
+      period,
+      detailLimit,
+      operatorId: operatorId ? Number(operatorId) : undefined,
+    });
+  }
+
+  @Get('customers')
+  @ApiOperation({ summary: '当前美容师服务客户' })
+  customers(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId?: number,
+    @Query('keyword') keyword?: string,
+    @Query('operatorId') operatorId?: string,
+  ) {
+    return this.terminalService.getTerminalBeauticianCustomers(storeId, userId, {
+      keyword,
+      operatorId: operatorId ? Number(operatorId) : undefined,
+    });
+  }
+}
+
+@ApiTags('Terminal - 业务上下文')
+@ApiBearerAuth()
+@Controller('terminal/context')
+export class TerminalContextController {
+  constructor(private terminalService: TerminalService) {}
+
+  @Get('cashier')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 收银上下文轻量数据' })
+  getCashierContext(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getCashierContext(storeId);
+  }
+
+  @Get('card-verification')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 次卡核销上下文轻量数据' })
+  getCardVerificationContext(@CurrentDevice('storeId') storeId: number, @Query('keyword') keyword?: string) {
+    return this.terminalService.getCardVerificationContext(storeId, keyword);
   }
 }

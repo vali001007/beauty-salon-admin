@@ -37,7 +37,7 @@ describe('CustomersService', () => {
   });
 
   beforeEach(async () => {
-    const mockPrisma = {
+    const mockPrisma: any = {
       customer: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
@@ -52,9 +52,11 @@ describe('CustomersService', () => {
         count: jest.fn(),
       },
       customerHealthProfile: {
+        create: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn(),
       },
+      $transaction: jest.fn(async (callback: any) => callback(mockPrisma)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -181,11 +183,20 @@ describe('CustomersService', () => {
     it('should create a new customer', async () => {
       const createDto = { name: '王五', phone: '13700137000', storeId: 1 };
       prisma.customer.create.mockResolvedValue({ id: 3, ...createDto });
+      prisma.customerHealthProfile.create.mockResolvedValue({ id: 1, customerId: 3 });
 
       const result = await service.create(createDto as any);
 
       expect(result.name).toBe('王五');
       expect(prisma.customer.create).toHaveBeenCalledWith({ data: createDto });
+      expect(prisma.customerHealthProfile.create).toHaveBeenCalledWith({
+        data: {
+          customerId: 3,
+          skinType: '未记录',
+          skinStatus: undefined,
+          allergyHistory: undefined,
+        },
+      });
     });
   });
 
@@ -197,6 +208,7 @@ describe('CustomersService', () => {
       });
       const updateDto = { name: '张三丰' };
       prisma.customer.update.mockResolvedValue({ ...mockCustomer, ...updateDto });
+      prisma.customerHealthProfile.upsert.mockResolvedValue({ id: 1, customerId: 1 });
 
       const result = await service.update(1, updateDto as any);
 

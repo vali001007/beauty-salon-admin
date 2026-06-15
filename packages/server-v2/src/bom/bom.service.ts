@@ -32,6 +32,103 @@ export class BomService {
   }
 
   async getConsumptionRecords() {
+    const movements = await this.prisma.stockMovement.findMany({
+      where: {
+        movementType: 'service_consume',
+        quantity: { lt: 0 },
+      },
+      include: {
+        product: true,
+        store: true,
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 200,
+    });
+
+    const sourceIdsByType = movements.reduce((acc: Record<string, number[]>, movement: any) => {
+      if (!movement.sourceType || !movement.sourceId) return acc;
+      acc[movement.sourceType] = acc[movement.sourceType] ?? [];
+      acc[movement.sourceType].push(Number(movement.sourceId));
+      return acc;
+    }, {});
+
+    const [cardUsageRecords, productOrders, serviceTasks, consumptionRecords] = await Promise.all([
+      sourceIdsByType.card_usage?.length
+        ? this.prisma.cardUsageRecord.findMany({
+            where: { id: { in: [...new Set(sourceIdsByType.card_usage)] } },
+            include: { beautician: true },
+          })
+        : [],
+      sourceIdsByType.project_order?.length || sourceIdsByType.product_order?.length
+        ? this.prisma.productOrder.findMany({
+            where: { id: { in: [...new Set([...(sourceIdsByType.project_order ?? []), ...(sourceIdsByType.product_order ?? [])])] } },
+            include: { customer: true, orderItems: true },
+          })
+        : [],
+      sourceIdsByType.service_record?.length || sourceIdsByType.service_task?.length
+        ? this.prisma.serviceTask.findMany({
+            where: { id: { in: [...new Set([...(sourceIdsByType.service_record ?? []), ...(sourceIdsByType.service_task ?? [])])] } },
+            include: { customer: true, project: true, beautician: true },
+          })
+        : [],
+      sourceIdsByType.consumption_record?.length
+        ? this.prisma.consumptionRecord.findMany({
+            where: { id: { in: [...new Set(sourceIdsByType.consumption_record)] } },
+            include: { customer: { include: { store: true } } },
+          })
+        : [],
+    ]);
+
+    const cardUsageById = new Map(cardUsageRecords.map((record: any) => [record.id, record]));
+    const orderById = new Map(productOrders.map((order: any) => [order.id, order]));
+    const taskById = new Map(serviceTasks.map((task: any) => [task.id, task]));
+    const consumptionById = new Map(consumptionRecords.map((record: any) => [record.id, record]));
+
+    const movementRows = movements.map((movement: any) => {
+      const sourceType = String(movement.sourceType ?? '');
+      const sourceId = Number(movement.sourceId ?? 0);
+      const cardUsage = sourceType === 'card_usage' ? cardUsageById.get(sourceId) : null;
+      const order = ['project_order', 'product_order'].includes(sourceType) ? orderById.get(sourceId) : null;
+      const task = ['service_record', 'service_task'].includes(sourceType) ? taskById.get(sourceId) : null;
+      const consumption = sourceType === 'consumption_record' ? consumptionById.get(sourceId) : null;
+      const orderProjectItem = order?.orderItems?.find((item: any) => item.itemType === 'project');
+      const actualQty = Math.abs(Number(movement.quantity ?? 0));
+
+      return {
+        id: movement.id,
+        date: movement.occurredAt.toISOString().slice(0, 10),
+        serviceName:
+          cardUsage?.projectName ??
+          task?.project?.name ??
+          orderProjectItem?.name ??
+          consumption?.consumeType ??
+          movement.remark ??
+          '库存消耗',
+        customerName:
+          cardUsage?.customerName ??
+          task?.customer?.name ??
+          order?.customerName ??
+          order?.customer?.name ??
+          consumption?.customer?.name ??
+          '散客',
+        beautician:
+          cardUsage?.beautician?.name ??
+          task?.beautician?.name ??
+          '未记录',
+        storeName: movement.store?.name ?? consumption?.customer?.store?.name ?? '默认门店',
+        productName: movement.product?.name ?? '未知商品',
+        standardQty: actualQty,
+        actualQty,
+        deviation: 0,
+        isAbnormal: false,
+        consumeContent: movement.remark ?? '',
+        sourceType,
+        sourceId,
+      };
+    });
+
+    if (movementRows.length) return movementRows;
+
     const records = await this.prisma.consumptionRecord.findMany({
       include: { customer: { include: { store: true } } },
       orderBy: { consumeTime: 'desc' },

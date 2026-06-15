@@ -1,4 +1,4 @@
-﻿ALTER TABLE "MarketingActivity"
+ALTER TABLE "MarketingActivity"
   ADD COLUMN IF NOT EXISTS "predictionRunId" TEXT,
   ADD COLUMN IF NOT EXISTS "audienceSnapshotId" TEXT,
   ADD COLUMN IF NOT EXISTS "sourceSignalsJson" JSONB,

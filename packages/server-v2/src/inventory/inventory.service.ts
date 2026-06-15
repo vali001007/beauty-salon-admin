@@ -1,9 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { TerminalDashboardCacheService } from '../terminal/terminal-dashboard-cache.service.js';
+import { CommissionService } from '../commission/commission.service.js';
 
 @Injectable()
 export class InventoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private terminalDashboardCache: TerminalDashboardCacheService,
+    private commissionService?: CommissionService,
+  ) {}
+
+  private invalidateInventoryDashboardCache(storeId?: number | null) {
+    this.terminalDashboardCache.invalidate(storeId, ['role', 'manager', 'inventory-alerts']);
+  }
 
   private toNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
@@ -12,6 +22,22 @@ export class InventoryService {
 
   private createMovementNo(prefix = 'SM') {
     return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  }
+
+  private getStockStatus(item: { currentStock?: unknown; safetyStock?: unknown }) {
+    const currentStock = this.toNumber(item.currentStock);
+    const safetyStock = this.toNumber(item.safetyStock);
+    if (currentStock <= 0) return '缺货';
+    if (safetyStock > 0 && currentStock < safetyStock) return '低库存';
+    if (safetyStock > 0 && currentStock > safetyStock * 4) return '积压';
+    return '正常';
+  }
+
+  private mapStockItem(item: any) {
+    return {
+      ...item,
+      status: this.getStockStatus(item),
+    };
   }
 
   async getStock(storeId?: number, page = 1, pageSize = 20) {
@@ -27,7 +53,8 @@ export class InventoryService {
       }),
       this.prisma.product.count({ where }),
     ]);
-    return { items, data: items, total, page, pageSize };
+    const mapped = items.map((item) => this.mapStockItem(item));
+    return { items: mapped, data: mapped, total, page, pageSize };
   }
 
   async getBatches(productId: number) {
@@ -57,7 +84,7 @@ export class InventoryService {
   }
 
   async inbound(data: { productId: number; batchNo: string; stock: number; productionDate?: string; expiryDate?: string; remark?: string }) {
-    return this.prisma.$transaction(async (tx) => {
+    const { batch, storeId } = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({ where: { id: Number(data.productId) } });
       if (!product) throw new NotFoundException('Product not found');
 
@@ -98,8 +125,10 @@ export class InventoryService {
         },
       });
 
-      return batch;
+      return { batch, storeId: product.storeId };
     });
+    this.invalidateInventoryDashboardCache(storeId);
+    return batch;
   }
 
   async getStockMovements(query: {
@@ -215,7 +244,8 @@ export class InventoryService {
     const items = Array.isArray(data.items) ? data.items : [];
     const shouldApplyStock = data.applyStock === true || ['completed', 'received', 'done'].includes(String(data.status || ''));
 
-    return this.prisma.$transaction(async (tx) => {
+    const affectedStoreIds = new Set<number>();
+    const order = await this.prisma.$transaction(async (tx) => {
       const order = await tx.transferOrder.create({
         data: {
           orderNo,
@@ -261,6 +291,7 @@ export class InventoryService {
             remark: data.remark,
           },
         });
+        affectedStoreIds.add(order.fromStoreId);
 
         const toProduct = await tx.product.findFirst({
           where: { sku: fromProduct.sku, storeId: order.toStoreId, deletedAt: null },
@@ -289,10 +320,13 @@ export class InventoryService {
             remark: data.remark,
           },
         });
+        affectedStoreIds.add(order.toStoreId);
       }
 
       return order;
     });
+    affectedStoreIds.forEach((storeId) => this.invalidateInventoryDashboardCache(storeId));
+    return order;
   }
 
   // Replenishment suggestions
@@ -302,21 +336,53 @@ export class InventoryService {
 
     const products = await this.prisma.product.findMany({
       where: { ...where, currentStock: { lte: this.prisma.product.fields.safetyStock } },
+      include: {
+        suppliers: {
+          where: { supplier: { status: 'active', deletedAt: null } },
+          include: { supplier: { select: { id: true, name: true } } },
+          orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
+          take: 1,
+        },
+      },
     });
 
-    return products
+    const suggestions = products
       .filter((p) => Number(p.currentStock) <= Number(p.safetyStock))
-      .map((product) => ({
-        id: product.id,
-        productName: product.name,
-        sku: product.sku,
-        currentStock: Number(product.currentStock ?? 0),
-        forecast7Days: Math.max(1, Math.round(Number(product.safetyStock ?? 0) * 0.8)),
-        safetyStock: Number(product.safetyStock ?? 0),
-        inTransit: 0,
-        suggestedQty: Math.max(0, Number(product.safetyStock ?? 0) * 2 - Number(product.currentStock ?? 0)),
-        supplier: product.supplier ?? '默认供应商',
-        estimatedAmount: Math.max(0, Number(product.safetyStock ?? 0) * 2 - Number(product.currentStock ?? 0)) * Number(product.costPrice ?? 0),
-      }));
+      .map((product) => {
+        const primarySupplier = product.suppliers?.[0];
+        const currentStock = Number(product.currentStock ?? 0);
+        const safetyStock = Number(product.safetyStock ?? 0);
+        const baseSuggestedQty = Math.max(0, safetyStock * 2 - currentStock);
+        const moq = primarySupplier?.moq ?? product.minPurchaseQty ?? null;
+        const suggestedQty = Math.max(baseSuggestedQty, Number(moq ?? 0));
+        const supplyPrice = Number(primarySupplier?.supplyPrice ?? product.costPrice ?? 0);
+
+        return {
+          id: product.id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock,
+          forecast7Days: Math.max(1, Math.round(safetyStock * 0.8)),
+          safetyStock,
+          inTransit: 0,
+          suggestedQty,
+          supplierId: primarySupplier?.supplierId,
+          supplier: primarySupplier?.supplier?.name ?? product.supplier ?? '默认供应商',
+          supplyPrice,
+          moq,
+          estimatedAmount: suggestedQty * supplyPrice,
+        };
+      });
+    if (suggestions.length && storeId && this.commissionService) {
+      await this.commissionService.recordAmiContribution({
+        storeId,
+        category: 'inventory_alert',
+        triggerType: 'inventory_replenishment',
+        triggerId: storeId,
+        workMinutes: 5,
+        metadata: { suggestionCount: suggestions.length },
+      });
+    }
+    return suggestions;
   }
 }

@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CreateProductDto } from './dto/create-product.dto.js';
+import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @Injectable()
 export class ProductsService {
@@ -56,13 +58,33 @@ export class ProductsService {
     return product;
   }
 
-  async create(data: any) {
-    return this.prisma.product.create({ data });
+  private normalizeProductData(data: CreateProductDto | UpdateProductDto) {
+    const normalized: any = { ...data };
+    if (normalized.name !== undefined) normalized.name = String(normalized.name).trim();
+    if (normalized.sku !== undefined) normalized.sku = String(normalized.sku).trim();
+    if (normalized.sku === '') delete normalized.sku;
+    if (normalized.miniappPublishedAt !== undefined) {
+      normalized.miniappPublishedAt = normalized.miniappPublishedAt ? new Date(normalized.miniappPublishedAt) : null;
+    }
+    return normalized;
   }
 
-  async update(id: number, data: any) {
+  async create(data: CreateProductDto, headerStoreId?: number) {
+    const payload = this.normalizeProductData(data);
+    payload.storeId = payload.storeId ?? headerStoreId;
+    if (!payload.name) throw new BadRequestException('商品名称不能为空');
+    if (!payload.storeId) throw new BadRequestException('storeId is required');
+    if (!payload.sku) {
+      payload.sku = `SKU-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    }
+    return this.prisma.product.create({ data: payload });
+  }
+
+  async update(id: number, data: UpdateProductDto, headerStoreId?: number) {
     await this.findById(id);
-    return this.prisma.product.update({ where: { id }, data });
+    const payload = this.normalizeProductData(data);
+    if (payload.storeId === undefined && headerStoreId !== undefined) delete payload.storeId;
+    return this.prisma.product.update({ where: { id }, data: payload });
   }
 
   async remove(id: number) {

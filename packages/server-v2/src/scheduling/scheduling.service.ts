@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { TerminalDashboardCacheService } from '../terminal/terminal-dashboard-cache.service.js';
 
 @Injectable()
 export class SchedulingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private terminalDashboardCache: TerminalDashboardCacheService,
+  ) {}
 
   async findAll(storeId?: number, date?: string, beauticianId?: number, weekStart?: string) {
     const where: any = {};
@@ -24,7 +28,15 @@ export class SchedulingService {
   }
 
   async save(
-    schedules: Array<{ storeId?: number; beauticianId: number; date: string; startTime: string; endTime: string; status?: string }>,
+    schedules: Array<{
+      storeId?: number;
+      beauticianId: number;
+      date: string;
+      startTime: string;
+      endTime: string;
+      status?: string;
+      smartRunId?: string | null;
+    }>,
     storeId?: number,
     beauticianId?: number,
     weekStart?: string,
@@ -70,9 +82,11 @@ export class SchedulingService {
           startTime: s.startTime,
           endTime: s.endTime,
           status: s.status ?? 'available',
+          smartRunId: s.smartRunId ?? null,
         })),
       });
     }
+    this.terminalDashboardCache.invalidate(resolvedStoreId, ['role', 'manager', 'staff-schedules']);
     return this.findAll(resolvedStoreId, undefined, resolvedBeauticianId, weekStart ?? schedules[0]?.date);
   }
 }

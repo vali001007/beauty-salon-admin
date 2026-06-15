@@ -7,6 +7,11 @@ export class CreateRechargeOrderDto {
   @IsInt()
   customerId?: number;
 
+  @ApiPropertyOptional({ description: '美容师ID，用于充值提成归属' })
+  @IsOptional()
+  @IsInt()
+  beauticianId?: number;
+
   @ApiProperty({ description: '客户姓名' })
   @IsString()
   customerName: string;

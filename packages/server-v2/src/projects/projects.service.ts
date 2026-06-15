@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class ProjectsService {
     if (storeId) where.storeId = storeId;
     return this.prisma.project.findMany({
       where,
-      include: { type: true, store: true },
+      include: { type: true, store: true, bomItems: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -25,7 +25,7 @@ export class ProjectsService {
     const [items, total] = await Promise.all([
       this.prisma.project.findMany({
         where,
-        include: { type: true, store: true },
+        include: { type: true, store: true, bomItems: { include: { product: true } } },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -44,13 +44,31 @@ export class ProjectsService {
     return project;
   }
 
-  async create(data: any) {
-    return this.prisma.project.create({ data, include: { type: true, store: true } });
+  async create(data: any, headerStoreId?: number) {
+    const payload = await this.normalizeProjectData(data, headerStoreId, true);
+    const project = await this.prisma.project.create({
+      data: payload,
+      include: { type: true, store: true, bomItems: { include: { product: true } } },
+    });
+    if (Array.isArray(data.bom)) {
+      await this.setBomItems(project.id, data.bom);
+      return this.findById(project.id);
+    }
+    return project;
   }
 
-  async update(id: number, data: any) {
+  async update(id: number, data: any, headerStoreId?: number) {
     await this.findById(id);
-    return this.prisma.project.update({ where: { id }, data, include: { type: true, store: true } });
+    const payload = await this.normalizeProjectData(data, headerStoreId, false);
+    await this.prisma.project.update({
+      where: { id },
+      data: payload,
+      include: { type: true, store: true, bomItems: { include: { product: true } } },
+    });
+    if (Array.isArray(data.bom)) {
+      await this.setBomItems(id, data.bom);
+    }
+    return this.findById(id);
   }
 
   async remove(id: number) {
@@ -85,11 +103,76 @@ export class ProjectsService {
 
   async setBomItems(projectId: number, items: Array<{ productId: number; standardQty: number; unit: string }>) {
     await this.prisma.projectBomItem.deleteMany({ where: { projectId } });
-    if (items.length > 0) {
+    const validItems = items
+      .map((item) => ({
+        productId: Number(item.productId),
+        standardQty: Number(item.standardQty ?? 1),
+        unit: item.unit || '件',
+      }))
+      .filter((item) => Number.isFinite(item.productId) && item.productId > 0 && item.standardQty > 0);
+    if (validItems.length > 0) {
       await this.prisma.projectBomItem.createMany({
-        data: items.map((item) => ({ projectId, ...item })),
+        data: validItems.map((item) => ({ projectId, ...item })),
       });
     }
     return this.getBomItems(projectId);
+  }
+
+  private async normalizeProjectData(data: any, headerStoreId: number | undefined, isCreate: boolean) {
+    const payload: any = {};
+
+    if (data.name !== undefined) {
+      payload.name = String(data.name).trim();
+    }
+    if (isCreate && !payload.name) {
+      throw new BadRequestException('项目名称不能为空');
+    }
+
+    const description = data.description ?? data.summary;
+    if (description !== undefined) {
+      payload.description = String(description);
+    }
+
+    if (data.price !== undefined) {
+      payload.price = Number(data.price);
+    }
+    if (data.duration !== undefined) {
+      payload.duration = Math.max(0, Number(data.duration));
+    }
+    if (data.status !== undefined) {
+      payload.status = this.normalizeStatus(data.status);
+    }
+
+    if (data.typeId !== undefined) {
+      payload.typeId = data.typeId === null || data.typeId === '' ? null : Number(data.typeId);
+    } else if (typeof data.type === 'string' && data.type.trim()) {
+      const type = await this.prisma.projectType.findFirst({ where: { name: data.type.trim() } });
+      if (type) payload.typeId = type.id;
+    }
+
+    if (isCreate) {
+      payload.storeId = Number(data.storeId ?? headerStoreId ?? 0);
+      if (!payload.storeId) {
+        const store = await this.prisma.store.findFirst({
+          where: { deletedAt: null, status: { not: 'disabled' } },
+          orderBy: { id: 'asc' },
+        });
+        payload.storeId = store?.id;
+      }
+      if (!payload.storeId) {
+        throw new BadRequestException('门店不能为空');
+      }
+    } else if (data.storeId !== undefined) {
+      payload.storeId = Number(data.storeId);
+    }
+
+    return payload;
+  }
+
+  private normalizeStatus(status: unknown) {
+    if (typeof status === 'boolean') return status ? 'active' : 'inactive';
+    if (status === '启用' || status === '在售') return 'active';
+    if (status === '停用' || status === '停售') return 'inactive';
+    return String(status || 'active');
   }
 }

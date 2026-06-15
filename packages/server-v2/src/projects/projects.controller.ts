@@ -44,15 +44,15 @@ export class ProjectsController {
   @Post('projects')
   @Permissions('core:store:projects')
   @ApiOperation({ summary: '创建项目' })
-  create(@Body() dto: any) {
-    return this.projectsService.create(dto);
+  create(@Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.projectsService.create(dto, storeId ? +storeId : undefined);
   }
 
   @Put('projects/:id')
   @Permissions('core:store:projects')
   @ApiOperation({ summary: '更新项目' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.projectsService.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.projectsService.update(id, dto, storeId ? +storeId : undefined);
   }
 
   @Delete('projects/:id')

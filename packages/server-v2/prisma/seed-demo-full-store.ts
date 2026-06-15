@@ -11,7 +11,7 @@ import {
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
-import { readSeedPassword } from './seed-env.js';
+import { readSeedPassword } from './seed-env.ts';
 
 const args = new Set(process.argv.slice(2));
 const apply = args.has('--apply');
@@ -619,8 +619,9 @@ async function seedUsersAndBeauticians(storeId: number, levelIds: number[]) {
     [`${USER_PREFIX}_beautician_03`, '顾然', beauticianRole.id],
     [`${USER_PREFIX}_beautician_04`, '宋乔', beauticianRole.id],
   ];
+  const userByName = new Map<string, number>();
   for (const [username, name, roleId] of users) {
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         username: String(username),
         passwordHash,
@@ -630,6 +631,7 @@ async function seedUsersAndBeauticians(storeId: number, levelIds: number[]) {
         stores: { create: [{ storeId }] },
       },
     });
+    userByName.set(String(name), user.id);
     inc(report.createdCounts, 'users');
   }
 
@@ -643,6 +645,7 @@ async function seedUsersAndBeauticians(storeId: number, levelIds: number[]) {
         phone: `13866${String(index + 1).padStart(2, '0')}${String(rand(1000, 9999))}`,
         levelId: levelIds[index % levelIds.length],
         status: 'active',
+        userId: userByName.get(name),
       },
     });
     beauticians.push(beautician);

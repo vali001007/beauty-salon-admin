@@ -23,4 +23,19 @@ export class DeviceHeartbeatDto {
   @IsOptional()
   @IsString()
   networkStatus?: string;
+
+  @ApiPropertyOptional({ description: '打印机状态', example: 'online' })
+  @IsOptional()
+  @IsString()
+  printerStatus?: string;
+
+  @ApiPropertyOptional({ description: '扫码器状态', example: 'online' })
+  @IsOptional()
+  @IsString()
+  scannerStatus?: string;
+
+  @ApiPropertyOptional({ description: '摄像头状态', example: 'online' })
+  @IsOptional()
+  @IsString()
+  cameraStatus?: string;
 }

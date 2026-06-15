@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsInt, IsNumber, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsString, IsOptional, IsInt, IsNumber, IsArray, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCustomerDto {
@@ -29,6 +30,85 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   gender?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  landline?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  maritalStatus?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  birthday?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  age?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  height?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  weight?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  occupation?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  workplace?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  hasAllergy?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  hasSurgery?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  skinCondition?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  skinType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  totalSpent?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  lastVisitDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

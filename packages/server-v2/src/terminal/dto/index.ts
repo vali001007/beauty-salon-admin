@@ -18,3 +18,21 @@ export {
 export { AdjustBalanceDto, ConsumeBalanceDto, RefundBalanceDto } from './balance.dto.js';
 export { CreateTerminalServiceRecordDto } from './service-record.dto.js';
 export { CreateTerminalAutomationDto, UpdateTerminalAutomationDto } from './automation.dto.js';
+export {
+  QueryTerminalConversationsDto,
+  SaveTerminalConversationDto,
+  TerminalConversationMessageDto,
+} from './conversation.dto.js';
+export {
+  ProvisionTerminalDeviceDto,
+  QueryTerminalDevicesDto,
+  UpdateTerminalDeviceDto,
+} from './terminal-device-admin.dto.js';
+export {
+  AssignTerminalFollowUpTaskDto,
+  BatchCreateTerminalFollowUpTaskDto,
+  CancelTerminalFollowUpTaskDto,
+  CompleteTerminalFollowUpTaskDto,
+  CreateTerminalFollowUpTaskDto,
+  QueryTerminalFollowUpTasksDto,
+} from './follow-up-task.dto.js';
