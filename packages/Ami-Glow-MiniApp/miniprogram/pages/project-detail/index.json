@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "项目详情",
+  "usingComponents": {
+    "reservation-sheet": "../../components/reservation-sheet/index"
+  }
+}

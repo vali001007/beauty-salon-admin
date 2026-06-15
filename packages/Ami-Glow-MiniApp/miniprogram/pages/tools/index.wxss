@@ -1,0 +1,52 @@
+@import "../home/index.wxss";
+
+.tools-page {
+  padding-top: 8rpx;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20rpx;
+  margin: 24rpx 0 44rpx;
+}
+
+.tool-card {
+  height: 154rpx;
+  border-radius: 18rpx;
+  background: linear-gradient(135deg, #b46bd4, #d9a0e9);
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 12rpx 24rpx rgba(154, 92, 183, 0.16);
+}
+
+.tool-card .icon {
+  display: block;
+  padding-top: 26rpx;
+  font-size: 42rpx;
+}
+
+.knowledge-card {
+  padding: 44rpx 34rpx;
+}
+
+.knowledge-title {
+  margin-bottom: 28rpx;
+  color: #3a2e48;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.knowledge-item {
+  height: 84rpx;
+  margin-top: 20rpx;
+  border: 2rpx solid #ead6ef;
+  border-radius: 14rpx;
+  background: #fbf4fb;
+  color: #5b4a64;
+  font-size: 30rpx;
+  line-height: 84rpx;
+  text-align: center;
+}

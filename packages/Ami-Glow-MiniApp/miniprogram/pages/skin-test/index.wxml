@@ -1,0 +1,21 @@
+<view class="page skin-page">
+  <view class="guide card">
+    <view class="guide-title">拍摄指引</view>
+    <view class="guide-item">保持正脸、光线充足</view>
+    <view class="guide-item">尽量素颜或淡妆</view>
+    <view class="guide-item">避免遮挡额头、脸颊和下巴</view>
+    <view class="guide-item">结果仅供美容护理参考，不构成医疗诊断</view>
+  </view>
+  <view class="preview card" bindtap="chooseImage">
+    <image wx:if="{{imagePath}}" src="{{imagePath}}" mode="aspectFill" />
+    <view wx:else>
+      <view class="camera">⌕</view>
+      <view>拍照或上传面部照片</view>
+    </view>
+  </view>
+  <view class="agree" bindtap="toggleAgree">
+    <text class="checkbox">{{agreed ? '✓' : ''}}</text>
+    <text>我同意上传照片用于皮肤状态分析，结果仅作为美容护理参考。</text>
+  </view>
+  <button class="primary-button {{agreed && imagePath ? '' : 'disabled'}}" bindtap="submit">开始分析</button>
+</view>

@@ -1,0 +1,29 @@
+.record {
+  position: relative;
+  margin-bottom: 24rpx;
+  padding: 34rpx;
+}
+.name {
+  color: #33283f;
+  font-size: 32rpx;
+  font-weight: 700;
+  padding-right: 180rpx;
+}
+.amount {
+  position: absolute;
+  top: 34rpx;
+  right: 34rpx;
+  color: #d22e86;
+  font-size: 34rpx;
+  font-weight: 800;
+}
+.line {
+  margin-top: 14rpx;
+  color: #6e5b78;
+  font-size: 26rpx;
+}
+.empty {
+  padding: 56rpx;
+  color: #9f93a5;
+  text-align: center;
+}

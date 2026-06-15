@@ -1,0 +1,11 @@
+<view class="page">
+  <view class="member-card">
+    <view class="level">{{account.memberLevel || '普通会员'}}</view>
+    <view class="balance">¥{{account.cashBalance || 0}}</view>
+    <view class="gift">赠送余额 ¥{{account.giftBalance || 0}}</view>
+  </view>
+  <view class="benefits card">
+    <view class="title">会员权益</view>
+    <view wx:for="{{account.benefits}}" wx:key="*this" class="benefit">✓ {{item}}</view>
+  </view>
+</view>

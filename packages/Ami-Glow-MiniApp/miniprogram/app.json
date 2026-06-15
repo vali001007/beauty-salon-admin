@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/booking/index",
+    "pages/project-detail/index",
+    "pages/tools/index",
+    "pages/skin-test/index",
+    "pages/skin-report/index",
+    "pages/mine/index",
+    "pages/my-reservations/index",
+    "pages/my-cards/index",
+    "pages/consumption-records/index",
+    "pages/member-card/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "Ami Glow",
+    "navigationBarBackgroundColor": "#fbf4fb",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fbf4fb"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

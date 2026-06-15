@@ -1,0 +1,74 @@
+@import "../home/index.wxss";
+
+.profile-card {
+  display: flex;
+  height: 180rpx;
+  padding: 38rpx 42rpx;
+  border-radius: 22rpx;
+  background: linear-gradient(135deg, #b36bd4, #d9a2e9);
+  color: #fff;
+  align-items: center;
+}
+
+.avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: #f3eef3;
+  color: #aaa;
+  font-size: 50rpx;
+  line-height: 96rpx;
+  text-align: center;
+}
+
+.profile-info {
+  flex: 1;
+  margin-left: 32rpx;
+}
+
+.name {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.level {
+  display: inline-block;
+  margin-top: 18rpx;
+  padding: 8rpx 20rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.55);
+  border-radius: 18rpx;
+  font-size: 24rpx;
+}
+
+.bind-button {
+  width: 108rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+  line-height: 56rpx;
+}
+
+.menu {
+  margin-top: 34rpx;
+}
+
+.menu-item {
+  display: flex;
+  height: 112rpx;
+  margin-bottom: 26rpx;
+  padding: 0 36rpx;
+  color: #33283f;
+  font-size: 34rpx;
+  align-items: center;
+}
+
+.menu-item text:first-of-type {
+  margin-left: 34rpx;
+}
+
+.arrow {
+  margin-left: auto;
+  color: #111;
+  font-size: 56rpx;
+}

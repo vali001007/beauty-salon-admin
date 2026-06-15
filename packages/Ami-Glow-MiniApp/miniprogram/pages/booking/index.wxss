@@ -1,0 +1,73 @@
+@import "../home/index.wxss";
+
+.booking-page {
+  padding-top: 8rpx;
+}
+
+.search-box {
+  display: flex;
+  height: 84rpx;
+  margin: 22rpx 0 36rpx;
+  padding: 0 28rpx 0 34rpx;
+  border: 2rpx solid #e5ccea;
+  border-radius: 24rpx;
+  background: #fff;
+  align-items: center;
+}
+
+.search-box input {
+  flex: 1;
+  height: 80rpx;
+  color: #33283f;
+  font-size: 30rpx;
+}
+
+.search-box button {
+  width: 64rpx;
+  height: 64rpx;
+  color: #111;
+  font-size: 46rpx;
+  line-height: 64rpx;
+}
+
+.filter-row {
+  display: flex;
+  margin-bottom: 44rpx;
+  align-items: center;
+}
+
+.pill {
+  min-width: 126rpx;
+  height: 72rpx;
+  margin-right: 24rpx;
+  border: 2rpx solid #ead6ef;
+  border-radius: 24rpx;
+  background: #fff;
+  color: #33283f;
+  font-size: 30rpx;
+  line-height: 72rpx;
+}
+
+.pill.active {
+  background: linear-gradient(135deg, #a967ce, #d79ce6);
+  color: #fff;
+  box-shadow: 0 8rpx 18rpx rgba(150, 85, 181, 0.24);
+}
+
+.filter-button {
+  width: 72rpx;
+  height: 72rpx;
+  margin-left: auto;
+  border: 2rpx solid #ead6ef;
+  border-radius: 50%;
+  background: #fff;
+  color: #3a2e48;
+  font-size: 36rpx;
+  line-height: 72rpx;
+}
+
+.empty {
+  padding: 56rpx;
+  color: #9f93a5;
+  text-align: center;
+}

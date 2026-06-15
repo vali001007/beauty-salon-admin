@@ -1,0 +1,15 @@
+<view class="project-card {{layout}}" bindtap="handleTap">
+  <view class="image-wrap">
+    <image wx:if="{{project.image}}" class="project-image" src="{{project.image}}" mode="aspectFill" />
+    <view wx:else class="project-image placeholder">Ami Glow</view>
+    <view wx:if="{{project.tags && project.tags.length}}" class="tag">{{project.tags[0]}}</view>
+  </view>
+  <view class="project-info">
+    <view class="project-name">{{project.name}}</view>
+    <view wx:if="{{layout !== 'compact' && project.description}}" class="project-desc">{{project.description}}</view>
+    <view class="project-meta">
+      <text class="price">¥{{project.memberPrice || project.price}}</text>
+      <text class="duration">{{project.duration}}分钟</text>
+    </view>
+  </view>
+</view>

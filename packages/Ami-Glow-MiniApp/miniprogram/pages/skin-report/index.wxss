@@ -1,0 +1,55 @@
+.score-card {
+  padding: 52rpx 36rpx;
+  text-align: center;
+}
+
+.score {
+  color: #d22e86;
+  font-size: 88rpx;
+  font-weight: 900;
+}
+
+.skin-type {
+  margin-top: 12rpx;
+  color: #33283f;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.status {
+  margin-top: 16rpx;
+  color: #6e5b78;
+  font-size: 28rpx;
+}
+
+.fallback {
+  margin-top: 24rpx;
+  padding: 14rpx 20rpx;
+  border-radius: 12rpx;
+  background: #fff6e7;
+  color: #9b6400;
+  font-size: 24rpx;
+}
+
+.advice-card {
+  margin-top: 34rpx;
+  padding: 36rpx;
+}
+
+.title {
+  color: #33283f;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.text {
+  margin-top: 20rpx;
+  color: #6e5b78;
+  font-size: 29rpx;
+  line-height: 48rpx;
+}
+
+project-card {
+  display: block;
+  margin-bottom: 28rpx;
+}

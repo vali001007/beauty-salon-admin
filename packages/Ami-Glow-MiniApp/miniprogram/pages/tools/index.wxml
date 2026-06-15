@@ -1,0 +1,27 @@
+<view class="page tools-page">
+  <view class="tool-grid">
+    <button class="tool-card" bindtap="goSkinTest">
+      <text class="icon">⌕</text>
+      <text>皮肤检测</text>
+    </button>
+    <button class="tool-card" bindtap="openKnowledge">
+      <text class="icon">▤</text>
+      <text>护肤知识</text>
+    </button>
+    <button class="tool-card" bindtap="callService">
+      <text class="icon">☏</text>
+      <text>电话客服</text>
+    </button>
+  </view>
+  <view class="knowledge-card card">
+    <view class="knowledge-title">💡 护肤知识：</view>
+    <view wx:for="{{knowledge}}" wx:key="*this" class="knowledge-item" bindtap="openKnowledge">{{item}}</view>
+  </view>
+</view>
+
+<view class="tabbar">
+  <view class="tab" bindtap="goHome">⌂<text>首页</text></view>
+  <view class="tab" bindtap="goBooking">▣<text>预约</text></view>
+  <view class="tab active">▣<text>工具</text></view>
+  <view class="tab" bindtap="goMine">♙<text>我的</text></view>
+</view>
