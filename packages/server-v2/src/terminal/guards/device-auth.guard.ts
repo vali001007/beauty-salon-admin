@@ -7,6 +7,12 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import {
+  collectAuraUserFieldScopes,
+  collectAuraUserPermissions,
+  collectAuraUserRoleKeys,
+  resolveAuraAvailableRolesForUser,
+} from '../terminal-role-access.js';
 
 /**
  * 终端设备认证守卫
@@ -77,6 +83,10 @@ export class DeviceAuthGuard implements CanActivate {
           model: 'Ami Aura Lite',
           status: 'online',
           userId: user.id,
+          roles: collectAuraUserRoleKeys(user),
+          permissions: collectAuraUserPermissions(user),
+          fieldScopes: collectAuraUserFieldScopes(user),
+          availableRoles: resolveAuraAvailableRolesForUser(user),
         };
 
         return true;

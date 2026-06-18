@@ -17,6 +17,7 @@ import type {
   TerminalBeauticianCommissionSummary,
   TerminalBeauticianQualitySummary,
   TerminalFollowUpTask,
+  TerminalFollowUpTaskSummary,
   TerminalSkinMetric,
 } from '../../../../src/types/terminal';
 
@@ -86,6 +87,15 @@ export interface CustomerCardData {
   reasons: string[];
   recentVisits: string[];
   followUpTask?: TerminalFollowUpTask;
+}
+
+export interface FollowUpTasksCardData {
+  title: string;
+  subtitle: string;
+  summary: string;
+  items: TerminalFollowUpTask[];
+  stats?: TerminalFollowUpTaskSummary;
+  generatedAt: string;
 }
 
 export type BeauticianCustomerGroupKey = 'stable' | 'recent30' | 'recent60' | 'recent90';

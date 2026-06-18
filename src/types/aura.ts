@@ -10,6 +10,8 @@ export type AuraAction =
   | 'manager.staff'
   | 'manager.customers'
   | 'manager.inventory'
+  | 'customer.followup'
+  | 'business.query'
   | 'reception.appointments'
   | 'operation.verify'
   | 'operation.register'
@@ -42,6 +44,9 @@ export interface AuraTerminalUser extends AuthUser {
   availableRoles: AuraRole[];
   defaultRole: AuraRole;
   roleLabel: string;
+  terminalAccess?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
   status?: string;
   boundBeauticianId?: number;
   boundBeauticianName?: string;

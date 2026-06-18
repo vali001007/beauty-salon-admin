@@ -25,11 +25,14 @@ import type {
   CoreDataStatus,
   CustomerCardData,
   DashboardCardData,
+  FollowUpTasksCardData,
   InventoryAlertCardData,
   OperationResultData,
   OperationReceiptData,
   StaffScheduleCardData,
 } from "../types";
+import type { BusinessQueryResponse } from "@/types/businessQuery";
+import type { AgentEvidence, AgentRunResult, AgentToolResult } from "@/types/agent";
 import {
   cancelAppointmentFromTerminal,
   checkInAppointmentFromTerminal,
@@ -57,7 +60,7 @@ import {
   startTerminalFollowUpTask,
 } from "@/api";
 import type { ScheduleSlot } from "@/types";
-import type { TerminalCashierShift, TerminalReservationAvailability } from "@/types/terminal";
+import type { TerminalCashierShift, TerminalFollowUpTask, TerminalReservationAvailability } from "@/types/terminal";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
@@ -2154,7 +2157,9 @@ export function BeauticianDashboardCard({
               <div key={record.id} className="flex items-center justify-between gap-3 bg-[#FAF9F7] px-4 py-3 text-sm">
                 <div>
                   <div className="font-medium text-[#1F1B2D]">{record.orderItem?.name ?? record.ruleName ?? record.type}</div>
-                  <div className="text-xs text-[#6F6678]">{record.orderNo ?? "未关联订单"} · {record.status}</div>
+                  <div className="text-xs text-[#6F6678]">
+                    {record.orderNo ?? "未关联订单"} · {formatBusinessQueryValue("status", record.status)}
+                  </div>
                 </div>
                 <div className="font-semibold text-[#1F1B2D]">{formatTerminalMoney(record.amount)}</div>
               </div>
@@ -2336,6 +2341,232 @@ export function StaffPerformanceCard({
   );
 }
 
+const followUpStatusLabels: Record<string, string> = {
+  pending: "待处理",
+  in_progress: "跟进中",
+  completed: "已完成",
+  cancelled: "已取消",
+  expired: "已逾期",
+};
+
+const followUpPriorityLabels: Record<string, string> = {
+  urgent: "高优先级",
+  recommended: "建议跟进",
+  opportunity: "机会客户",
+};
+
+const followUpResultOptions = [
+  { value: "contacted", label: "已联系" },
+  { value: "booked", label: "已预约" },
+  { value: "not_reached", label: "未接通" },
+  { value: "refused", label: "客户拒绝" },
+  { value: "converted", label: "已成交" },
+];
+
+function formatFollowUpDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function getFollowUpStatusLabel(status?: string) {
+  return followUpStatusLabels[status ?? ""] ?? status ?? "待处理";
+}
+
+function getFollowUpPriorityLabel(priority?: string) {
+  return followUpPriorityLabels[priority ?? ""] ?? priority ?? "普通";
+}
+
+function getFollowUpStatusClass(status?: string) {
+  if (status === "expired") return "bg-rose-50 text-rose-600";
+  if (status === "in_progress") return "bg-amber-50 text-amber-700";
+  if (status === "completed") return "bg-emerald-50 text-emerald-700";
+  return "bg-[#2D1B69]/6 text-[#2D1B69]";
+}
+
+export function FollowUpTasksCard({ data }: { data: FollowUpTasksCardData }) {
+  const [items, setItems] = React.useState<TerminalFollowUpTask[]>(() => safeArray(data.items));
+  const [updatingTaskIds, setUpdatingTaskIds] = React.useState<Set<number>>(new Set());
+  const [completionTask, setCompletionTask] = React.useState<TerminalFollowUpTask | null>(null);
+  const [completionResultType, setCompletionResultType] = React.useState("contacted");
+  const [completionNote, setCompletionNote] = React.useState("");
+
+  React.useEffect(() => {
+    setItems(safeArray(data.items));
+  }, [data.items]);
+
+  const patchTask = (updated: TerminalFollowUpTask) => {
+    setItems((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+  };
+
+  const updateTask = async (task: TerminalFollowUpTask, action: "start" | "complete") => {
+    setUpdatingTaskIds((current) => new Set(current).add(task.id));
+    try {
+      if (action === "start") {
+        const updated = await startTerminalFollowUpTask(task.id);
+        patchTask(updated);
+        return;
+      }
+
+      const updated = await completeTerminalFollowUpTask(task.id, {
+        resultType: completionResultType,
+        result: completionNote || "已完成客户跟进",
+        note: completionNote || "已完成客户跟进",
+      });
+      patchTask(updated);
+      setCompletionTask(null);
+      setCompletionResultType("contacted");
+      setCompletionNote("");
+    } finally {
+      setUpdatingTaskIds((current) => {
+        const next = new Set(current);
+        next.delete(task.id);
+        return next;
+      });
+    }
+  };
+
+  const activeCount = items.filter((item) => item.status !== "completed" && item.status !== "cancelled").length;
+
+  return (
+    <CardShell title={data.title} subtitle={data.subtitle}>
+      <div className="rounded-2xl border border-black/5 bg-[#F7F5F2] p-4">
+        <div className="text-sm font-medium text-[#1F1B2D]">{data.summary}</div>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#6F6678]">
+          <span>待处理 {data.stats?.pending ?? 0}</span>
+          <span>跟进中 {data.stats?.inProgress ?? data.stats?.in_progress ?? 0}</span>
+          <span>逾期 {data.stats?.expired ?? 0}</span>
+          <span>已完成 {data.stats?.completed ?? 0}</span>
+        </div>
+      </div>
+
+      {items.length ? (
+        <div className="grid gap-3">
+          {items.map((task) => (
+            <div key={task.id} className="rounded-2xl border border-black/5 bg-white p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-base font-semibold text-[#1F1B2D]">{task.customerName || `客户 #${task.customerId}`}</div>
+                    {task.customerMemberLevel ? (
+                      <span className="rounded-full bg-[#F7F5F2] px-2 py-0.5 text-[11px] text-[#6F6678]">{task.customerMemberLevel}</span>
+                    ) : null}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${getFollowUpStatusClass(task.status)}`}>
+                      {getFollowUpStatusLabel(task.status)}
+                    </span>
+                    <span className="rounded-full bg-[#FFF7EA] px-2 py-0.5 text-[11px] text-[#B7791F]">
+                      {getFollowUpPriorityLabel(task.priority)}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-[#6F6678]">
+                    {[task.customerPhone, task.assigneeUserName || task.assigneeBeauticianName, task.dueAt ? `截止 ${formatFollowUpDate(task.dueAt)}` : ""]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-[#1F1B2D]">{task.title || "管理端下发的客户跟进任务"}</p>
+                  {task.script ? <p className="mt-2 rounded-xl bg-[#F7F5F2] p-3 text-sm text-[#4B4360]">话术：{task.script}</p> : null}
+                  {task.note ? <p className="mt-2 text-sm text-[#6F6678]">备注：{task.note}</p> : null}
+                  {task.resultNote || task.result ? (
+                    <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">
+                      跟进情况：{task.resultNote || task.result}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={updatingTaskIds.has(task.id) || task.status === "in_progress" || task.status === "completed"}
+                    onClick={() => void updateTask(task, "start")}
+                    className="rounded-full border border-[#2D1B69]/20 px-3 py-1.5 text-xs font-medium text-[#2D1B69] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {updatingTaskIds.has(task.id) ? "处理中" : "开始处理"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updatingTaskIds.has(task.id) || task.status === "completed" || task.status === "cancelled"}
+                    onClick={() => {
+                      setCompletionTask(task);
+                      setCompletionResultType("contacted");
+                      setCompletionNote("");
+                    }}
+                    className="rounded-full bg-[#2D1B69] px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    填写跟进情况
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-black/10 bg-white p-6 text-center text-sm text-[#6F6678]">
+          暂无管理端下发给当前账号的客户跟进任务。
+        </div>
+      )}
+
+      {items.length && activeCount === 0 ? (
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-700">
+          当前列表内的跟进任务均已完成。
+        </div>
+      ) : null}
+
+      <Dialog open={Boolean(completionTask)} onOpenChange={(open) => !open && setCompletionTask(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>填写跟进情况</DialogTitle>
+            <DialogDescription>
+              {completionTask?.customerName || "客户"} 的跟进结果会回写管理端，用于任务闭环和营销复盘。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <label className="block text-sm text-[#6F6678]">
+              跟进结果
+              <select
+                value={completionResultType}
+                onChange={(event) => setCompletionResultType(event.target.value)}
+                className="mt-2 h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-[#1F1B2D]"
+              >
+                {followUpResultOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm text-[#6F6678]">
+              跟进情况
+              <textarea
+                value={completionNote}
+                onChange={(event) => setCompletionNote(event.target.value)}
+                className="mt-2 min-h-24 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-[#1F1B2D]"
+                placeholder="记录客户反馈、预约意向、拒绝原因或下次跟进时间"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setCompletionTask(null)}
+              className="rounded-full border border-black/10 px-4 py-2 text-sm text-[#6F6678]"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={!completionTask || updatingTaskIds.has(completionTask.id)}
+              onClick={() => completionTask && void updateTask(completionTask, "complete")}
+              className="rounded-full bg-[#2D1B69] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              保存跟进情况
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </CardShell>
+  );
+}
+
 export function CustomerGrowthCard({
   customers,
 }: {
@@ -2499,7 +2730,7 @@ export function InventoryAlertsCard({
               <div key={item.id} className="rounded-xl bg-[#F7F5F2] p-3">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium text-[#1F1B2D]">{item.productName}</div>
-                  <div className="text-xs text-[#A8764D]">{item.status}</div>
+                  <div className="text-xs text-[#A8764D]">{formatBusinessQueryValue("status", item.status)}</div>
                 </div>
                 <div className="mt-1 text-xs text-[#6F6678]">当前 {item.currentStock} / 安全 {item.safetyStock}</div>
               </div>
@@ -2540,7 +2771,7 @@ export function CustomerProfileCard({
           <div>
             <div className="text-2xl font-bold text-[#1F1B2D]">{customer.name}</div>
             <p className="mt-1 text-sm text-[#6F6678]">
-              {customer.phone} · {customer.memberLevel} · 最近到店 {customer.lastVisitDate}
+              {customer.phone} · {customer.memberLevel} · 最近到店 {formatBusinessQueryValue("lastVisitDate", customer.lastVisitDate)}
             </p>
           </div>
           <span className="rounded-full bg-[#2D1B69] px-3 py-1 text-xs text-white">{customer.source}</span>
@@ -2660,6 +2891,1307 @@ export function BeauticianCustomerListCard({
             暂无当前美容师服务客户
           </div>
         )}
+      </div>
+    </CardShell>
+  );
+}
+
+const BUSINESS_QUERY_FIELD_LABELS: Record<string, string> = {
+  productName: "商品",
+  sku: "SKU",
+  opportunityType: "机会类型",
+  fitScore: "匹配分",
+  quantity: "销量",
+  previousQuantity: "上期销量",
+  growthRate: "增长率",
+  growthRateText: "增长率",
+  salesAmount: "销售额",
+  salesAmountText: "销售额",
+  currentStock: "当前库存",
+  safetyStock: "安全库存",
+  unit: "单位",
+  salesQuantity: "近30天销量",
+  expiringStock: "临期库存",
+  daysToExpiry: "距到期天数",
+  marginRate: "毛利率",
+  marginRateText: "毛利率",
+  grossMarginRate: "毛利率",
+  grossMarginRateText: "毛利率",
+  suggestedCampaign: "建议活动",
+  customerId: "客户编号",
+  customerName: "客户",
+  customerPhone: "手机号",
+  phone: "手机号",
+  memberLevel: "会员",
+  tags: "标签",
+  priority: "跟进优先级",
+  priorityScore: "优先评分",
+  channel: "渠道",
+  title: "标题",
+  daysSinceVisit: "未到店天数",
+  lastVisitDays: "未到店天数",
+  lastVisitDate: "最近到店",
+  churnScore: "流失分",
+  churnLevel: "流失等级",
+  repurchase30dScore: "复购分",
+  marketingResponseScore: "营销响应分",
+  ltvTier: "客户价值层级",
+  totalSpent: "累计消费",
+  visitCount: "到店次数",
+  productId: "商品编号",
+  purchaseOrderId: "采购单编号",
+  orderNo: "单号",
+  supplierId: "供应商编号",
+  supplier: "供应商",
+  supplierName: "供应商",
+  category: "分类",
+  pendingOrderCount: "待到货采购单",
+  receivedOrderCount: "已到货采购单",
+  overdueOrderCount: "超期未到货",
+  totalAmountText: "采购金额",
+  netAmountText: "净采购额",
+  settlementCount: "结算单数",
+  settlementAmountText: "结算金额",
+  unpaidSettlementCount: "待处理结算",
+  averageDeliveryDays: "平均交付天数",
+  averageDeliveryDaysText: "平均交付天数",
+  receiveRate: "到货率",
+  receiveRateText: "到货率",
+  suggestedQty: "建议补货",
+  suggestedReplenishment: "建议补货",
+  estimatedAmount: "预计金额",
+  unitPrice: "单价",
+  subtotal: "小计",
+  totalAmount: "总金额",
+  orderCount: "订单数",
+  customerCount: "客户数",
+  payMethod: "支付方式",
+  projectName: "项目",
+  beauticianName: "美容师",
+  levelName: "等级",
+  performanceScore: "表现分",
+  performanceLevel: "表现等级",
+  serviceCount: "服务次数",
+  serviceTaskCount: "服务任务",
+  completedTaskCount: "完成服务",
+  taskCompletionRate: "服务完成率",
+  taskCompletionRateText: "服务完成率",
+  serviceRecordCompleteCount: "完整服务记录",
+  serviceRecordCompletionRate: "服务记录完整率",
+  serviceRecordCompletionRateText: "服务记录完整率",
+  cardUsageTimes: "核销次数",
+  commissionAmount: "提成",
+  commissionAmountText: "提成",
+  repeatCustomerCount: "复购客户",
+  customerRepurchaseRate: "客户复购率",
+  customerRepurchaseRateText: "客户复购率",
+  reservationCount: "预约数",
+  completedReservationCount: "完成预约",
+  completionRate: "预约完成率",
+  completionRateText: "预约完成率",
+  status: "状态",
+  startTime: "时间",
+  endTime: "结束时间",
+  reason: "依据",
+  suggestedAction: "建议动作",
+  riskLevel: "风险等级",
+  severity: "严重程度",
+  strategyName: "策略",
+  executionCount: "执行次数",
+  triggeredCount: "触发人数",
+  reachedCount: "触达人数",
+  convertedCount: "转化人数",
+  failedExecutionCount: "失败执行",
+  reachRate: "触达率",
+  reachRateText: "触达率",
+  lastExecutedAt: "最近执行",
+  attributedRevenue: "归因收入",
+  materialCost: "耗材成本",
+  grossMargin: "毛利",
+  totalRevenue: "收入",
+  totalRevenueText: "收入",
+  refundAmount: "退款金额",
+  refundAmountText: "退款金额",
+  netRevenue: "净收入",
+  netRevenueText: "净收入",
+  commissionTotal: "提成合计",
+  commissionTotalText: "提成合计",
+  averageOrderValue: "客单价",
+  averageOrderValueText: "客单价",
+  promotionId: "权益编号",
+  promotionName: "权益",
+  discountText: "优惠内容",
+  issuedCount: "领取数",
+  usedCount: "使用数",
+  maxIssueCount: "可发放数",
+  claimRate: "领取率",
+  claimRateText: "领取率",
+  useRate: "使用率",
+  useRateText: "使用率",
+  estimatedCost: "预计成本",
+  estimatedCostText: "预计成本",
+  identityCount: "小程序身份",
+  boundCount: "已绑定客户",
+  appEventCount: "访问事件",
+  uniqueVisitorCount: "访问人数",
+  activeCustomerCount: "活跃客户",
+  promotionClaimedCount: "权益领取",
+  promotionClaimCount: "权益领取",
+  promotionReservedCount: "权益预约",
+  reservationEventCount: "小程序预约",
+  checkedInReservationCount: "已到店预约",
+  pageId: "推广页编号",
+  pageTitle: "推广页",
+  sourceType: "来源类型",
+  viewCount: "访问数",
+  clickCount: "点击数",
+  shareCount: "分享数",
+  leadCount: "线索数",
+  leadConvertedCount: "已转化线索",
+  conversionCount: "转化数",
+  conversionRate: "转化率",
+  conversionRateText: "转化率",
+  attributedOrderCount: "归因订单",
+  attributedRevenueText: "归因收入",
+  appCustomerOrderCount: "小程序客户成交",
+  appCustomerRevenue: "小程序客户成交额",
+  appCustomerRevenueText: "小程序客户成交额",
+  leadRate: "线索率",
+  leadRateText: "线索率",
+  reservationRate: "预约率",
+  reservationRateText: "预约率",
+  attributionConversionRate: "归因转化率",
+  attributionConversionRateText: "归因转化率",
+  storeId: "门店编号",
+  storeName: "门店",
+  city: "城市",
+  arrivedCount: "到店数",
+  arrivalRate: "到店率",
+  arrivalRateText: "到店率",
+  lowStockCount: "低库存项",
+  storeRankScore: "门店评分",
+  deviceId: "设备编号",
+  deviceCode: "设备码",
+  deviceName: "设备",
+  networkStatus: "网络",
+  printerStatus: "打印机",
+  scannerStatus: "扫码器",
+  cameraStatus: "摄像头",
+  batteryLevel: "电量",
+  lastOnlineAt: "最近在线",
+  conversationCount: "会话数",
+  messageCount: "消息数",
+  abnormalSignalCount: "异常项",
+  abnormalSignals: "异常信号",
+  failureCategoryLabel: "失败分类",
+  failureCount: "出现次数",
+  affectedDeviceCount: "影响设备",
+  affectedDevices: "影响设备",
+  topDeviceName: "主要设备",
+  sampleMessage: "样例消息",
+  candidateCapabilityName: "候选能力",
+  candidateReason: "候选原因",
+  recommendation: "处理建议",
+  refundId: "退款编号",
+  refundNo: "退款单号",
+  orderId: "订单编号",
+  amount: "金额",
+  amountText: "金额",
+  orderAmount: "订单金额",
+  orderAmountText: "订单金额",
+  refundRate: "退款率",
+  refundRateText: "退款率",
+  refundOrderRate: "单笔退款占比",
+  refundOrderRateText: "单笔退款占比",
+  refundedAt: "退款时间",
+  taskId: "服务任务编号",
+  taskNo: "服务单号",
+  appointmentTime: "预约时间",
+  startedAt: "开始时间",
+  completedAt: "完成时间",
+  qualitySignals: "质量信号",
+  riskScore: "风险分",
+};
+
+const BUSINESS_QUERY_TOKEN_LABELS: Record<string, string> = {
+  id: "编号",
+  product: "商品",
+  project: "项目",
+  customer: "客户",
+  member: "会员",
+  card: "卡",
+  order: "订单",
+  purchase: "采购",
+  supplier: "供应商",
+  inventory: "库存",
+  stock: "库存",
+  sales: "销售",
+  revenue: "收入",
+  amount: "金额",
+  price: "价格",
+  cost: "成本",
+  margin: "毛利",
+  profit: "利润",
+  quantity: "数量",
+  qty: "数量",
+  count: "数量",
+  rate: "率",
+  score: "评分",
+  level: "等级",
+  tier: "层级",
+  ltv: "长期价值",
+  status: "状态",
+  type: "类型",
+  name: "名称",
+  phone: "手机号",
+  channel: "渠道",
+  reason: "原因",
+  suggestion: "建议",
+  suggested: "建议",
+  action: "动作",
+  current: "当前",
+  previous: "上期",
+  last: "最近",
+  visit: "到店",
+  days: "天数",
+  date: "日期",
+  time: "时间",
+  start: "开始",
+  end: "结束",
+  risk: "风险",
+  priority: "优先级",
+  response: "响应",
+  marketing: "营销",
+  repurchase: "复购",
+  churn: "流失",
+  beautician: "美容师",
+  service: "服务",
+  task: "任务",
+  promotion: "权益",
+  claim: "领取",
+  use: "使用",
+  issued: "已发放",
+  bound: "绑定",
+  app: "小程序",
+  event: "事件",
+  lead: "线索",
+  conversion: "转化",
+  attributed: "归因",
+  device: "设备",
+  terminal: "终端",
+  network: "网络",
+  printer: "打印机",
+  scanner: "扫码器",
+  camera: "摄像头",
+  battery: "电量",
+  conversation: "会话",
+  message: "消息",
+  abnormal: "异常",
+  signal: "信号",
+  refund: "退款",
+  refunded: "已退款",
+  quality: "质量",
+};
+
+const BUSINESS_QUERY_VALUE_LABELS: Record<string, string> = {
+  urgent: "需立即跟进",
+  recommended: "建议优先跟进",
+  opportunity: "可培育机会",
+  high: "高",
+  medium: "中",
+  low: "低",
+  extreme: "极高",
+  success: "已完成",
+  no_data: "暂无数据",
+  unsupported: "暂不支持",
+  failed: "失败",
+  pending: "待处理",
+  confirmed: "已确认",
+  checked_in: "已到店",
+  cancelled: "已取消",
+  no_show: "未到店",
+  completed: "已完成",
+  paid: "已支付",
+  refunded: "已退款",
+  draft: "草稿",
+  active: "启用",
+  inactive: "停用",
+  deleted: "已删除",
+  available: "可预约",
+  busy: "忙碌",
+  leave: "请假",
+  normal: "正常",
+  online: "在线",
+  offline: "离线",
+  error: "异常",
+  ok: "正常",
+  bound: "已绑定",
+  unbound: "未绑定",
+  money_off: "满减",
+  discount: "折扣",
+  gift: "赠品",
+  activity: "活动",
+  page: "推广页",
+  h5: "H5 页面",
+  miniapp: "小程序",
+  ami_glow: "Ami Glow 小程序",
+  customer_app: "客户小程序",
+  page_view: "页面访问",
+  project_view: "项目浏览",
+  cta_click: "点击咨询",
+  promotion_claimed: "权益领取",
+  promotion_reserved: "权益预约",
+  miniapp_reservation_success: "小程序预约成功",
+  expired: "已过期",
+  in_progress: "进行中",
+  open: "已开班",
+  closed: "已交班",
+  cash: "现金",
+  wechat: "微信",
+  alipay: "支付宝",
+  card: "会员卡",
+  product: "商品",
+  project: "项目",
+  customer: "客户",
+  schedule: "排班",
+  reservation: "预约",
+  order: "订单",
+  memberCard: "会员卡",
+  finance: "财务",
+  inventory: "库存",
+  marketing: "营销",
+  staff: "员工",
+  store: "门店",
+  supplyChain: "供应链",
+  automation: "自动化",
+  promotion: "权益活动",
+  serviceQuality: "服务质量",
+  customerApp: "客户小程序",
+  channel: "渠道",
+  terminal: "终端",
+  afterSales: "售后退款",
+  business: "经营",
+  unknown: "未识别",
+};
+
+const BUSINESS_QUERY_CAPABILITY_LABELS: Record<string, string> = {
+  business_overview: "经营概览",
+  product_sales_trend: "商品销量趋势",
+  product_customer_distribution: "商品购买客户分布",
+  product_replenishment_opportunity: "商品补货机会",
+  project_service_trend: "项目服务趋势",
+  project_material_margin: "项目耗材毛利",
+  customer_churn_risk: "客户流失风险",
+  customer_growth_opportunity: "客户增长机会",
+  inventory_alert: "库存预警",
+  reservation_today: "今日预约",
+  schedule_utilization: "排班利用率",
+  order_revenue_analysis: "订单收入分析",
+  card_expiry_risk: "卡项到期风险",
+  card_usage_analysis: "卡项核销分析",
+  member_balance_analysis: "会员卡余额分析",
+  finance_cashflow_summary: "财务现金流摘要",
+  marketing_conversion: "营销转化分析",
+  automation_execution_summary: "自动化执行复盘",
+  supplier_purchase_advice: "供应链采购建议",
+  business_anomaly_alert: "经营异常提醒",
+  multi_store_comparison: "多门店对比",
+  staff_performance: "员工表现",
+  terminal_health_diagnosis: "终端设备与对话诊断",
+  unsupported: "暂不支持",
+};
+
+const AGENT_TOOL_LABELS: Record<string, string> = {
+  "business.query.ask": "经营问数",
+  "customer.priority.rank": "客户优先跟进排序",
+  "marketing.opportunity.discover": "营销机会发现",
+  "marketing.activity.draft": "生成活动草稿",
+  "inventory.risk.rank": "库存风险排序",
+  "inventory.replenishment.draft": "生成补货草稿",
+  "revenue.diagnose": "收入诊断",
+  "finance.margin.diagnose": "毛利诊断",
+  "card.member.diagnose": "卡项与会员卡诊断",
+  "reservation.schedule.diagnose": "预约与排班诊断",
+  "scheduling.optimization.preview": "排班优化预览",
+  "project.business.diagnose": "项目经营诊断",
+  "product.sales.rank": "商品销售排行",
+  "service.record.draft": "服务记录草稿",
+  "staff.performance.rank": "员工表现排行",
+  "supply_chain.diagnose": "供应链采购诊断",
+  "marketing.conversion.diagnose": "营销转化诊断",
+  "automation.execution.diagnose": "自动化执行复盘",
+  "store.comparison.diagnose": "门店对比诊断",
+  "promotion.effect.analyze": "权益活动效果分析",
+  "customer_app.funnel.analyze": "客户小程序渠道漏斗",
+  "terminal.health.diagnose": "终端设备与对话诊断",
+  "order.refund.diagnose": "售后退款诊断",
+  "service.quality.diagnose": "服务质量诊断",
+};
+
+const BUSINESS_EVIDENCE_SOURCE_LABELS: Record<string, string> = {
+  Product: "商品",
+  ProductOrder: "订单",
+  Project: "项目",
+  Customer: "客户",
+  Order: "订单",
+  OrderItem: "订单明细",
+  Reservation: "预约",
+  Schedule: "排班",
+  StaffSchedule: "员工排班",
+  Beautician: "美容师",
+  ServiceTask: "服务任务",
+  Card: "次卡",
+  CardOrder: "开卡订单",
+  CardUsage: "次卡核销",
+  CardUsageRecord: "次卡核销记录",
+  MemberCard: "会员卡",
+  PaymentRecord: "收款记录",
+  RefundRecord: "退款记录",
+  CommissionRecord: "提成记录",
+  Inventory: "库存",
+  StockMovement: "库存流水",
+  Supplier: "供应商",
+  SupplierOrder: "供应商订单",
+  SupplierOrderItem: "供应商订单明细",
+  SupplierSettlement: "供应商结算",
+  MarketingActivity: "营销活动",
+  MarketingPage: "推广页",
+  MarketingPageEvent: "推广页事件",
+  MarketingPageLead: "推广页线索",
+  MarketingPageAttribution: "推广页归因",
+  MarketingAutomation: "营销自动化",
+  MarketingAutomationStrategy: "自动化策略",
+  MarketingAutomationExecution: "自动化执行",
+  MarketingAutomationTouch: "自动化触达",
+  MarketingAttribution: "营销归因",
+  Promotion: "权益活动",
+  CustomerAppIdentity: "客户小程序身份",
+  CustomerAppEvent: "客户小程序事件",
+  TerminalDevice: "终端设备",
+  TerminalConversation: "终端会话",
+  PredictionSnapshot: "AI 预测快照",
+  CustomerPredictionSnapshot: "客户预测快照",
+  FollowUpTask: "跟进任务",
+  TerminalFollowUpTask: "终端跟进任务",
+};
+
+function normalizeBusinessKey(key: string) {
+  return key.replace(/[\s_-]+/g, "").toLowerCase();
+}
+
+function toBusinessNumber(value: unknown) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value);
+  return null;
+}
+
+function formatBusinessNumber(value: number) {
+  return Number.isInteger(value)
+    ? value.toLocaleString("zh-CN")
+    : value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}
+
+function formatBusinessMoney(value: number) {
+  return `￥${value.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`;
+}
+
+function formatBusinessDate(value: unknown, includeTime: boolean) {
+  const date = value instanceof Date ? value : typeof value === "string" || typeof value === "number" ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  if (!includeTime) return `${yyyy}-${mm}-${dd}`;
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+}
+
+function getBusinessQueryFieldLabel(key: string) {
+  if (BUSINESS_QUERY_FIELD_LABELS[key]) return BUSINESS_QUERY_FIELD_LABELS[key];
+  const tokens = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_.-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const translated = tokens.map((token) => BUSINESS_QUERY_TOKEN_LABELS[token.toLowerCase()] ?? token);
+  return translated.join("");
+}
+
+function getBusinessQueryDomainLabel(domain: string) {
+  return BUSINESS_QUERY_VALUE_LABELS[domain] ?? getBusinessQueryFieldLabel(domain);
+}
+
+function getBusinessQueryCapabilityLabel(capability: string) {
+  return BUSINESS_QUERY_CAPABILITY_LABELS[capability] ?? getBusinessQueryFieldLabel(capability);
+}
+
+function getAgentToolLabel(toolName: string) {
+  return AGENT_TOOL_LABELS[toolName] ?? getBusinessQueryFieldLabel(toolName);
+}
+
+function formatBusinessQueryValue(key: string, value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (Array.isArray(value)) {
+    const text = value.map((item) => formatBusinessQueryValue(key, item)).filter((item) => item !== "-");
+    return text.length ? text.join("、") : "-";
+  }
+  if (typeof value === "boolean") return value ? "是" : "否";
+  if (isRecord(value)) return "已记录明细";
+
+  const normalizedKey = normalizeBusinessKey(key);
+  const rawText = String(value).trim();
+  const isMoneyKey =
+    normalizedKey.includes("amount") ||
+    normalizedKey.includes("revenue") ||
+    normalizedKey.includes("spent") ||
+    normalizedKey.includes("price") ||
+    normalizedKey.includes("cost") ||
+    normalizedKey.includes("profit") ||
+    normalizedKey.includes("subtotal") ||
+    normalizedKey.includes("balance") ||
+    (normalizedKey.includes("margin") && !normalizedKey.includes("rate"));
+  if (isMoneyKey && /^[￥¥]/.test(rawText)) return rawText.replace(/^¥/, "￥");
+  const enumLabel = BUSINESS_QUERY_VALUE_LABELS[rawText] ?? BUSINESS_QUERY_VALUE_LABELS[rawText.toLowerCase()];
+  if (enumLabel && normalizedKey.includes("risk") && ["low", "medium", "high"].includes(rawText.toLowerCase())) {
+    return `${enumLabel}风险`;
+  }
+  if (
+    enumLabel &&
+    (normalizedKey.includes("priority") ||
+      normalizedKey.includes("status") ||
+      normalizedKey.includes("risk") ||
+      normalizedKey.includes("level") ||
+      normalizedKey.includes("type") ||
+      normalizedKey.includes("domain") ||
+      normalizedKey.includes("channel") ||
+      normalizedKey.includes("source") ||
+      normalizedKey.includes("method") ||
+      ["urgent", "recommended", "opportunity"].includes(rawText.toLowerCase()))
+  ) {
+    return enumLabel;
+  }
+
+  const dateLike =
+    value instanceof Date ||
+    (typeof value === "string" && /^\d{4}-\d{2}-\d{2}(T|\s)?/.test(value) && !normalizedKey.includes("days"));
+  if (dateLike || (normalizedKey.includes("date") && !normalizedKey.includes("daterange"))) {
+    const formatted = formatBusinessDate(value, normalizedKey.includes("time") || normalizedKey.endsWith("at"));
+    if (formatted) return formatted;
+  }
+
+  const numericValue = toBusinessNumber(value);
+  if (numericValue !== null) {
+    if (normalizedKey.includes("rate") || normalizedKey.includes("ratio") || normalizedKey.includes("percent")) {
+      const percent = Math.abs(numericValue) <= 1 ? numericValue * 100 : numericValue;
+      return `${formatBusinessNumber(percent)}%`;
+    }
+    if (normalizedKey.includes("score")) return `${formatBusinessNumber(numericValue)} 分`;
+    if (normalizedKey.includes("days") && !normalizedKey.includes("date")) return `${formatBusinessNumber(numericValue)} 天`;
+    if (normalizedKey.includes("visitcount")) return `${formatBusinessNumber(numericValue)} 次`;
+    if (normalizedKey.includes("ordercount")) return `${formatBusinessNumber(numericValue)} 笔`;
+    if (normalizedKey.includes("customercount")) return `${formatBusinessNumber(numericValue)} 位`;
+    if (isMoneyKey) {
+      return formatBusinessMoney(numericValue);
+    }
+    return formatBusinessNumber(numericValue);
+  }
+
+  return rawText || "-";
+}
+
+function formatBusinessEvidenceSource(source: string) {
+  return BUSINESS_EVIDENCE_SOURCE_LABELS[source] ?? getAgentToolLabel(source);
+}
+
+function formatBusinessEvidenceText(text: string) {
+  return text
+    .replace(/CustomerPredictionSnapshot/g, "客户预测快照")
+    .replace(/TerminalFollowUpTask/g, "终端跟进任务")
+    .replace(/FollowUpTask/g, "跟进任务")
+    .replace(/PredictionSnapshot/g, "AI 预测快照")
+    .replace(/\bproduct_sales_amount\b/g, "商品销售额")
+    .replace(/\bproduct_sales_growth\b/g, "商品销量增长")
+    .replace(/\bfollow_up_priority_score\b/g, "客户跟进优先评分")
+    .replace(/\bstaff_performance_score\b/g, "员工表现评分")
+    .replace(/\bsupplier_delivery_cycle\b/g, "供应商交付周期")
+    .replace(/\bsupplier_settlement_amount\b/g, "供应商结算金额")
+    .replace(/\bsupplier_purchase_score\b/g, "供应链采购优先级")
+    .replace(/\bcampaign_conversion_rate\b/g, "活动转化率")
+    .replace(/\bcampaign_revenue\b/g, "活动成交收入")
+    .replace(/\bpromotion_claim_rate\b/g, "权益领取率")
+    .replace(/\bautomation_touch_success_rate\b/g, "自动化触达成功率")
+    .replace(/\bcustomer_app_active_count\b/g, "客户小程序活跃数")
+    .replace(/\bcustomer_app_bind_rate\b/g, "客户小程序绑定率")
+    .replace(/\bchannel_conversion_rate\b/g, "渠道转化率")
+    .replace(/\bterminal_failure_rate\b/g, "终端失败率")
+    .replace(/\bterminal_conversation_count\b/g, "终端会话数")
+    .replace(/\brefund_amount\b/g, "退款金额")
+    .replace(/\brefund_rate\b/g, "退款率")
+    .replace(/\bservice_completion_rate\b/g, "服务完成率")
+    .replace(/storeId=当前门店/g, "当前门店")
+    .replace(/TerminalConversation\.date=查询周期/g, "终端会话日期在查询周期内")
+    .replace(/limit=(\d+)/g, "最多返回 $1 条")
+    .replace(/timeRange=([^；,，\s]+)/gi, "统计周期为 $1")
+    .replace(/scope=全店员工/g, "全店员工")
+    .replace(/scope=本人/g, "本人")
+    .replace(/scope=指定员工/g, "指定员工")
+    .replace(/订单状态 in completed\/paid/g, "订单状态为已完成或已支付")
+    .replace(/status in completed,\s*paid/g, "订单状态为已完成或已支付")
+    .replace(/status not in cancelled\/refunded/g, "排除已取消和已退款订单")
+    .replace(/ProductOrder\.status != cancelled/g, "排除已取消订单")
+    .replace(/Reservation\.status != cancelled/g, "排除已取消预约")
+    .replace(/预约排除 cancelled/g, "排除已取消预约")
+    .replace(/Product\.deletedAt is null/g, "商品未删除")
+    .replace(/Project\.deletedAt is null/g, "项目未删除")
+    .replace(/Customer\.deletedAt is null/g, "客户未删除")
+    .replace(/Supplier\.deletedAt is null/g, "供应商未删除")
+    .replace(/Promotion\.status != deleted/g, "权益未删除")
+    .replace(/CommissionRecord\.status != cancelled/g, "排除已取消提成记录")
+    .replace(/OrderItem\.itemType=product/g, "订单明细为商品")
+    .replace(/OrderItem\.itemType=project/g, "订单明细为项目")
+    .replace(/itemType=product/g, "明细类型为商品")
+    .replace(/itemType=project/g, "明细类型为项目")
+    .replace(/status=active/g, "状态为启用")
+    .replace(/currentStock <= safetyStock/g, "当前库存不高于安全库存")
+    .replace(/device token/gi, "设备认证令牌")
+    .replace(/\bdomain\b/gi, "业务领域")
+    .replace(/\bmetric\b/gi, "指标")
+    .replace(/\bcapability\b/gi, "查询能力")
+    .replace(/\bProduct\b/g, "商品")
+    .replace(/\bOrderItem\b/g, "订单明细")
+    .replace(/\bCustomer\b/g, "客户")
+    .replace(/\bReservation\b/g, "预约")
+    .replace(/\bSchedule\b/g, "排班")
+    .replace(/\bServiceTask\b/g, "服务任务")
+    .replace(/\bTerminalDevice\b/g, "终端设备")
+    .replace(/\bTerminalConversation\b/g, "终端会话")
+    .replace(/\bCustomerAppIdentity\b/g, "客户小程序身份")
+    .replace(/\bCustomerAppEvent\b/g, "客户小程序事件")
+    .replace(/\bMarketingPageLead\b/g, "推广页线索")
+    .replace(/\bMarketingPageAttribution\b/g, "推广页归因")
+    .replace(/\bPromotion\b/g, "权益活动")
+    .replace(/\bCardUsageRecord\b/g, "次卡核销记录")
+    .replace(/\bStockMovement\b/g, "库存流水");
+}
+
+function pickBusinessQueryFields(item: Record<string, unknown>) {
+  const preferred = [
+    "productName",
+    "quantity",
+    "growthRateText",
+    "salesAmount",
+    "currentStock",
+    "safetyStock",
+    "suggestedReplenishment",
+    "suggestedQty",
+    "estimatedAmount",
+    "supplierName",
+    "pendingOrderCount",
+    "overdueOrderCount",
+    "averageDeliveryDaysText",
+    "receiveRateText",
+    "settlementAmountText",
+    "unpaidSettlementCount",
+    "grossMarginRateText",
+    "materialCost",
+    "grossMargin",
+    "severity",
+    "title",
+    "salesQuantity",
+    "strategyName",
+    "executionCount",
+    "triggeredCount",
+    "reachedCount",
+    "convertedCount",
+    "failedExecutionCount",
+    "reachRateText",
+    "attributedRevenue",
+    "beauticianName",
+    "performanceScore",
+    "performanceLevel",
+    "serviceCount",
+    "salesAmount",
+    "salesAmountText",
+    "commissionAmountText",
+    "serviceRecordCompletionRateText",
+    "repeatCustomerCount",
+    "customerRepurchaseRateText",
+    "completionRateText",
+    "serviceTaskCount",
+    "completedTaskCount",
+    "cardUsageTimes",
+    "commissionAmount",
+    "serviceRecordCompleteCount",
+    "promotionName",
+    "issuedCount",
+    "usedCount",
+    "useRateText",
+    "claimRateText",
+    "channel",
+    "pageTitle",
+    "viewCount",
+    "clickCount",
+    "shareCount",
+    "eventCount",
+    "uniqueVisitorCount",
+    "activeCustomerCount",
+    "promotionClaimCount",
+    "promotionReservedCount",
+    "reservationEventCount",
+    "reservationCount",
+    "checkedInReservationCount",
+    "leadCount",
+    "leadConvertedCount",
+    "attributedOrderCount",
+    "leadRateText",
+    "reservationRateText",
+    "conversionCount",
+    "conversionRateText",
+    "attributionConversionRateText",
+    "attributedRevenue",
+    "attributedRevenueText",
+    "appCustomerOrderCount",
+    "appCustomerRevenueText",
+    "storeName",
+    "salesAmountText",
+    "arrivalRateText",
+    "lowStockCount",
+    "storeRankScore",
+    "deviceName",
+    "deviceCode",
+    "failureCategoryLabel",
+    "failureCount",
+    "affectedDeviceCount",
+    "topDeviceName",
+    "sampleMessage",
+    "candidateCapabilityName",
+    "recommendation",
+    "status",
+    "abnormalSignalCount",
+    "conversationCount",
+    "messageCount",
+    "refundNo",
+    "amountText",
+    "refundOrderRateText",
+    "refundedAt",
+    "taskNo",
+    "riskScore",
+    "riskLevel",
+    "customerName",
+    "phone",
+    "memberLevel",
+    "priority",
+    "priorityScore",
+    "daysSinceVisit",
+    "lastVisitDays",
+    "lastVisitDate",
+    "totalSpent",
+    "visitCount",
+    "productId",
+    "payMethod",
+    "orderCount",
+    "projectName",
+    "status",
+  ];
+  const keys = preferred.filter((key) => key in item);
+  const displayLimit =
+    "beauticianName" in item && "performanceScore" in item
+      ? 10
+      : "channel" in item && "attributedOrderCount" in item
+        ? 18
+        : 6;
+  return normalizeBusinessDetailFields(keys.length ? keys : Object.keys(item), item).slice(0, displayLimit);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function getAgentStatusLabel(status: AgentRunResult["status"]) {
+  const labels: Record<AgentRunResult["status"], string> = {
+    created: "已创建",
+    planning: "规划中",
+    validating: "校验中",
+    running_tool: "查询中",
+    waiting_approval: "待确认",
+    composing: "生成中",
+    completed: "已完成",
+    failed: "执行失败",
+    cancelled: "已取消",
+  };
+  return labels[status] ?? status;
+}
+
+function getAgentStatusClass(status: AgentRunResult["status"]) {
+  if (status === "completed") return "bg-emerald-50 text-emerald-700";
+  if (status === "waiting_approval") return "bg-amber-50 text-amber-700";
+  if (status === "failed" || status === "cancelled") return "bg-rose-50 text-rose-600";
+  return "bg-[#F7F5F2] text-[#6F6678]";
+}
+
+function getAgentToolItems(result: AgentToolResult) {
+  const data = isRecord(result.data) ? result.data : undefined;
+  const candidates = data?.candidates;
+  if (Array.isArray(candidates)) return candidates.filter(isRecord);
+  const items = data?.items;
+  if (Array.isArray(items)) return items.filter(isRecord);
+  const card = isRecord(data?.card) ? data.card : undefined;
+  const cardItems = card?.items;
+  return Array.isArray(cardItems) ? cardItems.filter(isRecord) : [];
+}
+
+function getAgentToolResultLabel(status: AgentToolResult["status"]) {
+  const labels: Record<AgentToolResult["status"], string> = {
+    success: "已完成",
+    no_data: "暂无数据",
+    unsupported: "需补充",
+    failed: "失败",
+  };
+  return labels[status] ?? status;
+}
+
+function pickAgentResultFields(item: Record<string, unknown>) {
+  const preferred = [
+    "productName",
+    "beauticianName",
+    "performanceScore",
+    "performanceLevel",
+    "serviceCount",
+    "salesAmount",
+    "salesAmountText",
+    "commissionAmountText",
+    "serviceRecordCompletionRateText",
+    "repeatCustomerCount",
+    "customerRepurchaseRateText",
+    "completionRateText",
+    "serviceTaskCount",
+    "completedTaskCount",
+    "taskCompletionRateText",
+    "serviceRecordCompleteCount",
+    "cardUsageTimes",
+    "commissionAmount",
+    "customerName",
+    "customerPhone",
+    "phone",
+    "memberLevel",
+    "priority",
+    "lastVisitDays",
+    "lastVisitDate",
+    "totalSpent",
+    "churnScore",
+    "churnLevel",
+    "repurchase30dScore",
+    "marketingResponseScore",
+    "opportunityType",
+    "fitScore",
+    "currentStock",
+    "safetyStock",
+    "suggestedQty",
+    "suggestedReplenishment",
+    "unitPrice",
+    "subtotal",
+    "estimatedAmount",
+    "supplier",
+    "supplierName",
+    "pendingOrderCount",
+    "overdueOrderCount",
+    "averageDeliveryDaysText",
+    "receiveRateText",
+    "settlementAmountText",
+    "unpaidSettlementCount",
+    "salesQuantity",
+    "salesAmount",
+    "orderCount",
+    "customerCount",
+    "expiringStock",
+    "daysToExpiry",
+    "marginRateText",
+    "suggestedCampaign",
+    "promotionName",
+    "issuedCount",
+    "usedCount",
+    "useRateText",
+    "claimRateText",
+    "channel",
+    "pageTitle",
+    "viewCount",
+    "clickCount",
+    "shareCount",
+    "eventCount",
+    "uniqueVisitorCount",
+    "activeCustomerCount",
+    "promotionClaimCount",
+    "promotionReservedCount",
+    "reservationEventCount",
+    "reservationCount",
+    "checkedInReservationCount",
+    "leadCount",
+    "leadConvertedCount",
+    "attributedOrderCount",
+    "leadRateText",
+    "reservationRateText",
+    "conversionCount",
+    "conversionRateText",
+    "attributionConversionRateText",
+    "attributedRevenue",
+    "attributedRevenueText",
+    "appCustomerOrderCount",
+    "appCustomerRevenueText",
+    "triggeredCount",
+    "reachedCount",
+    "reachRateText",
+    "failedExecutionCount",
+    "storeName",
+    "salesAmountText",
+    "arrivalRateText",
+    "lowStockCount",
+    "storeRankScore",
+    "deviceName",
+    "deviceCode",
+    "failureCategoryLabel",
+    "failureCount",
+    "affectedDeviceCount",
+    "topDeviceName",
+    "sampleMessage",
+    "candidateCapabilityName",
+    "recommendation",
+    "status",
+    "abnormalSignalCount",
+    "conversationCount",
+    "messageCount",
+    "refundNo",
+    "amountText",
+    "refundOrderRateText",
+    "refundedAt",
+    "taskNo",
+    "riskScore",
+    "riskLevel",
+  ];
+  const keys = preferred.filter((key) => key in item);
+  const displayLimit =
+    "beauticianName" in item && "performanceScore" in item
+      ? 12
+      : "channel" in item && "attributedOrderCount" in item
+        ? 18
+        : 8;
+  return normalizeBusinessDetailFields(keys.length ? keys : Object.keys(item), item).slice(0, displayLimit);
+}
+
+const BUSINESS_QUERY_TEXT_FIELD_PAIRS: Array<[rawField: string, textField: string]> = [
+  ["salesAmount", "salesAmountText"],
+  ["commissionAmount", "commissionAmountText"],
+  ["attributedRevenue", "attributedRevenueText"],
+  ["appCustomerRevenue", "appCustomerRevenueText"],
+  ["totalRevenue", "totalRevenueText"],
+  ["refundAmount", "refundAmountText"],
+  ["netRevenue", "netRevenueText"],
+  ["commissionTotal", "commissionTotalText"],
+  ["averageOrderValue", "averageOrderValueText"],
+  ["grossMarginRate", "grossMarginRateText"],
+  ["marginRate", "marginRateText"],
+  ["taskCompletionRate", "taskCompletionRateText"],
+  ["serviceRecordCompletionRate", "serviceRecordCompletionRateText"],
+  ["customerRepurchaseRate", "customerRepurchaseRateText"],
+  ["completionRate", "completionRateText"],
+  ["reachRate", "reachRateText"],
+  ["claimRate", "claimRateText"],
+  ["useRate", "useRateText"],
+  ["conversionRate", "conversionRateText"],
+  ["leadRate", "leadRateText"],
+  ["reservationRate", "reservationRateText"],
+  ["attributionConversionRate", "attributionConversionRateText"],
+  ["arrivalRate", "arrivalRateText"],
+  ["averageDeliveryDays", "averageDeliveryDaysText"],
+  ["receiveRate", "receiveRateText"],
+  ["settlementAmount", "settlementAmountText"],
+  ["estimatedCost", "estimatedCostText"],
+  ["amount", "amountText"],
+  ["orderAmount", "orderAmountText"],
+  ["refundRate", "refundRateText"],
+  ["refundOrderRate", "refundOrderRateText"],
+];
+
+const BUSINESS_QUERY_TEXT_FIELD_BY_RAW = new Map(BUSINESS_QUERY_TEXT_FIELD_PAIRS);
+
+function hasBusinessDisplayValue(value: unknown) {
+  return value !== null && value !== undefined && value !== "";
+}
+
+function normalizeBusinessDetailFields(fields: string[], item: Record<string, unknown>) {
+  const seenFields = new Set<string>();
+  const seenDisplayValues = new Set<string>();
+  return fields.filter((field) => {
+    if (seenFields.has(field)) return false;
+    const textField = BUSINESS_QUERY_TEXT_FIELD_BY_RAW.get(field);
+    if (textField && hasBusinessDisplayValue(item[textField])) return false;
+
+    const label = getBusinessQueryFieldLabel(field);
+    const value = formatBusinessQueryValue(field, item[field]);
+    const displaySignature = `${label}:${value}`;
+    if (seenDisplayValues.has(displaySignature)) return false;
+
+    seenFields.add(field);
+    seenDisplayValues.add(displaySignature);
+    return true;
+  });
+}
+
+type BusinessAnswerAction = { label: string; action: string; riskLevel: "low" | "medium" | "high" };
+
+function dedupeBusinessActions(actions: BusinessAnswerAction[]) {
+  const seen = new Set<string>();
+  return actions.filter((item) => {
+    const key = `${item.action}:${item.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getBusinessAnswerTitle(item: Record<string, unknown>, fallback: string) {
+  return String(
+    item.productName ??
+      item.customerName ??
+      item.projectName ??
+      item.beauticianName ??
+      item.supplierName ??
+      item.promotionName ??
+      item.pageTitle ??
+      item.strategyName ??
+      item.storeName ??
+      item.deviceName ??
+      item.failureCategoryLabel ??
+      item.refundNo ??
+      item.taskNo ??
+      (item.channel ? formatBusinessQueryValue("channel", item.channel) : undefined) ??
+      item.payMethod ??
+      item.title ??
+      fallback,
+  );
+}
+
+function BusinessDetailList({
+  items,
+  pickFields,
+}: {
+  items: Record<string, unknown>[];
+  pickFields: (item: Record<string, unknown>) => string[];
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-5 border-t border-black/5 pt-4">
+      <div className="text-sm font-semibold text-[#1F1B2D]">明细</div>
+      <ol className="mt-3 divide-y divide-black/5 rounded-xl border border-black/5 bg-[#FAF9F7]">
+        {items.map((item, index) => {
+          const fields = normalizeBusinessDetailFields(pickFields(item), item);
+          const title = getBusinessAnswerTitle(item, `结果 ${index + 1}`);
+          return (
+            <li key={`${title}-${index}`} className="px-3 py-3">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2D1B69] text-[11px] font-semibold text-white">
+                  {index + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-[#1F1B2D]">{title}</div>
+                  {typeof item.reason === "string" ? (
+                    <div className="mt-1 text-xs leading-5 text-[#6F6678]">{item.reason}</div>
+                  ) : null}
+                  <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                    {fields.map((field) => (
+                      <div key={field} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="shrink-0 text-[#6F6678]">{getBusinessQueryFieldLabel(field)}</span>
+                        <span className="min-w-0 truncate text-right font-medium text-[#1F1B2D]">
+                          {formatBusinessQueryValue(field, item[field])}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {Array.isArray(item.riskWarnings) && item.riskWarnings.length ? (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                      {item.riskWarnings.map(String).join("；")}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function BusinessNextActions({
+  actions,
+  onAction,
+  approval,
+  onApprove,
+  onReject,
+}: {
+  actions: BusinessAnswerAction[];
+  onAction?: (action: string) => void;
+  approval?: AgentRunResult["approval"];
+  onApprove?: (approvalId: number) => void;
+  onReject?: (approvalId: number) => void;
+}) {
+  return (
+    <div className="mt-5 border-t border-black/5 pt-4">
+      <div className="text-sm font-semibold text-[#1F1B2D]">下一步动作</div>
+      {approval ? (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-700">
+          <div className="font-semibold text-amber-800">
+            待确认：{getAgentToolLabel(approval.toolName)} · {formatBusinessQueryValue("riskLevel", approval.riskLevel)}
+          </div>
+          {approval.status === "pending" ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onApprove?.(approval.id)}
+                disabled={!onApprove}
+                className="rounded-xl bg-amber-700 px-3 py-2 text-xs font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                确认执行
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject?.(approval.id)}
+                disabled={!onReject}
+                className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                拒绝
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {actions.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {actions.map((item) => (
+            <button
+              key={`${item.action}-${item.label}`}
+              type="button"
+              onClick={() => onAction?.(item.action)}
+              disabled={!onAction}
+              className="rounded-xl border border-[#2D1B69]/15 bg-[#2D1B69] px-3 py-2 text-xs font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : approval ? null : (
+        <div className="mt-3 rounded-xl bg-[#F7F5F2] px-3 py-2 text-xs text-[#6F6678]">暂无待执行动作</div>
+      )}
+    </div>
+  );
+}
+
+export function AgentRunResultCard({
+  data,
+  onAction,
+  onApprove,
+  onReject,
+}: {
+  data: AgentRunResult;
+  onAction?: (action: string) => void;
+  onApprove?: (approvalId: number) => void;
+  onReject?: (approvalId: number) => void;
+}) {
+  const plan = data.plan;
+  const toolResults = safeArray(data.toolResults);
+  const actions = dedupeBusinessActions([
+    ...safeArray(data.actions),
+    ...toolResults.flatMap((result) => safeArray(result.actions)),
+  ] as BusinessAnswerAction[]);
+  const detailItems = toolResults.flatMap((result) => getAgentToolItems(result));
+  const supportingSummaries = toolResults
+    .map((result) => result.summary)
+    .filter((summary) => summary && summary !== data.answer)
+    .slice(0, 2);
+  const suggestedActionText = actions.length ? actions.map((item) => item.label).slice(0, 3).join("、") : "";
+
+  return (
+    <CardShell title="Ami 智能问答" subtitle={plan?.goal ?? "基于 Ami_Core 经营数据"}>
+      <div className="rounded-2xl border border-black/5 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[#2D1B69]">概述</div>
+            <div className="mt-2 text-base font-semibold leading-7 text-[#1F1B2D]">{data.answer}</div>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-medium ${getAgentStatusClass(data.status)}`}>
+            {getAgentStatusLabel(data.status)}
+          </span>
+        </div>
+
+        {supportingSummaries.length ? (
+          <div className="mt-3 text-sm leading-6 text-[#6F6678]">原因：{supportingSummaries.join("；")}</div>
+        ) : null}
+
+        {suggestedActionText ? <div className="mt-2 text-sm leading-6 text-[#6F6678]">建议：{suggestedActionText}</div> : null}
+
+        <BusinessDetailList items={detailItems} pickFields={pickAgentResultFields} />
+        <BusinessNextActions actions={actions} onAction={onAction} approval={data.approval} onApprove={onApprove} onReject={onReject} />
+      </div>
+    </CardShell>
+  );
+}
+
+export function BusinessQueryResultCard({
+  data,
+  onAction,
+}: {
+  data: BusinessQueryResponse;
+  onAction?: (action: string) => void;
+}) {
+  const card = data.card;
+  const items = safeArray(card?.items);
+  const kpis = safeArray(card?.kpis);
+  const actions = dedupeBusinessActions(safeArray(data.actions) as BusinessAnswerAction[]);
+  const summaryText = card?.summary && card.summary !== data.answer ? card.summary : "";
+  const suggestedActionText = actions.length ? actions.map((item) => item.label).slice(0, 3).join("、") : "";
+
+  return (
+    <CardShell title="Ami 智能问答" subtitle={card?.title ?? "基于 Ami_Core 经营数据"}>
+      <div className="rounded-2xl border border-black/5 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[#2D1B69]">概述</div>
+            <div className="mt-2 text-base font-semibold leading-7 text-[#1F1B2D]">{data.answer}</div>
+            <div className="mt-1 text-xs leading-5 text-[#6F6678]">
+              能力：{getBusinessQueryCapabilityLabel(data.capability)} · 领域：{getBusinessQueryDomainLabel(data.domain)}
+            </div>
+          </div>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              data.status === "success"
+                ? "bg-emerald-50 text-emerald-700"
+                : data.status === "no_data"
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-[#F7F5F2] text-[#6F6678]"
+            }`}
+          >
+            {data.status === "success" ? "已查到数据" : data.status === "no_data" ? "暂无数据" : "需确认"}
+          </span>
+        </div>
+
+        {summaryText ? <div className="mt-3 text-sm leading-6 text-[#6F6678]">原因：{summaryText}</div> : null}
+        {suggestedActionText ? <div className="mt-2 text-sm leading-6 text-[#6F6678]">建议：{suggestedActionText}</div> : null}
+
+        {kpis.length ? (
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {kpis.map((item) => (
+              <div key={item.label} className="rounded-xl bg-[#F7F5F2] px-3 py-3">
+                <div className="text-xs text-[#6F6678]">{item.label}</div>
+                <div className="mt-1 text-lg font-semibold text-[#1F1B2D]">{item.value}</div>
+                {item.hint ? <div className="mt-1 text-xs text-[#9B92A3]">{item.hint}</div> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <BusinessDetailList items={items} pickFields={pickBusinessQueryFields} />
+        <BusinessNextActions actions={actions} onAction={onAction} />
       </div>
     </CardShell>
   );

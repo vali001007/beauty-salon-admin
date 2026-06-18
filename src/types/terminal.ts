@@ -943,10 +943,15 @@ export interface TerminalRecommendationEventRequest {
 export interface TerminalFollowUpTaskCreateRequest {
   customerId: number;
   customerIds?: number[];
+  assignments?: TerminalFollowUpTaskAssignment[];
   recommendationId?: number;
   sourceRecommendationKey?: string;
   source?: string;
   triggerType?: string;
+  promotionId?: number;
+  promotionName?: string;
+  offerJson?: Record<string, unknown>;
+  attribution?: Record<string, unknown>;
   title?: string;
   priority?: 'urgent' | 'recommended' | 'opportunity' | string;
   assigneeRole?: 'manager' | 'consultant' | 'reception' | string;
@@ -960,6 +965,13 @@ export interface TerminalFollowUpTaskCreateRequest {
   note?: string;
   remark?: string;
   dueAt?: string;
+}
+
+export interface TerminalFollowUpTaskAssignment {
+  customerId: number;
+  assigneeRole?: 'manager' | 'consultant' | 'reception' | string;
+  assigneeUserId: number;
+  assigneeBeauticianId?: number;
 }
 
 export interface TerminalFollowUpTask {

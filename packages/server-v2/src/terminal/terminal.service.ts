@@ -9,13 +9,14 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { ServiceTaskStatus } from '@prisma/client';
+import { Prisma, ServiceTaskStatus } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { CustomerProfileService } from '../customers/customer-profile.service.js';
 import { TerminalDashboardCacheService } from './terminal-dashboard-cache.service.js';
+import { collectAuraUserFieldScopes, resolveAuraAvailableRolesForUser } from './terminal-role-access.js';
 import { DeviceLoginDto } from './dto/device-login.dto.js';
 import { DeviceHeartbeatDto } from './dto/device-heartbeat.dto.js';
 import { QuickCreateCustomerDto } from './dto/quick-create-customer.dto.js';
@@ -159,61 +160,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return [...new Set<string>(permissions)];
   }
 
-  private hasRoleKeyLike(roleKeys: Set<string>, keywords: string[]) {
-    return [...roleKeys].some((key) => {
-      const normalized = key.toLowerCase();
-      return keywords.some((keyword) => normalized === keyword || normalized.includes(keyword));
-    });
-  }
-
-  private hasAnyPermission(permissions: Set<string>, values: string[]) {
-    return values.some((permission) => permissions.has(permission));
-  }
-
-  private hasTerminalPermissionPrefix(permissions: Set<string>, prefixes: string[]) {
-    return [...permissions].some((permission) => prefixes.some((prefix) => permission.startsWith(prefix)));
-  }
-
   private getAuraAvailableRolesForUser(user: any): string[] {
     if (!user) return ['reception'];
-    const roleKeys = this.getUserRoleKeys(user);
-    const permissions = new Set(this.getUserPermissionList(user));
-    const isManager =
-      this.hasRoleKeyLike(roleKeys, ['super_admin', 'store_manager', 'manager', 'admin']) ||
-      permissions.has('*') ||
-      permissions.has('aura:manager:view');
-
-    if (isManager) {
-      return ['manager', 'reception', 'beautician'];
-    }
-
-    const availableRoles: string[] = [];
-    if (
-      this.hasRoleKeyLike(roleKeys, ['cashier', 'reception', 'frontdesk']) ||
-      this.hasAnyPermission(permissions, [
-        'aura:reception:view',
-        'aura:cashier:create',
-        'core:order:create',
-        'core:order:products',
-        'core:order:projects',
-        'core:goods:cards',
-      ]) ||
-      this.hasTerminalPermissionPrefix(permissions, ['terminal:cashier:', 'terminal:reception:'])
-    ) {
-      availableRoles.push('reception');
-    }
-    if (
-      this.hasRoleKeyLike(roleKeys, ['beautician']) ||
-      permissions.has('aura:beautician:view') ||
-      this.hasTerminalPermissionPrefix(permissions, ['terminal:service:', 'terminal:beautician:'])
-    ) {
-      availableRoles.push('beautician');
-    }
-    if (isManager) {
-      availableRoles.unshift('manager');
-    }
-
-    return [...new Set(availableRoles)];
+    return resolveAuraAvailableRolesForUser(user);
   }
 
   private hasTerminalRoleSignal(user: any) {
@@ -229,6 +178,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       email: user.email ?? undefined,
       roles: [...this.getUserRoleKeys(user)],
       permissions: this.getUserPermissionList(user),
+      fieldScopes: collectAuraUserFieldScopes(user),
       storeIds: (user.stores ?? []).map((item: any) => item.storeId),
       status: user.status,
     };
@@ -258,13 +208,17 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       beautician: '美容师',
     };
     const availableRoles = this.getAuraAvailableRolesForUser(user);
+    const terminalAccess = availableRoles.length > 0;
     const defaultRole = availableRoles[0] ?? 'reception';
     const boundBeautician = beauticianByUserId?.get(user.id);
     return {
       ...this.mapTerminalAuthUser(user),
       availableRoles,
       defaultRole,
-      roleLabel: availableRoles.map((role) => labels[role] ?? role).join(' / '),
+      roleLabel: terminalAccess ? availableRoles.map((role) => labels[role] ?? role).join(' / ') : '未配置终端权限',
+      terminalAccess,
+      disabled: !terminalAccess,
+      disabledReason: terminalAccess ? undefined : '未配置智能终端权限',
       boundBeauticianId: boundBeautician?.id,
       boundBeauticianName: boundBeautician?.name,
       currentBeautician: boundBeautician ? this.mapTerminalBeautician(boundBeautician, storeName) : undefined,
@@ -284,8 +238,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
       include: { roles: { include: { role: true } }, stores: true },
     });
-    if (!user || !this.hasTerminalRoleSignal(user)) {
+    if (!user) {
       throw new BadRequestException('当前账号无权使用此门店终端');
+    }
+    if (!this.hasTerminalRoleSignal(user)) {
+      throw new BadRequestException('当前账号未配置智能终端权限');
     }
     return user;
   }
@@ -2389,16 +2346,25 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         }),
         this.getConfig(),
       ]);
-    const terminalUsersRaw = terminalUserCandidates.filter((user) => this.hasTerminalRoleSignal(user));
+    const terminalUsersRaw = terminalUserCandidates;
+    const selectableTerminalUsers = terminalUsersRaw.filter((user) => this.hasTerminalRoleSignal(user));
     const requestedId = Number.isFinite(requestedOperatorId) ? requestedOperatorId : undefined;
     let selectedUser = requestedId ? terminalUsersRaw.find((item) => item.id === requestedId) : undefined;
-    if (requestedId && !selectedUser) {
-      throw new BadRequestException('当前账号无权使用此门店终端');
+    if (requestedId) {
+      if (!selectedUser) {
+        throw new BadRequestException('当前账号无权使用此门店终端');
+      }
+      if (!this.hasTerminalRoleSignal(selectedUser)) {
+        throw new BadRequestException('当前账号未配置智能终端权限');
+      }
     }
     if (!selectedUser && authUser && this.hasTerminalRoleSignal(authUser)) {
-      selectedUser = terminalUsersRaw.find((item) => item.id === authUser.id) ?? authUser;
+      selectedUser = selectableTerminalUsers.find((item) => item.id === authUser.id) ?? authUser;
     }
-    selectedUser = selectedUser ?? terminalUsersRaw[0] ?? authUser ?? null;
+    selectedUser = selectedUser ?? selectableTerminalUsers[0] ?? null;
+    if (!selectedUser) {
+      throw new BadRequestException('当前门店没有可用的智能终端账号，请在管理端用户管理中配置终端权限');
+    }
 
     const role = this.getAuraRoleConfig(selectedUser, requestedRole);
     const storeDtos = stores.map((item) => this.mapStoreConfig(item));
@@ -5032,6 +4998,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const terminalDeviceId = this.toTerminalDeviceId(deviceId);
     const taskDelegate = this.getFollowUpTaskDelegate();
     const assignment = await this.inferFollowUpAssignment(storeId, customer.id, dto);
+    const explicitAssigneeUserId = dto.assigneeUserId ? Number(dto.assigneeUserId) : undefined;
+    if (explicitAssigneeUserId) await this.assertFollowUpAssigneeUser(storeId, explicitAssigneeUserId);
     const dueAt = dto.dueAt ? new Date(dto.dueAt) : this.inferFollowUpDueAt(dto);
     const title = dto.title ?? this.buildFollowUpTaskTitle(dto);
     const priority = this.normalizeFollowUpPriority(dto.priority, dto);
@@ -5072,7 +5040,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
             note: note ?? null,
             priority,
             assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
-            assigneeUserId: dto.assigneeUserId ? Number(dto.assigneeUserId) : assignment.assigneeUserId ?? null,
+            assigneeUserId: explicitAssigneeUserId ?? assignment.assigneeUserId ?? null,
             assigneeBeauticianId: dto.assigneeBeauticianId
               ? Number(dto.assigneeBeauticianId)
               : assignment.assigneeBeauticianId ?? null,
@@ -5113,17 +5081,17 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         taskId: dto.taskId ? Number(dto.taskId) : undefined,
         orderId: dto.orderId ? Number(dto.orderId) : undefined,
         note: dto.script ?? dto.note ?? dto.remark ?? '终端创建客户邀约跟进',
-        payload: {
+        payload: this.toJsonPayload({
           ...dto,
           status: 'pending',
           source: 'aura_lite_terminal',
           dueAt: dto.dueAt,
           channel: dto.channel ?? 'phone',
           assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
-          assigneeUserId: dto.assigneeUserId ?? assignment.assigneeUserId,
+          assigneeUserId: explicitAssigneeUserId ?? assignment.assigneeUserId,
           assigneeBeauticianId: dto.assigneeBeauticianId ?? assignment.assigneeBeauticianId,
           assignmentReason: assignment.reason,
-        },
+        }),
       },
     });
     return {
@@ -5138,28 +5106,57 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       title,
       priority,
       assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
-      assigneeUserId: dto.assigneeUserId ?? assignment.assigneeUserId,
+      assigneeUserId: explicitAssigneeUserId ?? assignment.assigneeUserId,
       assigneeBeauticianId: dto.assigneeBeauticianId ?? assignment.assigneeBeauticianId,
       assignmentReason: assignment.reason,
       createdAt: event.createdAt.toISOString(),
     };
   }
 
-  async batchCreateFollowUpTasks(storeId: number, dto: CreateTerminalFollowUpTaskDto & { customerIds?: number[] }, assignedByUserId?: number) {
+  async batchCreateFollowUpTasks(
+    storeId: number,
+    dto: CreateTerminalFollowUpTaskDto & {
+      customerIds?: number[];
+      assignments?: Array<{
+        customerId: number;
+        assigneeRole?: CreateTerminalFollowUpTaskDto['assigneeRole'];
+        assigneeUserId: number;
+        assigneeBeauticianId?: number;
+      }>;
+    },
+    assignedByUserId?: number,
+  ) {
     const customerIds = Array.from(new Set((dto.customerIds ?? [dto.customerId]).map((id) => Number(id)).filter(Boolean)));
     if (!customerIds.length) throw new BadRequestException('customerIds is required');
+    const assignmentByCustomerId = new Map(
+      (dto.assignments ?? [])
+        .filter((assignment) => Number(assignment.customerId) > 0 && Number(assignment.assigneeUserId) > 0)
+        .map((assignment) => [Number(assignment.customerId), assignment]),
+    );
+    const requiresSystemUserAssignment = Boolean(dto.recommendationId || dto.source === 'recommendation');
     const results = await Promise.allSettled(
-      customerIds.map((customerId) =>
-        this.createFollowUpTask(
+      customerIds.map((customerId) => {
+        const assignment = assignmentByCustomerId.get(customerId);
+        if (requiresSystemUserAssignment && !assignment) {
+          return Promise.reject(new BadRequestException('该客户未匹配系统用户，不能下发终端跟进'));
+        }
+        return this.createFollowUpTask(
           storeId,
           undefined,
           {
             ...dto,
             customerId,
+            ...(assignment
+              ? {
+                  assigneeRole: assignment.assigneeRole ?? dto.assigneeRole,
+                  assigneeUserId: assignment.assigneeUserId,
+                  assigneeBeauticianId: assignment.assigneeBeauticianId,
+                }
+              : {}),
           },
           assignedByUserId,
-        ),
-      ),
+        );
+      }),
     );
     const items = results
       .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
@@ -5498,6 +5495,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return (this.prisma as any).terminalFollowUpTask;
   }
 
+  private toJsonPayload(value: Record<string, any>): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
   private async getLegacyFollowUpTasks(storeId: number, page: number, pageSize: number) {
     const events = await this.prisma.recommendationEvent.findMany({
       where: { storeId, eventType: 'follow_up_created' },
@@ -5615,34 +5616,93 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           reason: `优先分派给最近预约美容师 ${recentReservation.beautician.name}`,
         };
       }
+      const fallbackBeautician = await this.findFallbackBeautician(storeId);
+      if (fallbackBeautician) {
+        return {
+          assigneeRole: 'consultant',
+          assigneeUserId: fallbackBeautician.userId ?? undefined,
+          assigneeBeauticianId: fallbackBeautician.id,
+          reason: `无历史服务人，默认分派给门店美容师 ${fallbackBeautician.name}`,
+        };
+      }
+      const consultant = await this.findUserByRoleSignal(storeId, ['consultant', 'advisor', 'beautician', '顾问', '美容师']);
+      if (consultant) {
+        return {
+          assigneeRole: 'consultant',
+          assigneeUserId: consultant.id,
+          assigneeBeauticianId: undefined,
+          reason: `无历史服务人，默认分派给顾问 ${consultant.name}`,
+        };
+      }
     }
 
     if (role === 'manager') {
-      const manager = await this.findUserByRoleSignal(storeId, ['store_manager', 'manager', '店长']);
+      const manager = await this.findUserByRoleSignal(storeId, ['store_manager', 'manager', '店长']) ?? await this.findFallbackStoreUser(storeId);
       return {
         assigneeRole: 'manager',
         assigneeUserId: manager?.id,
         assigneeBeauticianId: undefined,
-        reason: manager ? `涉及经营协调，默认分派给店长 ${manager.name}` : '涉及经营协调，进入店长待分派队列',
+        reason: manager ? `涉及经营协调，默认分派给 ${manager.name}` : '涉及经营协调，暂无可分派员工',
       };
     }
 
     if (role === 'reception') {
-      const reception = await this.findUserByRoleSignal(storeId, ['reception', 'frontdesk', 'cashier', '前台']);
+      const reception = await this.findUserByRoleSignal(storeId, ['reception', 'frontdesk', 'cashier', '前台']) ?? await this.findFallbackStoreUser(storeId);
       return {
         assigneeRole: 'reception',
         assigneeUserId: reception?.id,
         assigneeBeauticianId: undefined,
-        reason: reception ? `预约/邀约确认类任务，默认分派给前台 ${reception.name}` : '预约/邀约确认类任务，进入前台队列',
+        reason: reception ? `预约/邀约确认类任务，默认分派给 ${reception.name}` : '预约/邀约确认类任务，暂无可分派员工',
       };
     }
 
+    const fallbackBeautician = await this.findFallbackBeautician(storeId);
+    if (fallbackBeautician) {
+      return {
+        assigneeRole: 'consultant',
+        assigneeUserId: fallbackBeautician.userId ?? undefined,
+        assigneeBeauticianId: fallbackBeautician.id,
+        reason: `客户关系维护类任务，默认分派给门店美容师 ${fallbackBeautician.name}`,
+      };
+    }
+    const fallbackUser = await this.findFallbackStoreUser(storeId);
     return {
       assigneeRole: 'consultant',
-      assigneeUserId: undefined,
+      assigneeUserId: fallbackUser?.id,
       assigneeBeauticianId: undefined,
-      reason: '客户关系维护类任务，进入顾问/美容师队列',
+      reason: fallbackUser ? `客户关系维护类任务，默认分派给 ${fallbackUser.name}` : '客户关系维护类任务，暂无可分派员工',
     };
+  }
+
+  private async findFallbackBeautician(storeId: number) {
+    return this.prisma.beautician.findFirst({
+      where: { storeId, status: 'active' },
+      orderBy: [{ userId: 'desc' }, { id: 'asc' }],
+    });
+  }
+
+  private async findFallbackStoreUser(storeId: number) {
+    return this.prisma.user.findFirst({
+      where: {
+        deletedAt: null,
+        status: 'active',
+        stores: { some: { storeId } },
+      },
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  private async assertFollowUpAssigneeUser(storeId: number, assigneeUserId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: assigneeUserId,
+        deletedAt: null,
+        status: 'active',
+        stores: { some: { storeId } },
+      },
+      select: { id: true },
+    });
+    if (!user) throw new BadRequestException('跟进人必须来自系统管理-用户管理，且已启用并绑定当前门店');
   }
 
   private async findUserByRoleSignal(storeId: number, signals: string[]) {
@@ -5655,8 +5715,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       include: { roles: { include: { role: true } } },
       take: 50,
     });
-    return users.find((user) =>
-      user.roles.some(({ role }) => {
+    return (users ?? []).find((user) =>
+      user.roles?.some(({ role }) => {
         const text = `${role.key} ${role.name}`.toLowerCase();
         return signals.some((signal) => text.includes(signal.toLowerCase()));
       }),
@@ -5875,6 +5935,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const promotions = await this.prisma.promotion.findMany({
       where: {
         status: 'active',
+        approvalStatus: 'approved',
         OR: [{ storeId: null }, ...(storeId ? [{ storeId }] : [])],
         AND: [
           { OR: [{ startAt: null }, { startAt: { lte: now } }] },
@@ -5885,12 +5946,21 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       orderBy: { updatedAt: 'desc' },
     });
 
-    if (promotions.length) {
-      return promotions.map((promotion) => ({
+    const usablePromotions = promotions.filter((promotion) => this.isPromotionIssueAvailable(promotion));
+    if (usablePromotions.length) {
+      return usablePromotions.map((promotion) => ({
         id: promotion.id,
         name: promotion.name,
         description: promotion.description ?? '',
         discountText: promotion.discountText,
+        type: promotion.type,
+        source: promotion.source,
+        scenario: promotion.scenario,
+        approvalStatus: promotion.approvalStatus,
+        validDays: promotion.validDays,
+        maxIssueCount: promotion.maxIssueCount,
+        issuedCount: promotion.issuedCount,
+        usedCount: promotion.usedCount,
         validUntil: promotion.endAt?.toISOString(),
         applicableProjectIds: promotion.applicableProjectIds,
       }));
@@ -5906,6 +5976,65 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         applicableProjectIds: [],
       },
     ];
+  }
+
+  async usePromotion(storeId: number, deviceId: number | undefined, dto: any = {}) {
+    const promotionId = Number(dto.promotionId);
+    if (!promotionId) throw new BadRequestException('promotionId is required');
+    const now = new Date();
+    const promotion = await this.prisma.promotion.findFirst({
+      where: {
+        id: promotionId,
+        status: 'active',
+        approvalStatus: 'approved',
+        OR: [{ storeId: null }, { storeId }],
+        AND: [
+          { OR: [{ startAt: null }, { startAt: { lte: now } }] },
+          { OR: [{ endAt: null }, { endAt: { gte: now } }] },
+        ],
+      },
+    });
+    if (!promotion) throw new NotFoundException('权益不存在、未发布或已过期');
+
+    const updated = await this.prisma.promotion.update({
+      where: { id: promotion.id },
+      data: { usedCount: { increment: 1 } },
+    });
+    await this.prisma.customerAppEvent.create({
+      data: {
+        storeId,
+        customerId: dto.customerId ? Number(dto.customerId) : null,
+        sessionId: dto.sessionId ?? null,
+        eventType: 'promotion_used',
+        channel: dto.channel ?? 'terminal',
+        targetType: 'promotion',
+        targetId: String(promotion.id),
+        source: 'ami_aura_lite',
+        metadataJson: {
+          deviceId,
+          orderId: dto.orderId,
+          reservationId: dto.reservationId,
+          projectId: dto.projectId,
+          revenueAmount: dto.revenueAmount ?? dto.orderAmount ?? dto.amount,
+          note: dto.note,
+          promotionName: promotion.name,
+          discountText: promotion.discountText,
+        },
+      },
+    });
+
+    return {
+      success: true,
+      promotionId: promotion.id,
+      name: promotion.name,
+      discountText: promotion.discountText,
+      usedCount: updated.usedCount,
+      usedAt: new Date().toISOString(),
+    };
+  }
+
+  private isPromotionIssueAvailable(promotion: any) {
+    return promotion.maxIssueCount == null || Number(promotion.issuedCount ?? 0) < Number(promotion.maxIssueCount);
   }
 
   async getDashboardStats(storeId: number) {

@@ -106,6 +106,23 @@ function withPermissionCheck(
   return buildResolvedIntent({ action, role, source, command, showUserCommand });
 }
 
+function isTextInputSource(source: AuraCommandSource) {
+  return source === 'text' || source === 'voice';
+}
+
+function isTypedTextSource(source: AuraCommandSource) {
+  return source === 'text';
+}
+
+export function isExactQuickActionCommand(command: string, definition: RoleDefinition) {
+  const text = normalizeCommandText(command);
+  if (!text) return false;
+  if ((definition.availableActions as string[]).includes(text)) return true;
+  return definition.quickActions.some(
+    (item) => text === normalizeCommandText(item.action) || text === normalizeCommandText(item.label),
+  );
+}
+
 const RULE_KEYWORDS: Array<{ action: AuraAction; roles?: Role[]; keywords: string[] }> = [
   {
     action: 'manager.dashboard',
@@ -218,11 +235,84 @@ function matchKeywordRule(text: string, role: Role) {
   return RULE_KEYWORDS.find((rule) => (!rule.roles || rule.roles.includes(role)) && hasAnyKeyword(text, rule.keywords));
 }
 
+function isLocalDirectCommand(text: string, role: Role) {
+  if (/收银|开单|买单|结算|付款|收费|核销|扣次|消次|办卡|开卡|充值|登记|新增客户|录客户|打印|小票/.test(text)) {
+    return true;
+  }
+  if (/确认预约|取消预约|改约|改期/.test(text)) return true;
+  if (isAppointmentWorkbenchCommand(text, role)) return true;
+  if (role === 'beautician') {
+    return /我的预约|我的排班|我的提成|提成|佣金|服务记录|护理记录|护理建议|推荐什么护理|适合做什么护理|怎么护理|我的客户/.test(text);
+  }
+  return false;
+}
+
+function isAppointmentWorkbenchCommand(text: string, role: Role) {
+  if (role === 'beautician') return /我的预约|我的排班|我今天做什么|今天服务谁/.test(text);
+  if (!/预约|爽约|排了什么项目|今天来几个/.test(text)) return false;
+  if (/预约.*(趋势|分析|统计|排行|排名|完成率|确认率|到店率|未到率|爽约率|原因|为什么|增长|下降|同比|环比|预测|风险|建议)/.test(text)) {
+    return false;
+  }
+  return /今天|今日|明天|明日|有没有|看|看看|查|查询|排了什么|来几个|确认预约|取消预约|改约|改期|爽约/.test(text);
+}
+
+function isBusinessQueryCommand(text: string, role: Role) {
+  const hasQueryVerb =
+    /查|查询|看|看看|分析|统计|列出|排行|排名|对比|哪些|哪个|多少|几|谁|怎么样|情况|趋势|增长|下降|预警|不足|到期|表现|业绩|最多|最少|高频|失败|异常|问题/.test(text);
+  const hasAdvancedQueryVerb =
+    /建议|复盘|机会|毛利|成本|异常|风险|最值得|优先|重点|跟进|回访|邀约|唤醒|复购|沉睡|高价值|名单|适合|推荐|优秀|较好|做得好|服务质量|成交|贡献/.test(text);
+  const isContextFollowUp = /这些|上述|上面|它们|他们|该批|这批/.test(text) && /商品|产品|库存|客户|顾客|会员|买/.test(text);
+  const hasTopN = /前\d+|top\d+|\d+(个|位|条|名|款|项|件|种)/i.test(text);
+  const hasCustomerOperationIntent = /最值得|优先|重点|跟进|回访|邀约|唤醒|复购|沉睡|流失|高价值|很久没到店|名单/.test(text);
+  const hasStaffPerformanceIntent =
+    /员工|店员|顾问|美容师|人员/.test(text) && /表现|业绩|绩效|提成|服务质量|优秀|较好|做得好|成交|销售|贡献|排行|排名/.test(text);
+  const hasBeauticianSelfPerformanceIntent =
+    role === 'beautician' && /我|本人|自己/.test(text) && /表现|业绩|绩效|服务质量|服务完成|成交|销售|贡献|复购/.test(text);
+  const hasDomain =
+    /商品|产品|项目|客户|顾客|会员|老客|新客|流失|排班|预约|订单|收入|营收|营业额|流水|收银|收款|结账|支付|次卡|卡项|会员卡|财务|库存|营销|活动|员工|人员|美容师|顾问|提成|佣金|门店|多店|自动化|补货|供应链|采购|经营|小程序|渠道|推广页|终端|设备|会话|对话|打印机|扫码器|摄像头|售后|退款|服务质量/.test(
+      text,
+    );
+  const isReadOnlyQuestion =
+    hasQueryVerb || /今天|今日|昨天|昨日|本周|这周|下周|本月|这个月|上月|最近|近期|近\d+天/.test(text);
+  const isWriteCommand =
+    /创建|新增|删除|修改|收银|开单|买单|结算|付款|收费|核销|办卡|充值|登记|确认|取消|改期|打印|启用/.test(text) ||
+    (text.includes('支付') && !text.includes('支付方式'));
+  return (
+    (isContextFollowUp ||
+      hasStaffPerformanceIntent ||
+      hasBeauticianSelfPerformanceIntent ||
+      ((hasQueryVerb || hasAdvancedQueryVerb || hasTopN || hasCustomerOperationIntent) && hasDomain)) &&
+    !(isWriteCommand && !isReadOnlyQuestion)
+  );
+}
+
+function shouldRouteToAgent(text: string, role: Role, source: AuraCommandSource) {
+  if (isLocalDirectCommand(text, role) && !(isTypedTextSource(source) && isBusinessQueryCommand(text, role))) return false;
+  if (/^(查|查询|搜索|找|看看|看一下|帮我查|帮我看)/.test(text) && isCustomerLookupCommand(text)) return false;
+  return isBusinessQueryCommand(text, role);
+}
+
+function isAgentDraftCommand(text: string) {
+  const hasDraftVerb = /生成|创建|新增|安排|下发/.test(text);
+  const hasFollowUpDraft = /跟进任务|客户跟进|顾客跟进|邀约任务|回访任务|唤醒任务|生成邀约/.test(text);
+  const hasReplenishmentDraft = /补货草稿|采购草稿|采购单|补货单|生成补货|创建补货|生成采购|创建采购/.test(text);
+  const hasMarketingDraft = /活动草稿|营销草稿|生成活动|创建活动/.test(text);
+  const hasServiceRecordDraft = /服务记录草稿|护理记录草稿|生成服务记录|生成护理记录|补服务记录|补护理记录/.test(text);
+  return hasDraftVerb && (hasFollowUpDraft || hasReplenishmentDraft || hasMarketingDraft || hasServiceRecordDraft);
+}
+
+function isAgentSchedulingPreviewCommand(text: string) {
+  return /排班优化|优化.*排班|智能排班|排班建议|排班预览|生成排班/.test(text) && /排班|预约|人手|美容师|班表/.test(text);
+}
+
 const CUSTOMER_LOOKUP_OFF_TOPIC =
   /天气|新闻|股票|基金|写诗|作文|作业|笑话|编程|代码|翻译|历史人物|政治|体育|游戏|做饭|菜谱|旅游|星座|彩票|电影|电视剧/;
+const CUSTOMER_LOOKUP_BUSINESS_BLOCK =
+  /业绩|经营|收入|营收|营业额|库存|商品|产品|订单|排班|预约|提成|财务|营销|活动|报表|概览|低库存|临期|沉睡|老客|流失|增长|高价值|最值得|优先|重点|跟进|回访|邀约|唤醒|复购|名单|前\d+|top\d+|风险|机会|建议|适合|推荐/;
 
 function isCustomerLookupCommand(text: string) {
   if (CUSTOMER_LOOKUP_OFF_TOPIC.test(text)) return false;
+  if (CUSTOMER_LOOKUP_BUSINESS_BLOCK.test(text)) return false;
   if (text.includes('客户') || text.includes('会员')) return true;
   return /^(查|查询|搜索|找|看看|看一下|帮我查|帮我看)/.test(text);
 }
@@ -241,7 +331,19 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
     );
   }
 
-  if ((definition.availableActions as string[]).includes(text)) {
+  if (isTextInputSource(source) && isExactQuickActionCommand(command, definition)) {
+    return buildResolvedIntent({
+      action: null,
+      role,
+      source,
+      command,
+      showUserCommand: true,
+      loadingLabel: '正在理解指令',
+      confidence: 0.35,
+    });
+  }
+
+  if (!isTextInputSource(source) && (definition.availableActions as string[]).includes(text)) {
     return withPermissionCheck(text as AuraAction, role, definition, command, source, false);
   }
 
@@ -249,8 +351,43 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
     return withPermissionCheck(text as `appointment:${string}:${number}`, role, definition, command, source, false);
   }
 
-  const quickMatch = definition.quickActions.find((item) => text === item.label || text.includes(item.label));
-  if (quickMatch) {
+  if (isAgentDraftCommand(text) || isAgentSchedulingPreviewCommand(text)) {
+    return withPermissionCheck('business.query', role, definition, command, source, true);
+  }
+
+  if (/多店|多门店|门店对比|门店排名/.test(text) && isBusinessQueryCommand(text, role)) {
+    return withPermissionCheck('business.query', role, definition, command, source, true);
+  }
+
+  if (shouldRouteToAgent(text, role, source)) {
+    return withPermissionCheck('business.query', role, definition, command, source, true);
+  }
+
+  if (/^(查|查询|搜索|找|看看|看一下|帮我查|帮我看)/.test(text) && isCustomerLookupCommand(text)) {
+    const keyword = extractCustomerKeyword(text) ?? text;
+    return withPermissionCheck(`customer:${keyword}`, role, definition, command, source, true);
+  }
+
+  if (!isLocalDirectCommand(text, role) && isBusinessQueryCommand(text, role)) {
+    return withPermissionCheck('business.query', role, definition, command, source, true);
+  }
+
+  if (isTypedTextSource(source)) {
+    return buildResolvedIntent({
+      action: null,
+      role,
+      source,
+      command,
+      showUserCommand: true,
+      loadingLabel: '正在理解指令',
+      confidence: 0.35,
+    });
+  }
+
+  const quickMatch = definition.quickActions.find(
+    (item) => text === normalizeCommandText(item.label) || text.includes(normalizeCommandText(item.label)),
+  );
+  if (!isTextInputSource(source) && quickMatch) {
     return withPermissionCheck(quickMatch.action, role, definition, command, source, false);
   }
 
@@ -314,7 +451,6 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
     const keyword = extractCustomerKeyword(text) ?? text;
     return withPermissionCheck(`customer:${keyword}`, role, definition, command, source, true);
   }
-
   return buildResolvedIntent({
     action: null,
     role,
@@ -323,5 +459,38 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
     showUserCommand: true,
     loadingLabel: '正在理解指令',
     confidence: 0.35,
+  });
+}
+
+export function parseQuickActionIntent(command: string, role: Role, definition: RoleDefinition) {
+  const text = normalizeCommandText(command);
+  const quickMatch = definition.quickActions.find(
+    (item) => text === normalizeCommandText(item.action) || text === normalizeCommandText(item.label),
+  );
+
+  if ((definition.availableActions as string[]).includes(text)) {
+    return withPermissionCheck(text as AuraAction, role, definition, command, 'quick_action', false);
+  }
+
+  if (quickMatch) {
+    return withPermissionCheck(quickMatch.action, role, definition, command, 'quick_action', false);
+  }
+
+  if (text.startsWith('appointment:')) {
+    return withPermissionCheck(text as `appointment:${string}:${number}`, role, definition, command, 'quick_action', false);
+  }
+
+  if (text.startsWith('customer:')) {
+    return withPermissionCheck(text as `customer:${string}`, role, definition, command, 'quick_action', false);
+  }
+
+  return buildResolvedIntent({
+    action: null,
+    role,
+    source: 'quick_action',
+    command,
+    showUserCommand: false,
+    loadingLabel: '无法识别快捷操作',
+    confidence: 0.2,
   });
 }

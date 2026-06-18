@@ -1,6 +1,8 @@
 import type {
   createAutomationDraft,
   getAutomationTodaySummary,
+  getBusinessQueryAnswer,
+  runBusinessAgent,
   getBeauticianCustomerList,
   getBeauticianDashboard,
   getBeauticianScheduleFlow,
@@ -9,6 +11,7 @@ import type {
   getCashierFlow,
   getCustomerCard,
   getCustomerGrowthCandidates,
+  getFollowUpTasksView,
   getInventoryAlerts,
   getManagerDashboard,
   getOperationResult,
@@ -29,6 +32,7 @@ export type AuraPayload =
   | { kind: "beauticianSchedule"; data: Awaited<ReturnType<typeof getBeauticianScheduleFlow>> }
   | { kind: "staff"; data: Awaited<ReturnType<typeof getStaffSchedules>> }
   | { kind: "growth"; data: Awaited<ReturnType<typeof getCustomerGrowthCandidates>> }
+  | { kind: "followUpTasks"; data: Awaited<ReturnType<typeof getFollowUpTasksView>> }
   | { kind: "inventory"; data: Awaited<ReturnType<typeof getInventoryAlerts>> }
   | { kind: "customer"; data: NonNullable<Awaited<ReturnType<typeof getCustomerCard>>> }
   | { kind: "cardVerification"; data: Awaited<ReturnType<typeof getCardVerificationFlow>> }
@@ -40,6 +44,8 @@ export type AuraPayload =
   | { kind: "operation"; data: Awaited<ReturnType<typeof getOperationResult>> }
   | { kind: "automation"; data: Awaited<ReturnType<typeof createAutomationDraft>> }
   | { kind: "automationSummary"; data: Awaited<ReturnType<typeof getAutomationTodaySummary>> }
+  | { kind: "agentRun"; data: Awaited<ReturnType<typeof runBusinessAgent>> }
+  | { kind: "businessQuery"; data: Awaited<ReturnType<typeof getBusinessQueryAnswer>> }
   | { kind: "ai"; data: Awaited<ReturnType<typeof getTerminalBusinessAnswer>> };
 
 export interface MicroAppMessage {

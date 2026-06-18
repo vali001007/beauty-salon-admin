@@ -1,4 +1,6 @@
 import type { AuraResolvedIntent } from '../intent/intentTypes';
+import type { BusinessQueryContext } from '@/types/businessQuery';
+import type { AgentRunResult } from '@/types/agent';
 import { OFF_TOPIC_REPLY, isBusinessRelevant } from '../intent/relevanceGuard';
 import {
   getBeauticianDashboard,
@@ -8,6 +10,7 @@ import {
   getCashierFlow,
   getBeauticianCareAdvice,
   getCustomerCard,
+  getFollowUpTasksView,
   getCustomerGrowthCandidates,
   getInventoryAlerts,
   getManagerDashboard,
@@ -19,6 +22,7 @@ import {
   getRegistrationFlow,
   getStaffSchedules,
   getServiceRecordFlow,
+  runBusinessAgent,
   updateAppointmentAction,
 } from '../services/auraCoreService';
 import {
@@ -309,7 +313,11 @@ export function isCacheableMicroAppAction(action?: string | null) {
   return Boolean(action && getCacheableMicroAppConfig(action));
 }
 
-export async function runMicroAppIntent(intent: AuraResolvedIntent, command: string): Promise<MicroAppRunResult> {
+export async function runMicroAppIntent(
+  intent: AuraResolvedIntent,
+  command: string,
+  options: { businessQueryContext?: BusinessQueryContext; agentContext?: Record<string, unknown> } = {},
+): Promise<MicroAppRunResult> {
   const action = intent.action;
 
   if (intent.deniedReason) {
@@ -347,6 +355,21 @@ export async function runMicroAppIntent(intent: AuraResolvedIntent, command: str
   if (cacheableConfig) {
     const result = await runCacheableMicroApp(cacheableConfig);
     return result.aiSummary ? { ...result, aiCommand: command } : result;
+  }
+
+  if (action === 'business.query') {
+    const context = options.agentContext ?? (options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : undefined);
+    const data = await runBusinessAgent(command, intent.role, context);
+    return {
+      messages: [{ type: 'dashboard', payload: { kind: 'agentRun', data: data as AgentRunResult } }],
+    };
+  }
+
+  if (action === 'customer.followup') {
+    const data = await getFollowUpTasksView();
+    return {
+      messages: [{ type: 'dashboard', payload: { kind: 'followUpTasks', data } }],
+    };
   }
 
   if (action === 'manager.dashboard') {

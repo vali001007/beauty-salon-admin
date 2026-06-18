@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuraAction } from '../../../../../src/types/aura';
 import type { Role, RoleDefinition } from '../types';
 import type { AuraResolvedIntent } from '../intent/intentTypes';
+import { resolveCommandIntent } from '../intent/intentRouter';
 import { parseRuleIntent } from '../intent/ruleIntentParser';
 import { clearTerminalQueryCache } from '../services/terminalQueryClient';
 import { OFF_TOPIC_REPLY } from '../intent/relevanceGuard';
@@ -46,6 +47,25 @@ const state = vi.hoisted(() => {
         },
       ],
     })),
+    followUpTasksLoader: vi.fn(async () => ({
+      title: '客户跟进',
+      subtitle: '前台 · Ami 全量演示门店',
+      summary: '共 1 条管理端下发任务，待处理 1 条，跟进中 0 条，已逾期 0 条。',
+      items: [
+        {
+          id: 12,
+          customerId: 7,
+          customerName: '马语嫣',
+          customerPhone: '13873801982',
+          status: 'pending',
+          priority: 'recommended',
+          title: '邀约复购护理',
+          script: '提醒客户本周可预约复购护理。',
+        },
+      ],
+      stats: { pending: 1, inProgress: 0, completed: 0, expired: 0, overdue: 0 },
+      generatedAt: '2026-06-15T00:00:00.000Z',
+    })),
     serviceRecordFlowLoader: vi.fn(async () => ({ title: '服务记录', tasks: [], beauticianName: '沈晴' })),
     cashierFlowLoader: vi.fn(async () => ({ title: '收银', customers: [], catalog: [] })),
     customerCardLoader: vi.fn(async () => ({
@@ -55,6 +75,39 @@ const state = vi.hoisted(() => {
       recentVisits: [],
     })),
     getTerminalBusinessAnswer: vi.fn(async () => ({ title: 'Ami 智能问答', text: '业务回答', source: 'Ami AI' })),
+    businessAgentLoader: vi.fn(async () => ({
+      runId: 1001,
+      runNo: 'AG202606160001',
+      status: 'completed',
+      plan: {
+        intentType: 'analysis_and_recommendation',
+        goal: '发现适合做营销活动的商品机会',
+        toolPlan: [{ tool: 'marketing.opportunity.discover', args: { targetType: 'product' } }],
+        confidence: 0.86,
+        clarificationNeeded: false,
+      },
+      answer: '优先推荐补水精华做会员专属满赠，匹配分 86。',
+      toolResults: [
+        {
+          status: 'success',
+          title: '商品活动机会',
+          summary: '优先推荐补水精华做会员专属满赠，匹配分 86。',
+          data: { items: [{ productId: 301, productName: '补水精华', fitScore: 86 }] },
+          evidence: {
+            source: ['Product', 'OrderItem'],
+            filters: ['storeId=当前门店'],
+            metricDefinition: '商品活动机会规则评分',
+          },
+          actions: [{ label: '生成活动草稿', action: 'agent:tool:marketing.activity.draft', riskLevel: 'medium' }],
+        },
+      ],
+      actions: [{ label: '生成活动草稿', action: 'agent:tool:marketing.activity.draft', riskLevel: 'medium' }],
+      evidence: {
+        source: ['Product', 'OrderItem'],
+        filters: ['storeId=当前门店'],
+        metricDefinition: '商品活动机会规则评分',
+      },
+    })),
   };
 });
 
@@ -72,6 +125,7 @@ vi.mock('../services/auraCoreService', () => ({
   getCashierFlow: state.cashierFlowLoader,
   getCustomerCard: state.customerCardLoader,
   getCustomerGrowthCandidates: vi.fn(async () => []),
+  getFollowUpTasksView: state.followUpTasksLoader,
   getInventoryAlerts: state.inventoryAlertsLoader,
   getManagerDashboard: state.managerDashboardLoader,
   getOperationResult: vi.fn(),
@@ -83,6 +137,7 @@ vi.mock('../services/auraCoreService', () => ({
   getServiceRecordFlow: state.serviceRecordFlowLoader,
   getServiceRecordPreparation: vi.fn(async () => ({ title: '服务记录待填写', status: 'warning', nextSteps: [] })),
   getTerminalBusinessAnswer: state.getTerminalBusinessAnswer,
+  runBusinessAgent: state.businessAgentLoader,
   updateAppointmentAction: vi.fn(),
 }));
 
@@ -91,6 +146,8 @@ const allActions: AuraAction[] = [
   'manager.staff',
   'manager.customers',
   'manager.inventory',
+  'customer.followup',
+  'business.query',
   'reception.appointments',
   'operation.verify',
   'operation.register',
@@ -124,6 +181,39 @@ describe('runMicroApp cache and prefetch behavior', () => {
     clearTerminalQueryCache();
     vi.clearAllMocks();
     state.getTerminalBusinessAnswer.mockResolvedValue({ title: 'Ami 智能问答', text: '业务回答', source: 'Ami AI' });
+    state.businessAgentLoader.mockResolvedValue({
+      runId: 1001,
+      runNo: 'AG202606160001',
+      status: 'completed',
+      plan: {
+        intentType: 'analysis_and_recommendation',
+        goal: '发现适合做营销活动的商品机会',
+        toolPlan: [{ tool: 'marketing.opportunity.discover', args: { targetType: 'product' } }],
+        confidence: 0.86,
+        clarificationNeeded: false,
+      },
+      answer: '优先推荐补水精华做会员专属满赠，匹配分 86。',
+      toolResults: [
+        {
+          status: 'success',
+          title: '商品活动机会',
+          summary: '优先推荐补水精华做会员专属满赠，匹配分 86。',
+          data: { items: [{ productId: 301, productName: '补水精华', fitScore: 86 }] },
+          evidence: {
+            source: ['Product', 'OrderItem'],
+            filters: ['storeId=当前门店'],
+            metricDefinition: '商品活动机会规则评分',
+          },
+          actions: [{ label: '生成活动草稿', action: 'agent:tool:marketing.activity.draft', riskLevel: 'medium' }],
+        },
+      ],
+      actions: [{ label: '生成活动草稿', action: 'agent:tool:marketing.activity.draft', riskLevel: 'medium' }],
+      evidence: {
+        source: ['Product', 'OrderItem'],
+        filters: ['storeId=当前门店'],
+        metricDefinition: '商品活动机会规则评分',
+      },
+    });
     state.cashierFlowLoader.mockResolvedValue({ title: '收银', customers: [], catalog: [] });
     state.beauticianCustomerListLoader.mockResolvedValue({
       title: '我的客户',
@@ -143,29 +233,78 @@ describe('runMicroApp cache and prefetch behavior', () => {
     });
   });
 
-  it('routes customer lookup text into the customer micro-app instead of AI Q&A', async () => {
-    const intent = parseRuleIntent('查客户张三', 'reception', definition('reception'), 'text');
+  it('routes typed customer lookup text into Agent instead of the customer micro-app', async () => {
+    const intent = await resolveCommandIntent({
+      command: '查客户张三',
+      role: 'reception',
+      definition: definition('reception'),
+      source: 'text',
+    });
 
     const result = await runMicroAppIntent(intent, '查客户张三');
 
-    expect(intent.action).toBe('customer:张三');
-    expect(state.customerCardLoader).toHaveBeenCalledWith('张三');
+    expect(intent.action).toBe('business.query');
+    expect(state.customerCardLoader).not.toHaveBeenCalled();
+    expect(state.businessAgentLoader).toHaveBeenCalledWith('查客户张三', 'reception', undefined);
     expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
     expect(result.messages[0]?.payload).toMatchObject({
-      kind: 'customer',
-      data: { summary: '张三客户摘要' },
+      kind: 'agentRun',
     });
   });
 
-  it('routes cashier text into the cashier micro-app instead of AI Q&A', async () => {
-    const intent = parseRuleIntent('帮我收银', 'reception', definition('reception'), 'text');
+  it('routes cashier questions from typed text into Agent instead of the cashier quick flow', async () => {
+    const intent = await resolveCommandIntent({
+      command: '今天收银多少',
+      role: 'reception',
+      definition: definition('reception'),
+      source: 'text',
+    });
 
-    const result = await runMicroAppIntent(intent, '帮我收银');
+    const result = await runMicroAppIntent(intent, '今天收银多少');
 
-    expect(intent.action).toBe('operation.cashier');
-    expect(state.cashierFlowLoader).toHaveBeenCalledTimes(1);
+    expect(intent.action).toBe('business.query');
+    expect(state.cashierFlowLoader).not.toHaveBeenCalled();
+    expect(state.businessAgentLoader).toHaveBeenCalledWith('今天收银多少', 'reception', undefined);
     expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
-    expect(result.messages[0]?.payload).toMatchObject({ kind: 'cashier' });
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
+  });
+
+  it('routes governed business data questions into Agent Gateway instead of customer growth card', async () => {
+    const intent = parseRuleIntent('近期销量增长的商品', 'manager', definition('manager'), 'text');
+
+    const result = await runMicroAppIntent(intent, '近期销量增长的商品');
+
+    expect(intent.action).toBe('business.query');
+    expect(state.businessAgentLoader).toHaveBeenCalledWith('近期销量增长的商品', 'manager', undefined);
+    expect(result.messages[0]?.payload).toMatchObject({
+      kind: 'agentRun',
+      data: {
+        plan: {
+          toolPlan: [{ tool: 'marketing.opportunity.discover' }],
+        },
+      },
+    });
+  });
+
+  it('passes previous context into governed follow-up Agent questions', async () => {
+    const intent = parseRuleIntent('这些商品库存够吗', 'manager', definition('manager'), 'text');
+    const context = {
+      previousResponse: {
+        domain: 'product',
+        capability: 'product_sales_trend',
+        card: {
+          type: 'productSalesTrend',
+          title: '近期销量增长的商品',
+          items: [{ productId: 301, productName: '补水精华' }],
+        },
+      },
+    };
+
+    await runMicroAppIntent(intent, '这些商品库存够吗', { businessQueryContext: context });
+
+    expect(state.businessAgentLoader).toHaveBeenCalledWith('这些商品库存够吗', 'manager', {
+      previousBusinessQuery: context,
+    });
   });
 
   it('returns cached high-frequency dashboard data without calling the loader again', async () => {
@@ -215,6 +354,22 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(state.receptionDashboardLoader).toHaveBeenCalledTimes(1);
     expect(state.inventoryAlertsLoader).toHaveBeenCalledTimes(1);
     expect(state.maxActiveLoaders).toBeLessThanOrEqual(2);
+  });
+
+  it('opens management-issued follow-up tasks from the shared quick action', async () => {
+    const intent = parseRuleIntent('customer.followup', 'reception', definition('reception'), 'quick_action');
+
+    const result = await runMicroAppIntent(intent, 'customer.followup');
+
+    expect(result.messages[0]?.payload).toMatchObject({
+      kind: 'followUpTasks',
+      data: {
+        title: '客户跟进',
+        items: [expect.objectContaining({ customerName: '马语嫣', status: 'pending' })],
+      },
+    });
+    expect(state.followUpTasksLoader).toHaveBeenCalledTimes(1);
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
   });
 
   it('opens beautician commission dashboard with focused commission payload', async () => {
