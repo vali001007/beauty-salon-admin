@@ -7,6 +7,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 import { readSeedPassword } from './seed-env.ts';
 import { seedMarketingRuleTemplates } from './seed-marketing-rule-templates.ts';
+import { seedPromotionAssets } from './seed-promotion-assets.ts';
 
 const dryRun = process.argv.includes('--dry-run');
 
@@ -41,8 +42,18 @@ type CountKey =
   | 'orderItems'
   | 'paymentRecords'
   | 'refundRecords'
+  | 'suppliers'
+  | 'productSuppliers'
+  | 'supplierOrders'
+  | 'supplierOrderItems'
+  | 'supplierSettlements'
+  | 'dailySettlements'
   | 'balanceAccounts'
   | 'balanceTransactions'
+  | 'marketingPages'
+  | 'marketingPageEvents'
+  | 'marketingPageLeads'
+  | 'marketingPageAttributions'
   | 'marketingStrategies'
   | 'marketingExecutions'
   | 'marketingTouches'
@@ -55,12 +66,22 @@ type CountKey =
   | 'serviceTasks'
   | 'skinTests'
   | 'terminalDevices'
+  | 'terminalConversations'
+  | 'customerAppIdentities'
+  | 'customerAppEvents'
   | 'purchaseOrders'
   | 'transferOrders';
 
 type Report = {
   mode: 'dry-run' | 'apply';
   sourceCounts: Record<string, number>;
+  promotionAssetLibrary?: {
+    expected: number;
+    existing: number;
+    created: number;
+    skipped: number;
+    completeAfterRun: boolean;
+  };
   beforeCounts: Record<CountKey, number>;
   createdCounts: Partial<Record<CountKey, number>>;
   updatedCounts: Partial<Record<CountKey, number>>;
@@ -173,8 +194,18 @@ async function getCounts(): Promise<Record<CountKey, number>> {
     orderItems: await prisma.orderItem.count(),
     paymentRecords: await prisma.paymentRecord.count(),
     refundRecords: await prisma.refundRecord.count(),
+    suppliers: await (prisma as any).supplier.count(),
+    productSuppliers: await (prisma as any).productSupplier.count(),
+    supplierOrders: await (prisma as any).supplierOrder.count(),
+    supplierOrderItems: await (prisma as any).supplierOrderItem.count(),
+    supplierSettlements: await (prisma as any).supplierSettlement.count(),
+    dailySettlements: await (prisma as any).dailySettlement.count(),
     balanceAccounts: await prisma.customerBalanceAccount.count(),
     balanceTransactions: await prisma.customerBalanceTransaction.count(),
+    marketingPages: await (prisma as any).marketingPage.count(),
+    marketingPageEvents: await (prisma as any).marketingPageEvent.count(),
+    marketingPageLeads: await (prisma as any).marketingPageLead.count(),
+    marketingPageAttributions: await (prisma as any).marketingPageAttribution.count(),
     marketingStrategies: await prisma.marketingAutomationStrategy.count(),
     marketingExecutions: await prisma.marketingAutomationExecution.count(),
     marketingTouches: await prisma.marketingAutomationTouch.count(),
@@ -187,6 +218,9 @@ async function getCounts(): Promise<Record<CountKey, number>> {
     serviceTasks: await prisma.serviceTask.count(),
     skinTests: await prisma.skinTest.count(),
     terminalDevices: await prisma.terminalDevice.count(),
+    terminalConversations: await (prisma as any).terminalConversation.count(),
+    customerAppIdentities: await (prisma as any).customerAppIdentity.count(),
+    customerAppEvents: await (prisma as any).customerAppEvent.count(),
     purchaseOrders: await prisma.purchaseOrder.count(),
     transferOrders: await prisma.transferOrder.count(),
   };
@@ -211,8 +245,18 @@ async function syncPostgresSequences() {
     'OrderItem',
     'PaymentRecord',
     'RefundRecord',
+    'Supplier',
+    'ProductSupplier',
+    'SupplierOrder',
+    'SupplierOrderItem',
+    'SupplierSettlement',
+    'DailySettlement',
     'CustomerBalanceAccount',
     'CustomerBalanceTransaction',
+    'MarketingPage',
+    'MarketingPageEvent',
+    'MarketingPageLead',
+    'MarketingPageAttribution',
     'MarketingAutomationStrategy',
     'MarketingAutomationExecution',
     'MarketingAutomationTouch',
@@ -230,8 +274,11 @@ async function syncPostgresSequences() {
     'CardUsageRecord',
     'Reservation',
     'TerminalDevice',
+    'TerminalConversation',
     'ServiceTask',
     'SkinTest',
+    'CustomerAppIdentity',
+    'CustomerAppEvent',
   ];
 
   for (const table of tables) {
@@ -1108,6 +1155,443 @@ async function ensureMarketingAttribution(customerId: number, orderId: number, a
   });
 }
 
+async function seedSupplierPerformance(stores: Awaited<ReturnType<typeof ensureStores>>, productsByStoreSku: Map<string, any>) {
+  for (const store of stores.slice(0, 3)) {
+    const supplierName = `${store.name} 核心耗材供应商`;
+    let supplier = await (prisma as any).supplier.findFirst({ where: { storeId: store.id, name: supplierName } });
+    if (supplier) {
+      inc(report.skippedCounts, 'suppliers');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'suppliers');
+      supplier = { id: DRY_RUN_ID_BASE + store.id * 100 + 11, name: supplierName, storeId: store.id } as any;
+    } else {
+      supplier = await (prisma as any).supplier.create({
+        data: {
+          storeId: store.id,
+          name: supplierName,
+          contactName: 'Ami 供应链顾问',
+          phone: `1390000${String(store.id).padStart(4, '0')}`,
+          category: '美容耗材',
+          rebateRate: 3,
+          paymentTerms: '月结 30 天',
+          status: 'active',
+        },
+      });
+      inc(report.createdCounts, 'suppliers');
+    }
+
+    const productRefs = productCatalog
+      .slice(0, 4)
+      .map((product) => productsByStoreSku.get(`${store.id}:${product.sku}`))
+      .filter((product) => product?.id);
+    for (const [index, product] of productRefs.entries()) {
+      if (!supplier?.id || supplier.id <= 0 || product.id <= 0) {
+        if (dryRun) inc(report.createdCounts, 'productSuppliers');
+        continue;
+      }
+      const existing = await (prisma as any).productSupplier.findUnique({
+        where: { productId_supplierId: { productId: product.id, supplierId: supplier.id } },
+      });
+      if (existing) {
+        inc(report.skippedCounts, 'productSuppliers');
+      } else if (dryRun) {
+        inc(report.createdCounts, 'productSuppliers');
+      } else {
+        await (prisma as any).productSupplier.create({
+          data: {
+            productId: product.id,
+            supplierId: supplier.id,
+            supplyPrice: Number(product.costPrice ?? 80),
+            moq: 10 + index * 5,
+            leadDays: index % 2 === 0 ? 4 : 9,
+            isPrimary: index === 0,
+          },
+        });
+        inc(report.createdCounts, 'productSuppliers');
+      }
+    }
+
+    const receivedOrderNo = `MVP-SUP-${store.id}-RECEIVED`;
+    const delayedOrderNo = `MVP-SUP-${store.id}-DELAYED`;
+    const supplierOrders = [
+      { orderNo: receivedOrderNo, status: 'received', orderedAt: daysFromNow(-12), receivedAt: daysFromNow(-4), quantity: 20, receivedQty: 20 },
+      { orderNo: delayedOrderNo, status: 'pending', orderedAt: daysFromNow(-11), receivedAt: null, quantity: 16, receivedQty: 0 },
+    ];
+    for (const [orderIndex, orderSeed] of supplierOrders.entries()) {
+      const existing = await (prisma as any).supplierOrder.findUnique({ where: { orderNo: orderSeed.orderNo } });
+      if (existing) {
+        inc(report.skippedCounts, 'supplierOrders');
+        continue;
+      }
+      const orderProducts = productRefs.slice(orderIndex, orderIndex + 2).filter((product) => product?.id && product.id > 0);
+      const totalAmount = orderProducts.reduce((sum, product) => sum + Number(product.costPrice ?? 80) * orderSeed.quantity, 0);
+      if (dryRun || !supplier?.id || supplier.id <= 0 || !orderProducts.length) {
+        inc(report.createdCounts, 'supplierOrders');
+        inc(report.createdCounts, 'supplierOrderItems', Math.max(1, orderProducts.length));
+        continue;
+      }
+      await (prisma as any).supplierOrder.create({
+        data: {
+          orderNo: orderSeed.orderNo,
+          supplierId: supplier.id,
+          storeId: store.id,
+          totalAmount,
+          platformFee: Math.round(totalAmount * 0.01),
+          rebateAmount: Math.round(totalAmount * 0.03),
+          netAmount: Math.round(totalAmount * 0.98),
+          status: orderSeed.status,
+          orderedAt: orderSeed.orderedAt,
+          receivedAt: orderSeed.receivedAt,
+          settledAt: orderSeed.status === 'received' ? daysFromNow(-2) : undefined,
+          items: {
+            create: orderProducts.map((product) => ({
+              productId: product.id,
+              quantity: orderSeed.quantity,
+              unitPrice: Number(product.costPrice ?? 80),
+              subtotal: Number(product.costPrice ?? 80) * orderSeed.quantity,
+              receivedQty: orderSeed.receivedQty,
+            })),
+          },
+        },
+      });
+      inc(report.createdCounts, 'supplierOrders');
+      inc(report.createdCounts, 'supplierOrderItems', orderProducts.length);
+    }
+
+    if (!supplier?.id || supplier.id <= 0) continue;
+    const settleMonth = daysFromNow(-1).toISOString().slice(0, 7);
+    const existingSettlement = await (prisma as any).supplierSettlement.findUnique({
+      where: { supplierId_settleMonth: { supplierId: supplier.id, settleMonth } },
+    });
+    if (existingSettlement) {
+      inc(report.skippedCounts, 'supplierSettlements');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'supplierSettlements');
+    } else {
+      await (prisma as any).supplierSettlement.create({
+        data: {
+          supplierId: supplier.id,
+          settleMonth,
+          orderCount: 2,
+          totalAmount: 9680,
+          rebateAmount: 280,
+          platformFee: 96,
+          netPayable: 9496,
+          status: store.id % 2 === 0 ? 'confirmed' : 'draft',
+          confirmedAt: store.id % 2 === 0 ? daysFromNow(-1) : undefined,
+        },
+      });
+      inc(report.createdCounts, 'supplierSettlements');
+    }
+  }
+}
+
+async function seedMarketingPageAndCustomerApp(
+  stores: Awaited<ReturnType<typeof ensureStores>>,
+  projectsByStoreName: Map<string, any>,
+  productsByStoreSku: Map<string, any>,
+) {
+  for (const store of stores.slice(0, 3)) {
+    const [customer, device] = await Promise.all([
+      prisma.customer.findFirst({ where: { storeId: store.id, deletedAt: null }, orderBy: [{ totalSpent: 'desc' }, { id: 'asc' }] }),
+      prisma.terminalDevice.findFirst({ where: { storeId: store.id }, orderBy: { id: 'asc' } }),
+    ]);
+    const project = projectsByStoreName.get(`${store.id}:深层补水护理`) ?? projectsByStoreName.get(`${store.id}:${projectCatalog[0].name}`);
+    const product = productsByStoreSku.get(`${store.id}:${productCatalog[1].sku}`) ?? productsByStoreSku.get(`${store.id}:${productCatalog[0].sku}`);
+    if (!customer || !project || !product) {
+      report.warnings.push(`门店 ${store.name} 缺少客户/项目/商品，跳过客户小程序与推广页 seed。`);
+      continue;
+    }
+
+    const orderNo = `MVP-APP-ORD-${store.id}-001`;
+    let order = await prisma.productOrder.findUnique({ where: { orderNo } });
+    if (order) {
+      inc(report.skippedCounts, 'productOrders');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'productOrders');
+      order = { id: DRY_RUN_ID_BASE + store.id * 100 + 21, orderNo, customerId: customer.id, storeId: store.id, totalAmount: Number(project.price ?? 298) } as any;
+    } else {
+      order = await prisma.productOrder.create({
+        data: {
+          orderNo,
+          customerId: customer.id,
+          customerName: customer.name,
+          storeId: store.id,
+          totalAmount: Number(project.price ?? 298),
+          payMethod: 'wechat',
+          source: 'miniapp',
+          status: 'completed',
+          items: [{ itemType: 'project', itemId: project.id, name: project.name, quantity: 1, unitPrice: Number(project.price ?? 298) }],
+          remark: 'MVP 小程序成交链路演示订单',
+          createdAt: daysFromNow(-2),
+        },
+      });
+      inc(report.createdCounts, 'productOrders');
+    }
+    if (order?.id && order.id > 0) {
+      await ensureOrderItem(order.id, { itemType: 'project', itemId: project.id, name: project.name, quantity: 1, unitPrice: Number(project.price ?? 298) });
+      await ensurePaymentRecord(order.id, orderNo, 'wechat', Number(project.price ?? 298));
+    }
+
+    const slug = `mvp-glow-${store.id}-member-care`;
+    let page = await (prisma as any).marketingPage.findUnique({ where: { slug } });
+    if (page) {
+      inc(report.skippedCounts, 'marketingPages');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'marketingPages');
+      page = { id: DRY_RUN_ID_BASE + store.id * 100 + 22, slug, storeId: store.id, title: `${store.name} 会员补水护理活动` } as any;
+    } else {
+      page = await (prisma as any).marketingPage.create({
+        data: {
+          storeId: store.id,
+          sourceType: 'promotion',
+          sourceId: `mvp-glow-${store.id}`,
+          title: `${store.name} 会员补水护理活动`,
+          slug,
+          runtimeType: 'h5',
+          pageSchema: { title: '会员补水护理活动', projectId: project.id, productId: product.id, source: 'seed-mvp' },
+          snapshotJson: { projectName: project.name, productName: product.name },
+          shareTitle: '会员补水护理活动',
+          shareDescription: '小程序预约到店护理演示页',
+          status: 'published',
+          shareUrl: `https://demo.ami.local/m/${slug}`,
+          miniappPath: `/pages/activity/detail?slug=${slug}`,
+          publishedAt: daysFromNow(-6),
+          createdAt: daysFromNow(-7),
+        },
+      });
+      inc(report.createdCounts, 'marketingPages');
+    }
+
+    const pageEvents = [
+      { eventType: 'view', sessionId: `mvp-session-${store.id}-1`, channel: 'miniapp', customerId: customer.id },
+      { eventType: 'cta_click', sessionId: `mvp-session-${store.id}-1`, channel: 'miniapp', customerId: customer.id },
+      { eventType: 'reserve_click', sessionId: `mvp-session-${store.id}-2`, channel: 'wechat', customerId: customer.id },
+    ];
+    if (page?.id && page.id > 0) {
+      for (const event of pageEvents) {
+        const existing = await (prisma as any).marketingPageEvent.findFirst({ where: { pageId: page.id, sessionId: event.sessionId, eventType: event.eventType } });
+        if (existing) {
+          inc(report.skippedCounts, 'marketingPageEvents');
+        } else if (dryRun) {
+          inc(report.createdCounts, 'marketingPageEvents');
+        } else {
+          await (prisma as any).marketingPageEvent.create({
+            data: {
+              pageId: page.id,
+              storeId: store.id,
+              customerId: event.customerId,
+              sessionId: event.sessionId,
+              eventType: event.eventType,
+              channel: event.channel,
+              source: 'seed-mvp',
+              metadataJson: { deviceId: device?.id },
+              occurredAt: daysFromNow(-5),
+            },
+          });
+          inc(report.createdCounts, 'marketingPageEvents');
+        }
+      }
+    }
+
+    let lead = page?.id && page.id > 0 ? await (prisma as any).marketingPageLead.findFirst({ where: { pageId: page.id, phone: customer.phone } }) : null;
+    if (lead) {
+      inc(report.skippedCounts, 'marketingPageLeads');
+    } else if (dryRun || !page?.id || page.id <= 0) {
+      inc(report.createdCounts, 'marketingPageLeads');
+      lead = { id: DRY_RUN_ID_BASE + store.id * 100 + 23, pageId: page?.id, customerId: customer.id } as any;
+    } else {
+      lead = await (prisma as any).marketingPageLead.create({
+        data: {
+          pageId: page.id,
+          storeId: store.id,
+          customerId: customer.id,
+          sessionId: `mvp-session-${store.id}-1`,
+          name: customer.name,
+          phone: customer.phone,
+          intentType: 'reservation',
+          message: '想预约补水护理',
+          channel: 'miniapp',
+          status: 'converted',
+          convertedAt: daysFromNow(-2),
+          metadataJson: { source: 'seed-mvp' },
+          createdAt: daysFromNow(-5),
+        },
+      });
+      inc(report.createdCounts, 'marketingPageLeads');
+    }
+
+    const existingAttribution =
+      lead?.id && order?.id && lead.id > 0 && order.id > 0
+        ? await (prisma as any).marketingPageAttribution.findUnique({ where: { leadId_orderId: { leadId: lead.id, orderId: order.id } } })
+        : null;
+    if (existingAttribution) {
+      inc(report.skippedCounts, 'marketingPageAttributions');
+    } else if (dryRun || !lead?.id || !order?.id || lead.id <= 0 || order.id <= 0) {
+      inc(report.createdCounts, 'marketingPageAttributions');
+    } else {
+      await (prisma as any).marketingPageAttribution.create({
+        data: {
+          leadId: lead.id,
+          pageId: page.id,
+          customerId: customer.id,
+          orderId: order.id,
+          attributionType: 'last_touch',
+          attributedRevenue: Number(order.totalAmount ?? project.price ?? 298),
+          touchedAt: daysFromNow(-5),
+          convertedAt: daysFromNow(-2),
+        },
+      });
+      inc(report.createdCounts, 'marketingPageAttributions');
+    }
+
+    const openid = `mvp-openid-${store.id}-${customer.id}`;
+    let identity = await (prisma as any).customerAppIdentity.findUnique({ where: { storeId_openid: { storeId: store.id, openid } } });
+    if (identity) {
+      inc(report.skippedCounts, 'customerAppIdentities');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'customerAppIdentities');
+      identity = { id: DRY_RUN_ID_BASE + store.id * 100 + 24, openid, customerId: customer.id } as any;
+    } else {
+      identity = await (prisma as any).customerAppIdentity.create({
+        data: {
+          storeId: store.id,
+          customerId: customer.id,
+          openid,
+          unionid: `mvp-union-${customer.id}`,
+          nickname: customer.name,
+          phone: customer.phone,
+          bindStatus: 'bound',
+          source: 'ami_glow',
+          lastLoginAt: daysFromNow(-1),
+          createdAt: daysFromNow(-20),
+        },
+      });
+      inc(report.createdCounts, 'customerAppIdentities');
+    }
+
+    const appEvents = [
+      { eventType: 'page_view', targetType: 'marketing_page', targetId: slug, channel: 'miniapp' },
+      { eventType: 'promotion_claimed', targetType: 'promotion', targetId: `mvp-glow-${store.id}`, channel: 'miniapp' },
+      { eventType: 'promotion_reserved', targetType: 'project', targetId: String(project.id), channel: 'miniapp' },
+      { eventType: 'miniapp_reservation_success', targetType: 'reservation', targetId: String(order?.id ?? 'demo'), channel: 'miniapp' },
+    ];
+    for (const event of appEvents) {
+      const existing = await (prisma as any).customerAppEvent.findFirst({
+        where: { storeId: store.id, identityId: identity?.id && identity.id > 0 ? identity.id : undefined, openid, eventType: event.eventType, targetType: event.targetType, targetId: event.targetId },
+      });
+      if (existing) {
+        inc(report.skippedCounts, 'customerAppEvents');
+      } else if (dryRun || !identity?.id || identity.id <= 0) {
+        inc(report.createdCounts, 'customerAppEvents');
+      } else {
+        await (prisma as any).customerAppEvent.create({
+          data: {
+            storeId: store.id,
+            customerId: customer.id,
+            identityId: identity.id,
+            openid,
+            sessionId: `mvp-app-session-${store.id}`,
+            eventType: event.eventType,
+            channel: event.channel,
+            targetType: event.targetType,
+            targetId: event.targetId,
+            source: 'ami_glow',
+            metadataJson: { source: 'seed-mvp', pageSlug: slug },
+            occurredAt: daysFromNow(-3),
+          },
+        });
+        inc(report.createdCounts, 'customerAppEvents');
+      }
+    }
+  }
+}
+
+async function seedTerminalConversations(stores: Awaited<ReturnType<typeof ensureStores>>) {
+  for (const store of stores.slice(0, 3)) {
+    const device = await prisma.terminalDevice.findFirst({ where: { storeId: store.id }, orderBy: { id: 'asc' } });
+    if (!device) {
+      report.warnings.push(`门店 ${store.name} 缺少终端设备，跳过终端会话 seed。`);
+      continue;
+    }
+    const date = onlyDate(daysFromNow(-1));
+    const existing = await (prisma as any).terminalConversation.findFirst({
+      where: { deviceId: device.deviceCode, storeId: store.id, role: 'manager', date },
+    });
+    if (existing) {
+      inc(report.skippedCounts, 'terminalConversations');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'terminalConversations');
+    } else {
+      const messages = [
+        { role: 'user', content: '近期表现较好的员工', createdAt: daysFromNow(-1, 10, 0) },
+        { role: 'assistant', content: '暂时无法回复，该问题与本门店业务无关', createdAt: daysFromNow(-1, 10, 1) },
+        { role: 'system', content: '缺少设备认证令牌，会话初始化失败', createdAt: daysFromNow(-1, 10, 2) },
+        { role: 'user', content: '页面一直重复刷新，不稳定', createdAt: daysFromNow(-1, 10, 3) },
+        { role: 'user', content: '排班状态无法切换忙碌、请假、正常', createdAt: daysFromNow(-1, 10, 4) },
+        { role: 'user', content: '收银正在收款很长时间，核销失败', createdAt: daysFromNow(-1, 10, 5) },
+      ];
+      await (prisma as any).terminalConversation.create({
+        data: {
+          deviceId: device.deviceCode,
+          storeId: store.id,
+          role: 'manager',
+          operatorId: null,
+          date,
+          messages,
+          messageCount: messages.length,
+          createdAt: daysFromNow(-1, 10, 0),
+          updatedAt: daysFromNow(-1, 10, 5),
+        },
+      });
+      inc(report.createdCounts, 'terminalConversations');
+    }
+  }
+}
+
+async function seedDailySettlements(stores: Awaited<ReturnType<typeof ensureStores>>) {
+  for (const store of stores.slice(0, 3)) {
+    const settleDate = onlyDate(daysFromNow(-1));
+    const existing = await (prisma as any).dailySettlement.findUnique({ where: { storeId_settleDate: { storeId: store.id, settleDate } } });
+    if (existing) {
+      inc(report.skippedCounts, 'dailySettlements');
+    } else if (dryRun) {
+      inc(report.createdCounts, 'dailySettlements');
+    } else {
+      const totalRevenue = 6800 + store.id * 350;
+      const refundAmount = store.id % 2 === 0 ? 128 : 0;
+      const materialCost = Math.round(totalRevenue * 0.18);
+      const commissionTotal = Math.round(totalRevenue * 0.12);
+      const grossProfit = totalRevenue - refundAmount - materialCost - commissionTotal;
+      await (prisma as any).dailySettlement.create({
+        data: {
+          storeId: store.id,
+          settleDate,
+          totalRevenue,
+          cashRevenue: 600,
+          wechatRevenue: Math.round(totalRevenue * 0.55),
+          alipayRevenue: Math.round(totalRevenue * 0.25),
+          cardRevenue: Math.round(totalRevenue * 0.12),
+          balanceRevenue: Math.round(totalRevenue * 0.08),
+          rechargeIncome: 1200,
+          refundAmount,
+          orderCount: 18 + store.id,
+          customerCount: 12 + store.id,
+          avgTransaction: Math.round(totalRevenue / (18 + store.id)),
+          materialCost,
+          grossProfit,
+          grossMargin: Math.round((grossProfit / totalRevenue) * 10000) / 100,
+          commissionTotal,
+          status: 'confirmed',
+          confirmedAt: daysFromNow(-1, 22, 0),
+          summary: { source: 'seed-mvp', note: '经营语义中枢财务毛利演示日结' },
+        },
+      });
+      inc(report.createdCounts, 'dailySettlements');
+    }
+  }
+}
+
 async function seedOperatingLoopClosure(stores: Awaited<ReturnType<typeof ensureStores>>) {
   for (const store of stores.slice(0, 3)) {
     const [customer, product, project, task, device] = await Promise.all([
@@ -1311,6 +1795,10 @@ async function main() {
   report.sourceCounts = {
     customerGenerator: 5 * 18,
     operatingLoopGenerator: 5,
+    supplierPerformanceGenerator: 3,
+    customerAppFunnelGenerator: 3,
+    terminalConversationGenerator: 3,
+    dailySettlementGenerator: 3,
     skinTestGenerator: 5,
     productCatalog: productCatalog.length,
     projectCatalog: projectCatalog.length,
@@ -1336,9 +1824,23 @@ async function main() {
   await seedCardUsage();
   await seedPurchaseAndTransfer(stores);
   await seedOperatingLoopClosure(stores);
+  await seedSupplierPerformance(stores, productsByStoreSku);
+  await seedMarketingPageAndCustomerApp(stores, projectsByStoreName, productsByStoreSku);
+  await seedTerminalConversations(stores);
+  await seedDailySettlements(stores);
   const ruleTemplateSeedResult = await seedMarketingRuleTemplates(prisma, dryRun);
   inc(report.createdCounts, 'marketingRuleTemplates', ruleTemplateSeedResult.created);
   inc(report.skippedCounts, 'marketingRuleTemplates', ruleTemplateSeedResult.skipped);
+  const promotionAssetSeedResult = await seedPromotionAssets(prisma, dryRun);
+  inc(report.createdCounts, 'promotions', promotionAssetSeedResult.created);
+  inc(report.skippedCounts, 'promotions', promotionAssetSeedResult.skipped);
+  report.promotionAssetLibrary = {
+    expected: promotionAssetSeedResult.expected,
+    existing: promotionAssetSeedResult.existing,
+    created: promotionAssetSeedResult.created,
+    skipped: promotionAssetSeedResult.skipped,
+    completeAfterRun: promotionAssetSeedResult.complete,
+  };
 
   report.afterCounts = dryRun ? report.beforeCounts : await getCounts();
   console.log(JSON.stringify(report, null, 2));
