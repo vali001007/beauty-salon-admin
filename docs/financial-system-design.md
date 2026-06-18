@@ -3,7 +3,7 @@
 版本：v1.0  
 日期：2026-06-07  
 适用范围：管理端、server-v2 后端、Ami Aura Lite 终端、数字员工绩效、供应链抽佣  
-前置文档：`docs/digital-employee-market-analysis.md`、`docs/data-completion-and-integration-plan.md`
+前置文档：`docs/digital-employee-market-analysis.md`、`docs/03-开发计划/data-completion-and-integration-plan.md`
 
 ---
 

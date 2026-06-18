@@ -3,7 +3,7 @@
 版本：v1.0  
 日期：2026-06-07  
 适用范围：管理端、server-v2 后端、marketing-h5 渲染端  
-前置文档：`docs/ai-optimization-plan.md`
+前置文档：`docs/03-开发计划/ai-optimization-plan.md`
 
 ---
 
