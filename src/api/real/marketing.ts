@@ -43,6 +43,10 @@ export async function realGetMarketingActivities(): Promise<MarketingActivity[]>
   return Array.isArray(response) ? response : response.items ?? response.data ?? [];
 }
 
+export async function realGetMarketingActivityById(id: number): Promise<MarketingActivity> {
+  return apiClient.get(`/marketing/activities/${id}`);
+}
+
 export async function realCreateMarketingActivity(
   data: Omit<MarketingActivity, 'id'>,
 ): Promise<MarketingActivity> {
@@ -215,11 +219,13 @@ export async function realGetAutomationEffects(): Promise<MarketingAutomationEff
 
 export async function realGetUnifiedMarketingEffects(params?: {
   objectType?: 'all' | MarketingEffectObjectType;
+  objectId?: number | string;
   storeId?: number;
 }): Promise<UnifiedMarketingEffectsResponse> {
   return apiClient.get('/marketing/effects/unified', {
     params: {
       ...(params?.objectType && params.objectType !== 'all' ? { objectType: params.objectType } : {}),
+      ...(params?.objectId ? { objectId: params.objectId } : {}),
       ...(params?.storeId ? { storeId: params.storeId } : {}),
     },
   });

@@ -4,9 +4,22 @@ const splitConfiguredImages = (value?: string) =>
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
 
-export const MARKETING_SHARE_BASE_URL = (
-  import.meta.env.VITE_MARKETING_SHARE_BASE_URL || 'https://mini.ami-core.com'
-).replace(/\/+$/, '');
+const LOCAL_MARKETING_H5_BASE_URL = 'http://127.0.0.1:5177';
+const LOCAL_NON_MARKETING_H5_PORTS = new Set(['5175', '5176']);
+
+function resolveMarketingShareBaseUrl(value?: string) {
+  const configured = (value || LOCAL_MARKETING_H5_BASE_URL).replace(/\/+$/, '');
+  if (!import.meta.env.DEV) return configured;
+  try {
+    const url = new URL(configured);
+    if (url.hostname === 'mini.ami-core.com') return LOCAL_MARKETING_H5_BASE_URL;
+  } catch {
+    return LOCAL_MARKETING_H5_BASE_URL;
+  }
+  return configured;
+}
+
+export const MARKETING_SHARE_BASE_URL = resolveMarketingShareBaseUrl(import.meta.env.VITE_MARKETING_SHARE_BASE_URL);
 
 export function buildMarketingActivityUrl(activityId: string | number) {
   return `${MARKETING_SHARE_BASE_URL}/activity/${activityId}`;
@@ -23,6 +36,24 @@ export function buildMarketingPageUrl(
     }
   });
   return url.toString();
+}
+
+export function normalizeMarketingShareUrl(value?: string | null) {
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    const shouldRewriteToMarketingH5 =
+      url.hostname === 'mini.ami-core.com' ||
+      ((url.hostname === 'localhost' || url.hostname === '127.0.0.1') && LOCAL_NON_MARKETING_H5_PORTS.has(url.port));
+    if (shouldRewriteToMarketingH5) {
+      const baseUrl = new URL(MARKETING_SHARE_BASE_URL);
+      url.protocol = baseUrl.protocol;
+      url.host = baseUrl.host;
+    }
+    return url.toString();
+  } catch {
+    return value;
+  }
 }
 
 export const MARKETING_RECOMMENDATION_IMAGES = [

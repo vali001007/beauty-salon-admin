@@ -3,14 +3,11 @@ import { useNavigate } from 'react-router';
 import {
   ArrowDownUp,
   ArrowRight,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
+  AlertTriangle,
   ClipboardList,
   Plus,
   RefreshCw,
   Send,
-  Sparkles,
   TrendingUp,
   Users,
   Zap,
@@ -18,6 +15,16 @@ import {
 import { toast } from 'sonner';
 import { CreateActivityDialog } from '../components/CreateActivityDialog';
 import { ActivityMiniPage, type ActivityPageData } from '../components/ActivityMiniPage';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { generateActivityPage, generateMarketingCopy } from '@/api/ai';
@@ -31,7 +38,8 @@ import {
 } from '@/api/marketing';
 import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
 import { getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
-import type { Customer } from '@/types';
+import { createPromotion, matchPromotions } from '@/api/promotion';
+import type { Customer, RecommendedAction, RecommendedOffer, RecommendedPromotionMatch } from '@/types';
 import type { ActivityPageSchema, MarketingCopyChannel } from '@/types/ai';
 import type { TerminalFollowUpTask, TerminalFollowUpTaskSummary } from '@/types/terminal';
 import type { Recommendation, UrgencyLevel } from '@/utils/marketingRecommendation';
@@ -61,7 +69,28 @@ type AudienceProfile = BehaviorProfile & {
   marketingResponseScore?: number;
   visitCountValue?: number;
   avgSpendValue?: number;
+  preferredAssigneeRole?: string;
+  preferredAssigneeRoleLabel?: string;
+  preferredAssigneeName?: string;
+  preferredAssigneeUserId?: number;
+  preferredAssigneeBeauticianId?: number;
+  preferredAssigneeReason?: string;
 };
+
+function getPromotionMatchScenario(rec: Recommendation) {
+  const signal = [rec.triggerType, rec.recommendationType, rec.source, rec.category, rec.title].filter(Boolean).join(' ');
+  if (/churn|dormant|流失|沉睡|唤醒/.test(signal)) return 'churn_winback';
+  if (/care_cycle|project_cycle|复购|护理周期/.test(signal)) return 'care_cycle_due';
+  if (/ltv|vip|高价值|会员/.test(signal)) return 'vip_privilege_care';
+  if (/birthday|生日/.test(signal)) return 'birthday';
+  if (/new_customer|新客/.test(signal)) return 'new_customer';
+  if (/browse|浏览/.test(signal)) return 'browse_abandonment';
+  if (/card_expiry|package|次卡|套餐/.test(signal)) return 'card_expiry';
+  if (/coupon_claimed|coupon_expiry|领券|优惠券/.test(signal)) return 'coupon_claimed_unused';
+  if (/seasonal|holiday|季节|节日/.test(signal)) return 'seasonal_skin_care';
+  if (/capacity|idle|低峰|排期/.test(signal)) return 'project_idle_capacity';
+  return rec.triggerType || rec.recommendationType || rec.category;
+}
 
 type RecommendationPriorityFilterId = 'all' | UrgencyLevel;
 type RecommendationTypeFilterId = 'all' | 'customer' | 'product' | 'project' | 'capacity';
@@ -91,12 +120,26 @@ type PreviewInitialData = {
   recommendedChannelsJson?: string;
   recommendedItemsJson?: string;
   offerJson?: string;
+  originalOfferJson?: string;
+  selectedPromotionJson?: string;
   sourceSignalsJson?: string;
   inventorySnapshotJson?: string;
   capacitySnapshotJson?: string;
   riskWarningsJson?: string;
   pageSchema?: ActivityPageSchema;
   [key: string]: string | ActivityPageSchema | undefined;
+};
+
+type RecommendationOfferSelection = {
+  offer: RecommendedOffer | undefined;
+  selectedPromotion?: RecommendedPromotionMatch;
+  originalPromotion?: RecommendedPromotionMatch | null;
+  switched: boolean;
+};
+
+type PendingRiskAction = {
+  kind: 'activity' | 'automation';
+  recommendation: Recommendation;
 };
 
 type RecommendationAudiencePayload = Partial<BehaviorProfile> & {
@@ -114,6 +157,12 @@ type RecommendationAudiencePayload = Partial<BehaviorProfile> & {
   repurchase30dScore?: number;
   marketingResponseScore?: number;
   ltvTier?: string;
+  preferredAssigneeRole?: string;
+  preferredAssigneeRoleLabel?: string;
+  preferredAssigneeName?: string | null;
+  preferredAssigneeUserId?: number | null;
+  preferredAssigneeBeauticianId?: number | null;
+  preferredAssigneeReason?: string | null;
 };
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -123,6 +172,11 @@ const LEVEL_COLORS: Record<string, string> = {
   '流失风险客户': 'bg-red-100 text-red-600',
   '新客户': 'bg-yellow-100 text-yellow-700',
 };
+
+function formatPercentScore(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  return String(Math.round(value));
+}
 
 const FOLLOW_UP_STATUS_LABELS: Record<string, string> = {
   pending: '待处理',
@@ -152,6 +206,13 @@ const formatFollowUpDateTime = (value?: string) => {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
+
+const compactMetricText = (value?: string) =>
+  String(value ?? '')
+    .replace(/^预计(毛利|避免损耗)\s*/, '')
+    .trim();
+
+const metricPillClass = 'inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium whitespace-nowrap';
 
 function buildRecommendationRecoveryCard(totalCustomers = 0): Recommendation {
   return {
@@ -244,6 +305,16 @@ function getChannelText(rec: Recommendation) {
   return rec.recommendedChannels?.slice(0, 3).map((item) => item.label).join('、') || '小程序、短信';
 }
 
+function getMatchedCatalogItem(rec: Recommendation) {
+  return rec.recommendedItems?.find((item) =>
+    Boolean(item.id) && ['project', 'product', 'card', 'package'].includes(item.type),
+  );
+}
+
+function getRecommendationContentText(rec: Recommendation) {
+  return rec.recommendedItems?.[0]?.name || rec.strategy || '护理建议';
+}
+
 function getTerminalFollowUpDueAt() {
   const dueAt = new Date();
   dueAt.setDate(dueAt.getDate() + 1);
@@ -251,14 +322,51 @@ function getTerminalFollowUpDueAt() {
   return dueAt.toISOString();
 }
 
-function buildTerminalFollowUpScript(rec: Recommendation) {
-  const offer = rec.offer?.label || rec.discount || '门店专属护理权益';
-  const itemText = rec.recommendedItems?.[0]?.name ? `，可优先推荐${rec.recommendedItems[0].name}` : '';
-  return `客户命中「${rec.title}」。建议先确认近期护理需求，再介绍${offer}${itemText}；如客户有兴趣，引导预约到店并备注肤况/时间偏好。`;
+function formatExecutionTime(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function buildTerminalFollowUpNote(rec: Recommendation) {
-  return `智能营销下发客户增长跟进：${rec.reason}`;
+function getExecutionStatusItems(rec: Recommendation) {
+  const state = rec.executionState;
+  return [
+    {
+      key: 'automation',
+      label: state?.automation.done ? '已自动触达' : '未自动触达',
+      done: Boolean(state?.automation.done),
+      time: formatExecutionTime(state?.automation.lastAt),
+    },
+    {
+      key: 'activity',
+      label: state?.activity.done ? '已发布活动' : '未发布活动',
+      done: Boolean(state?.activity.done),
+      time: formatExecutionTime(state?.activity.lastAt),
+    },
+    {
+      key: 'followUp',
+      label: state?.followUp.done ? '已下发跟进' : '未下发跟进',
+      done: Boolean(state?.followUp.done),
+      time: formatExecutionTime(state?.followUp.lastAt),
+    },
+  ];
+}
+
+function buildTerminalFollowUpScript(rec: Recommendation, selection?: RecommendationOfferSelection) {
+  const offer = selection?.offer?.label || rec.offer?.label || rec.discount || '门店专属护理权益';
+  const promotionName = selection?.offer?.promotionName || selection?.selectedPromotion?.promotionName || rec.offer?.promotionName;
+  const matchedItem = getMatchedCatalogItem(rec);
+  const contentText = matchedItem ? `，可优先推荐${matchedItem.name}` : `，围绕${getRecommendationContentText(rec)}沟通`;
+  const promotionText = promotionName ? `（权益资产：${promotionName}）` : '';
+  return `客户命中「${rec.title}」。建议先确认近期护理需求，再介绍${offer}${promotionText}${contentText}；如客户有兴趣，引导预约到店并备注肤况/时间偏好。`;
+}
+
+function buildTerminalFollowUpNote(rec: Recommendation, selection?: RecommendationOfferSelection) {
+  const offer = selection?.offer?.label || rec.offer?.label || rec.discount;
+  const promotionName = selection?.offer?.promotionName || selection?.selectedPromotion?.promotionName || rec.offer?.promotionName;
+  const suffix = [promotionName ? `承接权益：${promotionName}` : '', offer ? `权益内容：${offer}` : ''].filter(Boolean).join('；');
+  return `智能营销下发客户增长跟进：${rec.reason}${suffix ? `。${suffix}` : ''}`;
 }
 
 function getTerminalFollowUpActionState(rec: Recommendation) {
@@ -318,6 +426,28 @@ function getFollowUpAssignmentPreview(rec: Recommendation) {
   };
 }
 
+function getProfileFollowUpAssignee(
+  profile: AudienceProfile,
+  assignment?: { role?: string; roleLabel?: string; reason?: string } | null,
+) {
+  if (profile.preferredAssigneeUserId && profile.preferredAssigneeName) {
+    return {
+      name: profile.preferredAssigneeName,
+      reason: profile.preferredAssigneeReason || '客户熟悉的服务人员',
+      assignable: true,
+    };
+  }
+  return {
+    name: '未匹配系统用户',
+    reason: `${assignment?.roleLabel || '门店人员'}需先在系统管理-用户管理中启用并绑定门店`,
+    assignable: false,
+  };
+}
+
+function canAssignFollowUpProfile(profile: AudienceProfile) {
+  return Boolean(profile.preferredAssigneeUserId && profile.preferredAssigneeName);
+}
+
 function normalizeAudienceProfiles(profiles: RecommendationAudiencePayload[]): AudienceProfile[] {
   return profiles.map((profile) => {
     const visitCount = Number(profile.visitCount ?? 0);
@@ -349,6 +479,12 @@ function normalizeAudienceProfiles(profiles: RecommendationAudiencePayload[]): A
       visitCountValue: visitCount,
       totalSpentValue: totalSpent,
       avgSpendValue,
+      preferredAssigneeRole: profile.preferredAssigneeRole || undefined,
+      preferredAssigneeRoleLabel: profile.preferredAssigneeRoleLabel || undefined,
+      preferredAssigneeName: profile.preferredAssigneeName || undefined,
+      preferredAssigneeUserId: profile.preferredAssigneeUserId ?? undefined,
+      preferredAssigneeBeauticianId: profile.preferredAssigneeBeauticianId ?? undefined,
+      preferredAssigneeReason: profile.preferredAssigneeReason || undefined,
     };
   });
 }
@@ -363,6 +499,27 @@ function getRecommendationOpportunityType(rec: Recommendation): Exclude<Recommen
   if (rec.source === 'capacity' || rec.recommendationType === 'project_idle_capacity') return 'capacity';
   if (rec.source === 'project' || rec.recommendationType?.startsWith('project_')) return 'project';
   return 'customer';
+}
+
+function getRecommendationQueryForType(type: RecommendationTypeFilterId, refresh = false) {
+  if (type === 'product') {
+    return { scope: 'product-project' as const, type: 'product_expiry_clearance,product_replenishment', limit: 20, refresh };
+  }
+  if (type === 'project') {
+    return { scope: 'product-project' as const, type: 'project_cycle_due', limit: 20, refresh };
+  }
+  if (type === 'capacity') {
+    return { scope: 'product-project' as const, type: 'project_idle_capacity', limit: 20, refresh };
+  }
+  return { scope: 'customer' as const, limit: 20, refresh };
+}
+
+function mergeRecommendationsById(base: Recommendation[], additions: Recommendation[]) {
+  const map = new Map<number, Recommendation>();
+  for (const item of [...base, ...additions]) {
+    map.set(Number(item.id), item);
+  }
+  return Array.from(map.values());
 }
 
 export function MarketingRecommendation() {
@@ -381,7 +538,6 @@ export function MarketingRecommendation() {
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
   const [isPublishingPreview, setIsPublishingPreview] = useState(false);
   const [, setRefreshKey] = useState(0);
-  const [expandedEvidence, setExpandedEvidence] = useState<Set<number>>(new Set());
   const [selectedCustomerGroup, setSelectedCustomerGroup] = useState<SelectedCustomerGroup | null>(null);
   const [isAudienceLoading, setIsAudienceLoading] = useState(false);
   const [audienceSortKey, setAudienceSortKey] = useState<AudienceSortKey>('churnScore');
@@ -392,6 +548,104 @@ export function MarketingRecommendation() {
   const [followUpSummary, setFollowUpSummary] = useState<TerminalFollowUpTaskSummary | null>(null);
   const [followUpRecordGroup, setFollowUpRecordGroup] = useState<FollowUpRecordGroup | null>(null);
   const [isFollowUpRecordsLoading, setIsFollowUpRecordsLoading] = useState(false);
+  const [draftingPromotionIds, setDraftingPromotionIds] = useState<Set<number>>(new Set());
+  const [selectedPromotionByRecommendation, setSelectedPromotionByRecommendation] = useState<Record<number, number>>({});
+  const [pendingRiskAction, setPendingRiskAction] = useState<PendingRiskAction | null>(null);
+
+  const getOfferSelection = useCallback((rec: Recommendation): RecommendationOfferSelection => {
+    const candidates = [rec.primaryPromotion, ...(rec.alternativePromotions ?? [])].filter(Boolean) as RecommendedPromotionMatch[];
+    const selectedPromotionId = selectedPromotionByRecommendation[rec.id];
+    const selectedPromotion = candidates.find((item) => item.promotionId === selectedPromotionId)
+      ?? rec.primaryPromotion
+      ?? candidates[0];
+    if (!selectedPromotion) {
+      return {
+        offer: rec.offer,
+        originalPromotion: rec.primaryPromotion ?? null,
+        switched: false,
+      };
+    }
+    const switched = Boolean(rec.primaryPromotion?.promotionId && selectedPromotion.promotionId !== rec.primaryPromotion.promotionId);
+    const offer: RecommendedOffer = {
+      ...(rec.offer ?? {
+        type: selectedPromotion.type as RecommendedOffer['type'],
+        label: selectedPromotion.discountText,
+        reason: selectedPromotion.fitReason ?? '来自权益资产库匹配',
+      }),
+      type: (rec.offer?.type ?? selectedPromotion.type) as RecommendedOffer['type'],
+      label: selectedPromotion.discountText || rec.offer?.label || rec.discount,
+      promotionId: selectedPromotion.promotionId,
+      promotionName: selectedPromotion.promotionName || selectedPromotion.name,
+      fitScore: selectedPromotion.fitScore,
+      fitReason: selectedPromotion.fitReason,
+      reason: selectedPromotion.fitReason || rec.offer?.reason || '来自权益资产库匹配',
+      riskWarnings: selectedPromotion.riskWarnings ?? rec.offer?.riskWarnings,
+    };
+    return {
+      offer,
+      selectedPromotion,
+      originalPromotion: rec.primaryPromotion ?? null,
+      switched,
+    };
+  }, [selectedPromotionByRecommendation]);
+
+  const buildActionsWithOffer = useCallback((rec: Recommendation, selection = getOfferSelection(rec)) => {
+    const offer = selection.offer;
+    const fallbackActions: RecommendedAction[] = [{
+      type: offer?.type === 'member_privilege' ? 'push' : 'coupon',
+      value: offer?.label || rec.discount,
+      promotionId: offer?.promotionId,
+      promotionName: offer?.promotionName,
+      reason: offer?.reason || rec.reason,
+    }];
+    return (rec.recommendedActions?.length ? rec.recommendedActions : fallbackActions).map((action): RecommendedAction => ({
+      ...action,
+      value: offer?.label || action.value,
+      promotionId: offer?.promotionId ?? action.promotionId,
+      promotionName: offer?.promotionName ?? action.promotionName,
+    }));
+  }, [getOfferSelection]);
+
+  const buildRecommendationAttribution = useCallback((rec: Recommendation, selection = getOfferSelection(rec)) => ({
+    source: 'recommendation',
+    sourceRecommendationId: String(rec.id),
+    recommendationKey: rec.recommendationKey,
+    recommendationType: rec.recommendationType,
+    triggerType: rec.triggerRule?.type || rec.triggerType,
+    predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : undefined,
+    modelVersion: rec.modelVersion,
+    audienceSnapshot: rec.audienceSnapshot,
+    sourceSignals: rec.sourceSignals || [],
+    primaryPromotion: rec.primaryPromotion || null,
+    selectedPromotion: selection.selectedPromotion || null,
+    originalPromotion: selection.originalPromotion || null,
+    promotionSwitched: selection.switched,
+    alternativePromotions: rec.alternativePromotions || [],
+    offerFitBreakdown: rec.offerFitBreakdown || null,
+    originalOffer: rec.offer || null,
+    selectedOffer: selection.offer || null,
+    recommendedItems: rec.recommendedItems || [],
+    inventorySnapshot: rec.inventorySnapshot || null,
+    capacitySnapshot: rec.capacitySnapshot || null,
+    riskWarnings: rec.riskWarnings || [],
+    generatedAt: new Date().toISOString(),
+  }), [getOfferSelection]);
+
+  const getSelectedOfferRiskWarnings = useCallback((rec: Recommendation, selection = getOfferSelection(rec)) => {
+    const warnings = [
+      ...(rec.riskWarnings ?? []),
+      ...(selection.offer?.riskWarnings ?? []),
+      ...(selection.selectedPromotion?.riskWarnings ?? []),
+    ]
+      .map((warning) => String(warning).trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(warnings));
+  }, [getOfferSelection]);
+
+  const shouldConfirmRiskAction = useCallback((rec: Recommendation) =>
+    getSelectedOfferRiskWarnings(rec).length > 0,
+  [getSelectedOfferRiskWarnings]);
 
   const loadConsumptionRecordsInBackground = useCallback(async () => {
     try {
@@ -418,6 +672,54 @@ export function MarketingRecommendation() {
     }
   }, [loadConsumptionRecordsInBackground]);
 
+  const enhanceRecommendationOffers = useCallback(async (items: Recommendation[]) => Promise.all(items.map(async (rec) => {
+    if (rec.offer?.promotionId) return rec;
+    try {
+      const match = await matchPromotions({
+        scenario: getPromotionMatchScenario(rec),
+        customerSegment: rec.targetCustomers || rec.title,
+        projectIds: rec.recommendedItems?.filter((item) => item.type === 'project' && item.id).map((item) => Number(item.id)) ?? [],
+      });
+      const best = match.items[0];
+      if (!best) {
+        return {
+          ...rec,
+          offer: rec.offer ? { ...rec.offer, draftSuggestion: match.draftSuggestion } : rec.offer,
+        };
+      }
+      const offer = {
+        ...(rec.offer ?? { type: best.type as NonNullable<Recommendation['offer']>['type'], label: best.discountText, reason: best.fitReason }),
+        type: (rec.offer?.type ?? best.type) as NonNullable<Recommendation['offer']>['type'],
+        label: best.discountText,
+        promotionId: best.promotionId,
+        promotionName: best.name,
+        fitScore: best.fitScore,
+        fitReason: best.fitReason,
+        reason: rec.offer?.reason ?? best.fitReason,
+      };
+      const fallbackActions: RecommendedAction[] = [{
+        type: offer.type === 'member_privilege' ? 'push' : 'coupon',
+        value: offer.label,
+        promotionId: best.promotionId,
+        promotionName: best.name,
+        reason: best.fitReason,
+      }];
+      return {
+        ...rec,
+        discount: best.discountText || rec.discount,
+        offer,
+        recommendedActions: (rec.recommendedActions?.length ? rec.recommendedActions : fallbackActions).map((action): RecommendedAction => ({
+          ...action,
+          value: action.value || offer.label,
+          promotionId: action.promotionId ?? best.promotionId,
+          promotionName: action.promotionName ?? best.name,
+        })),
+      };
+    } catch {
+      return rec;
+    }
+  })), []);
+
   const loadSourceData = useCallback(async (options: { refreshPredictions?: boolean } = {}) => {
     setIsLoading(true);
     try {
@@ -432,8 +734,18 @@ export function MarketingRecommendation() {
           );
         }
       }
-      const recommendationData = await getMarketingRecommendations();
-      setRecommendations(recommendationData.length ? recommendationData : [buildRecommendationRecoveryCard(customers.length)]);
+      const recommendationData = await getMarketingRecommendations(getRecommendationQueryForType(typeFilter));
+      const baseRecommendations = recommendationData.length ? recommendationData : [buildRecommendationRecoveryCard(customers.length)];
+      const enhancedRecommendations = await enhanceRecommendationOffers(baseRecommendations);
+      setRecommendations(enhancedRecommendations);
+      if (typeFilter === 'all') {
+        void getMarketingRecommendations({ scope: 'product-project', limit: 20 })
+          .then(async (operationalData) => {
+            const enhancedOperational = await enhanceRecommendationOffers(operationalData);
+            setRecommendations((current) => mergeRecommendationsById(current, enhancedOperational));
+          })
+          .catch(() => undefined);
+      }
       void getMarketingFollowUpTaskSummary()
         .then(setFollowUpSummary)
         .catch(() => setFollowUpSummary(null));
@@ -444,15 +756,96 @@ export function MarketingRecommendation() {
       void loadCustomerContextInBackground();
     } catch (error) {
       setRecommendations((current) => (current.length ? current : [buildRecommendationRecoveryCard(customers.length)]));
-      toast.error(error instanceof Error ? error.message : '推荐数据加载失败');
+      toast.error(
+        error instanceof Error && /timeout|exceeded|Network Error|canceled/i.test(error.message)
+          ? '推荐结果加载超时，已先展示临时恢复卡；预测数据仍在，可稍后刷新或切换机会类型重试。'
+          : error instanceof Error ? error.message : '推荐数据加载失败',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [customers.length, loadCustomerContextInBackground]);
+  }, [customers.length, enhanceRecommendationOffers, loadCustomerContextInBackground, typeFilter]);
 
   useEffect(() => {
     void loadSourceData();
   }, [loadSourceData]);
+
+  const createPromotionDraftFromRecommendation = async (rec: Recommendation) => {
+    const suggestion = rec.offer?.draftSuggestion;
+    if (!suggestion) return;
+    setDraftingPromotionIds((current) => new Set(current).add(rec.id));
+    try {
+      const projectIds = rec.recommendedItems
+        ?.filter((item) => item.type === 'project' && item.id)
+        .map((item) => Number(item.id))
+        .filter((id) => Number.isInteger(id) && id > 0) ?? [];
+      const promotion = await createPromotion({
+        name: suggestion.name,
+        description: `由智能推荐「${rec.title}」生成，需审核通过后再用于活动或自动触达。${suggestion.reason ? `原因：${suggestion.reason}` : ''}`,
+        discountText: suggestion.discountText,
+        type: suggestion.type,
+        source: 'recommendation',
+        scenario: getPromotionMatchScenario(rec),
+        audienceTags: [rec.targetCustomers, ...(rec.tags ?? [])].filter(Boolean).slice(0, 8),
+        applicableProjectIds: projectIds,
+        validDays: rec.offer?.validDays ?? 14,
+        approvalStatus: 'pending',
+        status: 'draft',
+        createdByRecommendationId: String(rec.id),
+        metadata: {
+          recommendationTitle: rec.title,
+          recommendationType: rec.recommendationType,
+          source: rec.source,
+          targetCustomers: rec.targetCustomers,
+          sourceSignals: rec.sourceSignals ?? [],
+          draftReason: suggestion.reason,
+        },
+      });
+
+      setRecommendations((current) => current.map((item) => {
+        if (item.id !== rec.id) return item;
+        const offer = {
+          ...(item.offer ?? { type: promotion.type as NonNullable<Recommendation['offer']>['type'], label: promotion.discountText, reason: suggestion.reason }),
+          label: promotion.discountText,
+          promotionId: promotion.id,
+          promotionName: promotion.name,
+          reason: item.offer?.reason ?? suggestion.reason,
+          draftSuggestion: undefined,
+        };
+        const fallbackActions: RecommendedAction[] = [{
+          type: promotion.type === 'member_privilege' ? 'push' : 'coupon',
+          value: promotion.discountText,
+          reason: suggestion.reason,
+        }];
+        const actions = (item.recommendedActions?.length ? item.recommendedActions : fallbackActions).map((action): RecommendedAction => ({
+          ...action,
+          value: action.value || promotion.discountText,
+          promotionId: action.promotionId ?? promotion.id,
+          promotionName: action.promotionName ?? promotion.name,
+        }));
+        return {
+          ...item,
+          discount: promotion.discountText || item.discount,
+          offer,
+          recommendedActions: actions,
+        };
+      }));
+      toast.success('权益草稿已生成，审核通过后可投放', {
+        action: {
+          label: '去审核',
+          onClick: () => navigate('/customer-marketing/assets?tab=promotions'),
+        },
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '生成权益草稿失败');
+    } finally {
+      setDraftingPromotionIds((current) => {
+        const next = new Set(current);
+        next.delete(rec.id);
+        return next;
+      });
+    }
+  };
 
   const behaviorProfiles = useMemo(() => computeBehaviorProfiles(customers, consumptionRecords, healthProfiles), [customers, consumptionRecords, healthProfiles]);
   const sortedAudienceProfiles = useMemo(() => {
@@ -476,13 +869,17 @@ export function MarketingRecommendation() {
       return valueOf(b) - valueOf(a);
     });
   }, [audienceSortKey, selectedCustomerGroup?.profiles]);
+  const assignableFollowUpProfiles = useMemo(
+    () => (followUpGroup?.profiles ?? []).filter(canAssignFollowUpProfile),
+    [followUpGroup?.profiles],
+  );
   const selectedFollowUpProfiles = useMemo(
-    () => (followUpGroup?.profiles ?? []).filter((profile) => followUpCheckedIds.has(profile.customerId)),
-    [followUpCheckedIds, followUpGroup?.profiles],
+    () => assignableFollowUpProfiles.filter((profile) => followUpCheckedIds.has(profile.customerId)),
+    [assignableFollowUpProfiles, followUpCheckedIds],
   );
   const followUpScriptPreview = useMemo(
-    () => (followUpGroup ? buildTerminalFollowUpScript(followUpGroup.recommendation) : ''),
-    [followUpGroup],
+    () => (followUpGroup ? buildTerminalFollowUpScript(followUpGroup.recommendation, getOfferSelection(followUpGroup.recommendation)) : ''),
+    [followUpGroup, getOfferSelection],
   );
   const followUpActionPreview = useMemo(
     () => (followUpGroup ? getTerminalFollowUpActionState(followUpGroup.recommendation) : null),
@@ -546,32 +943,42 @@ export function MarketingRecommendation() {
   const selectedTypeLabel = typeFilters.find((item) => item.id === typeFilter)?.label ?? '全部类型';
   const totalCustomerCount = recommendations[0]?.totalCustomers ?? customers.length;
 
-  const createInitialDataFromRecommendation = (rec: Recommendation): PreviewInitialData => ({
-    sourceRecommendationId: String(rec.id),
-    predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : undefined,
-    title: rec.title,
-    description: rec.reason,
-    targetCustomers: rec.targetCustomers,
-    discount: rec.offer?.label || rec.discount,
-    strategy: rec.recommendedItems?.length
-      ? `${rec.strategy}；推荐项目/商品：${rec.recommendedItems.map((item) => item.name).join('、')}`
-      : rec.strategy,
-    image: rec.image,
-    category: rec.category,
-    duration: rec.duration,
-    preferredMode: rec.preferredMode,
-    executionModes: rec.executionModes?.join(','),
-    triggerType: rec.triggerType,
-    triggerRuleJson: rec.triggerRule ? JSON.stringify(rec.triggerRule) : undefined,
-    audienceSnapshotJson: rec.audienceSnapshot ? JSON.stringify(rec.audienceSnapshot) : undefined,
-    recommendedChannelsJson: rec.recommendedChannels ? JSON.stringify(rec.recommendedChannels) : undefined,
-    recommendedItemsJson: rec.recommendedItems ? JSON.stringify(rec.recommendedItems) : undefined,
-    offerJson: rec.offer ? JSON.stringify(rec.offer) : undefined,
-    sourceSignalsJson: rec.sourceSignals ? JSON.stringify(rec.sourceSignals) : undefined,
-    inventorySnapshotJson: rec.inventorySnapshot ? JSON.stringify(rec.inventorySnapshot) : undefined,
-    capacitySnapshotJson: rec.capacitySnapshot ? JSON.stringify(rec.capacitySnapshot) : undefined,
-    riskWarningsJson: rec.riskWarnings ? JSON.stringify(rec.riskWarnings) : undefined,
-  });
+  const createInitialDataFromRecommendation = (rec: Recommendation): PreviewInitialData => {
+    const matchedCatalogItems = rec.recommendedItems?.filter((item) =>
+      Boolean(item.id || item.name) && ['project', 'product', 'card', 'package'].includes(item.type),
+    ) ?? [];
+    const selection = getOfferSelection(rec);
+    const attribution = buildRecommendationAttribution(rec, selection);
+    return {
+      sourceRecommendationId: String(rec.id),
+      predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : undefined,
+      title: rec.title,
+      description: rec.reason,
+      targetCustomers: rec.targetCustomers,
+      discount: selection.offer?.label || rec.discount,
+      strategy: matchedCatalogItems.length
+        ? `${rec.strategy}；匹配项目/商品：${matchedCatalogItems.map((item) => item.name).join('、')}`
+        : `${rec.strategy}；建议内容：${getRecommendationContentText(rec)}`,
+      image: rec.image,
+      category: rec.category,
+      duration: rec.duration,
+      preferredMode: rec.preferredMode,
+      executionModes: rec.executionModes?.join(','),
+      triggerType: rec.triggerType,
+      triggerRuleJson: rec.triggerRule ? JSON.stringify(rec.triggerRule) : undefined,
+      audienceSnapshotJson: rec.audienceSnapshot ? JSON.stringify(rec.audienceSnapshot) : undefined,
+      recommendedChannelsJson: rec.recommendedChannels ? JSON.stringify(rec.recommendedChannels) : undefined,
+      recommendedItemsJson: matchedCatalogItems.length ? JSON.stringify(matchedCatalogItems) : undefined,
+      offerJson: selection.offer ? JSON.stringify({ ...selection.offer, attribution }) : undefined,
+      originalOfferJson: rec.offer ? JSON.stringify(rec.offer) : undefined,
+      selectedPromotionJson: selection.selectedPromotion ? JSON.stringify(selection.selectedPromotion) : undefined,
+      sourceSignalsJson: rec.sourceSignals ? JSON.stringify(rec.sourceSignals) : undefined,
+      tagsJson: rec.tags?.length ? JSON.stringify(rec.tags) : undefined,
+      inventorySnapshotJson: rec.inventorySnapshot ? JSON.stringify(rec.inventorySnapshot) : undefined,
+      capacitySnapshotJson: rec.capacitySnapshot ? JSON.stringify(rec.capacitySnapshot) : undefined,
+      riskWarningsJson: rec.riskWarnings ? JSON.stringify(rec.riskWarnings) : undefined,
+    };
+  };
 
   const getPreviewPeriod = () => {
     const today = new Date();
@@ -952,7 +1359,11 @@ export function MarketingRecommendation() {
         sourceRecommendationId: previewInitialData.sourceRecommendationId,
         predictionRunId: previewInitialData.predictionRunId,
         audienceSnapshotJson: parseJsonField(previewInitialData.audienceSnapshotJson),
-        sourceSignalsJson: parseJsonField<string[]>(previewInitialData.sourceSignalsJson),
+        sourceSignalsJson: {
+          signals: parseJsonField<string[]>(previewInitialData.sourceSignalsJson),
+          originalOffer: parseJsonField(previewInitialData.originalOfferJson),
+          selectedPromotion: parseJsonField(previewInitialData.selectedPromotionJson),
+        },
         offerJson: parseJsonField(previewInitialData.offerJson),
         recommendedItemsJson: parseJsonField(previewInitialData.recommendedItemsJson),
         aiGenerationId: previewInitialData.aiGenerationId,
@@ -986,6 +1397,7 @@ export function MarketingRecommendation() {
       });
       setShowMiniPreview(false);
       setPreviewInitialData(undefined);
+      void loadSourceData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '发布失败，请稍后重试');
     } finally {
@@ -993,12 +1405,66 @@ export function MarketingRecommendation() {
     }
   };
 
-  const handleRefresh = () => {
-    void loadSourceData({ refreshPredictions: true });
+  const openAutomationFromRecommendation = (rec: Recommendation) => {
+    const triggerType = rec.triggerRule?.type || rec.triggerType!;
+    const channels = rec.recommendedChannels?.map((item) => item.channel).join(',') || 'sms,miniapp';
+    const selection = getOfferSelection(rec);
+    const selectedActions = buildActionsWithOffer(rec, selection);
+    const attribution = buildRecommendationAttribution(rec, selection);
+    const params = new URLSearchParams({
+      name: rec.title,
+      desc: rec.reason,
+      trigger: triggerType,
+      triggerParams: JSON.stringify(rec.triggerRule?.params || {}),
+      actions: JSON.stringify(selectedActions.map((action) => ({
+        type: action.type === 'consultant_task' ? 'push' : action.type,
+        value: action.value,
+        promotionId: action.promotionId,
+        promotionName: action.promotionName,
+      }))),
+      channels,
+      sourceRecommendationId: String(rec.id),
+      predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : '',
+      targetAudience: rec.targetCustomers || rec.title,
+      offer: selection.offer?.label || rec.discount,
+      strategyText: rec.strategy,
+      recommendedItems: JSON.stringify(rec.recommendedItems?.map((item) => item.name) || []),
+      sourceSignals: JSON.stringify(rec.sourceSignals || []),
+      attribution: JSON.stringify(attribution),
+      autoGenerate: 'true',
+    });
+    navigate(`/customer-marketing/automation?${params.toString()}`);
   };
 
-  const toggleEvidence = (id: number) => {
-    setExpandedEvidence((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const runRecommendationAction = (kind: PendingRiskAction['kind'], rec: Recommendation) => {
+    if (shouldConfirmRiskAction(rec)) {
+      setPendingRiskAction({ kind, recommendation: rec });
+      return;
+    }
+
+    if (kind === 'automation') {
+      openAutomationFromRecommendation(rec);
+      return;
+    }
+
+    void openMiniPreview(createInitialDataFromRecommendation(rec));
+  };
+
+  const confirmPendingRiskAction = () => {
+    if (!pendingRiskAction) return;
+    const action = pendingRiskAction;
+    setPendingRiskAction(null);
+
+    if (action.kind === 'automation') {
+      openAutomationFromRecommendation(action.recommendation);
+      return;
+    }
+
+    void openMiniPreview(createInitialDataFromRecommendation(action.recommendation));
+  };
+
+  const handleRefresh = () => {
+    void loadSourceData({ refreshPredictions: true });
   };
 
   const openTargetCustomers = async (rec: Recommendation) => {
@@ -1054,6 +1520,11 @@ export function MarketingRecommendation() {
   };
 
   const toggleFollowUpCustomer = (customerId: number) => {
+    const profile = followUpGroup?.profiles.find((item) => item.customerId === customerId);
+    if (profile && !canAssignFollowUpProfile(profile)) {
+      toast.warning('该客户暂未匹配系统用户，不能下发终端跟进');
+      return;
+    }
     setFollowUpCheckedIds((current) => {
       const next = new Set(current);
       if (next.has(customerId)) {
@@ -1075,17 +1546,29 @@ export function MarketingRecommendation() {
     const recommendation = followUpGroup.recommendation;
     setIsFollowUpSubmitting(true);
     try {
-      const script = buildTerminalFollowUpScript(recommendation);
-      const note = buildTerminalFollowUpNote(recommendation);
+      const selection = getOfferSelection(recommendation);
+      const attribution = buildRecommendationAttribution(recommendation, selection);
+      const script = buildTerminalFollowUpScript(recommendation, selection);
+      const note = buildTerminalFollowUpNote(recommendation, selection);
       const dueAt = getTerminalFollowUpDueAt();
       const assignment = getFollowUpAssignmentPreview(recommendation);
       const result = await batchCreateMarketingFollowUpTasks(recommendation.id, {
         customerId: selectedFollowUpProfiles[0].customerId,
         customerIds: selectedFollowUpProfiles.map((profile) => profile.customerId),
+        assignments: selectedFollowUpProfiles.map((profile) => ({
+          customerId: profile.customerId,
+          assigneeRole: profile.preferredAssigneeRole || assignment.role,
+          assigneeUserId: Number(profile.preferredAssigneeUserId),
+          assigneeBeauticianId: profile.preferredAssigneeBeauticianId,
+        })),
         recommendationId: recommendation.id > 0 ? recommendation.id : undefined,
         sourceRecommendationKey: recommendation.recommendationKey,
         source: recommendation.source,
         triggerType: recommendation.recommendationType || recommendation.triggerType,
+        promotionId: selection.offer?.promotionId,
+        promotionName: selection.offer?.promotionName,
+        offerJson: selection.offer ? { ...selection.offer, attribution } : undefined,
+        attribution,
         title: recommendation.title,
         priority: recommendation.urgency,
         assigneeRole: assignment.role,
@@ -1101,6 +1584,7 @@ export function MarketingRecommendation() {
         void getMarketingFollowUpTaskSummary()
           .then(setFollowUpSummary)
           .catch(() => setFollowUpSummary(null));
+        void loadSourceData();
         setFollowUpGroup(null);
         setFollowUpCheckedIds(new Set());
       } else {
@@ -1112,6 +1596,7 @@ export function MarketingRecommendation() {
   };
 
   const urgencyBorder = (u: UrgencyLevel) => u === 'urgent' ? 'border-l-4 border-l-red-500' : u === 'recommended' ? 'border-l-4 border-l-yellow-400' : 'border-l-4 border-l-green-400';
+  const urgencyBadgeClass = (u: UrgencyLevel) => u === 'urgent' ? 'bg-red-600 text-white' : u === 'recommended' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white';
   const sourceLabel = (s: Recommendation['source']) => {
     switch (s) {
       case 'churn': return { text: '流失预警', color: 'bg-red-100 text-red-700' };
@@ -1143,7 +1628,7 @@ export function MarketingRecommendation() {
           </button>
           <button onClick={openManualCreateDialog}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-60">
-            <Plus className="w-4 h-4" /> {isPreparingPreview ? 'AI生成预览中' : '发一次活动'}
+            <Plus className="w-4 h-4" /> {isPreparingPreview ? 'AI生成预览中' : '发布活动'}
           </button>
         </div>
       </div>
@@ -1226,146 +1711,179 @@ export function MarketingRecommendation() {
         <div className="space-y-4">
           {filtered.map((rec) => {
             const sl = sourceLabel(rec.source);
-            const isExpanded = expandedEvidence.has(rec.id);
             const executionModes = rec.executionModes ?? (rec.preferAutoRule ? ['automation'] : ['activity']);
             const canCreateAutomation = executionModes.includes('automation') && Boolean(rec.triggerType || rec.triggerRule?.type);
             const canCreateActivity = executionModes.includes('activity');
             const followUpAction = getTerminalFollowUpActionState(rec);
+            const offerSelection = getOfferSelection(rec);
+            const displayOffer = offerSelection.offer;
+            const matchedItem = getMatchedCatalogItem(rec);
+            const executionState = rec.executionState;
+            const executionStatusItems = getExecutionStatusItems(rec);
+            const automationDone = Boolean(executionState?.automation.done);
+            const activityDone = Boolean(executionState?.activity.done);
+            const followUpDone = Boolean(executionState?.followUp.done);
+            const promotionCandidates = [rec.primaryPromotion, ...(rec.alternativePromotions ?? [])]
+              .filter(Boolean)
+              .slice(0, 3) as RecommendedPromotionMatch[];
             return (
               <div key={rec.id} className={`border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow ${urgencyBorder(rec.urgency)}`}>
                 <div className="flex gap-5 p-5">
-                  {/* 左侧海报 */}
-                  <div className="w-40 h-40 shrink-0 rounded-lg overflow-hidden">
-                    <img src={rec.image} alt={rec.title} className="w-full h-full object-cover" />
-                  </div>
-
-                  {/* 右侧内容 */}
                   <div className="flex-1 min-w-0">
                     {/* 标题行 */}
                     <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="text-sm font-medium">{rec.urgencyLabel}</span>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${sl.color}`}>{sl.text}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${urgencyBadgeClass(rec.urgency)}`}>
+                            {rec.urgencyLabel}
+                          </span>
+                          <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">{rec.title}</h3>
+                          <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${sl.color}`}>{sl.text}</span>
                           {rec.isFallback && (
-                            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            <span className="shrink-0 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                               样例建议
                             </span>
                           )}
                         </div>
-                        <h3 className="text-base font-semibold text-gray-900">{rec.title}</h3>
                       </div>
                       <div className="text-right shrink-0 ml-4">
                         <div className="text-xs text-gray-500">匹配度</div>
-                        <div className={`text-xl font-bold ${rec.matchScore >= 85 ? 'text-green-600' : rec.matchScore >= 65 ? 'text-blue-600' : 'text-orange-500'}`}>{rec.matchScore}%</div>
+                        <div className={`text-xl font-bold ${rec.matchScore >= 85 ? 'text-green-600' : rec.matchScore >= 65 ? 'text-blue-600' : 'text-orange-500'}`}>
+                          {formatPercentScore(rec.matchScore)}%
+                        </div>
                       </div>
                     </div>
 
-                    {/* AI原因 */}
-                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 mb-3">
-                      <div className="flex items-start gap-2">
-                        <Sparkles className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        <p className="text-sm text-blue-800">{rec.reason}</p>
+                    <div className="mb-3 grid gap-3 text-xs text-gray-600 md:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
+                      <div className="rounded-lg bg-amber-50 px-4 py-3 text-amber-900">
+                        <div className="text-[11px] font-medium text-amber-700">主推权益</div>
+                        <div className="mt-1 text-sm font-semibold leading-5">{displayOffer?.label || rec.discount}</div>
+                        {displayOffer?.promotionId && (
+                          <div className="mt-1 text-[11px] text-amber-700">
+                            <span className="font-medium">{offerSelection.switched ? '运营已切换' : '权益来源'}：</span>
+                            {displayOffer.promotionName || `权益 ${displayOffer.promotionId}`}
+                            {displayOffer.fitScore ? ` · 适配度 ${formatPercentScore(displayOffer.fitScore)}` : ''}
+                          </div>
+                        )}
+                        {!rec.offer?.promotionId && rec.offer?.draftSuggestion && (
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-amber-700">
+                            <span>建议生成权益草稿：{rec.offer.draftSuggestion.name}</span>
+                            <button
+                              type="button"
+                              disabled={draftingPromotionIds.has(rec.id)}
+                              onClick={() => void createPromotionDraftFromRecommendation(rec)}
+                              className="rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                            >
+                              {draftingPromotionIds.has(rec.id) ? '生成中' : '生成草稿'}
+                            </button>
+                          </div>
+                        )}
+                        {promotionCandidates.length > 1 && (
+                          <div className="mt-2">
+                            <div className="mb-1 text-[11px] font-medium text-amber-700">可选权益</div>
+                            <div className="flex flex-wrap gap-1.5">
+                            {promotionCandidates.map((promotion, index) => {
+                              const active = promotion.promotionId === displayOffer?.promotionId;
+                              return (
+                                <button
+                                  key={promotion.promotionId}
+                                  type="button"
+                                  onClick={() => setSelectedPromotionByRecommendation((current) => ({
+                                    ...current,
+                                    [rec.id]: promotion.promotionId,
+                                  }))}
+                                  className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
+                                    active
+                                      ? 'border-amber-500 bg-amber-100 text-amber-800'
+                                      : 'border-amber-200 bg-white text-amber-700 hover:bg-amber-100'
+                                  }`}
+                                  title={promotion.fitReason || promotion.fitReasons?.join('、') || promotion.discountText}
+                                >
+                                  {index === 0 ? '原主推' : `备选${index}`} · {promotion.discountText}
+                                </button>
+                              );
+                            })}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-
-                    <div className="mb-3 grid gap-2 text-xs text-gray-600 md:grid-cols-3">
-                      <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
-                        <span className="font-medium">优惠：</span>{rec.offer?.label || rec.discount}
-                      </div>
-                      <div className="rounded-lg bg-teal-50 px-3 py-2 text-teal-800">
-                        <span className="font-medium">项目/商品：</span>{rec.recommendedItems?.[0]?.name || '推荐护理方案'}
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-700">
-                        <span className="font-medium">渠道：</span>{getChannelText(rec)}
+                      <div className="rounded-lg bg-slate-50 px-4 py-3 text-slate-700">
+                        <div className="space-y-2">
+                          {matchedItem && (
+                            <div>
+                              <div className="text-[11px] font-medium text-teal-700">匹配项目/商品</div>
+                              <div className="mt-0.5 text-xs font-medium text-teal-800">{matchedItem.name}</div>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-[11px] font-medium text-slate-500">触达渠道</div>
+                            <div className="mt-0.5 text-xs font-medium text-slate-700">{getChannelText(rec)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-medium text-slate-500">建议周期</div>
+                            <div className="mt-0.5 text-xs font-medium text-slate-700">{rec.duration.replace(/^建议周期[:：]\s*/, '')}</div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     {/* 关键指标 */}
-                    <div className="flex items-center gap-5 mb-3 text-sm">
-                      <button
-                        type="button"
-                        onClick={() => void openTargetCustomers(rec)}
-                        className="flex items-center gap-1 rounded px-1 py-0.5 text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
-                        title="查看对应客户列表"
-                      >
-                        <Users className="w-3.5 h-3.5" /> {rec.targetCustomers}
-                      </button>
-                      <span className="flex items-center gap-1 text-green-600 font-medium"><TrendingUp className="w-3.5 h-3.5" /> {rec.expectedRevenue}</span>
-                      <span className="flex items-center gap-1 text-gray-500"><Calendar className="w-3.5 h-3.5" /> {rec.duration}</span>
-                      {rec.predictionRunFinishedAt && (
-                        <span className="text-xs text-gray-400">
-                          批次 {new Date(rec.predictionRunFinishedAt).toLocaleString('zh-CN')}
-                        </span>
-                      )}
-                    </div>
-
-                    {(rec.inventorySnapshot || rec.capacitySnapshot || rec.expectedGrossProfit || rec.expectedLossAvoided) && (
-                      <div className="mb-3 grid gap-2 text-xs text-gray-700 md:grid-cols-4">
+                    <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 text-xs text-gray-700">
+                      <div className="inline-flex h-10 min-w-[220px] items-center gap-1.5 rounded-lg bg-green-50 px-4 text-base font-semibold text-green-600 whitespace-nowrap">
+                        <TrendingUp className="w-4 h-4" /> {rec.expectedRevenue}
+                      </div>
+                      {(rec.inventorySnapshot || rec.capacitySnapshot || rec.expectedGrossProfit || rec.expectedLossAvoided) && (
+                        <>
                         {rec.inventorySnapshot && (
-                          <>
-                            <div className="rounded-lg bg-orange-50 px-3 py-2 text-orange-800">
-                              <span className="font-medium">临期库存：</span>
-                              {rec.inventorySnapshot.stock}{rec.recommendedItems?.[0]?.category ? '' : ''}
-                            </div>
-                            <div className="rounded-lg bg-red-50 px-3 py-2 text-red-700">
-                              <span className="font-medium">剩余天数：</span>
-                              {rec.inventorySnapshot.daysToExpiry ?? '-'} 天
-                            </div>
-                            <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
-                              <span className="font-medium">缺口：</span>
-                              {rec.inventorySnapshot.gapQty ?? '-'}
-                            </div>
-                          </>
+                          (() => {
+                            const stock = rec.inventorySnapshot?.stock ?? 0;
+                            const gapQty = rec.inventorySnapshot?.gapQty ?? stock;
+                            const showStock = gapQty !== stock;
+                            return (
+                              <>
+                                {showStock && (
+                                  <div className={`${metricPillClass} bg-orange-50 text-orange-800`}>
+                                    临期{stock}
+                                  </div>
+                                )}
+                                <div className={`${metricPillClass} bg-red-50 text-red-700`}>
+                                  剩{rec.inventorySnapshot?.daysToExpiry ?? '-'}天
+                                </div>
+                                <div className={`${metricPillClass} bg-amber-50 text-amber-800`}>
+                                  需消化{gapQty}
+                                </div>
+                              </>
+                            );
+                          })()
                         )}
                         {rec.capacitySnapshot && (
                           <>
-                            <div className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800">
-                              <span className="font-medium">时段：</span>
+                            <div className={`${metricPillClass} bg-emerald-50 text-emerald-800`}>
+                              时段
                               {rec.capacitySnapshot.dateRange}
                             </div>
-                            <div className="rounded-lg bg-cyan-50 px-3 py-2 text-cyan-800">
-                              <span className="font-medium">空闲：</span>
-                              {Math.round((rec.capacitySnapshot.idleMinutes ?? 0) / 60)} 小时
+                            <div className={`${metricPillClass} bg-cyan-50 text-cyan-800`}>
+                              空闲{Math.round((rec.capacitySnapshot.idleMinutes ?? 0) / 60)}小时
                             </div>
-                            <div className="rounded-lg bg-sky-50 px-3 py-2 text-sky-800">
-                              <span className="font-medium">占用率：</span>
+                            <div className={`${metricPillClass} bg-sky-50 text-sky-800`}>
+                              占用率
                               {Math.round((rec.capacitySnapshot.utilizationRate ?? 0) * 100)}%
                             </div>
                           </>
                         )}
                         {rec.expectedGrossProfit && (
-                          <div className="rounded-lg bg-green-50 px-3 py-2 text-green-700">
-                            <span className="font-medium">毛利：</span>{rec.expectedGrossProfit}
+                          <div className={`${metricPillClass} bg-green-50 text-green-700`}>
+                            毛利{compactMetricText(rec.expectedGrossProfit)}
                           </div>
                         )}
                         {rec.expectedLossAvoided && (
-                          <div className="rounded-lg bg-rose-50 px-3 py-2 text-rose-700">
-                            <span className="font-medium">避免损耗：</span>{rec.expectedLossAvoided}
+                          <div className={`${metricPillClass} bg-rose-50 text-rose-700`}>
+                            避损{compactMetricText(rec.expectedLossAvoided)}
                           </div>
                         )}
-                      </div>
-                    )}
-
-                    {/* 数据依据（可折叠） */}
-                    {rec.dataEvidence && rec.dataEvidence.length > 0 && (
-                      <div className="mb-3">
-                        <button onClick={() => toggleEvidence(rec.id)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          数据依据
-                        </button>
-                        {isExpanded && (
-                          <div className="mt-2 bg-gray-50 rounded-lg p-3 space-y-1">
-                            {rec.dataEvidence.map((e, i) => (
-                              <div key={i} className="text-xs text-gray-600 flex items-center gap-2">
-                                <span className="w-1 h-1 bg-gray-400 rounded-full shrink-0" />
-                                {e}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                        </>
+                      )}
+                    </div>
 
                     {rec.riskWarnings && rec.riskWarnings.length > 0 && (
                       <div className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2">
@@ -1378,48 +1896,62 @@ export function MarketingRecommendation() {
                       </div>
                     )}
 
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-gray-400">处理状态</span>
+                      {executionStatusItems.map((item) => (
+                        <span
+                          key={item.key}
+                          className={`rounded-full border px-2.5 py-1 ${
+                            item.done
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-gray-200 bg-gray-50 text-gray-500'
+                          }`}
+                          title={item.time ? `${item.label}：${item.time}` : item.label}
+                        >
+                          {item.label}{item.time ? ` · ${item.time}` : ''}
+                        </span>
+                      ))}
+                    </div>
+
                     {/* 操作按钮 */}
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                      <span className="flex-1 text-xs text-gray-400">{rec.discount}</span>
+                      <div className="flex-1 text-xs text-gray-400">
+                        {rec.predictionRunFinishedAt && (
+                          <span>批次 {new Date(rec.predictionRunFinishedAt).toLocaleString('zh-CN')}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void openTargetCustomers(rec)}
+                        className="rounded-lg border border-gray-300 px-4 py-1.5 text-xs text-gray-700 transition-colors hover:bg-gray-50"
+                        title="查看目标客户列表"
+                      >
+                        <Users className="mr-1.5 inline-block w-3.5 h-3.5 align-[-2px]" />
+                        目标客户
+                      </button>
                       {canCreateAutomation && (
-                        <button onClick={() => {
-                          const triggerType = rec.triggerRule?.type || rec.triggerType!;
-                          const channels = rec.recommendedChannels?.map((item) => item.channel).join(',') || 'sms,miniapp';
-                          const params = new URLSearchParams({
-                            name: rec.title, desc: rec.reason, trigger: triggerType,
-                            triggerParams: JSON.stringify(rec.triggerRule?.params || {}),
-                            actions: JSON.stringify((rec.recommendedActions?.length ? rec.recommendedActions : [{ type: 'coupon', value: rec.offer?.label || rec.discount }]).map((action) => ({
-                              type: action.type === 'consultant_task' ? 'push' : action.type,
-                              value: action.value,
-                            }))),
-                            channels,
-                            sourceRecommendationId: String(rec.id),
-                            predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : '',
-                            targetAudience: rec.targetCustomers || rec.title,
-                            offer: rec.offer?.label || rec.discount,
-                            strategyText: rec.strategy,
-                            recommendedItems: JSON.stringify(rec.recommendedItems?.map((item) => item.name) || []),
-                            sourceSignals: JSON.stringify(rec.sourceSignals || []),
-                            autoGenerate: 'true',
-                          });
-                          navigate(`/customer-marketing/automation?${params.toString()}`);
-                        }} className="px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1.5 text-xs">
-                          <Zap className="w-3.5 h-3.5" /> 开启自动触达
+                        <button
+                          onClick={() => runRecommendationAction('automation', rec)}
+                          disabled={automationDone}
+                          title={automationDone ? '该推荐已创建自动触达，不能重复开启' : rec.modeReason}
+                          className="px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1.5 text-xs disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100"
+                        >
+                          <Zap className="w-3.5 h-3.5" /> {automationDone ? '已自动触达' : '自动触达'}
                         </button>
                       )}
                       <button
-                        onClick={() => void openMiniPreview(createInitialDataFromRecommendation(rec))}
-                        disabled={isPreparingPreview || !canCreateActivity}
-                        title={canCreateActivity ? rec.modeReason : '该推荐更适合开启自动触达'}
+                        onClick={() => runRecommendationAction('activity', rec)}
+                        disabled={isPreparingPreview || !canCreateActivity || activityDone}
+                        title={activityDone ? '该推荐已发布活动，不能重复发布' : canCreateActivity ? rec.modeReason : '该推荐更适合开启自动触达'}
                         className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs disabled:opacity-50 ${canCreateAutomation ? 'border border-blue-500 text-blue-600 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                       >
-                        {isPreparingPreview ? 'AI生成中' : canCreateActivity ? '发一次活动' : '不建议活动'} <ArrowRight className="w-3.5 h-3.5" />
+                        {activityDone ? '已发布' : isPreparingPreview ? 'AI生成中' : canCreateActivity ? '发布活动' : '不建议活动'} <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                       {followUpAction.visible && (
                         <button
                           onClick={() => void openTerminalFollowUp(rec)}
-                          disabled={followUpAction.disabled || (isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id)}
-                          title={followUpAction.reason}
+                          disabled={followUpDone || followUpAction.disabled || (isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id)}
+                          title={followUpDone ? '该推荐已下发终端跟进，不能重复下发' : followUpAction.reason}
                           className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs disabled:opacity-50 ${
                             followUpAction.primary
                               ? 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300'
@@ -1427,7 +1959,7 @@ export function MarketingRecommendation() {
                           }`}
                         >
                           <ClipboardList className="w-3.5 h-3.5" />
-                          {isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id ? '加载客户' : '下发终端跟进'}
+                          {followUpDone ? '已下发' : isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id ? '加载客户' : '下发跟进'}
                         </button>
                       )}
                       {rec.id > 0 && (
@@ -1486,7 +2018,7 @@ export function MarketingRecommendation() {
             <div>
               <div className="font-medium">谁来跟进</div>
               <div className="mt-1 text-blue-800">
-                建议进入「{followUpAssignmentPreview?.roleLabel || '门店'}」队列，终端会按角色展示待办。
+                跟进人必须来自系统管理-用户管理；未匹配启用系统用户的客户不可下发。
               </div>
             </div>
             <div>
@@ -1503,7 +2035,7 @@ export function MarketingRecommendation() {
             <div>
               <div className="font-medium">建议角色</div>
               <div className="mt-1 text-emerald-800">
-                {followUpAssignmentPreview?.roleLabel || '门店'}：{followUpAssignmentPreview?.reason || '根据客户关系和推荐场景自动分派。'}
+                {followUpAssignmentPreview?.roleLabel || '门店'}：{followUpAssignmentPreview?.reason || '根据客户关系和推荐场景自动分派。'}名单只下发给已匹配的系统用户。
               </div>
             </div>
             <div>
@@ -1519,20 +2051,22 @@ export function MarketingRecommendation() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-gray-500">
-              默认勾选前 10 位客户，适合先给门店顾问做小批量跟进。
+              可下发 {assignableFollowUpProfiles.length} 位；未匹配系统用户的客户需要先到系统管理-用户管理维护账号和门店范围。
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-                onClick={() => setFollowUpCheckedIds(new Set((followUpGroup?.profiles ?? []).slice(0, 10).map((profile) => profile.customerId)))}
+                onClick={() => setFollowUpCheckedIds(new Set(assignableFollowUpProfiles.slice(0, 10).map((profile) => profile.customerId)))}
+                disabled={!assignableFollowUpProfiles.length}
               >
                 选前 10 位
               </button>
               <button
                 type="button"
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-                onClick={() => setFollowUpCheckedIds(new Set((followUpGroup?.profiles ?? []).map((profile) => profile.customerId)))}
+                onClick={() => setFollowUpCheckedIds(new Set(assignableFollowUpProfiles.map((profile) => profile.customerId)))}
+                disabled={!assignableFollowUpProfiles.length}
               >
                 全选
               </button>
@@ -1569,33 +2103,40 @@ export function MarketingRecommendation() {
                     </TableCell>
                   </TableRow>
                 ) : followUpGroup?.profiles.length ? (
-                  followUpGroup.profiles.map((profile) => (
-                    <TableRow key={profile.customerId} className="hover:bg-emerald-50/40">
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          checked={followUpCheckedIds.has(profile.customerId)}
-                          onChange={() => toggleFollowUpCustomer(profile.customerId)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-gray-800">{profile.name}</div>
-                        <div className="text-xs text-gray-400">ID {profile.customerId}</div>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-gray-700">{profile.phone || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap text-gray-700">{profile.storeName || '-'}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex rounded-full px-3 py-1 text-sm ${LEVEL_COLORS[profile.segment] || 'bg-gray-100 text-gray-700'}`}>
-                          {profile.segment}
-                        </span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-gray-700">{followUpAssignmentPreview?.roleLabel || '门店'}</TableCell>
-                      <TableCell className="whitespace-nowrap text-gray-700">{profile.lastVisitDate || '-'}</TableCell>
-                      <TableCell className="text-gray-700">{profile.preferredService}</TableCell>
-                      <TableCell><ProgressMetric value={profile.repurchaseRate} /></TableCell>
-                    </TableRow>
-                  ))
+                  followUpGroup.profiles.map((profile) => {
+                    const assignee = getProfileFollowUpAssignee(profile, followUpAssignmentPreview);
+                    return (
+                      <TableRow key={profile.customerId} className={assignee.assignable ? 'hover:bg-emerald-50/40' : 'bg-gray-50 text-gray-400'}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={assignee.assignable && followUpCheckedIds.has(profile.customerId)}
+                            disabled={!assignee.assignable}
+                            onChange={() => toggleFollowUpCustomer(profile.customerId)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-gray-800">{profile.name}</div>
+                          <div className="text-xs text-gray-400">ID {profile.customerId}</div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-gray-700">{profile.phone || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-gray-700">{profile.storeName || '-'}</TableCell>
+                        <TableCell>
+                          <span className={`inline-flex rounded-full px-3 py-1 text-sm ${LEVEL_COLORS[profile.segment] || 'bg-gray-100 text-gray-700'}`}>
+                            {profile.segment}
+                          </span>
+                        </TableCell>
+                        <TableCell className="min-w-32 text-gray-700">
+                          <div className={assignee.assignable ? 'font-medium text-gray-800' : 'font-medium text-gray-500'}>{assignee.name}</div>
+                          <div className="mt-0.5 text-xs text-gray-400">{assignee.reason}</div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-gray-700">{profile.lastVisitDate || '-'}</TableCell>
+                        <TableCell className="text-gray-700">{profile.preferredService}</TableCell>
+                        <TableCell><ProgressMetric value={profile.repurchaseRate} /></TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={9} className="py-10 text-center text-gray-500">
@@ -1640,7 +2181,17 @@ export function MarketingRecommendation() {
           </DialogHeader>
 
           <div className="max-h-[62vh] overflow-auto rounded-lg border border-gray-200">
-            <Table>
+            <Table className="min-w-[1080px] table-fixed">
+              <colgroup>
+                <col className="w-[88px]" />
+                <col className="w-[150px]" />
+                <col className="w-[140px]" />
+                <col className="w-[300px]" />
+                <col className="w-[122px]" />
+                <col className="w-[120px]" />
+                <col className="w-[120px]" />
+                <col className="w-[140px]" />
+              </colgroup>
               <TableHeader className="sticky top-0 bg-white">
                 <TableRow>
                   <TableHead>状态</TableHead>
@@ -1668,27 +2219,29 @@ export function MarketingRecommendation() {
                       FOLLOW_UP_ROLE_LABELS[task.assigneeRole || ''] ||
                       '门店队列';
                     return (
-                      <TableRow key={task.id}>
-                        <TableCell>
+                      <TableRow key={task.id} className="align-top">
+                        <TableCell className="whitespace-nowrap">
                           <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
                             {FOLLOW_UP_STATUS_LABELS[task.status] || task.status}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <div className="font-medium text-gray-800">{task.customerName || `客户${task.customerId}`}</div>
+                        <TableCell className="!whitespace-normal">
+                          <div className="break-words font-medium text-gray-800">{task.customerName || `客户${task.customerId}`}</div>
                           <div className="text-xs text-gray-400">{task.customerPhone || `ID ${task.customerId}`}</div>
                         </TableCell>
-                        <TableCell>
-                          <div className="font-medium text-gray-800">{assigneeName}</div>
+                        <TableCell className="!whitespace-normal">
+                          <div className="break-words font-medium text-gray-800">{assigneeName}</div>
                           <div className="text-xs text-gray-400">{FOLLOW_UP_ROLE_LABELS[task.assigneeRole || ''] || task.assigneeRole || '-'}</div>
                         </TableCell>
-                        <TableCell className="max-w-56 text-sm text-gray-600">{task.assignmentReason || '-'}</TableCell>
+                        <TableCell className="!whitespace-normal break-words text-sm leading-relaxed text-gray-600">
+                          {task.assignmentReason || '-'}
+                        </TableCell>
                         <TableCell className="whitespace-nowrap text-gray-700">{formatFollowUpDateTime(task.dueAt)}</TableCell>
-                        <TableCell>
+                        <TableCell className="!whitespace-normal">
                           <div className="text-sm text-gray-800">
                             {task.resultType ? FOLLOW_UP_RESULT_LABELS[task.resultType] || task.resultType : '-'}
                           </div>
-                          {task.resultNote && <div className="mt-1 max-w-48 truncate text-xs text-gray-500">{task.resultNote}</div>}
+                          {task.resultNote && <div className="mt-1 line-clamp-2 break-words text-xs text-gray-500">{task.resultNote}</div>}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-gray-700">
                           {task.reservationId ? `预约 ${task.reservationId}` : ''}
@@ -1716,14 +2269,11 @@ export function MarketingRecommendation() {
           <DialogHeader>
             <DialogTitle>{selectedCustomerGroup?.recommendation.targetCustomers || '目标客户列表'}</DialogTitle>
             <DialogDescription>
-              {selectedCustomerGroup?.recommendation.title}，共 {selectedCustomerGroup?.profiles.length || 0} 位客户；名单来自预测快照，客户基础字段实时关联客户管理主表。
+              {selectedCustomerGroup?.recommendation.title || '目标客户名单'}；已剔除近 7 天触达/跟进、触达过频及已有未来预约客户。
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm text-gray-500">
-              高风险流失客户默认按流失分从高到低排列，便于优先触达。
-            </div>
+          <div className="flex items-center justify-end gap-3">
             <label className="flex items-center gap-2 text-sm text-gray-600">
               <ArrowDownUp className="h-4 w-4" />
               <span className="whitespace-nowrap">排序</span>
@@ -1820,6 +2370,50 @@ export function MarketingRecommendation() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={Boolean(pendingRiskAction)} onOpenChange={(open) => !open && setPendingRiskAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="h-5 w-5" />
+              确认使用高风险权益
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRiskAction?.kind === 'automation'
+                ? '该自动触达会按当前推荐权益持续触发，请确认风险后再启用。'
+                : '该活动会使用当前推荐权益生成推广内容，请确认风险后再继续。'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingRiskAction && (() => {
+            const selection = getOfferSelection(pendingRiskAction.recommendation);
+            const warnings = getSelectedOfferRiskWarnings(pendingRiskAction.recommendation, selection);
+            return (
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div>
+                  <div className="text-xs font-medium text-amber-700">当前承接权益</div>
+                  <div className="mt-1 font-medium">{selection.offer?.label || pendingRiskAction.recommendation.discount}</div>
+                  {selection.offer?.promotionName && (
+                    <div className="mt-0.5 text-xs text-amber-700">{selection.offer.promotionName}</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-amber-700">需要确认的风险</div>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+                    {warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
+          <AlertDialogFooter>
+            <AlertDialogCancel>返回调整</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPendingRiskAction} className="bg-amber-600 text-white hover:bg-amber-700">
+              已确认，继续
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
