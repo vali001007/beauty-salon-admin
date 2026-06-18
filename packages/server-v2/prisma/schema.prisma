@@ -1956,3 +1956,150 @@ model AiAuditLog {
   @@index([scenario])
   @@index([createdAt])
 }
+
+// ─── Agent Runtime ──────────────────────────────────────────────────────────
+
+model AgentDefinition {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  roleScope   Json?
+  configJson  Json?
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@map("agent_definitions")
+}
+
+model AgentRun {
+  id           Int       @id @default(autoincrement())
+  runNo        String    @unique
+  storeId      Int
+  userId       Int?
+  deviceId     Int?
+  role         String
+  entrypoint   String    @default("api")
+  agentCode    String
+  status       String
+  userInput    String
+  planJson     Json?
+  contextJson  Json?
+  evidenceJson Json?
+  resultJson   Json?
+  errorMessage String?
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([userId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([agentCode])
+  @@map("agent_runs")
+}
+
+model AgentMessage {
+  id        Int      @id @default(autoincrement())
+  runId     Int
+  role      String
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([runId, createdAt])
+  @@map("agent_messages")
+}
+
+model AgentStep {
+  id         Int       @id @default(autoincrement())
+  runId      Int
+  stepType   String
+  name       String
+  status     String
+  inputJson  Json?
+  outputJson Json?
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+
+  @@index([runId, startedAt])
+  @@index([status])
+  @@map("agent_steps")
+}
+
+model AgentToolCall {
+  id             Int       @id @default(autoincrement())
+  runId          Int
+  toolName       String
+  riskLevel      String
+  status         String
+  argsJson       Json
+  resultJson     Json?
+  approvalId     Int?
+  idempotencyKey String?
+  latencyMs      Int?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@index([runId, createdAt])
+  @@index([toolName])
+  @@index([riskLevel])
+  @@index([status])
+  @@index([approvalId])
+  @@map("agent_tool_calls")
+}
+
+model AgentApproval {
+  id         Int       @id @default(autoincrement())
+  runId      Int
+  toolCallId Int?
+  status     String
+  requestedBy Int?
+  approvedBy Int?
+  beforeJson Json?
+  afterJson  Json?
+  comment    String?
+  createdAt  DateTime  @default(now())
+  decidedAt  DateTime?
+
+  @@index([runId, createdAt])
+  @@index([toolCallId])
+  @@index([status])
+  @@map("agent_approvals")
+}
+
+model AgentEvalCase {
+  id              Int      @id @default(autoincrement())
+  scenario        String
+  input           String
+  role            String
+  expectedTool    String?
+  expectedOutcome Json?
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([scenario])
+  @@index([status])
+  @@map("agent_eval_cases")
+}
+
+model AgentEvalRun {
+  id         Int      @id @default(autoincrement())
+  caseId     Int?
+  runId      Int?
+  status     String
+  score      Decimal?
+  resultJson Json?
+  errorMessage String?
+  createdAt  DateTime @default(now())
+
+  @@index([caseId])
+  @@index([runId])
+  @@index([status])
+  @@map("agent_eval_runs")
+}
