@@ -14,6 +14,8 @@ const allActions: AuraAction[] = [
   "manager.staff",
   "manager.customers",
   "manager.inventory",
+  "customer.followup",
+  "business.query",
   "reception.appointments",
   "operation.verify",
   "operation.register",
@@ -44,39 +46,39 @@ describe("parseAiIntentFallback", () => {
     vi.clearAllMocks();
   });
 
-  it("accepts allowed AI actions at the 0.55 confidence threshold", async () => {
+  it("accepts governed business query actions at the 0.55 confidence threshold", async () => {
     resolveTerminalIntent.mockResolvedValue({
-      intentName: "appointment.today.view",
-      action: "reception.appointments",
+      intentName: "business_query.ask",
+      action: "business.query",
       confidence: 0.55,
       slots: {},
       missingSlots: [],
-      reason: "AI matched today's appointments",
+      reason: "AI matched governed query",
     });
 
     const result = await parseAiIntentFallback({
-      command: "看看今天预约",
+      command: "看看今天预约数量",
       role: "reception",
       definition: definition("reception"),
       source: "text",
     });
 
-    expect(result.action).toBe("reception.appointments");
+    expect(result.action).toBe("business.query");
     expect(result.confidence).toBe(0.55);
     expect(resolveTerminalIntent).toHaveBeenCalledWith({
       role: "reception",
-      command: "看看今天预约",
+      command: "看看今天预约数量",
       availableActions: allActions,
       quickActions: [],
       currentStoreName: undefined,
     });
   });
 
-  it("accepts complete allowed actions at 0.5 confidence via the fast path", async () => {
+  it("does not accept fixed quick-action flows from typed text even when confidence is high", async () => {
     resolveTerminalIntent.mockResolvedValue({
       intentName: "manager.dashboard.view",
       action: "manager.dashboard",
-      confidence: 0.5,
+      confidence: 0.95,
       slots: {},
       missingSlots: [],
       reason: "complete action",
@@ -89,22 +91,22 @@ describe("parseAiIntentFallback", () => {
       source: "text",
     });
 
-    expect(result.action).toBe("manager.dashboard");
-    expect(result.confidence).toBe(0.5);
+    expect(result.action).toBeNull();
+    expect(result.loadingLabel).toBe("正在基于 Ami_Core 生成回答");
   });
 
-  it("falls back to AI Q&A when low-confidence actions still have missing slots", async () => {
+  it("falls back to AI Q&A when typed text is classified as cashier", async () => {
     resolveTerminalIntent.mockResolvedValue({
       intentName: "cashier.checkout",
       action: "operation.cashier",
-      confidence: 0.5,
+      confidence: 0.95,
       slots: {},
-      missingSlots: ["customerName"],
-      reason: "needs customer",
+      missingSlots: [],
+      reason: "AI matched cashier",
     });
 
     const result = await parseAiIntentFallback({
-      command: "帮我收一单",
+      command: "今天收银多少",
       role: "reception",
       definition: definition("reception"),
       source: "text",
@@ -137,5 +139,39 @@ describe("parseAiIntentFallback", () => {
     });
 
     expect(result.action).toBeNull();
+  });
+
+  it("does not send quick action cards to AI intent parsing for text input", async () => {
+    resolveTerminalIntent.mockResolvedValue({
+      intentName: "unknown.clarify",
+      action: null,
+      confidence: 0.2,
+      slots: {},
+      missingSlots: [],
+      reason: "ambiguous text",
+    });
+
+    const quickDefinition: RoleDefinition = {
+      ...definition("reception"),
+      quickActions: [
+        { label: "预约", action: "reception.appointments", icon: "CalendarCheck" },
+        { label: "收银", action: "operation.cashier", icon: "CreditCard" },
+      ],
+    };
+
+    await parseAiIntentFallback({
+      command: "收银",
+      role: "reception",
+      definition: quickDefinition,
+      source: "text",
+    });
+
+    expect(resolveTerminalIntent).toHaveBeenCalledWith({
+      role: "reception",
+      command: "收银",
+      availableActions: allActions,
+      quickActions: [],
+      currentStoreName: undefined,
+    });
   });
 });

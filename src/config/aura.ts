@@ -20,6 +20,8 @@ export const AURA_ACTION_META: Record<AuraAction, { label: string; icon: string 
   'manager.staff': { label: '员工', icon: 'Users' },
   'manager.customers': { label: '客户增长', icon: 'Sparkles' },
   'manager.inventory': { label: '库存', icon: 'PackageCheck' },
+  'customer.followup': { label: '客户跟进', icon: 'UserPlus' },
+  'business.query': { label: '问数', icon: 'Sparkles' },
   'reception.appointments': { label: '预约', icon: 'CalendarCheck' },
   'operation.verify': { label: '核销', icon: 'CheckSquare' },
   'operation.register': { label: '登记', icon: 'UserPlus' },
@@ -40,25 +42,32 @@ export const AURA_ROLE_ACTIONS: Record<AuraRole, AuraAction[]> = {
     'manager.dashboard',
     'manager.staff',
     'manager.customers',
+    'customer.followup',
     'manager.inventory',
+    'business.query',
     'reception.appointments',
     'operation.cashier',
   ],
   reception: [
     'reception.appointments',
+    'customer.followup',
+    'manager.customers',
     'operation.verify',
     'operation.register',
     'operation.cashier',
     'operation.card',
     'operation.recharge',
     'operation.print',
+    'business.query',
   ],
   beautician: [
     'beautician.schedule',
+    'customer.followup',
     'beautician.commission',
     'beautician.customer',
     'beautician.record',
     'beautician.advice',
+    'business.query',
   ],
 };
 
@@ -133,11 +142,13 @@ export function resolveAuraRole(user: AuthUser | null): AuraRole {
 }
 
 export function getAuraRoleDefinition(role: AuraRole): AuraRoleDefinition {
-  const quickActions = AURA_ROLE_ACTIONS[role].map((action) => ({
-    action,
-    label: AURA_ACTION_META[action].label,
-    icon: AURA_ACTION_META[action].icon,
-  }));
+  const quickActions = AURA_ROLE_ACTIONS[role]
+    .filter((action) => action !== 'business.query')
+    .map((action) => ({
+      action,
+      label: AURA_ACTION_META[action].label,
+      icon: AURA_ACTION_META[action].icon,
+    }));
 
   return {
     role,

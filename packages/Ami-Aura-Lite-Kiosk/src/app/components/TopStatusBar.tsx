@@ -84,6 +84,10 @@ function getAccountDisplayName(user?: AuraTerminalUser | null) {
   return user?.name || user?.username || "选择账号";
 }
 
+function isTerminalUserDisabled(user: AuraTerminalUser) {
+  return user.disabled === true || user.terminalAccess === false || user.availableRoles.length === 0;
+}
+
 function AccountSwitcher({
   currentUserId,
   currentRole,
@@ -128,21 +132,31 @@ function AccountSwitcher({
           className="z-50 max-h-[360px] min-w-[260px] overflow-y-auto rounded-xl border border-black/5 bg-white p-1 shadow-lg"
           align="start"
         >
-          {availableUsers.map((user) => (
-            <DropdownMenu.Item
-              key={user.id}
-              onClick={() => onChange(user.id)}
-              className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-[#1F1B2D] outline-none hover:bg-[#F7F5F2] data-[highlighted]:bg-[#F7F5F2]"
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-medium">{getAccountDisplayName(user)}</span>
-                <span className="mt-0.5 block truncate text-xs text-[#6F6678]">
-                  {user.username} · {user.roleLabel}
+          {availableUsers.map((user) => {
+            const userDisabled = isTerminalUserDisabled(user);
+            return (
+              <DropdownMenu.Item
+                key={user.id}
+                disabled={userDisabled}
+                onSelect={(event) => {
+                  if (userDisabled) {
+                    event.preventDefault();
+                    return;
+                  }
+                  onChange(user.id);
+                }}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-[#1F1B2D] outline-none hover:bg-[#F7F5F2] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45 data-[highlighted]:bg-[#F7F5F2]"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{getAccountDisplayName(user)}</span>
+                  <span className="mt-0.5 block truncate text-xs text-[#6F6678]">
+                    {user.username} · {userDisabled ? (user.disabledReason ?? "未配置终端权限") : user.roleLabel}
+                  </span>
                 </span>
-              </span>
-              {currentUserId === user.id ? <Check className="h-4 w-4 shrink-0 text-[#C9956C]" /> : null}
-            </DropdownMenu.Item>
-          ))}
+                {currentUserId === user.id ? <Check className="h-4 w-4 shrink-0 text-[#C9956C]" /> : null}
+              </DropdownMenu.Item>
+            );
+          })}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

@@ -35,6 +35,10 @@ import {
   getTerminalReservations,
   getUserInfo,
   analyzeSkinPhoto,
+  askBusinessQuery,
+  approveAgentApproval,
+  createAgentRun,
+  rejectAgentApproval,
   cancelTerminalReservation,
   confirmTerminalReservation,
   login,
@@ -74,6 +78,8 @@ import { AURA_ROLE_LABELS, getAuraRoleDefinition, resolveAuraAvailableRoles, res
 import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
 import type { AuraBootstrap, AuraRole, AuraTerminalUser } from '@/types/aura';
+import type { AgentRole, AgentRunResult } from '@/types/agent';
+import type { BusinessQueryContext, BusinessQueryResponse } from '@/types/businessQuery';
 import type { Project } from '@/types/project';
 import type { Beautician } from '@/types/beautician';
 import type {
@@ -83,6 +89,7 @@ import type {
   TerminalReservationCreateRequest,
   TerminalReservationUpdateRequest,
   TerminalBootstrapParams,
+  TerminalFollowUpTask,
   TerminalRoleDashboard,
   TerminalAutomationStrategy,
   TerminalAutomationTodaySummary,
@@ -114,6 +121,7 @@ import type {
   CustomerCardData,
   DashboardCardData,
   DashboardInsightItem,
+  FollowUpTasksCardData,
   InventoryAlertCardData,
   OperationReceiptData,
   OperationResultData,
@@ -679,18 +687,36 @@ function normalizeTerminalUser(value: unknown): AuraTerminalUser | null {
     fieldScopes: record.fieldScopes as AuraTerminalUser['fieldScopes'],
     approvalScopes: record.approvalScopes as AuraTerminalUser['approvalScopes'],
   };
+  const hasExplicitAvailableRoles = Object.prototype.hasOwnProperty.call(record, 'availableRoles');
   const rawRoles = asList<AuraRole>(record.availableRoles).filter(isAuraRole);
-  const availableRoles = rawRoles.length ? rawRoles : getAuraAvailableRolesForUser(user);
+  const availableRoles = hasExplicitAvailableRoles ? rawRoles : getAuraAvailableRolesForUser(user);
   const defaultRole =
     isAuraRole(record.defaultRole) && availableRoles.includes(record.defaultRole)
       ? record.defaultRole
       : resolveAuraRole(user);
+  const terminalAccess =
+    record.terminalAccess === false
+      ? false
+      : record.terminalAccess === true
+        ? true
+        : availableRoles.length > 0;
+  const disabled = record.disabled === true || !terminalAccess || availableRoles.length === 0;
+  const disabledReason = record.disabledReason
+    ? String(record.disabledReason)
+    : disabled
+      ? '未配置智能终端权限'
+      : undefined;
 
   return {
     ...user,
     availableRoles,
     defaultRole: availableRoles.includes(defaultRole) ? defaultRole : (availableRoles[0] ?? 'reception'),
-    roleLabel: String(record.roleLabel ?? AURA_ROLE_LABELS[availableRoles[0] ?? defaultRole] ?? '前台'),
+    roleLabel: String(
+      record.roleLabel ?? (terminalAccess ? AURA_ROLE_LABELS[availableRoles[0] ?? defaultRole] : '未配置终端权限'),
+    ),
+    terminalAccess,
+    disabled,
+    disabledReason,
     status: record.status ? String(record.status) : undefined,
     boundBeauticianId: Number.isFinite(boundBeauticianId) ? boundBeauticianId : undefined,
     boundBeauticianName: record.boundBeauticianName ? String(record.boundBeauticianName) : currentBeautician?.name,
@@ -1285,6 +1311,17 @@ async function ensureLoggedIn() {
   }
 }
 
+async function runWithAuraAuthRepair<T>(operation: () => Promise<T>): Promise<T> {
+  await ensureLoggedIn();
+  try {
+    return await operation();
+  } catch (err) {
+    if (!isAuraAuthError(err)) throw err;
+    await repairAuraAuthSession({ forceLogin: true });
+    return operation();
+  }
+}
+
 export async function ensureAuraSession(params?: TerminalBootstrapParams): Promise<SessionContext> {
   await ensureLoggedIn();
 
@@ -1583,6 +1620,57 @@ function buildFallbackBusinessAnswer(command: string, context: ReturnType<typeof
 }
 
 type TerminalBusinessAnswerParams = { role: Role; command: string; businessContext?: string };
+
+export async function getBusinessQueryAnswer(command: string, role: Role, context?: BusinessQueryContext): Promise<BusinessQueryResponse> {
+  return runWithAuraAuthRepair(() =>
+    askBusinessQuery({
+      question: command,
+      role: toAgentRole(role) === 'reception' ? 'reception' : toAgentRole(role) === 'beautician' ? 'beautician' : 'manager',
+      operatorId: getActiveOperatorParams()?.operatorId ?? null,
+      context,
+    }),
+  );
+}
+
+function toAgentRole(role: Role): AgentRole {
+  return role === 'beautician' ? 'beautician' : role === 'reception' ? 'reception' : 'manager';
+}
+
+export async function runBusinessAgent(
+  command: string,
+  role: Role,
+  context?: Record<string, unknown>,
+): Promise<AgentRunResult> {
+  return runWithAuraAuthRepair(() =>
+    createAgentRun({
+      message: command,
+      role: toAgentRole(role),
+      entrypoint: 'aura_lite',
+      operatorId: getActiveOperatorParams()?.operatorId ?? null,
+      context,
+    }),
+  );
+}
+
+export async function approveBusinessAgentAction(approvalId: number, role: Role, comment?: string): Promise<AgentRunResult> {
+  return runWithAuraAuthRepair(() =>
+    approveAgentApproval(approvalId, {
+      role: toAgentRole(role),
+      operatorId: getActiveOperatorParams()?.operatorId ?? null,
+      ...(comment ? { comment } : {}),
+    }),
+  );
+}
+
+export async function rejectBusinessAgentAction(approvalId: number, role: Role, comment?: string): Promise<AgentRunResult> {
+  return runWithAuraAuthRepair(() =>
+    rejectAgentApproval(approvalId, {
+      role: toAgentRole(role),
+      operatorId: getActiveOperatorParams()?.operatorId ?? null,
+      ...(comment ? { comment } : {}),
+    }),
+  );
+}
 
 function getTerminalAiRole(role: Role) {
   return role === 'manager' ? 'manager' : role === 'beautician' ? 'beautician' : 'receptionist';
@@ -2909,6 +2997,88 @@ function formatFollowUpTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function getTerminalFollowUpRole(role: AuraRole) {
+  if (role === 'manager') return 'manager';
+  if (role === 'reception') return 'reception';
+  return 'consultant';
+}
+
+function getFollowUpTaskStatusRank(status?: string) {
+  if (status === 'expired') return 0;
+  if (status === 'in_progress') return 1;
+  if (status === 'pending') return 2;
+  return 3;
+}
+
+function getFollowUpTaskPriorityRank(priority?: string) {
+  if (priority === 'urgent') return 0;
+  if (priority === 'recommended') return 1;
+  if (priority === 'opportunity') return 2;
+  return 3;
+}
+
+function sortFollowUpTasks(items: TerminalFollowUpTask[]) {
+  return [...items].sort((left, right) => {
+    const statusDiff = getFollowUpTaskStatusRank(left.status) - getFollowUpTaskStatusRank(right.status);
+    if (statusDiff) return statusDiff;
+    const priorityDiff = getFollowUpTaskPriorityRank(left.priority) - getFollowUpTaskPriorityRank(right.priority);
+    if (priorityDiff) return priorityDiff;
+    const leftDue = left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+    const rightDue = right.dueAt ? new Date(right.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+    return leftDue - rightDue;
+  });
+}
+
+export async function getFollowUpTasksView(): Promise<FollowUpTasksCardData> {
+  const { bootstrap, storeName } = await getAuraBootstrapSession();
+  const assigneeRole = getTerminalFollowUpRole(bootstrap.currentRole);
+  const queryBase = {
+    page: 1,
+    pageSize: 20,
+    assigneeRole,
+  };
+  const responses = await Promise.all([
+    getTerminalFollowUpTasks({ ...queryBase, status: 'expired' }),
+    getTerminalFollowUpTasks({ ...queryBase, status: 'in_progress' }),
+    getTerminalFollowUpTasks({ ...queryBase, status: 'pending' }),
+  ]);
+  const unique = new Map<number, TerminalFollowUpTask>();
+  responses.flatMap((response) => response.items).forEach((task) => unique.set(task.id, task));
+  const items = sortFollowUpTasks([...unique.values()]).slice(0, 20);
+  const firstSummary = responses.find((response) => response.summary)?.summary;
+  const pending = items.filter((task) => task.status === 'pending').length;
+  const inProgress = items.filter((task) => task.status === 'in_progress').length;
+  const expired = items.filter((task) => task.status === 'expired').length;
+
+  return {
+    title: '客户跟进',
+    subtitle: `${AURA_ROLE_LABELS[bootstrap.currentRole]} · ${storeName || '当前门店'}`,
+    summary: items.length
+      ? `共 ${items.length} 条管理端下发任务，待处理 ${pending} 条，跟进中 ${inProgress} 条，已逾期 ${expired} 条。`
+      : '暂无管理端下发给当前账号的客户跟进任务。',
+    items,
+    stats: firstSummary
+      ? {
+          ...firstSummary,
+          pending: firstSummary.pending ?? pending,
+          in_progress: firstSummary.in_progress ?? firstSummary.inProgress ?? inProgress,
+          inProgress: firstSummary.inProgress ?? firstSummary.in_progress ?? inProgress,
+          expired: firstSummary.expired ?? expired,
+          completed: firstSummary.completed ?? 0,
+          overdue: firstSummary.overdue ?? expired,
+        }
+      : {
+          pending,
+          in_progress: inProgress,
+          inProgress,
+          completed: 0,
+          expired,
+          overdue: expired,
+        },
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 export async function getCustomerGrowthCandidates(): Promise<CustomerCardData[]> {

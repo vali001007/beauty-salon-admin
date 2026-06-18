@@ -4,6 +4,8 @@ import {
   BarChart3,
   CalendarCheck,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
   CreditCard,
   FileText,
   HeartPulse,
@@ -79,6 +81,8 @@ export function SmartCommandBar({
   disabled?: boolean;
 }) {
   const [inputValue, setInputValue] = useState("");
+  const [quickActionsCollapsed, setQuickActionsCollapsed] = useState(false);
+  const hasQuickActions = definition.quickActions.length > 0;
   const placeholder =
     currentRole === "manager"
       ? "例如：今日经营 / 员工表现 / 流失客户 / 库存预警"
@@ -109,21 +113,43 @@ export function SmartCommandBar({
           : "查看自动管家 / 新建自动化";
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-4 border-t border-black/5 bg-[#F7F5F2] px-4 pb-6 pt-4 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] sm:px-6">
-      <div className="mx-auto flex w-full max-w-[900px] items-center gap-3 overflow-x-auto pb-1">
-        {definition.quickActions.map((button) => (
-          <div key={button.action} className="min-w-[76px] flex-1">
-            <QuickCommandButton
-              iconName={button.icon as keyof typeof iconMap}
-              label={button.label}
-              onClick={() => onCommand(button.action, "quick_action")}
-              disabled={disabled}
-            />
+    <div
+      className={[
+        "fixed inset-x-0 bottom-0 z-30 flex flex-col border-t border-black/5 bg-[#F7F5F2] px-4 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] sm:px-6",
+        quickActionsCollapsed ? "gap-3 pb-5 pt-3" : "gap-4 pb-6 pt-4",
+      ].join(" ")}
+    >
+      {hasQuickActions && !quickActionsCollapsed ? (
+        <div className="mx-auto flex w-full max-w-[900px] items-stretch gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto pb-1">
+            {definition.quickActions.map((button) => (
+              <div key={button.action} className="min-w-[76px] flex-1">
+                <QuickCommandButton
+                  iconName={button.icon as keyof typeof iconMap}
+                  label={button.label}
+                  onClick={() => onCommand(button.action, "quick_action")}
+                  disabled={disabled}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ) : null}
 
       <div className="mx-auto flex w-full max-w-[900px] items-center gap-3">
+        {hasQuickActions ? (
+          <button
+            type="button"
+            onClick={() => setQuickActionsCollapsed((value) => !value)}
+            className="flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-black/10 bg-white text-[#4B4360] shadow-sm transition-colors hover:bg-black/[0.03] active:scale-95"
+            aria-label={quickActionsCollapsed ? "展开快捷操作" : "收起快捷操作"}
+            aria-expanded={!quickActionsCollapsed}
+            title={quickActionsCollapsed ? "展开快捷操作" : "收起快捷操作"}
+          >
+            {quickActionsCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <span className="mt-0.5 text-[11px] font-medium">{quickActionsCollapsed ? "快捷" : "收起"}</span>
+          </button>
+        ) : null}
         <div className="flex h-14 flex-1 items-center overflow-hidden rounded-2xl border border-black/10 bg-white px-4 shadow-sm transition-all focus-within:border-[#C9956C] focus-within:ring-2 focus-within:ring-[#C9956C]/20">
           <input
             value={inputValue}

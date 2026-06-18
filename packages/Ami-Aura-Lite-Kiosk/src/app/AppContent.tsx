@@ -17,7 +17,10 @@ import { ServiceRecordFlowCard } from "./components/ServiceRecordFlowCard";
 import {
   BeauticianCustomerListCard,
   BeauticianDashboardCard,
+  AgentRunResultCard,
+  BusinessQueryResultCard,
   CustomerGrowthCard,
+  FollowUpTasksCard,
   CustomerProfileCard,
   InventoryAlertsCard,
   ManagerDashboardCard,
@@ -31,6 +34,7 @@ import {
   confirmCashierPayment,
   confirmRecharge,
   confirmRegistration,
+  approveBusinessAgentAction,
   createAutomationDraft,
   enableAutomationDraft,
   enableAutomationStrategyFromSummary,
@@ -39,6 +43,7 @@ import {
   markAutomationTouchFollowedUp,
   pauseAutomationStrategyFromSummary,
   previewAutomationDraft,
+  rejectBusinessAgentAction,
   runAutomationStrategyOnceFromSummary,
   submitServiceRecord,
   getAppointments,
@@ -59,10 +64,18 @@ import {
   setActiveTerminalOperator,
   setConversationScope,
   switchAuraStore,
-  tryHandleAutomationTextOperation,
   writeAuraStartupCache,
 } from "./services/auraCoreService";
 import type { AuraHomePayload } from "./services/auraCoreService";
+import type { AgentRunResult } from "@/types/agent";
+import type { BusinessQueryContext, BusinessQueryResponse } from "@/types/businessQuery";
+import {
+  agentActionToCommand,
+  buildUnsupportedInternalActionResult,
+  businessQueryActionToCommand,
+  isInternalActionCode,
+  resolveTerminalActionResult,
+} from "./intent/actionCommands";
 import { resolveCommandIntent, shouldDisplayUserCommand } from "./intent/intentRouter";
 import type { AuraCommandSource } from "./intent/intentTypes";
 import {
@@ -92,6 +105,7 @@ import type {
   CashierConfirmInput,
   Message,
   MessageType,
+  OperationResultData,
   RechargeConfirmInput,
   RegistrationConfirmInput,
   Role,
@@ -116,6 +130,48 @@ function createMessage(
     title,
     timestamp: new Date(),
   };
+}
+
+function getLatestBusinessQueryContext(messages: Message[]): BusinessQueryContext | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const payload = messages[index]?.payload as AuraPayload | undefined;
+    if (payload?.kind !== "businessQuery") continue;
+    const data = payload.data as BusinessQueryResponse;
+    if (!data.card?.items?.length) continue;
+    return {
+      previousResponse: {
+        domain: data.domain,
+        capability: data.capability,
+        queryPlan: data.queryPlan,
+        card: data.card,
+      },
+    };
+  }
+  return undefined;
+}
+
+function getLatestAgentContext(messages: Message[]): Record<string, unknown> | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const payload = messages[index]?.payload as AuraPayload | undefined;
+    if (payload?.kind === "agentRun") {
+      const data = payload.data as AgentRunResult;
+      return {
+        previousRun: {
+          runId: data.runId,
+          runNo: data.runNo,
+          status: data.status,
+          plan: data.plan,
+          toolResults: data.toolResults,
+          actions: data.actions,
+          evidence: data.evidence,
+        },
+      };
+    }
+    if (payload?.kind === "businessQuery") {
+      return { previousBusinessQuery: getLatestBusinessQueryContext(messages) };
+    }
+  }
+  return undefined;
 }
 
 function LoadingCard({ text }: { text: string }) {
@@ -443,6 +499,7 @@ export default function AppContent() {
   const messagesRef = useRef<Message[]>(messages);
   const currentRoleRef = useRef<Role>(currentRole);
   const currentOperatorIdRef = useRef<number | null>(currentOperatorId);
+  const conversationEpochRef = useRef(0);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -461,24 +518,37 @@ export default function AppContent() {
     setConversationScope(getConversationScopeForOperator(currentOperatorId, currentRole));
   }, [currentOperatorId, currentRole]);
 
-  const appendMessage = (message: Message) => {
-    setMessages((prev) => [...prev, message]);
+  const getConversationEpoch = () => conversationEpochRef.current;
+
+  const isConversationEpochActive = (epoch: number) => conversationEpochRef.current === epoch;
+
+  const advanceConversationEpoch = () => {
+    conversationEpochRef.current += 1;
+    return conversationEpochRef.current;
   };
 
-  const appendRunResult = (result: MicroAppRunResult) => {
+  const appendMessage = (message: Message, epoch = getConversationEpoch()) => {
+    if (!isConversationEpochActive(epoch)) return;
+    setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, message] : prev));
+  };
+
+  const appendRunResult = (result: MicroAppRunResult, epoch = getConversationEpoch()) => {
+    if (!isConversationEpochActive(epoch)) return;
     const createdMessages = result.messages.map((message) => createMessage(message.type, message.payload, message.title));
-    setMessages((prev) => [...prev, ...createdMessages]);
+    setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, ...createdMessages] : prev));
 
     if (!result.refresh || createdMessages.length === 0) return;
 
     const createdIds = createdMessages.map((message) => message.id);
     void result.refresh
       .then((freshResult) => {
+        if (!isConversationEpochActive(epoch)) return;
         const nextMessages = freshResult.messages.map((message, index) => ({
           ...createMessage(message.type, message.payload, message.title),
           id: createdIds[index] ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         }));
         setMessages((prev) => {
+          if (!isConversationEpochActive(epoch)) return prev;
           const replaced = prev.map((message) => {
             const index = createdIds.indexOf(message.id);
             return index >= 0 ? nextMessages[index] ?? message : message;
@@ -489,11 +559,13 @@ export default function AppContent() {
         });
       })
       .catch((err) => {
+        if (!isConversationEpochActive(epoch)) return;
         setError(err instanceof Error ? err.message : "后台刷新失败，已显示上次数据");
       });
   };
 
-  const appendStreamingAiAnswer = async (stream: NonNullable<MicroAppRunResult["aiStream"]>) => {
+  const appendStreamingAiAnswer = async (stream: NonNullable<MicroAppRunResult["aiStream"]>, epoch = getConversationEpoch()) => {
+    if (!isConversationEpochActive(epoch)) return;
     const baseData: AiSuggestionData = {
       title: "Ami 智能问答",
       text: "",
@@ -501,44 +573,50 @@ export default function AppContent() {
     };
     const aiMessage = createMessage("ai", { kind: "ai", data: baseData });
     let text = "";
-    setMessages((prev) => [...prev, aiMessage]);
+    setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, aiMessage] : prev));
 
     try {
       for await (const chunk of getTerminalBusinessAnswerStream(stream)) {
+        if (!isConversationEpochActive(epoch)) return;
         text += chunk;
         setMessages((prev) =>
-          prev.map((message) =>
-            message.id === aiMessage.id
-              ? {
-                  ...message,
-                  payload: {
-                    kind: "ai",
-                    data: {
-                      ...baseData,
-                      text,
-                    },
-                  },
-                }
-              : message,
-          ),
+          isConversationEpochActive(epoch)
+            ? prev.map((message) =>
+                message.id === aiMessage.id
+                  ? {
+                      ...message,
+                      payload: {
+                        kind: "ai",
+                        data: {
+                          ...baseData,
+                          text,
+                        },
+                      },
+                    }
+                  : message,
+              )
+            : prev,
         );
       }
     } catch (err) {
+      if (!isConversationEpochActive(epoch)) return;
       setMessages((prev) =>
-        prev.map((message) =>
-          message.id === aiMessage.id
-            ? {
-                ...message,
-                payload: {
-                  kind: "ai",
-                  data: {
-                    ...baseData,
-                    text: err instanceof Error ? err.message : "AI 回复暂不可用，请稍后重试。",
-                  },
-                },
-              }
-            : message,
-        ),
+        isConversationEpochActive(epoch)
+          ? prev.map((message) =>
+              message.id === aiMessage.id
+                ? {
+                    ...message,
+                    payload: {
+                      kind: "ai",
+                      data: {
+                        ...baseData,
+                        text: err instanceof Error ? err.message : "AI 回复暂不可用，请稍后重试。",
+                      },
+                    },
+                  }
+                : message,
+            )
+          : prev,
       );
     }
   };
@@ -562,6 +640,7 @@ export default function AppContent() {
 
   const handleLock = async () => {
     await persistAndClearConversation();
+    advanceConversationEpoch();
     setShowConversationHistory(false);
     setMessages([]);
     setIsLocked(true);
@@ -569,11 +648,12 @@ export default function AppContent() {
 
   const handleUnlock = () => {
     setIsLocked(false);
-    void loadRoleHome(currentRoleRef.current, { bootstrapForCache: bootstrap });
+    void loadRoleHome(currentRoleRef.current, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() });
   };
 
   const handleSwitchAccount = async () => {
     await persistAndClearConversation();
+    const epoch = advanceConversationEpoch();
     useAuthStore.getState().logout();
     clearAuraStartupCache();
     clearTerminalQueryCache();
@@ -593,20 +673,25 @@ export default function AppContent() {
       setSession(createSessionFromBootstrap(nextBootstrap));
       setBootstrap(nextBootstrap);
       setCurrentRole(nextBootstrap.currentRole);
-      await loadRoleHome(nextBootstrap.currentRole, { bootstrapForCache: nextBootstrap });
+      await loadRoleHome(nextBootstrap.currentRole, { bootstrapForCache: nextBootstrap, epoch });
       schedulePrefetch(nextBootstrap.currentRole, nextBootstrap.availableRoles);
     } catch (err) {
       setError(err instanceof Error ? err.message : "重新接入失败");
-      setMessages([createMessage("error", { text: "Ami_Core 重新接入失败", source: "core" })]);
+      if (isConversationEpochActive(epoch)) {
+        setMessages([createMessage("error", { text: "Ami_Core 重新接入失败", source: "core" })]);
+      }
     } finally {
-      setLoading(false);
+      if (isConversationEpochActive(epoch)) {
+        setLoading(false);
+      }
     }
   };
 
   const handleAutomationSummary = async () => {
     if (currentRole !== "manager") return;
+    const epoch = getConversationEpoch();
 
-    appendMessage(createMessage("query", { text: "查看今天自动完成了什么" }, "自动化指令"));
+    appendMessage(createMessage("query", { text: "查看今天自动完成了什么" }, "自动化指令"), epoch);
     setLoading(true);
     setSuppressBlockingLoading(false);
     setAutomationLoading(true);
@@ -614,16 +699,20 @@ export default function AppContent() {
     setError(null);
 
     try {
-      appendMessage(createMessage("loading", undefined, "正在刷新自动化摘要"));
+      appendMessage(createMessage("loading", undefined, "正在刷新自动化摘要"), epoch);
       const data = await getAutomationTodaySummary();
-      setMessages((prev) => prev.filter((msg) => msg.type !== "loading"));
-      appendMessage(createMessage("automation", { kind: "automationSummary", data }));
+      if (!isConversationEpochActive(epoch)) return;
+      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
+      appendMessage(createMessage("automation", { kind: "automationSummary", data }), epoch);
     } catch (err) {
-      setMessages((prev) => prev.filter((msg) => msg.type !== "loading"));
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "自动化摘要加载失败", source: "automation" }));
+      if (!isConversationEpochActive(epoch)) return;
+      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
+      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "自动化摘要加载失败", source: "automation" }), epoch);
     } finally {
-      setAutomationLoading(false);
-      setLoading(false);
+      if (isConversationEpochActive(epoch)) {
+        setAutomationLoading(false);
+        setLoading(false);
+      }
     }
   };
 
@@ -634,8 +723,9 @@ export default function AppContent() {
       return;
     }
 
+    const epoch = getConversationEpoch();
     const displayText = command.trim();
-    appendMessage(createMessage("query", { text: displayText }, "自动化指令"));
+    appendMessage(createMessage("query", { text: displayText }, "自动化指令"), epoch);
     setLoading(true);
     setSuppressBlockingLoading(false);
     setAutomationLoading(true);
@@ -643,26 +733,32 @@ export default function AppContent() {
     setError(null);
 
     try {
-      appendMessage(createMessage("loading", undefined, "正在生成自动化草稿"));
+      appendMessage(createMessage("loading", undefined, "正在生成自动化草稿"), epoch);
       const draft = await createAutomationDraft({
         role: currentRole,
         command,
         pendingDraft: latestAutomationDraft?.status === "needs_info" ? latestAutomationDraft : null,
       });
-      setMessages((prev) => prev.filter((msg) => msg.type !== "loading"));
+      if (!isConversationEpochActive(epoch)) return;
+      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
       setLatestAutomationDraft(draft);
-      appendMessage(createMessage("automation", { kind: "automation", data: draft }));
+      appendMessage(createMessage("automation", { kind: "automation", data: draft }), epoch);
     } catch (err) {
-      setMessages((prev) => prev.filter((msg) => msg.type !== "loading"));
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "自动化草稿生成失败", source: "automation" }));
+      if (!isConversationEpochActive(epoch)) return;
+      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
+      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "自动化草稿生成失败", source: "automation" }), epoch);
     } finally {
-      setAutomationLoading(false);
-      setLoading(false);
+      if (isConversationEpochActive(epoch)) {
+        setAutomationLoading(false);
+        setLoading(false);
+      }
     }
   };
 
   const handleEnableAutomation = async (draft: AutomationDraftData) => {
+    const epoch = getConversationEpoch();
     const persisted = await enableAutomationDraft(draft);
+    if (!isConversationEpochActive(epoch)) return persisted;
     setLatestAutomationDraft(persisted);
     return persisted;
   };
@@ -672,13 +768,15 @@ export default function AppContent() {
   };
 
   const handleEnableAutomationStrategy = async (strategyId: number) => {
+    const epoch = getConversationEpoch();
     const data = await enableAutomationStrategyFromSummary(strategyId);
-    appendMessage(createMessage("automation", { kind: "automationSummary", data }));
+    appendMessage(createMessage("automation", { kind: "automationSummary", data }), epoch);
   };
 
   const handlePauseAutomationStrategy = async (strategyId: number) => {
+    const epoch = getConversationEpoch();
     const data = await pauseAutomationStrategyFromSummary(strategyId);
-    appendMessage(createMessage("automation", { kind: "automationSummary", data }));
+    appendMessage(createMessage("automation", { kind: "automationSummary", data }), epoch);
   };
 
   const handleRunAutomationStrategyOnce = async (strategyId: number) => {
@@ -692,11 +790,14 @@ export default function AppContent() {
       silent?: boolean;
       preserveMessagesOnError?: boolean;
       messageMode?: "replace" | "append";
+      epoch?: number;
     } = {},
   ) => {
+    const epoch = options.epoch ?? getConversationEpoch();
     const queryConfig = getRoleHomeQueryConfig(role);
     const cachedHome = getTerminalQuerySnapshot<AuraHomePayload["data"]>(queryConfig.key);
 
+    if (!isConversationEpochActive(epoch)) return null;
     if (!options.silent && !cachedHome?.data) {
       setLoading(true);
       setSuppressBlockingLoading(false);
@@ -713,6 +814,7 @@ export default function AppContent() {
         ttlMs: queryConfig.ttlMs,
         loader: queryConfig.loader,
       });
+      if (!isConversationEpochActive(epoch)) return null;
       if (!state.data) {
         throw new Error(state.error ?? "门店数据加载失败");
       }
@@ -721,7 +823,7 @@ export default function AppContent() {
       hydrateRoleHomeQueryCache(role, payload);
       const createdMessages = createHomeMessages(role, payload, state);
       const homeMessageId = createdMessages[0]?.id;
-      setMessages((prev) => (options.messageMode === "append" ? [...prev, ...createdMessages] : createdMessages));
+      setMessages((prev) => (isConversationEpochActive(epoch) ? (options.messageMode === "append" ? [...prev, ...createdMessages] : createdMessages) : prev));
       const bootstrapForCache = options.bootstrapForCache ?? bootstrap;
       if (bootstrapForCache) {
         writeAuraStartupCache({ bootstrap: bootstrapForCache, currentRole: role, homePayload: payload });
@@ -730,41 +832,50 @@ export default function AppContent() {
       if (state.refresh && homeMessageId) {
         void state.refresh
           .then((freshState: TerminalQueryResult<AuraHomePayload["data"]>) => {
+            if (!isConversationEpochActive(epoch)) return;
             const nextData = freshState.data ?? state.data;
             if (!nextData) return;
             const nextPayload = queryConfig.toPayload(nextData);
             hydrateRoleHomeQueryCache(role, nextPayload);
             const nextMessage = createHomeMessages(role, nextPayload, freshState)[0];
-            setMessages((prev) => prev.map((message) => (message.id === homeMessageId ? { ...nextMessage, id: homeMessageId } : message)));
+            setMessages((prev) =>
+              isConversationEpochActive(epoch)
+                ? prev.map((message) => (message.id === homeMessageId ? { ...nextMessage, id: homeMessageId } : message))
+                : prev,
+            );
             const nextBootstrapForCache = options.bootstrapForCache ?? bootstrap;
             if (freshState.refreshStatus !== "failed" && nextBootstrapForCache) {
               writeAuraStartupCache({ bootstrap: nextBootstrapForCache, currentRole: role, homePayload: nextPayload });
             }
           })
           .catch((err) => {
+            if (!isConversationEpochActive(epoch)) return;
             setError(err instanceof Error ? err.message : "后台刷新失败，已显示上次数据");
             setMessages((prev) =>
-              prev.map((message) =>
-                message.id === homeMessageId
-                  ? {
-                      ...message,
-                      title: `${getRoleDefinition(role).title} 首页${getQueryStateTitleSuffix({ refreshStatus: "failed", updatedAt: state.updatedAt })}`,
-                    }
-                  : message,
-              ),
+              isConversationEpochActive(epoch)
+                ? prev.map((message) =>
+                    message.id === homeMessageId
+                      ? {
+                          ...message,
+                          title: `${getRoleDefinition(role).title} 首页${getQueryStateTitleSuffix({ refreshStatus: "failed", updatedAt: state.updatedAt })}`,
+                        }
+                      : message,
+                  )
+                : prev,
             );
           });
       }
       return payload;
     } catch (err) {
+      if (!isConversationEpochActive(epoch)) return null;
       setError(err instanceof Error ? err.message : "加载失败");
       if (!options.preserveMessagesOnError) {
         const errorMessage = createMessage("error", { text: "门店数据加载失败", source: "core" });
-        setMessages((prev) => (options.messageMode === "append" ? [...prev, errorMessage] : [errorMessage]));
+        setMessages((prev) => (isConversationEpochActive(epoch) ? (options.messageMode === "append" ? [...prev, errorMessage] : [errorMessage]) : prev));
       }
       return null;
     } finally {
-      if (!options.silent) {
+      if (!options.silent && isConversationEpochActive(epoch)) {
         setLoading(false);
         setSuppressBlockingLoading(false);
       }
@@ -834,7 +945,16 @@ export default function AppContent() {
 
   const handleUserChange = async (operatorId: number) => {
     if (loading || switchingUser || currentOperatorIdRef.current === operatorId) return;
+    const targetUser = availableUsers.find((user) => user.id === operatorId);
+    if (
+      targetUser &&
+      (targetUser.disabled === true || targetUser.terminalAccess === false || targetUser.availableRoles.length === 0)
+    ) {
+      setError(targetUser.disabledReason ?? "该账号未配置智能终端权限");
+      return;
+    }
 
+    const epoch = advanceConversationEpoch();
     setSwitchingUser(true);
     setLoading(true);
     setSuppressBlockingLoading(false);
@@ -845,6 +965,7 @@ export default function AppContent() {
       await persistAndClearConversation();
       clearTerminalQueryCache();
       const nextBootstrap = await loadAuraBootstrap({ operatorId });
+      if (!isConversationEpochActive(epoch)) return;
       const nextRole = nextBootstrap.currentRole;
       setActiveTerminalOperator(nextBootstrap.currentUser?.id ?? operatorId, nextRole);
       setConversationScope(getConversationScopeForOperator(nextBootstrap.currentUser?.id ?? operatorId, nextRole));
@@ -854,14 +975,19 @@ export default function AppContent() {
       setLatestAutomationDraft(null);
       setShowConversationHistory(false);
       setMessages([]);
-      await loadRoleHome(nextRole, { bootstrapForCache: nextBootstrap });
-      schedulePrefetch(nextRole, nextBootstrap.availableRoles);
+      await loadRoleHome(nextRole, { bootstrapForCache: nextBootstrap, epoch });
+      if (isConversationEpochActive(epoch)) {
+        schedulePrefetch(nextRole, nextBootstrap.availableRoles);
+      }
     } catch (err) {
+      if (!isConversationEpochActive(epoch)) return;
       setError(err instanceof Error ? err.message : "账号切换失败");
-      appendMessage(createMessage("error", { text: "账号切换失败，请稍后重试", source: "core" }));
+      appendMessage(createMessage("error", { text: "账号切换失败，请稍后重试", source: "core" }), epoch);
     } finally {
-      setSwitchingUser(false);
-      setLoading(false);
+      if (isConversationEpochActive(epoch)) {
+        setSwitchingUser(false);
+        setLoading(false);
+      }
     }
   };
 
@@ -869,6 +995,7 @@ export default function AppContent() {
     const activeStoreId = bootstrap?.currentStore?.id ?? session?.store?.id ?? null;
     if (loading || switchingStore || activeStoreId === storeId) return;
 
+    const epoch = advanceConversationEpoch();
     setSwitchingStore(true);
     setLoading(true);
     setSuppressBlockingLoading(false);
@@ -882,6 +1009,7 @@ export default function AppContent() {
         storeId,
         currentOperatorIdRef.current ? { operatorId: currentOperatorIdRef.current } : undefined,
       );
+      if (!isConversationEpochActive(epoch)) return;
       const nextRole = nextBootstrap.currentRole;
       const normalizedBootstrap = nextBootstrap;
       setActiveTerminalOperator(normalizedBootstrap.currentUser?.id ?? null, nextRole);
@@ -893,41 +1021,29 @@ export default function AppContent() {
       });
       setBootstrap(normalizedBootstrap);
       setCurrentRole(nextRole);
-      await loadRoleHome(nextRole, { bootstrapForCache: normalizedBootstrap });
-      schedulePrefetch(nextRole, normalizedBootstrap.availableRoles);
+      await loadRoleHome(nextRole, { bootstrapForCache: normalizedBootstrap, epoch });
+      if (isConversationEpochActive(epoch)) {
+        schedulePrefetch(nextRole, normalizedBootstrap.availableRoles);
+      }
     } catch (err) {
+      if (!isConversationEpochActive(epoch)) return;
       setError(err instanceof Error ? err.message : "门店切换失败");
-      appendMessage(createMessage("error", { text: "门店切换失败，请稍后重试", source: "core" }));
+      appendMessage(createMessage("error", { text: "门店切换失败，请稍后重试", source: "core" }), epoch);
     } finally {
-      setSwitchingStore(false);
-      setLoading(false);
+      if (isConversationEpochActive(epoch)) {
+        setSwitchingStore(false);
+        setLoading(false);
+      }
     }
   };
 
   const handleCommand = async (command: string, source: AuraCommandSource = "text") => {
-    if (source === "text" && currentRole === "manager" && latestAutomationDraft?.status === "needs_info") {
-      await handleAutomationCommand(command);
-      return;
-    }
-
-    if (source === "text" && currentRole === "manager") {
-      try {
-        const automationSummary = await tryHandleAutomationTextOperation(command);
-        if (automationSummary) {
-          appendMessage(createMessage("query", { text: command }, "自动化指令"));
-          appendMessage(createMessage("automation", { kind: "automationSummary", data: automationSummary }));
-          return;
-        }
-      } catch (err) {
-        appendMessage(createMessage("query", { text: command }, "自动化指令"));
-        appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "自动化操作失败，请稍后重试", source: "automation" }));
-        return;
-      }
-    }
+    const epoch = getConversationEpoch();
 
     const intent = await resolveCommandIntent({ command, role: currentRole, definition: roleDefinition, source });
+    if (!isConversationEpochActive(epoch)) return;
     if (shouldDisplayUserCommand(intent)) {
-      appendMessage(createMessage("query", { text: command }, "用户指令"));
+      appendMessage(createMessage("query", { text: command }, "用户指令"), epoch);
     }
     const shouldDelayLoading = source === "quick_action" || isCacheableMicroAppAction(intent.action);
     setSuppressBlockingLoading(shouldDelayLoading);
@@ -938,8 +1054,10 @@ export default function AppContent() {
     const appendAiHint = async (businessSummary: string, aiCommand = command) => {
       try {
         const data = await getTerminalBusinessAnswer({ role: currentRole, command: aiCommand, businessContext: businessSummary });
-        appendMessage(createMessage("ai", { kind: "ai", data }));
+        if (!isConversationEpochActive(epoch)) return;
+        appendMessage(createMessage("ai", { kind: "ai", data }), epoch);
       } catch {
+        if (!isConversationEpochActive(epoch)) return;
         appendMessage(
           createMessage("ai", {
             kind: "ai",
@@ -949,6 +1067,7 @@ export default function AppContent() {
               source: "Ami AI",
             },
           }),
+          epoch,
         );
       }
     };
@@ -959,38 +1078,46 @@ export default function AppContent() {
     try {
       if (shouldDelayLoading) {
         loadingTimer = window.setTimeout(() => {
+          if (!isConversationEpochActive(epoch)) return;
           loadingMessageShown = true;
-          appendMessage(createMessage("loading", undefined, intent.loadingLabel));
+          appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch);
         }, 300);
       } else {
         loadingMessageShown = true;
-        appendMessage(createMessage("loading", undefined, intent.loadingLabel));
+        appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch);
       }
 
-      const result = await runMicroAppIntent(intent, command);
+      const result = await runMicroAppIntent(intent, command, {
+        agentContext: intent.action === "business.query" ? getLatestAgentContext(messagesRef.current) : undefined,
+        businessQueryContext: intent.action === "business.query" ? getLatestBusinessQueryContext(messagesRef.current) : undefined,
+      });
+      if (!isConversationEpochActive(epoch)) return;
       if (loadingTimer !== null) {
         window.clearTimeout(loadingTimer);
       }
-      setMessages((prev) => prev.filter((msg) => msg.type !== "loading"));
+      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
       if (!loadingMessageShown && shouldDelayLoading) {
         setLoadingText("");
       }
-      appendRunResult(result);
+      appendRunResult(result, epoch);
       if (result.aiStream) {
-        await appendStreamingAiAnswer(result.aiStream);
+        await appendStreamingAiAnswer(result.aiStream, epoch);
       }
-      if (result.aiSummary && source !== "quick_action") {
+      if (result.aiSummary && (source === "text" || source === "voice")) {
         await appendAiHint(result.aiSummary, result.aiCommand);
       }
     } catch (err) {
+      if (!isConversationEpochActive(epoch)) return;
       if (loadingTimer !== null) {
         window.clearTimeout(loadingTimer);
       }
-      setMessages((prev) => prev.filter((msg) => msg.type !== "loading"));
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "请求失败", source: "core" }));
+      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
+      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "请求失败", source: "core" }), epoch);
     } finally {
-      setLoading(false);
-      setSuppressBlockingLoading(false);
+      if (isConversationEpochActive(epoch)) {
+        setLoading(false);
+        setSuppressBlockingLoading(false);
+      }
     }
   };
 
@@ -998,34 +1125,98 @@ export default function AppContent() {
   const employeeName = session?.user?.name ?? bootstrap?.currentUser?.name ?? "未登录";
 
   const handleCardVerificationConfirm = async (input: CardVerificationConfirmInput) => {
+    const epoch = getConversationEpoch();
     const data = await confirmCardVerification(input);
-    appendMessage(createMessage("operation", { kind: "operation", data }));
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
   const handleCashierConfirm = async (input: CashierConfirmInput) => {
+    const epoch = getConversationEpoch();
     const data = await confirmCashierPayment(input);
-    appendMessage(createMessage("operation", { kind: "operation", data }));
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
   const handleCardOpeningConfirm = async (input: CardOpeningConfirmInput) => {
+    const epoch = getConversationEpoch();
     const data = await confirmCardOpening(input);
-    appendMessage(createMessage("operation", { kind: "operation", data }));
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
   const handleRegistrationConfirm = async (input: RegistrationConfirmInput) => {
+    const epoch = getConversationEpoch();
     const data = await confirmRegistration(input);
-    appendMessage(createMessage("operation", { kind: "operation", data }));
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
   const handleServiceRecordConfirm = async (input: ServiceRecordConfirmInput) => {
+    const epoch = getConversationEpoch();
     const data = await submitServiceRecord(input);
-    appendMessage(createMessage("operation", { kind: "operation", data }));
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
   const handleRechargeConfirm = async (input: RechargeConfirmInput) => {
+    const epoch = getConversationEpoch();
     const data = await confirmRecharge(input);
-    appendMessage(createMessage("operation", { kind: "operation", data }));
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
+
+  const handleAgentApprovalApprove = async (approvalId: number) => {
+    const epoch = getConversationEpoch();
+    setLoading(true);
+    setLoadingText("正在执行已确认的 Agent 动作");
+    try {
+      const data = await approveBusinessAgentAction(approvalId, currentRoleRef.current, "终端人工确认执行");
+      appendMessage(createMessage("dashboard", { kind: "agentRun", data }, "Agent 动作已执行"), epoch);
+    } catch (err) {
+      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "Agent 动作执行失败", source: "agent" }), epoch);
+    } finally {
+      if (isConversationEpochActive(epoch)) {
+        setLoading(false);
+        setLoadingText("");
+      }
+    }
+  };
+
+  const handleAgentApprovalReject = async (approvalId: number) => {
+    const epoch = getConversationEpoch();
+    setLoading(true);
+    setLoadingText("正在拒绝 Agent 动作");
+    try {
+      const data = await rejectBusinessAgentAction(approvalId, currentRoleRef.current, "终端人工拒绝执行");
+      appendMessage(createMessage("dashboard", { kind: "agentRun", data }, "Agent 动作已拒绝"), epoch);
+    } catch (err) {
+      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "Agent 动作拒绝失败", source: "agent" }), epoch);
+    } finally {
+      if (isConversationEpochActive(epoch)) {
+        setLoading(false);
+        setLoadingText("");
+      }
+    }
+  };
+
+  const appendOperationResult = (data: OperationResultData, epoch = getConversationEpoch()) => {
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
+  };
+
+  const handleStructuredAction = async (action: string, mapper: (action: string) => string) => {
+    const epoch = getConversationEpoch();
+    const actionResult = resolveTerminalActionResult(action);
+    if (actionResult) {
+      appendOperationResult(actionResult, epoch);
+      return;
+    }
+
+    const command = mapper(action);
+    if (command === action && isInternalActionCode(action)) {
+      appendOperationResult(buildUnsupportedInternalActionResult(), epoch);
+      return;
+    }
+
+    await handleCommand(command, "system");
+  };
+
+  const handleBusinessQueryAction = (action: string) => handleStructuredAction(action, businessQueryActionToCommand);
+  const handleAgentResultAction = (action: string) => handleStructuredAction(action, agentActionToCommand);
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#F7F5F2] font-sans">
@@ -1047,7 +1238,7 @@ export default function AppContent() {
         onUserChange={handleUserChange}
         onHistory={() => setShowConversationHistory(true)}
         onLock={handleLock}
-        onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap })}
+        onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() })}
       />
 
       {showConversationHistory ? (
@@ -1140,7 +1331,7 @@ export default function AppContent() {
                     <ReceptionDashboardCard
                       data={payload.data}
                       onQuickAction={(action) => handleCommand(action, "quick_action")}
-                      onOperationResult={(data) => appendMessage(createMessage("operation", { kind: "operation", data }))}
+                      onOperationResult={(data) => appendOperationResult(data)}
                     />
                   </div>
                 );
@@ -1177,11 +1368,40 @@ export default function AppContent() {
                   </div>
                 );
               }
+              if (payload.kind === "followUpTasks") {
+                return (
+                  <div key={key} className="grid gap-2">
+                    <QueryStatusLine title={message.title} />
+                    <FollowUpTasksCard data={payload.data} />
+                  </div>
+                );
+              }
               if (payload.kind === "inventory") {
                 return (
                   <div key={key} className="grid gap-2">
                     <QueryStatusLine title={message.title} />
                     <InventoryAlertsCard data={payload.data} />
+                  </div>
+                );
+              }
+              if (payload.kind === "businessQuery") {
+                return (
+                  <div key={key} className="grid gap-2">
+                    <QueryStatusLine title={message.title} />
+                    <BusinessQueryResultCard data={payload.data} onAction={handleBusinessQueryAction} />
+                  </div>
+                );
+              }
+              if (payload.kind === "agentRun") {
+                return (
+                  <div key={key} className="grid gap-2">
+                    <QueryStatusLine title={message.title} />
+                    <AgentRunResultCard
+                      data={payload.data}
+                      onAction={handleAgentResultAction}
+                      onApprove={handleAgentApprovalApprove}
+                      onReject={handleAgentApprovalReject}
+                    />
                   </div>
                 );
               }

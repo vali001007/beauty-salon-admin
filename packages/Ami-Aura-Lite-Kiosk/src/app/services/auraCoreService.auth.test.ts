@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let service: typeof import("./auraCoreService") | null = null;
@@ -83,6 +84,10 @@ const mocks = vi.hoisted(() => {
     }),
   };
   const api = {
+    askBusinessQuery: vi.fn(async (): Promise<any> => ({ status: "success", title: "Ami 问数", summary: "ok" })),
+    approveAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "approved" })),
+    createAgentRun: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
+    rejectAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "rejected" })),
     getProjects: vi.fn(async (): Promise<any[]> => []),
     getTerminalCatalogSync: vi.fn(async (): Promise<any> => ({ projects: [] })),
     getTerminalBootstrap: vi.fn(async () => bootstrap),
@@ -110,6 +115,10 @@ vi.mock("@/api", () => {
     getWeeklySchedules: unusedApi,
     getStockItemsPaginated: unusedApi,
     getTerminalBootstrap: mocks.api.getTerminalBootstrap,
+    askBusinessQuery: mocks.api.askBusinessQuery,
+    approveAgentApproval: mocks.api.approveAgentApproval,
+    createAgentRun: mocks.api.createAgentRun,
+    rejectAgentApproval: mocks.api.rejectAgentApproval,
     getTerminalBeauticianCommission: unusedApi,
     closeTerminalCashierShift: unusedApi,
     getTerminalCatalogSync: mocks.api.getTerminalCatalogSync,
@@ -187,6 +196,10 @@ async function resetMockState() {
   mocks.api.getProjects.mockResolvedValue([]);
   mocks.api.getTerminalCatalogSync.mockResolvedValue({ projects: [] });
   mocks.api.getTerminalBootstrap.mockResolvedValue(mocks.bootstrap);
+  mocks.api.askBusinessQuery.mockResolvedValue({ status: "success", title: "Ami 问数", summary: "ok" });
+  mocks.api.approveAgentApproval.mockResolvedValue({ id: 1, status: "approved" });
+  mocks.api.createAgentRun.mockResolvedValue({ runId: 1, status: "success" });
+  mocks.api.rejectAgentApproval.mockResolvedValue({ id: 1, status: "rejected" });
   mocks.api.getTerminalCardVerificationContext.mockResolvedValue({ customers: [], storeName: mocks.store.name, generatedAt: "2026-06-11T09:00:00.000Z" });
   mocks.api.getTerminalCustomerCards.mockResolvedValue([]);
   mocks.api.getTerminalCustomerSummary.mockResolvedValue(null);
@@ -219,6 +232,42 @@ describe("auraCoreService auth repair", () => {
     expect(mocks.api.getTerminalBootstrap).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps admin-synced terminal users disabled when they have no terminal permission", async () => {
+    mocks.api.getTerminalBootstrap.mockResolvedValue({
+      ...mocks.bootstrap,
+      terminalUsers: [
+        ...mocks.bootstrap.terminalUsers,
+        {
+          id: 99,
+          username: "report_viewer",
+          name: "报表账号",
+          roles: ["report_viewer"],
+          permissions: ["core:dashboard:view"],
+          storeIds: [1],
+          availableRoles: [],
+          defaultRole: "reception",
+          roleLabel: "未配置终端权限",
+          terminalAccess: false,
+          disabled: true,
+          disabledReason: "未配置智能终端权限",
+        },
+      ] as any,
+    });
+
+    const auraService = await getService();
+    const result = await auraService.loadAuraBootstrap();
+
+    expect(result.terminalUsers.find((user) => user.id === 99)).toEqual(
+      expect.objectContaining({
+        availableRoles: [],
+        roleLabel: "未配置终端权限",
+        terminalAccess: false,
+        disabled: true,
+        disabledReason: "未配置智能终端权限",
+      }),
+    );
+  });
+
   it("repairs auth and retries bootstrap once after a terminal 401 clears the token", async () => {
     window.localStorage.setItem("token", "expired-token");
     mocks.authState.token = "expired-token";
@@ -242,6 +291,135 @@ describe("auraCoreService auth repair", () => {
 
     expect(mocks.authState.login).toHaveBeenCalledTimes(1);
     expect(mocks.api.getTerminalBootstrap).toHaveBeenCalledTimes(2);
+  });
+
+  it("repairs auth and retries agent runs once when runtime device token expires", async () => {
+    window.localStorage.setItem("token", "expired-token");
+    mocks.authState.token = "expired-token";
+    mocks.authState.user = mocks.user;
+    mocks.authState.isAuthenticated = true;
+    const authError = Object.assign(new Error("设备令牌无效或已过期"), {
+      payload: { status: 401, message: "设备令牌无效或已过期" },
+    });
+    mocks.api.createAgentRun
+      .mockImplementationOnce(async () => {
+        window.localStorage.removeItem("token");
+        throw authError;
+      })
+      .mockResolvedValueOnce({ runId: 2, status: "success" });
+
+    const auraService = await getService();
+    const result = await auraService.runBusinessAgent("近期表现较好的员工", "manager");
+
+    expect(result).toMatchObject({ runId: 2, status: "success" });
+    expect(mocks.authState.login).toHaveBeenCalledTimes(1);
+    expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(2);
+    expect(mocks.api.createAgentRun).toHaveBeenNthCalledWith(1, expect.objectContaining({ operatorId: null }));
+    expect(mocks.api.createAgentRun).toHaveBeenNthCalledWith(2, expect.objectContaining({ operatorId: null }));
+    expect(window.localStorage.getItem("token")).toBe("fresh-token");
+  });
+
+  it("repairs auth and retries business query once when runtime device token expires", async () => {
+    window.localStorage.setItem("token", "expired-token");
+    mocks.authState.token = "expired-token";
+    mocks.authState.user = mocks.user;
+    mocks.authState.isAuthenticated = true;
+    const authError = Object.assign(new Error("缺少设备认证令牌"), {
+      payload: { status: 401, message: "缺少设备认证令牌" },
+    });
+    mocks.api.askBusinessQuery
+      .mockImplementationOnce(async () => {
+        window.localStorage.removeItem("token");
+        throw authError;
+      })
+      .mockResolvedValueOnce({ status: "success", title: "Ami 问数", summary: "已恢复" });
+
+    const auraService = await getService();
+    const result = await auraService.getBusinessQueryAnswer("最近销量好的商品有哪些", "manager");
+
+    expect(result).toMatchObject({ status: "success", summary: "已恢复" });
+    expect(mocks.authState.login).toHaveBeenCalledTimes(1);
+    expect(mocks.api.askBusinessQuery).toHaveBeenCalledTimes(2);
+    expect(mocks.api.askBusinessQuery).toHaveBeenNthCalledWith(1, expect.objectContaining({ operatorId: null }));
+    expect(mocks.api.askBusinessQuery).toHaveBeenNthCalledWith(2, expect.objectContaining({ operatorId: null }));
+    expect(window.localStorage.getItem("token")).toBe("fresh-token");
+  });
+
+  it("isolates runtime conversation context by operator and role", async () => {
+    const auraService = await getService();
+    const managerScope = auraService.getConversationScopeForOperator(1, "manager");
+    const beauticianScope = auraService.getConversationScopeForOperator(1, "beautician");
+    const otherOperatorScope = auraService.getConversationScopeForOperator(2, "manager");
+
+    expect(managerScope).not.toBe(beauticianScope);
+    expect(managerScope).not.toBe(otherOperatorScope);
+
+    auraService.setConversationScope(managerScope);
+    auraService.clearConversation();
+    auraService.appendToConversation("user", "店长看今天经营");
+    auraService.appendToConversation("assistant", "店长经营数据");
+
+    auraService.setConversationScope(beauticianScope);
+    auraService.clearConversation();
+    auraService.appendToConversation("user", "美容师看我的预约");
+
+    auraService.setConversationScope(otherOperatorScope);
+    auraService.clearConversation();
+    auraService.appendToConversation("user", "另一个店长的问题");
+
+    auraService.setConversationScope(managerScope);
+    expect(auraService.getConversationMessages().map((message) => message.content)).toEqual([
+      "店长看今天经营",
+      "店长经营数据",
+    ]);
+
+    auraService.setConversationScope(beauticianScope);
+    expect(auraService.getConversationMessages().map((message) => message.content)).toEqual(["美容师看我的预约"]);
+
+    auraService.setConversationScope(otherOperatorScope);
+    expect(auraService.getConversationMessages().map((message) => message.content)).toEqual(["另一个店长的问题"]);
+  });
+
+  it("sends the current role when deciding Agent approvals", async () => {
+    window.localStorage.setItem("token", "valid-token");
+    mocks.authState.token = "valid-token";
+    mocks.authState.user = mocks.user;
+    mocks.authState.isAuthenticated = true;
+
+    const auraService = await getService();
+    await auraService.approveBusinessAgentAction(301, "beautician", "本人确认");
+    await auraService.rejectBusinessAgentAction(302, "reception", "前台拒绝");
+
+    expect(mocks.api.approveAgentApproval).toHaveBeenCalledWith(301, {
+      role: "beautician",
+      operatorId: null,
+      comment: "本人确认",
+    });
+    expect(mocks.api.rejectAgentApproval).toHaveBeenCalledWith(302, {
+      role: "reception",
+      operatorId: null,
+      comment: "前台拒绝",
+    });
+  });
+
+  it("sends the selected terminal operator to Agent and business query requests", async () => {
+    window.localStorage.setItem("token", "valid-token");
+    mocks.authState.token = "valid-token";
+    mocks.authState.user = mocks.user;
+    mocks.authState.isAuthenticated = true;
+
+    const auraService = await getService();
+    auraService.setActiveTerminalOperator(31, "beautician");
+
+    await auraService.runBusinessAgent("我的表现怎么样", "beautician");
+    await auraService.getBusinessQueryAnswer("我的表现怎么样", "beautician");
+    await auraService.approveBusinessAgentAction(301, "beautician", "本人确认");
+    await auraService.rejectBusinessAgentAction(302, "beautician", "本人拒绝");
+
+    expect(mocks.api.createAgentRun).toHaveBeenCalledWith(expect.objectContaining({ role: "beautician", operatorId: 31 }));
+    expect(mocks.api.askBusinessQuery).toHaveBeenCalledWith(expect.objectContaining({ role: "beautician", operatorId: 31 }));
+    expect(mocks.api.approveAgentApproval).toHaveBeenCalledWith(301, expect.objectContaining({ role: "beautician", operatorId: 31 }));
+    expect(mocks.api.rejectAgentApproval).toHaveBeenCalledWith(302, expect.objectContaining({ role: "beautician", operatorId: 31 }));
   });
 
   it("loads card verification details from terminal customer APIs", async () => {

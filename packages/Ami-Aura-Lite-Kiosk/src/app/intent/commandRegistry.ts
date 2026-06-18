@@ -45,6 +45,22 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
     requiresConfirmation: false,
   },
   {
+    intent: 'customer.followup.view',
+    action: 'customer.followup',
+    label: '客户跟进',
+    loadingLabel: '正在查询客户跟进任务',
+    riskLevel: 'none',
+    requiresConfirmation: false,
+  },
+  {
+    intent: 'business_query.ask',
+    action: 'business.query',
+    label: '问数',
+    loadingLabel: '正在查询 Ami_Core 运营数据',
+    riskLevel: 'none',
+    requiresConfirmation: false,
+  },
+  {
     intent: 'appointment.today.view',
     action: 'reception.appointments',
     label: '预约',

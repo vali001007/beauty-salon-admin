@@ -6,6 +6,8 @@ export type AuraIntentName =
   | "manager.staff.view"
   | "manager.customer_growth.view"
   | "manager.inventory.view"
+  | "customer.followup.view"
+  | "business_query.ask"
   | "appointment.today.view"
   | "appointment.confirm"
   | "appointment.reschedule"

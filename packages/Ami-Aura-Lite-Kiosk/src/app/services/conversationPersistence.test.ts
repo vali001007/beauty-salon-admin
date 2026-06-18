@@ -70,6 +70,29 @@ describe("conversationPersistence", () => {
     });
   });
 
+  it("saves the current conversation with operator isolation when an operator is provided", async () => {
+    await saveCurrentConversation({
+      role: "manager",
+      operatorId: 18,
+      date: "2026-06-08",
+      messages: [
+        message({ type: "query", payload: { text: "今天最值得跟进的客户" } }),
+        message({ type: "ai", payload: { kind: "ai", data: { text: "已返回 10 位客户。" } } }),
+      ],
+    });
+
+    expect(saveTerminalConversation).toHaveBeenCalledWith({
+      role: "manager",
+      operatorId: 18,
+      date: "2026-06-08",
+      messages: [
+        expect.objectContaining({ role: "user", content: "今天最值得跟进的客户" }),
+        expect.objectContaining({ role: "assistant", content: "已返回 10 位客户。" }),
+      ],
+      messageCount: 2,
+    });
+  });
+
   it("archives the previous day and clears runtime/UI conversation after the date changes", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 5, 8, 23, 59, 30));

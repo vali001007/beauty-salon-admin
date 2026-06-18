@@ -8,6 +8,26 @@ import { parseRuleIntent } from "./ruleIntentParser";
 import { buildSlots } from "./slotUtils";
 
 const MIN_AI_CONFIDENCE = 0.55;
+const TEXT_INPUT_BLOCKED_ACTIONS = new Set<AuraAction>([
+  "manager.dashboard",
+  "manager.staff",
+  "manager.customers",
+  "manager.inventory",
+  "customer.followup",
+  "reception.appointments",
+  "operation.verify",
+  "operation.register",
+  "operation.cashier",
+  "operation.card",
+  "operation.recharge",
+  "operation.print",
+  "operation.service-complete",
+  "beautician.schedule",
+  "beautician.commission",
+  "beautician.customer",
+  "beautician.record",
+  "beautician.advice",
+]);
 
 function getDefaultAction(role: RoleDefinition["role"], definition: RoleDefinition): AuraAction | null {
   const preferred =
@@ -78,10 +98,13 @@ export async function parseAiIntentFallback(params: {
       role: params.role,
       command: params.command,
       availableActions: params.definition.availableActions,
-      quickActions: params.definition.quickActions.map((item) => ({
-        label: item.label,
-        action: item.action,
-      })),
+      quickActions:
+        params.source === "quick_action"
+          ? params.definition.quickActions.map((item) => ({
+              label: item.label,
+              action: item.action,
+            }))
+          : [],
       currentStoreName: undefined,
     });
 
@@ -90,6 +113,9 @@ export async function parseAiIntentFallback(params: {
     const missingSlots = Array.isArray(result.missingSlots) ? result.missingSlots : [];
     const confidentEnough = result.confidence >= MIN_AI_CONFIDENCE;
     const explicitCompleteAction = Boolean(action && missingSlots.length === 0 && result.confidence >= 0.5);
+    if (params.source === "text" && action && TEXT_INPUT_BLOCKED_ACTIONS.has(action)) {
+      return buildRuleDefault(params);
+    }
     if (!action || (!confidentEnough && !explicitCompleteAction)) {
       return buildRuleDefault(params);
     }
