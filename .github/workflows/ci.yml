@@ -67,6 +67,8 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: packages/server-v2
+      - run: npx prisma generate
+        working-directory: packages/server-v2
       - run: npm run check:ami-query-hub
       - run: npm run check:ami-semantic-agent
     env:
