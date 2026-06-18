@@ -101,7 +101,7 @@ npm.cmd run typecheck
 ## 项目入口
 
 - `src/`：管理端主应用。
-- `packages/server-v2`：NestJS + Prisma 主线后端、AI Gateway、旧 `/v1/messages` 兼容入口。
+- `packages/server-v2`：NestJS + Prisma 主线后端、AI Gateway。
 - `packages/Ami-Aura-Lite-Kiosk`：Ami Aura Lite 智能终端主线。
 - `packages/Ami-Glow-MiniApp`：Ami Glow 客户服务小程序。
 - `packages/marketing-h5`：营销 H5 子应用。
@@ -148,7 +148,7 @@ npm.cmd run typecheck
 - Terminal 相关入口：`src/api/terminal.ts`、`src/api/real/terminal.ts`、`packages/server-v2/src/terminal`、`packages/Ami-Aura-Lite-Kiosk`、`docs/terminal-api.md`。
 - AI 相关入口：`src/api/ai.ts`、`src/api/real/ai.ts`、`packages/server-v2/src/ai`、`packages/app/src/api/claude.ts`。
 - 前端不保存模型 Key；管理端、终端、移动/助手端均应通过 `server-v2` 调用 AI Gateway。
-- 旧 `/v1/messages` 兼容入口由 `packages/server-v2/src/ai/legacy-messages.controller.ts` 保留，避免破坏现有移动/助手端调用。
+- 移动/助手端应走 Agent Gateway 或 `/api/ai/*`，不要再接入旧 `/v1/messages`。
 
 ## 验证要求
 

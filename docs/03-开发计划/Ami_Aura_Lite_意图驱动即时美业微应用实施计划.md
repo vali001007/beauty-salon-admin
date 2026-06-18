@@ -5,7 +5,7 @@
 关联需求文档：`02-产品设计/Ami_Aura_Lite_意图驱动即时美业微应用需求文档.md`  
 主线目录：`packages/Ami-Aura-Lite-Kiosk`  
 基础平台：Ami_Core 美业管理平台  
-后端主线：`packages/server-v2`，统一承接业务 API、AI Gateway 与旧 `/v1/messages` 兼容入口  
+后端主线：`packages/server-v2`，统一承接业务 API 与 AI Gateway
 
 ## 1. 计划结论
 

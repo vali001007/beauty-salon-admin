@@ -98,7 +98,7 @@ docker run --rm -p 8080:8080 ami-core-admin
 
 ## Core API 与 AI Gateway
 
-主业务 API、AI Gateway 和旧 Claude 兼容入口统一由 `packages/server-v2` 承接。根项目启动后端统一使用：
+主业务 API 和 AI Gateway 统一由 `packages/server-v2` 承接。根项目启动后端统一使用：
 
 ```bash
 npm run dev:api
@@ -130,10 +130,13 @@ AI Gateway 环境变量：
 ```bash
 PORT=8080
 REQUEST_BODY_LIMIT=12mb
-LLM_PROVIDER=mock
-LLM_MODEL=ami-core-mock-llm
-LLM_BASE_URL=https://api.example.com/v1/messages
+LLM_PROVIDER=deepseek
+LLM_MODEL=deepseek-v4-flash
+LLM_BASE_URL=https://api.deepseek.com
+LLM_CHAT_PATH=/chat/completions
 LLM_API_KEY=your-server-side-key
+LLM_TEMPERATURE=0.3
+LLM_MAX_TOKENS=512
 LLM_TIMEOUT_MS=30000
 LLM_DAILY_BUDGET=0
 FACEPP_API_KEY=your-faceplusplus-api-key
@@ -165,5 +168,5 @@ AI 肤质检测说明：
 约束：
 
 - 管理端和 Ami Aura Lite 不保存大模型 Key，只调用 Core API。
-- `LLM_PROVIDER=mock` 时返回稳定模拟结果，适合本地演示。
-- 旧 `/v1/messages` 入口仍保留在 `server-v2`，兼容现有 Claude 代理调用；新业务继续使用 `/api/ai/*`。
+- `LLM_PROVIDER=mock` 时返回稳定模拟结果，适合本地演示；正式环境建议配置 DeepSeek 或 OpenAI-compatible provider。
+- 旧 `/v1/messages` 兼容入口已移除；新业务继续使用 Agent Gateway 或 `/api/ai/*`。

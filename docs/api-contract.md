@@ -97,7 +97,7 @@
 
 ## AI Gateway / 大模型能力
 
-所有大模型能力必须经 `packages/server-v2` 调用，前端和 Ami Aura Lite 不直连模型供应商，不保存模型 Key。`server-v2` 负责鉴权、门店隔离、字段脱敏、Prompt 模板版本、审计日志、成本统计和限流；历史 Claude 代理调用继续通过 `POST /v1/messages` 兼容入口返回 Anthropic-compatible 响应。
+所有大模型能力必须经 `packages/server-v2` 调用，前端和 Ami Aura Lite 不直连模型供应商，不保存模型 Key。`server-v2` 负责鉴权、门店隔离、字段脱敏、Prompt 模板版本、审计日志、成本统计和限流；旧 `POST /v1/messages` Anthropic-compatible 兼容入口已移除，移动/助手端应接入 Agent Gateway 或 `/api/ai/*`。
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -142,7 +142,7 @@ AI Gateway 环境变量：
 
 | 变量 | 说明 |
 | --- | --- |
-| `LLM_PROVIDER` | `mock`、`openai_compatible`、`claude_compatible` |
+| `LLM_PROVIDER` | `mock`、`deepseek`、`openai_compatible`、`claude_compatible` |
 | `LLM_MODEL` | 默认模型名 |
 | `LLM_BASE_URL` | 模型供应商服务地址 |
 | `LLM_API_KEY` | 仅后端保存的模型 Key |

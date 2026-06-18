@@ -169,9 +169,9 @@ export class AiService {
     private config: ConfigService,
   ) {
     this.provider = String(config.get('LLM_PROVIDER', 'mock')).trim().toLowerCase();
-    this.model = config.get('LLM_MODEL', 'claude-sonnet-4-6');
+    this.model = config.get('LLM_MODEL', 'deepseek-v4-flash');
     this.apiKey = config.get('LLM_API_KEY', '');
-    this.baseUrl = config.get('LLM_BASE_URL', 'https://api.anthropic.com/v1/messages');
+    this.baseUrl = config.get('LLM_BASE_URL', 'https://api.deepseek.com');
     this.chatPath = config.get('LLM_CHAT_PATH', '/chat/completions');
     this.timeoutMs = Number(config.get('LLM_TIMEOUT_MS', 30000));
     this.temperature = Number(config.get('LLM_TEMPERATURE', 0.3));

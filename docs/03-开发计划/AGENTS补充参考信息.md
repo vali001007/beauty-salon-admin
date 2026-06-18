@@ -121,7 +121,7 @@ npm.cmd run preview
 
 ```text
 src/                         # 管理端主应用
-packages/server-v2           # NestJS + Prisma 主线后端、AI Gateway、旧 /v1/messages 兼容入口
+packages/server-v2           # NestJS + Prisma 主线后端、AI Gateway
 packages/Ami-Aura-Lite-Kiosk # Ami Aura Lite 智能终端 kiosk 主线
 packages/Ami-Glow-MiniApp    # Ami Glow 客户服务小程序
 packages/marketing-h5        # 营销 H5 子应用
