@@ -27,6 +27,8 @@ import { CustomerAppModule } from './customer-app/customer-app.module.js';
 import { HealthModule } from './health/health.module.js';
 import { BomModule } from './bom/bom.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { BusinessQueryModule } from './business-query/business-query.module.js';
+import { AgentModule } from './agent/agent.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
 @Module({
@@ -57,6 +59,8 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     TerminalModule,
     CustomerAppModule,
     DashboardModule,
+    BusinessQueryModule,
+    AgentModule,
     BomModule,
     HealthModule,
   ],
