@@ -4,39 +4,35 @@ This file provides concise guidance to Codex / coding agents when working in thi
 
 ## 协作规则
 
-- 使用中文回复；面向产品经理沟通，把技术状态翻译成产品/交付影响。
-- 用户习惯 vibe coding：默认主动推进、边做边解释；遇到关键取舍时给出清晰建议。
-- 用户要求输出文档、方案或计划时，必须保存为本地文件，不要只在问答框回复。
-- 执行任务必须一次到位：完成实现、必要验证和文档同步；如无法完成，明确说明原因和阻塞点。
-- 不得自行批量删除文件；清理、迁移、删除 `dist/`、`outputs/`、历史原型目录、文档目录前必须先确认。
-- 不要回滚用户已有改动；工作区可能是脏的，先读现状，识别未提交改动和共享链路，再在当前任务范围内修改。必要重构可以做，但需说明影响范围、风险和验证方式；阶段性完成时主动提醒用户是否需要提交、推送或发起 PR 审查。
-- 修改文件使用 `apply_patch`；查找优先用 `rg` / `rg --files`。
+- 遵守全局 AGENTS.md 的中文沟通、vibe coding、文档落盘、一次到位和禁止批量删除规则。
+- 本仓库额外要求：工作区可能是脏的，先读现状，识别未提交改动和共享链路，再在当前任务范围内修改。
+- 必要重构可以做，但需说明影响范围、风险和验证方式；阶段性完成时主动提醒用户是否需要提交、推送或发起 PR 审查。
 - 功能实现不能只看“能用”，还要关注真实数据加载体验；页面、终端或接口若出现加载慢、空白等待、重复请求、首屏阻塞，应同步处理或记录风险。
 
 ## 开工预检
 
-- 每个新任务先看 `git status --short --branch`，确认当前分支、未提交改动和未跟踪文件。
-- 将任务映射到文件、模块和业务链路；若会碰到未提交改动或共享核心链路，先提醒用户再改。
-- 通常应串行处理的高风险区域：路由、权限、Prisma schema/migration、全局状态、共享 API/client、Kiosk 核心入口、大范围架构重构。
-- 重点关注路径：
-  - `src/app/routes.tsx`
-  - `src/config/permissions.ts`
-  - `src/api/client.ts`
-  - `packages/server-v2/prisma/schema.prisma`
-  - `packages/server-v2/prisma/migrations/*`
-  - `packages/Ami-Aura-Lite-Kiosk/src/app/AppContent.tsx`
-  - `packages/Ami-Aura-Lite-Kiosk/src/app/services/auraCoreService.ts`
-  - `packages/Ami-Aura-Lite-Kiosk/src/app/microApps/runMicroApp.ts`
+- 每个新任务先看 `git status --short --branch`，识别当前分支、未提交改动、未跟踪文件和共享链路风险。
+- 若会碰到用户未提交改动或高风险共享链路，先提醒用户再改。
+- 高风险区域包括：路由、权限、API client、Prisma schema/migration、全局状态、Kiosk 核心入口、跨包重构。
+
+## 任务分级执行规则
+
+- L0 轻量任务：只涉及问答、只读解释、文案微调、单文件小改、样式微调、无业务链路变化。可不做全链路排查；只需最小范围读取/修改，最终简短说明改了什么。若未改代码，不必跑测试。
+- L1 常规任务：涉及一个页面、一个 API facade、一个表单、一个局部交互或一个明确 bug。需检查直接相关文件和调用方，按风险跑定向测试或构建，最终说明已验证和未验证项。
+- L2 闭环任务：涉及营销、库存、订单、收银、终端、AI、权限、真实数据、跨前后端链路，或用户追问“是否打通/是否一样/是否完成”。必须按业务链路核对路由、组件、API、service、schema/数据表和真实数据，并做必要验证。
+- L3 高风险任务：涉及 Prisma schema/migration、认证权限、API client、全局状态、发布/Git、批量数据、真实写库、跨包重构或删除/迁移文件。必须先说明范围、风险、验证方式；涉及真实写库、远端修改、推送、PR、自动提交前必须获得用户明确授权。
+- 若用户明确要求“详细分析/完整验证/全部开发完成”，即使任务看似较小，也按更高等级执行。
+- 若任务等级不确定，先按较低等级启动；一旦发现跨模块、真实数据或共享链路影响，立即升级执行等级并告知用户。
 
 ## AI Coding 对齐与完成标准
 
 - 先区分任务类型：只读分析、文档/方案、代码实现、真实数据验证、Git/发布；用户只要文本、方案或清单时，不要擅自改文件。
 - 用户需求先翻译成工程对象：路由/组件、API、service、schema/数据表、真实业务记录和验收口径。
-- 不把“方案已写”“代码已改”“build 通过”“mock 正常”“脚本存在”误报为业务已完成；完成必须说明代码、接口、页面、数据、验证分别到哪一步。
-- 遇到“是否一样/是否打通/是否合并”，必须按 `路由 -> 组件 -> API -> service -> schema/数据表 -> 真实数据` 核对，不按页面名、URL 或文案猜。
+- 不把“方案已写”“代码已改”“build 通过”“mock 正常”“脚本存在”误报为业务已完成；L1 及以上任务需说明代码、接口、页面、数据、验证分别到哪一步。
+- 遇到“是否一样/是否打通/是否合并”，按任务分级核对对象边界；L2/L3 必须查清路由、组件、API、service、schema/数据表和真实数据，不按页面名、URL 或文案猜。
 - 新增或调整 API 时，同步检查 `server-v2`、`src/api/real/*`、facade、导出、调用方、类型和必要测试，避免只改一端。
 - 真实写库、远端修改、推送、PR、自动提交前必须获得用户明确授权；只读 verify 失败时，不要重复验证后宣称完成。
-- 闭环任务优先核对真实来源表和最新业务记录；构建通过不等于 typecheck、测试和真实 verify 都通过。
+- L2/L3 闭环任务优先核对真实来源表和最新业务记录；构建通过不等于 typecheck、测试和真实 verify 都通过。
 - 工具调用必须有明确目的：读证据、改文件、跑验证或查看运行状态；没有明确证据目标时直接回复，不要调用占位/空工具。
 - 禁止调用无业务意义的空工具或占位工具；无参数工具只在确有需要时使用，例如读取终端、重置 REPL、查看 goal 状态。
 - Windows/PowerShell 命令优先拆成简单、可解释的单步调用；涉及中文、`|`、`?`、路径空格或复杂正则时，不写高风险嵌套命令。
@@ -53,53 +49,26 @@ This file provides concise guidance to Codex / coding agents when working in thi
 
 ## 核心命令
 
-所有根项目命令默认在仓库根目录执行：
+根项目常用：
 
 ```powershell
 npm.cmd run dev -- --host 127.0.0.1 --port 5173
 npm.cmd run build
 npm.cmd run test
-npm.cmd run test:e2e
 npm.cmd run lint
-
-npm.cmd run dev:api
 npm.cmd run check:api
-npm.cmd run start:api
-
-npm.cmd run dev:marketing-h5
-npm.cmd run build:marketing-h5
-npm.cmd run preview:marketing-h5
+npm.cmd run dev:api
 ```
 
-后端主线：
+子项目常用：
 
 ```powershell
-Set-Location "packages/server-v2"
-npm.cmd run dev
-npm.cmd run build
-npm.cmd run lint
-npm.cmd run test
-npm.cmd run db:generate
-npm.cmd run db:migrate
-npm.cmd run db:seed
+Set-Location "packages/server-v2"; npm.cmd run test; npm.cmd run build
+Set-Location "packages/Ami-Aura-Lite-Kiosk"; npm.cmd run build
+Set-Location "packages/Ami-Glow-MiniApp"; npm.cmd run typecheck
 ```
 
-Ami Aura Lite 智能终端：
-
-```powershell
-Set-Location "packages/Ami-Aura-Lite-Kiosk"
-npm.cmd run dev -- --host 127.0.0.1 --port 5175
-npm.cmd run build
-```
-
-Ami Glow 客户服务小程序：
-
-```powershell
-Set-Location "packages/Ami-Glow-MiniApp"
-npm.cmd run typecheck
-```
-
-说明：Ami Glow 是原生微信小程序工程，没有 Vite/Web dev server；本地预览用微信开发者工具打开 `packages/Ami-Glow-MiniApp`。
+更多运行、预览和部署细节见：`docs/03-开发计划/AGENTS补充参考信息.md`。
 
 ## 项目入口
 
@@ -116,14 +85,10 @@ npm.cmd run typecheck
 
 ## 技术与代码风格
 
-- 管理端：React 18 + TypeScript + Vite 6，Tailwind CSS v4、MUI 7、shadcn/ui 风格组件共存。
-- 后端：`packages/server-v2`，NestJS 11 + Prisma 7 + PostgreSQL。
-- 路径别名：管理端 `@` 指向 `./src`，Vite 与 Vitest 均已配置。
-- Prettier：分号、单引号、尾逗号、120 字符宽度、2 空格缩进。
-- ESLint：Flat config，TypeScript + react-hooks；`no-console` 与未使用变量多为 warning。
-- React Hooks 规则必须遵守。
-- 不要移除 Vite 中的 React 插件和 Tailwind 插件；Figma Make 相关导入依赖它们。
-- `assetsInclude` 不要加入 `.css`、`.ts`、`.tsx`。
+- 管理端为 React + TypeScript + Vite；后端主线为 `packages/server-v2`，NestJS + Prisma + PostgreSQL。
+- 管理端路径别名 `@` 指向 `./src`；改动时遵守现有 Prettier、ESLint 和 React Hooks 规则。
+- MUI、Tailwind、shadcn/ui 共存，改页面时延续当前页面风格。
+- 不要移除 Vite React/Tailwind 插件；`assetsInclude` 不要加入 `.css`、`.ts`、`.tsx`。
 
 ## API 与数据约定
 
@@ -139,12 +104,10 @@ npm.cmd run typecheck
 ## 路由、权限与 UI
 
 - 路由集中定义在 `src/app/routes.tsx`，不是文件系统路由。
-- 权限三层管控：路由 `PermissionGuard` -> 菜单 `MENU_ITEMS.permission` -> `usePermission`。
-- 权限码格式为 `平台:模块:动作`，如 `core:customer:view`；`super_admin` 拥有 `['*']`。
-- 旧权限码通过 `LEGACY_PERMISSION_MAP` / `normalizePermissionCode()` 兼容，不要随意删除 legacy 映射。
-- MUI 与 shadcn/ui 共存，改页面时优先延续该页面已有风格。
-- 表单通常使用 react-hook-form + zodResolver，Schema 集中在 `src/schemas/`。
-- 标准提交流程：调用 API -> 成功关闭弹窗并 `toast.success()`、刷新列表 -> 失败保留弹窗并展示错误。
+- 权限链路为：路由 `PermissionGuard` -> 菜单权限 -> `usePermission`。
+- 权限码格式为 `平台:模块:动作`；`super_admin` 拥有 `['*']`。
+- 旧权限码兼容映射不要随意删除。
+- 表单通常使用 react-hook-form + zodResolver；成功后关闭弹窗、提示并刷新，失败时保留弹窗并展示错误。
 
 ## 终端与 AI
 
