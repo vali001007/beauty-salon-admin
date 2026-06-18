@@ -23,7 +23,7 @@
 - `packages/Ami-Aura-Lite-Kiosk/src/app/microApps/runMicroApp.ts`
 - `packages/Ami-Aura-Lite-Kiosk/src/app/services/auraCoreService.ts`
 - `packages/Ami-Aura-Lite-Kiosk/src/app/services/terminalQueryClient.ts`
-- `docs/管理平台数据加载性能优化建议方案.md`
+- `docs/02-产品设计/管理平台数据加载性能优化建议方案.md`
 
 这组改动本质上是一项“Terminal/Kiosk 数据加载性能优化”任务，主要内容包括：
 

@@ -263,7 +263,7 @@ npm.cmd --prefix packages/server-v2 run build
 - `docs/api-contract.md`
 - `docs/02-产品设计/Admin Panel/Admin Panel-requirements.md`
 - `docs/02-产品设计/Admin Panel/Admin Panel-design.md`
-- `docs/数据现状分析-主数据清单-数据流程图-数据图谱.md`
+- `docs/02-产品设计/数据现状分析-主数据清单-数据流程图-数据图谱.md`
 
 文档口径建议：
 
