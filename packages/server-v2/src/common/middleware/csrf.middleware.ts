@@ -15,7 +15,6 @@ export class CsrfMiddleware implements NestMiddleware {
     '/api/terminal', // device auth endpoints
     '/api/customer-app', // Ami Glow miniapp uses its own bearer token
     '/api/public/marketing/pages', // public H5 event and lead submission
-    '/v1/messages', // legacy public AI proxy
   ];
 
   private readonly mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];

@@ -143,7 +143,7 @@ NestJS 11 + Prisma 7 + PostgreSQL（Supabase），JWT 认证（access 15m + refr
 - PrismaService 使用 `@prisma/adapter-pg` 构造
 - 编译用 `npx tsc`（不要用 `nest build`，DTO 子目录有问题）
 
-**AI Gateway**（`packages/server-v2/src/ai`）：所有 AI 调用统一走此模块，前端和终端均不保存模型 Key。保留旧 `/v1/messages` 兼容入口（`legacy-messages.controller.ts`），避免破坏移动/助手端调用。
+**AI Gateway**（`packages/server-v2/src/ai`）：所有 AI 调用统一走此模块，前端和终端均不保存模型 Key。移动/助手端通过 Agent Gateway 或 `/api/ai/*` 接入，不再保留旧 `/v1/messages` 兼容入口。
 
 ### Ami Aura Lite Kiosk（`packages/Ami-Aura-Lite-Kiosk/`）
 

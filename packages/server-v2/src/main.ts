@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 config();
 
 import { NestFactory } from '@nestjs/core';
-import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
@@ -42,9 +42,7 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: bodyLimit }));
   app.use(cookieParser());
 
-  app.setGlobalPrefix('api', {
-    exclude: [{ path: 'v1/messages', method: RequestMethod.POST }],
-  });
+  app.setGlobalPrefix('api');
 
   app.enableCors({
     origin: corsOrigins,

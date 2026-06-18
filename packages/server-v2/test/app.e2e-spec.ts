@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, RequestMethod, ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import * as bcrypt from 'bcrypt';
@@ -30,9 +30,7 @@ describe('App (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
-    app.setGlobalPrefix('api', {
-      exclude: [{ path: 'v1/messages', method: RequestMethod.POST }],
-    });
+    app.setGlobalPrefix('api');
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -103,21 +101,11 @@ describe('App (e2e)', () => {
   });
 
   describe('AI routes', () => {
-    it('should expose legacy POST /v1/messages without auth or CSRF token', () => {
+    it('should not expose legacy POST /v1/messages', () => {
       return request(app.getHttpServer())
         .post('/v1/messages')
-        .send({
-          model: 'claude-test',
-          max_tokens: 64,
-          messages: [{ role: 'user', content: 'hello' }],
-        })
-        .expect(201)
-        .expect((res: any) => {
-          expect(res.body.type).toBe('message');
-          expect(res.body.role).toBe('assistant');
-          expect(res.body.content?.[0]?.type).toBe('text');
-          expect(res.body.content?.[0]?.text).toBeTruthy();
-        });
+        .send({ messages: [{ role: 'user', content: 'hello' }] })
+        .expect(404);
     });
 
     it('should keep POST /api/ai/chat/messages protected by auth guard', () => {
