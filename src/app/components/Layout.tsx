@@ -42,6 +42,8 @@ const MENU_ITEMS = [
     path: '/customer-marketing',
     children: [
       { title: '营销工作台', path: '/customer-marketing/workbench', icon: Sparkles, permission: 'core:marketing:view' },
+      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:recommend' },
+      { title: '活动列表', path: '/customer-marketing/activity-management', icon: ClipboardList, permission: 'core:marketing:view' },
       { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:template' },
       { title: '推广资产', path: '/customer-marketing/assets', icon: Megaphone, permission: 'core:marketing:view' },
       { title: '数据复盘', path: '/customer-marketing/effect-analysis', icon: BarChart3, permission: 'core:marketing:analytics' },

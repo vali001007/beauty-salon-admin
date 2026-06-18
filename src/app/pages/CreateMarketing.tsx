@@ -31,6 +31,7 @@ import {
   saveAutomationStrategyDraft,
   updateAutomationStrategy,
 } from '@/api/marketing';
+import { getPromotionsPaginated } from '@/api/promotion';
 import { generateMarketingCopy } from '@/api/ai';
 import type { MarketingCopyChannel } from '@/types/ai';
 import type {
@@ -40,6 +41,7 @@ import type {
   MarketingAutomationExecution,
   MarketingAutomationStrategy,
   MarketingParamValue,
+  Promotion,
   MarketingRuleRelation,
   MarketingRuleTemplate,
   MarketingRuleTemplateSource,
@@ -66,6 +68,7 @@ interface StrategyForm {
   ruleRelation: MarketingRuleRelation;
   triggerRules: MarketingTriggerRule[];
   actions: MarketingAction[];
+  attribution?: Record<string, unknown>;
 }
 
 type RuleLibraryTriggerOption = MarketingTriggerOption & {
@@ -84,6 +87,7 @@ interface MarketingCopyContext {
   strategyText?: string;
   sourceRecommendationId?: string;
   predictionRunId?: string;
+  attribution?: Record<string, unknown>;
   sourceSignals?: string[];
   recommendedItems?: string[];
 }
@@ -361,6 +365,7 @@ const CHANNEL_OPTIONS: Array<{ value: NonNullable<MarketingAction['channel']>; l
 const MARKETING_COPY_CHANNELS = new Set<MarketingCopyChannel>(['sms', 'wechat', 'miniapp', 'group', 'store', 'moments']);
 
 function createInput(form: StrategyForm): MarketingStrategyInput {
+  const attribution = form.attribution;
   return {
     name: form.name.trim(),
     description: form.description.trim(),
@@ -368,10 +373,15 @@ function createInput(form: StrategyForm): MarketingStrategyInput {
     source: form.source,
     ruleTemplateId: form.ruleTemplateId,
     ruleTemplateVersion: form.ruleTemplateVersion,
-    schedule: { type: form.executionType === 'auto' ? 'daily' : 'realtime', time: form.executionTime },
+    schedule: {
+      type: form.executionType === 'auto' ? 'daily' : 'realtime',
+      time: form.executionTime,
+      ...(attribution ? { attribution } : {}),
+    },
     triggerRules: form.triggerRules,
     ruleRelation: form.ruleRelation,
-    actions: form.actions,
+    actions: attribution ? form.actions.map((action) => ({ ...action, attribution: action.attribution ?? attribution })) : form.actions,
+    ...(attribution ? { attribution } : {}),
   };
 }
 
@@ -391,6 +401,7 @@ function createForm(strategy: MarketingAutomationStrategy): StrategyForm {
       params: cloneParams(rule.params),
     })),
     actions: normalized.actions.map((action) => ({ ...action })),
+    attribution: normalized.schedule.attribution as Record<string, unknown> | undefined,
   };
 }
 
@@ -490,11 +501,14 @@ export function CreateMarketing() {
   const [selected, setSelected] = useState<MarketingAutomationStrategy | null>(null);
   const [preview, setPreview] = useState<AudiencePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewCustomersOpen, setPreviewCustomersOpen] = useState(false);
+  const [previewRequestSignature, setPreviewRequestSignature] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [operatingId, setOperatingId] = useState<number | null>(null);
   const [copyContext, setCopyContext] = useState<MarketingCopyContext>({});
   const [generatingCopyIndex, setGeneratingCopyIndex] = useState<number | null>(null);
   const [autoGenerateCopyPending, setAutoGenerateCopyPending] = useState(false);
+  const [promotionOptions, setPromotionOptions] = useState<Promotion[]>([]);
 
   const loadList = useCallback(async (nextKeyword: string, nextStatus: string) => {
     const [strategyResponse, automationEffects] = await Promise.all([
@@ -523,6 +537,12 @@ export function CreateMarketing() {
   }, [loadList]);
 
   useEffect(() => {
+    getPromotionsPaginated({ page: 1, pageSize: 80, status: 'active', approvalStatus: 'approved' })
+      .then((result) => setPromotionOptions(result.items ?? result.data ?? []))
+      .catch(() => setPromotionOptions([]));
+  }, []);
+
+  useEffect(() => {
     if (!triggerOptions.length || !searchParams.get('name')) return;
     const next = emptyForm();
     next.name = searchParams.get('name') || '';
@@ -536,9 +556,19 @@ export function CreateMarketing() {
       strategyText: searchParams.get('strategyText') || undefined,
       sourceRecommendationId: searchParams.get('sourceRecommendationId') || undefined,
       predictionRunId: searchParams.get('predictionRunId') || undefined,
+      attribution: parseJsonParam<Record<string, unknown> | undefined>(searchParams.get('attribution'), undefined),
       sourceSignals: parseJsonParam<string[]>(searchParams.get('sourceSignals'), []),
       recommendedItems: parseJsonParam<string[]>(searchParams.get('recommendedItems'), []),
     };
+    next.attribution = nextContext.attribution ?? (nextContext.sourceRecommendationId ? {
+      source: 'recommendation',
+      sourceRecommendationId: nextContext.sourceRecommendationId,
+      predictionRunId: nextContext.predictionRunId,
+      sourceSignals: nextContext.sourceSignals ?? [],
+      recommendedItems: nextContext.recommendedItems ?? [],
+      targetAudience: nextContext.targetAudience,
+      offer: nextContext.offer,
+    } : undefined);
     const type = searchParams.get('trigger') as MarketingTriggerType | null;
     const option = triggerOptions.find((item) => item.type === type);
     if (option) {
@@ -559,7 +589,12 @@ export function CreateMarketing() {
       }
     }
     try {
-      const actions = JSON.parse(searchParams.get('actions') || '[]') as Array<{ type: MarketingAction['type']; value: string }>;
+      const actions = JSON.parse(searchParams.get('actions') || '[]') as Array<{
+        type: MarketingAction['type'];
+        value: string;
+        promotionId?: number;
+        promotionName?: string;
+      }>;
       const channels = searchParams.get('channels')?.split(',').filter(Boolean) || [];
       next.actions = actions.map((action, index) => ({
         ...action,
@@ -579,6 +614,8 @@ export function CreateMarketing() {
     setForm(next);
     setCopyContext(nextContext);
     setPreview(null);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature('');
     const shouldAutoGenerate = searchParams.get('autoGenerate') === 'true' && next.actions.length > 0;
     setStep(shouldAutoGenerate ? 2 : 1);
     setShowEditor(true);
@@ -597,6 +634,8 @@ export function CreateMarketing() {
     setForm(emptyForm());
     setCopyContext({});
     setPreview(null);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature('');
     setStep(1);
     setShowEditor(true);
   };
@@ -607,6 +646,8 @@ export function CreateMarketing() {
     setForm(createForm(strategy));
     setCopyContext({});
     setPreview(null);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature('');
     setStep(1);
     setShowEditor(true);
   };
@@ -619,6 +660,8 @@ export function CreateMarketing() {
     setForm(next);
     setCopyContext({});
     setPreview(null);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature('');
     setStep(1);
     setShowEditor(true);
   };
@@ -649,6 +692,8 @@ export function CreateMarketing() {
       actions: templateActions.length ? templateActions : current.actions,
     }));
     setPreview(null);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature('');
   };
 
   const setRuleParam = (type: MarketingTriggerType, key: string, value: MarketingParamValue) => {
@@ -659,6 +704,8 @@ export function CreateMarketing() {
       ),
     }));
     setPreview(null);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature('');
   };
 
   const addAction = () => {
@@ -679,9 +726,29 @@ export function CreateMarketing() {
     setForm((current) => ({ ...current, actions: current.actions.filter((_, currentIndex) => currentIndex !== index) }));
   };
 
+  const selectPromotionForAction = (index: number, promotionIdText: string) => {
+    const promotionId = promotionIdText ? Number(promotionIdText) : undefined;
+    const promotion = promotionOptions.find((item) => item.id === promotionId);
+    updateAction(index, promotion ? {
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      value: promotion.discountText,
+      type: promotion.type === 'gift' || promotion.type === 'member_privilege' ? 'gift' : promotion.type === 'percentage_off' ? 'discount' : 'coupon',
+    } : {
+      promotionId: undefined,
+      promotionName: undefined,
+    });
+  };
+
   const selectedRule = form.triggerRules[0];
   const selectedOption = findOptionForRule(triggerOptions, selectedRule, form.ruleTemplateId);
   const selectedRuleKey = selectedOption ? optionKey(selectedOption) : '';
+  const previewSamples = asArray(preview?.samples);
+  const previewMetricValues = {
+    reached: previewLoading && !preview ? '预估中...' : `${preview?.estimatedReachedCount ?? preview?.total ?? 0} 人`,
+    converted: previewLoading && !preview ? '预估中...' : `${preview?.estimatedConvertedCount ?? 0} 人`,
+    revenue: previewLoading && !preview ? '预估中...' : `¥${Number(preview?.estimatedRevenue ?? 0).toLocaleString()}`,
+  };
 
   const generateActionCopy = useCallback(async (index: number) => {
     const action = form.actions[index];
@@ -729,12 +796,23 @@ export function CreateMarketing() {
     void generateAllActionCopies(form, copyContext, selectedOption);
   }, [autoGenerateCopyPending, copyContext, form, generateAllActionCopies, selectedOption, showEditor, step]);
 
-  const handlePreview = async () => {
+  const previewSignature = useMemo(
+    () => JSON.stringify({
+      strategyId: selected?.id ?? 'draft',
+      triggerRules: form.triggerRules,
+      ruleRelation: form.ruleRelation,
+    }),
+    [form.ruleRelation, form.triggerRules, selected?.id],
+  );
+
+  const handlePreview = useCallback(async (options?: { silent?: boolean }) => {
     if (!form.triggerRules.length) {
-      toast.error('请至少选择一个提醒条件');
+      if (!options?.silent) toast.error('请至少选择一个提醒条件');
       return;
     }
     setPreviewLoading(true);
+    setPreviewCustomersOpen(false);
+    setPreviewRequestSignature(previewSignature);
     try {
       const response = await previewAutomationAudience(selected?.id || 'draft', {
         triggerRules: form.triggerRules,
@@ -742,11 +820,17 @@ export function CreateMarketing() {
       });
       setPreview(normalizePreview(response));
     } catch {
-      toast.error('命中客户预估失败');
+      if (!options?.silent) toast.error('命中客户预估失败');
     } finally {
       setPreviewLoading(false);
     }
-  };
+  }, [form.ruleRelation, form.triggerRules, previewSignature, selected?.id]);
+
+  useEffect(() => {
+    if (!showEditor || step !== 3 || !form.triggerRules.length || previewLoading) return;
+    if (previewRequestSignature === previewSignature) return;
+    void handlePreview({ silent: true });
+  }, [form.triggerRules.length, handlePreview, previewLoading, previewRequestSignature, previewSignature, showEditor, step]);
 
   const validateForm = () => {
     if (!form.name.trim()) return '请输入触达名称';
@@ -923,7 +1007,8 @@ export function CreateMarketing() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>触达</TableHead>
+              <TableHead>名称</TableHead>
+              <TableHead>规则</TableHead>
               <TableHead>来源</TableHead>
               <TableHead>提醒条件</TableHead>
               <TableHead>状态</TableHead>
@@ -939,7 +1024,9 @@ export function CreateMarketing() {
                 <TableRow key={strategy.id}>
                   <TableCell>
                     <div className="font-medium text-gray-900">{strategy.name}</div>
-                    <div className="mt-1 max-w-64 text-xs text-gray-500">{strategy.description}</div>
+                  </TableCell>
+                  <TableCell className="max-w-72 text-xs leading-relaxed text-gray-500">
+                    {strategy.description || '-'}
                   </TableCell>
                   <TableCell>
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
@@ -1083,6 +1170,21 @@ export function CreateMarketing() {
               {form.actions.length === 0 && <div className="rounded-md border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">请添加优惠或触达动作</div>}
               {asArray(form.actions).map((action, index) => (
                 <div key={index} className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">关联权益资产</label>
+                    <select
+                      value={action.promotionId ?? ''}
+                      onChange={(event) => selectPromotionForAction(index, event.target.value)}
+                      className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
+                    >
+                      <option value="">不关联权益资产，手动填写动作内容</option>
+                      {promotionOptions.map((promotion) => (
+                        <option key={promotion.id} value={promotion.id}>
+                          {promotion.name}｜{promotion.discountText}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="grid grid-cols-[130px_150px_1fr_auto] gap-3">
                     <select value={action.type} onChange={(event) => updateAction(index, { type: event.target.value as MarketingAction['type'] })} className="h-9 rounded-md border border-gray-300 px-2 text-sm">
                       <option value="coupon">优惠券</option><option value="discount">折扣</option><option value="gift">赠品</option><option value="points">积分</option><option value="sms">通知</option>
@@ -1127,26 +1229,43 @@ export function CreateMarketing() {
                   <div>触达动作：<span className="font-medium text-gray-900">{form.actions.length} 项</span></div>
                 </div>
               </div>
-              <div>
-                <Button variant="outline" onClick={() => void handlePreview()} disabled={previewLoading}>
-                  {previewLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Target className="mr-2 h-4 w-4" />}
-                  预估命中客户
-                </Button>
-              </div>
-              {preview && (
-                <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/30 p-4">
-                  <div className="grid grid-cols-3 gap-3 text-sm">
-                    <Metric title="预计触达" value={`${preview.estimatedReachedCount ?? preview.total} 人`} />
-                    <Metric title="预计转化" value={`${preview.estimatedConvertedCount ?? 0} 人`} />
-                    <Metric title="预计收入" value={`¥${(preview.estimatedRevenue ?? 0).toLocaleString()}`} />
+              <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/30 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                    {previewLoading ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : <Target className="h-4 w-4 text-blue-600" />}
+                    预估命中客户
                   </div>
-                  {asArray(preview.samples).length === 0 ? (
-                    <div className="py-5 text-center text-sm text-gray-500">当前规则没有命中客户，请调整参数后重试。</div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => void handlePreview()} disabled={previewLoading}>
+                      重新预估
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPreviewCustomersOpen((open) => !open)}
+                      disabled={previewLoading || !preview}
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      {previewCustomersOpen ? '收起用户' : '查看用户'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <Metric title="预计触达" value={previewMetricValues.reached} />
+                  <Metric title="预计转化" value={previewMetricValues.converted} />
+                  <Metric title="预计收入" value={previewMetricValues.revenue} />
+                </div>
+                {!preview && !previewLoading && (
+                  <div className="rounded-md bg-white px-3 py-2 text-sm text-gray-500">暂未获取预估结果，可点击“重新预估”。</div>
+                )}
+                {previewCustomersOpen && (
+                  previewSamples.length === 0 ? (
+                    <div className="rounded-md bg-white py-5 text-center text-sm text-gray-500">当前规则没有命中客户，请调整参数后重试。</div>
                   ) : (
                     <Table>
                       <TableHeader><TableRow><TableHead>客户</TableHead><TableHead>会员等级</TableHead><TableHead>预测转化</TableHead><TableHead>LTV层级</TableHead><TableHead>预计收入</TableHead><TableHead>命中原因</TableHead></TableRow></TableHeader>
                       <TableBody>
-                        {asArray(preview.samples).map((customer) => (
+                        {previewSamples.map((customer) => (
                           <TableRow key={customer.id}>
                             <TableCell>{customer.name}<div className="text-xs text-gray-400">{customer.phone}</div></TableCell>
                             <TableCell>{customer.memberLevel}</TableCell>
@@ -1158,9 +1277,9 @@ export function CreateMarketing() {
                         ))}
                       </TableBody>
                     </Table>
-                  )}
-                </div>
-              )}
+                  )
+                )}
+              </div>
               <div className="flex justify-between pt-2">
                 <Button variant="outline" onClick={() => setStep(2)}>上一步</Button>
                 <div className="flex gap-3">
