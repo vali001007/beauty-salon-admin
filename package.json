@@ -17,6 +17,7 @@
     "db:migrate:v2": "npm --prefix packages/server-v2 run db:migrate",
     "db:generate:v2": "npm --prefix packages/server-v2 run db:generate",
     "db:seed:demo": "npm --prefix packages/server-v2 run db:seed:mvp",
+    "db:seed:demo:dry-run": "npm --prefix packages/server-v2 run db:seed:mvp:dry-run",
     "db:seed:promotion-assets": "npm --prefix packages/server-v2 run db:seed:promotion-assets",
     "db:seed:promotion-assets:dry-run": "npm --prefix packages/server-v2 run db:seed:promotion-assets:dry-run",
     "db:seed:promotion-assets:verify": "npm --prefix packages/server-v2 run db:seed:promotion-assets:verify",
