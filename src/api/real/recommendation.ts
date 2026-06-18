@@ -5,6 +5,8 @@ import apiClient from '../client';
 export type MarketingRecommendationQuery = {
   scope?: 'all' | 'customer' | 'product-project';
   type?: string;
+  limit?: number;
+  refresh?: boolean;
 };
 
 export async function realGetMarketingRecommendations(params?: MarketingRecommendationQuery): Promise<Recommendation[]> {

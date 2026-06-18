@@ -1215,6 +1215,8 @@ model MarketingActivity {
   audienceSnapshotJson   Json?
   sourceSignalsJson      Json?
   offerJson              Json?
+  primaryPromotionId     Int?
+  promotionIdsJson       Json?
   recommendedItemsJson   Json?
   aiGenerationId         String?
   publishStatus          String?
@@ -1222,10 +1224,13 @@ model MarketingActivity {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
+  primaryPromotion Promotion? @relation(fields: [primaryPromotionId], references: [id], onDelete: SetNull)
+
   @@index([status])
   @@index([publishStatus])
   @@index([sourceRecommendationId])
   @@index([predictionRunId])
+  @@index([primaryPromotionId])
 }
 
 model MarketingPage {
@@ -1580,6 +1585,27 @@ model RecommendationEvent {
   @@index([orderId])
 }
 
+model MarketingRecommendationSnapshot {
+  id              Int      @id @default(autoincrement())
+  storeId         Int?
+  scope           String   @default("customer")
+  type            String?
+  predictionRunId Int?
+  cacheKey        String   @unique
+  cardsJson       Json
+  cardCount       Int      @default(0)
+  sourceVersion   String   @default("rules-v2")
+  generatedAt     DateTime @default(now())
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([storeId, scope, type])
+  @@index([predictionRunId])
+  @@index([generatedAt])
+  @@index([expiresAt])
+}
+
 model TerminalFollowUpTask {
   id                      Int       @id @default(autoincrement())
   storeId                 Int
@@ -1789,10 +1815,30 @@ model CustomerBalanceTransaction {
 model Promotion {
   id                   Int       @id @default(autoincrement())
   storeId              Int?
+  code                 String?
   name                 String
   description          String?
   discountText         String
+  type                 String    @default("money_off")
+  source               String    @default("store")
+  scenario             String?
+  audienceTags         Json?
+  applicableCustomerLevels Json?
   applicableProjectIds Int[]
+  thresholdAmount      Decimal?
+  discountAmount       Decimal?
+  discountRate         Int?
+  giftText             String?
+  validDays            Int?
+  maxIssueCount        Int?
+  issuedCount          Int       @default(0)
+  usedCount            Int       @default(0)
+  estimatedCost        Decimal?
+  grossMarginGuard     Json?
+  stackable            Boolean   @default(false)
+  approvalStatus       String    @default("approved")
+  createdByRecommendationId String?
+  metadata             Json?
   startAt              DateTime?
   endAt                DateTime?
   status               String    @default("active")
@@ -1800,9 +1846,15 @@ model Promotion {
   updatedAt            DateTime  @updatedAt
 
   store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  marketingActivities MarketingActivity[]
 
+  @@unique([code])
   @@index([storeId])
   @@index([status])
+  @@index([type])
+  @@index([source])
+  @@index([scenario])
+  @@index([approvalStatus])
   @@index([startAt, endAt])
 }
 

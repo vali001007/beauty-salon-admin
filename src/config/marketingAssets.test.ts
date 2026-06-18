@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MARKETING_SHARE_BASE_URL, buildMarketingPageUrl } from './marketingAssets';
+import { MARKETING_SHARE_BASE_URL, buildMarketingPageUrl, normalizeMarketingShareUrl } from './marketingAssets';
 
 describe('marketing page share URLs', () => {
   it('builds a stable public page URL with channel attribution params', () => {
@@ -27,5 +27,26 @@ describe('marketing page share URLs', () => {
 
   it('encodes slugs without losing the public page route', () => {
     expect(buildMarketingPageUrl('mp product 101')).toBe(`${MARKETING_SHARE_BASE_URL}/page/mp%20product%20101`);
+  });
+
+  it('rewrites legacy placeholder miniapp domain to the configured H5 base URL', () => {
+    expect(normalizeMarketingShareUrl('https://mini.ami-core.com/page/mp-product-101')).toBe(
+      `${MARKETING_SHARE_BASE_URL}/page/mp-product-101`,
+    );
+  });
+
+  it('rewrites local terminal or legacy conflicting ports to the marketing H5 base URL', () => {
+    expect(normalizeMarketingShareUrl('http://127.0.0.1:5175/page/mp-product-101')).toBe(
+      `${MARKETING_SHARE_BASE_URL}/page/mp-product-101`,
+    );
+    expect(normalizeMarketingShareUrl('http://localhost:5176/page/mp-product-101')).toBe(
+      `${MARKETING_SHARE_BASE_URL}/page/mp-product-101`,
+    );
+  });
+
+  it('does not rewrite unrelated local admin origins unless explicitly unsafe', () => {
+    expect(normalizeMarketingShareUrl('http://localhost:5174/page/mp-product-101')).toBe(
+      'http://localhost:5174/page/mp-product-101',
+    );
   });
 });

@@ -119,6 +119,7 @@ describe('API facades', () => {
     const realUpdateAutomationStrategy = vi.fn(async (_id, data) => ({ id: 1, ...data }));
     const realDeleteAutomationStrategy = vi.fn(async () => undefined);
     const realRecordCustomerBehaviorEvent = vi.fn(async (data) => ({ id: 1, ...data }));
+    const realGetMarketingActivityById = vi.fn(async (id) => ({ id, title: '活动详情' }));
     const realGetInvitationCandidates = vi.fn(async () => ({ items: [], generatedAt: '2026-06-15T00:00:00.000Z', source: 'prediction' }));
     const realGetMarketingRuleTemplatesPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
     const realCloneMarketingRuleTemplate = vi.fn(async (id) => ({ id, source: 'store' }));
@@ -132,6 +133,7 @@ describe('API facades', () => {
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/marketing', () => ({
       realGetMarketingActivities: vi.fn(),
+      realGetMarketingActivityById,
       realCreateMarketingActivity: vi.fn(),
       realUpdateMarketingActivity: vi.fn(),
       realCreateStrategy: vi.fn(),
@@ -189,6 +191,7 @@ describe('API facades', () => {
     await api.previewAutomationAudience('draft', { triggerRules: [], ruleRelation: 'AND' });
     await api.updateAutomationStrategy(1, payload);
     await api.deleteAutomationStrategy(1);
+    await api.getMarketingActivityById(3);
     await api.recordCustomerBehaviorEvent({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
     await api.getInvitationCandidates({ limit: 10 });
     await api.getMarketingRuleTemplatesPaginated({ page: 1, pageSize: 10 });
@@ -199,6 +202,7 @@ describe('API facades', () => {
     expect(realPreviewAutomationAudience).toHaveBeenCalledWith('draft', { triggerRules: [], ruleRelation: 'AND' });
     expect(realUpdateAutomationStrategy).toHaveBeenCalledWith(1, payload);
     expect(realDeleteAutomationStrategy).toHaveBeenCalledWith(1);
+    expect(realGetMarketingActivityById).toHaveBeenCalledWith(3);
     expect(realRecordCustomerBehaviorEvent).toHaveBeenCalledWith({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
     expect(realGetInvitationCandidates).toHaveBeenCalledWith({ limit: 10 });
     expect(realGetMarketingRuleTemplatesPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10 });

@@ -52,6 +52,7 @@ import {
   realGetInvitationCandidates,
   realGetLatestPredictionSummary,
   realGetMarketingActivities,
+  realGetMarketingActivityById,
   realGetMarketingRuleTemplateById,
   realGetMarketingRuleTemplateEffects,
   realGetMarketingRuleTemplatesPaginated,
@@ -75,6 +76,9 @@ export type { MarketingStrategy, StrategyEffectSummary };
 
 export const getMarketingActivities: () => Promise<MarketingActivity[]> =
   realGetMarketingActivities;
+
+export const getMarketingActivityById: (id: number) => Promise<MarketingActivity> =
+  realGetMarketingActivityById;
 
 export const createMarketingActivity: (data: Omit<MarketingActivity, 'id'>) => Promise<MarketingActivity> =
   realCreateMarketingActivity;
@@ -200,6 +204,7 @@ export const getAutomationEffects: () => Promise<MarketingAutomationEffect[]> =
 
 export const getUnifiedMarketingEffects: (params?: {
   objectType?: 'all' | MarketingEffectObjectType;
+  objectId?: number | string;
   storeId?: number;
 }) => Promise<UnifiedMarketingEffectsResponse> =
   realGetUnifiedMarketingEffects;

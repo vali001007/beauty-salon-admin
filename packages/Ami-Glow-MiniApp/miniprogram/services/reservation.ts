@@ -12,6 +12,7 @@ export function createReservation(data: {
   customerPhone?: string;
   remark?: string;
   channel?: string;
+  promotionId?: number;
 }) {
   return request<ReservationItem>("/customer-app/reservations", {
     method: "POST",

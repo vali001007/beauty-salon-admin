@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router';
-import { Plus, Eye, Users, Calendar, TrendingUp, Target, Tag, Clock, DollarSign, BarChart3, Smartphone } from 'lucide-react';
+import { Plus, Eye, Users, Calendar, TrendingUp, Smartphone } from 'lucide-react';
 import { CreateActivityDialog } from '../components/CreateActivityDialog';
 import { ActivityMiniPage, type ActivityPageData } from '../components/ActivityMiniPage';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { getMarketingActivities } from '@/api/marketing';
+import {
+  buildActivityEffectFallback,
+  MarketingEffectDetailDialog,
+} from '../components/MarketingEffectDetailDialog';
+import { getMarketingActivities, getUnifiedMarketingEffects } from '@/api/marketing';
 import { getMarketingPagesPaginated } from '@/api/marketingPage';
-import { buildMarketingPageUrl } from '@/config/marketingAssets';
+import { buildMarketingPageUrl, normalizeMarketingShareUrl } from '@/config/marketingAssets';
 import { toast } from 'sonner';
-import type { MarketingActivity, MarketingPage } from '@/types';
+import type { MarketingActivity, MarketingPage, UnifiedMarketingEffectItem } from '@/types';
 import type { ActivityPageSchema } from '@/types/ai';
 
 function formatActivityDate(value?: string) {
@@ -60,25 +62,30 @@ function buildActivityPageData(activity: MarketingActivity): ActivityPageData {
   };
 }
 
+function getActivityPromotionLabel(activity: MarketingActivity) {
+  return activity.primaryPromotion?.name || activity.offerJson?.promotionName || null;
+}
+
 function getMarketingPageUrl(page: MarketingPage) {
-  return page.shareUrl || buildMarketingPageUrl(page.slug);
+  return normalizeMarketingShareUrl(page.shareUrl) || buildMarketingPageUrl(page.slug);
 }
 
 export function MarketingStrategy() {
-  const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState<MarketingActivity | null>(null);
   const [activityStatusFilter, setActivityStatusFilter] = useState('进行中');
   const [activities, setActivities] = useState<MarketingActivity[]>([]);
   const [activityPageData, setActivityPageData] = useState<ActivityPageData | null>(null);
+  const [detailActivity, setDetailActivity] = useState<MarketingActivity | null>(null);
+  const [detailEffectItem, setDetailEffectItem] = useState<UnifiedMarketingEffectItem | null>(null);
   const [activityPagesByActivityId, setActivityPagesByActivityId] = useState<Record<number, MarketingPage>>({});
+  const [activityEffectsByActivityId, setActivityEffectsByActivityId] = useState<Record<number, UnifiedMarketingEffectItem>>({});
 
   const loadActivities = useCallback(async () => {
     try {
-      const [data, pagesResponse] = await Promise.all([
+      const [data, pagesResponse, effectsResponse] = await Promise.all([
         getMarketingActivities(),
         getMarketingPagesPaginated({ page: 1, pageSize: 200, sourceType: 'activity' }),
+        getUnifiedMarketingEffects({ objectType: 'activity' }).catch(() => ({ items: [] as UnifiedMarketingEffectItem[] })),
       ]);
       const nextActivityPages = pagesResponse.items.reduce<Record<number, MarketingPage>>((acc, page) => {
         const activityId = Number(page.activityId ?? page.sourceId);
@@ -87,8 +94,14 @@ export function MarketingStrategy() {
         }
         return acc;
       }, {});
+      const nextActivityEffects = effectsResponse.items.reduce<Record<number, UnifiedMarketingEffectItem>>((acc, item) => {
+        const activityId = Number(item.objectId);
+        if (activityId && item.objectType === 'activity') acc[activityId] = item;
+        return acc;
+      }, {});
       setActivities(data);
       setActivityPagesByActivityId(nextActivityPages);
+      setActivityEffectsByActivityId(nextActivityEffects);
     } catch {
       toast.error('加载营销活动列表失败');
     }
@@ -106,6 +119,21 @@ export function MarketingStrategy() {
       case '即将开始': return 'bg-yellow-500 text-white';
       case '已结束': return 'bg-gray-400 text-white';
       default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const handleOpenActivityDetail = async (activity: MarketingActivity) => {
+    const fallback = buildActivityEffectFallback(activity);
+    setDetailActivity(activity);
+    setDetailEffectItem(fallback);
+    try {
+      const response = await getUnifiedMarketingEffects({ objectType: 'activity', objectId: activity.id });
+      const matchedEffect = response.items.find((item) => Number(item.objectId) === activity.id);
+      if (matchedEffect) {
+        setDetailEffectItem(matchedEffect);
+      }
+    } catch {
+      toast.warning('统一效果数据暂未加载，当前展示活动基础详情');
     }
   };
 
@@ -148,7 +176,12 @@ export function MarketingStrategy() {
 
       {/* 活动卡片网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredActivities.map((activity) => (
+        {filteredActivities.map((activity) => {
+          const page = activityPagesByActivityId[activity.id];
+          const effect = activityEffectsByActivityId[activity.id];
+          const viewCount = effect?.exposureCount ?? 0;
+          const isPagePublished = page?.status === 'published';
+          return (
           <div key={activity.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
             <div className="relative h-48" style={{ backgroundColor: activity.posterBg || '#6366f1' }}>
               {(activity.posterImage || activity.image) ? (
@@ -170,8 +203,11 @@ export function MarketingStrategy() {
               </div>
             </div>
             <div className="p-5">
-              <p className="text-sm text-gray-600 mb-4">{activity.description}</p>
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Eye className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600">浏览: {viewCount}次</span>
+                </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Users className="w-4 h-4 text-gray-400" />
                   <span className="text-gray-600">参与: {activity.participants}人</span>
@@ -180,7 +216,7 @@ export function MarketingStrategy() {
                   <TrendingUp className="w-4 h-4 text-gray-400" />
                   <span className="text-gray-600">转化: {activity.conversion}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm col-span-2">
+                <div className="flex items-center gap-2 text-sm col-span-3">
                   <Calendar className="w-4 h-4 text-gray-400" />
                   <span className="text-gray-600">
                     {formatActivityDate(activity.startDate)} 至 {formatActivityDate(activity.endDate)}
@@ -191,20 +227,27 @@ export function MarketingStrategy() {
                 <span className="text-xs text-gray-500">目标客户:</span>
                 <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs">{activity.targetCustomers}</span>
               </div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-gray-500">活动页:</span>
+                <span className={`px-2 py-1 rounded text-xs ${isPagePublished ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {isPagePublished ? '已发布，可用于小程序/H5链接' : '未发布，仅预览'}
+                </span>
+              </div>
+              {getActivityPromotionLabel(activity) && (
+                <div className="mb-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  权益资产：{getActivityPromotionLabel(activity)}｜{activity.discount}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    setSelectedActivity(activity);
-                    setShowDetailDialog(true);
-                  }}
+                  onClick={() => void handleOpenActivityDetail(activity)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                 >
-                  <Eye className="w-4 h-4" /> 查看详情
+                  <Eye className="w-4 h-4" /> 查看效果
                 </button>
                 <button
                   onClick={() => {
-                    const page = activityPagesByActivityId[activity.id];
-                    if (page?.status === 'published') {
+                    if (isPagePublished) {
                       window.open(getMarketingPageUrl(page), '_blank');
                       return;
                     }
@@ -212,18 +255,13 @@ export function MarketingStrategy() {
                   }}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                 >
-                  <Smartphone className="w-4 h-4" /> 查看活动页
-                </button>
-                <button
-                  onClick={() => navigate(`/customer-marketing/effect-analysis?objectType=activity&objectId=${activity.id}`)}
-                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <TrendingUp className="w-4 h-4" /> 查看效果
+                  <Smartphone className="w-4 h-4" /> {isPagePublished ? '打开发布页' : '预览活动页'}
                 </button>
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         {filteredActivities.length === 0 && (
           <div className="col-span-2 flex flex-col items-center justify-center py-16 text-gray-400">
             <Calendar className="w-12 h-12 mb-3" />
@@ -231,141 +269,6 @@ export function MarketingStrategy() {
           </div>
         )}
       </div>
-
-      {/* 活动详情弹窗 */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="activity-detail-desc">
-          <DialogHeader><DialogTitle>活动详情</DialogTitle></DialogHeader>
-          <span id="activity-detail-desc" className="sr-only">查看营销活动详细信息</span>
-          {selectedActivity && (
-            <div className="space-y-6 mt-2">
-              <div className="relative rounded-lg overflow-hidden h-56">
-                <img src={selectedActivity.image} alt={selectedActivity.title} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-4 left-5 right-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(selectedActivity.status)}`}>{selectedActivity.status}</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white">{selectedActivity.title}</h2>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                <div className="bg-blue-50 rounded-lg p-4 text-center">
-                  <Users className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                  <div className="text-xl font-bold text-blue-900">{selectedActivity.participants}</div>
-                  <div className="text-xs text-blue-600">参与人数</div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4 text-center">
-                  <TrendingUp className="w-5 h-5 text-green-600 mx-auto mb-1" />
-                  <div className="text-xl font-bold text-green-900">{selectedActivity.conversion}</div>
-                  <div className="text-xs text-green-600">转化率</div>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-4 text-center">
-                  <DollarSign className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-                  <div className="text-xl font-bold text-purple-900">¥{(selectedActivity.participants * 380).toLocaleString()}</div>
-                  <div className="text-xs text-purple-600">预估营收</div>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-4 text-center">
-                  <BarChart3 className="w-5 h-5 text-orange-600 mx-auto mb-1" />
-                  <div className="text-xl font-bold text-orange-900">¥{(selectedActivity.participants * 45).toLocaleString()}</div>
-                  <div className="text-xs text-orange-600">投入成本</div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-5 space-y-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">活动描述</div>
-                  <div className="text-sm text-gray-800">{selectedActivity.description}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <div className="text-xs text-gray-500">活动时间</div>
-                      <div className="text-sm text-gray-800">
-                        {formatActivityDate(selectedActivity.startDate)} 至 {formatActivityDate(selectedActivity.endDate)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <div className="text-xs text-gray-500">目标客户</div>
-                      <div className="text-sm text-gray-800">{selectedActivity.targetCustomers}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <div className="text-xs text-gray-500">优惠内容</div>
-                      <div className="text-sm font-medium text-blue-600">{selectedActivity.discount}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <div className="text-xs text-gray-500">活动状态</div>
-                      <div className="text-sm text-gray-800">
-                        {selectedActivity.status === '进行中'
-                          ? `进行中（剩余 ${Math.max(0, Math.ceil((new Date(selectedActivity.endDate).getTime() - Date.now()) / 86400000))} 天）`
-                          : selectedActivity.status}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">参与趋势（近7天）</h4>
-                <div className="flex items-end gap-2 h-24">
-                  {[65, 42, 78, 55, 90, 68, 85].map((val, idx) => (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full bg-blue-100 rounded-t relative" style={{ height: `${val}%` }}>
-                        <div className="absolute inset-0 bg-blue-500 rounded-t" />
-                      </div>
-                      <span className="text-[10px] text-gray-400">{['一', '二', '三', '四', '五', '六', '日'][idx]}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">最近参与客户</h4>
-                <div className="space-y-2">
-                  {[
-                    { name: '张女士', time: '2026-03-31 14:20', amount: '¥680' },
-                    { name: '王女士', time: '2026-03-31 11:05', amount: '¥520' },
-                    { name: '李女士', time: '2026-03-30 16:30', amount: '¥890' },
-                    { name: '赵女士', time: '2026-03-30 10:15', amount: '¥350' },
-                    { name: '刘女士', time: '2026-03-29 15:40', amount: '¥720' },
-                  ].map((customer, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-sm font-medium">{customer.name[0]}</div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-800">{customer.name}</div>
-                          <div className="text-xs text-gray-500">{customer.time}</div>
-                        </div>
-                      </div>
-                      <div className="text-sm font-medium text-blue-600">{customer.amount}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => { setShowDetailDialog(false); navigate(`/customer-marketing/effect-analysis?objectType=activity&objectId=${selectedActivity.id}`); }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                >
-                  <TrendingUp className="w-4 h-4" /> 查看数据复盘
-                </button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <CreateActivityDialog
         open={showCreateDialog}
@@ -377,6 +280,18 @@ export function MarketingStrategy() {
       {activityPageData && (
         <ActivityMiniPage data={activityPageData} onClose={() => setActivityPageData(null)} />
       )}
+
+      <MarketingEffectDetailDialog
+        open={Boolean(detailEffectItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailEffectItem(null);
+            setDetailActivity(null);
+          }
+        }}
+        item={detailEffectItem}
+        activity={detailActivity}
+      />
     </div>
   );
 }

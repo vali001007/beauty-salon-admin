@@ -12,6 +12,8 @@ import type {
   RecommendedChannel,
   RecommendedItem,
   RecommendedOffer,
+  RecommendationOfferFitBreakdown,
+  RecommendedPromotionMatch,
   RecommendedTriggerRule,
 } from '@/types';
 import { MARKETING_RECOMMENDATION_IMAGES } from '@/config/marketingAssets';
@@ -57,6 +59,9 @@ export interface Recommendation {
   triggerRule?: RecommendedTriggerRule;
   recommendedActions?: RecommendedAction[];
   offer?: RecommendedOffer;
+  primaryPromotion?: RecommendedPromotionMatch | null;
+  alternativePromotions?: RecommendedPromotionMatch[];
+  offerFitBreakdown?: RecommendationOfferFitBreakdown;
   recommendedItems?: RecommendedItem[];
   audienceSnapshot?: AudienceSnapshot;
   sourceSignals?: string[];
@@ -83,6 +88,21 @@ export interface Recommendation {
   expectedGrossProfit?: string;
   expectedLossAvoided?: string;
   riskWarnings?: string[];
+  executionState?: RecommendationExecutionState;
+}
+
+export interface RecommendationActionExecutionState {
+  done: boolean;
+  count: number;
+  lastAt?: string;
+  label?: string;
+  objectIds?: Array<number | string>;
+}
+
+export interface RecommendationExecutionState {
+  automation: RecommendationActionExecutionState;
+  activity: RecommendationActionExecutionState;
+  followUp: RecommendationActionExecutionState;
 }
 
 // ========== 季节 & 节日 ==========

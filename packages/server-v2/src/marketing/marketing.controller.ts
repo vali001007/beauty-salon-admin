@@ -30,8 +30,15 @@ export class MarketingController {
     @Headers('x-store-id') storeId?: string,
     @Query('scope') scope?: string,
     @Query('type') type?: string,
+    @Query('limit') limit?: string,
+    @Query('refresh') refresh?: string,
   ) {
-    return this.marketingService.getRecommendations(storeId ? Number(storeId) : undefined, { scope, type });
+    return this.marketingService.getRecommendations(storeId ? Number(storeId) : undefined, {
+      scope,
+      type,
+      limit: limit ? Number(limit) : undefined,
+      refresh: refresh === 'true',
+    });
   }
 
   @Get('recommendations/:id/audience')
@@ -406,11 +413,12 @@ export class MarketingController {
   @ApiOperation({ summary: '获取统一营销效果分析' })
   getUnifiedEffects(
     @Query('objectType') objectType?: string,
+    @Query('objectId') objectId?: string,
     @Query('storeId') storeId?: number,
     @Headers('x-store-id') headerStoreId?: string,
   ) {
     const scopedStoreId = storeId ? Number(storeId) : headerStoreId ? Number(headerStoreId) : undefined;
-    return this.marketingService.getUnifiedEffects({ objectType, storeId: scopedStoreId });
+    return this.marketingService.getUnifiedEffects({ objectType, objectId, storeId: scopedStoreId });
   }
 
   @Get('strategies/effects')

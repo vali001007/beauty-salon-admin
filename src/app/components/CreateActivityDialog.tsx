@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
@@ -14,11 +14,12 @@ import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
 import { getCustomerSegmentCount } from '@/api/customer';
 import { getProducts } from '@/api/product';
 import { getProjects } from '@/api/project';
+import { getPromotionsPaginated } from '@/api/promotion';
 import { useStoreStore } from '@/stores/storeStore';
 import { toast } from 'sonner';
 import { ActivityMiniPage } from './ActivityMiniPage';
 import { MARKETING_POSTER_TEMPLATES } from '@/config/marketingAssets';
-import type { AudienceSnapshot, Product, RecommendedItem, RecommendedOffer, Store } from '@/types';
+import type { AudienceSnapshot, Product, Promotion, RecommendedItem, RecommendedOffer, Store } from '@/types';
 import type {
   GenerateActivityPageResult,
   MarketingCopyChannel,
@@ -50,6 +51,7 @@ interface CreateActivityDialogProps {
     offerJson?: string;
     recommendedItemsJson?: string;
     sourceSignalsJson?: string;
+    tagsJson?: string;
   };
 }
 
@@ -63,15 +65,6 @@ const ACTIVITY_TYPES = [
   { value: '会员权益', label: '会员权益', desc: '会员等级权益维护' },
   { value: '生日特权', label: '生日特权', desc: '生日月专属优惠' },
   { value: '节日活动', label: '节日活动', desc: '节假日主题促销' },
-];
-
-const DISCOUNT_TYPES = [
-  { value: '折扣', label: '折扣（如8折）' },
-  { value: '满减', label: '满减（如满500减100）' },
-  { value: '赠品', label: '赠品（如赠送面膜）' },
-  { value: '积分', label: '积分（如双倍积分）' },
-  { value: '体验价', label: '体验价（如99元体验）' },
-  { value: '返现', label: '返现（如推荐返50元）' },
 ];
 
 const TARGET_SEGMENTS = [
@@ -187,6 +180,40 @@ function parseInitialJson<T>(value?: string): T | undefined {
   }
 }
 
+function normalizeCatalogName(value?: string) {
+  return String(value ?? '').replace(/\s+/g, '').toLowerCase();
+}
+
+function matchRecommendedCatalogIds<T extends { id: number; name: string }>(
+  recommendedItems: RecommendedItem[] | undefined,
+  catalogItems: T[],
+  types: RecommendedItem['type'][],
+) {
+  if (!recommendedItems?.length || !catalogItems.length) return [];
+  const candidates = recommendedItems.filter((item) => types.includes(item.type));
+  const catalogIds = new Set(catalogItems.map((item) => item.id));
+  const matchedIds = new Set<number>();
+
+  for (const item of candidates) {
+    if (item.id && catalogIds.has(Number(item.id))) {
+      matchedIds.add(Number(item.id));
+    }
+  }
+
+  const unmatchedNames = candidates
+    .filter((item) => !item.id || !catalogIds.has(Number(item.id)))
+    .map((item) => normalizeCatalogName(item.name))
+    .filter(Boolean);
+  for (const catalogItem of catalogItems) {
+    const catalogName = normalizeCatalogName(catalogItem.name);
+    if (unmatchedNames.some((name) => name === catalogName || catalogName.includes(name) || name.includes(catalogName))) {
+      matchedIds.add(catalogItem.id);
+    }
+  }
+
+  return [...matchedIds];
+}
+
 function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -210,6 +237,47 @@ function getActivityStatusFromPeriod(startDate: string, endDate: string): '进�
 
 function normalizeBooleanValue(value: boolean | string | undefined) {
   return value === true || value === 'true';
+}
+
+function parseStringArray(value?: string) {
+  const parsed = parseInitialJson<unknown>(value);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((item) => String(item ?? '').trim()).filter(Boolean);
+}
+
+function inferTargetCustomerFilters(initialData?: CreateActivityDialogProps['initialData']) {
+  const tags = parseStringArray(initialData?.tagsJson);
+  const sourceSignals = parseStringArray(initialData?.sourceSignalsJson);
+  const signal = [
+    initialData?.title,
+    initialData?.description,
+    initialData?.targetCustomers,
+    initialData?.strategy,
+    initialData?.category,
+    ...tags,
+    ...sourceSignals,
+  ].filter(Boolean).join(' ');
+
+  let segment = '';
+  if (/流失|沉睡|唤醒|回归|未到店|churn|dormant|winback/i.test(signal)) segment = '流失风险客户';
+  else if (/高价值|LTV|VIP|铂金|黄金|尊享|ltv/i.test(signal)) segment = '高价值客户';
+  else if (/潜在|高潜|复购窗口|复购|repurchase/i.test(signal)) segment = '潜在价值客户';
+  else if (/新客|新客户|首单|首次|new_customer/i.test(signal)) segment = '新客户';
+  else if (/稳定|老带新|裂变|referral/i.test(signal)) segment = '稳定客户';
+
+  let skinType = '';
+  if (/敏感|修护|舒缓|sensitive/i.test(signal)) skinType = '敏感肌肤';
+  else if (/干性|补水|保湿|dry/i.test(signal)) skinType = '干性肌肤';
+  else if (/油性|控油|清洁|oily/i.test(signal)) skinType = '油性肌肤';
+  else if (/混合|分区|combination/i.test(signal)) skinType = '混合肌肤';
+  else if (/中性|养护|neutral/i.test(signal)) skinType = '中性肌肤';
+
+  const specialTags = new Set<string>();
+  if (/VIP|高价值|LTV|铂金|黄金|尊享|会员权益|ltv/i.test(signal)) specialTags.add('VIP客户');
+  if (/生日|寿星|birthday/i.test(signal)) specialTags.add('本月生日');
+  if (/活跃|稳定|老带新|裂变|复购|高响应|response/i.test(signal)) specialTags.add('活跃会员');
+
+  return { segment, skinType, specialTags: [...specialTags] };
 }
 
 export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: CreateActivityDialogProps) {
@@ -241,6 +309,9 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
   const [useAiPageSchema, setUseAiPageSchema] = useState(false);
   const [isGeneratingPageSchema, setIsGeneratingPageSchema] = useState(false);
   const [aiPageResult, setAiPageResult] = useState<GenerateActivityPageResult | null>(null);
+  const [promotionOptions, setPromotionOptions] = useState<Promotion[]>([]);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
+  const autoGeneratedCopyKeyRef = useRef('');
 
   const { register, handleSubmit: rhfHandleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<MarketingActivityFormInput, unknown, MarketingActivityFormData>({
     resolver: zodResolver(marketingActivitySchema),
@@ -256,6 +327,8 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
   const watchedDiscountValue = watch('discountValue');
   const watchedStartDate = watch('startDate');
   const watchedEndDate = watch('endDate');
+  const selectedPromotionOption = promotionOptions.find((item) => item.id === selectedPromotionId);
+  const effectiveDiscountValue = selectedPromotionOption?.discountText || watchedDiscountValue || initialData?.discount || '';
   const currentStore = (currentStoreId
     ? stores.find((store) => store.id === currentStoreId)
     : stores[0]) as (Store & { phone?: string; city?: string }) | undefined;
@@ -275,6 +348,13 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       getProjects().then((list) => setProjectList(list.map((p: any) => ({ id: p.id, name: p.name, type: p.type, price: p.price })))).catch(() => {});
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    getPromotionsPaginated({ page: 1, pageSize: 50, status: 'active', approvalStatus: 'approved', storeId: currentStoreId })
+      .then((result) => setPromotionOptions(result.items ?? result.data ?? []))
+      .catch(() => setPromotionOptions([]));
+  }, [currentStoreId, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -323,19 +403,8 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       else if (cat.includes('member-care') || cat.includes('ltv')) activityType = '会员权益';
       else if (cat.includes('seasonal')) activityType = '节日活动';
 
-      // Auto-map target customer segment from targetCustomers text
-      let autoSegment = '';
-      let autoSkinType = '';
       const tc = initialData?.targetCustomers || '';
-      if (tc.includes('高价值') || tc.includes('铂金')) autoSegment = '高价值客户';
-      else if (tc.includes('潜在')) autoSegment = '潜在价值客户';
-      else if (tc.includes('流失') || tc.includes('沉睡')) autoSegment = '流失风险客户';
-      else if (tc.includes('新客')) autoSegment = '新客户';
-      else if (tc.includes('稳定')) autoSegment = '稳定客户';
-      if (tc.includes('敏感')) autoSkinType = '敏感肌肤';
-      else if (tc.includes('干性')) autoSkinType = '干性肌肤';
-      else if (tc.includes('油性')) autoSkinType = '油性肌肤';
-      else if (tc.includes('混合')) autoSkinType = '混合肌肤';
+      const autoTargetFilters = inferTargetCustomerFilters(initialData);
 
       const { startDate: startStr, endDate: endStr } = getDefaultActivityPeriod();
       const initialDescription = initialData?.description
@@ -354,22 +423,53 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       reset({
         title: initialData?.title || '', activityType, description: initialDescription,
         startDate: startStr, endDate: endStr, targetCustomers: tc,
-        targetSegment: '', targetSkinType: '', targetSpecialTags: [],
+        targetSegment: autoTargetFilters.segment,
+        targetSkinType: autoTargetFilters.skinType,
+        targetSpecialTags: autoTargetFilters.specialTags,
         discountType, discountValue: discountStr, discount: discountStr, budget: '', targetParticipants: '',
         targetRevenue: '', channels: [], maxUsagePerPerson: '1', minSpend: '', stackable: false, image: '',
       });
       setSelectedChannels(['短信', '小程序推送']);
-      setTargetSegment(autoSegment);
-      setTargetSkinType(autoSkinType);
-      setTargetSpecialTags(tc.includes('VIP') ? ['VIP客户'] : []);
+      setTargetSegment(autoTargetFilters.segment);
+      setTargetSkinType(autoTargetFilters.skinType);
+      setTargetSpecialTags(autoTargetFilters.specialTags);
+      setSelectedProjects([]);
+      setSelectedProducts([]);
       setCopyVariants([]);
       setSelectedCopyVariantId(null);
       setUseAiPageSchema(false);
       setIsGeneratingPageSchema(false);
       setAiPageResult(null);
+      autoGeneratedCopyKeyRef.current = '';
+      const parsedInitialOffer = parseInitialJson<RecommendedOffer>(initialData?.offerJson);
+      setSelectedPromotionId(parsedInitialOffer?.promotionId ?? null);
       setActivityStep(1);
     }
   }, [open, initialData, reset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const recommendedItems = parseInitialJson<RecommendedItem[]>(initialData?.recommendedItemsJson);
+    if (!recommendedItems?.length) return;
+
+    const projectIds = matchRecommendedCatalogIds(recommendedItems, projectList, ['project', 'package']);
+    const productIds = matchRecommendedCatalogIds(recommendedItems, productList, ['product']);
+    if (projectIds.length) setSelectedProjects(projectIds);
+    if (productIds.length) setSelectedProducts(productIds);
+  }, [initialData?.recommendedItemsJson, open, productList, projectList]);
+
+  const handleSelectPromotion = (promotionIdText: string) => {
+    const promotionId = promotionIdText ? Number(promotionIdText) : null;
+    setSelectedPromotionId(promotionId);
+    const promotion = promotionOptions.find((item) => item.id === promotionId);
+    if (!promotion) {
+      setValue('discountValue', initialData?.discount || '', { shouldValidate: true, shouldDirty: true });
+      setValue('discount', initialData?.discount || '', { shouldValidate: true, shouldDirty: true });
+      return;
+    }
+    setValue('discountValue', promotion.discountText, { shouldValidate: true, shouldDirty: true });
+    setValue('discount', promotion.discountText, { shouldValidate: true, shouldDirty: true });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -427,15 +527,15 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
     setSelectedChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]);
   };
 
-  const getTargetAudienceText = () => {
+  const getTargetAudienceText = useCallback(() => {
     const parts: string[] = [];
     if (targetSegment) parts.push(targetSegment);
     if (targetSkinType) parts.push(targetSkinType);
     parts.push(...targetSpecialTags);
     return parts.length > 0 ? parts.join(' + ') : initialData?.targetCustomers || '目标会员';
-  };
+  }, [initialData?.targetCustomers, targetSegment, targetSkinType, targetSpecialTags]);
 
-  const handleAdoptCopy = (variant: MarketingCopyStructured['variants'][number]) => {
+  const handleAdoptCopy = useCallback((variant: MarketingCopyStructured['variants'][number], options?: { silent?: boolean }) => {
     setSelectedCopyVariantId(variant.id);
     const fallback = buildCustomerFacingCopyFallback({
       title: watchedTitle || initialData?.title,
@@ -445,10 +545,13 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
       endDate: watchedEndDate,
     });
     setValue('description', sanitizeCustomerFacingCopy(variant.text, fallback), { shouldValidate: true, shouldDirty: true });
-    toast.success('已采用该版本文案');
-  };
+    if (!options?.silent) toast.success('已采用该版本文案');
+  }, [getTargetAudienceText, initialData?.discount, initialData?.title, setValue, watchedDiscountValue, watchedEndDate, watchedStartDate, watchedTitle]);
 
-  const handleGenerateCopy = async (styleInstruction?: MarketingCopyStyleInstruction) => {
+  const handleGenerateCopy = useCallback(async (
+    styleInstruction?: MarketingCopyStyleInstruction,
+    options?: { silent?: boolean },
+  ) => {
     setIsGeneratingCopy(true);
     try {
       const channels = CHANNELS
@@ -492,15 +595,61 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
         }));
       setCopyVariants(variants);
       const recommended = variants.find((item) => item.id === response.structured?.recommendedVariantId) ?? variants[0];
-      if (recommended) handleAdoptCopy(recommended);
+      if (recommended) handleAdoptCopy(recommended, { silent: options?.silent });
       else setValue('description', sanitizeCustomerFacingCopy(response.text || '', fallback), { shouldValidate: true, shouldDirty: true });
-      toast.success(styleInstruction ? '已生成新的文案版本' : 'AI 文案已生成');
+      if (!options?.silent) toast.success(styleInstruction ? '已生成新的文案版本' : 'AI 文案已生成');
     } catch (err: any) {
-      toast.error(err?.message || 'AI 文案生成失败');
+      if (!options?.silent) toast.error(err?.message || 'AI 文案生成失败');
     } finally {
       setIsGeneratingCopy(false);
     }
-  };
+  }, [
+    getTargetAudienceText,
+    handleAdoptCopy,
+    initialData?.category,
+    initialData?.discount,
+    initialData?.strategy,
+    initialData?.targetCustomers,
+    initialData?.title,
+    products,
+    projectList,
+    selectedChannels,
+    selectedProducts,
+    selectedProjects,
+    setValue,
+    storeName,
+    targetSegment,
+    targetSkinType,
+    targetSpecialTags,
+    watchedDiscountValue,
+    watchedEndDate,
+    watchedStartDate,
+    watchedTitle,
+  ]);
+
+  useEffect(() => {
+    if (!open || activityStep !== 3 || !initialData?.sourceRecommendationId || isGeneratingCopy) return;
+    const key = [
+      initialData.sourceRecommendationId,
+      watchedTitle,
+      effectiveDiscountValue,
+      getTargetAudienceText(),
+      selectedChannels.join(','),
+    ].join('|');
+    if (autoGeneratedCopyKeyRef.current === key) return;
+    autoGeneratedCopyKeyRef.current = key;
+    void handleGenerateCopy(undefined, { silent: true });
+  }, [
+    activityStep,
+    effectiveDiscountValue,
+    getTargetAudienceText,
+    handleGenerateCopy,
+    initialData?.sourceRecommendationId,
+    isGeneratingCopy,
+    open,
+    selectedChannels,
+    watchedTitle,
+  ]);
 
   const onSubmit = async (data: MarketingActivityFormData) => {
     const parts: string[] = [];
@@ -510,11 +659,13 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
     const targetLabel = parts.length > 0 ? parts.join(' + ') : '全部客户';
     const selectedProjectItems = getSelectedProjectItems();
     const selectedProductItems = getSelectedProductItems();
+    const selectedPromotion = promotionOptions.find((item) => item.id === selectedPromotionId);
+    const offerText = selectedPromotion?.discountText || data.discountValue || initialData?.discount || '';
     const localPageSchema = buildMarketingActivityPageSchema({
       title: data.title,
       description: data.description,
       activityType: data.activityType,
-      offer: data.discountValue || '',
+      offer: offerText,
       targetCustomers: targetLabel,
       startDate: data.startDate,
       endDate: data.endDate,
@@ -532,6 +683,17 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
     let pageAiGenerationId = `activity-page-${Date.now()}`;
     const parsedAudienceSnapshot = parseInitialJson<AudienceSnapshot>(initialData?.audienceSnapshotJson);
     const parsedOffer = parseInitialJson<RecommendedOffer>(initialData?.offerJson);
+    const activityOffer: RecommendedOffer | undefined = selectedPromotion
+      ? {
+          ...(parsedOffer ?? { type: selectedPromotion.type as RecommendedOffer['type'], label: selectedPromotion.discountText, reason: '来自权益资产库。' }),
+          type: (parsedOffer?.type ?? selectedPromotion.type) as RecommendedOffer['type'],
+          label: selectedPromotion.discountText,
+          promotionId: selectedPromotion.id,
+          promotionName: selectedPromotion.name,
+          validDays: selectedPromotion.validDays ?? parsedOffer?.validDays,
+          reason: parsedOffer?.reason ?? '来自权益资产库，活动投放和效果复盘可按权益维度追踪。',
+        }
+      : parsedOffer;
     const parsedRecommendedItems = parseInitialJson<RecommendedItem[]>(initialData?.recommendedItemsJson);
     const parsedSourceSignals = parseInitialJson<Record<string, unknown> | string[]>(initialData?.sourceSignalsJson);
 
@@ -542,7 +704,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
           const result = await generateActivityPage({
             campaignName: data.title,
             targetAudience: targetLabel,
-            offer: data.discountValue || '',
+            offer: offerText,
             projectNames: selectedProjectItems.map((item) => item.name),
             productNames: selectedProductItems.map((item) => item.name),
             startDate: data.startDate,
@@ -577,12 +739,14 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
         startDate: data.startDate,
         endDate: data.endDate,
         targetCustomers: targetLabel,
-        discount: data.discountValue || '',
+        discount: offerText,
         source: '手动创建',
         sourceRecommendationId: initialData?.sourceRecommendationId,
         predictionRunId: initialData?.predictionRunId,
         audienceSnapshotJson: parsedAudienceSnapshot,
-        offerJson: parsedOffer,
+        offerJson: activityOffer,
+        primaryPromotionId: activityOffer?.promotionId ?? null,
+        promotionIdsJson: activityOffer?.promotionId ? [activityOffer.promotionId] : [],
         recommendedItemsJson: parsedRecommendedItems,
         sourceSignalsJson: parsedSourceSignals,
         posterBg: currentPoster?.backgroundColor,
@@ -601,7 +765,7 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
           selectedProducts: selectedProductItems,
           selectedChannels,
           posterImage: currentPoster?.imageUrl,
-          offerJson: parsedOffer,
+          offerJson: activityOffer,
           audienceSnapshotJson: parsedAudienceSnapshot,
           recommendedItemsJson: parsedRecommendedItems,
           sourceSignalsJson: parsedSourceSignals,
@@ -780,18 +944,34 @@ export function CreateActivityDialog({ open, onClose, onSuccess, initialData }: 
             <div className="border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Tag className="w-5 h-5 text-blue-600" /> 优惠设置</h3>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">优惠类型 *</label>
-                    <select {...register('discountType')} className={inputCls}>
-                      {DISCOUNT_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                    </select>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">选择权益资产</label>
+                  <select
+                    value={selectedPromotionId ?? ''}
+                    onChange={(event) => handleSelectPromotion(event.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">请选择权益资产</option>
+                    {promotionOptions.map((promotion) => (
+                      <option key={promotion.id} value={promotion.id}>
+                        {promotion.name}｜{promotion.discountText}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">优惠内容来自权益资产库，活动投放和后续复盘按权益维度追踪。</p>
+                  {errors.discountValue && <p className="text-red-500 text-xs mt-1">请选择可用于本次活动的权益资产</p>}
+                </div>
+                <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3">
+                  <div className="text-xs text-amber-700">权益内容</div>
+                  <div className="mt-1 text-sm font-medium text-amber-900">
+                    {effectiveDiscountValue || '选择权益资产后自动带出'}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">优惠内容 *</label>
-                    <input type="text" {...register('discountValue')} className={inputCls} placeholder="如：8折、满500减100、赠送面膜" />
-                    {errors.discountValue && <p className="text-red-500 text-xs mt-1">{errors.discountValue.message}</p>}
-                  </div>
+                  {selectedPromotionOption && (
+                    <div className="mt-1 text-xs text-amber-700">
+                      {selectedPromotionOption.name}
+                      {selectedPromotionOption.validDays ? ` · 有效期 ${selectedPromotionOption.validDays} 天` : ''}
+                    </div>
+                  )}
                 </div>
 
                 {/* 参与项目 - 从API加载 */}

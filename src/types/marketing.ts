@@ -24,6 +24,15 @@ export interface MarketingActivity {
   audienceSnapshotJson?: AudienceSnapshot;
   sourceSignalsJson?: Record<string, unknown> | string[];
   offerJson?: RecommendedOffer;
+  primaryPromotionId?: number | null;
+  promotionIdsJson?: number[];
+  primaryPromotion?: {
+    id: number;
+    name: string;
+    discountText: string;
+    status?: string;
+    approvalStatus?: string;
+  } | null;
   recommendedItemsJson?: RecommendedItem[];
   aiGenerationId?: string;
   publishStatus?: 'draft' | 'published' | 'offline';
@@ -71,6 +80,9 @@ export interface MarketingRecommendation {
   triggerRule?: RecommendedTriggerRule;
   recommendedActions?: RecommendedAction[];
   offer?: RecommendedOffer;
+  primaryPromotion?: RecommendedPromotionMatch | null;
+  alternativePromotions?: RecommendedPromotionMatch[];
+  offerFitBreakdown?: RecommendationOfferFitBreakdown;
   recommendedItems?: RecommendedItem[];
   audienceSnapshot?: AudienceSnapshot;
   sourceSignals?: string[];
@@ -83,6 +95,21 @@ export interface MarketingRecommendation {
   expectedGrossProfit?: string;
   expectedLossAvoided?: string;
   riskWarnings?: string[];
+  executionState?: RecommendationExecutionState;
+}
+
+export interface RecommendationActionExecutionState {
+  done: boolean;
+  count: number;
+  lastAt?: string;
+  label?: string;
+  objectIds?: Array<number | string>;
+}
+
+export interface RecommendationExecutionState {
+  automation: RecommendationActionExecutionState;
+  activity: RecommendationActionExecutionState;
+  followUp: RecommendationActionExecutionState;
 }
 
 export type RecommendationPriority = 'P0' | 'P1' | 'P2' | 'P3';
@@ -139,6 +166,8 @@ export interface RecommendedTriggerRule {
 export interface RecommendedAction {
   type: MarketingAction['type'] | 'consultant_task';
   value: string;
+  promotionId?: number;
+  promotionName?: string;
   channel?: MarketingAction['channel'];
   reason: string;
 }
@@ -153,7 +182,12 @@ export interface RecommendedOffer {
     | 'member_privilege'
     | 'free_service'
     | 'bundle'
-    | 'low_peak_privilege';
+    | 'low_peak_privilege'
+    | 'discount'
+    | 'package_upgrade'
+    | 'stored_value_bonus'
+    | 'referral_reward'
+    | 'group_deal';
   label: string;
   threshold?: number;
   amount?: number;
@@ -161,6 +195,50 @@ export interface RecommendedOffer {
   validDays?: number;
   usableTimeRange?: string;
   reason: string;
+  promotionId?: number;
+  promotionName?: string;
+  fitScore?: number;
+  fitReason?: string;
+  riskWarnings?: string[];
+  draftSuggestion?: {
+    name: string;
+    type: string;
+    discountText: string;
+    reason: string;
+  };
+}
+
+export interface RecommendationOfferFitBreakdown {
+  scenarioScore?: number;
+  audienceScore?: number;
+  behaviorIntentScore?: number;
+  itemFitScore?: number;
+  timingUrgencyScore?: number;
+  valueProtectionScore?: number;
+  channelFitScore?: number;
+  operationFitScore?: number;
+  historicalEffectScore?: number;
+  fatiguePenalty?: number;
+  marginRiskPenalty?: number;
+  conflictPenalty?: number;
+}
+
+export interface RecommendedPromotionMatch {
+  promotionId: number;
+  promotionName?: string;
+  name: string;
+  discountText: string;
+  type: string;
+  scenario?: string | null;
+  source?: string;
+  fitScore: number;
+  fitLevel?: 'excellent' | 'good' | 'backup' | 'not_recommended';
+  fitReason?: string;
+  fitReasons?: string[];
+  riskWarnings?: string[];
+  scoreBreakdown?: RecommendationOfferFitBreakdown;
+  estimatedCost?: number;
+  promotion?: Record<string, unknown>;
 }
 
 export interface RecommendedItem {
@@ -256,7 +334,7 @@ export interface PredictionRunSummary {
   };
 }
 
-export type MarketingEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'glow';
+export type MarketingEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'recommendation' | 'glow';
 
 export interface UnifiedMarketingEffectItem {
   id: string;
@@ -277,6 +355,20 @@ export interface UnifiedMarketingEffectItem {
   detailPath?: string;
   emptyReason?: string;
   metricsSource: string;
+  relatedObjectName?: string;
+  audienceName?: string;
+  promotionName?: string;
+  channelName?: string;
+  recommendationAttribution?: {
+    sourceRecommendationId: string;
+    recommendationKey?: string;
+    recommendationType?: string;
+    originalPromotion?: Record<string, unknown> | null;
+    selectedPromotion?: Record<string, unknown> | null;
+    promotionSwitched: boolean;
+    originalOffer?: Record<string, unknown> | null;
+    selectedOffer?: Record<string, unknown> | null;
+  };
 }
 
 export interface UnifiedMarketingEffectSummary {
@@ -365,8 +457,11 @@ export interface MarketingTriggerRule {
 export interface MarketingAction {
   type: 'coupon' | 'discount' | 'gift' | 'points' | 'sms' | 'push' | 'wechat' | 'miniapp';
   value: string;
+  promotionId?: number;
+  promotionName?: string;
   channel?: 'sms' | 'miniapp' | 'wechat' | 'group' | 'store' | 'moments';
   contentTemplate?: string;
+  attribution?: Record<string, unknown>;
 }
 
 export interface MarketingSchedule {
@@ -375,6 +470,8 @@ export interface MarketingSchedule {
   weekdays?: number[];
   startDate?: string;
   endDate?: string;
+  attribution?: Record<string, unknown>;
+  frequencyCap?: Record<string, unknown>;
 }
 
 export interface MarketingAutomationStrategy {

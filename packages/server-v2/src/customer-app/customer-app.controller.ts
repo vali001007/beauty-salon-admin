@@ -178,6 +178,18 @@ export class CustomerAppController {
     return this.customerAppService.recordEvent(undefined, dto);
   }
 
+  @Post('promotions/:id/claim')
+  @ApiBearerAuth()
+  @UseGuards(CustomerAppAuthGuard)
+  @ApiOperation({ summary: 'Ami Glow 领取权益' })
+  claimPromotion(
+    @CurrentCustomerAppUser() user: CustomerAppTokenPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { storeId?: number; channel?: string; sessionId?: string },
+  ) {
+    return this.customerAppService.claimPromotion(user, id, dto);
+  }
+
   @Get('admin/display-configs')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
