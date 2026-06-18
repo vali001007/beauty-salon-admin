@@ -131,6 +131,7 @@ const MENU_ITEMS = [
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
       { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
+      { title: 'Agent 审计', path: '/system/agent-audit', icon: Sparkles, permission: 'core:system:view' },
     ],
   },
 ];

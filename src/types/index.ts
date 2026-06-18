@@ -44,3 +44,5 @@ export * from './ai';
 export * from './dashboard';
 export * from './promotion';
 export * from './supply-chain';
+export * from './businessQuery';
+export * from './agent';
