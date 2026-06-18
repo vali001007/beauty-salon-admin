@@ -5,7 +5,12 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class BeauticiansService {
   constructor(private prisma: PrismaService) {}
 
-  private includeRelations = { level: true, store: true, user: true };
+  private includeRelations = {
+    level: true,
+    store: true,
+    user: true,
+    projectSkills: { include: { project: true }, orderBy: { priority: 'asc' as const } },
+  };
 
   private normalizeStatus(status?: string) {
     if (!status) return undefined;
@@ -40,20 +45,18 @@ export class BeauticiansService {
   }
 
   private async assertUserBindingAvailable(storeId: number, userId?: number | null, currentBeauticianId?: number) {
-    if (!userId) return;
+    if (!userId) throw new BadRequestException('请选择系统管理-用户管理中的美容师角色用户');
     const user = await this.prisma.user.findFirst({
       where: {
         id: userId,
         deletedAt: null,
         status: 'active',
-        OR: [
-          { stores: { some: { storeId } } },
-          { roles: { some: { role: { key: { in: ['super_admin', 'store_manager'] } } } } },
-        ],
+        roles: { some: { role: { key: 'beautician' } } },
+        stores: { some: { storeId } },
       },
-      select: { id: true },
+      select: { id: true, name: true, phone: true },
     });
-    if (!user) throw new BadRequestException('所选系统账号无权绑定当前门店');
+    if (!user) throw new BadRequestException('请选择已启用且拥有当前门店范围的美容师角色系统用户');
 
     const existing = await this.prisma.beautician.findFirst({
       where: {
@@ -64,30 +67,96 @@ export class BeauticiansService {
       select: { id: true, name: true },
     });
     if (existing) throw new BadRequestException(`该系统账号已绑定美容师：${existing.name}`);
+    return user;
+  }
+
+  private normalizeProjectSkillNames(data: any) {
+    const values = Array.isArray(data.specialties)
+      ? data.specialties
+      : Array.isArray(data.projectNames)
+        ? data.projectNames
+        : [];
+    return [...new Set(values.map((item: unknown) => String(item ?? '').trim()).filter(Boolean))] as string[];
+  }
+
+  private async resolveProjectSkillIds(storeId: number, data: any) {
+    const explicitIds = Array.isArray(data.projectIds)
+      ? data.projectIds.map((item: unknown) => Number(item)).filter((item: number) => Number.isFinite(item) && item > 0)
+      : [];
+    const names = this.normalizeProjectSkillNames(data);
+    if (!explicitIds.length && !names.length) return [];
+
+    const projects = await this.prisma.project.findMany({
+      where: {
+        storeId,
+        deletedAt: null,
+        status: 'active',
+        OR: [
+          ...(explicitIds.length ? [{ id: { in: explicitIds } }] : []),
+          ...(names.length ? [{ name: { in: names } }] : []),
+        ],
+      },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+    return [...new Set(projects.map((project) => project.id))];
+  }
+
+  private async syncProjectSkills(beauticianId: number, projectIds: number[]) {
+    await this.prisma.beauticianProjectSkill.deleteMany({ where: { beauticianId } });
+    if (!projectIds.length) return;
+    await this.prisma.beauticianProjectSkill.createMany({
+      data: projectIds.map((projectId, index) => ({
+        beauticianId,
+        projectId,
+        skillLevel: 1,
+        certified: true,
+        priority: index,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   private async toBeauticianData(data: any, fallbackStoreId?: number, currentBeauticianId?: number) {
     const storeId = await this.resolveStoreId(data, fallbackStoreId);
     const rawUserId = data.userId === '' || data.userId === null || data.userId === undefined ? null : Number(data.userId);
     const userId = rawUserId && Number.isFinite(rawUserId) && rawUserId > 0 ? rawUserId : null;
-    await this.assertUserBindingAvailable(storeId, userId, currentBeauticianId);
+    const user = await this.assertUserBindingAvailable(storeId, userId, currentBeauticianId);
     const levelId = await this.resolveLevelId(data);
     const status = this.normalizeStatus(data.status);
+    const projectSkillIds = await this.resolveProjectSkillIds(storeId, data);
 
     return {
-      storeId,
-      userId,
-      name: String(data.name ?? '').trim(),
-      phone: data.phone ? String(data.phone) : null,
-      ...(levelId !== undefined ? { levelId } : {}),
-      ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
-      ...(status ? { status } : {}),
+      projectSkillIds,
+      payload: {
+        storeId,
+        userId,
+        name: String(user.name ?? '').trim(),
+        phone: user.phone ? String(user.phone) : null,
+        ...(levelId !== undefined ? { levelId } : {}),
+        ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+        ...(status ? { status } : {}),
+      },
     };
   }
 
-  async findAll(storeId?: number) {
-    const where: any = {};
+  private buildVisibleBeauticianWhere(storeId?: number) {
+    const where: any = {
+      user: {
+        is: {
+          deletedAt: null,
+          status: 'active',
+          roles: { some: { role: { key: 'beautician' } } },
+          ...(storeId ? { stores: { some: { storeId } } } : {}),
+        },
+      },
+    };
     if (storeId) where.storeId = storeId;
+    return where;
+  }
+
+  async findAll(storeId?: number) {
+    const where = this.buildVisibleBeauticianWhere(storeId);
     return this.prisma.beautician.findMany({
       where,
       include: this.includeRelations,
@@ -97,8 +166,7 @@ export class BeauticiansService {
 
   async findPaginated(query: { page?: number; pageSize?: number; keyword?: string; storeName?: string }, storeId?: number) {
     const { page = 1, pageSize = 20, keyword, storeName } = query;
-    const where: any = {};
-    if (storeId) where.storeId = storeId;
+    const where = this.buildVisibleBeauticianWhere(storeId);
     if (keyword) {
       where.OR = [
         { name: { contains: keyword, mode: 'insensitive' } },
@@ -129,16 +197,20 @@ export class BeauticiansService {
   }
 
   async create(data: any, storeId?: number) {
-    const payload = await this.toBeauticianData(data, storeId);
+    const { payload, projectSkillIds } = await this.toBeauticianData(data, storeId);
     if (!payload.name) throw new BadRequestException('美容师姓名不能为空');
-    return this.prisma.beautician.create({ data: payload, include: this.includeRelations });
+    const beautician = await this.prisma.beautician.create({ data: payload, include: this.includeRelations });
+    await this.syncProjectSkills(beautician.id, projectSkillIds);
+    return this.findById(beautician.id);
   }
 
   async update(id: number, data: any, storeId?: number) {
     await this.findById(id);
-    const payload = await this.toBeauticianData(data, storeId, id);
+    const { payload, projectSkillIds } = await this.toBeauticianData(data, storeId, id);
     if (!payload.name) throw new BadRequestException('美容师姓名不能为空');
-    return this.prisma.beautician.update({ where: { id }, data: payload, include: this.includeRelations });
+    await this.prisma.beautician.update({ where: { id }, data: payload, include: this.includeRelations });
+    await this.syncProjectSkills(id, projectSkillIds);
+    return this.findById(id);
   }
 
   async remove(id: number) {

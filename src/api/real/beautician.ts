@@ -6,17 +6,25 @@ type ApiBeautician = Omit<Partial<Beautician>, 'level' | 'status'> & {
   store?: { name?: string };
   level?: string | { name?: string };
   status?: Beautician['status'] | 'active' | 'inactive' | 'disabled';
+  projectSkills?: Array<{
+    project?: {
+      name?: string;
+    };
+  }>;
 };
 
 function normalizeBeautician(item: ApiBeautician): Beautician {
   const rawStatus = String(item.status ?? '');
+  const projectSpecialties = Array.isArray(item.projectSkills)
+    ? item.projectSkills.map((skill) => skill.project?.name).filter((name): name is string => Boolean(name))
+    : [];
   return {
     id: Number(item.id),
     userId: item.userId,
     name: item.name ?? '',
     phone: item.phone ?? '',
     level: typeof item.level === 'string' ? item.level : item.level?.name ?? '美容师',
-    specialties: item.specialties ?? ['面部护理', '肌肤管理'],
+    specialties: projectSpecialties.length ? projectSpecialties : item.specialties ?? [],
     status: rawStatus === 'active' || rawStatus === '在职' ? '在职' : rawStatus === '休假' ? '休假' : '离职',
     storeName: item.storeName ?? item.store?.name ?? '',
     joinDate: item.joinDate ?? (typeof item.createdAt === 'string' ? item.createdAt.slice(0, 10) : ''),

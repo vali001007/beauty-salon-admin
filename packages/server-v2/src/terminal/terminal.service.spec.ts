@@ -59,12 +59,15 @@ describe('TerminalService automation', () => {
       },
       reservation: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
       },
       customer: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
       },
       serviceTask: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
       },
       product: {
         findMany: jest.fn(),
@@ -76,6 +79,20 @@ describe('TerminalService automation', () => {
         count: jest.fn(),
         findFirst: jest.fn(),
         delete: jest.fn(),
+      },
+      terminalFollowUpTask: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+      },
+      recommendationEvent: {
+        create: jest.fn(),
+      },
+      user: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+      },
+      beautician: {
+        findFirst: jest.fn(),
       },
     };
     service = new TerminalService(prisma as any, {} as any, {} as any, commissionService as any, terminalDashboardCache as any);
@@ -703,6 +720,142 @@ describe('TerminalService automation', () => {
     expect(result.conversionType).toBe('terminal_followed_up');
   });
 
+  it('persists selected promotion and attribution in terminal follow-up task payload', async () => {
+    const dueAt = new Date('2026-06-18T12:00:00.000Z');
+    const dto = {
+      customerId: 10,
+      recommendationId: 101,
+      sourceRecommendationKey: 'care-cycle:101',
+      source: 'recommendation',
+      triggerType: 'vip_privilege_care',
+      promotionId: 31,
+      promotionName: 'VIP 专属护理礼遇',
+      offerJson: {
+        promotionId: 31,
+        promotionName: 'VIP 专属护理礼遇',
+        label: '到店专属护理权益',
+      },
+      attribution: {
+        sourceRecommendationId: '101',
+        promotionSwitched: true,
+      },
+      title: 'VIP 客户护理跟进',
+      assigneeRole: 'consultant',
+      channel: 'phone',
+      script: '介绍到店专属护理权益',
+      note: '承接权益：VIP 专属护理礼遇',
+      dueAt: dueAt.toISOString(),
+    };
+    prisma.customer.findFirst.mockResolvedValue({
+      id: 10,
+      storeId: 1,
+      name: '王女士',
+      phone: '13800000000',
+      memberLevel: 'VIP',
+    });
+    prisma.terminalFollowUpTask.findFirst.mockResolvedValue(null);
+    prisma.terminalFollowUpTask.create.mockImplementation(async ({ data }: any) => ({
+      id: 88,
+      ...data,
+      customer: { id: 10, name: '王女士', phone: '13800000000', memberLevel: 'VIP' },
+      createdAt: new Date('2026-06-17T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-17T10:00:00.000Z'),
+    }));
+    prisma.recommendationEvent.create.mockResolvedValue({ id: 3001 });
+
+    const result = await service.createFollowUpTask(1, undefined, dto as any, 7);
+
+    expect(prisma.terminalFollowUpTask.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recommendationId: 101,
+          sourceRecommendationKey: 'care-cycle:101',
+          assignedByUserId: 7,
+          payload: expect.objectContaining({
+            channel: 'phone',
+            sourcePayload: expect.objectContaining({
+              promotionId: 31,
+              promotionName: 'VIP 专属护理礼遇',
+              offerJson: expect.objectContaining({ promotionId: 31 }),
+              attribution: expect.objectContaining({ promotionSwitched: true }),
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(prisma.recommendationEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recommendationId: 101,
+          eventType: 'follow_up_created',
+          payload: expect.objectContaining({
+            promotionId: 31,
+            promotionName: 'VIP 专属护理礼遇',
+            attribution: expect.objectContaining({ sourceRecommendationId: '101' }),
+            terminalFollowUpTaskId: 88,
+          }),
+        }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({
+      id: 88,
+      customerId: 10,
+      channel: 'phone',
+      script: '介绍到店专属护理权益',
+    }));
+  });
+
+  it('assigns consultant follow-up to a concrete beautician when customer has no service history', async () => {
+    prisma.customer.findFirst.mockResolvedValue({
+      id: 12,
+      storeId: 1,
+      name: '李女士',
+      phone: '13900000000',
+      memberLevel: '普通会员',
+    });
+    prisma.serviceTask.findFirst.mockResolvedValue(null);
+    prisma.reservation.findFirst.mockResolvedValue(null);
+    prisma.beautician.findFirst.mockResolvedValue({ id: 21, userId: 301, name: '陈顾问' });
+    prisma.terminalFollowUpTask.findFirst.mockResolvedValue(null);
+    prisma.terminalFollowUpTask.create.mockImplementation(async ({ data }: any) => ({
+      id: 89,
+      ...data,
+      customer: { id: 12, name: '李女士', phone: '13900000000', memberLevel: '普通会员' },
+      assigneeBeautician: { id: 21, name: '陈顾问', userId: 301 },
+      createdAt: new Date('2026-06-17T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-17T10:00:00.000Z'),
+    }));
+    prisma.recommendationEvent.create.mockResolvedValue({ id: 3002 });
+
+    const result = await service.createFollowUpTask(1, undefined, {
+      customerId: 12,
+      recommendationId: 102,
+      title: '客户护理跟进',
+      assigneeRole: 'consultant',
+      channel: 'phone',
+      script: '确认护理需求',
+    } as any);
+
+    expect(prisma.terminalFollowUpTask.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assigneeRole: 'consultant',
+          assigneeUserId: 301,
+          assigneeBeauticianId: 21,
+          payload: expect.objectContaining({
+            assignmentReason: '无历史服务人，默认分派给门店美容师 陈顾问',
+          }),
+        }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({
+      id: 89,
+      assigneeUserId: 301,
+      assigneeBeauticianId: 21,
+      assignmentReason: '无历史服务人，默认分派给门店美容师 陈顾问',
+    }));
+  });
+
   it('records failed execution and continues due scan when one strategy fails', async () => {
     const strategy = {
       id: 7,
@@ -1286,10 +1439,20 @@ describe('TerminalService automation', () => {
       'ami_demo_full_cashier',
       'ami_demo_full_frontdesk',
       'ami_demo_full_beautician_01',
+      'no_terminal_access',
     ]);
     expect(bootstrap.terminalUsers.find((user: any) => user.username === 'ami_demo_full_cashier')?.availableRoles).toEqual(['reception']);
     expect(bootstrap.terminalUsers.find((user: any) => user.username === 'ami_demo_full_beautician_01')?.availableRoles).toEqual(['beautician']);
-    expect(bootstrap.terminalUsers.find((user: any) => user.username === 'no_terminal_access')).toBeUndefined();
+    expect(bootstrap.terminalUsers.find((user: any) => user.username === 'no_terminal_access')).toEqual(
+      expect.objectContaining({
+        availableRoles: [],
+        terminalAccess: false,
+        disabled: true,
+        roleLabel: '未配置终端权限',
+        disabledReason: '未配置智能终端权限',
+      }),
+    );
+    await expect(service.getBootstrap(6, 1, undefined, 99)).rejects.toThrow('当前账号未配置智能终端权限');
 
     const beauticianBootstrap = await service.getBootstrap(6, 1, undefined, 32);
     expect(beauticianBootstrap.currentUser).toEqual(expect.objectContaining({ id: 32, username: 'ami_demo_full_beautician_01' }));

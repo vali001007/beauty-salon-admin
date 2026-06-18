@@ -654,6 +654,17 @@ export class TerminalInventoryController {
   getPromotions(@CurrentDevice('storeId') storeId: number, @Query() query: any) {
     return this.terminalService.getPromotions(storeId, query);
   }
+
+  @Post('promotions/:id/use')
+  @ApiOperation({ summary: '核销权益并记录效果事件' })
+  usePromotion(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('id') deviceId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+  ) {
+    return this.terminalService.usePromotion(storeId, deviceId, { ...dto, promotionId: id });
+  }
 }
 
 @ApiTags('Terminal - 自动化')

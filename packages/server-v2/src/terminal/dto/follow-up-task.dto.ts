@@ -4,11 +4,13 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export const FOLLOW_UP_ASSIGNEE_ROLES = ['manager', 'consultant', 'reception'] as const;
@@ -46,6 +48,29 @@ export class CreateTerminalFollowUpTaskDto {
   @IsString()
   @MaxLength(80)
   triggerType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  promotionId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  promotionName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  offerJson?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  attribution?: Record<string, unknown>;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -129,6 +154,32 @@ export class CreateTerminalFollowUpTaskDto {
   dueAt?: string;
 }
 
+export class TerminalFollowUpTaskAssignmentDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  customerId: number;
+
+  @ApiPropertyOptional({ enum: FOLLOW_UP_ASSIGNEE_ROLES })
+  @IsOptional()
+  @IsIn(FOLLOW_UP_ASSIGNEE_ROLES)
+  assigneeRole?: (typeof FOLLOW_UP_ASSIGNEE_ROLES)[number];
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  assigneeUserId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  assigneeBeauticianId?: number;
+}
+
 export class BatchCreateTerminalFollowUpTaskDto extends CreateTerminalFollowUpTaskDto {
   @ApiProperty({ type: [Number] })
   @IsArray()
@@ -136,6 +187,13 @@ export class BatchCreateTerminalFollowUpTaskDto extends CreateTerminalFollowUpTa
   @IsInt({ each: true })
   @Min(1, { each: true })
   customerIds: number[];
+
+  @ApiPropertyOptional({ type: [TerminalFollowUpTaskAssignmentDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TerminalFollowUpTaskAssignmentDto)
+  assignments?: TerminalFollowUpTaskAssignmentDto[];
 }
 
 export class QueryTerminalFollowUpTasksDto {

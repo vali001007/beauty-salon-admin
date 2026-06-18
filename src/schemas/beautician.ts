@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const beauticianSchema = z.object({
-  userId: z.coerce.number().optional(),
+  userId: z.coerce.number().int().positive('请选择系统管理-用户管理中的美容师角色用户'),
   name: z.string().min(1, '美容师姓名不能为空'),
   phone: z.string().regex(/^1[3-9]\d{9}$/, '请输入有效的手机号码'),
   level: z.string().min(1, '请选择技师等级'),

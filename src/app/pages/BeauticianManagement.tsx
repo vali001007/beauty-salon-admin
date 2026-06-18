@@ -1,23 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, RotateCcw, Edit, Plus, Loader2 } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { beauticianSchema, type BeauticianFormData, type BeauticianFormInput } from '@/schemas/beautician';
 import { getBeauticians, createBeautician, updateBeautician } from '@/api/beautician';
+import { getProjects } from '@/api/project';
 import { getUsers } from '@/api/user';
+import { useStoreStore } from '@/stores/storeStore';
 import { toast } from 'sonner';
-import type { Beautician, SystemUser } from '@/types';
-
-const USER_STORE_NAMES: Record<number, string> = {
-  1: '凤仪阁美容养生会所',
-  2: '心悦美容养生会所',
-  3: '兰亭美容SPA馆',
-  4: '心悦茗美容养生会所',
-};
+import type { Beautician, Project, SystemUser } from '@/types';
 
 export function BeauticianManagement() {
+  const stores = useStoreStore((state) => state.stores);
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const loadStores = useStoreStore((state) => state.loadStores);
   const [searchStoreId, setSearchStoreId] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -26,22 +24,65 @@ export function BeauticianManagement() {
 
   const [beauticians, setBeauticians] = useState<Beautician[]>([]);
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [editingBeautician, setEditingBeautician] = useState<Beautician | null>(null);
 
   const totalRecords = beauticians.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<BeauticianFormInput, unknown, BeauticianFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, control } = useForm<BeauticianFormInput, unknown, BeauticianFormData>({
     resolver: zodResolver(beauticianSchema),
     defaultValues: {
       status: '在职',
       specialties: [],
-      storeName: '心悦茗美容养生会所',
+      storeName: '',
     },
   });
+  const selectedStoreName = useWatch({ control, name: 'storeName' });
+  const watchedSpecialties = useWatch({ control, name: 'specialties' });
+  const selectedSpecialties = useMemo(() => watchedSpecialties ?? [], [watchedSpecialties]);
 
-  const beauticianUsers = systemUsers.filter((user) => user.roles.includes('beautician') || user.primaryRole === 'beautician');
+  const availableStores = useMemo(
+    () => stores.filter((store) => store.status !== 'inactive' && store.status !== 'disabled'),
+    [stores],
+  );
+
+  const defaultStoreName = useMemo(() => {
+    const currentStore = currentStoreId ? availableStores.find((store) => store.id === currentStoreId) : undefined;
+    return currentStore?.name || availableStores[0]?.name || '';
+  }, [availableStores, currentStoreId]);
+
+  const projectSpecialtyOptions = useMemo(() => {
+    const activeProjects = projects.filter((project) => project.status);
+    const scopedProjects = selectedStoreName
+      ? activeProjects.filter((project) => !project.storeName || project.storeName === selectedStoreName)
+      : activeProjects;
+    return [...new Set(scopedProjects.map((project) => project.name).filter(Boolean))];
+  }, [projects, selectedStoreName]);
+
+  const boundUserIds = useMemo(
+    () =>
+      new Set(
+        beauticians
+          .map((beautician) => beautician.userId)
+          .filter((userId): userId is number => Boolean(userId) && userId !== editingBeautician?.userId),
+      ),
+    [beauticians, editingBeautician?.userId],
+  );
+
+  const beauticianUsers = useMemo(
+    () =>
+      systemUsers.filter(
+        (user) =>
+          user.status !== '禁用' &&
+          (user.roles.includes('beautician') || user.primaryRole === 'beautician') &&
+          !boundUserIds.has(user.id),
+      ),
+    [boundUserIds, systemUsers],
+  );
+
+  const systemUserRegistration = register('userId');
 
   const loadBeauticians = useCallback(async () => {
     try {
@@ -57,10 +98,34 @@ export function BeauticianManagement() {
   }, [loadBeauticians]);
 
   useEffect(() => {
+    loadStores().catch(() => toast.error('加载门店列表失败'));
+  }, [loadStores]);
+
+  useEffect(() => {
     getUsers()
       .then(setSystemUsers)
       .catch(() => toast.error('加载系统用户失败'));
   }, []);
+
+  useEffect(() => {
+    getProjects()
+      .then(setProjects)
+      .catch(() => toast.error('加载项目列表失败'));
+  }, []);
+
+  useEffect(() => {
+    if (!showDialog || editingBeautician || !defaultStoreName) return;
+    setValue('storeName', defaultStoreName, { shouldValidate: true });
+  }, [defaultStoreName, editingBeautician, setValue, showDialog]);
+
+  useEffect(() => {
+    if (!showDialog || projects.length === 0) return;
+    const allowed = new Set(projectSpecialtyOptions);
+    const nextSpecialties = selectedSpecialties.filter((item) => allowed.has(item));
+    if (nextSpecialties.length !== selectedSpecialties.length) {
+      setValue('specialties', nextSpecialties, { shouldValidate: true });
+    }
+  }, [projectSpecialtyOptions, projects.length, selectedSpecialties, setValue, showDialog]);
 
   const handleSelectSystemUser = (userId: string) => {
     if (!userId) {
@@ -74,17 +139,30 @@ export function BeauticianManagement() {
     setValue('userId', user.id, { shouldValidate: true });
     setValue('name', user.name, { shouldValidate: true });
     setValue('phone', user.phone, { shouldValidate: true });
-    const storeName = USER_STORE_NAMES[user.storeIds[0]];
-    if (storeName) setValue('storeName', storeName, { shouldValidate: true });
+    const matchedStore = availableStores.find((store) => user.storeIds.includes(store.id));
+    setValue('storeName', matchedStore?.name || defaultStoreName, { shouldValidate: true });
   };
 
   const onSubmit = async (data: BeauticianFormData) => {
+    const selectedUser = systemUsers.find((item) => item.id === Number(data.userId));
+    if (!selectedUser) {
+      toast.error('请选择系统管理-用户管理中的美容师角色用户');
+      return;
+    }
+
+    const payload = {
+      ...data,
+      userId: selectedUser.id,
+      name: selectedUser.name,
+      phone: selectedUser.phone,
+    };
+
     try {
       if (editingBeautician) {
-        await updateBeautician(editingBeautician.id, data);
+        await updateBeautician(editingBeautician.id, payload);
         toast.success('美容师更新成功');
       } else {
-        await createBeautician(data);
+        await createBeautician(payload);
         toast.success('美容师创建成功');
       }
       handleCloseDialog();
@@ -96,12 +174,15 @@ export function BeauticianManagement() {
 
   const handleOpenAdd = () => {
     setEditingBeautician(null);
-    reset({ userId: undefined, name: '', phone: '', status: '在职', specialties: [], storeName: '心悦茗美容养生会所' });
+    reset({ userId: undefined, name: '', phone: '', status: '在职', specialties: [], storeName: defaultStoreName });
     setShowDialog(true);
   };
 
   const handleOpenEdit = (beautician: Beautician) => {
     setEditingBeautician(beautician);
+    const storeName = availableStores.some((store) => store.name === beautician.storeName)
+      ? beautician.storeName
+      : defaultStoreName;
     reset({
       userId: beautician.userId,
       name: beautician.name,
@@ -109,7 +190,7 @@ export function BeauticianManagement() {
       level: beautician.level,
       specialties: beautician.specialties,
       status: beautician.status,
-      storeName: beautician.storeName,
+      storeName,
       joinDate: beautician.joinDate,
     });
     setShowDialog(true);
@@ -139,6 +220,13 @@ export function BeauticianManagement() {
 
   const handleReset = () => {
     setSearchStoreId('');
+  };
+
+  const toggleSpecialty = (projectName: string, checked: boolean) => {
+    const nextValues = checked
+      ? [...selectedSpecialties, projectName]
+      : selectedSpecialties.filter((item) => item !== projectName);
+    setValue('specialties', [...new Set(nextValues)], { shouldValidate: true });
   };
 
   const handleJumpToPage = () => {
@@ -184,7 +272,7 @@ export function BeauticianManagement() {
       {/* Action Buttons */}
       <div className="flex gap-2">
         <Button variant="default" className="gap-2 bg-[#1890ff]" onClick={handleOpenAdd}>
-          <Plus className="w-4 h-4" /> 新增
+          <Plus className="w-4 h-4" /> 从用户添加
         </Button>
         <Button variant="default" className="gap-2 bg-[#1890ff]">
           <Edit className="w-4 h-4" /> 编辑
@@ -286,19 +374,22 @@ export function BeauticianManagement() {
       <Dialog open={showDialog} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby="beautician-dialog-description">
           <DialogHeader>
-            <DialogTitle>{editingBeautician ? '编辑美容师' : '新增美容师'}</DialogTitle>
+            <DialogTitle>{editingBeautician ? '编辑美容师' : '从系统用户添加美容师'}</DialogTitle>
           </DialogHeader>
-          <span id="beautician-dialog-description" className="sr-only">{editingBeautician ? '编辑美容师信息' : '创建新美容师'}</span>
+          <span id="beautician-dialog-description" className="sr-only">{editingBeautician ? '编辑美容师信息' : '从系统管理-用户管理中选择美容师角色用户创建美容师档案'}</span>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  姓名 <span className="text-red-500">*</span>
+                  系统用户 <span className="text-red-500">*</span>
                 </label>
                 <select
                   className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md"
-                  {...register('userId')}
-                  onChange={(event) => handleSelectSystemUser(event.target.value)}
+                  {...systemUserRegistration}
+                  onChange={(event) => {
+                    systemUserRegistration.onChange(event);
+                    handleSelectSystemUser(event.target.value);
+                  }}
                 >
                   <option value="">请选择系统用户</option>
                   {beauticianUsers.map((user) => (
@@ -307,8 +398,15 @@ export function BeauticianManagement() {
                     </option>
                   ))}
                 </select>
-                <input type="hidden" {...register('name')} />
-                {beauticianUsers.length === 0 && <p className="text-amber-600 text-xs mt-1">请先在系统管理-用户管理创建美容师角色用户</p>}
+                {beauticianUsers.length === 0 && <p className="text-amber-600 text-xs mt-1">请先在系统管理-用户管理创建未绑定的美容师角色用户</p>}
+                {errors.userId && <p className="text-red-500 text-xs mt-1">{errors.userId.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  姓名 <span className="text-red-500">*</span>
+                </label>
+                <Input placeholder="选择系统用户后自动带出" {...register('name')} readOnly />
                 {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
               </div>
 
@@ -351,9 +449,14 @@ export function BeauticianManagement() {
                   所属门店 <span className="text-red-500">*</span>
                 </label>
                 <select className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md" {...register('storeName')}>
-                  <option value="心悦茗美容养生会所">心悦茗美容养生会所</option>
-                  <option value="凤仪阁美容养生会所">凤仪阁美容养生会所</option>
+                  <option value="">请选择门店</option>
+                  {availableStores.map((store) => (
+                    <option key={store.id} value={store.name}>
+                      {store.name}
+                    </option>
+                  ))}
                 </select>
+                {availableStores.length === 0 && <p className="text-amber-600 text-xs mt-1">暂无可用门店，请先检查门店管理</p>}
                 {errors.storeName && <p className="text-red-500 text-xs mt-1">{errors.storeName.message}</p>}
               </div>
 
@@ -370,33 +473,32 @@ export function BeauticianManagement() {
                   专长 <span className="text-red-500">*</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {['面部护理', '身体养生', '中医养生', '仪器护理', '美甲', '美发'].map((specialty) => (
-                    <label key={specialty} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  {projectSpecialtyOptions.map((projectName) => (
+                    <label key={projectName} className="flex items-center gap-1.5 text-sm cursor-pointer">
                       <input
                         type="checkbox"
-                        value={specialty}
-                        className="rounded border-gray-300 specialty-checkbox"
-                        onChange={(e) => {
-                          const currentForm = document.querySelectorAll<HTMLInputElement>('.specialty-checkbox:checked');
-                          const values: string[] = [];
-                          currentForm.forEach(el => values.push(el.value));
-                          if (e.target.checked && !values.includes(specialty)) {
-                            values.push(specialty);
-                          }
-                          setValue('specialties', [...new Set(values)], { shouldValidate: true });
-                        }}
+                        value={projectName}
+                        checked={selectedSpecialties.includes(projectName)}
+                        className="rounded border-gray-300"
+                        onChange={(e) => toggleSpecialty(projectName, e.target.checked)}
                       />
-                      {specialty}
+                      {projectName}
                     </label>
                   ))}
                 </div>
+                {projectSpecialtyOptions.length === 0 && (
+                  <p className="text-amber-600 text-xs mt-1">当前门店暂无可绑定项目，请先在项目管理中新增项目</p>
+                )}
                 {errors.specialties && <p className="text-red-500 text-xs mt-1">{errors.specialties.message}</p>}
               </div>
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
               <Button type="button" variant="outline" onClick={handleCloseDialog}>取消</Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={isSubmitting || beauticianUsers.length === 0 || availableStores.length === 0 || projectSpecialtyOptions.length === 0}
+              >
                 {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {editingBeautician ? '保存' : '确认添加'}
               </Button>
