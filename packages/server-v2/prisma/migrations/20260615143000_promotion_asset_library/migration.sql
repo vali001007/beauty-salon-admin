@@ -1,0 +1,26 @@
+ALTER TABLE "Promotion" ADD COLUMN "code" TEXT;
+ALTER TABLE "Promotion" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'money_off';
+ALTER TABLE "Promotion" ADD COLUMN "source" TEXT NOT NULL DEFAULT 'store';
+ALTER TABLE "Promotion" ADD COLUMN "scenario" TEXT;
+ALTER TABLE "Promotion" ADD COLUMN "audienceTags" JSONB;
+ALTER TABLE "Promotion" ADD COLUMN "applicableCustomerLevels" JSONB;
+ALTER TABLE "Promotion" ADD COLUMN "thresholdAmount" DECIMAL(65,30);
+ALTER TABLE "Promotion" ADD COLUMN "discountAmount" DECIMAL(65,30);
+ALTER TABLE "Promotion" ADD COLUMN "discountRate" INTEGER;
+ALTER TABLE "Promotion" ADD COLUMN "giftText" TEXT;
+ALTER TABLE "Promotion" ADD COLUMN "validDays" INTEGER;
+ALTER TABLE "Promotion" ADD COLUMN "maxIssueCount" INTEGER;
+ALTER TABLE "Promotion" ADD COLUMN "issuedCount" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Promotion" ADD COLUMN "usedCount" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Promotion" ADD COLUMN "estimatedCost" DECIMAL(65,30);
+ALTER TABLE "Promotion" ADD COLUMN "grossMarginGuard" JSONB;
+ALTER TABLE "Promotion" ADD COLUMN "stackable" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Promotion" ADD COLUMN "approvalStatus" TEXT NOT NULL DEFAULT 'approved';
+ALTER TABLE "Promotion" ADD COLUMN "createdByRecommendationId" TEXT;
+ALTER TABLE "Promotion" ADD COLUMN "metadata" JSONB;
+
+CREATE UNIQUE INDEX "Promotion_code_key" ON "Promotion"("code");
+CREATE INDEX "Promotion_type_idx" ON "Promotion"("type");
+CREATE INDEX "Promotion_source_idx" ON "Promotion"("source");
+CREATE INDEX "Promotion_scenario_idx" ON "Promotion"("scenario");
+CREATE INDEX "Promotion_approvalStatus_idx" ON "Promotion"("approvalStatus");
