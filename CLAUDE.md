@@ -201,7 +201,7 @@ AppContent.tsx          # 顶层容器：会话状态、消息列表、意图调
 - `docs/api-contract.md`
 - `docs/terminal-api.md`
 - `docs/marketing-trigger-rules-requirements.md`
-- `docs/production-plan.md`
+- `docs/03-开发计划/production-plan.md`
 
 ## 部署
 

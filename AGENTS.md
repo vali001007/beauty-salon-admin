@@ -167,5 +167,5 @@ npm.cmd run test:e2e:kiosk
 
 ## 文档
 
-- 优先参考：`docs/api-contract.md`、`docs/terminal-api.md`、`docs/marketing-trigger-rules-requirements.md`、`docs/production-plan.md`。
+- 优先参考：`docs/api-contract.md`、`docs/terminal-api.md`、`docs/marketing-trigger-rules-requirements.md`、`docs/03-开发计划/production-plan.md`。
 - 产品资料目录 `01-市场调研/`、`02-产品设计/`、`03-开发计划/`、`04-测试数据/`、`05-市场营销/` 对产品决策有价值，不要自行批量整理、改名或删除。

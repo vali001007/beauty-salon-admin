@@ -2,7 +2,7 @@
 
 版本：v1.0  
 日期：2026-06-07  
-来源文档：`docs/data-completion-and-integration-plan.md`  
+来源文档：`docs/03-开发计划/data-completion-and-integration-plan.md`
 任务管理方式：每张卡可独立分配、独立交付、独立验收
 
 ---

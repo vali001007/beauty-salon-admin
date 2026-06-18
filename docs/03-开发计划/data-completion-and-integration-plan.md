@@ -3,7 +3,7 @@
 版本：v1.0  
 日期：2026-06-07  
 适用范围：管理端、server-v2 后端、Ami-Aura-Lite-Kiosk 终端、小程序/H5  
-前置文档：`docs/data-integrity-fix-plan.md`、`docs/aura-lite-terminal-closure-development-plan.md`
+前置文档：`docs/03-开发计划/data-integrity-fix-plan.md`、`docs/03-开发计划/aura-lite-terminal-closure-development-plan.md`
 
 ---
 
