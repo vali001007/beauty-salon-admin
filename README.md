@@ -63,7 +63,7 @@ npm run lint
 npm run format
 npm run db:migrate:v2
 npm run db:generate:v2
-npm run db:seed:demo
+npm run db:seed:promotion-assets:verify
 npm run db:studio:v2
 ```
 
@@ -72,7 +72,7 @@ npm run db:studio:v2
 - 自动营销触发规则已切到 API 驱动，支持默认参数、命中预估、策略启停和执行记录
 - Ami Aura Lite / Terminal API 已补齐，覆盖设备登录、门店绑定、客户识别、服务任务、次卡核销、肌肤检测和推荐闭环
 - build、test 已可通过；lint 当前仅剩少量 warnings
-- demo seed 以 `packages/server-v2/prisma/seed-mvp.ts` 为准，采用幂等补数，不会自动清库或批量删除数据
+- 根目录不再提供 demo seed 入口；发布验收以真实迁移、构建测试和 `db:seed:promotion-assets:verify` 为准
 
 ## API 契约
 
