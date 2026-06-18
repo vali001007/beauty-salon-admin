@@ -3,10 +3,14 @@ import { NotFoundException } from '@nestjs/common';
 import { MarketingService } from './marketing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { ProductProjectRecommendationService } from './product-project-recommendation.service';
+import { CustomerMarketingProfileService } from './customer-marketing-profile.service';
 
 describe('MarketingService', () => {
   let service: MarketingService;
   let prisma: jest.Mocked<any>;
+  let productProjectService: { getCards: jest.Mock; isProductProjectRecommendationId: jest.Mock; getAudience: jest.Mock };
+  let customerProfileService: { buildProfiles: jest.Mock };
 
   const mockActivity = {
     id: 1,
@@ -43,6 +47,19 @@ describe('MarketingService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      promotion: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      customerAppEvent: {
+        findMany: jest.fn().mockResolvedValue([]),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      marketingRecommendationSnapshot: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
       marketingPage: {
         findMany: jest.fn(),
       },
@@ -76,7 +93,11 @@ describe('MarketingService', () => {
         create: jest.fn(),
       },
       marketingAutomationTouch: {
+        findMany: jest.fn().mockResolvedValue([]),
         createMany: jest.fn(),
+      },
+      terminalFollowUpTask: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
       predictionRun: {
         findFirst: jest.fn(),
@@ -93,12 +114,26 @@ describe('MarketingService', () => {
         count: jest.fn(),
         findMany: jest.fn(),
       },
+      amiGlowDisplayConfig: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+
+    productProjectService = {
+      getCards: jest.fn().mockResolvedValue([]),
+      isProductProjectRecommendationId: jest.fn().mockReturnValue(false),
+      getAudience: jest.fn().mockResolvedValue([]),
+    };
+    customerProfileService = {
+      buildProfiles: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MarketingService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ProductProjectRecommendationService, useValue: productProjectService },
+        { provide: CustomerMarketingProfileService, useValue: customerProfileService },
         {
           provide: ConfigService,
           useValue: {
@@ -159,7 +194,52 @@ describe('MarketingService', () => {
       const result = await service.createActivity(createData);
 
       expect(result.title).toBe('新年活动');
-      expect(prisma.marketingActivity.create).toHaveBeenCalledWith({ data: createData });
+      expect(prisma.marketingActivity.create).toHaveBeenCalledWith({
+        data: createData,
+        include: { primaryPromotion: true },
+      });
+    });
+
+    it('should normalize selected promotion into activity relation and offer snapshot', async () => {
+      const promotion = {
+        id: 12,
+        name: '回店护理礼遇',
+        discountText: '满300减100',
+        type: 'money_off',
+        status: 'active',
+        approvalStatus: 'approved',
+        startAt: null,
+        endAt: null,
+        maxIssueCount: null,
+        issuedCount: 0,
+        validDays: 14,
+      };
+      const createData = {
+        title: '流失客户唤醒',
+        status: 'draft',
+        offerJson: { type: 'money_off', label: '旧权益', reason: '推荐带入' },
+        primaryPromotionId: 12,
+      };
+      prisma.promotion.findMany.mockResolvedValue([promotion]);
+      prisma.marketingActivity.create.mockImplementation(async ({ data }: any) => ({ id: 12, ...data, primaryPromotion: promotion }));
+
+      const result = await service.createActivity(createData);
+
+      expect(result.primaryPromotionId).toBe(12);
+      expect(prisma.marketingActivity.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          primaryPromotionId: 12,
+          promotionIdsJson: [12],
+          discount: '满300减100',
+          offerJson: expect.objectContaining({
+            promotionId: 12,
+            promotionName: '回店护理礼遇',
+            label: '满300减100',
+            validDays: 14,
+          }),
+        }),
+        include: { primaryPromotion: true },
+      });
     });
   });
 
@@ -187,6 +267,7 @@ describe('MarketingService', () => {
           publishStatus: 'published',
           publishedAt: new Date(createData.publishedAt),
         }),
+        include: { primaryPromotion: true },
       });
     });
   });
@@ -361,6 +442,48 @@ describe('MarketingService', () => {
         }),
       );
     });
+
+    it('should persist recommendation attribution into strategy actions', async () => {
+      const attribution = {
+        source: 'recommendation',
+        sourceRecommendationId: '22',
+        primaryPromotion: { promotionId: 12, promotionName: '护理周期预约券' },
+      };
+      prisma.promotion.findMany.mockResolvedValue([{
+        id: 12,
+        name: '护理周期预约券',
+        status: 'active',
+        approvalStatus: 'approved',
+        startAt: null,
+        endAt: null,
+        maxIssueCount: null,
+        issuedCount: 0,
+      }]);
+      prisma.marketingAutomationStrategy.create.mockImplementation(async ({ data }: any) => ({ id: 5, ...data }));
+
+      await service.createStrategy({
+        name: '护理周期自动触达',
+        description: '来自智能推荐',
+        executionType: 'auto',
+        source: 'recommendation',
+        schedule: { type: 'daily', time: '09:00', attribution },
+        triggerRules: [{ type: 'care_cycle', params: { cycleDays: 28 } }],
+        actions: [{ type: 'coupon', value: '护理周期券', promotionId: 12 }],
+        targetCount: 18,
+      });
+
+      expect(prisma.marketingAutomationStrategy.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          source: 'recommendation',
+          schedule: expect.objectContaining({ attribution }),
+          actions: [expect.objectContaining({
+            promotionId: 12,
+            attribution,
+          })],
+          targetCount: 18,
+        }),
+      });
+    });
   });
 
   describe('executeStrategy', () => {
@@ -391,10 +514,112 @@ describe('MarketingService', () => {
       });
     });
 
+    it('should issue bound promotions when executing an automation strategy', async () => {
+      prisma.marketingAutomationStrategy.findUnique.mockResolvedValue({
+        ...mockStrategy,
+        id: 7,
+        schedule: { attribution: { sourceRecommendationId: '101' } },
+        actions: [{
+          type: 'coupon',
+          value: '护理周期券',
+          promotionId: 31,
+          promotionName: '护理周期预约券',
+          attribution: { sourceRecommendationId: '101' },
+        }],
+      });
+      prisma.promotion.findMany.mockResolvedValue([{
+        id: 31,
+        name: '护理周期预约券',
+        status: 'active',
+        approvalStatus: 'approved',
+        startAt: null,
+        endAt: null,
+        maxIssueCount: 100,
+        issuedCount: 2,
+      }]);
+      prisma.customer.count.mockResolvedValue(2);
+      prisma.predictionRun.findFirst.mockResolvedValue(null);
+      prisma.customer.findMany.mockResolvedValue([
+        { id: 11, name: '客户A', storeId: 1, totalSpent: 1200, lastVisitDate: new Date() },
+        { id: 12, name: '客户B', storeId: 1, totalSpent: 800, lastVisitDate: new Date() },
+      ]);
+      prisma.marketingAutomationTouch.findMany = jest.fn().mockResolvedValue([]);
+      prisma.marketingAutomationExecution.create.mockResolvedValue({
+        id: 9,
+        strategyId: 7,
+        strategyName: '沉睡客户唤醒',
+        status: 'success',
+        triggeredCount: 2,
+        reachedCount: 2,
+        channel: 'sms',
+      });
+      prisma.marketingAutomationStrategy.update.mockResolvedValue({});
+
+      await service.executeStrategy(7);
+
+      expect(prisma.marketingAutomationTouch.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ customerId: 11, strategyId: 7, status: 'reached' }),
+            expect.objectContaining({ customerId: 12, strategyId: 7, status: 'reached' }),
+          ]),
+        }),
+      );
+      expect(prisma.customerAppEvent.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              customerId: 11,
+              eventType: 'promotion_claimed',
+              targetType: 'promotion',
+              targetId: '31',
+              source: 'marketing_automation',
+              metadataJson: expect.objectContaining({ strategyId: 7, executionId: 9 }),
+            }),
+            expect.objectContaining({
+              customerId: 12,
+              eventType: 'promotion_claimed',
+              targetType: 'promotion',
+              targetId: '31',
+            }),
+          ]),
+          skipDuplicates: true,
+        }),
+      );
+      expect(prisma.promotion.updateMany).toHaveBeenCalledWith({
+        where: { id: 31 },
+        data: { issuedCount: { increment: 2 } },
+      });
+    });
+
     it('should throw NotFoundException for non-existent strategy', async () => {
       prisma.marketingAutomationStrategy.findUnique.mockResolvedValue(null);
 
       await expect(service.executeStrategy(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('promotion guards for automation strategies', () => {
+    it('should reject enabling a strategy when bound promotion is not usable', async () => {
+      prisma.marketingAutomationStrategy.findUnique.mockResolvedValue({
+        ...mockStrategy,
+        actions: [{ type: 'coupon', value: '满300减100', promotionId: 99 }],
+      });
+      prisma.promotion.findMany.mockResolvedValue([{
+        id: 99,
+        name: '已下线权益',
+        status: 'offline',
+        approvalStatus: 'approved',
+        startAt: null,
+        endAt: null,
+        maxIssueCount: null,
+        issuedCount: 0,
+      }]);
+
+      await expect(service.enableStrategy(1)).rejects.toThrow('已下线权益');
+      expect(prisma.marketingAutomationStrategy.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'enabled' } }),
+      );
     });
   });
 
@@ -433,11 +658,180 @@ describe('MarketingService', () => {
     });
   });
 
+  describe('unified effects', () => {
+    it('should aggregate effects by source recommendation', async () => {
+      const attribution = {
+        source: 'recommendation',
+        sourceRecommendationId: '101',
+        recommendationKey: 'care_cycle:101:2026-06-17',
+        audienceSnapshot: { ruleSummary: '护理周期到期 + 干皮', totalCustomers: 20 },
+        primaryPromotion: { promotionId: 31, promotionName: '护理周期预约券' },
+        originalPromotion: { promotionId: 31, promotionName: '护理周期预约券' },
+        selectedPromotion: { promotionId: 32, promotionName: '低峰预约礼' },
+        promotionSwitched: true,
+        originalOffer: { promotionId: 31, promotionName: '护理周期预约券', label: '护理券' },
+        selectedOffer: { promotionId: 32, promotionName: '低峰预约礼', label: '低峰到店礼' },
+      };
+      prisma.marketingActivity.findMany.mockResolvedValue([
+        {
+          id: 1,
+          title: '护理周期复购活动',
+          status: '进行中',
+          participants: 20,
+          conversion: '10%',
+          updatedAt: new Date('2026-06-17T10:00:00.000Z'),
+          sourceRecommendationId: '101',
+          offerJson: { promotionName: '护理周期预约券', attribution },
+          sourceSignalsJson: { attribution },
+          recommendedChannelsJson: [{ channel: 'miniapp', label: '小程序' }],
+          primaryPromotion: { name: '护理周期预约券' },
+        },
+      ]);
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([
+        {
+          id: 2,
+          name: '护理周期自动触达',
+          status: 'enabled',
+          updatedAt: new Date('2026-06-17T11:00:00.000Z'),
+          lastExecutedAt: new Date('2026-06-17T12:00:00.000Z'),
+          schedule: { attribution },
+          actions: [{ type: 'coupon', value: '护理券', promotionId: 31, promotionName: '护理周期预约券', attribution }],
+          executions: [{ reachedCount: 8 }],
+          touches: [
+            { status: 'converted', convertedAt: new Date('2026-06-17T13:00:00.000Z'), actualRevenue: 680 },
+            { status: 'clicked', actualRevenue: 0 },
+          ],
+        },
+      ]);
+      prisma.marketingPage.findMany.mockResolvedValue([
+        {
+          id: 3,
+          title: '护理周期推广页',
+          status: 'published',
+          updatedAt: new Date('2026-06-17T09:00:00.000Z'),
+          snapshotJson: { attribution },
+          events: [
+            { eventType: 'page_view', occurredAt: new Date('2026-06-17T09:10:00.000Z') },
+            { eventType: 'cta_click', occurredAt: new Date('2026-06-17T09:20:00.000Z') },
+          ],
+          leads: [{ status: 'booked', convertedAt: new Date('2026-06-17T09:30:00.000Z') }],
+          attributions: [{ attributedRevenue: 480 }],
+        },
+      ]);
+
+      const result = await service.getUnifiedEffects({ objectType: 'recommendation' });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({
+        objectType: 'recommendation',
+        objectId: '101',
+        objectName: '护理周期复购活动',
+        exposureCount: 23,
+        clickCount: 3,
+        conversionCount: 4,
+        revenue: 1160,
+        relatedObjectName: expect.stringContaining('权益：护理周期预约券'),
+        audienceName: '护理周期到期 + 干皮',
+        promotionName: '护理周期预约券',
+        channelName: '小程序',
+        recommendationAttribution: expect.objectContaining({
+          sourceRecommendationId: '101',
+          recommendationKey: 'care_cycle:101:2026-06-17',
+          promotionSwitched: true,
+          originalPromotion: expect.objectContaining({ promotionId: 31 }),
+          selectedPromotion: expect.objectContaining({ promotionId: 32 }),
+          originalOffer: expect.objectContaining({ label: '护理券' }),
+          selectedOffer: expect.objectContaining({ label: '低峰到店礼' }),
+        }),
+      });
+      expect(result.summary).toMatchObject({
+        totalObjects: 1,
+        exposureCount: 23,
+        clickCount: 3,
+        conversionCount: 4,
+        revenue: 1160,
+      });
+    });
+
+    it('should aggregate promotion claim, reservation, usage and revenue events', async () => {
+      prisma.promotion.findMany.mockResolvedValue([{
+        id: 31,
+        name: '护理周期预约券',
+        status: 'active',
+        issuedCount: 3,
+        usedCount: 1,
+        updatedAt: new Date('2026-06-17T10:00:00.000Z'),
+        marketingActivities: [{ title: '护理周期复购活动', participants: 20 }],
+      }]);
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([{
+        id: 2,
+        name: '护理周期自动触达',
+        actions: [{ promotionId: 31, promotionName: '护理周期预约券' }],
+        executions: [{ reachedCount: 5 }],
+        touches: [
+          { status: 'reached', actualRevenue: 0 },
+          { status: 'converted', convertedAt: new Date('2026-06-17T11:00:00.000Z'), actualRevenue: 680 },
+        ],
+      }]);
+      prisma.marketingPage.findMany.mockResolvedValue([]);
+      prisma.customerAppEvent.findMany.mockResolvedValue([
+        {
+          eventType: 'promotion_claimed',
+          channel: 'miniapp',
+          targetType: 'promotion',
+          targetId: '31',
+          metadataJson: { audienceName: '护理周期到期客户' },
+          occurredAt: new Date('2026-06-17T09:00:00.000Z'),
+        },
+        {
+          eventType: 'promotion_reserved',
+          channel: 'miniapp',
+          targetType: 'promotion',
+          targetId: '31',
+          metadataJson: { reservationId: 7 },
+          occurredAt: new Date('2026-06-17T09:30:00.000Z'),
+        },
+        {
+          eventType: 'promotion_used',
+          channel: 'terminal',
+          targetType: 'promotion',
+          targetId: '31',
+          metadataJson: { revenueAmount: 980 },
+          occurredAt: new Date('2026-06-17T12:00:00.000Z'),
+        },
+      ]);
+
+      const result = await service.getUnifiedEffects({ objectType: 'promotion' });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({
+        objectType: 'promotion',
+        objectId: 31,
+        objectName: '护理周期预约券',
+        exposureCount: 22,
+        clickCount: 1,
+        conversionCount: 3,
+        revenue: 1660,
+        relatedObjectName: expect.stringContaining('护理周期自动触达'),
+        audienceName: '护理周期到期客户',
+        promotionName: '护理周期预约券',
+        channelName: '小程序、终端',
+      });
+      expect(result.summary).toMatchObject({
+        totalObjects: 1,
+        exposureCount: 22,
+        clickCount: 1,
+        conversionCount: 3,
+        revenue: 1660,
+      });
+    });
+  });
+
   describe('recommendations', () => {
     it('should return compatible recommendation cards', async () => {
       prisma.customer.count.mockResolvedValue(10);
 
-      const result = await service.getRecommendations();
+      const result = await service.getRecommendations(undefined, { refresh: true });
 
       expect(result[0]).toMatchObject({
         id: 1,
@@ -456,7 +850,7 @@ describe('MarketingService', () => {
       prisma.predictionRun.findFirst.mockRejectedValue(new Error('prediction table unavailable'));
       prisma.customer.count.mockRejectedValue(new Error('customer table unavailable'));
 
-      const result = await service.getRecommendations();
+      const result = await service.getRecommendations(undefined, { refresh: true });
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
@@ -466,6 +860,110 @@ describe('MarketingService', () => {
         preferredMode: 'activity',
       });
       expect(result[0].sourceSignals).toContain('fallback');
+    });
+
+    it('should not calculate product and project opportunities for the default customer scope', async () => {
+      prisma.customer.count.mockResolvedValue(10);
+
+      const result = await service.getRecommendations(1);
+
+      expect(result.length).toBeGreaterThan(0);
+      expect(productProjectService.getCards).not.toHaveBeenCalled();
+    });
+
+    it('should delegate product-project scope with limit', async () => {
+      productProjectService.getCards.mockResolvedValue([{ id: 2100, title: '临期商品机会' }]);
+
+      const result = await service.getRecommendations(1, { scope: 'product-project', type: 'product_expiry_clearance', limit: 5 });
+
+      expect(productProjectService.getCards).toHaveBeenCalledWith(1, { type: 'product_expiry_clearance', limit: 5 });
+      expect(result[0]).toMatchObject({ id: 2100, title: '临期商品机会' });
+      expect(result[0].executionState).toMatchObject({
+        automation: { done: false, count: 0 },
+        activity: { done: false, count: 0 },
+        followUp: { done: false, count: 0 },
+      });
+    });
+
+    it('should reuse recommendation snapshot when cache is warm', async () => {
+      prisma.marketingRecommendationSnapshot.findUnique.mockResolvedValue({
+        cacheKey: '1:customer:all:20:9:rules-v2',
+        cardsJson: [{ id: 1, title: '缓存推荐' }],
+        expiresAt: new Date(Date.now() + 60000),
+      });
+      prisma.predictionRun.findFirst.mockResolvedValue({
+        id: 9,
+        status: 'completed',
+        modelVersion: 'rules-v2',
+        customerCount: 1,
+        finishedAt: new Date('2026-06-01T00:00:00.000Z'),
+      });
+
+      const result = await service.getRecommendations(1, { scope: 'customer', limit: 20 });
+
+      expect(result[0]).toMatchObject({ id: 1, title: '缓存推荐' });
+      expect(result[0].executionState).toMatchObject({
+        automation: { done: false, count: 0 },
+        activity: { done: false, count: 0 },
+        followUp: { done: false, count: 0 },
+      });
+      expect(prisma.customerPredictionSnapshot.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should attach execution state from activities, automation strategies and terminal follow-up tasks', async () => {
+      prisma.marketingRecommendationSnapshot.findUnique.mockResolvedValue({
+        cacheKey: '1:customer:all:20:9:rules-v2',
+        cardsJson: [{ id: 1, title: '缓存推荐' }],
+        expiresAt: new Date(Date.now() + 60000),
+      });
+      prisma.predictionRun.findFirst.mockResolvedValue({
+        id: 9,
+        status: 'completed',
+        modelVersion: 'rules-v2',
+        customerCount: 1,
+        finishedAt: new Date('2026-06-01T00:00:00.000Z'),
+      });
+      prisma.marketingActivity.findMany.mockResolvedValue([
+        {
+          id: 21,
+          title: '回店护理活动',
+          status: '进行中',
+          sourceRecommendationId: '1',
+          publishStatus: 'published',
+          publishedAt: new Date('2026-06-02T09:00:00.000Z'),
+          updatedAt: new Date('2026-06-02T09:00:00.000Z'),
+        },
+      ]);
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([
+        {
+          id: 31,
+          name: '流失客户自动触达',
+          status: 'enabled',
+          schedule: { attribution: { sourceRecommendationId: '1' } },
+          actions: [],
+          updatedAt: new Date('2026-06-03T09:00:00.000Z'),
+          lastExecutedAt: null,
+        },
+      ]);
+      prisma.terminalFollowUpTask.findMany.mockResolvedValue([
+        {
+          id: 41,
+          title: '流失客户跟进',
+          recommendationId: 1,
+          status: 'pending',
+          assignedAt: new Date('2026-06-04T09:00:00.000Z'),
+          createdAt: new Date('2026-06-04T09:00:00.000Z'),
+          updatedAt: new Date('2026-06-04T09:00:00.000Z'),
+        },
+      ]);
+
+      const result = await service.getRecommendations(1, { scope: 'customer', limit: 20 });
+
+      expect(result[0].executionState).toMatchObject({
+        activity: { done: true, count: 1, label: '活动已发布', objectIds: [21] },
+        automation: { done: true, count: 1, label: '自动触达已开启', objectIds: [31] },
+        followUp: { done: true, count: 1, label: '跟进已下发', objectIds: [41] },
+      });
     });
 
     it('should ignore behavior event query failures while building cards', async () => {
@@ -501,7 +999,7 @@ describe('MarketingService', () => {
         findMany: jest.fn().mockRejectedValue(new Error('behavior table unavailable')),
       };
 
-      const result = await service.getRecommendations();
+      const result = await service.getRecommendations(undefined, { refresh: true });
 
       expect(result.length).toBeGreaterThan(0);
       expect(result[0]).toHaveProperty('predictionRunId', 9);
@@ -559,18 +1057,302 @@ describe('MarketingService', () => {
           .fn()
           .mockResolvedValueOnce([{ customerId: 202, date: new Date('2026-05-01') }])
           .mockResolvedValueOnce([])
-          .mockResolvedValueOnce([]),
+          .mockResolvedValueOnce([])
+          .mockResolvedValue([]),
       };
       prisma.recommendationEvent = {
         findMany: jest.fn().mockResolvedValue([]),
       };
 
-      const result = await service.getRecommendations();
+      const result = await service.getRecommendations(undefined, { refresh: true });
       const cardExpiry = result.find((item: any) => item.triggerType === 'card_expiry');
       const careCycle = result.find((item: any) => item.triggerType === 'care_cycle');
 
       expect(cardExpiry?.targetCustomerIds).toEqual([201]);
       expect(careCycle?.targetCustomerIds).toEqual([202]);
+    });
+
+    it('should enrich recommendation cards with profile tags and matched promotion asset', async () => {
+      prisma.predictionRun.findFirst.mockResolvedValue({
+        id: 11,
+        status: 'completed',
+        modelVersion: 'rules-v2',
+        customerCount: 1,
+        storeId: 1,
+        finishedAt: new Date('2026-06-01T00:00:00.000Z'),
+          summaryJson: {
+            churnDistribution: [],
+          repurchaseDistribution: [{ label: '70-100', count: 1 }],
+            marketingResponseDistribution: [],
+            ltvDistribution: [],
+            avgMarketingResponseScore: 80,
+          avgRepurchase30dScore: 75,
+          avgChurnScore: 20,
+          expectedLtv6m: 1000,
+        },
+      });
+      prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+        {
+          id: 1,
+          runId: 11,
+          customerId: 301,
+          marketingResponseScore: 82,
+          repurchase30dScore: 75,
+          churnScore: 20,
+          ltv6m: 1000,
+          reasonJson: [],
+          featureJson: {},
+        },
+      ]);
+      prisma.promotion.findMany.mockResolvedValue([
+        {
+          id: 31,
+          name: '护理周期预约券',
+          discountText: '护理项目满500减80',
+          type: 'money_off',
+          source: 'system',
+          scenario: 'care_cycle_due',
+          audienceTags: ['护理周期', '复购窗口'],
+          applicableProjectIds: [],
+          issuedCount: 0,
+          usedCount: 0,
+          maxIssueCount: null,
+          validDays: 21,
+          estimatedCost: 80,
+          status: 'active',
+          approvalStatus: 'approved',
+          metadata: {
+            lifecycleTags: ['复购窗口'],
+            behaviorTags: ['护理周期到期'],
+            skinTags: ['干皮'],
+            preferenceTags: ['补水'],
+            preferredExecutionModes: ['automation'],
+            offerStrength: 'medium',
+          },
+        },
+      ]);
+      customerProfileService.buildProfiles.mockResolvedValue([
+        {
+          customerId: 301,
+          lifecycleTags: ['复购窗口'],
+          valueTags: ['中 LTV'],
+          behaviorTags: ['护理周期到期'],
+          preferenceTags: ['补水'],
+          skinTags: ['干皮'],
+          cardTags: [],
+          productCycleTags: [],
+          capacityTags: [],
+          channelTags: ['小程序活跃'],
+          fatigueTags: [],
+          evidence: ['客户护理周期到期且偏好补水项目。'],
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+
+      const result = await service.getRecommendations(1, { refresh: true });
+      const repurchase = result.find((item: any) => item.triggerType === 'care_cycle');
+
+      expect(repurchase?.offer).toMatchObject({
+        promotionId: 31,
+        promotionName: '护理周期预约券',
+        label: '护理项目满500减80',
+      });
+      expect(repurchase?.primaryPromotion).toMatchObject({ promotionId: 31 });
+      expect(repurchase?.audienceTags).toEqual(expect.arrayContaining(['复购窗口', '护理周期到期', '补水', '干皮']));
+      expect(repurchase?.dataEvidence).toEqual(expect.arrayContaining([expect.stringContaining('画像证据')]));
+    });
+
+    it('should use unified promotion effect history when matching recommendation offers', async () => {
+      prisma.predictionRun.findFirst.mockResolvedValue({
+        id: 12,
+        status: 'completed',
+        modelVersion: 'rules-v2',
+        customerCount: 1,
+        storeId: 1,
+        finishedAt: new Date('2026-06-01T00:00:00.000Z'),
+        summaryJson: {
+          churnDistribution: [],
+          repurchaseDistribution: [{ label: '70-100', count: 1 }],
+          marketingResponseDistribution: [],
+          ltvDistribution: [],
+          avgMarketingResponseScore: 80,
+          avgRepurchase30dScore: 75,
+          avgChurnScore: 20,
+          expectedLtv6m: 1000,
+        },
+      });
+      prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+        {
+          id: 1,
+          runId: 12,
+          customerId: 401,
+          marketingResponseScore: 82,
+          repurchase30dScore: 75,
+          churnScore: 20,
+          ltv6m: 1000,
+          reasonJson: [],
+          featureJson: {},
+        },
+      ]);
+      prisma.promotion.findMany.mockResolvedValue([
+        {
+          id: 41,
+          name: '护理周期高转化券',
+          discountText: '护理项目满500减60',
+          type: 'money_off',
+          source: 'system',
+          scenario: 'care_cycle_due',
+          audienceTags: ['护理周期', '复购窗口'],
+          applicableProjectIds: [],
+          issuedCount: 0,
+          usedCount: 0,
+          maxIssueCount: null,
+          validDays: 21,
+          estimatedCost: 60,
+          status: 'active',
+          approvalStatus: 'approved',
+          metadata: { behaviorTags: ['护理周期到期'], preferredExecutionModes: ['automation'] },
+        },
+        {
+          id: 42,
+          name: '护理周期普通券',
+          discountText: '护理项目满500减80',
+          type: 'money_off',
+          source: 'system',
+          scenario: 'care_cycle_due',
+          audienceTags: ['护理周期', '复购窗口'],
+          applicableProjectIds: [],
+          issuedCount: 0,
+          usedCount: 0,
+          maxIssueCount: null,
+          validDays: 21,
+          estimatedCost: 80,
+          status: 'active',
+          approvalStatus: 'approved',
+          metadata: { behaviorTags: ['护理周期到期'], preferredExecutionModes: ['automation'] },
+        },
+      ]);
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([
+        {
+          id: 3,
+          name: '高转化护理周期规则',
+          actions: [{ promotionId: 41, promotionName: '护理周期高转化券' }],
+          executions: [{ reachedCount: 20 }],
+          touches: [
+            { status: 'converted', convertedAt: new Date(), actualRevenue: 680 },
+            { status: 'converted', convertedAt: new Date(), actualRevenue: 520 },
+            { status: 'clicked', actualRevenue: 0 },
+          ],
+        },
+      ]);
+      prisma.customerAppEvent.findMany.mockResolvedValue([
+        { eventType: 'promotion_redeem', targetId: '41', metadataJson: { revenueAmount: 300 }, occurredAt: new Date() },
+      ]);
+      customerProfileService.buildProfiles.mockResolvedValue([
+        {
+          customerId: 401,
+          lifecycleTags: ['复购窗口'],
+          behaviorTags: ['护理周期到期'],
+          evidence: ['客户护理周期到期。'],
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+
+      const result = await service.getRecommendations(1, { refresh: true });
+      const repurchase = result.find((item: any) => item.triggerType === 'care_cycle');
+
+      expect(repurchase?.offer).toMatchObject({
+        promotionId: 41,
+        promotionName: '护理周期高转化券',
+      });
+      expect(repurchase?.offerFitBreakdown?.historicalEffectScore).toBeGreaterThan(40);
+      expect(repurchase?.primaryPromotion?.fitReasons).toEqual(expect.arrayContaining(['历史转化表现较好']));
+    });
+
+    it('should include attribution and promotion options in recommendation activity draft', async () => {
+      jest.spyOn(service as any, 'getRecommendationCardById').mockResolvedValue({
+        id: 101,
+        recommendationKey: 'care_cycle:101:2026-06-17',
+        recommendationType: 'care_cycle_due',
+        title: '护理周期复购',
+        reason: '客户护理周期已到期',
+        targetCustomers: '护理周期客户（1人）',
+        discount: '护理项目满500减80',
+        predictionRunId: 11,
+        modelVersion: 'rules-v2',
+        triggerType: 'care_cycle',
+        sourceSignals: ['care_cycle', 'profile'],
+        audienceTags: ['复购窗口', '补水'],
+        audienceRule: { relation: 'AND', include: [{ dimension: '服务偏好', tags: ['补水'] }], exclude: [] },
+        audienceSnapshot: { predictionRunId: 11, generatedAt: '2026-06-17T00:00:00.000Z', ruleSummary: '护理周期', customerIds: [301], totalCustomers: 1, sampleReasons: [] },
+        offer: { type: 'money_off', label: '护理项目满500减80', promotionId: 31, promotionName: '护理周期预约券', reason: '适用场景匹配' },
+        primaryPromotion: { promotionId: 31, promotionName: '护理周期预约券', discountText: '护理项目满500减80', fitScore: 92 },
+        alternativePromotions: [{ promotionId: 32, promotionName: '补水护理加项礼', discountText: '赠修护导入', fitScore: 78 }],
+        offerFitBreakdown: { scenarioScore: 100, audienceScore: 85 },
+        recommendedItems: [{ type: 'project', id: 8, name: '补水护理', reason: '偏好匹配', confidence: 90 }],
+        recommendedChannels: [{ channel: 'miniapp', label: '小程序', reason: '活跃渠道', priority: 'P0' }],
+        riskWarnings: ['同客户同项目 7 天内最多触达 1 次'],
+      } as any);
+
+      const draft = await service.createRecommendationActivityDraft(101);
+
+      expect(draft.formDefaults).toMatchObject({
+        sourceRecommendationId: '101',
+        primaryPromotionId: 31,
+        promotionIdsJson: [31, 32],
+        audienceSnapshotJson: expect.objectContaining({ customerIds: [301] }),
+        offerJson: expect.objectContaining({
+          promotionId: 31,
+          attribution: expect.objectContaining({ sourceRecommendationId: '101' }),
+          primaryPromotion: expect.objectContaining({ promotionId: 31 }),
+          alternativePromotions: [expect.objectContaining({ promotionId: 32 })],
+        }),
+        sourceSignalsJson: expect.objectContaining({
+          attribution: expect.objectContaining({ recommendationKey: 'care_cycle:101:2026-06-17' }),
+          offerFitBreakdown: { scenarioScore: 100, audienceScore: 85 },
+        }),
+      });
+    });
+
+    it('should include attribution and frequency cap in recommendation automation draft', async () => {
+      jest.spyOn(service as any, 'getRecommendationCardById').mockResolvedValue({
+        id: 102,
+        recommendationKey: 'care_cycle:102:2026-06-17',
+        recommendationType: 'care_cycle_due',
+        title: '护理周期自动触达',
+        reason: '客户护理周期已到期',
+        discount: '护理项目满500减80',
+        priority: 'P0',
+        targetCount: 2,
+        predictionRunId: 11,
+        triggerType: 'care_cycle',
+        triggerRule: { type: 'care_cycle', params: { cycleDays: 28 }, defaultEditable: true, reason: '周期到期' },
+        audienceSnapshot: { predictionRunId: 11, generatedAt: '2026-06-17T00:00:00.000Z', ruleSummary: '护理周期', customerIds: [301, 302], totalCustomers: 2, sampleReasons: [] },
+        offer: { type: 'money_off', label: '护理项目满500减80', promotionId: 31, promotionName: '护理周期预约券', reason: '适用场景匹配' },
+        primaryPromotion: { promotionId: 31, promotionName: '护理周期预约券', discountText: '护理项目满500减80', fitScore: 92 },
+        recommendedActions: [{ type: 'coupon', value: '护理项目满500减80', promotionId: 31, promotionName: '护理周期预约券', channel: 'miniapp', reason: '自动触达' }],
+        recommendedChannels: [{ channel: 'miniapp', label: '小程序', reason: '活跃渠道', priority: 'P0' }],
+        riskWarnings: ['同客户同项目 7 天内最多触达 1 次'],
+      } as any);
+      prisma.customer.count.mockResolvedValue(0);
+      prisma.predictionRun.findFirst.mockResolvedValue(null);
+      prisma.customer.findMany.mockResolvedValue([]);
+
+      const draft = await service.createRecommendationAutomationDraft(102);
+
+      expect(draft.strategyInput).toMatchObject({
+        source: 'recommendation',
+        targetCount: 2,
+        schedule: expect.objectContaining({
+          attribution: expect.objectContaining({ sourceRecommendationId: '102' }),
+          frequencyCap: expect.objectContaining({ sameCustomerDays: 14, maxTouchesPerCustomer: 1 }),
+        }),
+        actions: [expect.objectContaining({
+          promotionId: 31,
+          promotionName: '护理周期预约券',
+          attribution: expect.objectContaining({ primaryPromotion: expect.objectContaining({ promotionId: 31 }) }),
+        })],
+      });
     });
 
     it('should return audience profiles for a recommendation', async () => {
@@ -585,6 +1367,18 @@ describe('MarketingService', () => {
         name: 'Alice',
         segment: 'VIP',
       });
+    });
+
+    it('should exclude recently touched customers from recommendation audience', async () => {
+      prisma.customer.findMany.mockResolvedValue([
+        { id: 1, name: 'Alice', memberLevel: 'VIP', skinType: '混合肌', visitCount: 3, totalSpent: 1200 },
+        { id: 2, name: 'Bella', memberLevel: '普通会员', skinType: '干性', visitCount: 1, totalSpent: 300 },
+      ]);
+      prisma.marketingAutomationTouch.findMany.mockResolvedValue([{ customerId: 1 }]);
+
+      const result = await service.getRecommendationAudience(1);
+
+      expect(result.map((item: any) => item.customerId)).toEqual([2]);
     });
   });
 });

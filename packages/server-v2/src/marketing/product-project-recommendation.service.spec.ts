@@ -2,6 +2,7 @@ import { ProductProjectRecommendationService } from './product-project-recommend
 
 describe('ProductProjectRecommendationService', () => {
   let prisma: jest.Mocked<any>;
+  let profileService: jest.Mocked<any>;
   let service: ProductProjectRecommendationService;
 
   beforeEach(() => {
@@ -15,8 +16,14 @@ describe('ProductProjectRecommendationService', () => {
       product: { findMany: jest.fn().mockResolvedValue([]) },
       project: { findMany: jest.fn().mockResolvedValue([]) },
       customer: { findMany: jest.fn().mockResolvedValue([]) },
+      promotion: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    service = new ProductProjectRecommendationService(prisma as any, { get: jest.fn((_key, fallback) => fallback) } as any);
+    profileService = { buildProfiles: jest.fn().mockResolvedValue([]) };
+    service = new ProductProjectRecommendationService(
+      prisma as any,
+      { get: jest.fn((_key, fallback) => fallback) } as any,
+      profileService as any,
+    );
   });
 
   it('generates product expiry clearance cards with inventory evidence', async () => {
@@ -66,6 +73,76 @@ describe('ProductProjectRecommendationService', () => {
     });
     expect(cards[0].recommendedItems.map((item: any) => item.name)).toContain('补水护理');
     expect(cards[0].dataEvidence.join(' ')).toContain('预计自然消化');
+  });
+
+  it('matches product expiry cards with a promotion asset', async () => {
+    const now = new Date();
+    const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    prisma.promotion.findMany.mockResolvedValue([
+      {
+        id: 51,
+        name: '临期商品消化券',
+        type: 'money_off',
+        discountText: '临期护理搭赠券',
+        scenario: 'product_expiry_clearance',
+        source: 'system',
+        status: 'active',
+        approvalStatus: 'approved',
+        validDays: 14,
+        audienceTags: ['临期库存适配', '库存消化'],
+        applicableProjectIds: [20],
+        applicableProductIds: [10],
+        metadata: {
+          behaviorTags: ['库存消化'],
+          productCycleTags: ['临期库存适配'],
+          preferredExecutionModes: ['activity'],
+          channelTags: ['小程序', '门店跟进'],
+        },
+        grossMarginGuard: { inventoryCapRequired: true, stackable: false },
+      },
+    ]);
+    prisma.stockBatch.findMany.mockResolvedValue([
+      {
+        id: 501,
+        productId: 10,
+        batchNo: 'B-EXP',
+        stock: 80,
+        expiryDate,
+        product: {
+          id: 10,
+          name: '修护面膜',
+          unit: '盒',
+          costPrice: 20,
+          retailPrice: 98,
+          category: { name: '面膜' },
+          bomItems: [{ project: { id: 20, name: '补水护理', price: 480, type: { name: '面部护理' } } }],
+        },
+      },
+    ]);
+    prisma.orderItem.findMany.mockImplementation(async (args: any) => {
+      if (args.select?.itemId) return [{ itemId: 10, quantity: 20 }];
+      return [];
+    });
+    prisma.predictionRun.findFirst.mockResolvedValue({ id: 7, modelVersion: 'rules-v2' });
+    prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+      { customerId: 1, marketingResponseScore: 80, repurchase30dScore: 60, churnScore: 20, reasonJson: [] },
+    ]);
+    profileService.buildProfiles.mockResolvedValue([
+      { lifecycleTags: ['成熟客户'], behaviorTags: ['库存消化'], productCycleTags: ['临期库存适配'], evidence: ['客户近期对面膜类商品响应高'] },
+    ]);
+
+    const cards = await service.getCards(1, { type: 'product_expiry_clearance' });
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0].offer).toMatchObject({
+      promotionId: 51,
+      promotionName: '临期商品消化券',
+      label: '临期护理搭赠券',
+    });
+    expect(cards[0].primaryPromotion).toMatchObject({ promotionId: 51, fitLevel: 'high' });
+    expect(cards[0].offerFitBreakdown.scenarioScore).toBe(100);
+    expect(cards[0].recommendedActions[0]).toMatchObject({ promotionId: 51, promotionName: '临期商品消化券' });
+    expect(cards[0].dataEvidence.join(' ')).toContain('权益匹配：临期商品消化券');
   });
 
   it('generates product replenishment cards only when stock is above safety stock', async () => {
@@ -153,6 +230,70 @@ describe('ProductProjectRecommendationService', () => {
     });
     expect(cards[0].offer).toMatchObject({ type: 'low_peak_privilege' });
     expect(cards[0].dataEvidence.join(' ')).toContain('预约占用率');
+  });
+
+  it('matches idle capacity cards with low-peak privilege assets', async () => {
+    const targetDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    prisma.promotion.findMany.mockResolvedValue([
+      {
+        id: 61,
+        name: '低峰预约礼',
+        type: 'low_peak_privilege',
+        discountText: '低峰时段预约赠修护导入',
+        scenario: 'project_idle_capacity',
+        source: 'system',
+        status: 'active',
+        approvalStatus: 'approved',
+        validDays: 7,
+        audienceTags: ['低峰可约', '高响应客户'],
+        applicableProjectIds: [31],
+        applicableProductIds: [],
+        metadata: {
+          behaviorTags: ['美容师空档'],
+          capacityTags: ['低峰可约'],
+          preferredExecutionModes: ['activity'],
+          channelTags: ['小程序', '门店跟进'],
+        },
+        grossMarginGuard: { usableTimeRangeRequired: true, stackable: false },
+      },
+    ]);
+    prisma.schedule.findMany.mockResolvedValue([
+      {
+        id: 701,
+        storeId: 1,
+        beauticianId: 9,
+        date: targetDate,
+        startTime: '14:00',
+        endTime: '17:00',
+        beautician: {
+          projectSkills: [
+            { project: { id: 31, name: '水光护理', price: 398, type: { name: '补水护理' } } },
+          ],
+        },
+      },
+    ]);
+    prisma.reservation.findMany.mockResolvedValue([
+      { id: 801, customerId: 5, projectId: 31, beauticianId: 9, date: targetDate, startTime: '14:00', endTime: '15:00' },
+    ]);
+    prisma.predictionRun.findFirst.mockResolvedValue({ id: 9, modelVersion: 'rules-v2' });
+    prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+      { customerId: 6, marketingResponseScore: 80, repurchase30dScore: 70, churnScore: 20, reasonJson: [] },
+    ]);
+    profileService.buildProfiles.mockResolvedValue([
+      { behaviorTags: ['高响应客户'], capacityTags: ['低峰可约'], evidence: ['客户常在工作日下午预约'] },
+    ]);
+
+    const cards = await service.getCards(1, { type: 'project_idle_capacity' });
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0].offer).toMatchObject({
+      promotionId: 61,
+      promotionName: '低峰预约礼',
+      label: '低峰时段预约赠修护导入',
+    });
+    expect(cards[0].primaryPromotion).toMatchObject({ promotionId: 61, fitLevel: 'high' });
+    expect(cards[0].riskWarnings.join(' ')).not.toContain('低峰权益需要配置可用时段');
+    expect(cards[0].dataEvidence.join(' ')).toContain('权益匹配：低峰预约礼');
   });
 
   it('generates project cycle due cards only when future capacity exists and future reservations are excluded', async () => {

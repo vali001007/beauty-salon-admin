@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProductProjectRecommendationService } from './product-project-recommendation.service.js';
+import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
 
 type PageQuery = {
   page?: number;
@@ -25,14 +26,29 @@ type InvitationCandidateQuery = {
   storeId?: number;
   limit?: number;
 };
-type UnifiedEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'glow';
+type UnifiedEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'recommendation' | 'glow';
 type UnifiedEffectQuery = {
   objectType?: string;
+  objectId?: string | number;
   storeId?: number;
 };
 type RecommendationQueryOptions = {
   scope?: string;
   type?: string;
+  limit?: number;
+  refresh?: boolean;
+};
+type RecommendationActionExecutionState = {
+  done: boolean;
+  count: number;
+  lastAt?: string;
+  label?: string;
+  objectIds?: Array<number | string>;
+};
+type RecommendationExecutionState = {
+  automation: RecommendationActionExecutionState;
+  activity: RecommendationActionExecutionState;
+  followUp: RecommendationActionExecutionState;
 };
 type UnifiedEffectItem = {
   id: string;
@@ -53,6 +69,20 @@ type UnifiedEffectItem = {
   detailPath?: string;
   emptyReason?: string;
   metricsSource: string;
+  relatedObjectName?: string;
+  audienceName?: string;
+  promotionName?: string;
+  channelName?: string;
+  recommendationAttribution?: {
+    sourceRecommendationId: string;
+    recommendationKey?: string;
+    recommendationType?: string;
+    originalPromotion?: Record<string, any> | null;
+    selectedPromotion?: Record<string, any> | null;
+    promotionSwitched: boolean;
+    originalOffer?: Record<string, any> | null;
+    selectedOffer?: Record<string, any> | null;
+  };
 };
 
 type PredictionReason = {
@@ -63,14 +93,17 @@ type PredictionReason = {
   weight?: number;
 };
 
-const MODEL_VERSION = 'rules-v2';
+const MODEL_VERSION = 'rules-v2.1';
 const DEFAULT_ATTRIBUTION_WINDOW_DAYS = 30;
 const RULE_TEMPLATE_VERSION = '1.0.0';
+const RECOMMENDATION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class MarketingService {
   private readonly defaultRecommendationImage: string;
   private readonly dailyPredictionLocks = new Map<string, Promise<void>>();
+  private readonly recommendationCache = new Map<string, { expiresAt: number; cards: any[] }>();
+  private readonly recommendationPromotionCache = new Map<string, { expiresAt: number; items: any[] }>();
 
   private recommendations: any[] = [
     {
@@ -91,6 +124,7 @@ export class MarketingService {
     private prisma: PrismaService,
     private config: ConfigService,
     @Optional() private productProjectRecommendationService?: ProductProjectRecommendationService,
+    @Optional() private customerMarketingProfileService?: CustomerMarketingProfileService,
   ) {
     this.defaultRecommendationImage = this.config.get(
       'MARKETING_RECOMMENDATION_IMAGE_URL',
@@ -99,14 +133,150 @@ export class MarketingService {
   }
 
   async getRecommendations(storeId?: number, options: RecommendationQueryOptions = {}) {
-    if (options.scope === 'product-project') {
-      return this.getProductProjectRecommendationCards(storeId, options.type);
+    const cards = options.scope === 'product-project'
+      ? await this.getCachedRecommendationCards(storeId, options, async () =>
+        this.getProductProjectRecommendationCards(storeId, options.type, options.limit),
+      )
+      : await this.getCachedRecommendationCards(storeId, options, async () => this.buildCustomerRecommendationCards(storeId, options));
+
+    return this.attachRecommendationExecutionStates(cards, storeId);
+  }
+
+  private emptyRecommendationActionState(): RecommendationActionExecutionState {
+    return { done: false, count: 0, objectIds: [] };
+  }
+
+  private emptyRecommendationExecutionState(): RecommendationExecutionState {
+    return {
+      automation: this.emptyRecommendationActionState(),
+      activity: this.emptyRecommendationActionState(),
+      followUp: this.emptyRecommendationActionState(),
+    };
+  }
+
+  private latestDate(...values: Array<Date | string | null | undefined>) {
+    const dates = values
+      .filter(Boolean)
+      .map((value) => new Date(value as any))
+      .filter((value) => !Number.isNaN(value.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime());
+    return dates[0]?.toISOString();
+  }
+
+  private mergeActionState(
+    state: RecommendationActionExecutionState,
+    item: { id?: number | string; label?: string; at?: Date | string | null },
+  ) {
+    const ids = new Set(state.objectIds ?? []);
+    if (item.id !== undefined && item.id !== null) ids.add(item.id);
+    return {
+      done: true,
+      count: Math.max(state.count, ids.size || state.count + 1),
+      lastAt: this.latestDate(state.lastAt, item.at) ?? state.lastAt,
+      label: item.label ?? state.label,
+      objectIds: [...ids],
+    };
+  }
+
+  private extractSourceRecommendationId(value: any) {
+    const candidates = [
+      value?.sourceRecommendationId,
+      value?.offerJson?.attribution?.sourceRecommendationId,
+      value?.sourceSignalsJson?.attribution?.sourceRecommendationId,
+      value?.schedule?.attribution?.sourceRecommendationId,
+      value?.snapshotJson?.attribution?.sourceRecommendationId,
+      ...(Array.isArray(value?.actions) ? value.actions.map((action: any) => action?.attribution?.sourceRecommendationId) : []),
+    ];
+    const candidate = candidates.find((item) => item !== undefined && item !== null && String(item).trim());
+    return candidate === undefined || candidate === null ? undefined : String(candidate);
+  }
+
+  private async attachRecommendationExecutionStates(cards: any[], storeId?: number) {
+    if (!Array.isArray(cards) || cards.length === 0) return cards;
+    const ids = [...new Set(cards.map((card) => Number(card.id)).filter((id) => Number.isFinite(id) && id > 0))];
+    if (!ids.length) {
+      return cards.map((card) => ({ ...card, executionState: this.emptyRecommendationExecutionState() }));
     }
+
+    const idStrings = ids.map(String);
+    const terminalFollowUpDelegate = (this.prisma as any).terminalFollowUpTask;
+    const [activities, strategies, followUpTasks] = await Promise.all([
+      this.safeFindMany(this.prisma.marketingActivity, {
+        where: {
+          sourceRecommendationId: { in: idStrings },
+        } as any,
+        select: { id: true, title: true, status: true, sourceRecommendationId: true, publishStatus: true, publishedAt: true, updatedAt: true },
+      }),
+      this.safeFindMany(this.prisma.marketingAutomationStrategy, {
+        where: {
+          source: 'recommendation',
+        } as any,
+        select: { id: true, name: true, status: true, schedule: true, actions: true, updatedAt: true, lastExecutedAt: true },
+      }),
+      this.safeFindMany(terminalFollowUpDelegate, {
+        where: {
+          recommendationId: { in: ids },
+          deletedAt: null,
+          ...(storeId ? { storeId } : {}),
+        },
+        select: { id: true, title: true, recommendationId: true, status: true, assignedAt: true, createdAt: true, updatedAt: true },
+      }),
+    ]);
+
+    const stateById = new Map<string, RecommendationExecutionState>();
+    const ensure = (id: string) => {
+      const current = stateById.get(id) ?? this.emptyRecommendationExecutionState();
+      stateById.set(id, current);
+      return current;
+    };
+
+    for (const activity of activities as any[]) {
+      const sourceId = this.extractSourceRecommendationId(activity);
+      if (!sourceId) continue;
+      const current = ensure(sourceId);
+      current.activity = this.mergeActionState(current.activity, {
+        id: activity.id,
+        label: activity.publishStatus === 'published' || activity.status === '进行中' ? '活动已发布' : '活动已创建',
+        at: activity.publishedAt ?? activity.updatedAt,
+      });
+    }
+
+    for (const strategy of strategies as any[]) {
+      const sourceId = this.extractSourceRecommendationId(strategy);
+      if (!sourceId) continue;
+      const current = ensure(sourceId);
+      current.automation = this.mergeActionState(current.automation, {
+        id: strategy.id,
+        label: strategy.status === 'enabled' ? '自动触达已开启' : '自动触达已创建',
+        at: strategy.lastExecutedAt ?? strategy.updatedAt,
+      });
+    }
+
+    for (const task of followUpTasks as any[]) {
+      const sourceId = task.recommendationId ? String(task.recommendationId) : undefined;
+      if (!sourceId) continue;
+      const current = ensure(sourceId);
+      current.followUp = this.mergeActionState(current.followUp, {
+        id: task.id,
+        label: '跟进已下发',
+        at: task.assignedAt ?? task.createdAt ?? task.updatedAt,
+      });
+    }
+
+    return cards.map((card) => ({
+      ...card,
+      executionState: stateById.get(String(card.id)) ?? this.emptyRecommendationExecutionState(),
+    }));
+  }
+
+  private async buildCustomerRecommendationCards(storeId?: number, options: RecommendationQueryOptions = {}) {
 
     try {
       let latestRun: any = null;
       try {
-        latestRun = await this.ensureDailyRunForRecommendations(storeId);
+        latestRun = options.refresh === true
+          ? await this.ensureDailyRunForRecommendations(storeId)
+          : await this.getLatestRunForRecommendations(storeId);
       } catch {
         latestRun = null;
       }
@@ -125,11 +295,11 @@ export class MarketingService {
       const totalCustomers = latestRun?.customerCount ?? latestRun?.snapshotCount ?? 0;
 
       if (!latestRun || latestRun.snapshotCount === 0) {
-        return this.mergeRecommendationCards(
+        return this.limitRecommendationCards(this.mergeRecommendationCards(
           this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId)),
           storeId,
           options,
-        );
+        ), options.limit);
       }
 
     const summary = latestRun.summaryJson ?? {};
@@ -147,41 +317,54 @@ export class MarketingService {
     const averageChurnScore = Number(summary.avgChurnScore ?? 0);
     const averageRepurchaseScore = Number(summary.avgRepurchase30dScore ?? 0);
     const averageMarketingResponseScore = Number(summary.avgMarketingResponseScore ?? 0);
-    const snapshotsForCards = await this.getSnapshotsForRecommendationRun(latestRun.id);
-    const behaviorSignals = await this.getRecentBehaviorSignals();
-    const realtimeSignals = await this.getRealtimeSignals(latestRun.storeId ?? undefined);
+    const includeRealtimeSignals = options.refresh === true;
+    const [snapshotsForCards, behaviorSignals, realtimeSignals] = await Promise.all([
+      includeRealtimeSignals ? this.getSnapshotsForRecommendationRun(latestRun.id) : Promise.resolve([]),
+      includeRealtimeSignals ? this.getRecentBehaviorSignals(latestRun.storeId ?? storeId) : Promise.resolve(this.emptyBehaviorSignals()),
+      includeRealtimeSignals ? this.getRealtimeSignals(latestRun.storeId ?? storeId) : Promise.resolve(this.emptyRealtimeSignals()),
+    ]);
     const highChurnSnapshots = snapshotsForCards.filter((item: any) => ['高', '极高'].includes(item.churnLevel));
     const repurchaseSnapshots = snapshotsForCards.filter((item: any) => item.repurchase30dScore >= 65 && item.churnScore < 70);
     const marketingResponseSnapshots = snapshotsForCards.filter((item: any) => item.marketingResponseScore >= 70);
     const highLtvSnapshots = snapshotsForCards.filter((item: any) => ['铂金', '黄金'].includes(item.ltvTier));
-    const cardExpirySnapshots = this.pickRealtimeSnapshots(
-      snapshotsForCards,
-      realtimeSignals.cardExpiry,
-      (item: any) => Number(item.featureJson?.cardExpiryUrgencyScore ?? 0) >= 50,
-    );
-    const careCycleSnapshots = this.pickRealtimeSnapshots(
-      snapshotsForCards,
-      realtimeSignals.careCycle,
-      (item: any) => Number(item.featureJson?.lastVisitDays ?? 0) >= 21 && item.repurchase30dScore >= 55,
-    );
-    const browseIntentSnapshots = this.pickBehaviorSnapshots(
-      snapshotsForCards,
-      behaviorSignals.browseAbandonment,
-      (item: any) => item.marketingResponseScore >= 72 && item.repurchase30dScore >= 55,
-    );
-    const couponExpirySnapshots = this.pickBehaviorSnapshots(
-      snapshotsForCards,
-      this.mergeSignalSets(behaviorSignals.couponClaimedUnused, realtimeSignals.couponClaimedUnused),
-      (item: any) => item.marketingResponseScore >= 68 && item.repurchase30dScore >= 45,
-    );
-    const bookingAbandonmentSnapshots = this.pickBehaviorSnapshots(
-      snapshotsForCards,
-      this.mergeSignalSets(behaviorSignals.bookingAbandonment, realtimeSignals.bookingAbandonment),
-      (item: any) => item.marketingResponseScore >= 75,
-    );
-    const cards = [];
+    const cardExpirySnapshots = includeRealtimeSignals
+      ? this.pickRealtimeSnapshots(
+        snapshotsForCards,
+        realtimeSignals.cardExpiry,
+        (item: any) => Number(item.featureJson?.cardExpiryUrgencyScore ?? 0) >= 50,
+      )
+      : [];
+    const careCycleSnapshots = includeRealtimeSignals
+      ? this.pickRealtimeSnapshots(
+        snapshotsForCards,
+        realtimeSignals.careCycle,
+        (item: any) => Number(item.featureJson?.lastVisitDays ?? 0) >= 21 && item.repurchase30dScore >= 55,
+      )
+      : [];
+    const browseIntentSnapshots = includeRealtimeSignals
+      ? this.pickBehaviorSnapshots(
+        snapshotsForCards,
+        behaviorSignals.browseAbandonment,
+        (item: any) => item.marketingResponseScore >= 72 && item.repurchase30dScore >= 55,
+      )
+      : [];
+    const couponExpirySnapshots = includeRealtimeSignals
+      ? this.pickBehaviorSnapshots(
+        snapshotsForCards,
+        this.mergeSignalSets(behaviorSignals.couponClaimedUnused, realtimeSignals.couponClaimedUnused),
+        (item: any) => item.marketingResponseScore >= 68 && item.repurchase30dScore >= 45,
+      )
+      : [];
+    const bookingAbandonmentSnapshots = includeRealtimeSignals
+      ? this.pickBehaviorSnapshots(
+        snapshotsForCards,
+        this.mergeSignalSets(behaviorSignals.bookingAbandonment, realtimeSignals.bookingAbandonment),
+        (item: any) => item.marketingResponseScore >= 75,
+      )
+      : [];
+    const cardPromises: Promise<any>[] = [];
     if (highChurnCount) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 1,
         title: `${highChurnCount} 位高流失风险客户需要唤醒`,
         reason: `最新预测批次识别 ${highChurnCount} 位高流失风险客户，建议按风险等级分层触达。`,
@@ -214,9 +397,8 @@ export class MarketingService {
         urgency: 'urgent',
         urgencyLabel: '紧急',
         dataEvidence: [
-          `其中极高风险 ${criticalChurnCount} 人`,
-          `平均流失分 ${averageChurnScore} 分`,
-          `模型版本 ${latestRun.modelVersion}`,
+          `高风险 ${highChurnCount - criticalChurnCount} 人，极高风险 ${criticalChurnCount} 人，合计 ${highChurnCount} 人`,
+          `全店平均流失分 ${averageChurnScore} 分`,
         ],
         totalCustomers,
         run: latestRun,
@@ -224,7 +406,7 @@ export class MarketingService {
     }
 
     if (repurchaseCount) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 2,
         title: `${repurchaseCount} 位客户进入 30 天复购窗口`,
         reason: '复购概率模型显示近期护理周期、到店间隔和次卡状态均适合转化。',
@@ -266,7 +448,7 @@ export class MarketingService {
     }
 
     if (marketingResponseCount) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 3,
         title: `${marketingResponseCount} 位客户适合活动转化`,
         reason: '营销响应分较高，适合用优惠券、微信/小程序组合触达快速验证。',
@@ -309,7 +491,7 @@ export class MarketingService {
     }
 
     if (highLtvCount) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 4,
         title: `${highLtvCount} 位高 LTV 客户需要维护`,
         reason: 'LTV 分层显示这些客户未来 12 个月价值高，建议提供权益维护与预约优先权。',
@@ -351,7 +533,7 @@ export class MarketingService {
     }
 
     if (cardExpirySnapshots.length) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 5,
         title: `${cardExpirySnapshots.length} 位客户次卡/套餐需要提醒使用`,
         reason: '客户仍有有效卡项，且存在剩余次数较少或临近到期信号，建议优先提醒核销并推荐续卡。',
@@ -393,7 +575,7 @@ export class MarketingService {
     }
 
     if (careCycleSnapshots.length) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 6,
         title: `${careCycleSnapshots.length} 位客户护理周期已到复购提醒点`,
         reason: '客户距离上次到店已超过常见护理周期，且复购/营销响应分较高，适合推送预约提醒。',
@@ -434,7 +616,7 @@ export class MarketingService {
     }
 
     if (browseIntentSnapshots.length) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 7,
         title: `${browseIntentSnapshots.length} 位客户适合小程序浏览未预约触达`,
         reason: '当前尚未接入完整小程序行为事件，先用高响应 + 高复购客户作为浏览意图规则的种子人群；接入埋点后将切换为真实浏览未预约事件。',
@@ -475,7 +657,7 @@ export class MarketingService {
     }
 
     if (couponExpirySnapshots.length) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 10,
         title: `${couponExpirySnapshots.length} 位客户适合优惠券到期提醒`,
         reason: '当前优惠券资产表尚未独立接入，先以高响应客户作为券到期规则种子；接入券资产后将按 D-7/D-3/D-1 真实到期时间命中。',
@@ -511,7 +693,7 @@ export class MarketingService {
     }
 
     if (bookingAbandonmentSnapshots.length) {
-      cards.push(this.buildRecommendationCard({
+      cardPromises.push(this.buildRecommendationCard({
         id: 11,
         title: `${bookingAbandonmentSnapshots.length} 位客户适合预约放弃召回`,
         reason: '当前预约放弃埋点尚未完全接入，先以高营销响应客户作为规则种子；接入 booking_started/booking_abandoned 后将按真实事件触发。',
@@ -546,42 +728,125 @@ export class MarketingService {
       }));
     }
 
-    cards.push(...this.buildCalendarScenarioCards({
+    cardPromises.push(...this.buildCalendarScenarioCards({
       latestRun,
       totalCustomers,
       snapshots: marketingResponseSnapshots.length ? marketingResponseSnapshots : snapshotsForCards.slice(0, 80),
       averageMarketingResponseScore,
       expectedLtv6m,
     }));
+    const cards = await Promise.all(cardPromises);
 
-      return this.mergeRecommendationCards(
+      return this.limitRecommendationCards(this.mergeRecommendationCards(
         cards.length ? cards : this.buildFallbackRecommendationCards(totalCustomers, latestRun),
         storeId,
         options,
-      );
+      ), options.limit);
     } catch {
-      return this.mergeRecommendationCards(
+      return this.limitRecommendationCards(this.mergeRecommendationCards(
         this.buildFallbackRecommendationCards(await this.safeCustomerCount(storeId)),
         storeId,
         options,
-      );
+      ), options.limit);
     }
   }
 
-  private async mergeRecommendationCards(customerCards: any[], storeId?: number, options: RecommendationQueryOptions = {}) {
+  private mergeRecommendationCards(customerCards: any[], storeId?: number, options: RecommendationQueryOptions = {}) {
     const scope = options.scope ?? 'all';
     const visibleCustomerCards = scope === 'product-project' ? [] : customerCards;
-    const productProjectCards = scope === 'customer' ? [] : await this.getProductProjectRecommendationCards(storeId, options.type);
-    const cards = [...visibleCustomerCards, ...productProjectCards];
+    const cards = [...visibleCustomerCards];
     if (!options.type) return cards;
     return cards.filter((card: any) => card.recommendationType === options.type || card.triggerType === options.type || card.predictionType === options.type);
   }
 
-  private async getProductProjectRecommendationCards(storeId?: number, type?: string) {
+  private async getProductProjectRecommendationCards(storeId?: number, type?: string, limit?: number) {
     try {
-      return await this.productProjectRecommendationService?.getCards(storeId, { type }) ?? [];
+      return await this.productProjectRecommendationService?.getCards(storeId, { type, limit }) ?? [];
     } catch {
       return [];
+    }
+  }
+
+  private limitRecommendationCards(cards: any[], limit?: number) {
+    const normalizedLimit = Math.max(1, Math.min(50, Number(limit ?? 20)));
+    return cards.slice(0, normalizedLimit);
+  }
+
+  private normalizeRecommendationScope(scope?: string) {
+    return scope === 'product-project' ? 'product-project' : 'customer';
+  }
+
+  private buildRecommendationCacheKey(storeId: number | undefined, options: RecommendationQueryOptions, runId?: number | null) {
+    const scope = this.normalizeRecommendationScope(options.scope);
+    const type = options.type || 'all';
+    const limit = Math.max(1, Math.min(50, Number(options.limit ?? 20)));
+    return `${storeId ?? 'all'}:${scope}:${type}:${limit}:${runId ?? 'no-run'}:${MODEL_VERSION}`;
+  }
+
+  private async getCachedRecommendationCards(storeId: number | undefined, options: RecommendationQueryOptions, build: () => Promise<any[]>) {
+    const latestRun = await this.getLatestRunForRecommendations(storeId).catch(() => null);
+    const cacheKey = this.buildRecommendationCacheKey(storeId, options, latestRun?.id);
+    const now = Date.now();
+    if (!options.refresh) {
+      const memoryHit = this.recommendationCache.get(cacheKey);
+      if (memoryHit && memoryHit.expiresAt > now) return memoryHit.cards;
+      const snapshot = await this.readRecommendationSnapshot(cacheKey);
+      if (snapshot) {
+        this.recommendationCache.set(cacheKey, { expiresAt: now + RECOMMENDATION_CACHE_TTL_MS, cards: snapshot });
+        return snapshot;
+      }
+    }
+
+    const cards = await build();
+    this.recommendationCache.set(cacheKey, { expiresAt: now + RECOMMENDATION_CACHE_TTL_MS, cards });
+    void this.writeRecommendationSnapshot(cacheKey, storeId, options, latestRun?.id, cards);
+    return cards;
+  }
+
+  private async readRecommendationSnapshot(cacheKey: string) {
+    const delegate = (this.prisma as any).marketingRecommendationSnapshot;
+    if (!delegate?.findUnique) return null;
+    try {
+      const snapshot = await delegate.findUnique({ where: { cacheKey } });
+      if (!snapshot) return null;
+      if (snapshot.expiresAt && new Date(snapshot.expiresAt).getTime() < Date.now()) return null;
+      return Array.isArray(snapshot.cardsJson) ? snapshot.cardsJson : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeRecommendationSnapshot(cacheKey: string, storeId: number | undefined, options: RecommendationQueryOptions, runId: number | undefined, cards: any[]) {
+    const delegate = (this.prisma as any).marketingRecommendationSnapshot;
+    if (!delegate?.upsert) return;
+    const scope = this.normalizeRecommendationScope(options.scope);
+    const expiresAt = new Date(Date.now() + RECOMMENDATION_CACHE_TTL_MS);
+    try {
+      await delegate.upsert({
+        where: { cacheKey },
+        create: {
+          cacheKey,
+          storeId: storeId ?? null,
+          scope,
+          type: options.type ?? null,
+          predictionRunId: runId ?? null,
+          cardsJson: cards,
+          cardCount: cards.length,
+          sourceVersion: MODEL_VERSION,
+          generatedAt: new Date(),
+          expiresAt,
+        },
+        update: {
+          cardsJson: cards,
+          cardCount: cards.length,
+          predictionRunId: runId ?? null,
+          sourceVersion: MODEL_VERSION,
+          generatedAt: new Date(),
+          expiresAt,
+        },
+      });
+    } catch {
+      // 推荐快照只是性能优化，写入失败不影响实时结果返回。
     }
   }
 
@@ -704,12 +969,8 @@ export class MarketingService {
     });
   }
 
-  private async getRecentBehaviorSignals() {
-    const empty = {
-      browseAbandonment: new Set<number>(),
-      bookingAbandonment: new Set<number>(),
-      couponClaimedUnused: new Set<number>(),
-    };
+  private async getRecentBehaviorSignals(storeId?: number | null) {
+    const empty = this.emptyBehaviorSignals();
     const delegate = (this.prisma as any).customerBehaviorEvent;
     if (!delegate?.findMany) return empty;
     const since = new Date();
@@ -718,6 +979,7 @@ export class MarketingService {
     try {
       events = await delegate.findMany({
         where: {
+          ...(storeId ? { storeId: Number(storeId) } : {}),
           occurredAt: { gte: since },
           eventType: {
             in: [
@@ -734,7 +996,7 @@ export class MarketingService {
             ],
           },
         },
-        take: 2000,
+        take: 1000,
         orderBy: { occurredAt: 'desc' },
       });
     } catch {
@@ -768,12 +1030,7 @@ export class MarketingService {
   }
 
   private async getRealtimeSignals(storeId?: number | null) {
-    const empty = {
-      cardExpiry: new Set<number>(),
-      careCycle: new Set<number>(),
-      bookingAbandonment: new Set<number>(),
-      couponClaimedUnused: new Set<number>(),
-    };
+    const empty = this.emptyRealtimeSignals();
     const now = new Date();
     const careCycleThreshold = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
     const bookingWindow = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -871,6 +1128,23 @@ export class MarketingService {
     }
 
     return empty;
+  }
+
+  private emptyBehaviorSignals() {
+    return {
+      browseAbandonment: new Set<number>(),
+      bookingAbandonment: new Set<number>(),
+      couponClaimedUnused: new Set<number>(),
+    };
+  }
+
+  private emptyRealtimeSignals() {
+    return {
+      cardExpiry: new Set<number>(),
+      careCycle: new Set<number>(),
+      bookingAbandonment: new Set<number>(),
+      couponClaimedUnused: new Set<number>(),
+    };
   }
 
   private pickBehaviorSnapshots(snapshots: any[], customerIds: Set<number>, fallback: (snapshot: any) => boolean) {
@@ -1072,6 +1346,7 @@ export class MarketingService {
     const recommendation = this.getRecommendationAudienceMeta(recommendationId)
       ?? this.recommendations.find((item) => item.id === recommendationId);
     if (!recommendation) throw new NotFoundException('Recommendation not found');
+    const assigneeRole = this.getRecommendationAssigneeRole(recommendation);
 
     const predictionType = (recommendation as any).predictionType;
     const predictionRunId = (recommendation as any).predictionRunId ?? latestRun?.id;
@@ -1105,7 +1380,7 @@ export class MarketingService {
         orderBy: this.getRecommendationAudienceOrderBy(predictionType),
       });
 
-      return snapshots.map((snapshot: any) => ({
+      const profiles = snapshots.map((snapshot: any) => ({
         customerId: snapshot.customerId,
         name: snapshot.customer.name,
         phone: snapshot.customer.phone,
@@ -1126,6 +1401,8 @@ export class MarketingService {
         ltvTier: snapshot.ltvTier,
         reasons: snapshot.reasonJson,
       }));
+      const filteredProfiles = await this.filterRecommendationAudienceProfiles(profiles, { storeId, recommendationId });
+      return this.enrichRecommendationAudienceAssignees(filteredProfiles, storeId, assigneeRole);
     }
 
     const customers = await this.prisma.customer.findMany({
@@ -1133,7 +1410,7 @@ export class MarketingService {
       orderBy: { id: 'asc' },
     });
 
-    return customers.map((customer: any) => ({
+    const profiles = customers.map((customer: any) => ({
       customerId: customer.id,
       name: customer.name,
       phone: customer.phone,
@@ -1144,6 +1421,262 @@ export class MarketingService {
       recommendationId,
       matchReason: (recommendation as any).description ?? (recommendation as any).reason,
     }));
+    const filteredProfiles = await this.filterRecommendationAudienceProfiles(profiles, { storeId, recommendationId });
+    return this.enrichRecommendationAudienceAssignees(filteredProfiles, storeId, assigneeRole);
+  }
+
+  private async filterRecommendationAudienceProfiles<T extends { customerId?: number }>(
+    profiles: T[],
+    options: { storeId?: number; recommendationId?: number } = {},
+  ) {
+    const customerIds = [...new Set(profiles.map((profile) => Number(profile.customerId)).filter((id) => Number.isFinite(id) && id > 0))];
+    if (!customerIds.length) return profiles;
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const storeWhere = options.storeId ? { storeId: options.storeId } : {};
+    const excludedCustomerIds = new Set<number>();
+    const touchEventPattern = /push|sms|touch|message|coupon_claimed|promotion_claimed|promotion_sent|marketing|follow_up/i;
+
+    const [
+      recentAutomationTouches,
+      recentFollowUps,
+      appEvents30d,
+      futureReservations,
+    ] = await Promise.all([
+      this.safeFindMany((this.prisma as any).marketingAutomationTouch, {
+        where: {
+          customerId: { in: customerIds },
+          touchedAt: { gte: sevenDaysAgo },
+          ...(options.recommendationId ? { predictionSnapshot: { is: { customerId: { in: customerIds } } } } : {}),
+        },
+        select: { customerId: true },
+      }),
+      this.safeFindMany((this.prisma as any).terminalFollowUpTask, {
+        where: {
+          customerId: { in: customerIds },
+          ...storeWhere,
+          deletedAt: null,
+          status: { notIn: ['cancelled', 'canceled', 'expired'] },
+          createdAt: { gte: sevenDaysAgo },
+        },
+        select: { customerId: true },
+      }),
+      this.safeFindMany((this.prisma as any).customerAppEvent, {
+        where: {
+          customerId: { in: customerIds },
+          ...storeWhere,
+          occurredAt: { gte: thirtyDaysAgo },
+        },
+        select: { customerId: true, eventType: true, occurredAt: true },
+      }),
+      this.safeFindMany((this.prisma as any).reservation, {
+        where: {
+          customerId: { in: customerIds },
+          ...storeWhere,
+          date: { gte: startOfToday },
+          status: { notIn: ['cancelled', 'canceled', 'completed', 'no_show'] },
+        },
+        select: { customerId: true },
+      }),
+    ]);
+
+    for (const touch of recentAutomationTouches) excludedCustomerIds.add(Number(touch.customerId));
+    for (const task of recentFollowUps) excludedCustomerIds.add(Number(task.customerId));
+    for (const reservation of futureReservations) excludedCustomerIds.add(Number(reservation.customerId));
+
+    const touchEventCountByCustomer = new Map<number, number>();
+    for (const event of appEvents30d) {
+      const customerId = Number(event.customerId);
+      if (!customerId || !touchEventPattern.test(String(event.eventType ?? ''))) continue;
+      touchEventCountByCustomer.set(customerId, (touchEventCountByCustomer.get(customerId) ?? 0) + 1);
+      const occurredAt = event.occurredAt ? new Date(event.occurredAt) : null;
+      if (occurredAt && occurredAt >= sevenDaysAgo) excludedCustomerIds.add(customerId);
+    }
+    for (const [customerId, count] of touchEventCountByCustomer) {
+      if (count >= 3) excludedCustomerIds.add(customerId);
+    }
+
+    return profiles.filter((profile) => !excludedCustomerIds.has(Number(profile.customerId)));
+  }
+
+  private getRecommendationAssigneeRole(recommendation: any) {
+    const text = [
+      recommendation?.recommendationType,
+      recommendation?.triggerType,
+      recommendation?.source,
+      recommendation?.title,
+      recommendation?.reason,
+      recommendation?.description,
+    ].filter(Boolean).join(' ');
+    if (/expiry|inventory|stock|capacity|临期|库存|低峰|排期|产能|补货/.test(text)) return 'manager';
+    if (/booking|appointment|reservation|预约|浏览|放弃|到店/.test(text)) return 'reception';
+    return 'consultant';
+  }
+
+  private async enrichRecommendationAudienceAssignees<T extends { customerId?: number }>(
+    profiles: T[],
+    storeId?: number,
+    assigneeRole = 'consultant',
+  ) {
+    const customerIds = [...new Set(profiles.map((profile) => Number(profile.customerId)).filter((id) => Number.isFinite(id) && id > 0))];
+    if (!customerIds.length) return profiles;
+
+    const storeWhere = storeId ? { storeId } : {};
+    const beauticianUserSelect = {
+      id: true,
+      name: true,
+      username: true,
+      status: true,
+      deletedAt: true,
+      stores: { select: { storeId: true } },
+    };
+    const beauticianSelect = {
+      id: true,
+      name: true,
+      userId: true,
+      user: { select: beauticianUserSelect },
+    };
+    const [serviceTasks, reservations, fallbackBeauticians, fallbackUsers] = await Promise.all([
+      this.safeFindMany((this.prisma as any).serviceTask, {
+        where: {
+          customerId: { in: customerIds },
+          ...storeWhere,
+          beauticianId: { not: null },
+        },
+        include: { beautician: { select: beauticianSelect } },
+        orderBy: [{ completedAt: 'desc' }, { appointmentTime: 'desc' }],
+      }),
+      this.safeFindMany((this.prisma as any).reservation, {
+        where: {
+          customerId: { in: customerIds },
+          ...storeWhere,
+          beauticianId: { not: null },
+        },
+        include: { beautician: { select: beauticianSelect } },
+        orderBy: { date: 'desc' },
+      }),
+      this.safeFindMany((this.prisma as any).beautician, {
+        where: {
+          ...storeWhere,
+          status: 'active',
+          userId: { not: null },
+          user: {
+            status: 'active',
+            deletedAt: null,
+            ...(storeId ? { stores: { some: { storeId } } } : {}),
+          },
+        },
+        select: beauticianSelect,
+        orderBy: [{ userId: 'desc' }, { id: 'asc' }],
+        take: 1,
+      }),
+      this.safeFindMany((this.prisma as any).user, {
+        where: {
+          deletedAt: null,
+          status: 'active',
+          ...(storeId ? { stores: { some: { storeId } } } : {}),
+        },
+        include: { roles: { include: { role: true } } },
+        orderBy: { id: 'asc' },
+        take: 50,
+      }),
+    ]);
+
+    const getSystemUserFromBeautician = (beautician: any) => {
+      const user = beautician?.user;
+      if (!user || user.status !== 'active' || user.deletedAt) return null;
+      if (storeId && !user.stores?.some((store: any) => Number(store.storeId) === Number(storeId))) return null;
+      return user;
+    };
+    const getUserDisplayName = (user: any) => user?.name || user?.username || '系统用户';
+
+    const assigneeByCustomer = new Map<number, Record<string, unknown>>();
+    for (const task of serviceTasks) {
+      const customerId = Number(task.customerId);
+      if (!customerId || assigneeByCustomer.has(customerId) || !task.beautician) continue;
+      const assigneeUser = getSystemUserFromBeautician(task.beautician);
+      if (!assigneeUser) continue;
+      assigneeByCustomer.set(customerId, {
+        preferredAssigneeRole: 'consultant',
+        preferredAssigneeRoleLabel: '顾问/美容师',
+        preferredAssigneeName: getUserDisplayName(assigneeUser),
+        preferredAssigneeUserId: assigneeUser.id,
+        preferredAssigneeBeauticianId: task.beautician.id,
+        preferredAssigneeReason: '最近服务美容师',
+      });
+    }
+    for (const reservation of reservations) {
+      const customerId = Number(reservation.customerId);
+      if (!customerId || assigneeByCustomer.has(customerId) || !reservation.beautician) continue;
+      const assigneeUser = getSystemUserFromBeautician(reservation.beautician);
+      if (!assigneeUser) continue;
+      assigneeByCustomer.set(customerId, {
+        preferredAssigneeRole: 'consultant',
+        preferredAssigneeRoleLabel: '顾问/美容师',
+        preferredAssigneeName: getUserDisplayName(assigneeUser),
+        preferredAssigneeUserId: assigneeUser.id,
+        preferredAssigneeBeauticianId: reservation.beautician.id,
+        preferredAssigneeReason: '最近预约美容师',
+      });
+    }
+    const fallbackBeautician = fallbackBeauticians.find((beautician: any) => getSystemUserFromBeautician(beautician));
+    const fallbackBeauticianUser = getSystemUserFromBeautician(fallbackBeautician);
+    const roleSignals: Record<string, string[]> = {
+      manager: ['store_manager', 'manager', '店长'],
+      reception: ['reception', 'frontdesk', 'cashier', '前台'],
+      consultant: ['consultant', 'advisor', 'beautician', '顾问', '美容师'],
+    };
+    const fallbackUser =
+      fallbackUsers.find((user: any) =>
+        user.roles?.some(({ role }: any) => {
+          const text = `${role.key} ${role.name}`.toLowerCase();
+          return (roleSignals[assigneeRole] ?? roleSignals.consultant).some((signal) => text.includes(signal.toLowerCase()));
+        }),
+      ) ?? fallbackUsers[0];
+
+    return profiles.map((profile) => ({
+      ...profile,
+      ...(assigneeByCustomer.get(Number(profile.customerId)) ??
+        (assigneeRole === 'consultant' && fallbackBeautician && fallbackBeauticianUser
+          ? {
+              preferredAssigneeRole: 'consultant',
+              preferredAssigneeRoleLabel: '顾问/美容师',
+              preferredAssigneeName: getUserDisplayName(fallbackBeauticianUser),
+              preferredAssigneeUserId: fallbackBeauticianUser.id,
+              preferredAssigneeBeauticianId: fallbackBeautician.id,
+              preferredAssigneeReason: '无历史服务人，按门店兜底分派',
+            }
+          : fallbackUser
+            ? {
+                preferredAssigneeRole: assigneeRole,
+                preferredAssigneeRoleLabel: assigneeRole === 'manager' ? '店长' : assigneeRole === 'reception' ? '前台' : '顾问/美容师',
+                preferredAssigneeName: fallbackUser.name || fallbackUser.username,
+                preferredAssigneeUserId: fallbackUser.id,
+                preferredAssigneeBeauticianId: undefined,
+                preferredAssigneeReason:
+                  assigneeRole === 'manager'
+                    ? '经营协调类任务，按店长兜底分派'
+                    : assigneeRole === 'reception'
+                      ? '预约邀约类任务，按前台兜底分派'
+                      : '无历史服务人，按门店员工兜底分派',
+              }
+            : {})),
+    }));
+  }
+
+  private async safeFindMany(delegate: any, args: any) {
+    if (!delegate?.findMany) return [];
+    try {
+      const result = await delegate.findMany(args);
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.warn('recommendation audience exclusion query failed', error);
+      return [];
+    }
   }
 
   private getRecommendationAudienceMeta(recommendationId: number) {
@@ -1262,10 +1795,17 @@ export class MarketingService {
     const recommendation = await this.getRecommendationCardById(id);
     const period = this.defaultActivityPeriod();
     const primaryItem = recommendation.recommendedItems?.[0];
+    const attribution = this.buildRecommendationAttribution(id, recommendation);
+    const promotionIds = this.uniqueNumbers([
+      recommendation.offer?.promotionId,
+      recommendation.primaryPromotion?.promotionId,
+      ...(recommendation.alternativePromotions ?? []).map((item: any) => item.promotionId),
+    ]);
     return {
       recommendationId: id,
       sourceRecommendationId: String(id),
       predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : undefined,
+      attribution,
       formDefaults: {
         title: recommendation.title,
         description: recommendation.reason,
@@ -1277,8 +1817,23 @@ export class MarketingService {
         sourceRecommendationId: String(id),
         predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : undefined,
         audienceSnapshotJson: recommendation.audienceSnapshot,
-        sourceSignalsJson: recommendation.sourceSignals ?? [],
-        offerJson: recommendation.offer,
+        sourceSignalsJson: {
+          signals: recommendation.sourceSignals ?? [],
+          attribution,
+          primaryPromotion: recommendation.primaryPromotion ?? null,
+          alternativePromotions: recommendation.alternativePromotions ?? [],
+          offerFitBreakdown: recommendation.offerFitBreakdown ?? null,
+          originalOffer: recommendation.offer ?? null,
+        },
+        offerJson: {
+          ...(recommendation.offer ?? {}),
+          attribution,
+          primaryPromotion: recommendation.primaryPromotion ?? null,
+          alternativePromotions: recommendation.alternativePromotions ?? [],
+          offerFitBreakdown: recommendation.offerFitBreakdown ?? null,
+        },
+        primaryPromotionId: recommendation.offer?.promotionId,
+        promotionIdsJson: promotionIds,
         recommendedItemsJson: recommendation.recommendedItems ?? [],
         inventorySnapshotJson: recommendation.inventorySnapshot,
         capacitySnapshotJson: recommendation.capacitySnapshot,
@@ -1302,6 +1857,7 @@ export class MarketingService {
 
   async createRecommendationAutomationDraft(id: number) {
     const recommendation = await this.getRecommendationCardById(id);
+    const attribution = this.buildRecommendationAttribution(id, recommendation);
     const triggerRule = recommendation.triggerRule ?? (
       recommendation.triggerType
         ? {
@@ -1318,7 +1874,10 @@ export class MarketingService {
     }]).map((action: any, index: number) => ({
       type: action.type === 'consultant_task' ? 'push' : action.type,
       value: action.value,
+      promotionId: action.promotionId ?? recommendation.offer?.promotionId,
+      promotionName: action.promotionName ?? recommendation.offer?.promotionName,
       channel: action.channel ?? recommendation.recommendedChannels?.[index]?.channel ?? recommendation.recommendedChannels?.[0]?.channel ?? 'miniapp',
+      attribution,
     }));
     const triggerRules = triggerRule ? [{
       type: triggerRule.type,
@@ -1328,17 +1887,62 @@ export class MarketingService {
     const preview = triggerRules.length ? await this.previewAudience(triggerRules, 'AND') : null;
     return {
       recommendationId: id,
+      sourceRecommendationId: String(id),
+      predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : undefined,
+      attribution,
       strategyInput: {
         name: recommendation.title,
         description: recommendation.reason,
         executionType: 'auto',
-        schedule: { type: 'daily', time: '09:00' },
+        source: 'recommendation',
+        schedule: {
+          type: 'daily',
+          time: '09:00',
+          attribution,
+          frequencyCap: this.recommendationFrequencyCap(recommendation),
+        },
         triggerRules,
         ruleRelation: 'AND',
         actions,
+        targetCount: recommendation.targetCount ?? recommendation.audienceSnapshot?.totalCustomers ?? preview?.total ?? 0,
       },
       preview,
       recommendation,
+    };
+  }
+
+  private buildRecommendationAttribution(id: number, recommendation: any) {
+    return {
+      source: 'recommendation',
+      sourceRecommendationId: String(id),
+      recommendationKey: recommendation.recommendationKey,
+      recommendationType: recommendation.recommendationType,
+      triggerType: recommendation.triggerType,
+      predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : undefined,
+      modelVersion: recommendation.modelVersion,
+      audienceSnapshot: recommendation.audienceSnapshot ?? null,
+      audienceRule: recommendation.audienceRule ?? null,
+      audienceTags: recommendation.audienceTags ?? [],
+      sourceSignals: recommendation.sourceSignals ?? [],
+      primaryPromotion: recommendation.primaryPromotion ?? null,
+      alternativePromotions: recommendation.alternativePromotions ?? [],
+      offerFitBreakdown: recommendation.offerFitBreakdown ?? null,
+      originalOffer: recommendation.offer ?? null,
+      recommendedItems: recommendation.recommendedItems ?? [],
+      inventorySnapshot: recommendation.inventorySnapshot ?? null,
+      capacitySnapshot: recommendation.capacitySnapshot ?? null,
+      riskWarnings: recommendation.riskWarnings ?? [],
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private recommendationFrequencyCap(recommendation: any) {
+    const isUrgent = recommendation.priority === 'P0' || recommendation.urgency === 'urgent';
+    const isFatigueRisk = (recommendation.riskWarnings ?? []).some((warning: string) => /疲劳|频次|触达/.test(String(warning)));
+    return {
+      sameCustomerDays: isFatigueRisk ? 14 : isUrgent ? 3 : 7,
+      sameChannelDays: isFatigueRisk ? 3 : 1,
+      maxTouchesPerCustomer: isFatigueRisk ? 1 : 2,
     };
   }
 
@@ -1557,6 +2161,7 @@ export class MarketingService {
     const [items, total] = await Promise.all([
       this.prisma.marketingActivity.findMany({
         where,
+        include: { primaryPromotion: true },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -1568,7 +2173,7 @@ export class MarketingService {
   }
 
   async getActivityById(id: number) {
-    const activity = await this.prisma.marketingActivity.findUnique({ where: { id } });
+    const activity = await this.prisma.marketingActivity.findUnique({ where: { id }, include: { primaryPromotion: true } });
     if (!activity) throw new NotFoundException('Marketing activity not found');
     return this.refreshActivityMetrics(id, activity);
   }
@@ -1622,13 +2227,131 @@ export class MarketingService {
       return this.prisma.marketingActivity.update({
         where: { id: activityId },
         data: { participants, conversion },
+        include: { primaryPromotion: true },
       });
     }
 
     return current;
   }
 
-  private normalizeActivityData(dto: any) {
+  private parsePromotionIdsFromInput(dto: any) {
+    const ids = new Set<number>();
+    const add = (value: unknown) => {
+      const id = Number(value);
+      if (Number.isInteger(id) && id > 0) ids.add(id);
+    };
+
+    add(dto.primaryPromotionId);
+    add(dto.promotionId);
+
+    const rawIds = Array.isArray(dto.promotionIdsJson)
+      ? dto.promotionIdsJson
+      : Array.isArray(dto.promotionIds)
+        ? dto.promotionIds
+        : [];
+    rawIds.forEach(add);
+
+    const offer = dto.offerJson && typeof dto.offerJson === 'object' ? dto.offerJson : null;
+    if (offer) add((offer as any).promotionId);
+
+    return Array.from(ids);
+  }
+
+  private async getUsablePromotions(ids: number[]) {
+    const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+    if (!uniqueIds.length) return [];
+    const promotions = await this.prisma.promotion.findMany({ where: { id: { in: uniqueIds } } });
+    if (promotions.length !== uniqueIds.length) {
+      const found = new Set(promotions.map((item: any) => item.id));
+      const missing = uniqueIds.filter((id) => !found.has(id));
+      throw new BadRequestException(`权益资产不存在：${missing.join(', ')}`);
+    }
+
+    const now = new Date();
+    const invalid = promotions.find((promotion: any) => {
+      if (promotion.status !== 'active') return true;
+      if (promotion.approvalStatus !== 'approved') return true;
+      if (promotion.startAt && promotion.startAt > now) return true;
+      if (promotion.endAt && promotion.endAt < now) return true;
+      if (promotion.maxIssueCount != null && Number(promotion.issuedCount ?? 0) >= Number(promotion.maxIssueCount)) return true;
+      return false;
+    });
+    if (invalid) {
+      throw new BadRequestException(`权益资产「${invalid.name}」未通过审核、未发布、已过期或已达发放上限，不能继续投放`);
+    }
+    return promotions;
+  }
+
+  private parsePromotionIdsFromActions(actions: any) {
+    if (!Array.isArray(actions)) return [];
+    const ids = new Set<number>();
+    actions.forEach((action) => {
+      const id = Number(action?.promotionId);
+      if (Number.isInteger(id) && id > 0) ids.add(id);
+    });
+    return Array.from(ids);
+  }
+
+  private async assertUsableActionPromotions(actions: any) {
+    const promotionIds = this.parsePromotionIdsFromActions(actions);
+    if (!promotionIds.length) return;
+    await this.getUsablePromotions(promotionIds);
+  }
+
+  private async matchDefaultPromotionForScenario(scenario?: string | null, storeId?: number | null) {
+    if (!scenario) return null;
+    const now = new Date();
+    const candidates = await this.prisma.promotion.findMany({
+      where: {
+        status: 'active',
+        approvalStatus: 'approved',
+        scenario,
+        OR: storeId ? [{ storeId: Number(storeId) }, { storeId: null }] : [{ storeId: null }],
+        AND: [
+          { OR: [{ startAt: null }, { startAt: { lte: now } }] },
+          { OR: [{ endAt: null }, { endAt: { gte: now } }] },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    }).catch(() => []);
+    const usableCandidates = candidates.filter((promotion: any) =>
+      promotion.maxIssueCount == null || Number(promotion.issuedCount ?? 0) < Number(promotion.maxIssueCount),
+    );
+    return usableCandidates.find((promotion: any) => storeId && promotion.storeId === Number(storeId))
+      ?? usableCandidates[0]
+      ?? null;
+  }
+
+  private async attachDefaultPromotionToActions(actions: any[] = [], scenario?: string | null, storeId?: number | null) {
+    if (!Array.isArray(actions) || actions.length === 0) return actions;
+    if (actions.some((action) => action?.promotionId)) return actions;
+    const promotion = await this.matchDefaultPromotionForScenario(scenario, storeId);
+    if (!promotion) return actions;
+    return actions.map((action) => {
+      if (!['coupon', 'discount', 'gift', 'miniapp'].includes(String(action?.type))) return action;
+      return {
+        ...action,
+        promotionId: promotion.id,
+        promotionName: promotion.name,
+        value: action.value || promotion.discountText,
+      };
+    });
+  }
+
+  private buildPromotionOfferSnapshot(offerJson: any, promotion: any) {
+    return {
+      ...(offerJson && typeof offerJson === 'object' ? offerJson : {}),
+      type: offerJson?.type ?? promotion.type,
+      label: promotion.discountText,
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      validDays: promotion.validDays ?? offerJson?.validDays,
+      reason: offerJson?.reason ?? '来自权益资产库，活动投放和效果复盘可按权益维度追踪。',
+    };
+  }
+
+  private async normalizeActivityData(dto: any) {
     const data: any = {};
     const stringFields = [
       'title',
@@ -1672,6 +2395,21 @@ export class MarketingService {
     if (dto.offerJson !== undefined) {
       data.offerJson = dto.offerJson;
     }
+    const promotionIds = this.parsePromotionIdsFromInput(dto);
+    if (promotionIds.length) {
+      const promotions = await this.getUsablePromotions(promotionIds);
+      const primaryPromotionId = Number(dto.primaryPromotionId ?? dto.promotionId ?? dto.offerJson?.promotionId ?? promotionIds[0]);
+      const primaryPromotion = promotions.find((promotion: any) => promotion.id === primaryPromotionId) ?? promotions[0];
+      data.primaryPromotionId = primaryPromotion.id;
+      data.promotionIdsJson = promotionIds;
+      data.discount = dto.discount || primaryPromotion.discountText;
+      data.offerJson = this.buildPromotionOfferSnapshot(data.offerJson, primaryPromotion);
+    } else if (dto.primaryPromotionId === null || dto.promotionId === null) {
+      data.primaryPromotionId = null;
+      data.promotionIdsJson = [];
+    } else if (dto.promotionIdsJson !== undefined || dto.promotionIds !== undefined) {
+      data.promotionIdsJson = promotionIds;
+    }
     if (dto.recommendedItemsJson !== undefined) {
       data.recommendedItemsJson = dto.recommendedItemsJson;
     }
@@ -1679,12 +2417,19 @@ export class MarketingService {
     return data;
   }
 
-  createActivity(dto: any) {
-    return this.prisma.marketingActivity.create({ data: this.normalizeActivityData(dto) });
+  async createActivity(dto: any) {
+    return this.prisma.marketingActivity.create({
+      data: await this.normalizeActivityData(dto),
+      include: { primaryPromotion: true },
+    });
   }
 
-  updateActivity(id: number, dto: any) {
-    return this.prisma.marketingActivity.update({ where: { id }, data: this.normalizeActivityData(dto) });
+  async updateActivity(id: number, dto: any) {
+    return this.prisma.marketingActivity.update({
+      where: { id },
+      data: await this.normalizeActivityData(dto),
+      include: { primaryPromotion: true },
+    });
   }
 
   async deleteActivity(id: number) {
@@ -2197,6 +2942,12 @@ export class MarketingService {
   async enableRuleTemplate(id: number, dto: any = {}) {
     const template = await this.getRuleTemplateById(id);
     const preview = await this.previewRuleTemplateAudience(id);
+    const actions = await this.attachDefaultPromotionToActions(
+      dto.actions ?? template.recommendedActions ?? [],
+      template.scenario,
+      template.storeId,
+    );
+    await this.assertUsableActionPromotions(actions);
     const strategy = await this.strategyDelegate().create({
       data: {
         name: dto.name ?? template.name,
@@ -2213,7 +2964,7 @@ export class MarketingService {
           parameterSource: template.source === 'system' ? 'system_default' : 'customized',
         }],
         ruleRelation: 'AND',
-        actions: dto.actions ?? template.recommendedActions ?? [],
+        actions,
         targetCount: preview.total ?? preview.estimatedCount ?? 0,
       },
     });
@@ -2291,7 +3042,9 @@ export class MarketingService {
     return { items, data: items, total, page, pageSize };
   }
 
-  createStrategy(dto: any) {
+  async createStrategy(dto: any) {
+    const actions = this.attachStrategyAttributionToActions(dto.actions ?? [], dto);
+    await this.assertUsableActionPromotions(actions);
     return this.prisma.marketingAutomationStrategy.create({
       data: {
         name: dto.name,
@@ -2302,14 +3055,28 @@ export class MarketingService {
         schedule: dto.schedule ?? {},
         triggerRules: dto.triggerRules ?? [],
         ruleRelation: dto.ruleRelation ?? 'AND',
-        actions: dto.actions ?? [],
+        actions,
         targetCount: dto.targetCount ?? 0,
       },
     });
   }
 
-  updateStrategy(id: number, dto: any) {
+  async updateStrategy(id: number, dto: any) {
+    if (dto.actions !== undefined) {
+      dto.actions = this.attachStrategyAttributionToActions(dto.actions, dto);
+      await this.assertUsableActionPromotions(dto.actions);
+    }
     return this.prisma.marketingAutomationStrategy.update({ where: { id }, data: dto });
+  }
+
+  private attachStrategyAttributionToActions(actions: any[] = [], dto: any = {}) {
+    if (!Array.isArray(actions)) return [];
+    const attribution = dto.attribution ?? dto.schedule?.attribution;
+    if (!attribution) return actions;
+    return actions.map((action) => ({
+      ...action,
+      attribution: action?.attribution ?? attribution,
+    }));
   }
 
   async deleteStrategy(id: number) {
@@ -2317,7 +3084,10 @@ export class MarketingService {
     return { success: true };
   }
 
-  enableStrategy(id: number) {
+  async enableStrategy(id: number) {
+    const strategy = await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
+    if (!strategy) throw new NotFoundException('Strategy not found');
+    await this.assertUsableActionPromotions(strategy.actions);
     return this.prisma.marketingAutomationStrategy.update({ where: { id }, data: { status: 'enabled' } });
   }
 
@@ -2328,10 +3098,12 @@ export class MarketingService {
   async executeStrategy(id: number) {
     const strategy = await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
     if (!strategy) throw new NotFoundException('Strategy not found');
+    await this.assertUsableActionPromotions(strategy.actions);
     const audience = await this.buildAutomationAudience(strategy.triggerRules as any[], strategy.ruleRelation, strategy.actions);
     const channel = this.extractPrimaryChannel(strategy.actions);
     const eligibleCustomers = await this.filterTouchFatigue(id, channel, audience.customers);
     const reachedCount = eligibleCustomers.length;
+    const actionPromotions = this.extractActionPromotions(strategy.actions);
 
     const execution = await this.prisma.marketingAutomationExecution.create({
       data: {
@@ -2358,12 +3130,79 @@ export class MarketingService {
           attributionWindowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
         })),
       });
+      await this.recordAutomationPromotionClaims(strategy, execution, eligibleCustomers, actionPromotions, channel);
     }
     await this.prisma.marketingAutomationStrategy.update({
       where: { id },
       data: { lastExecutedAt: new Date(), targetCount: audience.total },
     });
     return execution;
+  }
+
+  private extractActionPromotions(actions: any) {
+    if (!Array.isArray(actions)) return [];
+    const seen = new Set<number>();
+    return actions
+      .map((action) => {
+        const promotionId = Number(action?.promotionId);
+        if (!Number.isFinite(promotionId) || promotionId <= 0 || seen.has(promotionId)) return null;
+        seen.add(promotionId);
+        return {
+          promotionId,
+          promotionName: action?.promotionName,
+          value: action?.value,
+          type: action?.type,
+          attribution: action?.attribution,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  private async recordAutomationPromotionClaims(
+    strategy: any,
+    execution: any,
+    customers: any[],
+    promotions: any[],
+    channel?: string,
+  ) {
+    if (!customers.length || !promotions.length) return;
+    const eventDelegate = (this.prisma as any).customerAppEvent;
+    const promotionDelegate = (this.prisma as any).promotion;
+    const now = new Date();
+
+    if (eventDelegate?.createMany) {
+      await eventDelegate.createMany({
+        data: customers.flatMap((customer) => promotions.map((promotion) => ({
+          storeId: Number(customer.storeId ?? customer.store?.id ?? strategy.storeId ?? 1),
+          customerId: customer.id,
+          eventType: 'promotion_claimed',
+          channel,
+          targetType: 'promotion',
+          targetId: String(promotion.promotionId),
+          source: 'marketing_automation',
+          metadataJson: {
+            strategyId: strategy.id,
+            strategyName: strategy.name,
+            executionId: execution.id,
+            promotionName: promotion.promotionName,
+            actionType: promotion.type,
+            actionValue: promotion.value,
+            attribution: promotion.attribution ?? strategy.schedule?.attribution ?? null,
+          },
+          occurredAt: now,
+        }))),
+        skipDuplicates: true,
+      });
+    }
+
+    if (promotionDelegate?.updateMany) {
+      await Promise.all(promotions.map((promotion) =>
+        promotionDelegate.updateMany({
+          where: { id: promotion.promotionId },
+          data: { issuedCount: { increment: customers.length } },
+        }),
+      ));
+    }
   }
 
   private async filterTouchFatigue(strategyId: number, channel: string, customers: any[]) {
@@ -2543,17 +3382,20 @@ export class MarketingService {
 
   async getUnifiedEffects(query: UnifiedEffectQuery = {}) {
     const objectType = this.normalizeEffectObjectType(query.objectType);
+    const objectId = query.objectId != null && query.objectId !== '' ? String(query.objectId) : '';
     const builders: Array<Promise<UnifiedEffectItem[]>> = [];
 
     if (!objectType || objectType === 'activity') builders.push(this.buildActivityEffectItems(query.storeId));
     if (!objectType || objectType === 'auto') builders.push(this.buildAutomationEffectItems());
     if (!objectType || objectType === 'page') builders.push(this.buildPageEffectItems(query.storeId));
     if (!objectType || objectType === 'promotion') builders.push(this.buildPromotionEffectItems(query.storeId));
+    if (!objectType || objectType === 'recommendation') builders.push(this.buildRecommendationEffectItems(query.storeId));
     if (!objectType || objectType === 'glow') builders.push(this.buildGlowEffectItems(query.storeId));
 
-    const items = (await Promise.all(builders))
+    const allItems = (await Promise.all(builders))
       .flat()
       .sort((a, b) => b.revenue - a.revenue || b.exposureCount - a.exposureCount);
+    const items = objectId ? allItems.filter((item) => String(item.objectId) === objectId) : allItems;
     const summary = this.summarizeUnifiedEffectItems(items);
     const emptyReasons = this.buildUnifiedEffectEmptyReasons(items);
 
@@ -2567,7 +3409,7 @@ export class MarketingService {
 
   private normalizeEffectObjectType(type?: string): UnifiedEffectObjectType | undefined {
     if (!type || type === 'all') return undefined;
-    return ['activity', 'auto', 'page', 'promotion', 'glow'].includes(type)
+    return ['activity', 'auto', 'page', 'promotion', 'recommendation', 'glow'].includes(type)
       ? (type as UnifiedEffectObjectType)
       : undefined;
   }
@@ -2596,10 +3438,11 @@ export class MarketingService {
       auto: '暂无自动营销执行数据，请先启用规则并产生触达记录。',
       page: '暂无营销页面曝光/点击数据，请先发布页面或接入页面埋点。',
       promotion: '暂无优惠活动领券/核销数据，请先在小程序或收银侧接入优惠事件。',
+      recommendation: '暂无推荐来源归因数据，请先从智能推荐创建活动或自动触达。',
       glow: '暂无 Ami Glow 曝光/点击数据，请确认小程序行为埋点已接入。',
     };
 
-    (['activity', 'auto', 'page', 'promotion', 'glow'] as UnifiedEffectObjectType[]).forEach((type) => {
+    (['activity', 'auto', 'page', 'promotion', 'recommendation', 'glow'] as UnifiedEffectObjectType[]).forEach((type) => {
       const typeItems = items.filter((item) => item.objectType === type);
       if (typeItems.length === 0) {
         emptyReasons[type] = fallback[type];
@@ -2659,6 +3502,9 @@ export class MarketingService {
           detailPath: `/customer-marketing/activity-effect/${activity.id}`,
           emptyReason: events.length === 0 && exposureCount === 0 ? '该活动暂无页面曝光或参与数据。' : undefined,
           metricsSource: pages.length > 0 ? '活动关联营销页面事件、留资与归因' : '活动基础参与数据',
+          audienceName: activity.targetCustomers,
+          promotionName: activity.primaryPromotion?.name ?? activity.offerJson?.promotionName,
+          channelName: this.extractChannelLabel(activity.recommendedChannelsJson ?? activity.sourceSignalsJson?.channels),
         };
       }),
     );
@@ -2699,6 +3545,11 @@ export class MarketingService {
         detailPath: '/customer-marketing/automation',
         emptyReason: reachedCount === 0 ? '该自动营销规则暂无执行或触达记录。' : undefined,
         metricsSource: '自动营销执行、触达与转化记录',
+        audienceName: strategy.schedule?.attribution?.audienceSnapshot?.ruleSummary
+          ?? strategy.schedule?.attribution?.targetAudience
+          ?? (strategy.targetCount ? `目标人群 ${strategy.targetCount} 人` : undefined),
+        promotionName: this.extractPromotionNameFromActions(strategy.actions),
+        channelName: this.extractChannelLabel(strategy.actions),
       };
     });
   }
@@ -2740,15 +3591,25 @@ export class MarketingService {
         detailPath: '/customer-marketing/assets',
         emptyReason: events.length === 0 ? '该营销页面暂无浏览、点击或留资事件。' : undefined,
         metricsSource: '营销页面事件、留资与订单归因',
+        audienceName: page.snapshotJson?.audienceSnapshot?.ruleSummary ?? page.snapshotJson?.targetAudience,
+        promotionName: page.snapshotJson?.offerJson?.promotionName ?? page.snapshotJson?.offer,
+        channelName: this.extractChannelLabel(page.snapshotJson?.selectedChannels),
       };
     });
   }
 
   private async buildPromotionEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
-    const promotions = await this.prisma.promotion.findMany({
-      where: storeId ? { storeId } : {},
-      orderBy: { updatedAt: 'desc' },
-    });
+    const [promotions, strategies] = await Promise.all([
+      this.prisma.promotion.findMany({
+        where: storeId ? { storeId } : {},
+        include: { marketingActivities: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.marketingAutomationStrategy.findMany({
+        include: { touches: true, executions: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
 
     return Promise.all(
       promotions.map(async (promotion: any) => {
@@ -2760,35 +3621,281 @@ export class MarketingService {
           },
           orderBy: { occurredAt: 'desc' },
         });
+        const relatedStrategies = strategies.filter((strategy: any) =>
+          Array.isArray(strategy.actions)
+          && strategy.actions.some((action: any) => Number(action?.promotionId) === promotion.id),
+        );
+        const activityExposureCount = (promotion.marketingActivities ?? []).reduce((sum: number, activity: any) => sum + Number(activity.participants ?? 0), 0);
+        const strategyExposureCount = relatedStrategies.reduce(
+          (sum: number, strategy: any) => sum + (strategy.touches?.length || strategy.executions?.reduce((inner: number, item: any) => inner + Number(item.reachedCount ?? 0), 0) || 0),
+          0,
+        );
+        const strategyConversionCount = relatedStrategies.reduce(
+          (sum: number, strategy: any) => sum + (strategy.touches?.filter((touch: any) => touch.status === 'converted' || touch.convertedAt).length ?? 0),
+          0,
+        );
+        const strategyRevenue = relatedStrategies.reduce(
+          (sum: number, strategy: any) => sum + (strategy.touches?.reduce((inner: number, touch: any) => inner + Number(touch.actualRevenue ?? 0), 0) ?? 0),
+          0,
+        );
+        const eventRevenue = events.reduce((sum: number, event: any) => {
+          const metadata = event.metadataJson && typeof event.metadataJson === 'object' ? event.metadataJson : {};
+          return sum + Number(metadata.revenueAmount ?? metadata.orderAmount ?? metadata.amount ?? 0);
+        }, 0);
         const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length;
         const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType) || event.eventType.includes('claim')).length;
-        const conversionCount = events.filter((event: any) => this.isConversionEvent(event.eventType) || event.eventType.includes('redeem')).length;
-        const cost = this.estimateMarketingCost(exposureCount, clickCount);
+        const eventConversionCount = events.filter((event: any) => this.isConversionEvent(event.eventType) || event.eventType.includes('redeem')).length;
+        const conversionCount = (eventConversionCount + strategyConversionCount) || Number(promotion.usedCount ?? 0);
+        const totalExposureCount = exposureCount || activityExposureCount + strategyExposureCount;
+        const cost = this.estimateMarketingCost(totalExposureCount, clickCount);
+        const relatedNames = [
+          ...(promotion.marketingActivities ?? []).map((activity: any) => activity.title),
+          ...relatedStrategies.map((strategy: any) => strategy.name),
+        ];
 
         return {
           id: `promotion-${promotion.id}`,
           objectId: promotion.id,
           objectType: 'promotion',
-          objectTypeLabel: '优惠活动',
+          objectTypeLabel: '权益资产',
           objectName: promotion.name,
           status: promotion.status,
-          exposureCount,
+          exposureCount: totalExposureCount,
           clickCount,
           conversionCount,
-          revenue: 0,
+          revenue: this.roundMoney(strategyRevenue + eventRevenue),
           cost,
-          roi: this.formatRoi(0, cost),
-          conversionRate: this.formatRate(conversionCount, exposureCount || clickCount),
+          roi: this.formatRoi(strategyRevenue + eventRevenue, cost),
+          conversionRate: this.formatRate(conversionCount, totalExposureCount || clickCount),
           dateRange: [promotion.startAt?.toISOString().slice(0, 10), promotion.endAt?.toISOString().slice(0, 10)]
             .filter(Boolean)
             .join(' 至 '),
           lastEventAt: events[0]?.occurredAt?.toISOString(),
-          detailPath: '/customer-marketing/assets',
-          emptyReason: events.length === 0 ? '该优惠活动暂无领券、点击或核销事件；收入归因需收银侧补充优惠核销关联。' : undefined,
-          metricsSource: '小程序优惠浏览、领取与核销事件',
+          detailPath: '/customer-marketing/assets?tab=promotions',
+          emptyReason: events.length === 0 && relatedNames.length === 0 ? '该权益资产暂无活动、自动触达或小程序行为数据；收入归因需收银侧补充权益核销关联。' : undefined,
+          metricsSource: relatedNames.length
+            ? `权益关联 ${promotion.marketingActivities?.length ?? 0} 个活动、${relatedStrategies.length} 个自动触达`
+            : '小程序权益浏览、领取与核销事件',
+          relatedObjectName: relatedNames.slice(0, 3).join('、'),
+          audienceName: this.extractAudienceLabelFromEvents(events),
+          promotionName: promotion.name,
+          channelName: this.extractChannelLabel([
+            ...events.map((event: any) => event.channel),
+            ...relatedStrategies.flatMap((strategy: any) => strategy.actions ?? []),
+          ]),
         };
       }),
     );
+  }
+
+  private async buildRecommendationEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
+    const [activities, strategies, pages] = await Promise.all([
+      this.prisma.marketingActivity.findMany({
+        orderBy: { updatedAt: 'desc' },
+        include: { primaryPromotion: true },
+      }),
+      this.prisma.marketingAutomationStrategy.findMany({
+        include: { executions: true, touches: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.marketingPage.findMany({
+        where: storeId ? { storeId } : {},
+        include: { events: true, leads: true, attributions: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
+    const bucket = new Map<string, any>();
+    const ensure = (sourceId: string, seed: any = {}) => {
+      const current = bucket.get(sourceId) ?? {
+        sourceRecommendationId: sourceId,
+        recommendationKey: seed.recommendationKey,
+        recommendationType: seed.recommendationType,
+        triggerType: seed.triggerType,
+        objectName: seed.objectName ?? `推荐 ${sourceId}`,
+        promotionNames: new Set<string>(),
+        relatedNames: new Set<string>(),
+        exposureCount: 0,
+        clickCount: 0,
+        conversionCount: 0,
+        revenue: 0,
+        cost: 0,
+        lastDates: [] as Array<Date | string | null | undefined>,
+        sources: new Set<string>(),
+        attributions: [] as any[],
+        channels: new Set<string>(),
+        audienceName: seed.audienceSnapshot?.ruleSummary ?? seed.audienceSnapshot?.targetLabel ?? seed.targetAudience,
+      };
+      bucket.set(sourceId, current);
+      return current;
+    };
+
+    for (const activity of activities as any[]) {
+      const attribution = this.extractRecommendationAttribution(activity);
+      const sourceId = attribution?.sourceRecommendationId ?? activity.sourceRecommendationId;
+      if (!sourceId) continue;
+      const item = ensure(String(sourceId), {
+        ...attribution,
+        objectName: activity.title,
+      });
+      item.attributions.push(attribution);
+      item.audienceName ||= attribution?.audienceSnapshot?.ruleSummary ?? attribution?.audienceSnapshot?.targetLabel ?? activity.targetCustomers;
+      this.collectChannels(item.channels, activity.recommendedChannelsJson ?? activity.sourceSignalsJson?.channels);
+      item.relatedNames.add(activity.title);
+      item.sources.add('活动');
+      if (activity.primaryPromotion?.name) item.promotionNames.add(activity.primaryPromotion.name);
+      if (activity.offerJson?.promotionName) item.promotionNames.add(activity.offerJson.promotionName);
+      const participants = Number(activity.participants ?? attribution?.audienceSnapshot?.totalCustomers ?? 0);
+      const fallbackConversions = Math.round(participants * this.parsePercent(activity.conversion) / 100);
+      item.exposureCount += participants;
+      item.conversionCount += fallbackConversions;
+      item.cost += this.estimateMarketingCost(participants, 0);
+      item.lastDates.push(activity.updatedAt);
+    }
+
+    for (const strategy of strategies as any[]) {
+      const attribution = this.extractRecommendationAttribution(strategy);
+      const sourceId = attribution?.sourceRecommendationId;
+      if (!sourceId) continue;
+      const item = ensure(String(sourceId), {
+        ...attribution,
+        objectName: strategy.name,
+      });
+      item.attributions.push(attribution);
+      item.audienceName ||= attribution?.audienceSnapshot?.ruleSummary ?? attribution?.targetAudience ?? strategy.schedule?.attribution?.targetAudience;
+      this.collectChannels(item.channels, strategy.actions);
+      item.relatedNames.add(strategy.name);
+      item.sources.add('自动触达');
+      const promotionNames = this.uniqueStrings((strategy.actions ?? []).map((action: any) => action?.promotionName));
+      promotionNames.forEach((name) => item.promotionNames.add(name));
+      const reachedCount = strategy.touches?.length || strategy.executions?.reduce((sum: number, execution: any) => sum + Number(execution.reachedCount ?? 0), 0) || 0;
+      const clickCount = strategy.touches?.filter((touch: any) => ['clicked', 'converted'].includes(touch.status)).length ?? 0;
+      const conversionCount = strategy.touches?.filter((touch: any) => touch.status === 'converted' || touch.convertedAt).length ?? 0;
+      const revenue = strategy.touches?.reduce((sum: number, touch: any) => sum + Number(touch.actualRevenue ?? 0), 0) ?? 0;
+      item.exposureCount += reachedCount;
+      item.clickCount += clickCount;
+      item.conversionCount += conversionCount;
+      item.revenue += revenue;
+      item.cost += this.roundMoney(reachedCount * 2);
+      item.lastDates.push(strategy.lastExecutedAt, strategy.updatedAt);
+    }
+
+    for (const page of pages as any[]) {
+      const attribution = this.extractRecommendationAttribution(page);
+      const sourceId = attribution?.sourceRecommendationId ?? page.sourceRecommendationId;
+      if (!sourceId) continue;
+      const item = ensure(String(sourceId), {
+        ...attribution,
+        objectName: page.title,
+      });
+      item.attributions.push(attribution);
+      item.audienceName ||= attribution?.audienceSnapshot?.ruleSummary ?? page.snapshotJson?.targetAudience;
+      this.collectChannels(item.channels, page.snapshotJson?.selectedChannels);
+      item.relatedNames.add(page.title);
+      item.sources.add('推广页');
+      const events = page.events ?? [];
+      const leads = page.leads ?? [];
+      const attributions = page.attributions ?? [];
+      const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length;
+      const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType)).length;
+      const conversionCount =
+        attributions.length || leads.filter((lead: any) => lead.convertedAt || ['converted', 'booked', 'paid'].includes(lead.status)).length;
+      const revenue = attributions.reduce((sum: number, attributionRecord: any) => sum + Number(attributionRecord.attributedRevenue ?? 0), 0);
+      item.exposureCount += exposureCount;
+      item.clickCount += clickCount;
+      item.conversionCount += conversionCount;
+      item.revenue += revenue;
+      item.cost += this.estimateMarketingCost(exposureCount, clickCount);
+      item.lastDates.push(...events.map((event: any) => event.occurredAt), page.updatedAt);
+    }
+
+    return [...bucket.values()].map((item) => {
+      const cost = this.roundMoney(item.cost);
+      const revenue = this.roundMoney(item.revenue);
+      return {
+        id: `recommendation-${item.sourceRecommendationId}`,
+        objectId: item.sourceRecommendationId,
+        objectType: 'recommendation',
+        objectTypeLabel: '智能推荐',
+        objectName: item.objectName,
+        status: 'attributed',
+        exposureCount: item.exposureCount,
+        clickCount: item.clickCount,
+        conversionCount: item.conversionCount,
+        revenue,
+        cost,
+        roi: this.formatRoi(revenue, cost),
+        conversionRate: this.formatRate(item.conversionCount, item.exposureCount || item.clickCount),
+        lastEventAt: this.getLatestDate(item.lastDates),
+        detailPath: `/customer-marketing/intelligent-recommendation?sourceRecommendationId=${encodeURIComponent(item.sourceRecommendationId)}`,
+        emptyReason: item.exposureCount === 0 && item.conversionCount === 0 ? '该推荐已被采纳，但暂无曝光、触达或成交归因。' : undefined,
+        metricsSource: `推荐来源归因：${[...item.sources].join('、') || '活动/自动触达'}`,
+        relatedObjectName: [
+          ...[...item.relatedNames].slice(0, 3),
+          ...[...item.promotionNames].slice(0, 2).map((name) => `权益：${name}`),
+        ].join('、'),
+        audienceName: item.audienceName,
+        promotionName: [...item.promotionNames][0],
+        channelName: this.extractChannelLabel(item.channels),
+        recommendationAttribution: this.buildRecommendationEffectAttribution(item),
+      } satisfies UnifiedEffectItem;
+    });
+  }
+
+  private buildRecommendationEffectAttribution(item: any) {
+    const attributions = Array.isArray(item.attributions) ? item.attributions.filter(Boolean) : [];
+    const selectedAttribution = attributions.find((entry: any) => entry?.selectedPromotion || entry?.promotionSwitched)
+      ?? attributions[0]
+      ?? {};
+    const selectedPromotion = selectedAttribution.selectedPromotion
+      ?? selectedAttribution.primaryPromotion
+      ?? null;
+    const originalPromotion = selectedAttribution.originalPromotion
+      ?? selectedAttribution.primaryPromotion
+      ?? null;
+    const selectedOffer = selectedAttribution.selectedOffer
+      ?? null;
+    const originalOffer = selectedAttribution.originalOffer
+      ?? null;
+    const promotionSwitched = Boolean(
+      selectedAttribution.promotionSwitched
+      ?? (
+        selectedPromotion?.promotionId
+        && originalPromotion?.promotionId
+        && selectedPromotion.promotionId !== originalPromotion.promotionId
+      ),
+    );
+
+    return {
+      sourceRecommendationId: String(item.sourceRecommendationId),
+      recommendationKey: selectedAttribution.recommendationKey ?? item.recommendationKey,
+      recommendationType: selectedAttribution.recommendationType ?? item.recommendationType,
+      originalPromotion,
+      selectedPromotion,
+      promotionSwitched,
+      originalOffer,
+      selectedOffer,
+    };
+  }
+
+  private extractRecommendationAttribution(source: any) {
+    const candidates = [
+      source?.schedule?.attribution,
+      source?.offerJson?.attribution,
+      source?.sourceSignalsJson?.attribution,
+      source?.snapshotJson?.attribution,
+      ...(Array.isArray(source?.actions) ? source.actions.map((action: any) => action?.attribution) : []),
+    ].filter((item) => item && typeof item === 'object');
+    const attribution = candidates[0] ?? {};
+    const sourceRecommendationId =
+      attribution.sourceRecommendationId
+      ?? source?.sourceRecommendationId
+      ?? source?.offerJson?.attribution?.sourceRecommendationId
+      ?? source?.sourceSignalsJson?.attribution?.sourceRecommendationId;
+    if (!sourceRecommendationId) return null;
+    return {
+      ...attribution,
+      sourceRecommendationId: String(sourceRecommendationId),
+    };
   }
 
   private async buildGlowEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
@@ -2850,9 +3957,55 @@ export class MarketingService {
   }
 
   private isConversionEvent(eventType?: string) {
-    return ['convert', 'booking', 'reservation', 'order_paid', 'paid', 'redeem', 'lead_submit'].some((keyword) =>
+    return ['convert', 'booking', 'reservation', 'reserved', 'order_paid', 'paid', 'redeem', 'used', 'lead_submit'].some((keyword) =>
       String(eventType ?? '').toLowerCase().includes(keyword),
     );
+  }
+
+  private extractPromotionNameFromActions(actions: any) {
+    if (!Array.isArray(actions)) return undefined;
+    return actions.find((action) => action?.promotionName)?.promotionName;
+  }
+
+  private extractAudienceLabelFromEvents(events: any[] = []) {
+    const metadata = events
+      .map((event) => event?.metadataJson)
+      .find((item) => item && typeof item === 'object' && (item.audienceName || item.targetAudience || item.segment));
+    return metadata?.audienceName ?? metadata?.targetAudience ?? metadata?.segment;
+  }
+
+  private collectChannels(target: Set<string>, input: any) {
+    this.extractChannelValues(input).forEach((channel) => target.add(channel));
+  }
+
+  private extractChannelLabel(input: any) {
+    const labels = this.extractChannelValues(input);
+    return labels.length ? labels.slice(0, 3).join('、') : undefined;
+  }
+
+  private extractChannelValues(input: any): string[] {
+    if (!input) return [];
+    if (input instanceof Set) return this.uniqueStrings([...input].map((item) => String(item))).map((value) => this.channelLabel(value));
+    const items = Array.isArray(input) ? input : [input];
+    return this.uniqueStrings(items.flatMap((item) => {
+      if (!item) return [];
+      if (typeof item === 'string') return [item];
+      if (typeof item === 'object') return [item.label, item.channel].filter(Boolean);
+      return [];
+    })).map((value) => this.channelLabel(value));
+  }
+
+  private channelLabel(value: string) {
+    const map: Record<string, string> = {
+      sms: '短信',
+      miniapp: '小程序',
+      wechat: '微信',
+      group: '社群',
+      store: '到店',
+      moments: '朋友圈',
+      terminal: '终端',
+    };
+    return map[value] ?? value;
   }
 
   private parsePercent(value?: string | number | null) {
@@ -3234,21 +4387,88 @@ export class MarketingService {
     return relation === 'OR' ? checks.some(Boolean) : checks.every(Boolean);
   }
 
-  private buildRecommendationCard(input: any) {
-    const targetSnapshots = input.targetSnapshots ?? [];
-    const targetCount = input.targetCount ?? targetSnapshots.length;
+  private async resolveRecommendationTargetSnapshots(input: any) {
+    if (Array.isArray(input.targetSnapshots) && input.targetSnapshots.length) return input.targetSnapshots;
+    const runId = Number(input.run?.id ?? input.predictionRunId);
+    if (!Number.isFinite(runId) || !input.predictionType) return [];
+    const where = this.getRecommendationAudienceWhere(runId, input.predictionType, input.targetCustomerIds);
+    if (!where) return [];
+    return this.prisma.customerPredictionSnapshot.findMany({
+      where,
+      select: {
+        customerId: true,
+        churnScore: true,
+        churnLevel: true,
+        repurchase30dScore: true,
+        marketingResponseScore: true,
+        ltv6m: true,
+        ltv12m: true,
+        ltvTier: true,
+        featureJson: true,
+        reasonJson: true,
+      },
+      orderBy: this.getRecommendationAudienceOrderBy(input.predictionType),
+    });
+  }
+
+  private replaceRecommendationCount(text: string | undefined, count: number) {
+    if (!text) return text;
+    if (/^\d+\s*位/.test(text)) return text.replace(/^\d+\s*位/, `${count} 位`);
+    if (/（\d+\s*人）/.test(text)) return text.replace(/（\d+\s*人）/, `（${count}人）`);
+    if (/\(\d+\s*人\)/.test(text)) return text.replace(/\(\d+\s*人\)/, `（${count}人）`);
+    return text;
+  }
+
+  private async buildRecommendationCard(input: any) {
+    const rawTargetSnapshots = await this.resolveRecommendationTargetSnapshots(input);
+    const rawAudienceCustomerIds = input.targetCustomerIds ?? rawTargetSnapshots.map((item: any) => item.customerId);
+    const eligibleAudience = await this.filterRecommendationAudienceProfiles(
+      rawAudienceCustomerIds.map((customerId: number) => ({ customerId })),
+      { storeId: Number(input.run?.storeId ?? input.storeId) || undefined, recommendationId: input.id },
+    );
+    const eligibleCustomerIds = new Set(eligibleAudience.map((item: any) => Number(item.customerId)));
+    const targetSnapshots = rawTargetSnapshots.filter((item: any) => eligibleCustomerIds.has(Number(item.customerId)));
+    const audienceCustomerIds = rawAudienceCustomerIds.filter((customerId: number) => eligibleCustomerIds.has(Number(customerId)));
+    const targetCount = audienceCustomerIds.length;
     const triggerType = input.triggerType ?? (input.predictionType === 'churn' ? 'dormant' : input.predictionType === 'ltv' ? 'member_level' : 'care_cycle');
     const executionModes = input.executionModes ?? (triggerType ? ['automation'] : ['activity']);
     const preferredMode = input.preferredMode ?? (executionModes.includes('automation') ? 'automation' : 'activity');
     const offer = input.offer ?? this.inferOffer(input.discount);
     const recommendedChannels = input.recommendedChannels ?? this.inferRecommendedChannels(preferredMode, input.urgency);
     const recommendedItems = input.recommendedItems ?? this.inferRecommendedItems(input.category, input.strategy);
-    const audienceCustomerIds = targetSnapshots.map((item: any) => item.customerId);
+    const title =
+      this.replaceRecommendationCount(input.title, targetCount) ??
+      String(input.strategy ?? input.category ?? '智能营销推荐');
+    const targetLabel = this.replaceRecommendationCount(input.targetLabel, targetCount);
+    const promotionMatch = await this.matchRecommendationPromotion({
+      ...input,
+      triggerType,
+      preferredMode,
+      offer,
+      recommendedItems,
+      recommendedChannels,
+      targetSnapshots,
+      targetCustomerIds: audienceCustomerIds,
+    });
+    const selectedPromotion = promotionMatch.selected;
+    const enrichedOffer = selectedPromotion
+      ? {
+          ...offer,
+          promotionId: selectedPromotion.promotionId,
+          promotionName: selectedPromotion.promotionName,
+          type: selectedPromotion.type ?? offer?.type,
+          label: selectedPromotion.discountText ?? offer?.label,
+          validDays: selectedPromotion.promotion?.validDays ?? offer?.validDays,
+          reason: selectedPromotion.fitReason ?? offer?.reason,
+          fitScore: selectedPromotion.fitScore,
+          riskWarnings: selectedPromotion.riskWarnings ?? [],
+        }
+      : offer;
     return {
       id: input.id,
-      title: input.title,
+      title,
       reason: input.reason,
-      targetCustomers: input.targetLabel ?? `${input.title.split('需要')[0]}（${targetCount}人）`,
+      targetCustomers: targetLabel ?? `${title.split('需要')[0]}（${targetCount}人）`,
       targetCount,
       targetCustomerIds: audienceCustomerIds,
       expectedConversion: `预计转化率 ${Math.round(input.expectedConversionRate * 100)}%`,
@@ -3276,17 +4496,24 @@ export class MarketingService {
       priority: input.priority ?? (input.urgency === 'urgent' ? 'P0' : input.urgency === 'recommended' ? 'P1' : 'P2'),
       recommendedChannels,
       recommendedActions: input.recommendedActions ?? recommendedChannels.map((channel: any) => ({
-        type: offer?.type === 'member_privilege' ? 'push' : 'coupon',
-        value: offer?.label ?? input.discount,
+        type: enrichedOffer?.type === 'member_privilege' ? 'push' : 'coupon',
+        value: enrichedOffer?.label ?? input.discount,
+        promotionId: enrichedOffer?.promotionId,
+        promotionName: enrichedOffer?.promotionName,
         channel: channel.channel,
         reason: channel.reason,
       })),
-      offer,
+      offer: enrichedOffer,
+      primaryPromotion: selectedPromotion,
+      alternativePromotions: promotionMatch.items.slice(selectedPromotion ? 1 : 0, selectedPromotion ? 4 : 3),
+      offerFitBreakdown: selectedPromotion?.scoreBreakdown,
       recommendedItems,
+      audienceTags: promotionMatch.audienceTags,
+      audienceRule: promotionMatch.audienceRule,
       audienceSnapshot: {
         predictionRunId: input.run.id,
         generatedAt: new Date().toISOString(),
-        ruleSummary: input.targetLabel ?? input.reason,
+        ruleSummary: targetLabel ?? input.reason,
         customerIds: audienceCustomerIds,
         totalCustomers: targetCount,
         sampleReasons: targetSnapshots.slice(0, 10).map((item: any) => ({
@@ -3303,9 +4530,524 @@ export class MarketingService {
       modelVersion: input.run.modelVersion,
       predictionType: input.predictionType,
       predictionRunFinishedAt: input.run.finishedAt ?? input.run.startedAt,
-      dataEvidence: input.dataEvidence,
+      dataEvidence: [
+        ...(input.dataEvidence ?? []),
+        ...(promotionMatch.profileEvidence ?? []),
+        ...(selectedPromotion ? [`权益匹配：${selectedPromotion.promotionName}，匹配分 ${selectedPromotion.fitScore}`] : []),
+      ],
       totalCustomers: input.totalCustomers ?? input.run.customerCount ?? targetCount,
+      riskWarnings: [
+        ...(input.riskWarnings ?? []),
+        ...(selectedPromotion?.riskWarnings ?? []),
+      ],
     };
+  }
+
+  private async matchRecommendationPromotion(input: any) {
+    const storeId = Number(input.storeId ?? input.run?.storeId ?? 0) || undefined;
+    const promotions = await this.getRecommendationPromotions(storeId);
+    const profileContext = await this.buildRecommendationProfileContext(storeId, input.targetCustomerIds);
+    if (!promotions.length) {
+      return {
+        items: [],
+        selected: null,
+        audienceTags: profileContext.audienceTags,
+        audienceRule: profileContext.audienceRule,
+        profileEvidence: profileContext.profileEvidence,
+      };
+    }
+
+    const scenario = this.offerScenario(input.triggerType, input.recommendationType);
+    const projectIds = (input.recommendedItems ?? []).filter((item: any) => item.type === 'project' && item.id).map((item: any) => Number(item.id));
+    const productIds = (input.recommendedItems ?? []).filter((item: any) => item.type === 'product' && item.id).map((item: any) => Number(item.id));
+    const customerTags = this.uniqueStrings([...this.recommendationCustomerTags(input), ...profileContext.audienceTags]);
+    const channelTags = (input.recommendedChannels ?? []).map((item: any) => item.label ?? item.channel).filter(Boolean);
+    const scored = promotions
+      .map((promotion: any) => {
+        const score = this.scoreRecommendationPromotion(promotion, {
+          scenario,
+          recommendationType: input.recommendationType,
+          executionMode: input.preferredMode,
+          customerTags,
+          projectIds,
+          productIds,
+          channelTags,
+          context: {
+            usableTimeRange: input.offer?.usableTimeRange,
+            inventoryCap: input.inventorySnapshot?.gapQty,
+          },
+        });
+        return {
+          promotionId: promotion.id,
+          promotionName: promotion.name,
+          name: promotion.name,
+          discountText: promotion.discountText,
+          type: promotion.type,
+          scenario: promotion.scenario,
+          source: promotion.source,
+          fitScore: score.score,
+          fitLevel: this.fitLevel(score.score),
+          fitReason: score.reasons.length ? score.reasons.join('、') : '通用权益，可作为营销承接备选',
+          fitReasons: score.reasons,
+          riskWarnings: score.riskWarnings,
+          scoreBreakdown: score.breakdown,
+          estimatedCost: promotion.estimatedCost === null || promotion.estimatedCost === undefined ? undefined : Number(promotion.estimatedCost),
+          promotion: this.normalizePromotionForRecommendation(promotion),
+        };
+      })
+      .filter((item) => item.fitScore >= 35)
+      .sort((a, b) => b.fitScore - a.fitScore)
+      .slice(0, 5);
+
+    return {
+      items: scored,
+      selected: scored[0] ?? null,
+      audienceTags: profileContext.audienceTags,
+      audienceRule: profileContext.audienceRule,
+      profileEvidence: profileContext.profileEvidence,
+    };
+  }
+
+  private async buildRecommendationProfileContext(storeId: number | undefined, customerIds?: number[]) {
+    const normalizedIds = this.uniqueNumbers(customerIds ?? []).slice(0, 80);
+    if (!this.customerMarketingProfileService || !normalizedIds.length) {
+      return {
+        audienceTags: [],
+        audienceRule: { relation: 'AND', include: [], exclude: [] },
+        profileEvidence: [],
+      };
+    }
+    try {
+      const profiles = await this.customerMarketingProfileService.buildProfiles(storeId, normalizedIds);
+      const dimensions = [
+        ['生命周期', 'lifecycleTags'],
+        ['消费价值', 'valueTags'],
+        ['行为意图', 'behaviorTags'],
+        ['服务偏好', 'preferenceTags'],
+        ['肤质问题', 'skinTags'],
+        ['卡项状态', 'cardTags'],
+        ['商品周期', 'productCycleTags'],
+        ['预约容量', 'capacityTags'],
+        ['渠道偏好', 'channelTags'],
+        ['触达疲劳', 'fatigueTags'],
+      ] as const;
+      const include = dimensions
+        .map(([dimension, key]) => {
+          const tags = this.topTags(profiles.flatMap((profile: any) => profile[key] ?? []), 6);
+          return tags.length ? { dimension, tags } : null;
+        })
+        .filter(Boolean);
+      const audienceTags = this.uniqueStrings(include.flatMap((item: any) => item.tags));
+      const profileEvidence = profiles
+        .flatMap((profile) => profile.evidence ?? [])
+        .slice(0, 5)
+        .map((item) => `画像证据：${item}`);
+      return {
+        audienceTags,
+        audienceRule: {
+          relation: 'AND',
+          include,
+          exclude: audienceTags.includes('触达疲劳') ? [{ dimension: '触达疲劳', tags: ['触达疲劳'] }] : [],
+        },
+        profileEvidence,
+      };
+    } catch {
+      return {
+        audienceTags: [],
+        audienceRule: { relation: 'AND', include: [], exclude: [] },
+        profileEvidence: [],
+      };
+    }
+  }
+
+  private async getRecommendationPromotions(storeId?: number) {
+    const cacheKey = String(storeId ?? 'all');
+    const cached = this.recommendationPromotionCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.items;
+
+    try {
+      const now = new Date();
+      const where: any = {
+        status: 'active',
+        approvalStatus: 'approved',
+        OR: [{ storeId: null }],
+        AND: [
+          { OR: [{ startAt: null }, { startAt: { lte: now } }] },
+          { OR: [{ endAt: null }, { endAt: { gte: now } }] },
+        ],
+      };
+      if (storeId) where.OR.push({ storeId });
+      const items = await this.prisma.promotion.findMany({
+        where,
+        orderBy: [{ source: 'asc' }, { updatedAt: 'desc' }],
+        take: 120,
+      });
+      const enrichedItems = await this.attachPromotionEffectSummaries(items, storeId);
+      this.recommendationPromotionCache.set(cacheKey, { expiresAt: Date.now() + 60_000, items: enrichedItems });
+      return enrichedItems;
+    } catch {
+      return [];
+    }
+  }
+
+  private async attachPromotionEffectSummaries(promotions: any[], storeId?: number) {
+    const promotionIds = this.uniqueNumbers(promotions.map((promotion) => promotion.id));
+    if (!promotionIds.length) return promotions;
+    try {
+      const [strategies, events] = await Promise.all([
+        this.prisma.marketingAutomationStrategy.findMany({
+          include: { touches: true, executions: true },
+          orderBy: { updatedAt: 'desc' },
+        }),
+        this.prisma.customerAppEvent.findMany({
+          where: {
+            ...(storeId ? { storeId } : {}),
+            targetType: { in: ['promotion', 'coupon'] },
+            targetId: { in: promotionIds.map(String) },
+          },
+          orderBy: { occurredAt: 'desc' },
+        }),
+      ]);
+      const summaries = new Map<number, any>();
+      const ensure = (promotionId: number) => {
+        const current = summaries.get(promotionId) ?? {
+          exposureCount: 0,
+          clickCount: 0,
+          conversionCount: 0,
+          revenue: 0,
+          sourceCount: 0,
+        };
+        summaries.set(promotionId, current);
+        return current;
+      };
+
+      for (const strategy of strategies as any[]) {
+        const actions = Array.isArray(strategy.actions) ? strategy.actions : [];
+        const relatedIds = this.uniqueNumbers(actions.map((action: any) => action?.promotionId)).filter((id) => promotionIds.includes(id));
+        if (!relatedIds.length) continue;
+        const exposureCount = strategy.touches?.length || strategy.executions?.reduce((sum: number, execution: any) => sum + Number(execution.reachedCount ?? 0), 0) || 0;
+        const clickCount = strategy.touches?.filter((touch: any) => ['clicked', 'converted'].includes(touch.status)).length ?? 0;
+        const conversionCount = strategy.touches?.filter((touch: any) => touch.status === 'converted' || touch.convertedAt).length ?? 0;
+        const revenue = strategy.touches?.reduce((sum: number, touch: any) => sum + Number(touch.actualRevenue ?? 0), 0) ?? 0;
+        for (const id of relatedIds) {
+          const summary = ensure(id);
+          summary.exposureCount += exposureCount;
+          summary.clickCount += clickCount;
+          summary.conversionCount += conversionCount;
+          summary.revenue += revenue;
+          summary.sourceCount += 1;
+        }
+      }
+
+      for (const event of events as any[]) {
+        const promotionId = Number(event.targetId);
+        if (!promotionIds.includes(promotionId)) continue;
+        const summary = ensure(promotionId);
+        if (this.isExposureEvent(event.eventType)) summary.exposureCount += 1;
+        if (this.isClickEvent(event.eventType)) summary.clickCount += 1;
+        if (this.isConversionEvent(event.eventType)) summary.conversionCount += 1;
+        const metadata = event.metadataJson && typeof event.metadataJson === 'object' ? event.metadataJson : {};
+        summary.revenue += Number(metadata.revenueAmount ?? metadata.orderAmount ?? metadata.amount ?? 0);
+        summary.sourceCount += 1;
+      }
+
+      return promotions.map((promotion) => {
+        const summary = summaries.get(Number(promotion.id));
+        if (!summary) return promotion;
+        const conversionBase = Math.max(summary.exposureCount || summary.clickCount, 1);
+        return {
+          ...promotion,
+          effectSummary: {
+            ...(promotion.effectSummary && typeof promotion.effectSummary === 'object' ? promotion.effectSummary : {}),
+            ...summary,
+            conversionRate: Math.round((summary.conversionCount / conversionBase) * 1000) / 10,
+            roi: this.formatRoi(summary.revenue, this.estimateMarketingCost(summary.exposureCount, summary.clickCount)),
+            source: 'unified_effects',
+          },
+        };
+      });
+    } catch {
+      return promotions;
+    }
+  }
+
+  private scoreRecommendationPromotion(promotion: any, dto: any) {
+    const breakdown = {
+      scenarioScore: 0,
+      audienceScore: 0,
+      behaviorIntentScore: 0,
+      itemFitScore: 0,
+      timingUrgencyScore: 0,
+      valueProtectionScore: 0,
+      channelFitScore: 0,
+      operationFitScore: 0,
+      historicalEffectScore: 0,
+      fatiguePenalty: 0,
+      marginRiskPenalty: 0,
+      conflictPenalty: 0,
+    };
+    const reasons: string[] = [];
+    const riskWarnings: string[] = [];
+    const metadata = this.asObject(promotion.metadata);
+    const grossMarginGuard = this.asObject(promotion.grossMarginGuard);
+    const scenario = String(dto.scenario || dto.recommendationType || '');
+    const customerTags = this.uniqueStrings(dto.customerTags ?? []);
+    const audienceTags = Array.isArray(promotion.audienceTags) ? promotion.audienceTags.map(String) : [];
+
+    if (scenario && promotion.scenario === scenario) {
+      breakdown.scenarioScore = 100;
+      reasons.push('适用场景匹配');
+    } else if (scenario && this.scenarioFamily(promotion.scenario) === this.scenarioFamily(scenario)) {
+      breakdown.scenarioScore = 70;
+      reasons.push('权益场景相近');
+    } else {
+      breakdown.scenarioScore = scenario ? 20 : 45;
+    }
+
+    const audienceHits = this.countTagHits(customerTags, [
+      ...audienceTags,
+      ...this.metadataTags(metadata, ['lifecycleTags', 'valueTags', 'includeTags']),
+    ]);
+    breakdown.audienceScore = audienceHits ? Math.min(100, 55 + audienceHits * 15) : (customerTags.length ? 25 : 45);
+    if (audienceHits) reasons.push('适用客户标签匹配');
+
+    const behaviorHits = this.countTagHits(customerTags, this.metadataTags(metadata, ['behaviorTags']));
+    breakdown.behaviorIntentScore = behaviorHits ? Math.min(100, 60 + behaviorHits * 20) : (this.scenarioFamily(scenario) === 'behavior' ? 70 : 35);
+    if (behaviorHits) reasons.push('行为意图匹配');
+
+    const projectIds = Array.isArray(dto.projectIds) ? dto.projectIds.map(Number).filter(Boolean) : [];
+    const promotionProjects = Array.isArray(promotion.applicableProjectIds) ? promotion.applicableProjectIds.map(Number) : [];
+    if (projectIds.length && promotionProjects.length) {
+      const matchedProjects = promotionProjects.filter((id: number) => projectIds.includes(id));
+      if (matchedProjects.length) {
+        breakdown.itemFitScore += 90;
+        reasons.push('适用项目匹配');
+      } else {
+        breakdown.itemFitScore -= 35;
+        riskWarnings.push('推荐项目与权益适用项目不一致');
+      }
+    } else if (!promotionProjects.length) {
+      breakdown.itemFitScore += 45;
+    }
+
+    const itemTagHits = this.countTagHits(customerTags, this.metadataTags(metadata, ['preferenceTags', 'skinTags', 'cardTags', 'productCycleTags']));
+    if (itemTagHits) {
+      breakdown.itemFitScore += Math.min(100, 45 + itemTagHits * 18);
+      reasons.push('项目/肤质/卡项标签匹配');
+    }
+
+    const highValue = customerTags.some((tag) => /VIP|高\s*LTV|高价值|铂金|黄金|钻石/.test(tag));
+    const offerStrength = String(metadata.offerStrength || '');
+    if (highValue && ['member_privilege', 'gift'].includes(String(promotion.type))) {
+      breakdown.valueProtectionScore += 90;
+      reasons.push('高价值客户匹配服务型权益');
+    } else if (highValue && offerStrength === 'strong') {
+      breakdown.marginRiskPenalty += 25;
+      riskWarnings.push('高价值客户不建议默认使用强折扣权益');
+    } else {
+      breakdown.valueProtectionScore += offerStrength === 'strong' ? 55 : 45;
+    }
+
+    const channelHits = this.countTagHits(this.uniqueStrings(dto.channelTags ?? []), this.metadataTags(metadata, ['channelTags']));
+    breakdown.channelFitScore = channelHits ? Math.min(100, 55 + channelHits * 20) : 45;
+    if (channelHits) reasons.push('触达渠道匹配');
+
+    const preferredModes = this.toStringArray(metadata.preferredExecutionModes);
+    if (dto.executionMode && preferredModes.length) {
+      if (preferredModes.includes(dto.executionMode) || preferredModes.includes('both')) {
+        breakdown.operationFitScore += 85;
+        reasons.push('执行方式匹配');
+      } else {
+        breakdown.conflictPenalty += 20;
+        riskWarnings.push('该权益更适合其他执行方式');
+      }
+    } else {
+      breakdown.operationFitScore += 45;
+    }
+
+    if (this.truthy(grossMarginGuard.usableTimeRangeRequired) && !dto.context?.usableTimeRange) {
+      breakdown.operationFitScore -= 20;
+      riskWarnings.push('低峰权益发布前需绑定可用日期/时段');
+    }
+    if (this.truthy(grossMarginGuard.inventoryCapRequired) && !dto.context?.inventoryCap) {
+      riskWarnings.push('库存消化权益发布前需设置库存上限');
+    }
+
+    const validDays = Number(promotion.validDays ?? 0);
+    breakdown.timingUrgencyScore = validDays > 0 && validDays <= 7 ? 85 : (['coupon_expiry', 'card_expiry', 'project_idle_capacity', 'product_expiry_clearance'].includes(scenario) ? 78 : 45);
+
+    const effectSummary = this.asObject(promotion.effectSummary);
+    const historicalConversionRate = Number(effectSummary.conversionRate ?? 0);
+    const historicalConversionCount = Number(effectSummary.conversionCount ?? 0);
+    const issuedCount = Number(promotion.issuedCount ?? 0);
+    const usedCount = Number(promotion.usedCount ?? 0);
+    if (historicalConversionRate > 0 || historicalConversionCount > 0) {
+      breakdown.historicalEffectScore = this.clamp(
+        Math.max(historicalConversionRate * 5, Math.min(100, 45 + historicalConversionCount * 8)),
+        40,
+        100,
+      );
+      reasons.push('历史转化表现较好');
+    } else {
+      breakdown.historicalEffectScore = issuedCount > 0 ? Math.min(100, Math.round((usedCount / Math.max(issuedCount, 1)) * 100)) : 40;
+      if (breakdown.historicalEffectScore >= 50) reasons.push('历史核销表现较好');
+    }
+    if (promotion.maxIssueCount && promotion.issuedCount >= promotion.maxIssueCount) {
+      breakdown.conflictPenalty += 80;
+      riskWarnings.push('已达到发放上限');
+    }
+
+    const excludeHits = this.countTagHits(customerTags, this.metadataTags(metadata, ['excludeTags']));
+    if (excludeHits) {
+      breakdown.conflictPenalty += 60;
+      riskWarnings.push('客户命中该权益排除标签');
+    }
+    if (customerTags.some((tag) => /已领未核销|已领券/.test(tag)) && !['coupon_claimed_unused', 'coupon_expiry'].includes(scenario)) {
+      breakdown.conflictPenalty += 20;
+      riskWarnings.push('客户已有未核销权益，避免重复让利');
+    }
+
+    const score = this.clamp(
+      breakdown.scenarioScore * 0.22
+      + breakdown.audienceScore * 0.18
+      + breakdown.behaviorIntentScore * 0.14
+      + this.clamp(breakdown.itemFitScore, 0, 100) * 0.12
+      + breakdown.timingUrgencyScore * 0.1
+      + this.clamp(breakdown.valueProtectionScore, 0, 100) * 0.1
+      + breakdown.channelFitScore * 0.06
+      + this.clamp(breakdown.operationFitScore, 0, 100) * 0.04
+      + breakdown.historicalEffectScore * 0.04
+      - breakdown.fatiguePenalty
+      - breakdown.marginRiskPenalty
+      - breakdown.conflictPenalty,
+      0,
+      100,
+    );
+
+    return { score, reasons, riskWarnings, breakdown };
+  }
+
+  private offerScenario(triggerType?: string, recommendationType?: string) {
+    if (triggerType === 'dormant') return 'churn_winback';
+    if (triggerType === 'care_cycle') return 'care_cycle_due';
+    if (triggerType === 'coupon_expiry') return 'coupon_claimed_unused';
+    if (triggerType === 'booking_abandonment') return 'first_booking';
+    if (triggerType === 'holiday_campaign') return 'store_anniversary';
+    return triggerType ?? recommendationType ?? '';
+  }
+
+  private scenarioFamily(value?: string | null) {
+    const scenario = String(value || '');
+    if (/churn|dormant|winback|last_visit/.test(scenario)) return 'winback';
+    if (/cycle|repurchase|revisit|second_visit/.test(scenario)) return 'repurchase';
+    if (/vip|ltv|member|birthday/.test(scenario)) return 'member';
+    if (/browse|booking|coupon|new_customer|first_booking/.test(scenario)) return 'behavior';
+    if (/product_expiry|inventory|replenishment|bundle/.test(scenario)) return 'product';
+    if (/idle|capacity|low_peak/.test(scenario)) return 'capacity';
+    return scenario;
+  }
+
+  private recommendationCustomerTags(input: any) {
+    const tags = [
+      ...(input.tags ?? []),
+      input.targetLabel,
+      input.category,
+      input.triggerType,
+      input.recommendationType,
+      input.predictionType,
+      ...(input.sourceSignals ?? []),
+      ...(input.targetSnapshots ?? []).flatMap((snapshot: any) => [
+        snapshot.ltvTier,
+        snapshot.customer?.memberLevel,
+        snapshot.customer?.skinType,
+        snapshot.churnLevel,
+        Number(snapshot.churnScore ?? 0) >= 80 ? '流失高风险' : '',
+        Number(snapshot.marketingResponseScore ?? 0) >= 70 ? '高响应客户' : '',
+        Number(snapshot.repurchase30dScore ?? 0) >= 60 ? '复购窗口' : '',
+      ]),
+    ];
+    if (input.triggerType === 'card_expiry') tags.push('次卡到期', '套餐到期');
+    if (input.triggerType === 'coupon_expiry') tags.push('已领券', '已领未核销');
+    if (input.triggerType === 'browse_abandonment') tags.push('浏览未预约', '预约意向');
+    if (input.triggerType === 'booking_abandonment') tags.push('预约放弃');
+    if (input.triggerType === 'care_cycle') tags.push('护理周期到期');
+    if (input.triggerType === 'vip_privilege_care') tags.push('VIP', '高 LTV', '高价值客户');
+    if (input.triggerType === 'project_idle_capacity') tags.push('低峰可约', '美容师空档');
+    if (input.triggerType === 'product_expiry_clearance') tags.push('临期库存适配');
+    return this.uniqueStrings(tags);
+  }
+
+  private normalizePromotionForRecommendation(promotion: any) {
+    return {
+      ...promotion,
+      thresholdAmount: promotion.thresholdAmount === null || promotion.thresholdAmount === undefined ? null : Number(promotion.thresholdAmount),
+      discountAmount: promotion.discountAmount === null || promotion.discountAmount === undefined ? null : Number(promotion.discountAmount),
+      estimatedCost: promotion.estimatedCost === null || promotion.estimatedCost === undefined ? null : Number(promotion.estimatedCost),
+      startAt: promotion.startAt?.toISOString?.() ?? promotion.startAt,
+      endAt: promotion.endAt?.toISOString?.() ?? promotion.endAt,
+      createdAt: promotion.createdAt?.toISOString?.() ?? promotion.createdAt,
+      updatedAt: promotion.updatedAt?.toISOString?.() ?? promotion.updatedAt,
+    };
+  }
+
+  private metadataTags(metadata: Record<string, unknown>, keys: string[]) {
+    return keys.flatMap((key) => this.toStringArray(metadata[key]));
+  }
+
+  private countTagHits(left: string[], right: string[]) {
+    if (!left.length || !right.length) return 0;
+    let hits = 0;
+    for (const item of left) {
+      if (right.some((tag) => this.tagMatches(item, tag))) hits += 1;
+    }
+    return hits;
+  }
+
+  private tagMatches(left: string, right: string) {
+    const a = String(left || '').trim().toLowerCase();
+    const b = String(right || '').trim().toLowerCase();
+    if (!a || !b) return false;
+    return a.includes(b) || b.includes(a);
+  }
+
+  private uniqueStrings(values: unknown[]) {
+    return [...new Set(values.flatMap((value) => this.toStringArray(value)).map((value) => value.trim()).filter(Boolean))];
+  }
+
+  private uniqueNumbers(values: unknown[]) {
+    return [...new Set(values.map(Number).filter((value) => Number.isFinite(value) && value > 0))];
+  }
+
+  private topTags(tags: string[], limit: number) {
+    const counts = new Map<string, number>();
+    for (const tag of tags.map((item) => String(item).trim()).filter(Boolean)) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+      .slice(0, limit)
+      .map(([tag]) => tag);
+  }
+
+  private toStringArray(value: unknown): string[] {
+    if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+    if (value === null || value === undefined || value === '') return [];
+    return [String(value)];
+  }
+
+  private asObject(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  }
+
+  private truthy(value: unknown) {
+    return value === true || value === 'true' || value === 1 || value === '1';
+  }
+
+  private fitLevel(score: number) {
+    if (score >= 85) return 'excellent';
+    if (score >= 70) return 'good';
+    if (score >= 35) return 'backup';
+    return 'not_recommended';
   }
 
   private inferOffer(discount: string) {
