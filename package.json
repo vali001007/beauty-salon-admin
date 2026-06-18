@@ -25,6 +25,8 @@
     "db:studio:v2": "npm --prefix packages/server-v2 run db:studio",
     "check:no-runtime-mock": "node scripts/check-no-runtime-mock-boundary.mjs",
     "check:marketing-promotion-p0": "node scripts/check-marketing-promotion-p0.mjs",
+    "check:ami-semantic-agent": "node scripts/check-ami-semantic-agent.mjs",
+    "check:ami-query-hub": "node scripts/check-ami-query-hub.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

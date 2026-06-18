@@ -7,6 +7,7 @@ afterEach(() => {
   vi.doUnmock('@/api/real/marketing');
   vi.doUnmock('@/api/real/terminal');
   vi.doUnmock('@/api/real/ai');
+  vi.doUnmock('@/api/real/agent');
   vi.unstubAllEnvs();
   vi.resetModules();
 });
@@ -458,5 +459,68 @@ describe('API facades', () => {
     expect(streamChunks).toEqual(['ok']);
     expect(realGenerateMarketingCopy).toHaveBeenCalledWith({ channel: 'wechat', campaignName: '活动' });
     expect(realRecommendNextBestAction).toHaveBeenCalledWith({ customerId: 1 });
+  });
+
+  it('routes Agent Gateway calls to the real implementation', async () => {
+    const createAgentRun = vi.fn(async (data) => ({
+      runId: 1,
+      runNo: 'AG202606160001',
+      status: 'completed',
+      answer: 'ok',
+      toolResults: [],
+      actions: [],
+      ...data,
+    }));
+    const getAgentRun = vi.fn(async (id) => ({ runId: id, runNo: 'AG202606160001', status: 'completed' }));
+    const appendAgentMessage = vi.fn(async (id, data) => ({ runId: id, answer: data.message }));
+    const getAgentTools = vi.fn(async () => [{ name: 'business.query.ask' }]);
+    const runDefaultAgentEvals = vi.fn(async () => ({ total: 1, passed: 1, failed: 0, results: [] }));
+    const getAgentRunsPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const getAgentRunDetail = vi.fn(async (id) => ({ run: { id, runNo: 'AG202606160001' }, messages: [], steps: [], toolCalls: [], approvals: [] }));
+    const getAgentApprovalsPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const approveAgentApproval = vi.fn(async (id, data) => ({ runId: 1, approval: { id, status: 'approved' }, ...data }));
+    const rejectAgentApproval = vi.fn(async (id, data) => ({ runId: 1, approval: { id, status: 'rejected' }, ...data }));
+
+    vi.doMock('@/api/real/agent', () => ({
+      createAgentRun,
+      getAgentRun,
+      appendAgentMessage,
+      getAgentTools,
+      runDefaultAgentEvals,
+      getAgentRunsPaginated,
+      getAgentRunDetail,
+      getAgentApprovalsPaginated,
+      approveAgentApproval,
+      rejectAgentApproval,
+    }));
+    vi.resetModules();
+
+    const api = await import('@/api/agent');
+
+    await api.createAgentRun({ message: '有哪些商品适合做活动', role: 'manager', entrypoint: 'web_app' });
+    await api.getAgentRun(1);
+    await api.appendAgentMessage(1, { message: '帮我生成活动草稿' });
+    await api.getAgentTools();
+    await api.runDefaultAgentEvals();
+    await api.getAgentRunsPaginated({ page: 1, pageSize: 10, status: 'completed' });
+    await api.getAgentRunDetail(1);
+    await api.getAgentApprovalsPaginated({ page: 1, pageSize: 10, status: 'pending' });
+    await api.approveAgentApproval(301, { comment: '确认生成草稿' });
+    await api.rejectAgentApproval(302, { comment: '暂不执行' });
+
+    expect(createAgentRun).toHaveBeenCalledWith({
+      message: '有哪些商品适合做活动',
+      role: 'manager',
+      entrypoint: 'web_app',
+    });
+    expect(getAgentRun).toHaveBeenCalledWith(1);
+    expect(appendAgentMessage).toHaveBeenCalledWith(1, { message: '帮我生成活动草稿' });
+    expect(getAgentTools).toHaveBeenCalledTimes(1);
+    expect(runDefaultAgentEvals).toHaveBeenCalledTimes(1);
+    expect(getAgentRunsPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'completed' });
+    expect(getAgentRunDetail).toHaveBeenCalledWith(1);
+    expect(getAgentApprovalsPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'pending' });
+    expect(approveAgentApproval).toHaveBeenCalledWith(301, { comment: '确认生成草稿' });
+    expect(rejectAgentApproval).toHaveBeenCalledWith(302, { comment: '暂不执行' });
   });
 });
