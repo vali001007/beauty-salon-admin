@@ -17,6 +17,26 @@
     <view class="project-desc">{{project.description}}</view>
   </view>
 
+  <view wx:if="{{project.promotions && project.promotions.length}}" class="promotion-card card">
+    <view class="detail-title">可领取权益</view>
+    <view wx:for="{{project.promotions}}" wx:key="id" class="promotion-item">
+      <view class="promotion-main">
+        <view class="promotion-name">{{item.name}}</view>
+        <view class="promotion-desc">{{item.discountText}}</view>
+      </view>
+      <button
+        class="claim-button {{selectedPromotionId === item.id ? 'claimed' : ''}}"
+        data-id="{{item.id}}"
+        loading="{{claimingPromotionId === item.id}}"
+        disabled="{{claimingPromotionId === item.id || selectedPromotionId === item.id}}"
+        bindtap="claimPromotion"
+      >
+        {{selectedPromotionId === item.id ? '已领取' : '领取'}}
+      </button>
+    </view>
+    <view class="promotion-note">领取后预约该项目，门店顾问会按权益规则确认使用。</view>
+  </view>
+
   <view class="detail-card card">
     <view class="detail-title">项目详情</view>
     <view class="detail-line">{{project.details.description || project.description}}</view>

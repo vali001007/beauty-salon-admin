@@ -12,7 +12,7 @@ type AssetTab = 'pages' | 'promotions' | 'glow' | 'events';
 
 const assetTabs: Array<{ value: AssetTab; label: string; description: string; icon: ComponentType<{ className?: string }> }> = [
   { value: 'pages', label: '推广页', description: '落地页、活动页与传播链接', icon: PanelTop },
-  { value: 'promotions', label: '优惠权益', description: '门店可发放的权益与折扣', icon: Gift },
+  { value: 'promotions', label: '权益资产库', description: '活动和自动触达可复用的权益', icon: Gift },
   { value: 'glow', label: '小程序展示', description: 'Ami Glow 首页展示配置', icon: Smartphone },
   { value: 'events', label: '数据明细', description: '客户浏览、点击与预约行为', icon: MousePointerClick },
 ];
@@ -56,7 +56,7 @@ export function MarketingAssets() {
           <div className="text-sm text-gray-500">首页 / 智能营销 / 推广资产</div>
           <h1 className="mt-2 text-2xl font-semibold text-gray-900">推广资产</h1>
           <p className="mt-1 text-sm text-gray-500">
-            统一管理推广页、优惠权益、小程序展示和客户行为数据，供自动触达、活动投放和数据复盘复用。
+            统一管理推广页、权益资产、小程序展示和客户行为数据，供自动触达、活动投放和数据复盘复用。
           </p>
         </div>
         <button

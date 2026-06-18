@@ -1,4 +1,5 @@
 import { loginWithWechat } from "../../services/auth";
+import { claimPromotion } from "../../services/promotion";
 import { getAvailability, getAvailableBeauticians, getProjectDetail } from "../../services/project";
 import { createReservation } from "../../services/reservation";
 import type { AvailabilitySlot, BeauticianItem, ProjectItem } from "../../services/types";
@@ -13,6 +14,8 @@ Page({
     slots: [] as AvailabilitySlot[],
     selectedDate: "",
     selectedBeauticianId: undefined as number | undefined,
+    selectedPromotionId: undefined as number | undefined,
+    claimingPromotionId: undefined as number | undefined,
   },
   onLoad(options: any) {
     const id = Number(options.id);
@@ -35,6 +38,22 @@ Page({
       this.setData({ showSheet: true, beauticians });
     } catch (error) {
       wx.showToast({ title: (error as Error).message || "美容师加载失败", icon: "none" });
+    }
+  },
+  async claimPromotion(event: any) {
+    const promotionId = Number(event.currentTarget.dataset.id);
+    if (!this.data.project || !promotionId) return;
+    try {
+      this.setData({ claimingPromotionId: promotionId });
+      await loginWithWechat(this.data.project.storeId);
+      await claimPromotion(promotionId, { storeId: this.data.project.storeId, channel: "project_detail" });
+      this.setData({ selectedPromotionId: promotionId });
+      wx.showToast({ title: "权益已领取", icon: "success" });
+    } catch (error) {
+      wx.showToast({ title: (error as Error).message || "领取失败，请先绑定手机号", icon: "none" });
+      wx.navigateTo({ url: "/pages/mine/index" });
+    } finally {
+      this.setData({ claimingPromotionId: undefined });
     }
   },
   closeReservation() {
@@ -68,6 +87,7 @@ Page({
         startTime: event.detail.startTime,
         endTime: event.detail.endTime,
         channel: "project_detail",
+        promotionId: this.data.selectedPromotionId,
       });
       wx.hideLoading();
       this.setData({ showSheet: false });

@@ -162,6 +162,7 @@ export class CustomerAppService {
       this.prisma.promotion.findMany({
         where: {
           status: 'active',
+          approvalStatus: 'approved',
           OR: [{ storeId }, { storeId: null }],
           AND: [
             { OR: [{ startAt: null }, { startAt: { lte: now } }] },
@@ -184,6 +185,7 @@ export class CustomerAppService {
       }),
     ]);
     if (!store) throw new NotFoundException('门店不存在');
+    const usablePromotions = promotions.filter((promotion) => this.isPromotionIssueAvailable(promotion));
 
     const projectConfigs = this.filterDisplayConfigs(displayConfigs, 'project');
     const promotionConfigs = this.filterDisplayConfigs(displayConfigs, 'promotion');
@@ -196,7 +198,7 @@ export class CustomerAppService {
     const recommendedProjects = configuredProjects.length
       ? configuredProjects
       : projects.map((project, index) => this.mapProject(project, { hot: index < 2 }));
-    const recommendedPromotions = this.applyDisplayConfigs(promotions, promotionConfigs, (item, config) =>
+    const recommendedPromotions = this.applyDisplayConfigs(usablePromotions, promotionConfigs, (item, config) =>
       this.mapPromotion(item, config),
     );
     const recommendedProducts = this.applyDisplayConfigs(products, productConfigs, (item, config) =>
@@ -205,7 +207,7 @@ export class CustomerAppService {
     const recommendedCards = this.applyDisplayConfigs(cards, cardConfigs, (item, config) => this.mapCard(item, config));
     const banners = this.buildHomeBanners(
       recommendedProjects,
-      recommendedPromotions.length ? recommendedPromotions : promotions.map((promotion) => this.mapPromotion(promotion)),
+      recommendedPromotions.length ? recommendedPromotions : usablePromotions.map((promotion) => this.mapPromotion(promotion)),
       marketingPages,
       pageConfigs,
     );
@@ -213,7 +215,7 @@ export class CustomerAppService {
       store: this.mapStore(store),
       banners,
       recommendedProjects,
-      recommendedPromotions: recommendedPromotions.length ? recommendedPromotions : promotions.map((promotion) => this.mapPromotion(promotion)),
+      recommendedPromotions: recommendedPromotions.length ? recommendedPromotions : usablePromotions.map((promotion) => this.mapPromotion(promotion)),
       recommendedProducts: recommendedProducts.length ? recommendedProducts : products.map((product) => this.mapProduct(product)),
       recommendedCards: recommendedCards.length ? recommendedCards : cards.map((card) => this.mapCard(card)),
     };
@@ -267,14 +269,20 @@ export class CustomerAppService {
     });
     if (!project) throw new NotFoundException('项目不存在或已下线');
 
+    const now = new Date();
     const promotions = await this.prisma.promotion.findMany({
       where: {
         status: 'active',
+        approvalStatus: 'approved',
         OR: [{ storeId: project.storeId }, { storeId: null }],
         applicableProjectIds: { has: project.id },
+        AND: [
+          { OR: [{ startAt: null }, { startAt: { lte: now } }] },
+          { OR: [{ endAt: null }, { endAt: { gte: now } }] },
+        ],
       },
       orderBy: { createdAt: 'desc' },
-      take: 3,
+      take: 10,
     });
 
     return {
@@ -292,7 +300,7 @@ export class CustomerAppService {
           unit: item.unit,
         })),
       },
-      promotions: promotions.map((promotion) => this.mapPromotion(promotion)),
+      promotions: promotions.filter((promotion) => this.isPromotionIssueAvailable(promotion)).slice(0, 3).map((promotion) => this.mapPromotion(promotion)),
     };
   }
 
@@ -438,8 +446,89 @@ export class CustomerAppService {
         payload: { reservationId: created.id, promotionId: dto.promotionId },
       },
     );
+    if (dto.promotionId) {
+      await this.recordEvent(
+        { ...user, customerId: customer.id, storeId: dto.storeId },
+        {
+          eventType: 'promotion_reserved',
+          storeId: dto.storeId,
+          channel: dto.channel,
+          targetType: 'promotion',
+          targetId: String(dto.promotionId),
+          payload: { reservationId: created.id, projectId: dto.projectId },
+        },
+      );
+    }
 
     return this.mapReservation(created);
+  }
+
+  async claimPromotion(user: CustomerAppTokenPayload, promotionId: number, dto: { storeId?: number; channel?: string; sessionId?: string } = {}) {
+    const storeId = dto.storeId ?? user.storeId;
+    const customer = await this.requireCustomer(user.customerId, storeId);
+    const now = new Date();
+    const promotion = await this.prisma.promotion.findFirst({
+      where: {
+        id: promotionId,
+        status: 'active',
+        approvalStatus: 'approved',
+        OR: [{ storeId: null }, { storeId: customer.storeId }],
+        AND: [
+          { OR: [{ startAt: null }, { startAt: { lte: now } }] },
+          { OR: [{ endAt: null }, { endAt: { gte: now } }] },
+        ],
+      },
+    });
+    if (!promotion) throw new NotFoundException('权益不存在、未发布或已过期');
+
+    const existingClaim = await this.prisma.customerAppEvent.findFirst({
+      where: {
+        storeId: customer.storeId,
+        customerId: customer.id,
+        eventType: 'promotion_claimed',
+        targetType: 'promotion',
+        targetId: String(promotion.id),
+      },
+      orderBy: { occurredAt: 'desc' },
+    });
+    if (existingClaim) {
+      return {
+        success: true,
+        alreadyClaimed: true,
+        promotion: this.mapPromotion(promotion),
+        claimedAt: existingClaim.occurredAt?.toISOString?.() ?? existingClaim.createdAt?.toISOString?.() ?? new Date().toISOString(),
+      };
+    }
+    if (promotion.maxIssueCount != null && promotion.issuedCount >= promotion.maxIssueCount) {
+      throw new BadRequestException('该权益已达到发放上限');
+    }
+
+    const updated = await this.prisma.promotion.update({
+      where: { id: promotion.id },
+      data: { issuedCount: { increment: 1 } },
+    });
+    await this.recordEvent(
+      { ...user, customerId: customer.id, storeId: customer.storeId },
+      {
+        eventType: 'promotion_claimed',
+        storeId: customer.storeId,
+        sessionId: dto.sessionId,
+        channel: dto.channel ?? 'miniapp',
+        targetType: 'promotion',
+        targetId: String(promotion.id),
+        payload: {
+          promotionName: promotion.name,
+          discountText: promotion.discountText,
+          validDays: promotion.validDays,
+        },
+      },
+    );
+
+    return {
+      success: true,
+      promotion: this.mapPromotion(updated),
+      claimedAt: new Date().toISOString(),
+    };
   }
 
   async getMyReservations(user: CustomerAppTokenPayload, query: CustomerAppPaginationDto) {
@@ -1213,6 +1302,14 @@ export class CustomerAppService {
       description: config?.summary ?? promotion.description,
       image: config?.bannerImage,
       discountText: promotion.discountText,
+      type: promotion.type,
+      source: promotion.source,
+      scenario: promotion.scenario,
+      approvalStatus: promotion.approvalStatus,
+      validDays: promotion.validDays,
+      maxIssueCount: promotion.maxIssueCount,
+      issuedCount: promotion.issuedCount,
+      usedCount: promotion.usedCount,
       applicableProjectIds: promotion.applicableProjectIds ?? [],
       startAt: promotion.startAt?.toISOString(),
       endAt: promotion.endAt?.toISOString(),
@@ -1220,6 +1317,10 @@ export class CustomerAppService {
       ctaType: config?.ctaType,
       targetType: 'promotion',
     };
+  }
+
+  private isPromotionIssueAvailable(promotion: any) {
+    return promotion.maxIssueCount == null || Number(promotion.issuedCount ?? 0) < Number(promotion.maxIssueCount);
   }
 
   private mapReservation(reservation: any) {

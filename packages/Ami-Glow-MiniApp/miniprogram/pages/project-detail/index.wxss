@@ -94,6 +94,63 @@
   padding: 42rpx 40rpx;
 }
 
+.promotion-card {
+  margin-top: 38rpx;
+  padding: 42rpx 40rpx;
+}
+
+.promotion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-top: 24rpx;
+  padding: 28rpx;
+  border: 2rpx solid #f0d7ea;
+  border-radius: 26rpx;
+  background: #fff8fd;
+}
+
+.promotion-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.promotion-name {
+  color: #33283f;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.promotion-desc {
+  margin-top: 10rpx;
+  color: #a05e76;
+  font-size: 26rpx;
+  line-height: 40rpx;
+}
+
+.claim-button {
+  width: 144rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: #bd7cd7;
+  color: #fff;
+  font-size: 26rpx;
+  line-height: 64rpx;
+}
+
+.claim-button.claimed {
+  background: #ead6ef;
+  color: #8f5ca7;
+}
+
+.promotion-note {
+  margin-top: 22rpx;
+  color: #8f7a92;
+  font-size: 24rpx;
+  line-height: 38rpx;
+}
+
 .detail-title {
   margin-bottom: 26rpx;
   color: #33283f;

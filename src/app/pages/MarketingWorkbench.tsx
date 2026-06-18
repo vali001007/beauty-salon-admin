@@ -15,24 +15,15 @@ import {
   Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  getAutomationStrategiesPaginated,
-  getMarketingActivities,
-  getUnifiedMarketingEffects,
-} from '@/api/marketing';
-import { getMarketingRecommendations } from '@/api/recommendation';
-import { createTerminalFollowUpTask, getTerminalCustomerGrowthCandidates } from '@/api/terminal';
-import type {
-  MarketingActivity,
-  MarketingAutomationStrategy,
-  TerminalGrowthCandidate,
-  UnifiedMarketingEffectsResponse,
-} from '@/types';
+import { getAutomationStrategiesPaginated, getMarketingActivities, getUnifiedMarketingEffects } from '@/api/marketing';
+import { getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
+import { batchCreateRecommendationFollowUpTasks } from '@/api/terminal';
+import type { MarketingActivity, MarketingAutomationStrategy, UnifiedMarketingEffectsResponse } from '@/types';
+import type { BehaviorProfile } from '@/utils/customerSegmentation';
 import type { Recommendation } from '@/utils/marketingRecommendation';
 
 type WorkbenchState = {
   recommendations: Recommendation[];
-  growthCandidates: TerminalGrowthCandidate[];
   activities: MarketingActivity[];
   strategies: MarketingAutomationStrategy[];
   effects: UnifiedMarketingEffectsResponse | null;
@@ -40,10 +31,48 @@ type WorkbenchState = {
 
 const emptyState: WorkbenchState = {
   recommendations: [],
-  growthCandidates: [],
   activities: [],
   strategies: [],
   effects: null,
+};
+
+type RecommendationAudienceCustomer = Partial<BehaviorProfile> & {
+  customerId: number;
+  name: string;
+  phone?: string | null;
+  memberLevel?: string | null;
+  storeName?: string | null;
+  totalSpent?: number;
+  visitCount?: number;
+  churnScore?: number;
+  churnLevel?: string;
+  repurchase30dScore?: number;
+  marketingResponseScore?: number;
+  ltvTier?: string;
+  matchReason?: string;
+};
+
+type RawRecommendationAudienceCustomer = Partial<
+  Omit<
+    RecommendationAudienceCustomer,
+    'customerId' | 'totalSpent' | 'visitCount' | 'churnScore' | 'repurchase30dScore' | 'marketingResponseScore'
+  >
+> & {
+  id?: number | string;
+  customerId?: number | string;
+  totalSpent?: number | string;
+  visitCount?: number | string;
+  churnScore?: number | string;
+  repurchase30dScore?: number | string;
+  marketingResponseScore?: number | string;
+};
+
+type RecommendationAudienceState = {
+  open: boolean;
+  loading: boolean;
+  customers: RecommendationAudienceCustomer[];
+  error?: string;
+  dispatchedCount?: number;
 };
 
 function asArray<T>(value: T[] | null | undefined): T[] {
@@ -55,6 +84,11 @@ function formatMoney(value: number) {
   return `¥${Math.round(value).toLocaleString('zh-CN')}`;
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
+
 function getTodayFollowUpDueAt() {
   const dueAt = new Date();
   dueAt.setHours(18, 0, 0, 0);
@@ -62,13 +96,57 @@ function getTodayFollowUpDueAt() {
   return dueAt.toISOString();
 }
 
-function buildCandidateScript(candidate: TerminalGrowthCandidate) {
-  const signal = [
-    candidate.reason,
-    candidate.churnLevel ? `流失等级 ${candidate.churnLevel}` : '',
-    Number.isFinite(candidate.repurchase30dScore) ? `复购分 ${candidate.repurchase30dScore}` : '',
-  ].filter(Boolean).join('；');
-  return `${candidate.name} 属于今日客户增长优先对象。${signal}。建议顾问先用最近护理记录做关怀，再推荐低压力回店预约或同系列护理方案。`;
+function normalizeAudienceCustomer(value: RawRecommendationAudienceCustomer): RecommendationAudienceCustomer | null {
+  const customerId = asNumber(value.customerId ?? value.id, 0);
+  if (!customerId) return null;
+
+  return {
+    ...value,
+    customerId,
+    name: value.name || `客户${customerId}`,
+    phone: value.phone ?? '',
+    memberLevel: value.memberLevel ?? '',
+    storeName: value.storeName ?? '',
+    totalSpent: asNumber(value.totalSpent, 0),
+    visitCount: asNumber(value.visitCount, 0),
+    churnScore: asNumber(value.churnScore, 0),
+    repurchase30dScore: asNumber(value.repurchase30dScore, 0),
+    marketingResponseScore: asNumber(value.marketingResponseScore, 0),
+  };
+}
+
+function getTerminalFollowUpAssignment(rec: Recommendation) {
+  const text = [rec.recommendationType, rec.triggerType, rec.source, rec.title, rec.reason].filter(Boolean).join(' ');
+  if (/expiry|inventory|stock|capacity|临期|库存|低峰|排期|产能|补货/.test(text)) {
+    return {
+      role: 'manager',
+      roleLabel: '店长',
+      reason: '涉及库存、排期或经营协调，先由店长承接。',
+    };
+  }
+  if (/booking|appointment|reservation|预约|浏览|放弃|到店/.test(text)) {
+    return {
+      role: 'reception',
+      roleLabel: '前台',
+      reason: '属于预约确认或高意向邀约，前台先确认时间。',
+    };
+  }
+  return {
+    role: 'consultant',
+    roleLabel: '顾问/美容师',
+    reason: '属于客户关系维护，优先由熟悉客户的顾问或美容师跟进。',
+  };
+}
+
+function buildRecommendationFollowUpScript(rec: Recommendation, customer?: RecommendationAudienceCustomer) {
+  const offer = rec.offer?.label || rec.discount || '门店专属护理权益';
+  const itemText = rec.recommendedItems?.[0]?.name ? `，可优先推荐${rec.recommendedItems[0].name}` : '';
+  const customerText = customer ? `${customer.name}命中「${rec.title}」` : `客户命中「${rec.title}」`;
+  return `${customerText}。建议先确认近期护理需求，再介绍${offer}${itemText}；如客户有兴趣，引导预约到店并备注肤况/时间偏好。`;
+}
+
+function buildRecommendationFollowUpNote(rec: Recommendation) {
+  return `营销工作台下发终端跟进：${rec.reason}`;
 }
 
 export function MarketingWorkbench() {
@@ -76,14 +154,14 @@ export function MarketingWorkbench() {
   const [state, setState] = useState<WorkbenchState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
-  const [dispatchingCustomerId, setDispatchingCustomerId] = useState<number | null>(null);
+  const [audienceState, setAudienceState] = useState<Record<number, RecommendationAudienceState>>({});
+  const [dispatchingKey, setDispatchingKey] = useState<string | null>(null);
 
   const loadWorkbench = useCallback(async () => {
     setLoading(true);
     const nextErrors: string[] = [];
-    const [recommendationsResult, growthResult, activitiesResult, strategiesResult, effectsResult] = await Promise.allSettled([
+    const [recommendationsResult, activitiesResult, strategiesResult, effectsResult] = await Promise.allSettled([
       getMarketingRecommendations(),
-      getTerminalCustomerGrowthCandidates(8),
       getMarketingActivities(),
       getAutomationStrategiesPaginated({ page: 1, pageSize: 50, status: 'all' }),
       getUnifiedMarketingEffects(),
@@ -95,12 +173,6 @@ export function MarketingWorkbench() {
       nextState.recommendations = recommendationsResult.value;
     } else {
       nextErrors.push('推荐机会加载失败');
-    }
-
-    if (growthResult.status === 'fulfilled') {
-      nextState.growthCandidates = growthResult.value;
-    } else {
-      nextErrors.push('终端客户增长候选加载失败');
     }
 
     if (activitiesResult.status === 'fulfilled') {
@@ -140,22 +212,96 @@ export function MarketingWorkbench() {
   );
   const totalReach = state.effects?.summary.exposureCount ?? 0;
   const totalRevenue = state.effects?.summary.revenue ?? 0;
+  const dispatchableOpportunityCount = state.recommendations.filter((item) => item.targetCount > 0).length;
 
-  const createFollowUp = async (candidate: TerminalGrowthCandidate) => {
-    setDispatchingCustomerId(candidate.customerId);
+  const loadRecommendationCustomers = async (recommendation: Recommendation) => {
+    const current = audienceState[recommendation.id];
+    if (current?.open && !current.loading) {
+      setAudienceState((prev) => ({
+        ...prev,
+        [recommendation.id]: { ...current, open: false },
+      }));
+      return;
+    }
+
+    setAudienceState((prev) => ({
+      ...prev,
+      [recommendation.id]: {
+        open: true,
+        loading: true,
+        customers: prev[recommendation.id]?.customers ?? [],
+      },
+    }));
+
     try {
-      await createTerminalFollowUpTask({
-        customerId: candidate.customerId,
+      const profiles = await getMarketingRecommendationAudience(recommendation.id);
+      const customers = profiles
+        .map((profile) => normalizeAudienceCustomer(profile as RawRecommendationAudienceCustomer))
+        .filter((profile): profile is RecommendationAudienceCustomer => Boolean(profile));
+      setAudienceState((prev) => ({
+        ...prev,
+        [recommendation.id]: {
+          open: true,
+          loading: false,
+          customers,
+        },
+      }));
+    } catch (error) {
+      setAudienceState((prev) => ({
+        ...prev,
+        [recommendation.id]: {
+          open: true,
+          loading: false,
+          customers: prev[recommendation.id]?.customers ?? [],
+          error: error instanceof Error ? error.message : '客户名单加载失败',
+        },
+      }));
+    }
+  };
+
+  const dispatchRecommendationCustomers = async (
+    recommendation: Recommendation,
+    customers: RecommendationAudienceCustomer[],
+    mode: 'single' | 'batch',
+  ) => {
+    if (!customers.length) {
+      toast.error('请先选择需要下发的客户');
+      return;
+    }
+
+    const key = `${recommendation.id}-${mode}-${customers.map((item) => item.customerId).join('-')}`;
+    const assignment = getTerminalFollowUpAssignment(recommendation);
+    setDispatchingKey(key);
+    try {
+      const result = await batchCreateRecommendationFollowUpTasks(recommendation.id, {
+        customerId: customers[0].customerId,
+        customerIds: customers.map((item) => item.customerId),
+        recommendationId: recommendation.id,
+        sourceRecommendationKey: recommendation.recommendationKey,
+        source: 'marketing_workbench',
+        triggerType: recommendation.recommendationType || recommendation.triggerType,
+        title: recommendation.title,
+        priority: recommendation.urgency,
+        assigneeRole: assignment.role,
         channel: 'phone',
         dueAt: getTodayFollowUpDueAt(),
-        script: buildCandidateScript(candidate),
-        note: `营销工作台下发：${candidate.reason}`,
+        script: buildRecommendationFollowUpScript(recommendation, mode === 'single' ? customers[0] : undefined),
+        note: `${buildRecommendationFollowUpNote(recommendation)}；${assignment.reason}`,
       });
-      toast.success(`已同步 ${candidate.name} 到 Ami Aura Lite 客户增长`);
+      setAudienceState((prev) => ({
+        ...prev,
+        [recommendation.id]: {
+          ...(prev[recommendation.id] ?? { open: true, loading: false, customers: [] }),
+          dispatchedCount: (prev[recommendation.id]?.dispatchedCount ?? 0) + result.createdCount,
+        },
+      }));
+      toast.success(
+        `已下发 ${result.createdCount} 位客户到 Ami Aura Lite${result.duplicatedCount ? `，${result.duplicatedCount} 位已有待办未重复下发` : ''}${result.failedCount ? `，${result.failedCount} 位失败` : ''}`,
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '下发终端跟进失败');
     } finally {
-      setDispatchingCustomerId(null);
+      setDispatchingKey(null);
     }
   };
 
@@ -165,7 +311,7 @@ export function MarketingWorkbench() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">营销工作台</h1>
           <p className="mt-1 text-sm text-gray-500">
-            汇总今日客户机会、终端客户增长、自动触达、推广资产和数据复盘，帮助店长先判断今天该经营哪些客户。
+            汇总今日推荐机会、终端跟进、自动触达、推广资产和数据复盘，帮助店长先判断今天该经营哪些客户。
           </p>
         </div>
         <button
@@ -193,9 +339,9 @@ export function MarketingWorkbench() {
           loading={loading}
         />
         <SummaryCard
-          title="终端客户增长"
-          value={state.growthCandidates.length}
-          hint="Ami Aura Lite 今日优先跟进客户"
+          title="可下发终端机会"
+          value={dispatchableOpportunityCount}
+          hint="客户名单挂在具体推荐机会下"
           icon={<Users className="h-5 w-5 text-emerald-600" />}
           loading={loading}
         />
@@ -215,7 +361,7 @@ export function MarketingWorkbench() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.25fr_0.9fr]">
+      <div className="grid grid-cols-1 gap-5">
         <section className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -238,91 +384,154 @@ export function MarketingWorkbench() {
             <EmptyBlock text="暂无推荐机会，可稍后刷新预测结果。" />
           ) : (
             <div className="space-y-3">
-              {state.recommendations.slice(0, 5).map((item) => (
-                <div key={item.id} className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-medium text-gray-900">{item.title}</h3>
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{item.urgencyLabel}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-gray-600">{item.reason}</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-                        <span>{item.targetCustomers}</span>
-                        <span>{item.expectedRevenue}</span>
-                        <span>{item.offer?.label || item.discount}</span>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => navigate('/customer-marketing/intelligent-recommendation')}
-                        className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                      >
-                        处理机会
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/customer-marketing/automation')}
-                        className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
-                      >
-                        开启自动触达
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+              {state.recommendations.slice(0, 5).map((item) => {
+                const audience = audienceState[item.id];
+                const visibleCustomers = audience?.customers.slice(0, 8) ?? [];
+                const batchCustomers = visibleCustomers.slice(0, 8);
+                const assignment = getTerminalFollowUpAssignment(item);
+                const batchKey = `${item.id}-batch-${batchCustomers.map((customer) => customer.customerId).join('-')}`;
 
-        <section className="rounded-lg border border-gray-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">终端客户增长</h2>
-              <p className="mt-1 text-sm text-gray-500">同步给 Ami Aura Lite，方便店长和前台现场跟进。</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/customer-marketing/intelligent-recommendation')}
-              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-            >
-              客户机会
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          {loading ? (
-            <LoadingBlock text="正在加载客户增长候选..." />
-          ) : state.growthCandidates.length === 0 ? (
-            <EmptyBlock text="暂无高优先级客户增长候选。" />
-          ) : (
-            <div className="space-y-3">
-              {state.growthCandidates.slice(0, 5).map((candidate) => (
-                <div key={candidate.customerId} className="rounded-lg border border-gray-100 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-medium text-gray-900">{candidate.name}</h3>
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">{candidate.churnLevel}</span>
+                return (
+                  <div key={item.id} className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-medium text-gray-900">{item.title}</h3>
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                            {item.urgencyLabel}
+                          </span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                            终端：{assignment.roleLabel}
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-sm text-gray-600">{item.reason}</p>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                          <span>{item.targetCustomers}</span>
+                          <span>{item.expectedRevenue}</span>
+                          <span>{item.offer?.label || item.discount}</span>
+                        </div>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-gray-600">{candidate.reason}</p>
-                      <div className="mt-2 text-xs text-gray-500">
-                        复购分 {candidate.repurchase30dScore} / 流失分 {candidate.churnScore} / 累计 {formatMoney(candidate.totalSpent)}
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void loadRecommendationCustomers(item)}
+                          className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        >
+                          {audience?.open ? '收起客户' : '查看客户'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/customer-marketing/intelligent-recommendation')}
+                          className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                        >
+                          处理机会
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/customer-marketing/automation')}
+                          className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
+                        >
+                          开启自动触达
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      disabled={dispatchingCustomerId === candidate.customerId}
-                      onClick={() => void createFollowUp(candidate)}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      {dispatchingCustomerId === candidate.customerId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PhoneCall className="h-3.5 w-3.5" />}
-                      下发跟进
-                    </button>
+
+                    {audience?.open && (
+                      <div className="mt-4 rounded-lg border border-emerald-100 bg-white p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">跟进客户名单</h4>
+                            <p className="mt-1 text-xs text-gray-500">
+                              来自当前推荐机会的命中客群，下发后会进入 Ami Aura Lite 终端待办。
+                            </p>
+                          </div>
+                          {visibleCustomers.length > 0 && (
+                            <button
+                              type="button"
+                              disabled={dispatchingKey === batchKey}
+                              onClick={() => void dispatchRecommendationCustomers(item, batchCustomers, 'batch')}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                            >
+                              {dispatchingKey === batchKey ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <PhoneCall className="h-3.5 w-3.5" />
+                              )}
+                              下发前 {batchCustomers.length} 位
+                            </button>
+                          )}
+                        </div>
+
+                        {audience.loading ? (
+                          <div className="mt-3 flex h-20 items-center justify-center text-sm text-gray-500">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            正在加载当前机会客户...
+                          </div>
+                        ) : audience.error ? (
+                          <div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+                            {audience.error}
+                          </div>
+                        ) : visibleCustomers.length === 0 ? (
+                          <div className="mt-3 rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-500">
+                            当前机会暂无可下发客户。
+                          </div>
+                        ) : (
+                          <div className="mt-3 divide-y divide-gray-100">
+                            {visibleCustomers.map((customer) => {
+                              const singleKey = `${item.id}-single-${customer.customerId}`;
+                              return (
+                                <div
+                                  key={customer.customerId}
+                                  className="flex flex-wrap items-center justify-between gap-3 py-3"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-medium text-gray-900">{customer.name}</span>
+                                      {customer.phone && (
+                                        <span className="text-xs text-gray-500">{customer.phone}</span>
+                                      )}
+                                      {customer.segment && (
+                                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                          {customer.segment}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+                                      <span>累计消费 {formatMoney(customer.totalSpent ?? 0)}</span>
+                                      <span>到店 {customer.visitCount ?? 0} 次</span>
+                                      {customer.churnLevel && <span>流失风险 {customer.churnLevel}</span>}
+                                      {customer.matchReason && <span>{customer.matchReason}</span>}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={dispatchingKey === singleKey}
+                                    onClick={() => void dispatchRecommendationCustomers(item, [customer], 'single')}
+                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                                  >
+                                    {dispatchingKey === singleKey ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <PhoneCall className="h-3.5 w-3.5" />
+                                    )}
+                                    下发
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {audience.dispatchedCount ? (
+                          <div className="mt-3 text-xs text-emerald-700">
+                            本机会已下发 {audience.dispatchedCount} 位客户。
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

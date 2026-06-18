@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import {
   Activity,
   ArrowUpRight,
@@ -7,6 +7,7 @@ import {
   FileText,
   Gift,
   MousePointerClick,
+  Sparkles,
   Smartphone,
   Target,
   TrendingUp,
@@ -14,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { getMarketingFollowUpTaskSummary, getUnifiedMarketingEffects } from '@/api/marketing';
+import { MarketingEffectDetailDialog } from '@/app/components/MarketingEffectDetailDialog';
 import type {
   MarketingEffectObjectType,
   UnifiedMarketingEffectItem,
@@ -28,7 +30,8 @@ const FILTERS: Array<{ id: FilterType; label: string; icon: typeof Activity }> =
   { id: 'activity', label: '推广活动', icon: Target },
   { id: 'auto', label: '自动触达', icon: Zap },
   { id: 'page', label: '推广页', icon: FileText },
-  { id: 'promotion', label: '优惠权益', icon: Gift },
+  { id: 'promotion', label: '权益资产', icon: Gift },
+  { id: 'recommendation', label: '智能推荐', icon: Sparkles },
   { id: 'glow', label: 'Ami Glow', icon: Smartphone },
 ];
 
@@ -42,12 +45,18 @@ const formatMoney = (value: number) => {
   return `¥${value.toLocaleString()}`;
 };
 
+const getPromotionLabel = (value?: Record<string, unknown> | null) => {
+  if (!value) return '';
+  return String(value.promotionName ?? value.name ?? value.label ?? value.discountText ?? value.promotionId ?? '').trim();
+};
+
 const getTypeStyle = (type: MarketingEffectObjectType) => {
   const styles: Record<MarketingEffectObjectType, string> = {
     activity: 'bg-blue-100 text-blue-700',
     auto: 'bg-purple-100 text-purple-700',
     page: 'bg-cyan-100 text-cyan-700',
     promotion: 'bg-amber-100 text-amber-700',
+    recommendation: 'bg-indigo-100 text-indigo-700',
     glow: 'bg-emerald-100 text-emerald-700',
   };
   return styles[type];
@@ -59,17 +68,18 @@ const getTypeIcon = (type: MarketingEffectObjectType) => {
     auto: Zap,
     page: FileText,
     promotion: Gift,
+    recommendation: Sparkles,
     glow: Smartphone,
   };
   return icons[type];
 };
 
 export function MarketingAnalytics() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<FilterType>(() => normalizeFilter(searchParams.get('objectType')));
   const [data, setData] = useState<UnifiedMarketingEffectsResponse | null>(null);
   const [followUpSummary, setFollowUpSummary] = useState<TerminalFollowUpTaskSummary | null>(null);
+  const [selectedEffectItem, setSelectedEffectItem] = useState<UnifiedMarketingEffectItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -81,8 +91,13 @@ export function MarketingAnalytics() {
     setLoading(true);
     setError('');
     try {
+      const objectType = normalizeFilter(searchParams.get('objectType'));
+      const objectId = searchParams.get('objectId') || undefined;
       const [response, followUpResult] = await Promise.all([
-        getUnifiedMarketingEffects(),
+        getUnifiedMarketingEffects({
+          objectType,
+          objectId,
+        }),
         getMarketingFollowUpTaskSummary().catch(() => null),
       ]);
       setData(response);
@@ -93,7 +108,7 @@ export function MarketingAnalytics() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     loadData();
@@ -161,7 +176,7 @@ export function MarketingAnalytics() {
   };
 
   const handleOpenDetail = (item: UnifiedMarketingEffectItem) => {
-    if (item.detailPath) navigate(item.detailPath);
+    setSelectedEffectItem(item);
   };
 
   const emptyText =
@@ -175,7 +190,7 @@ export function MarketingAnalytics() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">数据复盘</h1>
           <p className="mt-1 text-sm text-gray-500">
-            统一查看推广活动、自动触达、推广页、优惠权益与 Ami Glow 的触达、访问、成交和投放回报。
+            统一查看推广活动、自动触达、推广页、权益资产与 Ami Glow 的触达、访问、成交和投放回报。
           </p>
         </div>
         <button
@@ -353,6 +368,61 @@ export function MarketingAnalytics() {
                               {item.metricsSource}
                             </span>
                           </div>
+                          {item.relatedObjectName && (
+                            <div className="mt-2 text-xs text-gray-500">关联对象：{item.relatedObjectName}</div>
+                          )}
+                          {(item.audienceName || item.promotionName || item.channelName) && (
+                            <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+                              {item.audienceName && (
+                                <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700">
+                                  <div className="font-medium text-slate-500">人群</div>
+                                  <div className="mt-1 truncate">{item.audienceName}</div>
+                                </div>
+                              )}
+                              {item.promotionName && (
+                                <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-amber-800">
+                                  <div className="font-medium text-amber-600">权益</div>
+                                  <div className="mt-1 truncate">{item.promotionName}</div>
+                                </div>
+                              )}
+                              {item.channelName && (
+                                <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-800">
+                                  <div className="font-medium text-emerald-600">渠道</div>
+                                  <div className="mt-1 truncate">{item.channelName}</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {item.objectType === 'recommendation' && item.recommendationAttribution && (
+                            <div className="mt-3 grid gap-2 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-900 md:grid-cols-3">
+                              <div>
+                                <div className="font-medium text-indigo-700">算法原推荐</div>
+                                <div className="mt-1 truncate">
+                                  {getPromotionLabel(item.recommendationAttribution.originalPromotion)
+                                    || getPromotionLabel(item.recommendationAttribution.originalOffer)
+                                    || '未记录'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-indigo-700">实际承接权益</div>
+                                <div className="mt-1 truncate">
+                                  {getPromotionLabel(item.recommendationAttribution.selectedPromotion)
+                                    || getPromotionLabel(item.recommendationAttribution.selectedOffer)
+                                    || '未记录'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-indigo-700">运营切换</div>
+                                <div className={`mt-1 inline-flex rounded px-2 py-0.5 font-medium ${
+                                  item.recommendationAttribution.promotionSwitched
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {item.recommendationAttribution.promotionSwitched ? '已切换' : '未切换'}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           {item.emptyReason && (
                             <div className="mt-2 text-xs text-amber-600">{item.emptyReason}</div>
                           )}
@@ -381,6 +451,12 @@ export function MarketingAnalytics() {
           </div>
         </div>
       </div>
+
+      <MarketingEffectDetailDialog
+        open={Boolean(selectedEffectItem)}
+        onOpenChange={(open) => !open && setSelectedEffectItem(null)}
+        item={selectedEffectItem}
+      />
     </div>
   );
 }
