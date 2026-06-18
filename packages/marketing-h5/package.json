@@ -4,9 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5176",
+    "dev": "vite --host 127.0.0.1 --port 5177",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 4176"
+    "preview": "vite preview --host 127.0.0.1 --port 4177"
   },
   "dependencies": {
     "@vitejs/plugin-react": "4.7.0",
