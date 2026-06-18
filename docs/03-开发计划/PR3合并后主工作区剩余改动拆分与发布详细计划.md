@@ -99,11 +99,7 @@ package.json 中的 test:e2e:kiosk 脚本
 "test:e2e:kiosk": "playwright test -c playwright.kiosk.config.ts"
 ```
 
-这一行不属于 PR4，应留给后续 seed/demo PR：
-
-```json
-"db:seed:demo:dry-run": "npm --prefix packages/server-v2 run db:seed:mvp:dry-run"
-```
+当时曾讨论过 demo seed dry-run 快捷入口，但后续已确认不再作为发布门禁，也不再保留根目录入口。
 
 ### 3.2 PR5：marketing-h5 与活动页共享渲染
 
@@ -157,7 +153,7 @@ docs/03-开发计划/经营利润一级模块详细开发计划.md
 AGENTS.md
 packages/app/src/api/claude.ts
 packages/server-v2/prisma/seed-mvp.ts
-package.json 中的 db:seed:demo:dry-run 脚本
+package.json 中曾计划加入的 demo seed dry-run 脚本（已退役，不再作为发布入口）
 ```
 
 原因：
@@ -218,7 +214,7 @@ git status --short --branch
 git diff --cached --name-only
 ```
 
-暂存 `package.json` 时必须只保留 `test:e2e:kiosk`，不能把 `db:seed:demo:dry-run` 带入 PR4。
+暂存 `package.json` 时必须只保留 `test:e2e:kiosk`，不能把历史 demo seed dry-run 入口带入 PR4。
 
 暂存后必须执行：
 
@@ -313,7 +309,7 @@ git fetch origin
 
 不能 Ready：
 
-- `package.json` 混入 `db:seed:demo:dry-run`
+- `package.json` 混入历史 demo seed dry-run 入口
 - marketing-h5 文件进入 PR4
 - Kiosk 快捷入口指向不存在页面
 - 终端角色权限无法和管理端用户绑定
@@ -503,7 +499,7 @@ docs/03-开发计划/经营利润一级模块详细开发计划.md
 AGENTS.md
 packages/app/src/api/claude.ts
 packages/server-v2/prisma/seed-mvp.ts
-package.json 中的 db:seed:demo:dry-run
+package.json 中曾计划加入的 demo seed dry-run（已退役，不再作为发布入口）
 ```
 
 ### 7.2 拆分建议
@@ -515,7 +511,7 @@ package.json 中的 db:seed:demo:dry-run
 ```text
 PR7A：docs/process 更新 AGENTS.md
 PR7B：fix(app): route Claude API through server gateway
-PR7C：chore(seed): add demo seed dry-run support
+PR7C：fix(app): remove legacy Claude direct path
 ```
 
 ### 7.3 验收
@@ -533,13 +529,13 @@ Set-Location "packages/app"
 npm.cmd run build
 ```
 
-seed dry-run：
+权益资产 seed 验证：
 
 ```powershell
-npm.cmd run db:seed:demo:dry-run
+npm.cmd run db:seed:promotion-assets:verify
 ```
 
-如果数据库连接不可用，必须在 PR 描述中说明环境前置条件。
+不再以 demo seed dry-run 作为发布门禁；如果数据库连接不可用，必须在 PR 描述中说明环境前置条件。
 
 ## 8. 发布候选计划
 
@@ -585,7 +581,6 @@ npm.cmd run build
 Set-Location "..\server-v2"
 npm.cmd run db:migrate:prod
 npm.cmd run db:seed:promotion-assets:verify
-npm.cmd run db:seed:demo:dry-run
 ```
 
 ### 8.3 Release Note 建议结构

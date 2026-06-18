@@ -29,8 +29,7 @@ npm run dev:api       # 启动 packages/server-v2 开发模式
 npm run start:api     # 启动 packages/server-v2 生产模式
 npm run check:api     # 构建检查 packages/server-v2
 
-npm run db:seed:demo       # 执行基础演示种子数据
-npm run db:seed:demo-full  # 执行完整演示种子数据
+npm run db:seed:promotion-assets:verify # 校验权益资产种子数据是否完整
 npm run db:studio:v2       # Prisma Studio 可视化
 ```
 
