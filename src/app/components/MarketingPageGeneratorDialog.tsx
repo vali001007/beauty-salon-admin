@@ -3,7 +3,7 @@ import { Check, Copy, Loader2, Megaphone, Smartphone, Sparkles } from 'lucide-re
 import { toast } from 'sonner';
 import { generateActivityPage } from '@/api/ai';
 import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
-import { buildMarketingPageUrl } from '@/config/marketingAssets';
+import { buildMarketingPageUrl, normalizeMarketingShareUrl } from '@/config/marketingAssets';
 import type { ActivityPageSchema, GenerateActivityPageRequest, GenerateActivityPageResult, Product, Project } from '@/types';
 import {
   buildMarketingPagePayloadFromPageDraft,
@@ -244,7 +244,7 @@ export function MarketingPageGeneratorDialog({ source, onClose, onPublished }: M
     try {
       const page = await createMarketingPage(buildMarketingPagePayloadFromPageDraft(effectiveDraft));
       const publishedPage = await publishMarketingPage(page.id);
-      const url = publishedPage.shareUrl || buildMarketingPageUrl(publishedPage.slug);
+      const url = normalizeMarketingShareUrl(publishedPage.shareUrl) || buildMarketingPageUrl(publishedPage.slug);
       setPublishedUrl(url);
       toast.success(`${effectiveDraft.sourceLabel}推广页已发布到小程序/H5`);
       onPublished?.();

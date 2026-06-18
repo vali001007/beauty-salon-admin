@@ -96,6 +96,7 @@ describe('MarketingPagesService', () => {
 
       const expectedPage = {
         ...basePage,
+        shareUrl: 'https://share.ami.test/page/mp-product-101',
         effectSummary: { pv: 2, uv: 2, leadCount: 1, bookingCount: 1, attributionCount: 1, attributedRevenue: 680 },
       };
       expect(result).toEqual({ items: [expectedPage], data: [expectedPage], total: 1, page: 2, pageSize: 10 });
@@ -199,7 +200,7 @@ describe('MarketingPagesService', () => {
         data: expect.objectContaining({
           status: 'published',
           offlineAt: null,
-          shareUrl: basePage.shareUrl,
+          shareUrl: 'https://share.ami.test/page/mp-product-101',
           miniappPath: basePage.miniappPath,
         }),
       });
@@ -306,7 +307,7 @@ describe('MarketingPagesService', () => {
         shareTitle: '水光护理限时体验',
         shareDescription: '适合新客体验',
         shareImage: 'https://example.com/share.jpg',
-        shareUrl: basePage.shareUrl,
+        shareUrl: 'https://share.ami.test/page/mp-product-101',
         miniappPath: basePage.miniappPath,
         publishedAt: now,
       });

@@ -2,12 +2,15 @@ import { useEffect, useMemo, useRef, useState, type ElementRef } from 'react';
 import { useNavigate } from 'react-router';
 import QRCode from 'qrcode';
 import {
+  BarChart3,
   Check,
   Copy,
   Download,
+  Eye,
   ExternalLink,
   Loader2,
   PauseCircle,
+  PlayCircle,
   QrCode,
   RefreshCw,
   Search,
@@ -24,7 +27,7 @@ import {
   offlineMarketingPage,
   publishMarketingPage,
 } from '@/api/marketingPage';
-import { buildMarketingPageUrl } from '@/config/marketingAssets';
+import { buildMarketingPageUrl, normalizeMarketingShareUrl } from '@/config/marketingAssets';
 import { usePagination } from '@/hooks/usePagination';
 import type {
   MarketingPage,
@@ -72,7 +75,13 @@ function formatMoney(value?: number | null) {
 }
 
 function getPageUrl(page: MarketingPage) {
-  return page.shareUrl || buildMarketingPageUrl(page.slug);
+  return normalizeMarketingShareUrl(page.shareUrl) || buildMarketingPageUrl(page.slug);
+}
+
+function getPageSubtitle(page: MarketingPage) {
+  const subtitle = page.shareTitle || page.shareDescription;
+  if (!subtitle || subtitle.trim() === page.title.trim()) return 'H5/小程序推广页';
+  return subtitle;
 }
 
 export function MarketingPageManagement({ embedded = false }: { embedded?: boolean }) {
@@ -267,7 +276,7 @@ export function MarketingPageManagement({ embedded = false }: { embedded?: boole
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             className="w-80 pl-9"
-            placeholder="搜索标题、slug、来源 ID"
+            placeholder="搜索标题、来源 ID"
             value={keyword}
             onChange={(event) => {
               setKeyword(event.target.value);
@@ -314,13 +323,12 @@ export function MarketingPageManagement({ embedded = false }: { embedded?: boole
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50/80">
-                <TableHead>页面</TableHead>
+                <TableHead>推广页</TableHead>
                 <TableHead>来源</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>效果</TableHead>
-                <TableHead>归因</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead>发布时间</TableHead>
+                <TableHead>访问</TableHead>
+                <TableHead>成交</TableHead>
+                <TableHead>发布</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -334,7 +342,7 @@ export function MarketingPageManagement({ embedded = false }: { embedded?: boole
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">{item.title}</div>
-                        <div className="text-xs text-gray-500">{item.shareTitle || item.shareDescription || 'H5/小程序推广页'}</div>
+                        <div className="mt-1 text-xs text-gray-500">{getPageSubtitle(item)}</div>
                       </div>
                     </div>
                   </TableCell>
@@ -358,58 +366,97 @@ export function MarketingPageManagement({ embedded = false }: { embedded?: boole
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="grid min-w-40 grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
-                      <span>PV {item.effectSummary?.pv ?? 0}</span>
-                      <span>UV {item.effectSummary?.uv ?? 0}</span>
-                      <span>线索 {item.effectSummary?.leadCount ?? 0}</span>
-                      <span>预约 {item.effectSummary?.bookingCount ?? 0}</span>
+                    <div className="min-w-32 space-y-1 text-xs text-gray-600">
+                      <div>浏览 {item.effectSummary?.pv ?? 0} / 访客 {item.effectSummary?.uv ?? 0}</div>
+                      <div>线索 {item.effectSummary?.leadCount ?? 0} · 预约 {item.effectSummary?.bookingCount ?? 0}</div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="min-w-24 text-xs text-gray-600">
+                    <div className="min-w-20 space-y-1 text-xs text-gray-600">
                       <div className="font-medium text-emerald-700">{formatMoney(item.effectSummary?.attributedRevenue)}</div>
                       <div>订单 {item.effectSummary?.attributionCount ?? 0}</div>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-gray-500">{item.slug}</TableCell>
                   <TableCell className="text-sm text-gray-600">{formatDate(item.publishedAt)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => copyUrl(item)}>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        title="复制链接"
+                        aria-label="复制链接"
+                        onClick={() => copyUrl(item)}
+                      >
                         {copiedId === item.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        复制链接
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => window.open(getPageUrl(item), '_blank')}>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        打开
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => setChannelPage(item)}>
-                        <QrCode className="h-3.5 w-3.5" />
-                        渠道链接
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1"
+                        className="h-8 w-8 p-0"
+                        title="打开推广页"
+                        aria-label="打开推广页"
+                        onClick={() => window.open(getPageUrl(item), '_blank')}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        title="生成渠道链接"
+                        aria-label="生成渠道链接"
+                        onClick={() => setChannelPage(item)}
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        title="数据复盘"
+                        aria-label="数据复盘"
                         onClick={() => navigate(`/customer-marketing/effect-analysis?objectType=page&objectId=${item.id}`)}
                       >
-                        数据复盘
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => openEffects(item)}>
-                        明细
+                        <BarChart3 className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1"
+                        className="h-8 w-8 p-0"
+                        title="查看明细"
+                        aria-label="查看明细"
+                        onClick={() => openEffects(item)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
                         disabled={operatingId === item.id}
+                        title={item.status === 'published' ? '下线' : '发布'}
+                        aria-label={item.status === 'published' ? '下线' : '发布'}
                         onClick={() => toggleStatus(item)}
                       >
-                        {operatingId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}
-                        {item.status === 'published' ? '下线' : '发布'}
+                        {operatingId === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : item.status === 'published' ? (
+                          <PauseCircle className="h-3.5 w-3.5" />
+                        ) : (
+                          <PlayCircle className="h-3.5 w-3.5" />
+                        )}
                       </Button>
-                      <Button variant="outline" size="sm" disabled={operatingId === item.id} onClick={() => duplicatePage(item)}>
-                        复制
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        disabled={operatingId === item.id}
+                        title="复制页面"
+                        aria-label="复制页面"
+                        onClick={() => duplicatePage(item)}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </TableCell>
@@ -417,7 +464,7 @@ export function MarketingPageManagement({ embedded = false }: { embedded?: boole
               ))}
               {pages.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center text-gray-400">
+                  <TableCell colSpan={7} className="py-12 text-center text-gray-400">
                     暂无营销页面。可先从商品管理或项目管理生成推广页。
                   </TableCell>
                 </TableRow>
@@ -584,7 +631,7 @@ export function MarketingPageManagement({ embedded = false }: { embedded?: boole
             <div className="space-y-4">
               <div className="rounded-lg bg-gray-50 p-3">
                 <div className="font-medium text-gray-900">{channelPage.title}</div>
-                <div className="mt-1 text-xs text-gray-500">{channelPage.slug}</div>
+                <div className="mt-1 text-xs text-gray-500">推广页链接已自动生成，可直接复制或下载二维码。</div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1.5">
