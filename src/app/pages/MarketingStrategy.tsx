@@ -5,8 +5,64 @@ import { CreateActivityDialog } from '../components/CreateActivityDialog';
 import { ActivityMiniPage, type ActivityPageData } from '../components/ActivityMiniPage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { getMarketingActivities } from '@/api/marketing';
+import { getMarketingPagesPaginated } from '@/api/marketingPage';
+import { buildMarketingPageUrl } from '@/config/marketingAssets';
 import { toast } from 'sonner';
-import type { MarketingActivity } from '@/types';
+import type { MarketingActivity, MarketingPage } from '@/types';
+import type { ActivityPageSchema } from '@/types/ai';
+
+function formatActivityDate(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date).replace(/\//g, '-');
+}
+
+function getOfferFromSchema(schema?: ActivityPageSchema) {
+  const offerSection = schema?.sections.find((section) => section.type === 'offer');
+  return offerSection?.type === 'offer' ? offerSection.offer : undefined;
+}
+
+function getLayoutFromSchema(schema?: ActivityPageSchema): ActivityPageData['layout'] {
+  switch (schema?.theme?.tone) {
+    case 'premium':
+      return 'elegant';
+    case 'friendly':
+      return 'vibrant';
+    case 'professional':
+      return 'modern';
+    default:
+      return 'classic';
+  }
+}
+
+function buildActivityPageData(activity: MarketingActivity): ActivityPageData {
+  const schema = activity.pageSchema;
+  return {
+    title: schema?.title || activity.title,
+    description: schema?.subtitle || activity.description,
+    discount: getOfferFromSchema(schema) || activity.discount,
+    startDate: formatActivityDate(activity.startDate),
+    endDate: formatActivityDate(activity.endDate),
+    targetCustomers: activity.targetCustomers,
+    posterBg: activity.posterBg || schema?.theme?.primaryColor,
+    posterImage: activity.posterImage || activity.image,
+    posterTitleColor: activity.posterTitleColor || '#FFFFFF',
+    layout: activity.posterBg ? 'classic' : getLayoutFromSchema(schema),
+    storeName: '心悦茗美容养生会所',
+    storePhone: '0571-88888888',
+    pageSchema: schema,
+    aiGenerationId: activity.aiGenerationId || String(activity.id),
+  };
+}
+
+function getMarketingPageUrl(page: MarketingPage) {
+  return page.shareUrl || buildMarketingPageUrl(page.slug);
+}
 
 export function MarketingStrategy() {
   const navigate = useNavigate();
@@ -16,11 +72,23 @@ export function MarketingStrategy() {
   const [activityStatusFilter, setActivityStatusFilter] = useState('进行中');
   const [activities, setActivities] = useState<MarketingActivity[]>([]);
   const [activityPageData, setActivityPageData] = useState<ActivityPageData | null>(null);
+  const [activityPagesByActivityId, setActivityPagesByActivityId] = useState<Record<number, MarketingPage>>({});
 
   const loadActivities = useCallback(async () => {
     try {
-      const data = await getMarketingActivities();
+      const [data, pagesResponse] = await Promise.all([
+        getMarketingActivities(),
+        getMarketingPagesPaginated({ page: 1, pageSize: 200, sourceType: 'activity' }),
+      ]);
+      const nextActivityPages = pagesResponse.items.reduce<Record<number, MarketingPage>>((acc, page) => {
+        const activityId = Number(page.activityId ?? page.sourceId);
+        if (activityId && (!acc[activityId] || page.status === 'published')) {
+          acc[activityId] = page;
+        }
+        return acc;
+      }, {});
       setActivities(data);
+      setActivityPagesByActivityId(nextActivityPages);
     } catch {
       toast.error('加载营销活动列表失败');
     }
@@ -114,7 +182,9 @@ export function MarketingStrategy() {
                 </div>
                 <div className="flex items-center gap-2 text-sm col-span-2">
                   <Calendar className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-600">{activity.startDate} 至 {activity.endDate}</span>
+                  <span className="text-gray-600">
+                    {formatActivityDate(activity.startDate)} 至 {formatActivityDate(activity.endDate)}
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-2 mb-3">
@@ -124,28 +194,28 @@ export function MarketingStrategy() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    const layouts: Array<'classic' | 'modern' | 'elegant' | 'vibrant'> = ['classic', 'modern', 'elegant', 'vibrant'];
-                    setActivityPageData({
-                      title: activity.title,
-                      description: activity.description,
-                      discount: activity.discount,
-                      startDate: activity.startDate,
-                      endDate: activity.endDate,
-                      targetCustomers: activity.targetCustomers,
-                      posterBg: activity.posterBg,
-                      posterImage: activity.posterImage || activity.image,
-                      posterTitleColor: activity.posterTitleColor,
-                      layout: activity.posterBg ? 'classic' : (['classic', 'modern', 'elegant', 'vibrant'] as const)[activity.id % 4],
-                      storeName: '心悦芸美容养生会所',
-                      storePhone: '0571-88888888',
-                    });
+                    setSelectedActivity(activity);
+                    setShowDetailDialog(true);
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Eye className="w-4 h-4" /> 查看详情
+                </button>
+                <button
+                  onClick={() => {
+                    const page = activityPagesByActivityId[activity.id];
+                    if (page?.status === 'published') {
+                      window.open(getMarketingPageUrl(page), '_blank');
+                      return;
+                    }
+                    setActivityPageData(buildActivityPageData(activity));
                   }}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                 >
                   <Smartphone className="w-4 h-4" /> 查看活动页
                 </button>
                 <button
-                  onClick={() => navigate(`/customer-marketing/activity-effect/${activity.id}`)}
+                  onClick={() => navigate(`/customer-marketing/effect-analysis?objectType=activity&objectId=${activity.id}`)}
                   className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <TrendingUp className="w-4 h-4" /> 查看效果
@@ -213,7 +283,9 @@ export function MarketingStrategy() {
                     <Calendar className="w-4 h-4 text-gray-400" />
                     <div>
                       <div className="text-xs text-gray-500">活动时间</div>
-                      <div className="text-sm text-gray-800">{selectedActivity.startDate} 至 {selectedActivity.endDate}</div>
+                      <div className="text-sm text-gray-800">
+                        {formatActivityDate(selectedActivity.startDate)} 至 {formatActivityDate(selectedActivity.endDate)}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -284,10 +356,10 @@ export function MarketingStrategy() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
-                  onClick={() => { setShowDetailDialog(false); navigate(`/customer-marketing/activity-effect/${selectedActivity.id}`); }}
+                  onClick={() => { setShowDetailDialog(false); navigate(`/customer-marketing/effect-analysis?objectType=activity&objectId=${selectedActivity.id}`); }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
                 >
-                  <TrendingUp className="w-4 h-4" /> 查看效果分析
+                  <TrendingUp className="w-4 h-4" /> 查看数据复盘
                 </button>
               </div>
             </div>

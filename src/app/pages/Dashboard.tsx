@@ -1,317 +1,315 @@
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { 
-  Users, TrendingUp, ShoppingBag, Calendar, 
-  ArrowUpRight, ArrowDownRight, DollarSign, 
-  Target, Megaphone, Package, Activity
-} from 'lucide-react';
+import { getDashboardOverview, getDashboardWorkbench } from '@/api/dashboard';
+import { hasPermission } from '@/config/permissions';
+import { useAuthStore } from '@/stores/authStore';
+import { useStoreStore } from '@/stores/storeStore';
+import type {
+  AdminWorkbenchRole,
+  DashboardOverview,
+  WorkbenchInsight,
+  WorkbenchMetric,
+  WorkbenchOverview,
+  WorkbenchQuickAction,
+  WorkbenchScope,
+  WorkbenchSeverity,
+  WorkbenchTodo,
+} from '@/types/dashboard';
+import { AmiInsightPanel } from './workbench/AmiInsightPanel';
+import { filterWorkbenchItems } from './workbench/filterWorkbenchItems';
+import { MetricCardGrid } from './workbench/MetricCardGrid';
+import { QuickActionGrid } from './workbench/QuickActionGrid';
+import { resolveAvailableWorkbenchRoles, resolveDefaultWorkbenchRole } from './workbench/resolveWorkbenchRole';
+import { TerminalStatusPanel } from './workbench/TerminalStatusPanel';
+import { TodoList } from './workbench/TodoList';
+import { getWorkbenchConfig } from './workbench/workbenchConfig';
+import { WorkbenchHeader } from './workbench/WorkbenchHeader';
+
+type WorkbenchLoadState = {
+  workbench: WorkbenchOverview | null;
+  overview: DashboardOverview | null;
+  error: string | null;
+};
+
+const todoPermissionByKey: Record<string, { permission: string; type: WorkbenchTodo['type']; primaryAction: string }> = {
+  inventory: { permission: 'core:inventory:stock', type: 'inventory', primaryAction: '查看库存预警' },
+  reservation: { permission: 'core:store:reservations', type: 'reservation', primaryAction: '处理今日预约' },
+  service: { permission: 'core:order:card-usage', type: 'service', primaryAction: '查看服务任务' },
+  terminal: { permission: 'core:system:stores', type: 'device', primaryAction: '查看终端状态' },
+  growth: { permission: 'core:marketing:view', type: 'marketing', primaryAction: '查看增长机会' },
+};
+
+function permissionForPath(path: string): string {
+  if (path.startsWith('/inventory/expiry')) return 'core:inventory:expiry';
+  if (path.startsWith('/inventory/purchase')) return 'core:inventory:purchase';
+  if (path.startsWith('/inventory/transfer')) return 'core:inventory:transfer';
+  if (path.startsWith('/inventory/consumption')) return 'core:inventory:consumption';
+  if (path.startsWith('/inventory')) return 'core:inventory:stock';
+  if (path.startsWith('/stores/reservations')) return 'core:store:reservations';
+  if (path.startsWith('/stores/scheduling')) return 'core:store:scheduling';
+  if (path.startsWith('/orders/card-usage')) return 'core:order:card-usage';
+  if (path.startsWith('/orders/card-orders')) return 'core:order:card-orders';
+  if (path.startsWith('/orders')) return 'core:order:products';
+  if (path.startsWith('/customers/profile')) return 'core:customer:profile';
+  if (path.startsWith('/customers/script')) return 'core:customer:script';
+  if (path.startsWith('/customers')) return 'core:customer:view';
+  if (path.startsWith('/customer-marketing')) return 'core:marketing:view';
+  if (path.startsWith('/finance')) return 'core:finance:view';
+  if (path.startsWith('/system/devices')) return 'core:system:stores';
+  if (path.startsWith('/system/stores')) return 'core:system:stores';
+  if (path.startsWith('/system/roles')) return 'core:system:roles';
+  return 'core:dashboard:view';
+}
+
+function severityFromMetric(metric?: { key: string; value: string }): WorkbenchSeverity {
+  if (!metric) return 'normal';
+  const numeric = Number(String(metric.value).replace(/[^\d.-]/g, ''));
+  if (['inventory', 'inventoryAlerts', 'lowStock', 'expiringBatches', 'pendingServices'].includes(metric.key) && numeric > 0) {
+    return numeric >= 5 ? 'critical' : 'warning';
+  }
+  return 'normal';
+}
+
+function buildFallbackMetrics(role: AdminWorkbenchRole, overview: DashboardOverview | null): WorkbenchMetric[] {
+  const config = getWorkbenchConfig(role);
+  const metricByKey = new Map((overview?.metrics ?? []).map((metric) => [metric.key, metric]));
+
+  return config.metrics.map((metricConfig) => {
+    const sourceKeys = [metricConfig.key, ...(metricConfig.fallbackKeys ?? [])];
+    const sourceMetric = sourceKeys.map((key) => metricByKey.get(key)).find(Boolean);
+    return {
+      key: metricConfig.key,
+      label: metricConfig.label,
+      value: sourceMetric?.value ?? metricConfig.fallbackValue ?? '-',
+      hint: sourceMetric?.hint ?? metricConfig.fallbackHint ?? '数据待接入',
+      tone: sourceMetric?.tone ?? metricConfig.tone,
+      severity: metricConfig.fallbackSeverity ?? severityFromMetric(sourceMetric),
+      path: metricConfig.path,
+      permission: metricConfig.permission,
+    };
+  });
+}
+
+function buildFallbackTodos(overview: DashboardOverview | null): WorkbenchTodo[] {
+  return (overview?.priorities ?? []).map((item, index) => {
+    const mapping = todoPermissionByKey[item.key] ?? {
+      permission: permissionForPath(item.path),
+      type: 'system' as WorkbenchTodo['type'],
+      primaryAction: '进入处理',
+    };
+    const isNormal = item.title.includes('暂无') || item.title.includes('正常');
+    return {
+      id: `overview-${item.key}-${index}`,
+      type: mapping.type,
+      title: item.title,
+      detail: item.detail,
+      tag: item.tag,
+      severity: isNormal ? 'normal' : 'warning',
+      priority: isNormal ? 20 : 80 - index,
+      path: item.path,
+      permission: mapping.permission,
+      primaryAction: mapping.primaryAction,
+    };
+  });
+}
+
+function scopeFromOverview(overview: DashboardOverview | null, currentStoreId: number | null): WorkbenchScope | null {
+  if (overview?.scope) {
+    return {
+      storeId: overview.scope.storeId,
+      storeName: overview.scope.storeName,
+      mode: overview.scope.mode,
+    };
+  }
+  if (currentStoreId) {
+    return { storeId: currentStoreId, storeName: '当前门店', mode: 'store' };
+  }
+  return { storeId: null, storeName: '全部门店', mode: 'all' };
+}
+
+function buildFallbackInsight(
+  role: AdminWorkbenchRole,
+  overview: DashboardOverview | null,
+  error: string | null,
+): WorkbenchInsight {
+  const configInsight = getWorkbenchConfig(role).insight;
+  if (error && !overview) {
+    return {
+      conclusion: '工作台数据暂不可用。',
+      basis: '当前未拿到可用经营数据，请稍后刷新或检查后端服务。',
+      action: '刷新工作台',
+      path: '/dashboard',
+      permission: 'core:dashboard:view',
+    };
+  }
+  if (overview?.ai) {
+    return {
+      ...overview.ai,
+      permission: permissionForPath(overview.ai.path),
+    };
+  }
+  return configInsight;
+}
+
+function isInsightAllowed(insight: WorkbenchInsight, permissions: string[], deniedPermissions: string[]) {
+  if (hasPermission(deniedPermissions, '*') || hasPermission(deniedPermissions, insight.permission)) return false;
+  return hasPermission(permissions, insight.permission);
+}
+
+function resolveInsight(
+  insight: WorkbenchInsight,
+  quickActions: WorkbenchQuickAction[],
+  permissions: string[],
+  deniedPermissions: string[],
+): WorkbenchInsight {
+  if (isInsightAllowed(insight, permissions, deniedPermissions)) return insight;
+  const fallbackAction = quickActions[0];
+  if (!fallbackAction) {
+    return {
+      conclusion: '当前账号暂无可执行建议。',
+      basis: '工作台已隐藏无权限动作，请联系管理员开通对应权限。',
+      action: '留在工作台',
+      path: '/dashboard',
+      permission: 'core:dashboard:view',
+    };
+  }
+  return {
+    conclusion: '建议先处理当前可用的高频事项。',
+    basis: '该入口来自当前账号可访问的工作台快捷操作。',
+    action: fallbackAction.label,
+    path: fallbackAction.path,
+    permission: fallbackAction.permission,
+  };
+}
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const permissions = useMemo(() => user?.permissions ?? [], [user?.permissions]);
+  const deniedPermissions = useMemo(() => user?.deniedPermissions ?? [], [user?.deniedPermissions]);
+  const fallbackAvailableRoles = useMemo(() => resolveAvailableWorkbenchRoles(user), [user]);
+  const [selectedRole, setSelectedRole] = useState<AdminWorkbenchRole>(() => resolveDefaultWorkbenchRole(user));
+  const [refreshIndex, setRefreshIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [state, setState] = useState<WorkbenchLoadState>({
+    workbench: null,
+    overview: null,
+    error: null,
+  });
 
-  // 统计数据
-  const stats = [
-    {
-      title: '总客户数',
-      value: '2,847',
-      change: '+12.5%',
-      isIncrease: true,
-      icon: Users,
-      color: 'blue',
-      bgColor: 'bg-blue-50',
-      iconColor: 'text-blue-600',
-      path: '/customers/data'
-    },
-    {
-      title: '本月新增客户',
-      value: '156',
-      change: '+8.3%',
-      isIncrease: true,
-      icon: Users,
-      color: 'green',
-      bgColor: 'bg-green-50',
-      iconColor: 'text-green-600',
-      path: '/customers/data'
-    },
-    {
-      title: '今日收入',
-      value: '¥45,680',
-      change: '+15.2%',
-      isIncrease: true,
-      icon: DollarSign,
-      color: 'purple',
-      bgColor: 'bg-purple-50',
-      iconColor: 'text-purple-600',
-      path: '/orders/products'
-    },
-    {
-      title: '本月总收入',
-      value: '¥892,340',
-      change: '+22.8%',
-      isIncrease: true,
-      icon: TrendingUp,
-      color: 'orange',
-      bgColor: 'bg-orange-50',
-      iconColor: 'text-orange-600',
-      path: '/orders/products'
-    },
-  ];
+  useEffect(() => {
+    const nextRole = resolveDefaultWorkbenchRole(user);
+    setSelectedRole((current) => (fallbackAvailableRoles.includes(current) ? current : nextRole));
+  }, [fallbackAvailableRoles, user]);
 
-  // 营销活动数据
-  const marketingStats = [
-    {
-      title: '进行中活动',
-      value: '3',
-      icon: Megaphone,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-    },
-    {
-      title: '总参与人数',
-      value: '479',
-      icon: Target,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
-    },
-    {
-      title: '平均转化率',
-      value: '28.7%',
-      icon: Activity,
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
-    },
-  ];
+  useEffect(() => {
+    let ignore = false;
+    setIsLoading(true);
+    setState((current) => ({ ...current, error: null }));
 
-  // 近期活动
-  const recentActivities = [
-    {
-      id: 1,
-      title: '春季焕肤套餐',
-      status: '进行中',
-      participants: 156,
-      conversion: '23%',
-      statusColor: 'bg-green-100 text-green-700'
-    },
-    {
-      id: 2,
-      title: '会员生日专享',
-      status: '进行中',
-      participants: 89,
-      conversion: '45%',
-      statusColor: 'bg-green-100 text-green-700'
-    },
-    {
-      id: 3,
-      title: '好友推荐计划',
-      status: '进行中',
-      participants: 234,
-      conversion: '18%',
-      statusColor: 'bg-green-100 text-green-700'
-    },
-  ];
+    async function loadWorkbench() {
+      try {
+        const workbench = await getDashboardWorkbench({ storeId: currentStoreId, role: selectedRole });
+        if (!ignore) {
+          setState({ workbench, overview: null, error: null });
+        }
+      } catch (workbenchError) {
+        const message = workbenchError instanceof Error ? workbenchError.message : '工作台数据加载失败';
+        try {
+          const overview = await getDashboardOverview({ storeId: currentStoreId });
+          if (!ignore) {
+            setState({
+              workbench: null,
+              overview,
+              error: `工作台接口暂不可用，已使用兼容数据：${message}`,
+            });
+          }
+        } catch (overviewError) {
+          if (!ignore) {
+            setState({
+              workbench: null,
+              overview: null,
+              error: overviewError instanceof Error ? overviewError.message : message,
+            });
+          }
+        }
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
 
-  // 订单统计
-  const orderStats = [
-    { label: '今日订单', value: '45', icon: ShoppingBag },
-    { label: '待处理', value: '8', icon: Package },
-    { label: '今日预约', value: '32', icon: Calendar },
-  ];
+    loadWorkbench();
 
-  // 热门商品
-  const topProducts = [
-    { name: '玻尿酸精华液', sales: 89, revenue: '¥12,450' },
-    { name: '美白面膜套装', sales: 67, revenue: '¥9,850' },
-    { name: '补水修护套餐', sales: 52, revenue: '¥8,320' },
-    { name: '深层清洁护理', sales: 45, revenue: '¥6,750' },
-  ];
+    return () => {
+      ignore = true;
+    };
+  }, [currentStoreId, refreshIndex, selectedRole]);
+
+  const currentRole = state.workbench?.actor.currentRole ?? selectedRole;
+  const availableRoles = state.workbench?.actor.availableRoles?.length
+    ? state.workbench.actor.availableRoles
+    : fallbackAvailableRoles;
+  const config = getWorkbenchConfig(currentRole);
+  const scope = state.workbench?.scope ?? scopeFromOverview(state.overview, currentStoreId);
+  const generatedAt = state.workbench?.generatedAt ?? state.overview?.generatedAt;
+
+  const quickActions = useMemo(() => {
+    const sourceActions = state.workbench?.quickActions?.length ? state.workbench.quickActions : config.quickActions;
+    return filterWorkbenchItems(sourceActions, permissions, deniedPermissions);
+  }, [config.quickActions, deniedPermissions, permissions, state.workbench]);
+
+  const metrics = useMemo(() => {
+    const sourceMetrics = state.workbench?.metrics?.length
+      ? state.workbench.metrics
+      : buildFallbackMetrics(currentRole, state.overview);
+    return filterWorkbenchItems(sourceMetrics, permissions, deniedPermissions);
+  }, [currentRole, deniedPermissions, permissions, state.overview, state.workbench]);
+
+  const todos = useMemo(() => {
+    const sourceTodos = state.workbench?.todos ?? buildFallbackTodos(state.overview);
+    return filterWorkbenchItems(sourceTodos, permissions, deniedPermissions);
+  }, [deniedPermissions, permissions, state.overview, state.workbench]);
+
+  const insight = useMemo(() => {
+    const sourceInsight = state.workbench?.insight ?? buildFallbackInsight(currentRole, state.overview, state.error);
+    return resolveInsight(sourceInsight, quickActions, permissions, deniedPermissions);
+  }, [currentRole, deniedPermissions, permissions, quickActions, state.error, state.overview, state.workbench]);
+
+  const terminalStatus = state.workbench?.terminalStatus ?? state.overview?.terminalStatus;
+
+  const handleNavigate = (path: string) => {
+    if (path === '/dashboard') {
+      setRefreshIndex((value) => value + 1);
+      return;
+    }
+    navigate(path);
+  };
 
   return (
     <div className="space-y-6">
-      {/* 页面标题 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">仪表盘</h1>
-        <p className="text-sm text-gray-500 mt-1">欢迎回来，查看您的业务概况</p>
-      </div>
+      <WorkbenchHeader
+        role={currentRole}
+        availableRoles={availableRoles}
+        scope={scope}
+        generatedAt={generatedAt}
+        userName={user?.name}
+        isLoading={isLoading}
+        error={state.error}
+        onRoleChange={setSelectedRole}
+        onRefresh={() => setRefreshIndex((value) => value + 1)}
+      />
 
-      {/* 核心统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <div
-            key={index}
-            onClick={() => navigate(stat.path)}
-            className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center`}>
-                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-              </div>
-              <div className={`flex items-center gap-1 text-sm font-medium ${
-                stat.isIncrease ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {stat.isIncrease ? (
-                  <ArrowUpRight className="w-4 h-4" />
-                ) : (
-                  <ArrowDownRight className="w-4 h-4" />
-                )}
-                {stat.change}
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
-            <div className="text-sm text-gray-500">{stat.title}</div>
-          </div>
-        ))}
-      </div>
+      <MetricCardGrid metrics={metrics} isLoading={isLoading} onNavigate={handleNavigate} />
 
-      {/* 营销活动和订单统计 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 营销活动统计 */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">营销活动概况</h2>
-            <button
-              onClick={() => navigate('/customer-marketing/activity-management')}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-            >
-              查看全部 →
-            </button>
-          </div>
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <TodoList todos={todos} isLoading={isLoading} onNavigate={handleNavigate} />
+        <AmiInsightPanel insight={insight} onNavigate={handleNavigate} />
+      </section>
 
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {marketingStats.map((item, index) => (
-              <div key={index} className="text-center">
-                <div className={`w-12 h-12 ${item.bgColor} rounded-lg flex items-center justify-center mx-auto mb-3`}>
-                  <item.icon className={`w-6 h-6 ${item.iconColor}`} />
-                </div>
-                <div className="text-2xl font-bold text-gray-900 mb-1">{item.value}</div>
-                <div className="text-sm text-gray-500">{item.title}</div>
-              </div>
-            ))}
-          </div>
+      <QuickActionGrid actions={quickActions} onNavigate={handleNavigate} />
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">近期活动</h3>
-            {recentActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-gray-900">{activity.title}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${activity.statusColor}`}>
-                      {activity.status}
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-500">参与人数: {activity.participants}人</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-semibold text-green-600">{activity.conversion}</div>
-                  <div className="text-xs text-gray-500">转化率</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 订单统计 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">订单统计</h2>
-          </div>
-
-          <div className="space-y-4">
-            {orderStats.map((item, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                    <item.icon className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{item.value}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <button
-              onClick={() => navigate('/orders/products')}
-              className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-            >
-              查看订单详情
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 热门商品 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">热门商品</h2>
-          <button
-            onClick={() => navigate('/goods/products')}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-          >
-            查看全部 →
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {topProducts.map((product, index) => (
-            <div
-              key={index}
-              className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold">
-                  {index + 1}
-                </div>
-                <Package className="w-5 h-5 text-gray-400" />
-              </div>
-              <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">销量: {product.sales}</span>
-                <span className="font-semibold text-blue-600">{product.revenue}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 快捷操作 */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg p-6 text-white">
-        <h2 className="text-lg font-semibold mb-4">快捷操作</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button
-            onClick={() => navigate('/customers/data')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Users className="w-6 h-6 mb-2" />
-            <div className="font-medium">客户管理</div>
-          </button>
-          <button
-            onClick={() => navigate('/customer-marketing/strategy-templates')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Megaphone className="w-6 h-6 mb-2" />
-            <div className="font-medium">创建营销活动</div>
-          </button>
-          <button
-            onClick={() => navigate('/stores/reservations')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Calendar className="w-6 h-6 mb-2" />
-            <div className="font-medium">项目预约</div>
-          </button>
-          <button
-            onClick={() => navigate('/inventory/stock')}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-4 transition-colors text-left"
-          >
-            <Package className="w-6 h-6 mb-2" />
-            <div className="font-medium">库存管理</div>
-          </button>
-        </div>
-      </div>
+      <TerminalStatusPanel status={terminalStatus} />
     </div>
   );
 }

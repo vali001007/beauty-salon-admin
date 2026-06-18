@@ -1,11 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { Eye, Search, Loader2, Download } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button, Input, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { getProductOrdersPaginated } from '@/api/order';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { createProductOrder, getProductOrdersPaginated } from '@/api/order';
+import { getProducts } from '@/api/product';
+import { getCustomers } from '@/api/customer';
 import { usePagination } from '@/hooks/usePagination';
+import { useStoreStore } from '@/stores/storeStore';
 import { exportToExcel } from '@/utils/excel';
-import type { ProductOrder } from '@/types';
+import type { Customer, Product, ProductOrder, ProductOrderCreatePayload, ProductOrderItem, ProductOrderPaymentMethod, ProductOrderStatus } from '@/types';
 import type { ExportColumn } from '@/types/excel';
 
 const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
@@ -19,227 +23,780 @@ const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'createdAt', header: '下单时间', width: 18 },
 ];
 
-const STATUS_OPTIONS = ['全部', '待付款', '已付款', '已完成', '已取消', '已退款'];
+const STATUS_OPTIONS: Array<'全部' | ProductOrderStatus> = ['全部', '待付款', '已付款', '已完成', '已取消', '已退款'];
+const CREATE_STATUS_OPTIONS: ProductOrderStatus[] = ['待付款', '已付款', '已完成'];
+const PAYMENT_METHODS: ProductOrderPaymentMethod[] = ['微信', '支付宝', '现金', '银行卡', '会员卡划扣'];
+
+type DraftItem = {
+  rowId: number;
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+type OrderFormState = {
+  customerId?: number;
+  customerName: string;
+  customerPhone: string;
+  storeId: string;
+  status: ProductOrderStatus;
+  paymentMethod: ProductOrderPaymentMethod;
+  remark: string;
+};
+
+const createEmptyItem = (): DraftItem => ({
+  rowId: Date.now() + Math.floor(Math.random() * 1000),
+  productId: '',
+  productName: '',
+  sku: '',
+  quantity: 1,
+  unitPrice: 0,
+});
+
+function formatCurrency(value: number) {
+  return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function getOrderItems(order: ProductOrder): ProductOrderItem[] {
+  if (Array.isArray(order.items) && order.items.length) return order.items;
+  return (order.orderItems ?? []).map((item) => ({
+    id: item.id,
+    itemId: item.itemId ?? undefined,
+    itemType: item.itemType,
+    productName: item.name,
+    sku: '',
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+    subtotal: Number(item.subtotal),
+    discount: Number(item.discount || 0),
+    payload: item.payload,
+  }));
+}
 
 export function ProductOrderManagement() {
-  const [statusFilter, setStatusFilter] = useState('全部');
+  const [statusFilter, setStatusFilter] = useState<'全部' | ProductOrderStatus>('全部');
   const [keyword, setKeyword] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<ProductOrder | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerOptions, setShowCustomerOptions] = useState(false);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [form, setForm] = useState<OrderFormState>({
+    customerId: undefined,
+    customerName: '',
+    customerPhone: '',
+    storeId: '',
+    status: '已完成',
+    paymentMethod: '微信',
+    remark: '',
+  });
+  const [draftItems, setDraftItems] = useState<DraftItem[]>([createEmptyItem()]);
 
-  const filters = useMemo(() => ({
-    status: statusFilter !== '全部' ? statusFilter : undefined,
-    keyword: keyword || undefined,
-  }), [statusFilter, keyword]);
-  const { data: filteredOrders, total, page, pageSize, loading, setPage, setPageSize } = usePagination<ProductOrder>(getProductOrdersPaginated, filters);
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const stores = useStoreStore((state) => state.stores);
+  const loadStores = useStoreStore((state) => state.loadStores);
+
+  useEffect(() => {
+    if (!stores.length) {
+      loadStores().catch(() => toast.error('门店列表加载失败，请稍后重试'));
+    }
+  }, [loadStores, stores.length]);
+
+  useEffect(() => {
+    setLoadingProducts(true);
+    getProducts()
+      .then(setProducts)
+      .catch(() => toast.error('商品列表加载失败，可先手动录入商品名称和价格'))
+      .finally(() => setLoadingProducts(false));
+  }, []);
+
+  const selectedOrderStore = useMemo(
+    () => stores.find((store) => String(store.id) === form.storeId),
+    [form.storeId, stores],
+  );
+
+  useEffect(() => {
+    if (!showCreate || !selectedOrderStore) {
+      setCustomers([]);
+      setLoadingCustomers(false);
+      return;
+    }
+
+    let ignore = false;
+    const timer = window.setTimeout(() => {
+      setLoadingCustomers(true);
+      getCustomers({
+        storeName: selectedOrderStore.name,
+        keyword: customerSearch.trim() || undefined,
+      })
+        .then((list) => {
+          if (!ignore) setCustomers(list.slice(0, 20));
+        })
+        .catch(() => {
+          if (!ignore) toast.error('客户数据加载失败，可先手工录入客户信息');
+        })
+        .finally(() => {
+          if (!ignore) setLoadingCustomers(false);
+        });
+    }, 200);
+
+    return () => {
+      ignore = true;
+      window.clearTimeout(timer);
+    };
+  }, [customerSearch, selectedOrderStore, showCreate]);
+
+  const filters = useMemo(
+    () => ({
+      status: statusFilter !== '全部' ? statusFilter : undefined,
+      keyword: keyword || undefined,
+      storeId: currentStoreId ?? undefined,
+    }),
+    [currentStoreId, keyword, statusFilter],
+  );
+  const {
+    data: orders,
+    total,
+    page,
+    pageSize,
+    loading,
+    setPage,
+    setPageSize,
+    refresh,
+  } = usePagination<ProductOrder>(getProductOrdersPaginated, filters);
+
+  const currentStoreName = useMemo(() => {
+    if (!currentStoreId) return '全部门店';
+    return stores.find((store) => store.id === currentStoreId)?.name || '当前门店';
+  }, [currentStoreId, stores]);
+
+  const totalAmount = useMemo(
+    () => draftItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0),
+    [draftItems],
+  );
+
+  const activeOrders = orders.filter((order) => !['已取消', '已退款'].includes(order.status));
+  const completedCount = orders.filter((order) => order.status === '已完成').length;
+  const pendingCount = orders.filter((order) => ['待付款', '已付款'].includes(order.status)).length;
+  const activeAmount = activeOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
 
   const getStatusColor = (status: ProductOrder['status']) => {
     switch (status) {
-      case '待付款': return 'bg-yellow-100 text-yellow-700';
-      case '已付款': return 'bg-blue-100 text-blue-700';
-      case '已完成': return 'bg-green-100 text-green-700';
-      case '已取消': return 'bg-gray-100 text-gray-600';
-      case '已退款': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-600';
+      case '待付款':
+        return 'bg-yellow-100 text-yellow-700';
+      case '已付款':
+        return 'bg-blue-100 text-blue-700';
+      case '已完成':
+        return 'bg-green-100 text-green-700';
+      case '已取消':
+        return 'bg-gray-100 text-gray-600';
+      case '已退款':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-gray-100 text-gray-600';
     }
   };
 
-  const handleViewDetail = (order: ProductOrder) => {
-    setSelectedOrder(order);
-    setShowDetail(true);
+  const resetCreateForm = () => {
+    const defaultStoreId = currentStoreId ?? stores[0]?.id ?? '';
+    setForm({
+      customerId: undefined,
+      customerName: '',
+      customerPhone: '',
+      storeId: defaultStoreId ? String(defaultStoreId) : '',
+      status: '已完成',
+      paymentMethod: '微信',
+      remark: '',
+    });
+    setCustomerSearch('');
+    setShowCustomerOptions(false);
+    setDraftItems([createEmptyItem()]);
+  };
+
+  const handleOpenCreate = () => {
+    resetCreateForm();
+    setShowCreate(true);
+  };
+
+  const updateDraftItem = (rowId: number, patch: Partial<DraftItem>) => {
+    setDraftItems((prev) => prev.map((item) => (item.rowId === rowId ? { ...item, ...patch } : item)));
+  };
+
+  const handleProductSelect = (rowId: number, productId: string) => {
+    const product = products.find((item) => String(item.id) === productId);
+    if (!product) {
+      updateDraftItem(rowId, { productId, productName: '', sku: '', unitPrice: 0 });
+      return;
+    }
+    updateDraftItem(rowId, {
+      productId,
+      productName: product.name,
+      sku: product.sku,
+      unitPrice: Number(product.retailPrice || 0),
+    });
+  };
+
+  const addDraftItem = () => {
+    setDraftItems((prev) => [...prev, createEmptyItem()]);
+  };
+
+  const removeDraftItem = (rowId: number) => {
+    setDraftItems((prev) => (prev.length <= 1 ? prev : prev.filter((item) => item.rowId !== rowId)));
+  };
+
+  const handleStoreChange = (storeId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      storeId,
+      customerId: undefined,
+      customerName: '',
+      customerPhone: '',
+    }));
+    setCustomerSearch('');
+    setCustomers([]);
+    setShowCustomerOptions(false);
+  };
+
+  const handleCustomerInputChange = (value: string) => {
+    setCustomerSearch(value);
+    setForm((prev) => ({
+      ...prev,
+      customerId: undefined,
+      customerName: value,
+      customerPhone: prev.customerId ? '' : prev.customerPhone,
+    }));
+    setShowCustomerOptions(true);
+  };
+
+  const handleSelectCustomer = (customer: Customer) => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+    }));
+    setCustomerSearch(customer.name);
+    setShowCustomerOptions(false);
+  };
+
+  const handleSubmitOrder = async () => {
+    const selectedStore = stores.find((store) => String(store.id) === form.storeId);
+    const normalizedItems = draftItems
+      .map((item) => ({
+        ...item,
+        productName: item.productName.trim(),
+        sku: item.sku.trim(),
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice || 0),
+      }))
+      .filter((item) => item.productName && item.quantity > 0 && item.unitPrice >= 0);
+
+    if (!form.customerName.trim()) {
+      toast.error('请填写客户姓名');
+      return;
+    }
+    if (!form.storeId) {
+      toast.error('请选择订单门店');
+      return;
+    }
+    if (!normalizedItems.length) {
+      toast.error('请至少添加一条商品明细');
+      return;
+    }
+
+    const payload: ProductOrderCreatePayload = {
+      customerId: form.customerId,
+      customerName: form.customerName.trim(),
+      customerPhone: form.customerPhone.trim(),
+      storeId: Number(form.storeId),
+      storeName: selectedStore?.name || currentStoreName,
+      items: normalizedItems.map((item) => ({
+        itemType: 'product',
+        itemId: item.productId ? Number(item.productId) : undefined,
+        productId: item.productId ? Number(item.productId) : undefined,
+        productName: item.productName,
+        name: item.productName,
+        sku: item.sku,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.quantity * item.unitPrice,
+      })),
+      totalAmount,
+      status: form.status,
+      paymentMethod: form.paymentMethod,
+      paidAmount: ['已付款', '已完成'].includes(form.status) ? totalAmount : 0,
+      remark: form.remark.trim() || undefined,
+      source: 'admin',
+    };
+
+    setSubmitting(true);
+    try {
+      await createProductOrder(payload);
+      toast.success('商品订单已创建');
+      setShowCreate(false);
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '商品订单创建失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleExport = () => {
+    exportToExcel(orders, ORDER_EXPORT_COLUMNS, '商品订单报表');
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="text-sm text-gray-500">首页 / 订单管理 / 商品订单管理</div>
-      <h2 className="text-xl font-semibold text-gray-800">商品订单管理</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">商品订单管理</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            当前范围：{currentStoreName}；管理端开单与 Ami Aura Lite 收银单统一进入本列表。
+          </p>
+        </div>
+        <Button className="gap-2" onClick={handleOpenCreate}>
+          <Plus className="h-4 w-4" /> 新增商品订单
+        </Button>
+      </div>
 
-      {/* Filters */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
-              className="pl-9 w-64"
-              placeholder="搜索订单号、客户姓名"
+              className="w-64 pl-9"
+              placeholder="搜索订单号、客户、手机号"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(event) => {
+                setKeyword(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <select
-            className="h-9 px-3 text-sm border border-gray-300 rounded-md"
+            className="h-9 rounded-md border border-gray-300 px-3 text-sm"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(event) => {
+              setStatusFilter(event.target.value as '全部' | ProductOrderStatus);
+              setPage(1);
+            }}
           >
-            {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
-          </select>
-          <select className="h-9 px-3 text-sm border border-gray-300 rounded-md">
-            <option>全部门店</option>
-            <option>心悦美容养生会所</option>
-            <option>凤仪阁美容养生会所</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => exportToExcel(filteredOrders, ORDER_EXPORT_COLUMNS, '订单报表')}>
-            <Download className="w-4 h-4" /> 导出报表
+          <Button variant="outline" className="gap-2" onClick={handleExport}>
+            <Download className="h-4 w-4" /> 导出报表
           </Button>
-          <div className="text-sm text-gray-500">
-            共 {filteredOrders.length} 条订单
-          </div>
+          <div className="text-sm text-gray-500">共 {total} 条订单</div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-          <div className="text-sm text-blue-600 mb-1">总订单数</div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 p-4">
+          <div className="mb-1 text-sm text-blue-600">总订单数</div>
           <div className="text-2xl font-bold text-blue-900">{total}</div>
         </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-          <div className="text-sm text-green-600 mb-1">已完成</div>
-          <div className="text-2xl font-bold text-green-900">{filteredOrders.filter(o => o.status === '已完成').length}</div>
+        <div className="rounded-lg bg-gradient-to-br from-green-50 to-green-100 p-4">
+          <div className="mb-1 text-sm text-green-600">已完成</div>
+          <div className="text-2xl font-bold text-green-900">{completedCount}</div>
         </div>
-        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4">
-          <div className="text-sm text-yellow-600 mb-1">待处理</div>
-          <div className="text-2xl font-bold text-yellow-900">{filteredOrders.filter(o => o.status === '待付款' || o.status === '已付款').length}</div>
+        <div className="rounded-lg bg-gradient-to-br from-yellow-50 to-yellow-100 p-4">
+          <div className="mb-1 text-sm text-yellow-600">待处理</div>
+          <div className="text-2xl font-bold text-yellow-900">{pendingCount}</div>
         </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-          <div className="text-sm text-purple-600 mb-1">总金额</div>
-          <div className="text-2xl font-bold text-purple-900">
-            ¥{filteredOrders.filter(o => o.status !== '已取消' && o.status !== '已退款').reduce((s, o) => s + o.totalAmount, 0).toLocaleString()}
-          </div>
+        <div className="rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 p-4">
+          <div className="mb-1 text-sm text-purple-600">当前页金额</div>
+          <div className="text-2xl font-bold text-purple-900">{formatCurrency(activeAmount)}</div>
         </div>
       </div>
 
-      {/* Orders Table */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
           <span className="ml-2 text-gray-500">加载中...</span>
         </div>
       )}
+
       {!loading && (
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-gray-50/80">
-            <TableHead>订单编号</TableHead>
-            <TableHead>客户</TableHead>
-            <TableHead>门店</TableHead>
-            <TableHead>商品数</TableHead>
-            <TableHead>总金额</TableHead>
-            <TableHead>支付方式</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>下单时间</TableHead>
-            <TableHead className="text-right">操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredOrders.map((order) => (
-            <TableRow key={order.id} className="hover:bg-blue-50/30">
-              <TableCell className="font-mono text-sm text-blue-600 font-medium">{order.orderNo}</TableCell>
-              <TableCell>
-                <div className="font-medium text-gray-800">{order.customerName}</div>
-                <div className="text-xs text-gray-500">{order.customerPhone}</div>
-              </TableCell>
-              <TableCell className="text-sm text-gray-600">{order.storeName}</TableCell>
-              <TableCell>{order.items.length}</TableCell>
-              <TableCell className="font-medium text-gray-800">¥{order.totalAmount.toLocaleString()}</TableCell>
-              <TableCell className="text-sm text-gray-600">{order.paymentMethod}</TableCell>
-              <TableCell>
-                <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${getStatusColor(order.status)}`}>
-                  {order.status}
-                </span>
-              </TableCell>
-              <TableCell className="text-sm text-gray-600">{order.createdAt}</TableCell>
-              <TableCell className="text-right">
-                <button
-                  onClick={() => handleViewDetail(order)}
-                  className="text-blue-500 hover:text-blue-600 text-sm inline-flex items-center gap-1"
-                >
-                  <Eye className="w-3.5 h-3.5" /> 详情
-                </button>
-              </TableCell>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50/80">
+              <TableHead>订单编号</TableHead>
+              <TableHead>客户</TableHead>
+              <TableHead>门店</TableHead>
+              <TableHead>商品数</TableHead>
+              <TableHead>总金额</TableHead>
+              <TableHead>支付方式</TableHead>
+              <TableHead>来源</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>下单时间</TableHead>
+              <TableHead className="text-right">操作</TableHead>
             </TableRow>
-          ))}
-          {filteredOrders.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={9} className="text-center py-12 text-gray-400">
-                暂无匹配的订单数据
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {orders.map((order) => {
+              const items = getOrderItems(order);
+              return (
+                <TableRow key={order.id} className="hover:bg-blue-50/30">
+                  <TableCell className="font-mono text-sm font-medium text-blue-600">{order.orderNo}</TableCell>
+                  <TableCell>
+                    <div className="font-medium text-gray-800">{order.customerName || '散客'}</div>
+                    <div className="text-xs text-gray-500">{order.customerPhone || '-'}</div>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-600">{order.storeName || '-'}</TableCell>
+                  <TableCell>{items.length}</TableCell>
+                  <TableCell className="font-medium text-gray-800">{formatCurrency(order.totalAmount)}</TableCell>
+                  <TableCell className="text-sm text-gray-600">{order.paymentMethod}</TableCell>
+                  <TableCell className="text-sm text-gray-600">{order.source === 'terminal' ? 'Ami Aura Lite' : '管理端'}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${getStatusColor(order.status)}`}>
+                      {order.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-600">{order.createdAt}</TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setShowDetail(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> 详情
+                    </button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {orders.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={10} className="py-12 text-center text-gray-400">
+                  暂无匹配的商品订单
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       )}
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+      <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
         <div className="text-sm text-gray-600">共 {total} 条</div>
         <div className="flex items-center gap-2">
-          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="h-8 px-2 text-sm border border-gray-300 rounded">
+          <select
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+            className="h-8 rounded border border-gray-300 px-2 text-sm"
+          >
             <option value={10}>10条/页</option>
             <option value={20}>20条/页</option>
             <option value={50}>50条/页</option>
           </select>
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
-          <span className="text-sm text-gray-600">{page} / {Math.ceil(total / pageSize) || 1}</span>
-          <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage(page + 1)}>下一页</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            上一页
+          </Button>
+          <span className="text-sm text-gray-600">
+            {page} / {Math.ceil(total / pageSize) || 1}
+          </span>
+          <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage(page + 1)}>
+            下一页
+          </Button>
         </div>
       </div>
 
-      {/* Order Detail Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" aria-describedby="create-order-desc">
+          <DialogHeader>
+            <DialogTitle>新增商品订单</DialogTitle>
+            <DialogDescription id="create-order-desc">
+              管理端手工开单会写入商品订单接口；Ami Aura Lite 收银继续通过终端收银接口写入同一订单列表。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="relative space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">客户姓名 *</span>
+              <Input
+                value={customerSearch}
+                onChange={(event) => handleCustomerInputChange(event.target.value)}
+                onFocus={() => setShowCustomerOptions(true)}
+                onClick={() => setShowCustomerOptions(true)}
+                placeholder={form.storeId ? '搜索或选择该门店客户' : '请先选择订单门店'}
+                disabled={!form.storeId}
+              />
+              {showCustomerOptions && form.storeId && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {loadingCustomers && (
+                    <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      正在加载客户...
+                    </div>
+                  )}
+                  {!loadingCustomers && customers.length > 0 && (
+                    <div className="py-1">
+                      {customers.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-blue-50"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            handleSelectCustomer(customer);
+                          }}
+                        >
+                          <span>
+                            <span className="font-medium text-gray-800">{customer.name}</span>
+                            <span className="ml-2 text-xs text-gray-500">{customer.memberLevel}</span>
+                          </span>
+                          <span className="text-xs text-gray-500">{customer.phone}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!loadingCustomers && customers.length === 0 && (
+                    <div className="px-3 py-3 text-sm text-gray-500">
+                      未找到该门店客户，可继续手工录入新客户姓名。
+                    </div>
+                  )}
+                </div>
+              )}
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">手机号码</span>
+              <Input
+                value={form.customerPhone}
+                onChange={(event) => setForm((prev) => ({ ...prev, customerPhone: event.target.value }))}
+                placeholder="用于匹配客户档案"
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">订单门店 *</span>
+              <select
+                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                value={form.storeId}
+                onChange={(event) => handleStoreChange(event.target.value)}
+              >
+                <option value="">请选择门店</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-gray-700">订单状态</span>
+                <select
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                  value={form.status}
+                  onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as ProductOrderStatus }))}
+                >
+                  {CREATE_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-gray-700">支付方式</span>
+                <select
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                  value={form.paymentMethod}
+                  onChange={(event) => setForm((prev) => ({ ...prev, paymentMethod: event.target.value as ProductOrderPaymentMethod }))}
+                >
+                  {PAYMENT_METHODS.map((method) => (
+                    <option key={method} value={method}>
+                      {method}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-gray-800">商品明细</h3>
+                <p className="mt-1 text-xs text-gray-500">可从商品档案选择，也可手工录入临时商品。</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={addDraftItem} className="gap-1">
+                <Plus className="h-4 w-4" /> 添加商品
+              </Button>
+            </div>
+
+            <div className="rounded-xl border border-gray-200">
+              <div className="grid grid-cols-[1.3fr_1.4fr_0.9fr_0.8fr_0.9fr_0.9fr_48px] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500">
+                <span>商品档案</span>
+                <span>商品名称</span>
+                <span>SKU</span>
+                <span>数量</span>
+                <span>单价</span>
+                <span>小计</span>
+                <span />
+              </div>
+              <div className="divide-y divide-gray-100">
+                {draftItems.map((item) => {
+                  const subtotal = Number(item.quantity || 0) * Number(item.unitPrice || 0);
+                  return (
+                    <div
+                      key={item.rowId}
+                      className="grid grid-cols-[1.3fr_1.4fr_0.9fr_0.8fr_0.9fr_0.9fr_48px] gap-2 px-3 py-3"
+                    >
+                      <select
+                        className="h-10 min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm"
+                        value={item.productId}
+                        onChange={(event) => handleProductSelect(item.rowId, event.target.value)}
+                        disabled={loadingProducts}
+                      >
+                        <option value="">{loadingProducts ? '加载商品中...' : '手工录入 / 选择商品'}</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Input
+                        value={item.productName}
+                        onChange={(event) => updateDraftItem(item.rowId, { productName: event.target.value })}
+                        placeholder="商品名称"
+                      />
+                      <Input
+                        value={item.sku}
+                        onChange={(event) => updateDraftItem(item.rowId, { sku: event.target.value })}
+                        placeholder="SKU"
+                      />
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(event) => updateDraftItem(item.rowId, { quantity: Number(event.target.value) })}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        value={item.unitPrice}
+                        onChange={(event) => updateDraftItem(item.rowId, { unitPrice: Number(event.target.value) })}
+                      />
+                      <div className="flex h-10 items-center rounded-lg bg-gray-50 px-3 text-sm font-medium text-gray-800">
+                        {formatCurrency(subtotal)}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeDraftItem(item.rowId)}
+                        disabled={draftItems.length <= 1}
+                        className="flex h-10 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="删除商品明细"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <label className="mt-4 block space-y-1.5">
+            <span className="text-sm font-medium text-gray-700">备注</span>
+            <textarea
+              className="min-h-20 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              value={form.remark}
+              onChange={(event) => setForm((prev) => ({ ...prev, remark: event.target.value }))}
+              placeholder="可记录导购说明、线下收款流水号或客户特殊要求"
+            />
+          </label>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
+            <div>
+              <div className="text-sm text-gray-500">订单总金额</div>
+              <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(totalAmount)}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowCreate(false)} disabled={submitting}>
+                取消
+              </Button>
+              <Button onClick={handleSubmitOrder} disabled={submitting} className="gap-2">
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                创建订单
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="order-detail-desc">
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" aria-describedby="order-detail-desc">
           <DialogHeader>
             <DialogTitle>订单详情</DialogTitle>
+            <DialogDescription id="order-detail-desc">查看商品订单明细、收款状态和来源。</DialogDescription>
           </DialogHeader>
-          <span id="order-detail-desc" className="sr-only">查看商品订单详细信息</span>
 
           {selectedOrder && (
-            <div className="space-y-6 mt-4">
-              <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-3 gap-4">
+            <div className="mt-4 space-y-6">
+              <div className="grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 md:grid-cols-3">
                 <div>
                   <div className="text-sm text-gray-600">订单编号</div>
-                  <div className="font-mono text-sm font-medium text-gray-800 mt-1">{selectedOrder.orderNo}</div>
+                  <div className="mt-1 font-mono text-sm font-medium text-gray-800">{selectedOrder.orderNo}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">客户</div>
-                  <div className="font-medium text-gray-800 mt-1">{selectedOrder.customerName}</div>
+                  <div className="mt-1 font-medium text-gray-800">{selectedOrder.customerName || '散客'}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">联系电话</div>
-                  <div className="text-sm text-gray-800 mt-1">{selectedOrder.customerPhone}</div>
+                  <div className="mt-1 text-sm text-gray-800">{selectedOrder.customerPhone || '-'}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">门店</div>
-                  <div className="text-sm text-gray-800 mt-1">{selectedOrder.storeName}</div>
+                  <div className="mt-1 text-sm text-gray-800">{selectedOrder.storeName || '-'}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">支付方式</div>
-                  <div className="text-sm text-gray-800 mt-1">{selectedOrder.paymentMethod}</div>
+                  <div className="mt-1 text-sm text-gray-800">{selectedOrder.paymentMethod}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">状态</div>
                   <div className="mt-1">
-                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
+                    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
                       {selectedOrder.status}
                     </span>
                   </div>
                 </div>
                 <div>
+                  <div className="text-sm text-gray-600">来源</div>
+                  <div className="mt-1 text-sm text-gray-800">{selectedOrder.source === 'terminal' ? 'Ami Aura Lite' : '管理端'}</div>
+                </div>
+                <div>
                   <div className="text-sm text-gray-600">下单时间</div>
-                  <div className="text-sm text-gray-800 mt-1">{selectedOrder.createdAt}</div>
+                  <div className="mt-1 text-sm text-gray-800">{selectedOrder.createdAt}</div>
                 </div>
                 {selectedOrder.completedAt && (
                   <div>
                     <div className="text-sm text-gray-600">完成时间</div>
-                    <div className="text-sm text-gray-800 mt-1">{selectedOrder.completedAt}</div>
+                    <div className="mt-1 text-sm text-gray-800">{selectedOrder.completedAt}</div>
                   </div>
                 )}
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-800 mb-3">商品明细</h4>
+                <h4 className="mb-3 font-medium text-gray-800">商品明细</h4>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50/80">
@@ -251,25 +808,30 @@ export function ProductOrderManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedOrder.items.map((item) => (
+                    {getOrderItems(selectedOrder).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
-                        <TableCell className="font-mono text-sm text-gray-600">{item.sku}</TableCell>
+                        <TableCell className="font-mono text-sm text-gray-600">{item.sku || '-'}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
-                        <TableCell>¥{item.unitPrice.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-medium">¥{item.subtotal.toLocaleString()}</TableCell>
+                        <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(item.subtotal)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="border-t border-gray-200 pt-4 flex justify-end">
+              {selectedOrder.remark && (
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <div className="text-sm text-gray-600">备注</div>
+                  <div className="mt-1 text-sm text-gray-800">{selectedOrder.remark}</div>
+                </div>
+              )}
+
+              <div className="flex justify-end border-t border-gray-200 pt-4">
                 <div className="text-right">
                   <div className="text-sm text-gray-600">订单总额</div>
-                  <div className="text-2xl font-semibold text-blue-600 mt-1">
-                    ¥{selectedOrder.totalAmount.toLocaleString()}
-                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(selectedOrder.totalAmount)}</div>
                 </div>
               </div>
             </div>

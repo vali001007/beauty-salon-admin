@@ -1,6 +1,7 @@
 export interface Project {
   id: number;
   name: string;
+  description?: string;
   type: string;
   duration: number;
   price: number;
@@ -15,6 +16,8 @@ export interface Project {
 }
 
 export interface ProjectBomItem {
+  id?: number;
+  productId?: number;
   productName: string;
   sku: string;
   standardQty: number;

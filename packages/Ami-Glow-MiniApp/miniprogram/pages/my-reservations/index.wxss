@@ -1,0 +1,34 @@
+.reservation {
+  margin-bottom: 24rpx;
+  padding: 34rpx;
+}
+.title {
+  color: #33283f;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+.line {
+  margin-top: 14rpx;
+  color: #6e5b78;
+  font-size: 28rpx;
+}
+.status {
+  display: inline-block;
+  margin-top: 18rpx;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: #f2e6f6;
+  color: #a967ce;
+  font-size: 24rpx;
+}
+.cancel {
+  float: right;
+  margin-top: 10rpx;
+  color: #d22e86;
+  font-size: 26rpx;
+}
+.empty {
+  padding: 56rpx;
+  color: #9f93a5;
+  text-align: center;
+}

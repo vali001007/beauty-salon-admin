@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, MapPin, Phone, Clock, Users, Package, TrendingUp, Eye, Loader2 } from 'lucide-react';
+import { Plus, Edit, MapPin, Users, Package, TrendingUp, Eye, Loader2 } from 'lucide-react';
 import { Button, Input } from '../../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Switch } from '../../components/ui/switch';
 import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { storeSchema, type StoreFormData } from '@/schemas/system';
 import { getStores, createStore, updateStore } from '@/api/store';
@@ -16,9 +18,15 @@ export function StoreSettings() {
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<StoreFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<
+    z.input<typeof storeSchema>,
+    unknown,
+    StoreFormData
+  >({
     resolver: zodResolver(storeSchema),
+    defaultValues: { name: '', address: '', mode: '集中', shiftRequired: true },
   });
+  const shiftRequired = watch('shiftRequired');
 
   const loadStores = useCallback(async () => {
     try {
@@ -34,14 +42,14 @@ export function StoreSettings() {
   const handleAdd = () => {
     setDialogMode('add');
     setSelectedStore(null);
-    reset({ name: '', address: '', mode: '集中' });
+    reset({ name: '', address: '', mode: '集中', shiftRequired: true });
     setShowDialog(true);
   };
 
   const handleEdit = (store: Store) => {
     setDialogMode('edit');
     setSelectedStore(store);
-    reset({ name: store.name, address: store.address, mode: store.mode });
+    reset({ name: store.name, address: store.address, mode: store.mode, shiftRequired: store.shiftRequired !== false });
     setShowDialog(true);
   };
 
@@ -57,17 +65,14 @@ export function StoreSettings() {
         await updateStore(selectedStore.id, {
           name: data.name,
           address: data.address,
-          mode: data.mode,
+          shiftRequired: data.shiftRequired,
         });
         toast.success('门店更新成功');
       } else {
         await createStore({
           name: data.name,
           address: data.address,
-          mode: data.mode,
-          skuCount: 0,
-          totalValue: 0,
-          healthScore: 0,
+          shiftRequired: data.shiftRequired,
         });
         toast.success('门店创建成功');
       }
@@ -84,7 +89,8 @@ export function StoreSettings() {
     return mode === '集中' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700';
   };
 
-  const totalEmployees = stores.length;
+  const getShiftBadge = (enabled: boolean | undefined) =>
+    enabled === false ? 'bg-gray-100 text-gray-600' : 'bg-emerald-100 text-emerald-700';
 
   return (
     <div className="flex flex-col gap-6">
@@ -134,6 +140,14 @@ export function StoreSettings() {
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="truncate">{store.address}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${getShiftBadge(store.shiftRequired)}`}>
+                    {store.shiftRequired === false ? '班次非强制' : '强制开班'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {store.shiftRequired === false ? '终端可直接收银' : '终端收银前需开班'}
+                  </span>
                 </div>
               </div>
 
@@ -190,6 +204,21 @@ export function StoreSettings() {
                 </select>
                 {errors.mode && <p className="text-red-500 text-xs mt-1">{errors.mode.message}</p>}
               </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">收银班次管理</div>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      启用后，终端收银前必须先开班，适合有现金交接或多人轮班的门店。关闭后，终端可直接收银，不影响财务报表和提成计算。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={shiftRequired}
+                    onCheckedChange={(checked) => setValue('shiftRequired', checked, { shouldDirty: true, shouldValidate: true })}
+                    aria-label="启用收银班次"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button type="button" variant="outline" onClick={handleCloseDialog}>取消</Button>
@@ -216,6 +245,12 @@ export function StoreSettings() {
               <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-2 gap-4">
                 <div><div className="text-sm text-gray-500">门店地址</div><div className="text-sm text-gray-800 mt-1">{selectedStore.address}</div></div>
                 <div><div className="text-sm text-gray-500">采购模式</div><div className="text-sm text-gray-800 mt-1">{selectedStore.mode}采购</div></div>
+                <div>
+                  <div className="text-sm text-gray-500">收银班次管理</div>
+                  <div className="text-sm text-gray-800 mt-1">
+                    {selectedStore.shiftRequired === false ? '关闭，终端可直接收银' : '启用，终端收银前需开班'}
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 text-center">

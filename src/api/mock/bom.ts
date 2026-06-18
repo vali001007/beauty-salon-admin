@@ -1,4 +1,4 @@
-import type { Service, ConsumptionRecord } from '@/types/bom';
+import type { Service, ConsumptionRecord, ForecastItem } from '@/types/bom';
 
 const MOCK_BOM_LIST: Service[] = [
   {
@@ -50,6 +50,13 @@ const MOCK_CONSUMPTION: ConsumptionRecord[] = [
   { id: 5, date: '2024-11-06', serviceName: '基础面部护理', customerName: '陈女士', beautician: '孙美容师', storeName: '国贸分店', productName: '补水面膜', standardQty: 1, actualQty: 1, deviation: 0, isAbnormal: false },
 ];
 
+const MOCK_FORECAST: ForecastItem[] = [
+  { productName: '玻尿酸精华液', sku: 'SK-LO-000001', forecastConsumption: 45, currentStock: 70, shortage: 0 },
+  { productName: '补水面膜', sku: 'SK-LO-000002', forecastConsumption: 28, currentStock: 13, shortage: 15 },
+  { productName: '美白精华', sku: 'SK-LO-000003', forecastConsumption: 32, currentStock: 3, shortage: 29 },
+  { productName: '修护洗发水', sku: 'SK-LO-000004', forecastConsumption: 180, currentStock: 270, shortage: 0 },
+];
+
 export async function mockGetBomList(): Promise<Service[]> {
   return [...MOCK_BOM_LIST];
 }
@@ -58,4 +65,32 @@ export async function mockGetBomConsumption(bomId: number): Promise<ConsumptionR
   const service = MOCK_BOM_LIST.find((s) => s.id === bomId);
   if (!service) return [];
   return MOCK_CONSUMPTION.filter((r) => r.serviceName === service.name);
+}
+
+export async function mockGetBomConsumptionRecords(): Promise<ConsumptionRecord[]> {
+  return [...MOCK_CONSUMPTION];
+}
+
+export async function mockGetBomForecast(): Promise<ForecastItem[]> {
+  return [...MOCK_FORECAST];
+}
+
+export async function mockCreateBom(data: Omit<Service, 'id'>): Promise<Service> {
+  const newId = Math.max(...MOCK_BOM_LIST.map((s) => s.id)) + 1;
+  const service: Service = { ...data, id: newId };
+  MOCK_BOM_LIST.push(service);
+  return service;
+}
+
+export async function mockUpdateBom(id: number, data: Partial<Service>): Promise<Service> {
+  const index = MOCK_BOM_LIST.findIndex((s) => s.id === id);
+  if (index === -1) throw new Error('BOM不存在');
+  MOCK_BOM_LIST[index] = { ...MOCK_BOM_LIST[index], ...data };
+  return MOCK_BOM_LIST[index];
+}
+
+export async function mockDeleteBom(id: number): Promise<void> {
+  const index = MOCK_BOM_LIST.findIndex((s) => s.id === id);
+  if (index === -1) throw new Error('BOM不存在');
+  MOCK_BOM_LIST.splice(index, 1);
 }

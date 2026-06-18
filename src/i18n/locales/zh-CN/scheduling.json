@@ -1,0 +1,47 @@
+{
+  "title": "排班管理",
+  "weekDays": {
+    "monday": "周一",
+    "tuesday": "周二",
+    "wednesday": "周三",
+    "thursday": "周四",
+    "friday": "周五",
+    "saturday": "周六",
+    "sunday": "周日"
+  },
+  "shifts": {
+    "morning": "早班",
+    "afternoon": "午班",
+    "evening": "晚班",
+    "fullDay": "全天",
+    "off": "休息"
+  },
+  "fields": {
+    "beautician": "美容师",
+    "date": "日期",
+    "shift": "班次",
+    "startTime": "开始时间",
+    "endTime": "结束时间",
+    "status": "状态"
+  },
+  "actions": {
+    "save": "保存排班",
+    "prevWeek": "上一周",
+    "nextWeek": "下一周",
+    "copyLastWeek": "复制上周排班",
+    "clearAll": "清空排班"
+  },
+  "messages": {
+    "saveSuccess": "排班保存成功",
+    "saveFailed": "保存排班失败",
+    "loadFailed": "加载排班数据失败",
+    "noChanges": "没有需要保存的更改",
+    "hasChanges": "有未保存的更改"
+  },
+  "statuses": {
+    "scheduled": "已排班",
+    "available": "可用",
+    "unavailable": "不可用",
+    "leave": "请假"
+  }
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Eye, CheckCircle, XCircle, ShoppingCart, Sparkles, Loader2, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, ShoppingCart, Sparkles, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Input } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -7,15 +7,57 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { purchaseOrderSchema, type PurchaseOrderFormData } from '@/schemas/inventory';
 import { getReplenishmentSuggestions, getPurchaseOrdersPaginated, createPurchaseOrder } from '@/api/inventory';
 import { usePagination } from '@/hooks/usePagination';
+import { useStoreStore } from '@/stores/storeStore';
 import { toast } from 'sonner';
 import type { ReplenishmentSuggestion, PurchaseOrder } from '@/types';
+
+type PurchaseOrderDraft = PurchaseOrderFormData & {
+  totalAmount: number;
+  marketAmount: number;
+  savingAmount: number;
+};
+
+const OFFICIAL_SUPPLY_DISCOUNT_RATE = 0.8;
+
+function getSuggestionUnitPrice(suggestion: ReplenishmentSuggestion) {
+  if (suggestion.suggestedQty <= 0 || suggestion.estimatedAmount <= 0) return 0;
+  return Math.round((suggestion.estimatedAmount / suggestion.suggestedQty) * 100) / 100;
+}
+
+function getSuggestionAmount(suggestion: ReplenishmentSuggestion) {
+  return Math.round(getSuggestionUnitPrice(suggestion) * suggestion.suggestedQty * 100) / 100;
+}
+
+function getMarketPrice(officialPrice: number) {
+  return Math.round((officialPrice / OFFICIAL_SUPPLY_DISCOUNT_RATE) * 100) / 100;
+}
+
+function getSavingAmount(officialAmount: number) {
+  return Math.round((officialAmount / OFFICIAL_SUPPLY_DISCOUNT_RATE - officialAmount) * 100) / 100;
+}
+
+function getPurchaseOrderItemLabels(order: PurchaseOrder) {
+  return order.items?.map((item) => `${item.productName} × ${item.quantity}`) ?? [];
+}
 
 export function PurchaseManagement() {
   const [activeTab, setActiveTab] = useState<'suggestions' | 'orders'>('suggestions');
   const [suggestions, setSuggestions] = useState<(ReplenishmentSuggestion & { checked: boolean })[]>([]);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [isGeneratingOrders, setIsGeneratingOrders] = useState(false);
+  const [generatedExpectedDate, setGeneratedExpectedDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return date.toISOString().split('T')[0];
+  });
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const { currentStoreId, stores } = useStoreStore();
+  const currentStoreName = useMemo(() => {
+    if (!currentStoreId) return '全部门店';
+    return stores.find((store) => store.id === currentStoreId)?.name || '全部门店';
+  }, [currentStoreId, stores]);
 
   const ordersFilters = useMemo(() => ({}), []);
   const { data: orders, total: ordersTotal, page: ordersPage, pageSize: ordersPageSize, loading: ordersLoading, setPage: setOrdersPage, setPageSize: setOrdersPageSize, refresh: refreshOrders } = usePagination<PurchaseOrder>(getPurchaseOrdersPaginated, ordersFilters);
@@ -54,18 +96,82 @@ export function PurchaseManagement() {
     setSuggestions(prev => prev.map(item => ({ ...item, checked })));
   };
 
-  const selectedCount = suggestions.filter(s => s.checked).length;
-  const selectedTotal = suggestions
-    .filter(s => s.checked)
-    .reduce((sum, s) => sum + s.estimatedAmount, 0);
+  const selectedSuggestions = useMemo(() => suggestions.filter(s => s.checked), [suggestions]);
+  const selectedCount = selectedSuggestions.length;
+  const selectedTotal = selectedSuggestions.reduce((sum, s) => sum + getSuggestionAmount(s), 0);
+  const selectedMarketTotal = Math.round((selectedTotal / OFFICIAL_SUPPLY_DISCOUNT_RATE) * 100) / 100;
+  const selectedSavingTotal = Math.max(0, Math.round((selectedMarketTotal - selectedTotal) * 100) / 100);
+  const orderDrafts = useMemo<PurchaseOrderDraft[]>(() => {
+    const groups = new Map<string, PurchaseOrderDraft>();
+    selectedSuggestions.forEach((suggestion) => {
+      const unitPrice = getSuggestionUnitPrice(suggestion);
+      if (suggestion.suggestedQty <= 0 || unitPrice <= 0) return;
+      const existing = groups.get(suggestion.supplier) ?? {
+        supplier: suggestion.supplier,
+        storeName: currentStoreName,
+        expectedDate: generatedExpectedDate,
+        items: [],
+        totalAmount: 0,
+        marketAmount: 0,
+        savingAmount: 0,
+      };
+      const itemAmount = getSuggestionAmount(suggestion);
+      existing.items.push({
+        productName: suggestion.productName,
+        sku: suggestion.sku,
+        quantity: suggestion.suggestedQty,
+        unitPrice,
+      });
+      existing.totalAmount += itemAmount;
+      existing.marketAmount += itemAmount / OFFICIAL_SUPPLY_DISCOUNT_RATE;
+      existing.savingAmount += getSavingAmount(itemAmount);
+      groups.set(suggestion.supplier, existing);
+    });
+    return Array.from(groups.values()).map((draft) => ({
+      ...draft,
+      totalAmount: Math.round(draft.totalAmount * 100) / 100,
+      marketAmount: Math.round(draft.marketAmount * 100) / 100,
+      savingAmount: Math.round(draft.savingAmount * 100) / 100,
+    }));
+  }, [currentStoreName, generatedExpectedDate, selectedSuggestions]);
 
   const handleGenerateOrder = () => {
-    const selected = suggestions.filter(s => s.checked);
+    const selected = selectedSuggestions;
     if (selected.length === 0) {
       toast.error('请至少选择一个产品');
       return;
     }
-    toast.success(`已生成 ${selectedCount} 个产品的采购订单，总金额 ¥${selectedTotal.toLocaleString()}`);
+    if (selected.some((item) => item.suggestedQty <= 0 || getSuggestionUnitPrice(item) <= 0)) {
+      toast.error('已选产品中存在补货量或预估金额为 0 的项目，请调整后再生成');
+      return;
+    }
+    setShowGenerateConfirm(true);
+  };
+
+  const handleConfirmGenerateOrders = async () => {
+    if (orderDrafts.length === 0) {
+      toast.error('没有可生成的采购明细');
+      return;
+    }
+    setIsGeneratingOrders(true);
+    try {
+      await Promise.all(orderDrafts.map((draft) => createPurchaseOrder({
+        supplier: draft.supplier,
+        storeName: draft.storeName,
+        expectedDate: draft.expectedDate,
+        items: draft.items,
+      })));
+      toast.success(`已生成 ${orderDrafts.length} 张采购订单，合计 ¥${selectedTotal.toLocaleString()}`);
+      setShowGenerateConfirm(false);
+      setSuggestions(prev => prev.map(item => item.checked ? { ...item, checked: false } : item));
+      setActiveTab('orders');
+      setOrdersPage(1);
+      refreshOrders();
+    } catch (err: any) {
+      toast.error(err?.message || '生成采购订单失败');
+    } finally {
+      setIsGeneratingOrders(false);
+    }
   };
 
   const handleViewOrder = (order: PurchaseOrder) => {
@@ -161,7 +267,7 @@ export function PurchaseManagement() {
           {selectedCount > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
               <span className="text-sm text-blue-700">
-                已选择 <strong>{selectedCount}</strong> 个产品，预估总金额 <strong>¥{selectedTotal.toLocaleString()}</strong>
+                已选择 <strong>{selectedCount}</strong> 个产品，预计生成 <strong>{orderDrafts.length}</strong> 张采购订单，预估总金额 <strong>¥{selectedTotal.toLocaleString()}</strong>
               </span>
               <Button onClick={handleGenerateOrder} className="gap-2">
                 <ShoppingCart className="w-4 h-4" /> 生成采购订单
@@ -214,6 +320,7 @@ export function PurchaseManagement() {
                   <TableCell>
                     <input
                       type="number"
+                      min={0}
                       className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"
                       value={item.suggestedQty}
                       onChange={(e) => {
@@ -228,7 +335,7 @@ export function PurchaseManagement() {
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">{item.supplier}</TableCell>
                   <TableCell className="font-medium text-gray-800">
-                    ¥{item.estimatedAmount.toLocaleString()}
+                    ¥{getSuggestionAmount(item).toLocaleString()}
                   </TableCell>
                 </TableRow>
               ))}
@@ -273,6 +380,7 @@ export function PurchaseManagement() {
             <TableHeader>
               <TableRow className="bg-gray-50/80">
                 <TableHead>订单编号</TableHead>
+                <TableHead>采购明细</TableHead>
                 <TableHead>供应商</TableHead>
                 <TableHead>门店</TableHead>
                 <TableHead>产品数</TableHead>
@@ -288,6 +396,19 @@ export function PurchaseManagement() {
                 <TableRow key={order.id} className="hover:bg-blue-50/30">
                   <TableCell className="font-mono text-sm text-blue-600 font-medium">
                     {order.orderNo}
+                  </TableCell>
+                  <TableCell className="min-w-[180px] max-w-[260px]">
+                    {getPurchaseOrderItemLabels(order).length ? (
+                      <div className="space-y-1">
+                        {getPurchaseOrderItemLabels(order).map((label) => (
+                          <div key={`${order.orderNo}-${label}`} className="text-sm text-gray-700">
+                            {label}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">暂无明细（共 {order.productCount} 个产品）</span>
+                    )}
                   </TableCell>
                   <TableCell>{order.supplier}</TableCell>
                   <TableCell>{order.storeName}</TableCell>
@@ -351,6 +472,128 @@ export function PurchaseManagement() {
         </>
       )}
 
+      {/* Generate Purchase Orders Dialog */}
+      <Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="generate-order-description">
+          <DialogHeader>
+            <DialogTitle>确认生成采购订单</DialogTitle>
+          </DialogHeader>
+          <span id="generate-order-description" className="sr-only">根据选中的补货建议生成采购订单</span>
+
+          <div className="space-y-5 mt-4">
+            <div className="grid grid-cols-4 gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div>
+                <div className="text-xs text-blue-600">选中产品</div>
+                <div className="mt-1 text-lg font-semibold text-blue-900">{selectedCount} 个</div>
+              </div>
+              <div>
+                <div className="text-xs text-blue-600">生成订单</div>
+                <div className="mt-1 text-lg font-semibold text-blue-900">{orderDrafts.length} 张</div>
+              </div>
+              <div>
+                <div className="text-xs text-blue-600">官方采购价</div>
+                <div className="mt-1 text-lg font-semibold text-blue-900">¥{selectedTotal.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-blue-600">较市场价节省</div>
+                <div className="mt-1 text-lg font-semibold text-emerald-700">¥{selectedSavingTotal.toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="font-medium text-emerald-900">Ami 官方供应链专属优惠：按市场价 8 折采购</div>
+                  <div className="mt-1 text-sm text-emerald-700">
+                    当前清单市场价约 ¥{selectedMarketTotal.toLocaleString()}，官方采购价 ¥{selectedTotal.toLocaleString()}，预计为门店节省 ¥{selectedSavingTotal.toLocaleString()}。
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">官方 8 折</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">采购门店</label>
+                <Input value={currentStoreName} disabled />
+                <p className="mt-1 text-xs text-gray-500">按当前顶部门店筛选上下文生成，全部门店模式下生成总部集中采购单。</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">预计到货日期</label>
+                <Input
+                  type="date"
+                  value={generatedExpectedDate}
+                  onChange={(event) => setGeneratedExpectedDate(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {orderDrafts.map((draft) => (
+                <div key={draft.supplier} className="rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+                    <div>
+                      <div className="font-medium text-gray-900">{draft.supplier}</div>
+                      <div className="mt-0.5 text-xs text-gray-500">{draft.storeName} · 预计 {draft.expectedDate} 到货 · 官方供应链 8 折价</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">{draft.items.length} 个产品</div>
+                      <div className="font-semibold text-blue-600">¥{draft.totalAmount.toLocaleString()}</div>
+                      <div className="text-xs text-emerald-600">已省 ¥{draft.savingAmount.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 border-b border-gray-200 bg-emerald-50/60 px-4 py-2 text-xs">
+                    <span className="text-gray-600">市场价：<strong className="text-gray-800">¥{draft.marketAmount.toLocaleString()}</strong></span>
+                    <span className="text-gray-600">官方价：<strong className="text-emerald-700">¥{draft.totalAmount.toLocaleString()}</strong></span>
+                    <span className="text-gray-600">优惠：<strong className="text-emerald-700">8 折，节省 ¥{draft.savingAmount.toLocaleString()}</strong></span>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-white">
+                        <TableHead>产品名称</TableHead>
+                        <TableHead>SKU</TableHead>
+                        <TableHead>采购数量</TableHead>
+                        <TableHead>市场单价</TableHead>
+                        <TableHead>官方8折价</TableHead>
+                        <TableHead>节省</TableHead>
+                        <TableHead className="text-right">小计</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {draft.items.map((item) => (
+                        <TableRow key={`${draft.supplier}-${item.sku}`}>
+                          <TableCell>{item.productName}</TableCell>
+                          <TableCell className="font-mono text-sm text-gray-600">{item.sku}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell className="text-gray-500 line-through">¥{getMarketPrice(item.unitPrice).toLocaleString()}</TableCell>
+                          <TableCell className="font-medium text-emerald-700">¥{item.unitPrice.toLocaleString()}</TableCell>
+                          <TableCell className="text-emerald-700">¥{getSavingAmount(item.quantity * item.unitPrice).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">¥{(item.quantity * item.unitPrice).toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              系统会按供应商自动拆单，并保留官方供应链 8 折采购价。生成后订单状态为“草稿”，可在采购订单列表中继续审核、下单和收货。
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowGenerateConfirm(false)} disabled={isGeneratingOrders}>
+                取消
+              </Button>
+              <Button type="button" onClick={handleConfirmGenerateOrders} disabled={isGeneratingOrders || orderDrafts.length === 0 || !generatedExpectedDate}>
+                {isGeneratingOrders && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                确认生成采购订单
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Order Detail Dialog */}
       <Dialog open={showOrderDetail} onOpenChange={setShowOrderDetail}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="order-detail-description">
@@ -409,20 +652,23 @@ export function PurchaseManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell>玻尿酸精华液</TableCell>
-                      <TableCell className="font-mono text-sm">SK-LO-000001</TableCell>
-                      <TableCell>50</TableCell>
-                      <TableCell>¥480</TableCell>
-                      <TableCell className="text-right font-medium">¥24,000</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>补水面膜</TableCell>
-                      <TableCell className="font-mono text-sm">SK-LO-000002</TableCell>
-                      <TableCell>20</TableCell>
-                      <TableCell>¥220</TableCell>
-                      <TableCell className="text-right font-medium">¥4,400</TableCell>
-                    </TableRow>
+                    {selectedOrder.items?.length ? (
+                      selectedOrder.items.map((item) => (
+                        <TableRow key={`${selectedOrder.orderNo}-${item.sku}`}>
+                          <TableCell>{item.productName}</TableCell>
+                          <TableCell className="font-mono text-sm">{item.sku}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>¥{item.unitPrice.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">¥{item.subtotal.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-8 text-center text-sm text-gray-500">
+                          暂无采购明细
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>

@@ -1,11 +1,19 @@
-import type { Customer } from '@/types';
-import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+import type { Customer, CustomerConsumptionRecord, CustomerHealthProfile } from '@/types';
+import { createPaginatedResponse, type PaginatedResponse, type PaginationParams } from '@/types/pagination';
 import type { ImportResult } from '@/types/excel';
-import rawCustomers from './data/customers.json';
+import { FIXTURE_CONSUMPTION_RECORDS, FIXTURE_CUSTOMERS, FIXTURE_HEALTH_PROFILES } from './fixtures';
 
-const MOCK_CUSTOMERS: Customer[] = (rawCustomers as any[]).map((c) => ({
+const MOCK_CUSTOMERS: Customer[] = FIXTURE_CUSTOMERS.map((c) => ({
   ...c,
   tags: c.tags || [],
+}));
+
+const MOCK_CONSUMPTION_RECORDS: CustomerConsumptionRecord[] = FIXTURE_CONSUMPTION_RECORDS.map((item) => ({
+  ...item,
+}));
+
+const MOCK_HEALTH_PROFILES: CustomerHealthProfile[] = FIXTURE_HEALTH_PROFILES.map((item) => ({
+  ...item,
 }));
 
 export async function mockGetCustomers(params?: { keyword?: string; memberLevel?: string; storeName?: string }): Promise<Customer[]> {
@@ -63,7 +71,7 @@ export async function mockGetCustomersPaginated(params: PaginationParams & { key
   const total = result.length;
   const start = (params.page - 1) * params.pageSize;
   const data = result.slice(start, start + params.pageSize);
-  return { data, total, page: params.page, pageSize: params.pageSize };
+  return createPaginatedResponse(data, total, params.page, params.pageSize);
 }
 
 export async function mockImportCustomers(data: Record<string, any>[]): Promise<ImportResult> {
@@ -85,4 +93,45 @@ export async function mockDeleteCustomers(ids: number[]): Promise<void> {
     const idx = MOCK_CUSTOMERS.findIndex((c) => c.id === id);
     if (idx !== -1) MOCK_CUSTOMERS.splice(idx, 1);
   }
+}
+
+export async function mockGetCustomerConsumptionRecords(): Promise<CustomerConsumptionRecord[]> {
+  return [...MOCK_CONSUMPTION_RECORDS];
+}
+
+export async function mockGetCustomerHealthProfiles(): Promise<CustomerHealthProfile[]> {
+  return [...MOCK_HEALTH_PROFILES];
+}
+
+export async function mockUpdateCustomerHealthProfile(
+  customerId: number,
+  data: Partial<Omit<CustomerHealthProfile, 'id' | 'customerId' | 'name'>>,
+): Promise<CustomerHealthProfile> {
+  const customer = MOCK_CUSTOMERS.find((item) => item.id === customerId);
+  if (!customer) throw new Error('Customer not found');
+
+  const index = MOCK_HEALTH_PROFILES.findIndex((item) => item.customerId === customerId);
+  const previous = index >= 0 ? MOCK_HEALTH_PROFILES[index] : undefined;
+  const profile: CustomerHealthProfile = {
+    id: previous?.id ?? Math.max(0, ...MOCK_HEALTH_PROFILES.map((item) => item.id)) + 1,
+    customerId,
+    name: customer.name,
+    photo: data.photo ?? previous?.photo ?? '',
+    skinType: data.skinType ?? previous?.skinType ?? '未检测',
+    skinStatus: data.skinStatus ?? previous?.skinStatus ?? '',
+    mainProblems: data.mainProblems ?? previous?.mainProblems ?? '',
+    allergyHistory: data.allergyHistory ?? previous?.allergyHistory ?? '',
+    goals: data.goals ?? previous?.goals ?? '',
+    recommendedCare: data.recommendedCare ?? previous?.recommendedCare ?? '',
+    instrument: data.instrument ?? previous?.instrument ?? '',
+    lastCheck: data.lastCheck ?? previous?.lastCheck ?? new Date().toISOString().slice(0, 10),
+  };
+
+  if (index >= 0) {
+    MOCK_HEALTH_PROFILES[index] = profile;
+  } else {
+    MOCK_HEALTH_PROFILES.push(profile);
+  }
+
+  return profile;
 }

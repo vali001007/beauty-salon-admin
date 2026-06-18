@@ -2,8 +2,20 @@
  * 智能营销推荐算法
  * 综合客户画像、消费习惯、季节特征、行业趋势四个维度计算匹配度
  */
-import type { Customer } from '@/types';
-import { computeSegmentStats, computeSkinStats, classifyCustomer, classifySkin, type SegmentType, type SkinCategory } from './customerSegmentation';
+import type {
+  AudienceSnapshot,
+  Customer,
+  MarketingTriggerType,
+  RecommendationExecutionMode,
+  RecommendationPriority,
+  RecommendedAction,
+  RecommendedChannel,
+  RecommendedItem,
+  RecommendedOffer,
+  RecommendedTriggerRule,
+} from '@/types';
+import { MARKETING_RECOMMENDATION_IMAGES } from '@/config/marketingAssets';
+import { computeSegmentStats, computeSkinStats, type SegmentType } from './customerSegmentation';
 import { computeAssociationRules, computeChurnScores, computeLTVPredictions } from './advancedAnalytics';
 
 export type UrgencyLevel = 'urgent' | 'recommended' | 'opportunity';
@@ -14,6 +26,7 @@ export interface Recommendation {
   reason: string;
   targetCustomers: string;
   targetCount: number;
+  targetCustomerIds: number[];
   expectedConversion: string;
   expectedRevenue: string;
   strategy: string;
@@ -22,13 +35,54 @@ export interface Recommendation {
   matchScore: number;
   image: string;
   tags: string[];
-  category: 'high-conversion' | 'customer-wake' | 'viral' | 'member-care' | 'seasonal' | 'trend' | 'cross-sell' | 'churn-alert' | 'ltv-nurture';
-  triggerType?: string;
+  category: 'high-conversion' | 'customer-wake' | 'viral' | 'member-care' | 'seasonal' | 'trend' | 'cross-sell' | 'churn-alert' | 'ltv-nurture' | 'inventory-opportunity' | 'capacity-opportunity' | 'product-replenishment' | 'project-cycle' | string;
+  recommendationType?: 'product_expiry_clearance' | 'project_idle_capacity' | 'product_replenishment' | 'project_cycle_due' | string;
+  recommendationKey?: string;
+  triggerType?: MarketingTriggerType;
   preferAutoRule: boolean;
   urgency: UrgencyLevel;
   urgencyLabel: string;
   dataEvidence?: string[];    // 数据依据（折叠展示）
-  source: 'strategy' | 'association' | 'churn' | 'ltv';
+  source: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project';
+  predictionRunId?: number;
+  modelVersion?: string;
+  predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy' | string;
+  predictionRunFinishedAt?: string;
+  totalCustomers?: number;
+  priority?: RecommendationPriority;
+  executionModes?: RecommendationExecutionMode[];
+  preferredMode?: RecommendationExecutionMode;
+  modeReason?: string;
+  recommendedChannels?: RecommendedChannel[];
+  triggerRule?: RecommendedTriggerRule;
+  recommendedActions?: RecommendedAction[];
+  offer?: RecommendedOffer;
+  recommendedItems?: RecommendedItem[];
+  audienceSnapshot?: AudienceSnapshot;
+  sourceSignals?: string[];
+  isFallback?: boolean;
+  inventorySnapshot?: {
+    productId: number;
+    productName: string;
+    batchId?: number;
+    batchNo?: string;
+    stock: number;
+    daysToExpiry?: number;
+    forecastSellThroughQty?: number;
+    gapQty?: number;
+    expectedLossAmount?: number;
+  };
+  capacitySnapshot?: {
+    dateRange: string;
+    idleSlots: number;
+    idleMinutes: number;
+    utilizationRate: number;
+    beauticianIds: number[];
+    projectIds: number[];
+  };
+  expectedGrossProfit?: string;
+  expectedLossAvoided?: string;
+  riskWarnings?: string[];
 }
 
 // ========== 季节 & 节日 ==========
@@ -58,16 +112,7 @@ const SEASON_KEYWORDS: Record<string, { services: string[]; skinFocus: string[];
   '冬': { services: ['深层滋养', '抗干燥', '热石SPA'], skinFocus: ['干性肌肤'], theme: '冬季暖养' },
 };
 
-const IMAGES = [
-  'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',
-  'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400',
-  'https://images.unsplash.com/photo-1573461160327-b450ce3d8e7f?w=400',
-  'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-  'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400',
-  'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400',
-  'https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=400',
-  'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?w=400',
-];
+const IMAGES = MARKETING_RECOMMENDATION_IMAGES;
 
 // ========== 维度评分函数 ==========
 
@@ -178,7 +223,7 @@ interface StrategyTemplate {
   duration: string;
   tags: string[];
   imageIdx: number;
-  triggerType?: string;
+  triggerType?: MarketingTriggerType;
   preferAutoRule: boolean;
 }
 
@@ -236,7 +281,14 @@ function buildTemplates(): StrategyTemplate[] {
 
 export function generateRecommendations(
   customers: Customer[],
-  consumptionRecords: Array<{ customerId: number; consumeType: string; amount: string; campaign: string; consumeTime: string }>,
+  consumptionRecords: Array<{
+    customerId: number;
+    consumeType: string;
+    consumeContent?: string;
+    amount: string;
+    campaign: string;
+    consumeTime: string;
+  }>,
   healthProfiles: Array<{ customerId: number; skinType: string; skinStatus: string; mainProblems: string }>
 ): Recommendation[] {
   const segmentStats = computeSegmentStats(customers);
@@ -244,24 +296,32 @@ export function generateRecommendations(
   const totalCustomers = customers.length;
 
   const templates = buildTemplates();
+  const normalizedConsumptionRecords = consumptionRecords.map((record) => ({
+    ...record,
+    consumeContent: record.consumeContent ?? record.consumeType,
+  }));
   const recommendations: Recommendation[] = [];
 
   templates.forEach((tpl, idx) => {
     // 计算目标客户数
     let targetCount = 0;
     let targetLabel = '';
+    let targetCustomerIds: number[] = [];
 
     if (tpl.segment) {
       const seg = segmentStats.find((s) => s.segment === tpl.segment);
       targetCount = seg?.customerCount || 0;
+      targetCustomerIds = seg?.customerIds || [];
       targetLabel = `${tpl.segment}（约${targetCount}人）`;
     } else if (tpl.skinType) {
       const skin = skinStats.find((s) => s.skinType === tpl.skinType);
       targetCount = skin?.customerCount || 0;
+      targetCustomerIds = skin?.customerIds || [];
       targetLabel = `${tpl.skinType}客户（约${targetCount}人）`;
     } else {
       // 季节/趋势策略面向全部活跃客户
-      targetCount = customers.filter((c) => c.visitCount > 0).length;
+      targetCustomerIds = customers.filter((c) => c.visitCount > 0).map((c) => c.id);
+      targetCount = targetCustomerIds.length;
       targetLabel = `全部活跃客户（约${targetCount}人）`;
     }
 
@@ -293,6 +353,7 @@ export function generateRecommendations(
       reason: generateReason(tpl, targetCount, segmentStats, skinStats),
       targetCustomers: targetLabel,
       targetCount,
+      targetCustomerIds,
       expectedConversion: `预计转化率 ${(conversion * 100).toFixed(1)}%`,
       expectedRevenue: expectedRevenue >= 10000 ? `预计营收 ¥${(expectedRevenue / 10000).toFixed(1)}万` : `预计营收 ¥${expectedRevenue.toLocaleString()}`,
       strategy: tpl.strategy,
@@ -314,7 +375,7 @@ export function generateRecommendations(
   let nextId = recommendations.length + 1;
 
   // 流失预警卡片
-  const churnScores = computeChurnScores(customers, consumptionRecords);
+  const churnScores = computeChurnScores(customers, normalizedConsumptionRecords);
   const highChurn = churnScores.filter((s) => s.churnProbability >= 45);
   const criticalChurn = churnScores.filter((s) => s.churnProbability >= 70);
   if (highChurn.length > 0) {
@@ -325,6 +386,7 @@ export function generateRecommendations(
       reason: `流失概率评分发现${highChurn.length}位高风险客户（其中${criticalChurn.length}位极高风险），累计历史消费¥${(totalLostRevenue / 10000).toFixed(1)}万，如不及时干预将造成重大损失`,
       targetCustomers: `高流失风险客户（${highChurn.length}人）`,
       targetCount: highChurn.length,
+      targetCustomerIds: highChurn.map((c) => c.customerId),
       expectedConversion: `预计挽回率 25-35%`,
       expectedRevenue: `预计挽回 ¥${(totalLostRevenue * 0.3 * 0.05 / 10000).toFixed(1)}万`,
       strategy: '针对高流失风险客户发送专属回归优惠券+关怀短信，按流失概率分级触达',
@@ -349,16 +411,24 @@ export function generateRecommendations(
   }
 
   // 关联规则卡片（交叉销售）
-  const rules = computeAssociationRules(consumptionRecords);
+  const rules = computeAssociationRules(normalizedConsumptionRecords);
   const topRules = rules.filter((r) => r.confidence >= 0.2 && r.lift >= 1.2).slice(0, 3);
   if (topRules.length > 0) {
     const bestRule = topRules[0];
+    const antecedentCustomerIds = [
+      ...new Set(
+        normalizedConsumptionRecords
+          .filter((record) => record.consumeContent?.replace(/\s*x\d+$/, '').trim() === bestRule.antecedent)
+          .map((record) => record.customerId)
+      ),
+    ];
     recommendations.push({
       id: nextId++,
       title: `交叉销售机会：${bestRule.antecedent} → ${bestRule.consequent}`,
       reason: `关联分析发现：消费了"${bestRule.antecedent}"的客户中，${(bestRule.confidence * 100).toFixed(0)}%也会消费"${bestRule.consequent}"，提升度${bestRule.lift.toFixed(1)}倍`,
-      targetCustomers: `${bestRule.antecedent}消费客户（${bestRule.count}人有交叉消费）`,
-      targetCount: bestRule.count * 3,
+      targetCustomers: `${bestRule.antecedent}消费客户（${antecedentCustomerIds.length}人）`,
+      targetCount: antecedentCustomerIds.length,
+      targetCustomerIds: antecedentCustomerIds,
       expectedConversion: `预计转化率 ${(bestRule.confidence * 100).toFixed(0)}%`,
       expectedRevenue: `预计增收 ¥${(bestRule.count * 3 * bestRule.confidence * 300).toLocaleString()}`,
       strategy: `向消费了"${bestRule.antecedent}"的客户推荐"${bestRule.consequent}"，提升客单价`,
@@ -378,7 +448,7 @@ export function generateRecommendations(
   }
 
   // LTV高价值维护卡片
-  const ltvPredictions = computeLTVPredictions(customers, consumptionRecords);
+  const ltvPredictions = computeLTVPredictions(customers, normalizedConsumptionRecords);
   const platinumCustomers = ltvPredictions.filter((p) => p.ltvTier === '铂金');
   const decliningHigh = ltvPredictions.filter((p) => (p.ltvTier === '铂金' || p.ltvTier === '黄金') && p.trend === '下降');
   if (platinumCustomers.length > 0) {
@@ -389,6 +459,7 @@ export function generateRecommendations(
       reason: `LTV预测显示${platinumCustomers.length}位铂金客户未来12个月预计贡献¥${(totalFutureLTV / 10000).toFixed(1)}万营收${decliningHigh.length > 0 ? `，其中${decliningHigh.length}位消费趋势下降需关注` : ''}`,
       targetCustomers: `铂金级客户（${platinumCustomers.length}人）`,
       targetCount: platinumCustomers.length,
+      targetCustomerIds: platinumCustomers.map((p) => p.customerId),
       expectedConversion: '预计维护成功率 85%',
       expectedRevenue: `预计保住 ¥${(totalFutureLTV / 10000).toFixed(1)}万`,
       strategy: '为铂金客户提供专属VIP服务、优先预约、季度礼包，防止高价值客户流失',

@@ -1,0 +1,117 @@
+{
+  "title": "客户画像数据管理",
+  "tabs": {
+    "baseInfo": "基础信息",
+    "consumption": "消费记录",
+    "skinProfile": "肌肤档案"
+  },
+  "fields": {
+    "name": "客户名称",
+    "phone": "手机号码",
+    "landline": "座机号",
+    "wechat": "微信号",
+    "email": "邮箱",
+    "gender": "性别",
+    "male": "男",
+    "female": "女",
+    "maritalStatus": "婚姻状态",
+    "married": "已婚",
+    "unmarried": "未婚",
+    "unknown": "未知",
+    "birthday": "出生日期",
+    "age": "年龄",
+    "height": "身高(cm)",
+    "weight": "体重(kg)",
+    "occupation": "职业",
+    "workplace": "工作单位",
+    "address": "家庭地址",
+    "hasAllergy": "过敏史",
+    "hasSurgery": "整形或微创",
+    "skinCondition": "皮肤状况",
+    "totalSpent": "总消费金额",
+    "cumulativeSpent": "累计消费",
+    "memberLevel": "客户等级",
+    "source": "客户来源",
+    "lastVisitDate": "最后到店时间",
+    "remark": "备注",
+    "storeName": "所属门店",
+    "tags": "标签"
+  },
+  "memberLevels": {
+    "none": "无",
+    "regular": "普通会员",
+    "silver": "银卡会员",
+    "gold": "金卡会员",
+    "diamond": "钻石会员"
+  },
+  "sources": {
+    "store": "门店",
+    "referral": "推荐",
+    "online": "线上",
+    "activity": "活动"
+  },
+  "actions": {
+    "addCustomer": "新增客户",
+    "editCustomer": "编辑客户",
+    "deleteCustomer": "删除客户",
+    "batchImportCustomer": "批量导入客户",
+    "exportCustomer": "导出客户"
+  },
+  "messages": {
+    "createSuccess": "客户创建成功",
+    "createFailed": "创建客户失败",
+    "updateSuccess": "客户更新成功",
+    "updateFailed": "更新客户失败",
+    "deleteSuccess": "已删除 {{count}} 条客户",
+    "deleteConfirm": "即将删除 {{count}} 条客户数据，此操作不可撤销，请输入账号密码确认身份"
+  },
+  "placeholders": {
+    "searchName": "请输入客户名称",
+    "searchPhone": "请输入手机号码",
+    "inputName": "请输入客户名称",
+    "inputPhone": "请输入手机号码",
+    "inputEmail": "请输入邮箱",
+    "inputLandline": "请输入座机号",
+    "inputWechat": "请输入微信号",
+    "inputAge": "请输入年龄",
+    "inputHeight": "请输入身高",
+    "inputWeight": "请输入体重",
+    "inputOccupation": "请输入职业",
+    "inputWorkplace": "请输入工作单位",
+    "inputAddress": "请输入家庭地址",
+    "inputSkinCondition": "请输入皮肤状况",
+    "inputRemark": "请输入备注",
+    "selectSource": "请选择客户来源"
+  },
+  "consumption": {
+    "userName": "用户名称",
+    "consumeType": "消费类型",
+    "consumeContent": "消费内容",
+    "payMethod": "支付方式",
+    "amount": "消费金额",
+    "campaign": "关联营销活动",
+    "consumeTime": "消费时间"
+  },
+  "health": {
+    "title": "编辑肌肤档案",
+    "userName": "用户姓名",
+    "skinType": "肌肤类型",
+    "skinStatus": "肌肤状态",
+    "mainProblems": "主要问题",
+    "allergyHistory": "过敏史",
+    "goals": "改善目标",
+    "recommendedCare": "推荐护理",
+    "instrument": "检测仪器",
+    "lastCheck": "最近检查时间",
+    "skinTypes": {
+      "dry": "干性",
+      "oily": "油性",
+      "combinationDry": "混干",
+      "combinationOily": "混油",
+      "neutral": "中性",
+      "sensitive": "敏感",
+      "undetected": "未检测"
+    },
+    "updateSuccess": "肌肤档案已更新"
+  }
+}

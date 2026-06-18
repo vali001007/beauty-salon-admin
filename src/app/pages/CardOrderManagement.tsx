@@ -1,50 +1,34 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { Search, Plus, RotateCcw, X, Minus, Clock, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { Search, Plus, RotateCcw, X, Minus, Loader2 } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { getCardOrdersPaginated } from '@/api/card';
+import { createCardUsage, getCards, getCardOrdersPaginated } from '@/api/card';
 import { usePagination } from '@/hooks/usePagination';
+import type { Card } from '@/types/card';
+import { toast } from 'sonner';
 
 interface CardOrder {
   id: string;
+  customerId?: number;
+  customerCardId?: number;
+  cardId?: number;
   cardName: string;
   userName: string;
+  customerPhone?: string;
+  totalTimes?: number;
+  remainingTimes?: number;
+  cardProjects?: ConsumeProject[];
   actualPrice: number;
   status: 'active' | 'expired' | 'voided';
   purchaseTime: string;
   expireTime: string;
 }
 
-// 次卡管理中预设的次卡价格
-const CARD_PRICE_MAP: Record<string, number> = {
-  '元心艾': 7960,
-  '2991创始会员卡': 2991,
-  '9999一卡通': 9999,
-  '八戒享秀仪器': 1980,
-};
-
-// 次卡管理中预设的项目明细
-const CARD_PROJECTS_MAP: Record<string, { name: string; totalCount: number }[]> = {
-  '元心艾': [
-    { name: '膏方灸', totalCount: 20 },
-    { name: '能量屋', totalCount: 10 },
-    { name: '负氧离子舱', totalCount: 10 },
-  ],
-  '2991创始会员卡': [
-    { name: '面部护理（巨补水）', totalCount: 15 },
-    { name: '古方灸', totalCount: 10 },
-    { name: '泡澡', totalCount: 10 },
-  ],
-  '9999一卡通': [
-    { name: '膏方灸', totalCount: 30 },
-    { name: '能量屋', totalCount: 20 },
-    { name: '负氧离子舱', totalCount: 20 },
-    { name: '八戒享秀仪器', totalCount: 15 },
-    { name: '泡澡', totalCount: 15 },
-  ],
-  '八戒享秀仪器': [
-    { name: '八戒享秀仪器', totalCount: 20 },
-  ],
-};
+interface ConsumeProject {
+  projectName: string;
+  totalCount: number;
+  usedCount: number;
+  remainCount: number;
+}
 
 interface ProjectItem {
   id: number;
@@ -53,6 +37,33 @@ interface ProjectItem {
   usedCount: number;
   remainCount: number;
   remark: string;
+}
+
+function toProjectItems(card?: Card): ProjectItem[] {
+  return (card?.projects ?? []).map((project, index) => {
+    const totalCount = Number(project.timesPerCard ?? 0);
+    return {
+      id: index + 1,
+      name: project.projectName,
+      totalCount,
+      usedCount: 0,
+      remainCount: totalCount,
+      remark: '',
+    };
+  });
+}
+
+function formatDatetimeLocal(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function getExpireTime(startTime: string, validDays?: number): string {
+  if (!startTime || !validDays) return '';
+  const date = new Date(startTime);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + validDays);
+  return formatDatetimeLocal(date);
 }
 
 export function CardOrderManagement() {
@@ -66,7 +77,9 @@ export function CardOrderManagement() {
     userName: searchUserName || undefined,
     cardName: searchCardName || undefined,
   }), [searchUserName, searchCardName]);
-  const { data: orders, total, page, pageSize, loading, setPage, setPageSize } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
+  const { data: orders, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
+  const [cards, setCards] = useState<Card[]>([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
 
   // Dialog form state
   const [formData, setFormData] = useState({
@@ -82,48 +95,94 @@ export function CardOrderManagement() {
   });
   const [projectItems, setProjectItems] = useState<ProjectItem[]>([]);
   const [additionalItems, setAdditionalItems] = useState<ProjectItem[]>([]);
-  const [nextProjectId, setNextProjectId] = useState(1);
   const [nextAdditionalId, setNextAdditionalId] = useState(1);
-
-  // 自定义项目 state
-  const [customItems, setCustomItems] = useState<ProjectItem[]>([]);
-  const [nextCustomId, setNextCustomId] = useState(1);
 
   // 赠送项目-添加预设项目下拉
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   const [presetPickerPos, setPresetPickerPos] = useState({ top: 0, left: 0 });
   const presetBtnRef = useRef<HTMLDivElement>(null);
+  const selectedCard = useMemo(
+    () => cards.find(card => String(card.id) === formData.cardId),
+    [cards, formData.cardId],
+  );
+  const selectedCardProjectItems = useMemo(() => toProjectItems(selectedCard), [selectedCard]);
+
+  useEffect(() => {
+    let mounted = true;
+    setCardsLoading(true);
+    getCards()
+      .then((items) => {
+        if (!mounted) return;
+        const enabledCards = items.filter(card => card.status !== '下架');
+        setCards(enabledCards);
+      })
+      .catch(() => {
+        if (mounted) setCards([]);
+      })
+      .finally(() => {
+        if (mounted) setCardsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // 次卡消费弹窗 state
   const [isConsumeDialogOpen, setIsConsumeDialogOpen] = useState(false);
-  const [consumeOrderId, setConsumeOrderId] = useState<string | null>(null);
+  const [consumeOrder, setConsumeOrder] = useState<CardOrder | null>(null);
   const [consumeProject, setConsumeProject] = useState('');
   const [consumeCount, setConsumeCount] = useState(1);
+  const [consumeSubmitting, setConsumeSubmitting] = useState(false);
 
-  // Mock project data for consumption
-  const MOCK_CONSUME_PROJECTS = [
-    { name: '膏方灸', totalCount: 20, usedCount: 17, remainCount: 3 },
-    { name: '面部护理', totalCount: 30, usedCount: 12, remainCount: 18 },
-    { name: '身体护理', totalCount: 15, usedCount: 10, remainCount: 5 },
-  ];
+  const consumeProjects = consumeOrder?.cardProjects ?? [];
+  const selectedConsumeProject = consumeProjects.find(project => project.projectName === consumeProject);
 
-  const selectedConsumeProject = MOCK_CONSUME_PROJECTS.find(p => p.name === consumeProject);
-
-  const handleOpenConsumeDialog = (orderId: string) => {
-    setConsumeOrderId(orderId);
-    setConsumeProject(MOCK_CONSUME_PROJECTS[0].name);
+  const handleOpenConsumeDialog = (order: CardOrder) => {
+    const availableProjects = order.cardProjects?.filter(project => project.remainCount > 0) ?? [];
+    setConsumeOrder(order);
+    setConsumeProject(availableProjects[0]?.projectName ?? order.cardProjects?.[0]?.projectName ?? '');
     setConsumeCount(1);
     setIsConsumeDialogOpen(true);
   };
 
   const handleCloseConsumeDialog = () => {
     setIsConsumeDialogOpen(false);
-    setConsumeOrderId(null);
+    setConsumeOrder(null);
+    setConsumeProject('');
+    setConsumeCount(1);
   };
 
-  const handleConsumeSubmit = () => {
-    console.log('次卡消费:', { orderId: consumeOrderId, project: consumeProject, count: consumeCount });
-    setIsConsumeDialogOpen(false);
+  const handleConsumeSubmit = async () => {
+    if (!consumeOrder) return;
+    if (!consumeProject || !selectedConsumeProject) {
+      toast.error('请选择当前次卡包含的消费项目');
+      return;
+    }
+    if (consumeCount > selectedConsumeProject.remainCount) {
+      toast.error('消费次数不能超过该项目剩余次数');
+      return;
+    }
+
+    setConsumeSubmitting(true);
+    try {
+      await createCardUsage({
+        cardOrderId: consumeOrder.customerCardId ?? consumeOrder.id,
+        customerCardId: consumeOrder.customerCardId,
+        customerId: consumeOrder.customerId,
+        cardName: consumeOrder.cardName,
+        projectName: consumeProject,
+        consumedTimes: consumeCount,
+      });
+      toast.success('次卡核销成功');
+      handleCloseConsumeDialog();
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡核销失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setConsumeSubmitting(false);
+    }
   };
 
   const getStatusConfig = (status: CardOrder['status']) => {
@@ -136,8 +195,7 @@ export function CardOrderManagement() {
   };
 
   const handleVoid = (orderId: string) => {
-    console.log('作废订单:', orderId);
-    // Implement void logic here
+    void orderId;
   };
 
   const handleReset = () => {
@@ -148,6 +206,7 @@ export function CardOrderManagement() {
   };
 
   const handleOpenDialog = () => {
+    const startTime = formatDatetimeLocal(new Date());
     setFormData({
       cardId: '',
       cardPrice: 0,
@@ -155,35 +214,42 @@ export function CardOrderManagement() {
       discountPrice: 0,
       userName: '',
       storeName: '',
-      startTime: '',
+      startTime,
       expireTime: '',
       paymentMethod: 'full',
     });
     setProjectItems([]);
     setAdditionalItems([]);
-    setCustomItems([]);
-    setNextProjectId(1);
     setNextAdditionalId(1);
-    setNextCustomId(1);
     setIsDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
+    setShowPresetPicker(false);
   };
 
   const handleSubmit = () => {
-    console.log('提交订单数据:', { ...formData, projectItems, additionalItems, customItems });
     setIsDialogOpen(false);
   };
 
-  const handleAddProject = () => {
-    setProjectItems(prev => [...prev, { id: nextProjectId, name: '', totalCount: 0, usedCount: 0, remainCount: 0, remark: '' }]);
-    setNextProjectId(prev => prev + 1);
-  };
-
-  const handleRemoveProject = (id: number) => {
-    setProjectItems(prev => prev.filter(item => item.id !== id));
+  const handleCardChange = (cardId: string) => {
+    const card = cards.find(item => String(item.id) === cardId);
+    const price = card?.price ?? 0;
+    const discountPrice = Number((price * formData.discount / 100).toFixed(2));
+    const expireTime = card ? getExpireTime(formData.startTime, card.validDays) : '';
+    setFormData(prev => ({
+      ...prev,
+      cardId,
+      cardPrice: price,
+      discountPrice,
+      expireTime,
+      storeName: card?.storeName && card.storeName !== '全部门店' ? card.storeName : prev.storeName,
+    }));
+    setProjectItems(toProjectItems(card));
+    setAdditionalItems([]);
+    setNextAdditionalId(1);
+    setShowPresetPicker(false);
   };
 
   const handleAddAdditional = () => {
@@ -193,15 +259,6 @@ export function CardOrderManagement() {
 
   const handleRemoveAdditional = (id: number) => {
     setAdditionalItems(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleAddCustom = () => {
-    setCustomItems(prev => [...prev, { id: nextCustomId, name: '', totalCount: 0, usedCount: 0, remainCount: 0, remark: '' }]);
-    setNextCustomId(prev => prev + 1);
-  };
-
-  const handleRemoveCustom = (id: number) => {
-    setCustomItems(prev => prev.filter(item => item.id !== id));
   };
 
   return (
@@ -301,7 +358,7 @@ export function CardOrderManagement() {
                   <div className="flex items-center justify-end gap-3 text-sm">
                     <button className="text-blue-500 hover:text-blue-600">查看</button>
                     <button className="text-blue-500 hover:text-blue-600">编辑</button>
-                    <button className="text-blue-500 hover:text-blue-600" onClick={() => handleOpenConsumeDialog(order.id)}>次卡核销</button>
+                    <button className="text-blue-500 hover:text-blue-600" onClick={() => handleOpenConsumeDialog(order)}>次卡核销</button>
                     {order.status !== 'voided' && (
                       <button className="text-red-500 hover:text-red-600" onClick={() => handleVoid(order.id)}>作废</button>
                     )}
@@ -354,29 +411,15 @@ export function CardOrderManagement() {
                   <select
                     className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={formData.cardId}
-                    onChange={(e) => {
-                      const cardId = e.target.value;
-                      const price = CARD_PRICE_MAP[cardId] || 0;
-                      const discountPrice = parseFloat((price * formData.discount / 100).toFixed(2));
-                      setFormData({ ...formData, cardId, cardPrice: price, discountPrice });
-                      // 自动填充预设项目明细
-                      const presetProjects = CARD_PROJECTS_MAP[cardId] || [];
-                      setProjectItems(presetProjects.map((p, i) => ({
-                        id: i + 1,
-                        name: p.name,
-                        totalCount: p.totalCount,
-                        usedCount: 0,
-                        remainCount: p.totalCount,
-                        remark: '',
-                      })));
-                      setNextProjectId(presetProjects.length + 1);
-                    }}
+                    onChange={(e) => handleCardChange(e.target.value)}
+                    disabled={cardsLoading}
                   >
-                    <option value="">请选择卡片</option>
-                    <option value="元心艾">元心艾</option>
-                    <option value="2991创始会员卡">2991创始会员卡</option>
-                    <option value="9999一卡通">9999一卡通</option>
-                    <option value="八戒享秀仪器">八戒享秀仪器</option>
+                    <option value="">{cardsLoading ? '次卡加载中...' : '请选择卡片'}</option>
+                    {cards.map(card => (
+                      <option key={card.id} value={String(card.id)}>
+                        {card.name}{card.storeName ? `（${card.storeName}）` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
@@ -473,7 +516,14 @@ export function CardOrderManagement() {
                       type="datetime-local"
                       className="w-full"
                       value={formData.startTime}
-                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      onChange={(e) => {
+                        const startTime = e.target.value;
+                        setFormData({
+                          ...formData,
+                          startTime,
+                          expireTime: selectedCard ? getExpireTime(startTime, selectedCard.validDays) : formData.expireTime,
+                        });
+                      }}
                     />
                   </div>
                 </div>
@@ -593,7 +643,7 @@ export function CardOrderManagement() {
                             className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[70] min-w-[200px] py-1"
                             style={{ top: presetPickerPos.top, left: presetPickerPos.left }}
                           >
-                            {(CARD_PROJECTS_MAP[formData.cardId] || []).map((preset) => {
+                            {selectedCardProjectItems.map((preset) => {
                               const alreadyAdded = additionalItems.some(a => a.name === preset.name);
                               return (
                                 <button
@@ -616,9 +666,9 @@ export function CardOrderManagement() {
                                   <span>{preset.name}</span>
                                   {alreadyAdded && <span className="text-xs text-gray-400">已添加</span>}
                                 </button>
-                              );
+                            );
                             })}
-                            {(CARD_PROJECTS_MAP[formData.cardId] || []).length === 0 && (
+                            {selectedCardProjectItems.length === 0 && (
                               <div className="px-4 py-3 text-sm text-gray-400 text-center">暂无预设项目</div>
                             )}
                           </div>
@@ -747,6 +797,16 @@ export function CardOrderManagement() {
 
             {/* Dialog Body */}
             <div className="p-6 space-y-7">
+              {consumeOrder && (
+                <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  <div className="font-medium">{consumeOrder.cardName}</div>
+                  <div className="mt-1 text-xs text-blue-700">
+                    客户：{consumeOrder.userName}{consumeOrder.customerPhone ? ` · ${consumeOrder.customerPhone}` : ''}；整卡剩余：
+                    {consumeOrder.remainingTimes ?? '-'} / {consumeOrder.totalTimes ?? '-'} 次
+                  </div>
+                </div>
+              )}
+
               {/* 消费项目 */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-0.5 min-w-[80px] justify-end">
@@ -759,13 +819,18 @@ export function CardOrderManagement() {
                   onChange={(e) => setConsumeProject(e.target.value)}
                 >
                   <option value="">请选择项目</option>
-                  {MOCK_CONSUME_PROJECTS.map(project => (
-                    <option key={project.name} value={project.name}>
-                      {project.name}（剩余 {project.remainCount} 次）
+                  {consumeProjects.map(project => (
+                    <option key={project.projectName} value={project.projectName} disabled={project.remainCount <= 0}>
+                      {project.projectName}（剩余 {project.remainCount} 次）
                     </option>
                   ))}
                 </select>
               </div>
+              {consumeProjects.length === 0 && (
+                <div className="ml-[92px] rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                  当前次卡没有配置可核销项目，请先在次卡管理中维护项目明细。
+                </div>
+              )}
 
               {/* 消费次数 */}
               <div className="flex flex-col gap-2">
@@ -778,6 +843,7 @@ export function CardOrderManagement() {
                     <button
                       className="w-9 h-10 border border-gray-300 rounded-l-md flex items-center justify-center hover:bg-gray-50 text-gray-500 bg-gray-50"
                       onClick={() => setConsumeCount(Math.max(1, consumeCount - 1))}
+                      disabled={!selectedConsumeProject}
                     >
                       <Minus className="w-4 h-4" />
                     </button>
@@ -785,14 +851,21 @@ export function CardOrderManagement() {
                       type="number"
                       className="w-20 h-10 rounded-none border-x-0 text-center"
                       value={consumeCount}
-                      onChange={(e) => setConsumeCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      min={1}
+                      max={selectedConsumeProject?.remainCount ?? 1}
+                      onChange={(e) => {
+                        const max = selectedConsumeProject?.remainCount ?? 1;
+                        setConsumeCount(Math.min(max, Math.max(1, parseInt(e.target.value) || 1)));
+                      }}
+                      disabled={!selectedConsumeProject}
                     />
                     <button
                       className="w-9 h-10 border border-gray-300 rounded-r-md flex items-center justify-center hover:bg-gray-50 text-gray-500 bg-gray-50"
                       onClick={() => {
-                        const max = selectedConsumeProject?.remainCount ?? 99;
+                        const max = selectedConsumeProject?.remainCount ?? 1;
                         setConsumeCount(Math.min(max, consumeCount + 1));
                       }}
+                      disabled={!selectedConsumeProject}
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -800,7 +873,8 @@ export function CardOrderManagement() {
                 </div>
                 {selectedConsumeProject && (
                   <div className="ml-[92px] text-sm text-gray-500">
-                    已消费：{selectedConsumeProject.usedCount} 次；可用剩余：{selectedConsumeProject.remainCount} 次
+                    本卡项目总次数：{selectedConsumeProject.totalCount} 次；已核销：{selectedConsumeProject.usedCount} 次；可用剩余：
+                    {selectedConsumeProject.remainCount} 次
                   </div>
                 )}
               </div>
@@ -825,8 +899,12 @@ export function CardOrderManagement() {
               <Button variant="outline" onClick={handleCloseConsumeDialog}>
                 取 消
               </Button>
-              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleConsumeSubmit}>
-                确 定
+              <Button
+                className="bg-[#1890ff] hover:bg-[#40a9ff]"
+                onClick={handleConsumeSubmit}
+                disabled={consumeSubmitting || !selectedConsumeProject || consumeCount > (selectedConsumeProject?.remainCount ?? 0)}
+              >
+                {consumeSubmitting ? '提交中...' : '确 定'}
               </Button>
             </div>
           </div>

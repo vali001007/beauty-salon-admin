@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ami Aura 产品图文介绍手册</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 12mm;
+        }
+        :root {
+            --ink: #2D1B69;
+            --accent: #C9956C;
+            --paper: #fcfaf8;
+            --text: #333;
+            --muted: #777;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(201, 149, 108, 0.16), transparent 28%),
+                linear-gradient(180deg, #fff, #f7f3ef 100%);
+        }
+        .page {
+            width: min(1120px, calc(100vw - 48px));
+            margin: 24px auto;
+            background: #fff;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 18px 48px rgba(35, 23, 71, 0.12);
+        }
+        .hero {
+            background: linear-gradient(135deg, var(--ink), #4A2B8C);
+            color: #fff;
+            padding: 56px 48px 44px;
+            text-align: center;
+        }
+        .hero h1 {
+            margin: 0;
+            color: var(--accent);
+            font-size: 44px;
+            letter-spacing: 3px;
+        }
+        .hero p {
+            margin: 14px auto 0;
+            max-width: 720px;
+            font-size: 18px;
+            line-height: 1.8;
+            opacity: 0.92;
+        }
+        .image-box {
+            background: var(--paper);
+            padding: 24px 28px 10px;
+        }
+        .image-box img {
+            display: block;
+            width: 100%;
+            border-radius: 14px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+        }
+        .content {
+            padding: 20px 42px 42px;
+        }
+        .section {
+            margin-top: 28px;
+        }
+        h2 {
+            margin: 0 0 18px;
+            padding-left: 14px;
+            border-left: 6px solid var(--accent);
+            color: var(--ink);
+            font-size: 28px;
+        }
+        p {
+            margin: 0 0 14px;
+            line-height: 1.9;
+            font-size: 16px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .feature-item {
+            background: linear-gradient(180deg, #faf6f3, #f6f0eb);
+            border: 1px solid #eedfd3;
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .feature-item h3 {
+            margin: 0 0 10px;
+            color: var(--accent);
+            font-size: 20px;
+        }
+        .highlight-bar {
+            margin-top: 30px;
+            padding: 28px 30px;
+            background: linear-gradient(135deg, var(--ink), #4A2B8C);
+            color: #fff;
+            border-radius: 14px;
+        }
+        .highlight-bar h3 {
+            margin: 0 0 12px;
+            color: var(--accent);
+            font-size: 24px;
+        }
+        .highlight-bar ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .highlight-bar li {
+            margin-bottom: 10px;
+            line-height: 1.8;
+            font-size: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+        th, td {
+            border: 1px solid #e8ddd5;
+            padding: 14px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+        th {
+            background: var(--ink);
+            color: #fff;
+        }
+        .footer {
+            padding: 22px 32px 28px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+            background: #f7f5f2;
+        }
+        @media (max-width: 820px) {
+            .page {
+                width: calc(100vw - 20px);
+                margin: 10px auto;
+                border-radius: 12px;
+            }
+            .hero, .content {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+            .hero h1 {
+                font-size: 34px;
+            }
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            h2 {
+                font-size: 24px;
+            }
+        }
+        @media print {
+            body {
+                background: #fff;
+            }
+            .page {
+                width: auto;
+                margin: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <h1>Ami Aura</h1>
+            <p>重新定义美业管理的智慧之光</p>
+        </section>
+
+        <section class="image-box">
+            <img src="C:/Users/huawie/Downloads/Gemini_Generated_Image_nu6c8gnu6c8gnu6c.png" alt="Ami Aura 产品展示图">
+        </section>
+
+        <section class="content">
+            <section class="section">
+                <h2>尊享设计：门店的“颜值担当”</h2>
+                <p>
+                    Ami Aura 的设计灵感源自现代高端沙龙，不仅是工具，更是前台的一件艺术品。
+                    采用 <strong>玫瑰金 (#C9956C)</strong> 金属机身与 <strong>深紫 (#2D1B69)</strong> 镜面面板，
+                    彰显尊贵质感。12.9 英寸直置屏结合圆角卡片化界面设计，整体视觉体验现代、轻盈、统一。
+                    机身集成扫码窗、打印模组与交互屏幕，适合收银台、接待台和顾问位等核心场景。
+                </p>
+            </section>
+
+            <section class="section">
+                <h2>核心能力：全流程对话式交互</h2>
+                <p>告别复杂菜单和多层页面跳转，通过自然语言即可完成日常业务处理、信息检索和经营查看。</p>
+                <div class="feature-grid">
+                    <article class="feature-item">
+                        <h3>智能语义理解</h3>
+                        <p>AI 自动识别语音和文字指令，例如“核销次卡”“查看今日预约”“打开会员档案”。</p>
+                    </article>
+                    <article class="feature-item">
+                        <h3>多维度输入</h3>
+                        <p>支持文本、语音、扫码及图片辅助输入，降低前台和顾问的录入成本。</p>
+                    </article>
+                    <article class="feature-item">
+                        <h3>结构化反馈</h3>
+                        <p>用卡片、列表、图表和确认面板输出结果，关键数据与下一步动作清晰可见。</p>
+                    </article>
+                    <article class="feature-item">
+                        <h3>多角色支持</h3>
+                        <p>围绕前台、店长、美容师等不同岗位，提供深度定制的业务入口和操作场景。</p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="highlight-bar">
+                <h3>技术优势：稳定与性能兼备</h3>
+                <ul>
+                    <li><strong>端云协同架构</strong>：本地负责即时交互，云端负责复杂理解与分析，兼顾流畅体验和扩展能力。</li>
+                    <li><strong>Kiosk 专机模式</strong>：聚焦业务场景，减少误操作，保护经营数据和门店流程稳定性。</li>
+                    <li><strong>离线保障</strong>：基础核销与查询可在弱网环境下继续使用，网络恢复后自动同步。</li>
+                    <li><strong>移动端联动</strong>：支持管理者通过移动端随时查看门店核心经营状态。</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>角色赋能矩阵</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>角色</th>
+                            <th>核心赋能场景</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>前台 / 收银员</strong></td>
+                            <td>快速核销次卡、预约管理、开单收银、会员办理。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>店长 / 管理者</strong></td>
+                            <td>实时经营报表、营业额统计、客户趋势分析、员工业绩排名。</td>
+                        </tr>
+                        <tr>
+                            <td><strong>美容师 / 技师</strong></td>
+                            <td>排班查询、客户档案调取、项目 BOM 查看、到店确认。</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </section>
+
+        <footer class="footer">
+            基于端云协同 AI 技术架构 | 为美容、美发、医美机构量身定制<br>
+            © 2026 Ami Aura 研发团队
+        </footer>
+    </main>
+</body>
+</html>

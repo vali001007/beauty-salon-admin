@@ -1,0 +1,59 @@
+{
+  "title": "Order Management",
+  "breadcrumb": "Home / Orders / Product Orders",
+  "fields": {
+    "orderNo": "Order No.",
+    "customerName": "Customer",
+    "customerPhone": "Phone",
+    "storeName": "Store",
+    "totalAmount": "Total",
+    "paymentMethod": "Payment",
+    "status": "Status",
+    "createdAt": "Order Date",
+    "items": "Items",
+    "quantity": "Qty",
+    "unitPrice": "Unit Price",
+    "subtotal": "Subtotal"
+  },
+  "status": {
+    "all": "All",
+    "pendingPayment": "Pending Payment",
+    "paid": "Paid",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "refunded": "Refunded"
+  },
+  "paymentMethods": {
+    "wechat": "WeChat Pay",
+    "alipay": "Alipay",
+    "cash": "Cash",
+    "card": "Bank Card",
+    "memberCard": "Member Card"
+  },
+  "placeholders": {
+    "searchOrder": "Search by order no. or customer name",
+    "allStores": "All Stores"
+  },
+  "actions": {
+    "viewDetail": "View Details",
+    "exportOrders": "Export Orders"
+  },
+  "cardOrder": {
+    "title": "Card Activations",
+    "cardName": "Card Name",
+    "customerName": "Customer",
+    "openDate": "Activation Date",
+    "expireDate": "Expiry Date",
+    "totalTimes": "Total Sessions",
+    "status": "Status"
+  },
+  "cardUsage": {
+    "title": "Card Redemptions",
+    "cardName": "Card Name",
+    "customerName": "Customer",
+    "usageDate": "Redemption Date",
+    "operator": "Operator",
+    "project": "Service",
+    "remark": "Remarks"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "title": "Product Management",
+  "breadcrumb": "Home / Inventory / Products",
+  "fields": {
+    "name": "Product Name",
+    "sku": "SKU",
+    "brand": "Brand",
+    "spec": "Specification",
+    "unit": "Unit",
+    "costPrice": "Cost Price",
+    "retailPrice": "Retail Price",
+    "shelfLife": "Shelf Life",
+    "shelfLifeDays": "Shelf Life (days)",
+    "supplier": "Supplier",
+    "status": "Status",
+    "category": "Category",
+    "minPurchaseQty": "Min. Order Qty",
+    "productImage": "Product Image"
+  },
+  "units": {
+    "bottle": "Bottle",
+    "box": "Box",
+    "piece": "Piece",
+    "item": "Item",
+    "set": "Set"
+  },
+  "categories": {
+    "skincare": "Skincare",
+    "cleanser": "Cleanser",
+    "essence": "Serum",
+    "cream": "Cream",
+    "mask": "Mask",
+    "sunscreen": "Sunscreen",
+    "haircare": "Haircare",
+    "shampoo": "Shampoo",
+    "conditioner": "Conditioner",
+    "styling": "Styling",
+    "nailcare": "Nail Care",
+    "polish": "Nail Polish",
+    "gel": "Gel Polish",
+    "nailTools": "Nail Tools",
+    "equipment": "Equipment & Supplies",
+    "consumables": "Disposable Supplies",
+    "parts": "Equipment Parts",
+    "daily": "Daily Consumables",
+    "towel": "Towels",
+    "disposable": "Disposable Items"
+  },
+  "actions": {
+    "addProduct": "Add Product",
+    "editProduct": "Edit Product",
+    "batchImport": "Batch Import Products",
+    "manageCategory": "Manage Categories",
+    "confirmAdd": "Confirm"
+  },
+  "placeholders": {
+    "searchProduct": "Search by name, SKU, or brand",
+    "inputName": "Enter product name",
+    "inputBrand": "Enter brand",
+    "inputSpec": "e.g., 30ml, 10pcs/box",
+    "inputPrice": "0.00",
+    "inputShelfLife": "e.g., 1080",
+    "inputMinPurchaseQty": "e.g., 10",
+    "searchSupplier": "Search supplier",
+    "selectCategory": "Select category"
+  },
+  "messages": {
+    "createSuccess": "Product created successfully",
+    "createFailed": "Failed to create product"
+  },
+  "categoryTree": "Categories",
+  "goodsType": {
+    "title": "Product Categories",
+    "name": "Category Name",
+    "description": "Description"
+  },
+  "goods": {
+    "title": "Product Management",
+    "name": "Product Name",
+    "price": "Price",
+    "stock": "Stock"
+  },
+  "card": {
+    "title": "Package Cards",
+    "cardName": "Card Name",
+    "totalTimes": "Total Sessions",
+    "usedTimes": "Used",
+    "remainingTimes": "Remaining",
+    "validPeriod": "Valid Period",
+    "price": "Price"
+  }
+}

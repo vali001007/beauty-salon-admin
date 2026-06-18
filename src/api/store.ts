@@ -1,17 +1,30 @@
 import type { Store } from '@/types';
-import { mockGetStores, mockGetAccessibleStores, mockCreateStore, mockUpdateStore } from './mock/store';
-import { realGetStores, realGetAccessibleStores, realCreateStore, realUpdateStore } from './real/store';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
+import {
+  realGetStores,
+  realGetAccessibleStores,
+  realCreateStore,
+  realUpdateStore,
+  realDeleteStore,
+  realGetStoresPaginated,
+  type StoreMutationPayload,
+} from './real/store';
 
 export const getStores: () => Promise<Store[]> =
-  isReal ? realGetStores : mockGetStores;
+  realGetStores;
 
 export const getAccessibleStores: () => Promise<Store[]> =
-  isReal ? realGetAccessibleStores : mockGetAccessibleStores;
+  realGetAccessibleStores;
 
-export const createStore: (data: Omit<Store, 'id'>) => Promise<Store> =
-  isReal ? realCreateStore : mockCreateStore;
+export const createStore: (data: StoreMutationPayload) => Promise<Store> =
+  realCreateStore;
 
-export const updateStore: (id: number, data: Partial<Store>) => Promise<Store> =
-  isReal ? realUpdateStore : mockUpdateStore;
+export const updateStore: (id: number, data: Partial<StoreMutationPayload>) => Promise<Store> =
+  realUpdateStore;
+
+export const deleteStore: (id: number) => Promise<void> =
+  realDeleteStore;
+
+import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+
+export const getStoresPaginated: (params: PaginationParams) => Promise<PaginatedResponse<Store>> =
+  realGetStoresPaginated;

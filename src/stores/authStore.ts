@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AuthUser, LoginRequest } from '../types';
 import { login as authLogin, getUserInfo } from '../api/auth';
+import { normalizePermissions } from '@/config/permissions';
 
 interface AuthState {
   token: string | null;
@@ -12,6 +13,17 @@ interface AuthState {
   setAuth: (token: string, user: AuthUser) => void;
 }
 
+function normalizeAuthUser(user: AuthUser): AuthUser {
+  const rawUser = user as AuthUser & { stores?: number[]; primaryRole?: string };
+  return {
+    ...user,
+    roles: user.roles ?? (rawUser.primaryRole ? [rawUser.primaryRole] : []),
+    permissions: normalizePermissions(user.permissions),
+    deniedPermissions: normalizePermissions(user.deniedPermissions ?? []),
+    storeIds: user.storeIds ?? rawUser.stores ?? [],
+  };
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem('token'),
   user: null,
@@ -19,10 +31,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (req: LoginRequest) => {
     const response = await authLogin(req);
+    const user = normalizeAuthUser(response.user);
     localStorage.setItem('token', response.token);
     set({
       token: response.token,
-      user: response.user,
+      user,
       isAuthenticated: true,
     });
   },
@@ -41,11 +54,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!token) return;
 
     const user = await getUserInfo();
-    set({ user });
+    set({
+      user: normalizeAuthUser(user),
+    });
   },
 
   setAuth: (token: string, user: AuthUser) => {
     localStorage.setItem('token', token);
-    set({ token, user, isAuthenticated: true });
+    set({
+      token,
+      user: normalizeAuthUser(user),
+      isAuthenticated: true,
+    });
   },
 }));

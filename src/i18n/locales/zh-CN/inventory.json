@@ -1,0 +1,92 @@
+{
+  "title": "库存管理",
+  "products": {
+    "title": "产品管理",
+    "productName": "产品名称",
+    "sku": "SKU",
+    "category": "分类",
+    "currentStock": "当前库存",
+    "safetyStock": "安全库存",
+    "unit": "单位"
+  },
+  "stock": {
+    "title": "库存管理",
+    "productName": "产品名称",
+    "storeName": "门店",
+    "currentQty": "当前数量",
+    "safetyQty": "安全库存",
+    "status": "状态",
+    "lastUpdated": "最后更新",
+    "statuses": {
+      "normal": "正常",
+      "low": "低库存",
+      "outOfStock": "缺货",
+      "overstock": "积压"
+    }
+  },
+  "purchase": {
+    "title": "采购管理",
+    "purchaseNo": "采购单号",
+    "supplier": "供应商",
+    "totalAmount": "总金额",
+    "status": "状态",
+    "createdAt": "创建时间",
+    "expectedDate": "预计到货",
+    "addPurchase": "新增采购",
+    "statuses": {
+      "draft": "草稿",
+      "pending": "待审批",
+      "approved": "已审批",
+      "ordered": "已下单",
+      "received": "已收货",
+      "cancelled": "已取消"
+    }
+  },
+  "expiry": {
+    "title": "过期管理",
+    "productName": "产品名称",
+    "batchNo": "批次号",
+    "expiryDate": "过期日期",
+    "remainingDays": "剩余天数",
+    "quantity": "数量",
+    "status": "状态",
+    "statuses": {
+      "normal": "正常",
+      "nearExpiry": "临期",
+      "expired": "已过期"
+    }
+  },
+  "transfer": {
+    "title": "门店库存与调拨",
+    "transferNo": "调拨单号",
+    "fromStore": "调出门店",
+    "toStore": "调入门店",
+    "productName": "产品名称",
+    "quantity": "数量",
+    "status": "状态",
+    "createdAt": "创建时间",
+    "addTransfer": "新增调拨",
+    "statuses": {
+      "pending": "待审批",
+      "approved": "已审批",
+      "inTransit": "运输中",
+      "completed": "已完成",
+      "rejected": "已拒绝"
+    }
+  },
+  "consumption": {
+    "title": "服务消耗与 BOM",
+    "projectName": "项目名称",
+    "productName": "产品名称",
+    "consumeQty": "消耗数量",
+    "unit": "单位",
+    "bomTitle": "BOM 配置",
+    "addBom": "添加 BOM"
+  },
+  "alerts": {
+    "lowStock": "低库存",
+    "nearExpiry": "临期",
+    "lowStockWarning": "低库存预警",
+    "expiryWarning": "临期预警"
+  }
+}

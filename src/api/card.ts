@@ -1,25 +1,37 @@
 import type { Card } from '@/types/card';
 import type { CardFormData } from '@/schemas/card';
-import { mockGetCards, mockCreateCard, mockUpdateCard } from './mock/card';
-import { realGetCards, realCreateCard, realUpdateCard } from './real/card';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
+import { realGetCards, realCreateCard, realUpdateCard, realDeleteCard, realCreateCardOrder, realCreateCardUsage } from './real/card';
 
 export const getCards: () => Promise<Card[]> =
-  isReal ? realGetCards : mockGetCards;
+  realGetCards;
 
 export const createCard: (data: CardFormData) => Promise<Card> =
-  isReal ? realCreateCard : mockCreateCard;
+  realCreateCard;
 
 export const updateCard: (id: number, data: Partial<CardFormData>) => Promise<Card> =
-  isReal ? realUpdateCard : mockUpdateCard;
+  realUpdateCard;
+
+export const deleteCard: (id: number) => Promise<void> =
+  realDeleteCard;
+
+export const createCardOrder: (data: { cardId: number; userId: number; actualPrice: number }) => Promise<any> =
+  realCreateCardOrder;
+
+export const createCardUsage: (data: {
+  cardOrderId?: string | number;
+  customerCardId?: string | number;
+  customerId?: number;
+  cardName?: string;
+  projectName: string;
+  consumedTimes: number;
+}) => Promise<any> = realCreateCardUsage;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
-import { mockGetCardOrdersPaginated, mockGetCardUsageRecordsPaginated } from './mock/card';
 import { realGetCardOrdersPaginated, realGetCardUsageRecordsPaginated } from './real/card';
 
 export const getCardOrdersPaginated: (params: PaginationParams & { userName?: string; cardName?: string }) => Promise<PaginatedResponse<any>> =
-  isReal ? realGetCardOrdersPaginated : mockGetCardOrdersPaginated;
+  realGetCardOrdersPaginated;
 
-export const getCardUsageRecordsPaginated: (params: PaginationParams & { cardName?: string; userName?: string }) => Promise<PaginatedResponse<any>> =
-  isReal ? realGetCardUsageRecordsPaginated : mockGetCardUsageRecordsPaginated;
+export const getCardUsageRecordsPaginated: (
+  params: PaginationParams & { cardName?: string; userName?: string; projectName?: string },
+) => Promise<PaginatedResponse<any>> = realGetCardUsageRecordsPaginated;

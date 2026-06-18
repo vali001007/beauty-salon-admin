@@ -9,6 +9,7 @@ import {
 } from './ui/select';
 import { useStoreStore } from '../../stores/storeStore';
 import { useAuthStore } from '../../stores/authStore';
+import { hasPermission } from '@/config/permissions';
 
 const ALL_STORES_VALUE = '__all__';
 
@@ -16,7 +17,7 @@ export function StoreSwitcher() {
   const { stores, currentStoreId, setCurrentStore, loadStores } = useStoreStore();
   const user = useAuthStore((state) => state.user);
 
-  const isSuperAdmin = user?.permissions?.includes('*') ?? false;
+  const isSuperAdmin = hasPermission(user?.permissions ?? [], '*');
 
   useEffect(() => {
     loadStores();
@@ -42,8 +43,8 @@ export function StoreSwitcher() {
 
   return (
     <Select value={selectValue} onValueChange={handleValueChange}>
-      <SelectTrigger size="sm" className="w-[160px] gap-1.5">
-        <Building2 className="size-4 text-gray-500 shrink-0" />
+      <SelectTrigger size="sm" className="w-[160px] gap-1.5 border-border bg-card shadow-sm">
+        <Building2 className="size-4 text-muted-foreground shrink-0" />
         <SelectValue placeholder="选择门店" />
       </SelectTrigger>
       <SelectContent>

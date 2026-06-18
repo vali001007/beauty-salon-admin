@@ -1,0 +1,22 @@
+<view class="page booking-page">
+  <view class="search-box">
+    <input value="{{keyword}}" bindinput="onKeywordInput" confirm-type="search" bindconfirm="search" placeholder="搜索项目名称" />
+    <button bindtap="search">⌕</button>
+  </view>
+  <view class="filter-row">
+    <button class="pill {{recommended ? 'active' : ''}}" data-value="true" bindtap="setRecommended">推荐</button>
+    <button class="pill {{!recommended ? 'active' : ''}}" data-value="false" bindtap="setRecommended">全部</button>
+    <button class="filter-button" bindtap="openFilter">☷</button>
+  </view>
+  <view class="project-list">
+    <project-card wx:for="{{projects}}" wx:key="id" project="{{item}}" layout="large" />
+  </view>
+  <view wx:if="{{!loading && !projects.length}}" class="empty card">暂无符合条件的项目</view>
+</view>
+
+<view class="tabbar">
+  <view class="tab" bindtap="goHome">⌂<text>首页</text></view>
+  <view class="tab active">▣<text>预约</text></view>
+  <view class="tab" bindtap="goTools">▣<text>工具</text></view>
+  <view class="tab" bindtap="goMine">♙<text>我的</text></view>
+</view>

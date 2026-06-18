@@ -1,0 +1,9 @@
+<view class="page">
+  <view wx:for="{{records}}" wx:key="id" class="record card">
+    <view class="name">{{item.consumeContent}}</view>
+    <view class="amount">¥{{item.amount}}</view>
+    <view class="line">{{item.consumeType}} · {{item.payMethod || '未记录支付方式'}}</view>
+    <view class="line">{{item.consumeTime}}</view>
+  </view>
+  <view wx:if="{{!records.length}}" class="empty card">暂无消费记录</view>
+</view>

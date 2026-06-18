@@ -1,14 +1,15 @@
-import React from 'react';
 import { RouterProvider } from 'react-router';
 import { Toaster } from 'sonner';
 import { router } from './routes';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { NetworkStatus } from './components/NetworkStatus';
 
-// Force Vite to reload this module
 export default function App() {
   return (
-    <>
+    <ErrorBoundary>
       <RouterProvider router={router} />
       <Toaster position="top-right" richColors />
-    </>
+      <NetworkStatus />
+    </ErrorBoundary>
   );
 }

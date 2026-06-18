@@ -1,0 +1,14 @@
+<view class="page report-page">
+  <view class="score-card card">
+    <view class="score">{{report.overallScore || '--'}}</view>
+    <view class="skin-type">{{report.skinType}}</view>
+    <view class="status">{{report.skinStatus || report.mainProblems}}</view>
+    <view wx:if="{{report.isFallback}}" class="fallback">仅供参考，到店后建议专业仪器复核</view>
+  </view>
+  <view class="advice-card card">
+    <view class="title">AI护理建议</view>
+    <view class="text">{{report.advice || report.recommendationText || report.explanation}}</view>
+  </view>
+  <view class="section-title">推荐项目</view>
+  <project-card wx:for="{{recommendations}}" wx:key="id" project="{{item.project}}" layout="compact" />
+</view>

@@ -24,3 +24,4 @@ export const marketingActivitySchema = z.object({
 });
 
 export type MarketingActivityFormData = z.infer<typeof marketingActivitySchema>;
+export type MarketingActivityFormInput = z.input<typeof marketingActivitySchema>;

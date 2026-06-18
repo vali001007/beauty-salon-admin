@@ -1,0 +1,12 @@
+{
+  "name": "ami-glow-miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ami Glow customer service WeChat mini program",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

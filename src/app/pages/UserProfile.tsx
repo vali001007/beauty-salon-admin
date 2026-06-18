@@ -1,21 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Sparkles, Droplets, Flame, AlertCircle, Layers, Heart } from 'lucide-react';
-import rawCustomers from '@/api/mock/data/customers.json';
-import rawHealthProfiles from '@/api/mock/data/health-profiles.json';
-import rawConsumptionRecords from '@/api/mock/data/consumption-records.json';
-import type { Customer } from '@/types';
+import { Sparkles, Droplets, Flame, AlertCircle, Layers, Heart, Smartphone, MousePointer, CalendarCheck, TrendingUp } from 'lucide-react';
 import {
-  computeSegmentStats, computeSkinStats, computeBehaviorProfiles,
+  getCustomerMiniappBehaviorAnalysis,
+  getCustomerProfileAnalyticsOverview,
+  getCustomerProfileBehaviorAnalytics,
+  getCustomerProfilePredictionAnalytics,
+  getCustomerProfileSegmentAnalytics,
+  getCustomerProfileSkinAnalytics,
+} from '@/api/customer';
+import { useStoreStore } from '@/stores/storeStore';
+import type { CustomerMiniappBehaviorAnalysis, CustomerProfileAnalytics } from '@/types';
+import {
   AI_RECOMMENDATIONS, SKIN_AI_RECOMMENDATIONS, SKIN_SERVICES,
-  type SegmentType, type SkinCategory, type SegmentStats, type SkinStats, type BehaviorProfile,
 } from '@/utils/customerSegmentation';
 
-const customers: Customer[] = (rawCustomers as any[]).map((c) => ({ ...c, tags: c.tags || [] }));
-const healthProfiles = rawHealthProfiles as any[];
-const consumptionRecords = rawConsumptionRecords as any[];
-
-const SEGMENT_INDICATORS: Record<SegmentType, string> = {
+const SEGMENT_INDICATORS: Record<string, string> = {
   '高价值客户': 'bg-green-500', '潜在价值客户': 'bg-blue-500', '稳定客户': 'bg-purple-500',
   '流失风险客户': 'bg-red-500', '新客户': 'bg-yellow-500',
 };
@@ -40,26 +40,185 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export function UserProfile() {
-  const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior'>('segment');
+  const [activeTab, setActiveTab] = useState<'segment' | 'skin' | 'behavior' | 'miniapp' | 'prediction'>('segment');
   const navigate = useNavigate();
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const [analytics, setAnalytics] = useState<CustomerProfileAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+  const [loadedSections, setLoadedSections] = useState<Record<string, boolean>>({});
+  const [sectionLoading, setSectionLoading] = useState('');
+  const [sectionError, setSectionError] = useState('');
+  const [miniappAnalysis, setMiniappAnalysis] = useState<CustomerMiniappBehaviorAnalysis | null>(null);
+  const [miniappLoading, setMiniappLoading] = useState(false);
+  const [miniappError, setMiniappError] = useState('');
 
-  const segmentStats = useMemo(() => computeSegmentStats(customers), []);
-  const skinStats = useMemo(() => computeSkinStats(customers, healthProfiles), []);
-  const behaviorProfiles = useMemo(() => computeBehaviorProfiles(customers, consumptionRecords, healthProfiles), []);
+  const segmentStats = analytics?.segmentStats ?? [];
+  const skinStats = analytics?.skinStats ?? [];
+  const behaviorProfiles = analytics?.behaviorProfiles ?? [];
+  const predictionRows = analytics?.predictionRows ?? [];
+  const totalCustomers = analytics?.totalCustomers ?? 0;
   const [behaviorPage, setBehaviorPage] = useState(1);
-  const [behaviorPageSize, setBehaviorPageSize] = useState(50);
+  const [behaviorPageSize, setBehaviorPageSize] = useState(10);
+  const [behaviorTotal, setBehaviorTotal] = useState(0);
   const [behaviorSegmentFilter, setBehaviorSegmentFilter] = useState('');
   const [behaviorSkinFilter, setBehaviorSkinFilter] = useState('');
+  const [predictionPage, setPredictionPage] = useState(1);
+  const [predictionPageSize, setPredictionPageSize] = useState(10);
+  const [predictionTotal, setPredictionTotal] = useState(0);
+  const behaviorData = behaviorProfiles;
 
-  const filteredBehaviorProfiles = useMemo(() => {
-    let list = behaviorProfiles;
-    if (behaviorSegmentFilter) list = list.filter((b) => b.segment === behaviorSegmentFilter);
-    if (behaviorSkinFilter) list = list.filter((b) => b.skinType === behaviorSkinFilter);
-    return list;
-  }, [behaviorProfiles, behaviorSegmentFilter, behaviorSkinFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadAnalytics = async () => {
+      setAnalyticsLoading(true);
+      setAnalyticsError('');
+      try {
+        const result = await getCustomerProfileAnalyticsOverview();
+        if (!cancelled) {
+          setAnalytics({
+            ...result,
+            segmentStats: [],
+            skinStats: [],
+            behaviorProfiles: [],
+            predictionRows: [],
+          });
+        }
+      } catch {
+        if (!cancelled) setAnalyticsError('\u5ba2\u6237\u753b\u50cf\u6982\u89c8\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u786e\u8ba4\u540e\u7aef\u670d\u52a1\u3001\u767b\u5f55\u72b6\u6001\u548c\u5ba2\u6237\u753b\u50cf\u6743\u9650\u6b63\u5e38\u3002');
+      } finally {
+        if (!cancelled) setAnalyticsLoading(false);
+      }
+    };
 
-  const behaviorTotal = filteredBehaviorProfiles.length;
-  const behaviorData = filteredBehaviorProfiles.slice((behaviorPage - 1) * behaviorPageSize, behaviorPage * behaviorPageSize);
+    setAnalytics(null);
+    setLoadedSections({});
+    setSectionError('');
+    setSectionLoading('');
+    setBehaviorPage(1);
+    setBehaviorTotal(0);
+    setPredictionPage(1);
+    setPredictionTotal(0);
+    void loadAnalytics();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStoreId]);
+
+  useEffect(() => {
+    setLoadedSections({});
+    setSectionError('');
+    setMiniappAnalysis(null);
+    setMiniappError('');
+  }, [currentStoreId]);
+
+  useEffect(() => {
+    if (analyticsLoading) return;
+    let cancelled = false;
+
+    const mergeAnalytics = (partial: Partial<CustomerProfileAnalytics>) => {
+      setAnalytics((previous) => ({
+        generatedAt: partial.generatedAt ?? previous?.generatedAt ?? '',
+        storeId: partial.storeId ?? previous?.storeId,
+        totalCustomers: partial.totalCustomers ?? previous?.totalCustomers ?? 0,
+        segmentStats: partial.segmentStats ?? previous?.segmentStats ?? [],
+        skinStats: partial.skinStats ?? previous?.skinStats ?? [],
+        behaviorProfiles: partial.behaviorProfiles ?? previous?.behaviorProfiles ?? [],
+        predictionRows: partial.predictionRows ?? previous?.predictionRows ?? [],
+      }));
+    };
+
+    const loadSection = async () => {
+      setSectionError('');
+      try {
+        if (activeTab === 'segment') {
+          if (loadedSections.segment) return;
+          setSectionLoading('segment');
+          const result = await getCustomerProfileSegmentAnalytics();
+          if (!cancelled) {
+            mergeAnalytics(result);
+            setLoadedSections((prev) => ({ ...prev, segment: true }));
+          }
+        } else if (activeTab === 'skin') {
+          if (loadedSections.skin) return;
+          setSectionLoading('skin');
+          const result = await getCustomerProfileSkinAnalytics();
+          if (!cancelled) {
+            mergeAnalytics(result);
+            setLoadedSections((prev) => ({ ...prev, skin: true }));
+          }
+        } else if (activeTab === 'behavior') {
+          setSectionLoading('behavior');
+          const result = await getCustomerProfileBehaviorAnalytics({
+            page: behaviorPage,
+            pageSize: behaviorPageSize,
+            segment: behaviorSegmentFilter || undefined,
+            skinType: behaviorSkinFilter || undefined,
+          });
+          if (!cancelled) {
+            mergeAnalytics({
+              generatedAt: result.generatedAt,
+              storeId: result.storeId,
+              totalCustomers: result.totalCustomers,
+              behaviorProfiles: result.items ?? result.data ?? [],
+            });
+            setBehaviorTotal(result.total);
+          }
+        } else if (activeTab === 'prediction') {
+          setSectionLoading('prediction');
+          const result = await getCustomerProfilePredictionAnalytics({
+            page: predictionPage,
+            pageSize: predictionPageSize,
+          });
+          if (!cancelled) {
+            mergeAnalytics({
+              generatedAt: result.generatedAt,
+              storeId: result.storeId,
+              totalCustomers: result.totalCustomers,
+              predictionRows: result.items ?? result.data ?? [],
+            });
+            setPredictionTotal(result.total);
+          }
+        }
+      } catch {
+        if (!cancelled) setSectionError('当前页签数据加载失败，请稍后重试。');
+      } finally {
+        if (!cancelled) setSectionLoading('');
+      }
+    };
+
+    void loadSection();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    analyticsLoading,
+    loadedSections.segment,
+    loadedSections.skin,
+    behaviorPage,
+    behaviorPageSize,
+    behaviorSegmentFilter,
+    behaviorSkinFilter,
+    predictionPage,
+    predictionPageSize,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== 'miniapp' || miniappAnalysis || miniappLoading) return;
+    const loadMiniappAnalysis = async () => {
+      setMiniappLoading(true);
+      setMiniappError('');
+      try {
+        setMiniappAnalysis(await getCustomerMiniappBehaviorAnalysis());
+      } catch {
+        setMiniappError('小程序行为分析加载失败，请确认后端服务和客户画像权限正常。');
+      } finally {
+        setMiniappLoading(false);
+      }
+    };
+    void loadMiniappAnalysis();
+  }, [activeTab, miniappAnalysis, miniappLoading]);
 
   const handleViewSegmentDetail = (segment: string) => {
     setBehaviorSegmentFilter(segment);
@@ -99,30 +258,57 @@ export function UserProfile() {
       trigger: template.trigger,
       actions: JSON.stringify(template.actions),
     });
-    navigate(`/customer-marketing/strategy-templates?${params.toString()}`);
+    navigate(`/customer-marketing/automation?${params.toString()}`);
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-800 mb-2">用户画像</h1>
-        <p className="text-sm text-gray-500">基于 {customers.length} 位客户数据自动分析，实时计算客户画像</p>
+        <p className="text-sm text-gray-500">
+          基于 {totalCustomers} 位真实客户数据自动分析，数据来自当前门店的 Core 业务记录
+          {analytics?.generatedAt ? `，生成时间：${analytics.generatedAt}` : ''}
+        </p>
       </div>
 
+      {analyticsLoading && (
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          正在加载客户画像分析...
+        </div>
+      )}
+
+      {analyticsError && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">
+          {analyticsError}
+        </div>
+      )}
+
       <div className="flex gap-4 bg-gray-100 p-1 rounded-lg">
-        {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像']] as const).map(([key, label]) => (
+        {([['segment', '客户细分'], ['skin', '肌质画像'], ['behavior', '消费画像'], ['miniapp', '小程序行为'], ['prediction', '预测视角']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex-1 py-3 px-6 rounded-lg transition-all ${activeTab === key ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-600 hover:text-gray-800'}`}>
-            {label}
+            {key === 'miniapp' ? '小程序行为分析' : label}
           </button>
         ))}
       </div>
+
+      {sectionLoading === activeTab && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-center text-sm text-blue-700">
+          正在加载当前页签数据...
+        </div>
+      )}
+
+      {sectionError && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">
+          {sectionError}
+        </div>
+      )}
 
       {/* 客户细分 */}
       {activeTab === 'segment' && (
         <div className="grid grid-cols-2 gap-6">
           {segmentStats.map((seg) => {
-            const rec = AI_RECOMMENDATIONS[seg.segment];
+            const rec = AI_RECOMMENDATIONS[seg.segment as keyof typeof AI_RECOMMENDATIONS] ?? AI_RECOMMENDATIONS['稳定客户'];
             return (
               <div key={seg.segment} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between mb-6">
@@ -325,6 +511,288 @@ export function UserProfile() {
           </div>
         </div>
       )}
+
+      {activeTab === 'miniapp' && (
+        <div className="space-y-6">
+          {miniappLoading && (
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+              正在加载小程序行为分析...
+            </div>
+          )}
+          {miniappError && (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">
+              {miniappError}
+            </div>
+          )}
+          {miniappAnalysis && (
+            <>
+              <div className="grid grid-cols-4 gap-4">
+                <MiniappMetricCard
+                  title="可触达客户"
+                  value={`${miniappAnalysis.summary.boundCustomers} / ${miniappAnalysis.summary.totalCustomers}`}
+                  hint="手机号或微信可用于小程序会员绑定"
+                  icon={<Smartphone className="h-5 w-5 text-blue-600" />}
+                />
+                <MiniappMetricCard
+                  title="30天活跃客户"
+                  value={miniappAnalysis.summary.activeCustomers30d}
+                  hint={`7天活跃 ${miniappAnalysis.summary.activeCustomers7d} 位`}
+                  icon={<MousePointer className="h-5 w-5 text-green-600" />}
+                />
+                <MiniappMetricCard
+                  title="预约意向行为"
+                  value={miniappAnalysis.summary.reservationIntentCount}
+                  hint="预约提交、到店确认等行为合计"
+                  icon={<CalendarCheck className="h-5 w-5 text-purple-600" />}
+                />
+                <MiniappMetricCard
+                  title="平均互动评分"
+                  value={miniappAnalysis.summary.avgEngagementScore}
+                  hint={`数据源：${miniappAnalysis.summary.dataSource === 'miniapp_events' ? '小程序埋点' : 'Core真实记录推导'}`}
+                  icon={<TrendingUp className="h-5 w-5 text-orange-600" />}
+                />
+              </div>
+
+              <div className="grid grid-cols-[1.05fr_0.95fr] gap-6">
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium text-gray-800">小程序转化漏斗</h3>
+                    <p className="mt-1 text-sm text-gray-500">先按 Core 真实业务记录推导，未来接入小程序埋点后可直接替换数据源。</p>
+                  </div>
+                  <div className="space-y-3">
+                    {miniappAnalysis.funnel.map((item) => (
+                      <div key={item.stage}>
+                        <div className="mb-1 flex items-center justify-between text-sm">
+                          <span className="font-medium text-gray-700">{item.stage}</span>
+                          <span className="text-gray-500">{item.count} 位 / {item.rate}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                          <div className="h-full rounded-full bg-blue-600" style={{ width: item.rate }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium text-gray-800">入口模块表现</h3>
+                    <p className="mt-1 text-sm text-gray-500">用于指导小程序首页、活动页、预约页和会员权益页的埋点设计。</p>
+                  </div>
+                  <div className="space-y-3">
+                    {miniappAnalysis.entryModules.map((module) => (
+                      <div key={module.name} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-800">{module.name}</span>
+                          <span className="text-sm text-gray-500">{module.eventCount} 次行为</span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">覆盖 {module.customerCount} 位客户</div>
+                        <div className="mt-2 text-xs text-gray-600">{module.conversionHint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-4">
+                {miniappAnalysis.segments.map((segment) => (
+                  <div key={segment.label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-medium text-gray-800">{segment.label}</div>
+                    <div className="mt-3 text-3xl font-semibold text-gray-900">{segment.customerCount}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                      <div>活跃率 <span className="font-medium text-gray-700">{segment.activeRate}</span></div>
+                      <div>转化率 <span className="font-medium text-gray-700">{segment.conversionRate}</span></div>
+                      <div className="col-span-2">均分 <span className="font-medium text-gray-700">{segment.avgScore}</span></div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-gray-600">{segment.suggestion}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-gray-200 p-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-800">客户小程序行为明细</h3>
+                    <p className="mt-1 text-sm text-gray-500">展示互动评分最高的客户，帮助门店判断谁更适合推送预约、权益或顾问跟进。</p>
+                  </div>
+                  <span className="text-sm text-gray-500">生成时间：{miniappAnalysis.summary.generatedAt}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">客户</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">状态</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">互动评分</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">预约/订单</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">营销触达</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">最近活跃</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-gray-600">建议动作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {miniappAnalysis.customers.map((customer) => (
+                        <tr key={customer.customerId} className="border-b border-gray-100 hover:bg-blue-50/30">
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-800">{customer.name}</div>
+                            <div className="text-xs text-gray-400">{customer.phone || '未留手机号'} · {customer.storeName}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`rounded px-2 py-1 text-sm ${customer.miniappStatus === '高活跃' ? 'bg-green-50 text-green-700' : customer.miniappStatus === '有意向' ? 'bg-blue-50 text-blue-700' : customer.miniappStatus === '待绑定' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {customer.miniappStatus}
+                            </span>
+                            <div className="mt-1 text-xs text-gray-400">意向 {customer.intentLevel}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-800">{customer.engagementScore}</div>
+                            <div className="mt-1 h-2 w-24 overflow-hidden rounded-full bg-gray-100">
+                              <div className="h-full rounded-full bg-gray-800" style={{ width: `${customer.engagementScore}%` }} />
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{customer.reservationCount} / {customer.orderCount}</td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{customer.marketingTouchCount} 次</td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{customer.lastActiveAt || '-'}</td>
+                          <td className="max-w-72 px-6 py-4 text-sm text-gray-600">
+                            <div>{customer.nextAction}</div>
+                            <button
+                              type="button"
+                              className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+                              onClick={() => navigate(`/customers/data?tab=miniapp&keyword=${encodeURIComponent(customer.phone || customer.name)}`)}
+                            >
+                              查看行为明细
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-6">
+                <h3 className="text-base font-medium text-blue-900">未来客户服务端小程序埋点契约</h3>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {miniappAnalysis.eventContract.map((field) => (
+                    <div key={field.field} className="rounded-lg border border-blue-100 bg-white p-3">
+                      <div className="flex items-center justify-between">
+                        <code className="text-sm font-medium text-blue-800">{field.field}</code>
+                        <span className={`rounded px-2 py-0.5 text-xs ${field.required ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {field.required ? '必填' : '可选'}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">{field.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'prediction' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div>
+              <h3 className="text-lg font-medium text-gray-800">客户预测视角</h3>
+              <p className="mt-1 text-sm text-gray-500">模型版本 rules-v1；展示流失风险、30天复购概率、营销响应分和 LTV 分层。</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">客户</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">流失风险</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">30天复购</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">营销响应</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">LTV层级</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                {predictionRows.map((row) => (
+                  <tr key={row.customer.id} className="border-b border-gray-100 hover:bg-blue-50/30">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-800">{row.customer.name}</div>
+                      <div className="text-xs text-gray-400">{row.customer.memberLevel}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`rounded px-2 py-1 text-sm ${row.churnLevel === '极高' || row.churnLevel === '高' ? 'bg-red-50 text-red-700' : row.churnLevel === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'}`}>
+                        {row.churnScore} / {row.churnLevel}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">{row.repurchase30dScore}分</td>
+                    <td className="px-6 py-4 text-gray-700">{row.marketingResponseScore}分</td>
+                    <td className="px-6 py-4">
+                      <span className="rounded bg-purple-50 px-2 py-1 text-sm text-purple-700">{row.ltvTier}</span>
+                      <div className="mt-1 text-xs text-gray-400">¥{row.ltv12m.toLocaleString()}</div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-600">{row.reasons.join('；')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+            <div className="text-sm text-gray-600">共 {predictionTotal} 条</div>
+            <div className="flex items-center gap-2">
+              <select
+                value={predictionPageSize}
+                onChange={(e) => {
+                  setPredictionPageSize(Number(e.target.value));
+                  setPredictionPage(1);
+                }}
+                className="h-8 px-2 text-sm border border-gray-300 rounded"
+              >
+                <option value={10}>10条/页</option>
+                <option value={20}>20条/页</option>
+                <option value={50}>50条/页</option>
+              </select>
+              <button
+                disabled={predictionPage <= 1}
+                onClick={() => setPredictionPage(predictionPage - 1)}
+                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+              >
+                上一页
+              </button>
+              <span className="text-sm text-gray-600">
+                {predictionPage} / {Math.ceil(predictionTotal / predictionPageSize) || 1}
+              </span>
+              <button
+                disabled={predictionPage >= Math.ceil(predictionTotal / predictionPageSize)}
+                onClick={() => setPredictionPage(predictionPage + 1)}
+                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MiniappMetricCard({
+  title,
+  value,
+  hint,
+  icon,
+}: {
+  title: string;
+  value: number | string;
+  hint: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-500">{title}</span>
+        {icon}
+      </div>
+      <div className="mt-3 text-2xl font-semibold text-gray-900">{value}</div>
+      <div className="mt-1 text-xs text-gray-500">{hint}</div>
     </div>
   );
 }

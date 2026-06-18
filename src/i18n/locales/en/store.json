@@ -1,0 +1,60 @@
+{
+  "title": "Store Management",
+  "projectTypes": {
+    "title": "Service Categories",
+    "typeName": "Category Name",
+    "description": "Description",
+    "projectCount": "Services",
+    "addType": "Add Category",
+    "editType": "Edit Category"
+  },
+  "projects": {
+    "title": "Service Management",
+    "projectName": "Service Name",
+    "type": "Category",
+    "duration": "Duration (min)",
+    "price": "Price",
+    "description": "Description",
+    "status": "Status",
+    "addProject": "Add Service",
+    "editProject": "Edit Service"
+  },
+  "beauticians": {
+    "title": "Staff Management",
+    "name": "Name",
+    "phone": "Phone",
+    "level": "Level",
+    "specialties": "Specialties",
+    "status": "Status",
+    "joinDate": "Join Date",
+    "addBeautician": "Add Staff",
+    "editBeautician": "Edit Staff"
+  },
+  "beauticianLevels": {
+    "title": "Staff Level Settings",
+    "levelName": "Level Name",
+    "commission": "Commission Rate",
+    "requirements": "Requirements",
+    "addLevel": "Add Level",
+    "editLevel": "Edit Level"
+  },
+  "reservations": {
+    "title": "Reservations",
+    "customerName": "Customer",
+    "project": "Service",
+    "beautician": "Staff",
+    "date": "Date",
+    "time": "Time",
+    "status": "Status",
+    "remark": "Remarks",
+    "addReservation": "New Reservation",
+    "statuses": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "noShow": "No Show"
+    }
+  }
+}

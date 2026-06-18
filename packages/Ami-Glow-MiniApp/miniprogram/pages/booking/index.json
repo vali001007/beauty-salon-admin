@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "美容",
+  "usingComponents": {
+    "project-card": "../../components/project-card/index"
+  }
+}

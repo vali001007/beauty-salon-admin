@@ -4,10 +4,18 @@ import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, Tabl
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { beauticianSchema, type BeauticianFormData } from '@/schemas/beautician';
+import { beauticianSchema, type BeauticianFormData, type BeauticianFormInput } from '@/schemas/beautician';
 import { getBeauticians, createBeautician, updateBeautician } from '@/api/beautician';
+import { getUsers } from '@/api/user';
 import { toast } from 'sonner';
-import type { Beautician } from '@/types';
+import type { Beautician, SystemUser } from '@/types';
+
+const USER_STORE_NAMES: Record<number, string> = {
+  1: '凤仪阁美容养生会所',
+  2: '心悦美容养生会所',
+  3: '兰亭美容SPA馆',
+  4: '心悦茗美容养生会所',
+};
 
 export function BeauticianManagement() {
   const [searchStoreId, setSearchStoreId] = useState('');
@@ -17,13 +25,14 @@ export function BeauticianManagement() {
   const [jumpToPage, setJumpToPage] = useState('');
 
   const [beauticians, setBeauticians] = useState<Beautician[]>([]);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [editingBeautician, setEditingBeautician] = useState<Beautician | null>(null);
 
   const totalRecords = beauticians.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<BeauticianFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<BeauticianFormInput, unknown, BeauticianFormData>({
     resolver: zodResolver(beauticianSchema),
     defaultValues: {
       status: '在职',
@@ -31,6 +40,8 @@ export function BeauticianManagement() {
       storeName: '心悦茗美容养生会所',
     },
   });
+
+  const beauticianUsers = systemUsers.filter((user) => user.roles.includes('beautician') || user.primaryRole === 'beautician');
 
   const loadBeauticians = useCallback(async () => {
     try {
@@ -44,6 +55,28 @@ export function BeauticianManagement() {
   useEffect(() => {
     loadBeauticians();
   }, [loadBeauticians]);
+
+  useEffect(() => {
+    getUsers()
+      .then(setSystemUsers)
+      .catch(() => toast.error('加载系统用户失败'));
+  }, []);
+
+  const handleSelectSystemUser = (userId: string) => {
+    if (!userId) {
+      setValue('userId', undefined);
+      setValue('name', '', { shouldValidate: true });
+      setValue('phone', '', { shouldValidate: true });
+      return;
+    }
+    const user = systemUsers.find((item) => item.id === Number(userId));
+    if (!user) return;
+    setValue('userId', user.id, { shouldValidate: true });
+    setValue('name', user.name, { shouldValidate: true });
+    setValue('phone', user.phone, { shouldValidate: true });
+    const storeName = USER_STORE_NAMES[user.storeIds[0]];
+    if (storeName) setValue('storeName', storeName, { shouldValidate: true });
+  };
 
   const onSubmit = async (data: BeauticianFormData) => {
     try {
@@ -63,13 +96,14 @@ export function BeauticianManagement() {
 
   const handleOpenAdd = () => {
     setEditingBeautician(null);
-    reset({ status: '在职', specialties: [], storeName: '心悦茗美容养生会所' });
+    reset({ userId: undefined, name: '', phone: '', status: '在职', specialties: [], storeName: '心悦茗美容养生会所' });
     setShowDialog(true);
   };
 
   const handleOpenEdit = (beautician: Beautician) => {
     setEditingBeautician(beautician);
     reset({
+      userId: beautician.userId,
       name: beautician.name,
       phone: beautician.phone,
       level: beautician.level,
@@ -261,7 +295,20 @@ export function BeauticianManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   姓名 <span className="text-red-500">*</span>
                 </label>
-                <Input placeholder="请输入姓名" {...register('name')} />
+                <select
+                  className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md"
+                  {...register('userId')}
+                  onChange={(event) => handleSelectSystemUser(event.target.value)}
+                >
+                  <option value="">请选择系统用户</option>
+                  {beauticianUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}（{user.username}）
+                    </option>
+                  ))}
+                </select>
+                <input type="hidden" {...register('name')} />
+                {beauticianUsers.length === 0 && <p className="text-amber-600 text-xs mt-1">请先在系统管理-用户管理创建美容师角色用户</p>}
                 {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
               </div>
 
@@ -269,7 +316,7 @@ export function BeauticianManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   手机号码 <span className="text-red-500">*</span>
                 </label>
-                <Input placeholder="请输入手机号码" {...register('phone')} />
+                <Input placeholder="选择系统用户后自动带出" {...register('phone')} readOnly />
                 {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
               </div>
 

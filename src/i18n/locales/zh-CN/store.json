@@ -1,0 +1,60 @@
+{
+  "title": "门店管理",
+  "projectTypes": {
+    "title": "项目类型管理",
+    "typeName": "类型名称",
+    "description": "描述",
+    "projectCount": "项目数量",
+    "addType": "添加类型",
+    "editType": "编辑类型"
+  },
+  "projects": {
+    "title": "项目管理",
+    "projectName": "项目名称",
+    "type": "项目类型",
+    "duration": "时长(分钟)",
+    "price": "价格",
+    "description": "描述",
+    "status": "状态",
+    "addProject": "添加项目",
+    "editProject": "编辑项目"
+  },
+  "beauticians": {
+    "title": "美容师管理",
+    "name": "姓名",
+    "phone": "手机号",
+    "level": "等级",
+    "specialties": "擅长项目",
+    "status": "状态",
+    "joinDate": "入职日期",
+    "addBeautician": "添加美容师",
+    "editBeautician": "编辑美容师"
+  },
+  "beauticianLevels": {
+    "title": "美容师等级设置",
+    "levelName": "等级名称",
+    "commission": "提成比例",
+    "requirements": "晋升条件",
+    "addLevel": "添加等级",
+    "editLevel": "编辑等级"
+  },
+  "reservations": {
+    "title": "项目预约",
+    "customerName": "客户姓名",
+    "project": "预约项目",
+    "beautician": "美容师",
+    "date": "预约日期",
+    "time": "预约时间",
+    "status": "状态",
+    "remark": "备注",
+    "addReservation": "新增预约",
+    "statuses": {
+      "pending": "待确认",
+      "confirmed": "已确认",
+      "inProgress": "服务中",
+      "completed": "已完成",
+      "cancelled": "已取消",
+      "noShow": "未到店"
+    }
+  }
+}

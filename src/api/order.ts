@@ -1,18 +1,89 @@
-import type { ProductOrder } from '@/types';
-import { mockGetProductOrders, mockGetProductOrderById } from './mock/order';
-import { realGetProductOrders, realGetProductOrderById } from './real/order';
+import type {
+  MemberCardAccount,
+  MemberCardDeductPayload,
+  MemberCardGiftPayload,
+  MemberCardOpenPayload,
+  MemberCardRechargePayload,
+  MemberCardTransaction,
+  ProductOrder,
+  ProductOrderCreatePayload,
+} from '@/types';
+import {
+  realCreateProductOrder,
+  realCreateProjectOrder,
+  realDeleteProductOrder,
+  realGetProductOrderById,
+  realGetProductOrders,
+  realGetProjectOrderById,
+  realGetProjectOrders,
+  realRefundProductOrder,
+  realUpdateProductOrder,
+} from './real/order';
+import {
+  realDeductMemberCard,
+  realGetMemberCardDeductRecordsPaginated,
+  realGetMemberCardsPaginated,
+  realGetMemberCardTransactions,
+  realGiftMemberCard,
+  realOpenMemberCard,
+  realRechargeMemberCard,
+} from './real/memberCard';
 
-const isReal = import.meta.env.VITE_API_MODE === 'real';
-
-export const getProductOrders: (params?: { status?: string; keyword?: string }) => Promise<ProductOrder[]> =
-  isReal ? realGetProductOrders : mockGetProductOrders;
+export const getProductOrders: (params?: { status?: string; keyword?: string; storeId?: number }) => Promise<ProductOrder[]> =
+  realGetProductOrders;
 
 export const getProductOrderById: (id: number) => Promise<ProductOrder | undefined> =
-  isReal ? realGetProductOrderById : mockGetProductOrderById;
+  realGetProductOrderById;
+
+export const createProductOrder: (data: ProductOrderCreatePayload) => Promise<ProductOrder> =
+  realCreateProductOrder;
+
+export const updateProductOrder: (id: number, data: Partial<ProductOrder>) => Promise<ProductOrder> =
+  realUpdateProductOrder;
+
+export const deleteProductOrder: (id: number) => Promise<void> =
+  realDeleteProductOrder;
+
+export const refundProductOrder: (id: number) => Promise<ProductOrder> =
+  realRefundProductOrder;
+
+export const getProjectOrders: (params?: { status?: string; keyword?: string; storeId?: number }) => Promise<ProductOrder[]> =
+  realGetProjectOrders;
+
+export const getProjectOrderById: (id: number) => Promise<ProductOrder | undefined> =
+  realGetProjectOrderById;
+
+export const createProjectOrder: (data: ProductOrderCreatePayload) => Promise<ProductOrder> =
+  realCreateProjectOrder;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
-import { mockGetProductOrdersPaginated } from './mock/order';
-import { realGetProductOrdersPaginated } from './real/order';
+import { realGetProductOrdersPaginated, realGetProjectOrdersPaginated } from './real/order';
 
-export const getProductOrdersPaginated: (params: PaginationParams & { status?: string; keyword?: string }) => Promise<PaginatedResponse<ProductOrder>> =
-  isReal ? realGetProductOrdersPaginated : mockGetProductOrdersPaginated;
+export const getProductOrdersPaginated: (params: PaginationParams & { status?: string; keyword?: string; storeId?: number }) => Promise<PaginatedResponse<ProductOrder>> =
+  realGetProductOrdersPaginated;
+
+export const getProjectOrdersPaginated: (params: PaginationParams & { status?: string; keyword?: string; storeId?: number }) => Promise<PaginatedResponse<ProductOrder>> =
+  realGetProjectOrdersPaginated;
+
+export const getMemberCardsPaginated: (
+  params: PaginationParams & { keyword?: string; storeId?: number },
+) => Promise<PaginatedResponse<MemberCardAccount>> = realGetMemberCardsPaginated;
+
+export const openMemberCard: (data: MemberCardOpenPayload) => Promise<MemberCardAccount> =
+  realOpenMemberCard;
+
+export const rechargeMemberCard: (id: number, data: MemberCardRechargePayload) => Promise<MemberCardAccount> =
+  realRechargeMemberCard;
+
+export const giftMemberCard: (id: number, data: MemberCardGiftPayload) => Promise<MemberCardAccount> =
+  realGiftMemberCard;
+
+export const deductMemberCard: (id: number, data: MemberCardDeductPayload) => Promise<MemberCardAccount> =
+  realDeductMemberCard;
+
+export const getMemberCardTransactions: (accountId: number) => Promise<MemberCardTransaction[]> =
+  realGetMemberCardTransactions;
+
+export const getMemberCardDeductRecordsPaginated: (
+  params: PaginationParams & { keyword?: string; storeId?: number },
+) => Promise<PaginatedResponse<MemberCardTransaction>> = realGetMemberCardDeductRecordsPaginated;

@@ -1,0 +1,85 @@
+{
+  "title": "我的工作台",
+  "roles": {
+    "manager": "店长",
+    "reception": "前台",
+    "beautician": "美容师"
+  },
+  "currentRole": "当前角色：{{role}}",
+  "dataSource": "数据来源 Ami_Core",
+  "manager": {
+    "title": "店长经营驾驶舱",
+    "subtitle": "先看经营、风险和员工，再处理门店协同。",
+    "metrics": {
+      "totalCustomers": "总客户数",
+      "todayRevenue": "今日收入",
+      "inventoryAlerts": "库存预警",
+      "activeActivities": "进行中活动"
+    },
+    "hints": {
+      "newThisMonth": "本月新增 {{count}} 人",
+      "vsYesterday": "较昨日 {{percent}}",
+      "lowAndExpiry": "低库存 {{low}} / 临期 {{expiry}}",
+      "avgConversion": "平均转化 {{rate}}"
+    }
+  },
+  "reception": {
+    "title": "前台接待工作台",
+    "subtitle": "围绕预约、核销、登记和收银快速处理。",
+    "metrics": {
+      "todayReservations": "今日预约",
+      "pendingVerification": "待核销",
+      "todayCashier": "今日收银",
+      "newRegistrations": "新增登记"
+    },
+    "hints": {
+      "pendingConfirm": "待确认 {{count}} 单",
+      "cardAndActivity": "次卡 / 活动权益",
+      "completedOrders": "已完成 {{count}} 单",
+      "needComplete": "新客来源需补全"
+    }
+  },
+  "beautician": {
+    "title": "美容师服务工作台",
+    "subtitle": "只看自己的排班、客户和服务动作。",
+    "metrics": {
+      "myReservations": "我的预约",
+      "pendingService": "待完成服务",
+      "customerProfiles": "客户档案",
+      "careAdvice": "护理建议"
+    },
+    "hints": {
+      "nextArrival": "下一位 {{time}} 后到店",
+      "needRecord": "需补护理记录",
+      "recentCustomers": "近期服务客户",
+      "forRevisit": "可用于复访邀约"
+    }
+  },
+  "priorities": {
+    "title": "今日优先处理",
+    "subtitle": "按角色和门店数据排序，只展示最需要先看的事项。"
+  },
+  "quickActions": {
+    "title": "快速进入",
+    "customerGrowth": "客户增长",
+    "smartMarketing": "智能营销",
+    "inventoryManagement": "库存管理",
+    "staffScheduling": "员工排班",
+    "projectReservation": "项目预约",
+    "customerRegister": "客户登记",
+    "cardVerification": "次卡核销",
+    "cashierOrder": "收银订单",
+    "mySchedule": "我的排班",
+    "customerProfile": "客户档案",
+    "serviceRecord": "服务记录",
+    "careAdvice": "护理建议"
+  },
+  "storeStatus": {
+    "title": "门店运行状态",
+    "description": "网络、打印机、扫码器和终端同步状态正常，适合继续处理前台和经营任务。",
+    "networkOk": "网络正常",
+    "printerOnline": "打印机在线",
+    "scannerOnline": "扫码器在线",
+    "dataSyncOk": "数据同步正常"
+  }
+}

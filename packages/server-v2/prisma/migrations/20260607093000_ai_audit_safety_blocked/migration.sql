@@ -1,0 +1,1 @@
+ALTER TABLE "AiAuditLog" ADD COLUMN "safetyBlocked" BOOLEAN NOT NULL DEFAULT false;

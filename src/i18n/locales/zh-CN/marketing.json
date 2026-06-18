@@ -1,0 +1,86 @@
+{
+  "title": "智能营销",
+  "recommendation": {
+    "title": "智能推荐",
+    "subtitle": "基于客户数据和行为分析，智能生成营销建议",
+    "refreshData": "刷新数据",
+    "createActivity": "创建活动",
+    "urgencyLevels": {
+      "all": "全部",
+      "high": "高优先级",
+      "medium": "中优先级",
+      "low": "低优先级"
+    },
+    "customerSegments": {
+      "highValue": "高价值客户",
+      "potential": "潜在价值客户",
+      "stable": "稳定客户",
+      "churnRisk": "流失风险客户",
+      "new": "新客户"
+    },
+    "evidence": "依据",
+    "action": "建议动作",
+    "targetCustomers": "目标客户",
+    "expectedConversion": "预期转化率"
+  },
+  "strategy": {
+    "title": "自动营销",
+    "templateName": "策略模板名称",
+    "triggerCondition": "触发条件",
+    "targetAudience": "目标人群",
+    "channel": "推送渠道",
+    "status": "状态",
+    "createStrategy": "创建策略"
+  },
+  "activity": {
+    "title": "活动管理",
+    "activityName": "活动名称",
+    "type": "活动类型",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "status": "状态",
+    "budget": "预算",
+    "participants": "参与人数",
+    "conversion": "转化率",
+    "createActivity": "创建活动",
+    "types": {
+      "discount": "折扣活动",
+      "coupon": "优惠券",
+      "gift": "赠品活动",
+      "pointsExchange": "积分兑换",
+      "groupBuy": "拼团活动",
+      "flashSale": "限时秒杀"
+    },
+    "statuses": {
+      "draft": "草稿",
+      "pending": "待开始",
+      "active": "进行中",
+      "ended": "已结束",
+      "paused": "已暂停"
+    }
+  },
+  "analytics": {
+    "title": "效果分析",
+    "overview": "数据概览",
+    "conversionRate": "转化率",
+    "roi": "投资回报率",
+    "reachCount": "触达人数",
+    "responseRate": "响应率",
+    "revenue": "营收贡献",
+    "trend": "趋势分析",
+    "comparison": "对比分析"
+  },
+  "channels": {
+    "sms": "短信",
+    "wechat": "微信",
+    "push": "APP推送",
+    "inStore": "到店提醒"
+  },
+  "copy": {
+    "generateCopy": "生成文案",
+    "generating": "文案生成中...",
+    "channel": "渠道",
+    "tone": "语气",
+    "preview": "预览"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "测肤报告",
+  "usingComponents": {
+    "project-card": "../../components/project-card/index"
+  }
+}

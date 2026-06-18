@@ -47,6 +47,10 @@ const CATEGORY_WASTAGE = [
   { category: '仪器耗材', percentage: 12, amount: 4800 },
 ];
 
+function formatCurrency(value?: number) {
+  return `¥${Number(value || 0).toLocaleString('zh-CN')}`;
+}
+
 export function ExpiryManagement() {
   const [selectedPeriod, setSelectedPeriod] = useState('本月');
 
@@ -197,7 +201,7 @@ export function ExpiryManagement() {
                 </TableCell>
                 <TableCell>{product.stock}</TableCell>
                 <TableCell className="font-medium text-gray-700">
-                  ¥{product.costAmount.toLocaleString()}
+                  {formatCurrency(product.costAmount)}
                 </TableCell>
                 <TableCell className="text-sm text-gray-600">{product.storeName}</TableCell>
                 <TableCell>
@@ -247,7 +251,7 @@ export function ExpiryManagement() {
                     style={{ width: `${(data.amount / maxWastage) * 100}%` }}
                   />
                   <div className="absolute inset-0 flex items-center px-3 text-xs font-medium text-white">
-                    ¥{data.amount.toLocaleString()}
+                    {formatCurrency(data.amount)}
                   </div>
                 </div>
               </div>
@@ -264,7 +268,7 @@ export function ExpiryManagement() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-700 font-medium">{item.category}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">¥{item.amount.toLocaleString()}</span>
+                    <span className="text-sm text-gray-600">{formatCurrency(item.amount)}</span>
                     <span className="text-sm font-semibold text-blue-600">{item.percentage}%</span>
                   </div>
                 </div>

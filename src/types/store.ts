@@ -1,7 +1,11 @@
 export interface Store {
   id: number;
   name: string;
+  city?: string;
   address: string;
+  phone?: string;
+  status?: string;
+  shiftRequired?: boolean;
   skuCount: number;
   totalValue: number;
   healthScore: number;
@@ -39,4 +43,5 @@ export interface ScheduleSlot {
   time: string;
   period: '上午' | '下午';
   available: boolean;
+  status?: 'normal' | 'available' | 'booked' | 'expired' | 'leave' | 'busy' | string;
 }

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心页面演示 - 美丽人生</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .demo-container {
+            max-width: 414px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .demo-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .demo-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .demo-header p {
+            margin: 10px 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .demo-content {
+            padding: 20px;
+        }
+        
+        .demo-section {
+            margin-bottom: 30px;
+        }
+        
+        .demo-section h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .feature-list i {
+            color: #667eea;
+            width: 20px;
+        }
+        
+        .demo-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .demo-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-header">
+            <h1>个人中心页面演示</h1>
+            <p>基于设计图的完整功能展示</p>
+        </div>
+        
+        <div class="demo-content">
+            <div class="demo-section">
+                <h2>🎯 主要功能特性</h2>
+                <ul class="feature-list">
+                    <li><i class="fas fa-check"></i> 用户信息展示（小美・女・25岁）</li>
+                    <li><i class="fas fa-check"></i> 编辑资料按钮（粉色设计）</li>
+                    <li><i class="fas fa-check"></i> 卡项管理（余额、优惠券、积分）</li>
+                    <li><i class="fas fa-check"></i> 订单状态（5种状态图标）</li>
+                    <li><i class="fas fa-check"></i> 预约状态（3种状态图标）</li>
+                    <li><i class="fas fa-check"></i> 快速功能（权益、购物车、客服、设置）</li>
+                </ul>
+            </div>
+            
+            <div class="demo-section">
+                <h2>🎨 设计亮点</h2>
+                <ul class="feature-list">
+                    <li><i class="fas fa-star"></i> 现代化卡片式布局</li>
+                    <li><i class="fas fa-star"></i> 渐变色彩搭配</li>
+                    <li><i class="fas fa-star"></i> 悬停动画效果</li>
+                    <li><i class="fas fa-star"></i> 响应式图标设计</li>
+                    <li><i class="fas fa-star"></i> 清晰的视觉层次</li>
+                </ul>
+            </div>
+            
+            <div class="demo-section">
+                <h2>📱 交互功能</h2>
+                <ul class="feature-list">
+                    <li><i class="fas fa-mobile-alt"></i> 触摸友好的按钮设计</li>
+                    <li><i class="fas fa-mobile-alt"></i> 状态图标点击反馈</li>
+                    <li><i class="fas fa-mobile-alt"></i> 功能入口悬停效果</li>
+                    <li><i class="fas fa-mobile-alt"></i> 实时状态更新</li>
+                </ul>
+            </div>
+            
+            <button class="demo-button" onclick="window.open('index.html', '_blank')">
+                <i class="fas fa-external-link-alt"></i>
+                查看完整小程序
+            </button>
+        </div>
+    </div>
+</body>
+</html> 

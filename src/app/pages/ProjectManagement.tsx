@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Search, RotateCcw, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Search, RotateCcw, Plus, Edit, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AddProjectDialog } from '../components/AddProjectDialog';
+import { MarketingPageGeneratorDialog, type MarketingPageGeneratorSource } from '../components/MarketingPageGeneratorDialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { projectSchema, type ProjectFormData } from '@/schemas/project';
-import { getProjects, createProject, updateProject } from '@/api/project';
+import { getProjectsPaginated, createProject, updateProject } from '@/api/project';
 import { getProjectTypes, type ProjectType } from '@/api/projectType';
 import { toast } from 'sonner';
 import type { Project } from '@/types';
-
-const THUMBNAIL_URL = "https://images.unsplash.com/photo-1696841212541-449ca29397cc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzcGElMjBtYXNzYWdlfGVufDF8fHx8MTc3MzY2NDExM3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral";
+import { usePagination } from '@/hooks/usePagination';
 
 function StatusBadge({ active, children }: { active: boolean, children: React.ReactNode }) {
   return (
@@ -43,8 +43,11 @@ export function ProjectManagement() {
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [showQuickAddDialog, setShowQuickAddDialog] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [projectTypeList, setProjectTypeList] = useState<ProjectType[]>([]);
+  const [marketingPageSource, setMarketingPageSource] = useState<MarketingPageGeneratorSource | null>(null);
+  const projectFilters = useMemo(() => ({}), []);
+  const { data: projects, total, page, pageSize, loading, setPage, setPageSize, refresh } =
+    usePagination<Project>(getProjectsPaginated, projectFilters);
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
@@ -52,12 +55,11 @@ export function ProjectManagement() {
 
   const loadProjects = useCallback(async () => {
     try {
-      const data = await getProjects();
-      setProjects(data);
+      refresh();
     } catch {
       toast.error('加载项目列表失败');
     }
-  }, []);
+  }, [refresh]);
 
   const loadProjectTypes = useCallback(async () => {
     try {
@@ -67,9 +69,8 @@ export function ProjectManagement() {
   }, []);
 
   useEffect(() => {
-    loadProjects();
     loadProjectTypes();
-  }, [loadProjects, loadProjectTypes]);
+  }, [loadProjectTypes]);
 
   const onQuickSubmit = async (data: ProjectFormData) => {
     try {
@@ -110,6 +111,14 @@ export function ProjectManagement() {
       price: project.price,
     });
     setShowQuickAddDialog(true);
+  };
+
+  const openMarketingPageGenerator = (project: Project) => {
+    setMarketingPageSource({
+      type: 'project',
+      item: project,
+      storeName: project.storeName,
+    });
   };
 
   const handleCloseQuickDialog = () => {
@@ -162,6 +171,13 @@ export function ProjectManagement() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {loading && (
+          <div className="flex items-center justify-center py-10 text-gray-500">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
+            正在加载项目...
+          </div>
+        )}
+        {!loading && (
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50/80 border-b border-gray-200">
@@ -218,32 +234,54 @@ export function ProjectManagement() {
                 <TableCell className="text-gray-600 align-middle">{project.duration} 分钟</TableCell>
                 <TableCell className="text-gray-500 align-middle">{project.sort}</TableCell>
                 <TableCell className="text-right align-middle">
-                  <button className="text-blue-500 hover:text-blue-600 text-sm" onClick={() => handleOpenQuickEdit(project)}>
-                    编辑
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    <button className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 text-sm" onClick={() => openMarketingPageGenerator(project)}>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      生成推广页
+                    </button>
+                    <button className="text-blue-500 hover:text-blue-600 text-sm" onClick={() => handleOpenQuickEdit(project)}>
+                      编辑
+                    </button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        )}
       </div>
       
-      {/* Pagination (Mock) */}
+      {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-500 px-2 mt-4">
-        <span>共 {projects.length} 条数据</span>
+        <span>共 {total} 条数据</span>
         <div className="flex items-center gap-2">
-          <select className="border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-500 text-gray-700">
-            <option>10条/页</option>
-            <option>20条/页</option>
+          <select
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+            className="border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-500 text-gray-700"
+          >
+            <option value={10}>10条/页</option>
+            <option value={20}>20条/页</option>
+            <option value={50}>50条/页</option>
           </select>
           <div className="flex items-center gap-1 border border-gray-200 rounded-md overflow-hidden shadow-sm">
-            <button className="px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50 border-r border-gray-200" disabled>&lt;</button>
-            <button className="px-3 py-1 bg-[#1890ff] text-white font-medium">1</button>
-            <button className="px-3 py-1 bg-white hover:bg-gray-50 border-l border-gray-200">&gt;</button>
+            <button
+              className="px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50 border-r border-gray-200"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              &lt;
+            </button>
+            <button className="px-3 py-1 bg-[#1890ff] text-white font-medium">{page}</button>
+            <button
+              className="px-3 py-1 bg-white hover:bg-gray-50 border-l border-gray-200 disabled:opacity-50"
+              disabled={page >= Math.ceil(total / pageSize)}
+              onClick={() => setPage(page + 1)}
+            >
+              &gt;
+            </button>
           </div>
-          <span className="ml-4">前往</span>
-          <input type="text" className="w-12 border border-gray-300 rounded px-2 py-1 text-center bg-white focus:outline-none focus:border-blue-500" defaultValue="1" />
-          <span>页</span>
+          <span className="ml-4">{page} / {Math.ceil(total / pageSize) || 1}</span>
         </div>
       </div>
 
@@ -294,6 +332,12 @@ export function ProjectManagement() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <MarketingPageGeneratorDialog
+        source={marketingPageSource}
+        onClose={() => setMarketingPageSource(null)}
+        onPublished={loadProjects}
+      />
     </div>
   );
 }

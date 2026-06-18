@@ -1,0 +1,57 @@
+{
+  "title": "系统设置",
+  "users": {
+    "title": "用户管理",
+    "username": "用户名",
+    "name": "姓名",
+    "phone": "手机号",
+    "email": "邮箱",
+    "primaryRole": "主要角色",
+    "roles": "角色",
+    "stores": "所属门店",
+    "status": "状态",
+    "createdAt": "创建时间",
+    "addUser": "添加用户",
+    "editUser": "编辑用户",
+    "extraPermissions": "额外权限",
+    "deniedPermissions": "禁止权限",
+    "placeholders": {
+      "searchUser": "搜索用户名、姓名、手机号",
+      "selectRole": "选择角色筛选"
+    }
+  },
+  "roles": {
+    "title": "角色管理",
+    "roleName": "角色名称",
+    "roleCode": "角色编码",
+    "description": "描述",
+    "permissions": "权限列表",
+    "userCount": "用户数",
+    "addRole": "添加角色",
+    "editRole": "编辑角色",
+    "roleOptions": {
+      "superAdmin": "超级管理员",
+      "storeManager": "店长",
+      "cashier": "前台/收银",
+      "beautician": "美容师",
+      "inventoryManager": "库存管理员"
+    }
+  },
+  "permissions": {
+    "title": "权限管理",
+    "permissionName": "权限名称",
+    "permissionCode": "权限编码",
+    "module": "所属模块",
+    "description": "描述"
+  },
+  "stores": {
+    "title": "门店管理",
+    "storeName": "门店名称",
+    "address": "地址",
+    "phone": "联系电话",
+    "manager": "负责人",
+    "status": "状态",
+    "addStore": "添加门店",
+    "editStore": "编辑门店"
+  }
+}

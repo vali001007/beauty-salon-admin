@@ -1,0 +1,26 @@
+<view class="page mine-page">
+  <view class="profile-card">
+    <view class="avatar">{{me ? '♙' : ''}}</view>
+    <view class="profile-info">
+      <view class="name">{{me.name || '未绑定客户'}}</view>
+      <view class="level">{{me.memberLevel || '普通会员'}}</view>
+    </view>
+    <button wx:if="{{!me}}" class="bind-button" bindtap="bindPhone">绑定</button>
+  </view>
+
+  <view class="menu">
+    <view class="menu-item card" data-url="/pages/my-reservations/index" bindtap="openPage">📋<text>我的预约</text><text class="arrow">›</text></view>
+    <view class="menu-item card" data-url="/pages/my-cards/index" bindtap="openPage">💳<text>我的次卡</text><text class="arrow">›</text></view>
+    <view class="menu-item card" data-url="/pages/consumption-records/index" bindtap="openPage">📝<text>消费记录</text><text class="arrow">›</text></view>
+    <view class="menu-item card" data-url="/pages/member-card/index" bindtap="openPage">🎫<text>会员卡</text><text class="arrow">›</text></view>
+    <view class="menu-item card" bindtap="callService">☎<text>联系客服</text><text class="arrow">›</text></view>
+    <view class="menu-item card">ℹ<text>关于我们</text><text class="arrow">›</text></view>
+  </view>
+</view>
+
+<view class="tabbar">
+  <view class="tab" bindtap="goHome">⌂<text>首页</text></view>
+  <view class="tab" bindtap="goBooking">▣<text>预约</text></view>
+  <view class="tab" bindtap="goTools">▣<text>工具</text></view>
+  <view class="tab active">♙<text>我的</text></view>
+</view>

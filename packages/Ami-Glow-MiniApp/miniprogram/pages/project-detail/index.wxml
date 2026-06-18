@@ -1,0 +1,42 @@
+<view class="detail-page">
+  <view class="hero">
+    <image wx:if="{{project.image}}" class="hero-image" src="{{project.image}}" mode="aspectFill" />
+    <view wx:else class="hero-placeholder">Ami Glow</view>
+    <view class="hero-tag">推荐</view>
+  </view>
+
+  <view class="info-card card">
+    <view class="price-row">
+      <view>
+        <text class="member-label">会员价</text>
+        <text class="price">¥{{project.memberPrice || project.price}}</text>
+      </view>
+      <button class="share" bindtap="shareProject">分享</button>
+    </view>
+    <view class="project-name">{{project.name}}</view>
+    <view class="project-desc">{{project.description}}</view>
+  </view>
+
+  <view class="detail-card card">
+    <view class="detail-title">项目详情</view>
+    <view class="detail-line">{{project.details.description || project.description}}</view>
+    <view class="detail-line">服务时长：{{project.duration}} 分钟</view>
+    <view class="detail-line">适合人群：{{project.details.suitableFor.join('、')}}</view>
+    <view class="detail-line">护理流程：{{project.details.serviceFlow.join(' → ')}}</view>
+  </view>
+</view>
+
+<view class="bottom-action">
+  <button class="primary-button" bindtap="openReservation">立即预约</button>
+</view>
+
+<reservation-sheet
+  visible="{{showSheet}}"
+  store="{{project.store}}"
+  project="{{project}}"
+  beauticians="{{beauticians}}"
+  slots="{{slots}}"
+  bind:close="closeReservation"
+  bind:change="handleReservationChange"
+  bind:confirm="confirmReservation"
+/>

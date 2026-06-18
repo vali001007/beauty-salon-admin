@@ -1,161 +1,383 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router';
-import { TrendingUp, Users, Target, DollarSign, ArrowUpRight, Activity, Zap } from 'lucide-react';
-import { getMarketingActivities, getStrategyEffects, type StrategyEffectSummary } from '@/api/marketing';
-import type { MarketingActivity } from '@/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
+import {
+  Activity,
+  ArrowUpRight,
+  DollarSign,
+  FileText,
+  Gift,
+  MousePointerClick,
+  Smartphone,
+  Target,
+  TrendingUp,
+  Users,
+  Zap,
+} from 'lucide-react';
+import { getMarketingFollowUpTaskSummary, getUnifiedMarketingEffects } from '@/api/marketing';
+import type {
+  MarketingEffectObjectType,
+  UnifiedMarketingEffectItem,
+  UnifiedMarketingEffectsResponse,
+} from '@/types';
+import type { TerminalFollowUpTaskSummary } from '@/types/terminal';
 
-type FilterType = 'all' | 'activity' | 'auto';
+type FilterType = 'all' | MarketingEffectObjectType;
 
-interface UnifiedItem {
-  id: string;
-  name: string;
-  type: 'activity' | 'auto';
-  typeLabel: string;
-  status: string;
-  participants: number;
-  conversionLabel: string;
-  revenue: string;
-  revenueNum: number;
-  dateRange: string;
-  activityId?: number;
-}
+const FILTERS: Array<{ id: FilterType; label: string; icon: typeof Activity }> = [
+  { id: 'all', label: '全部', icon: Activity },
+  { id: 'activity', label: '推广活动', icon: Target },
+  { id: 'auto', label: '自动触达', icon: Zap },
+  { id: 'page', label: '推广页', icon: FileText },
+  { id: 'promotion', label: '优惠权益', icon: Gift },
+  { id: 'glow', label: 'Ami Glow', icon: Smartphone },
+];
+
+const normalizeFilter = (value: string | null): FilterType => {
+  const allowed = FILTERS.map((item) => item.id);
+  return allowed.includes(value as FilterType) ? (value as FilterType) : 'all';
+};
+
+const formatMoney = (value: number) => {
+  if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`;
+  return `¥${value.toLocaleString()}`;
+};
+
+const getTypeStyle = (type: MarketingEffectObjectType) => {
+  const styles: Record<MarketingEffectObjectType, string> = {
+    activity: 'bg-blue-100 text-blue-700',
+    auto: 'bg-purple-100 text-purple-700',
+    page: 'bg-cyan-100 text-cyan-700',
+    promotion: 'bg-amber-100 text-amber-700',
+    glow: 'bg-emerald-100 text-emerald-700',
+  };
+  return styles[type];
+};
+
+const getTypeIcon = (type: MarketingEffectObjectType) => {
+  const icons: Record<MarketingEffectObjectType, typeof Activity> = {
+    activity: Target,
+    auto: Zap,
+    page: FileText,
+    promotion: Gift,
+    glow: Smartphone,
+  };
+  return icons[type];
+};
 
 export function MarketingAnalytics() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [activities, setActivities] = useState<MarketingActivity[]>([]);
-  const [strategies, setStrategies] = useState<StrategyEffectSummary[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filter, setFilter] = useState<FilterType>(() => normalizeFilter(searchParams.get('objectType')));
+  const [data, setData] = useState<UnifiedMarketingEffectsResponse | null>(null);
+  const [followUpSummary, setFollowUpSummary] = useState<TerminalFollowUpTaskSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setFilter(normalizeFilter(searchParams.get('objectType')));
+  }, [searchParams]);
 
   const loadData = useCallback(async () => {
-    const [acts, strats] = await Promise.all([getMarketingActivities(), getStrategyEffects()]);
-    setActivities(acts);
-    setStrategies(strats);
+    setLoading(true);
+    setError('');
+    try {
+      const [response, followUpResult] = await Promise.all([
+        getUnifiedMarketingEffects(),
+        getMarketingFollowUpTaskSummary().catch(() => null),
+      ]);
+      setData(response);
+      setFollowUpSummary(followUpResult);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '数据复盘加载失败';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  // Unify data
-  const unifiedList: UnifiedItem[] = [
-    ...activities.map((a): UnifiedItem => ({
-      id: `act-${a.id}`, name: a.title, type: 'activity', typeLabel: '🎯 营销活动',
-      status: a.status, participants: a.participants, conversionLabel: `转化 ${a.conversion}`,
-      revenue: `¥${(a.participants * 380).toLocaleString()}`, revenueNum: a.participants * 380,
-      dateRange: `${a.startDate} 至 ${a.endDate}`, activityId: a.id,
-    })),
-    ...strategies.filter((s) => s.status !== '草稿').map((s): UnifiedItem => ({
-      id: `auto-${s.id}`, name: s.name, type: 'auto', typeLabel: '⚡ 自动营销',
-      status: s.status, participants: s.reachedCount, conversionLabel: `核销 ${s.couponUsedRate}`,
-      revenue: s.revenue >= 10000 ? `¥${(s.revenue / 10000).toFixed(1)}万` : `¥${s.revenue.toLocaleString()}`,
-      revenueNum: s.revenue, dateRange: `上次执行 ${s.lastExecuted}`,
-    })),
-  ].sort((a, b) => b.revenueNum - a.revenueNum);
-
-  const filtered = filter === 'all' ? unifiedList : unifiedList.filter((i) => i.type === (filter === 'activity' ? 'activity' : 'auto'));
-
-  // Summary stats
-  const totalActions = activities.length + strategies.filter((s) => s.status === '启用').length;
-  const totalReached = activities.reduce((s, a) => s + a.participants, 0) + strategies.reduce((s, st) => s + st.reachedCount, 0);
-  const totalRevenue = unifiedList.reduce((s, i) => s + i.revenueNum, 0);
-  const avgROI = totalRevenue > 0 ? (totalRevenue / (totalActions * 5000)).toFixed(1) : '0';
+  const items = useMemo(() => data?.items ?? [], [data]);
+  const filtered = filter === 'all' ? items : items.filter((item) => item.objectType === filter);
+  const filterOptions = useMemo(
+    () =>
+      FILTERS.map((option) => ({
+        ...option,
+        count: option.id === 'all' ? items.length : items.filter((item) => item.objectType === option.id).length,
+      })),
+    [items],
+  );
+  const selectedFilterLabel = filterOptions.find((item) => item.id === filter)?.label ?? '当前类型';
+  const summary = data?.summary ?? {
+    totalObjects: 0,
+    exposureCount: 0,
+    clickCount: 0,
+    conversionCount: 0,
+    revenue: 0,
+    cost: 0,
+    roi: '0',
+  };
 
   const stats = [
-    { title: '总营销动作', value: String(totalActions), icon: Activity, bgColor: 'bg-gradient-to-br from-blue-500 to-blue-600', change: `${activities.length}活动 + ${strategies.filter((s) => s.status === '启用').length}规则` },
-    { title: '总触达人数', value: totalReached.toLocaleString(), icon: Users, bgColor: 'bg-gradient-to-br from-green-500 to-green-600', change: '+15.2%' },
-    { title: '总营收贡献', value: totalRevenue >= 10000 ? `¥${(totalRevenue / 10000).toFixed(1)}万` : `¥${totalRevenue.toLocaleString()}`, icon: DollarSign, bgColor: 'bg-gradient-to-br from-purple-500 to-purple-600', change: '+22.8%' },
-    { title: '综合ROI', value: `${avgROI}x`, icon: TrendingUp, bgColor: 'bg-gradient-to-br from-orange-500 to-orange-600', change: '+0.8' },
+    {
+      title: '推广对象',
+      value: String(summary.totalObjects),
+      icon: Activity,
+      bgColor: 'bg-gradient-to-br from-blue-500 to-blue-600',
+      change: `${filterOptions.find((item) => item.id === 'activity')?.count ?? 0}活动 / ${filterOptions.find((item) => item.id === 'auto')?.count ?? 0}规则`,
+    },
+    {
+      title: '触达/访问',
+      value: summary.exposureCount.toLocaleString(),
+      icon: Users,
+      bgColor: 'bg-gradient-to-br from-green-500 to-green-600',
+      change: `${summary.clickCount.toLocaleString()} 点击`,
+    },
+    {
+      title: '成交收入',
+      value: formatMoney(summary.revenue),
+      icon: DollarSign,
+      bgColor: 'bg-gradient-to-br from-purple-500 to-purple-600',
+      change: `${summary.conversionCount.toLocaleString()} 转化`,
+    },
+    {
+      title: '投放回报',
+      value: summary.roi,
+      icon: TrendingUp,
+      bgColor: 'bg-gradient-to-br from-orange-500 to-orange-600',
+      change: summary.cost > 0 ? `成本 ${formatMoney(summary.cost)}` : '暂无成本',
+    },
   ];
 
+  const handleFilterChange = (nextFilter: FilterType) => {
+    setFilter(nextFilter);
+    if (nextFilter === 'all') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ objectType: nextFilter });
+    }
+  };
+
+  const handleOpenDetail = (item: UnifiedMarketingEffectItem) => {
+    if (item.detailPath) navigate(item.detailPath);
+  };
+
+  const emptyText =
+    filter === 'all'
+      ? error || '暂无数据复盘记录'
+      : data?.emptyReasons?.[filter] || `${selectedFilterLabel}暂无复盘数据，请先产生触达、访问或成交记录。`;
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">营销效果分析</h1>
-        <p className="text-sm text-gray-500 mt-1">统一查看营销活动和自动营销规则的效果数据</p>
+    <div className="flex h-full flex-col">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">数据复盘</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            统一查看推广活动、自动触达、推广页、优惠权益与 Ami Glow 的触达、访问、成交和投放回报。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={loadData}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          <Activity className="h-4 w-4" />
+          刷新
+        </button>
       </div>
 
       <div className="flex-1 overflow-auto">
         <div className="space-y-6">
-          {/* 统计卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
-              <div key={index} className={`${stat.bgColor} text-white rounded-lg p-6 shadow-lg`}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center"><stat.icon className="w-6 h-6" /></div>
-                  <div className="flex items-center gap-1 text-sm font-medium bg-white/20 px-2 py-1 rounded">
-                    <ArrowUpRight className="w-4 h-4" />{stat.change}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <div key={stat.title} className={`${stat.bgColor} rounded-lg p-6 text-white shadow-lg`}>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/20">
+                    <stat.icon className="h-6 w-6" />
+                  </div>
+                  <div className="flex items-center gap-1 rounded bg-white/20 px-2 py-1 text-sm font-medium">
+                    <ArrowUpRight className="h-4 w-4" />
+                    {stat.change}
                   </div>
                 </div>
-                <div className="text-3xl font-bold mb-1">{stat.value}</div>
+                <div className="mb-1 text-3xl font-bold">{stat.value}</div>
                 <div className="text-sm opacity-90">{stat.title}</div>
               </div>
             ))}
           </div>
 
-          {/* 标签切换 */}
-          <div className="flex items-center gap-3">
-            {([
-              { id: 'all' as FilterType, label: '全部', count: unifiedList.length },
-              { id: 'activity' as FilterType, label: '🎯 营销活动', count: unifiedList.filter((i) => i.type === 'activity').length },
-              { id: 'auto' as FilterType, label: '⚡ 自动营销', count: unifiedList.filter((i) => i.type === 'auto').length },
-            ]).map((tab) => (
-              <button key={tab.id} onClick={() => setFilter(tab.id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                {tab.label} ({tab.count})
-              </button>
-            ))}
+          <div className="grid gap-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4 md:grid-cols-6">
+            <div>
+              <div className="text-xs font-medium text-emerald-700">终端待跟进</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">{followUpSummary?.pending ?? 0}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-700">处理中</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">
+                {followUpSummary?.in_progress ?? followUpSummary?.inProgress ?? 0}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-700">已完成跟进</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">{followUpSummary?.completed ?? 0}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-700">逾期未处理</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">{followUpSummary?.overdue ?? 0}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-700">预约/成交</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">
+                {followUpSummary?.booked ?? 0}/{followUpSummary?.converted ?? 0}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-700">成交金额</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">{formatMoney(followUpSummary?.revenue ?? 0)}</div>
+            </div>
           </div>
 
-          {/* 统一列表 */}
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="divide-y divide-gray-200">
-              {filtered.map((item) => (
-                <div key={item.id}
-                  className="p-5 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => {
-                    if (item.type === 'activity' && item.activityId) {
-                      navigate(`/customer-marketing/activity-effect/${item.activityId}`);
-                    }
-                  }}>
-                  <div className="flex items-center gap-5">
-                    {/* 类型图标 */}
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0 ${item.type === 'activity' ? 'bg-blue-500' : 'bg-purple-500'}`}>
-                      {item.type === 'activity' ? <Target className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
-                    </div>
-
-                    {/* 信息 */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${item.type === 'activity' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                          {item.typeLabel}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded text-xs ${item.status === '启用' || item.status === '进行中' ? 'bg-green-100 text-green-700' : item.status === '即将开始' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {item.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {item.participants}人{item.type === 'activity' ? '参与' : '触达'}</span>
-                        <span className="flex items-center gap-1"><Activity className="w-4 h-4" /> {item.dateRange}</span>
-                      </div>
-                    </div>
-
-                    {/* 数据指标 */}
-                    <div className="flex items-center gap-8 shrink-0">
-                      <div className="text-right">
-                        <div className="text-sm text-gray-500 mb-1">{item.type === 'activity' ? '转化率' : '核销率'}</div>
-                        <div className="text-lg font-bold text-green-600">{item.conversionLabel.replace(/转化|核销/, '').trim()}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-gray-500 mb-1">营收</div>
-                        <div className="text-lg font-bold text-blue-600">{item.revenue}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {filtered.length === 0 && (
-                <div className="p-12 text-center text-gray-400">暂无数据</div>
-              )}
+          <div className="rounded-lg border border-gray-200 bg-white p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="font-semibold text-gray-900">人员跟进表现</h2>
+                <p className="mt-1 text-sm text-gray-500">按店长、前台、顾问/美容师队列统计终端跟进完成率和成交转化。</p>
+              </div>
+              <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                数据源：终端跟进任务
+              </span>
             </div>
+            {followUpSummary?.assigneeStats?.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-gray-100 text-xs text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">跟进人/队列</th>
+                      <th className="px-3 py-2 font-medium">角色</th>
+                      <th className="px-3 py-2 font-medium">任务数</th>
+                      <th className="px-3 py-2 font-medium">已完成</th>
+                      <th className="px-3 py-2 font-medium">完成率</th>
+                      <th className="px-3 py-2 font-medium">预约/成交</th>
+                      <th className="px-3 py-2 font-medium">成交率</th>
+                      <th className="px-3 py-2 font-medium">逾期</th>
+                      <th className="px-3 py-2 font-medium">成交金额</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {followUpSummary.assigneeStats.map((item) => (
+                      <tr key={item.assigneeKey}>
+                        <td className="px-3 py-3 font-medium text-gray-900">{item.assigneeName}</td>
+                        <td className="px-3 py-3 text-gray-600">{item.assigneeRoleLabel}</td>
+                        <td className="px-3 py-3 text-gray-700">{item.total}</td>
+                        <td className="px-3 py-3 text-gray-700">{item.completed}</td>
+                        <td className="px-3 py-3 text-emerald-700">{item.completionRate}%</td>
+                        <td className="px-3 py-3 text-gray-700">
+                          {item.booked}/{item.converted}
+                        </td>
+                        <td className="px-3 py-3 text-blue-700">{item.conversionRate}%</td>
+                        <td className="px-3 py-3 text-red-600">{item.overdue}</td>
+                        <td className="px-3 py-3 text-gray-900">{formatMoney(item.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
+                暂无人员跟进表现；下发并完成终端跟进任务后会自动统计。
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {filterOptions.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleFilterChange(tab.id)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    filter === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label} ({tab.count})
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            {loading ? (
+              <div className="p-12 text-center text-gray-500">正在加载数据复盘...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-12 text-center text-gray-500">{emptyText}</div>
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {filtered.map((item) => {
+                  const Icon = getTypeIcon(item.objectType);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="block w-full p-5 text-left transition-colors hover:bg-gray-50"
+                      onClick={() => handleOpenDetail(item)}
+                    >
+                      <div className="flex items-center gap-5">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white">
+                          <Icon className="h-5 w-5" />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            <h3 className="truncate font-semibold text-gray-900">{item.objectName}</h3>
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium ${getTypeStyle(item.objectType)}`}>
+                              {item.objectTypeLabel}
+                            </span>
+                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{item.status}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="h-4 w-4" />
+                              {item.exposureCount.toLocaleString()} 触达/访问
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <MousePointerClick className="h-4 w-4" />
+                              {item.clickCount.toLocaleString()} 点击
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Activity className="h-4 w-4" />
+                              {item.metricsSource}
+                            </span>
+                          </div>
+                          {item.emptyReason && (
+                            <div className="mt-2 text-xs text-amber-600">{item.emptyReason}</div>
+                          )}
+                        </div>
+
+                        <div className="grid shrink-0 grid-cols-3 gap-6 text-right">
+                          <div>
+                            <div className="mb-1 text-sm text-gray-500">转化率</div>
+                            <div className="text-lg font-bold text-green-600">{item.conversionRate}</div>
+                          </div>
+                          <div>
+                            <div className="mb-1 text-sm text-gray-500">收入</div>
+                            <div className="text-lg font-bold text-blue-600">{formatMoney(item.revenue)}</div>
+                          </div>
+                          <div>
+                            <div className="mb-1 text-sm text-gray-500">投放回报</div>
+                            <div className="text-lg font-bold text-purple-600">{item.roi}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

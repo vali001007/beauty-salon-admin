@@ -1,0 +1,266 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f5f5f4;
+  color: #1f2937;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.page-shell {
+  min-height: 100vh;
+  background: #f5f5f4;
+}
+
+.page {
+  margin: 0 auto;
+  max-width: 480px;
+  min-height: 100vh;
+  background: #fff;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+}
+
+.hero {
+  position: relative;
+  min-height: 320px;
+  overflow: hidden;
+  background: #db2777;
+  color: #fff;
+}
+
+.hero-image {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  opacity: 0.28;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 320px;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 28px 22px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.62));
+}
+
+.badge {
+  align-self: flex-start;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  font-size: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.hero h1 {
+  margin: 14px 0 0;
+  font-size: 31px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.hero p {
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.section {
+  margin: 12px 14px 0;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.offer-card {
+  border-radius: 12px;
+  background: #fff7ed;
+  padding: 14px;
+}
+
+.offer-main {
+  font-size: 20px;
+  font-weight: 800;
+  color: #db2777;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chip {
+  border-radius: 999px;
+  background: #f3f4f6;
+  padding: 5px 10px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.benefit {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.benefit-dot {
+  margin-top: 7px;
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+  background: #db2777;
+}
+
+.benefit-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.item-card {
+  border-radius: 12px;
+  border: 1px solid #f3f4f6;
+  padding: 13px;
+}
+
+.item-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.price {
+  white-space: nowrap;
+  font-weight: 800;
+  color: #db2777;
+}
+
+.line-through {
+  color: #9ca3af;
+  font-size: 12px;
+  text-decoration: line-through;
+}
+
+.faq-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.faq-item:last-child {
+  border-bottom: 0;
+}
+
+.faq-question {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.notice-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.notice-list li {
+  margin: 7px 0;
+}
+
+.lead-form {
+  display: grid;
+  gap: 10px;
+}
+
+.lead-form input,
+.lead-form textarea {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 11px 12px;
+  outline: none;
+}
+
+.lead-form textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.sticky-cta {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  border-top: 1px solid #f1f5f9;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 12px 14px;
+  backdrop-filter: blur(10px);
+}
+
+.primary-btn,
+.secondary-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: #db2777;
+  color: #fff;
+}
+
+.secondary-btn {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.state {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.state-card {
+  max-width: 360px;
+  border-radius: 18px;
+  background: #fff;
+  padding: 24px;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+}

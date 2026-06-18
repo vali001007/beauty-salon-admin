@@ -1,0 +1,46 @@
+<view wx:if="{{visible}}" class="sheet-mask">
+  <view class="sheet">
+    <view class="sheet-header">
+      <text>项目预约</text>
+      <button class="close" bindtap="close">×</button>
+    </view>
+    <view class="field">
+      <view class="label">预约门店*</view>
+      <view class="readonly">{{store.name || '请选择门店'}}</view>
+    </view>
+    <view class="field">
+      <view class="label">预约项目</view>
+      <view class="readonly">{{project.name}}</view>
+    </view>
+    <view class="field">
+      <view class="label">预约美容师*</view>
+      <scroll-view scroll-x class="beautician-row">
+        <view class="beautician {{!selectedBeauticianId ? 'active' : ''}}" data-id="" bindtap="selectBeautician">到店分配</view>
+        <view wx:for="{{beauticians}}" wx:key="id" class="beautician {{selectedBeauticianId === item.id ? 'active' : ''}}" data-id="{{item.id}}" bindtap="selectBeautician">
+          {{item.name}}
+        </view>
+      </scroll-view>
+    </view>
+    <view class="field">
+      <view class="time-title">
+        <text class="label">预约时间*</text>
+        <view>
+          <button class="week-btn {{weekOffset === 0 ? 'disabled' : ''}}" data-delta="-1" bindtap="changeWeek">上一周</button>
+          <button class="week-btn" data-delta="1" bindtap="changeWeek">下一周</button>
+        </view>
+      </view>
+      <view class="week-row">
+        <view wx:for="{{weekDays}}" wx:key="date" class="day {{selectedDate === item.date ? 'active' : ''}}" data-date="{{item.date}}" bindtap="selectDate">
+          <text>{{item.label}}</text>
+          <text>{{item.shortDate}}</text>
+        </view>
+      </view>
+      <view class="slot-grid">
+        <view wx:for="{{slots}}" wx:key="startTime" class="slot {{item.available ? '' : 'disabled'}} {{selectedStartTime === item.startTime ? 'active' : ''}}" data-slot="{{item}}" bindtap="selectSlot">
+          {{item.startTime}}
+        </view>
+      </view>
+    </view>
+    <button class="primary-button {{selectedStartTime ? '' : 'disabled'}}" bindtap="confirm">确认</button>
+  </view>
+</view>

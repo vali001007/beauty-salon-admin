@@ -1,17 +1,22 @@
 import type { Role } from '@/types';
-import { mockGetRoles, mockCreateRole, mockUpdateRole, mockUpdateRolePermissions } from './mock/role';
-import { realGetRoles, realCreateRole, realUpdateRole, realUpdateRolePermissions } from './real/role';
-
-const isReal = import.meta.env.VITE_API_MODE === 'real';
+import { realGetRoles, realCreateRole, realUpdateRole, realUpdateRolePermissions, realDeleteRole, realGetRolesPaginated } from './real/role';
 
 export const getRoles: () => Promise<Role[]> =
-  isReal ? realGetRoles : mockGetRoles;
+  realGetRoles;
 
 export const createRole: (data: Omit<Role, 'id'>) => Promise<Role> =
-  isReal ? realCreateRole : mockCreateRole;
+  realCreateRole;
 
 export const updateRole: (id: number, data: Partial<Role>) => Promise<Role> =
-  isReal ? realUpdateRole : mockUpdateRole;
+  realUpdateRole;
 
 export const updateRolePermissions: (roleId: number, permissions: string[]) => Promise<void> =
-  isReal ? realUpdateRolePermissions : mockUpdateRolePermissions;
+  realUpdateRolePermissions;
+
+export const deleteRole: (id: number) => Promise<void> =
+  realDeleteRole;
+
+import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
+
+export const getRolesPaginated: (params: PaginationParams) => Promise<PaginatedResponse<Role>> =
+  realGetRolesPaginated;

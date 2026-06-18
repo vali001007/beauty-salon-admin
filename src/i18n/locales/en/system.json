@@ -1,0 +1,57 @@
+{
+  "title": "System Settings",
+  "users": {
+    "title": "User Management",
+    "username": "Username",
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email",
+    "primaryRole": "Primary Role",
+    "roles": "Roles",
+    "stores": "Stores",
+    "status": "Status",
+    "createdAt": "Created At",
+    "addUser": "Add User",
+    "editUser": "Edit User",
+    "extraPermissions": "Extra Permissions",
+    "deniedPermissions": "Denied Permissions",
+    "placeholders": {
+      "searchUser": "Search by username, name, or phone",
+      "selectRole": "Filter by role"
+    }
+  },
+  "roles": {
+    "title": "Role Management",
+    "roleName": "Role Name",
+    "roleCode": "Role Code",
+    "description": "Description",
+    "permissions": "Permissions",
+    "userCount": "Users",
+    "addRole": "Add Role",
+    "editRole": "Edit Role",
+    "roleOptions": {
+      "superAdmin": "Super Admin",
+      "storeManager": "Store Manager",
+      "cashier": "Receptionist / Cashier",
+      "beautician": "Beautician",
+      "inventoryManager": "Inventory Manager"
+    }
+  },
+  "permissions": {
+    "title": "Permission Management",
+    "permissionName": "Permission Name",
+    "permissionCode": "Permission Code",
+    "module": "Module",
+    "description": "Description"
+  },
+  "stores": {
+    "title": "Store Management",
+    "storeName": "Store Name",
+    "address": "Address",
+    "phone": "Phone",
+    "manager": "Manager",
+    "status": "Status",
+    "addStore": "Add Store",
+    "editStore": "Edit Store"
+  }
+}

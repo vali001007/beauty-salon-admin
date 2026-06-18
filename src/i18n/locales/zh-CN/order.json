@@ -1,0 +1,59 @@
+{
+  "title": "商品订单管理",
+  "breadcrumb": "首页 / 订单管理 / 商品订单管理",
+  "fields": {
+    "orderNo": "订单编号",
+    "customerName": "客户",
+    "customerPhone": "联系电话",
+    "storeName": "门店",
+    "totalAmount": "总金额",
+    "paymentMethod": "支付方式",
+    "status": "状态",
+    "createdAt": "下单时间",
+    "items": "商品明细",
+    "quantity": "数量",
+    "unitPrice": "单价",
+    "subtotal": "小计"
+  },
+  "status": {
+    "all": "全部",
+    "pendingPayment": "待付款",
+    "paid": "已付款",
+    "completed": "已完成",
+    "cancelled": "已取消",
+    "refunded": "已退款"
+  },
+  "paymentMethods": {
+    "wechat": "微信支付",
+    "alipay": "支付宝",
+    "cash": "现金",
+    "card": "银行卡",
+    "memberCard": "会员卡"
+  },
+  "placeholders": {
+    "searchOrder": "搜索订单号、客户姓名",
+    "allStores": "全部门店"
+  },
+  "actions": {
+    "viewDetail": "查看详情",
+    "exportOrders": "导出订单"
+  },
+  "cardOrder": {
+    "title": "次卡开卡管理",
+    "cardName": "次卡名称",
+    "customerName": "客户",
+    "openDate": "开卡日期",
+    "expireDate": "到期日期",
+    "totalTimes": "总次数",
+    "status": "状态"
+  },
+  "cardUsage": {
+    "title": "次卡核销管理",
+    "cardName": "次卡名称",
+    "customerName": "客户",
+    "usageDate": "核销日期",
+    "operator": "操作人",
+    "project": "服务项目",
+    "remark": "备注"
+  }
+}

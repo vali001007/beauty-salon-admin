@@ -11,6 +11,7 @@ export function usePagination<T>(
   const [page, setPageState] = useState(1);
   const [pageSize, setPageSizeState] = useState(10);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Use a ref to trigger re-fetches for refresh without changing deps
   const refreshKey = useRef(0);
@@ -18,16 +19,19 @@ export function usePagination<T>(
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetchFn({
         page,
         pageSize,
         ...filters,
       });
-      setData(response.data);
+      setData(response.items ?? response.data);
       setTotal(response.total);
-    } catch {
-      toast.error('数据加载失败，请稍后重试');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '数据加载失败，请稍后重试';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -58,6 +62,7 @@ export function usePagination<T>(
     page,
     pageSize,
     loading,
+    error,
     setPage,
     setPageSize,
     refresh,

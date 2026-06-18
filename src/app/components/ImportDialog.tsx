@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './UI';
 import { parseExcelFile, type ParsedRow } from '@/utils/excel';

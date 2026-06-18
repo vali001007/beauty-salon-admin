@@ -1,0 +1,40 @@
+{
+  "title": "AI Assistant",
+  "auraLite": {
+    "title": "Ami Aura Lite Connected",
+    "description": "Store terminal, reservation, redemption, and cashier data synced."
+  },
+  "recommendation": {
+    "title": "Ami Insights",
+    "subtitle": "Conclusion, evidence, and action visible on one screen.",
+    "conclusion": "Conclusion",
+    "basis": "Evidence",
+    "action": "Suggested Action"
+  },
+  "insights": {
+    "title": "Smart Insights",
+    "customerInsight": "Customer Insights",
+    "salesInsight": "Sales Insights",
+    "inventoryInsight": "Inventory Insights"
+  },
+  "generation": {
+    "generating": "AI generating...",
+    "generateComplete": "Generation complete",
+    "generateFailed": "Generation failed",
+    "retry": "Regenerate"
+  },
+  "script": {
+    "title": "Smart Invitations",
+    "generateScript": "Generate Script",
+    "scriptType": "Script Type",
+    "targetCustomer": "Target Customer",
+    "channel": "Channel",
+    "types": {
+      "revisit": "Follow-up Invitation",
+      "promotion": "Promotion",
+      "birthday": "Birthday Greeting",
+      "lostRecall": "Win-back",
+      "newCustomer": "New Customer Follow-up"
+    }
+  }
+}

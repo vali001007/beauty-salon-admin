@@ -1,0 +1,10 @@
+<view class="page">
+  <view wx:for="{{items}}" wx:key="id" class="reservation card">
+    <view class="title">{{item.projectName}}</view>
+    <view class="line">{{item.storeName}} · {{item.beauticianName}}</view>
+    <view class="line">{{item.date}} {{item.startTime}}-{{item.endTime}}</view>
+    <view class="status">{{item.status}}</view>
+    <button wx:if="{{item.status === 'pending' || item.status === 'confirmed'}}" class="cancel" data-id="{{item.id}}" bindtap="cancel">取消预约</button>
+  </view>
+  <view wx:if="{{!items.length}}" class="empty card">暂无预约</view>
+</view>
