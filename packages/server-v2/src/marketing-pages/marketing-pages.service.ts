@@ -161,11 +161,40 @@ export class MarketingPagesService {
   }
 
   private getShareBaseUrl() {
-    return (process.env.MARKETING_SHARE_BASE_URL || 'https://mini.ami-core.com').replace(/\/+$/, '');
+    return (
+      process.env.MARKETING_SHARE_BASE_URL ||
+      process.env.VITE_MARKETING_SHARE_BASE_URL ||
+      'http://127.0.0.1:5177'
+    ).replace(/\/+$/, '');
   }
 
   private buildShareUrl(slug: string) {
     return `${this.getShareBaseUrl()}/page/${slug}`;
+  }
+
+  private normalizeShareUrl(value?: string | null, slug?: string) {
+    if (!value) return slug ? this.buildShareUrl(slug) : '';
+    try {
+      const url = new URL(value);
+      const shouldRewriteToMarketingH5 =
+        url.hostname === 'mini.ami-core.com' ||
+        ((url.hostname === 'localhost' || url.hostname === '127.0.0.1') && ['5175', '5176'].includes(url.port));
+      if (shouldRewriteToMarketingH5) {
+        const baseUrl = new URL(this.getShareBaseUrl());
+        url.protocol = baseUrl.protocol;
+        url.host = baseUrl.host;
+      }
+      return url.toString();
+    } catch {
+      return value;
+    }
+  }
+
+  private withNormalizedShareUrl<T extends { shareUrl?: string | null; slug?: string | null }>(page: T) {
+    return {
+      ...page,
+      shareUrl: this.normalizeShareUrl(page.shareUrl, page.slug ?? undefined),
+    };
   }
 
   private buildMiniappPath(slug: string) {
@@ -408,7 +437,7 @@ export class MarketingPagesService {
 
     const effectSummaries = await this.buildListEffectSummaries(items.map((item: any) => item.id));
     const enrichedItems = items.map((item: any) => ({
-      ...item,
+      ...this.withNormalizedShareUrl(item),
       effectSummary: effectSummaries.get(item.id) ?? {
         pv: 0,
         uv: 0,
@@ -425,7 +454,7 @@ export class MarketingPagesService {
   async getPage(id: number) {
     const page = await this.pageDelegate.findUnique({ where: { id } });
     if (!page) throw new NotFoundException('营销页面不存在');
-    return page;
+    return this.withNormalizedShareUrl(page);
   }
 
   async createPage(dto: MarketingPageDto, createdBy?: number) {
@@ -480,7 +509,7 @@ export class MarketingPagesService {
         status: 'published',
         publishedAt: new Date(),
         offlineAt: null,
-        shareUrl: page.shareUrl || this.buildShareUrl(page.slug),
+        shareUrl: this.normalizeShareUrl(page.shareUrl, page.slug),
         miniappPath: page.miniappPath || this.buildMiniappPath(page.slug),
       },
     });
@@ -539,7 +568,7 @@ export class MarketingPagesService {
       shareTitle: page.shareTitle || page.title,
       shareDescription: page.shareDescription,
       shareImage: page.shareImage,
-      shareUrl: page.shareUrl || this.buildShareUrl(page.slug),
+      shareUrl: this.normalizeShareUrl(page.shareUrl, page.slug),
       miniappPath: page.miniappPath,
       publishedAt: page.publishedAt,
     };
