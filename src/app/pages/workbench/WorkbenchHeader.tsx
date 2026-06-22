@@ -3,6 +3,7 @@ import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/UI';
 import type { AdminWorkbenchRole, WorkbenchScope } from '@/types/dashboard';
 import { workbenchRoleBadges, workbenchRoleLabels } from './workbenchConfig';
+import { formatBusinessDateTime } from '@/utils/businessTime';
 
 interface WorkbenchHeaderProps {
   role: AdminWorkbenchRole;
@@ -18,14 +19,7 @@ interface WorkbenchHeaderProps {
 
 function formatGeneratedAt(value?: string) {
   if (!value) return '暂无更新时间';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '暂无更新时间';
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatBusinessDateTime(value) || '暂无更新时间';
 }
 
 function scopeLabel(scope: WorkbenchScope | null) {

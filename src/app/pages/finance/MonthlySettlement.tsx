@@ -109,7 +109,7 @@ export function MonthlySettlement() {
     exportToExcel(
       settlements.map((item) => ({
         settleMonth: item.settleMonth,
-        beauticianName: item.beauticianName ?? `#${item.beauticianId}`,
+        staffUserName: item.staffUserName ?? item.beauticianName ?? `#${item.staffUserId ?? item.beauticianId ?? '-'}`,
         projectAmount: item.projectAmount,
         productAmount: item.productAmount,
         cardSaleAmount: item.cardSaleAmount,
@@ -122,7 +122,7 @@ export function MonthlySettlement() {
       })),
       [
         { key: 'settleMonth', header: '月份', width: 12 },
-        { key: 'beauticianName', header: '美容师', width: 16 },
+        { key: 'staffUserName', header: '员工', width: 16 },
         { key: 'projectAmount', header: '项目提成', width: 14 },
         { key: 'productAmount', header: '商品提成', width: 14 },
         { key: 'cardSaleAmount', header: '办卡提成', width: 14 },
@@ -142,7 +142,7 @@ export function MonthlySettlement() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">月度结算</h1>
-          <p className="mt-1 text-sm text-muted-foreground">按月汇总已确认提成，生成美容师结算工资表。</p>
+          <p className="mt-1 text-sm text-muted-foreground">按月汇总已确认提成，生成员工结算工资表。</p>
         </div>
         <div className="flex gap-2">
           {canExportFinance ? (
@@ -188,7 +188,7 @@ export function MonthlySettlement() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>美容师</TableHead>
+            <TableHead>员工</TableHead>
             <TableHead>项目</TableHead>
             <TableHead>商品</TableHead>
             <TableHead>办卡</TableHead>
@@ -203,7 +203,7 @@ export function MonthlySettlement() {
         <TableBody>
           {settlements.map((item) => (
             <TableRow key={item.id}>
-              <TableCell className="font-medium">{item.beauticianName ?? `#${item.beauticianId}`}</TableCell>
+              <TableCell className="font-medium">{item.staffUserName ?? item.beauticianName ?? `#${item.staffUserId ?? item.beauticianId ?? '-'}`}</TableCell>
               <TableCell>{money(item.projectAmount)}</TableCell>
               <TableCell>{money(item.productAmount)}</TableCell>
               <TableCell>{money(item.cardSaleAmount)}</TableCell>

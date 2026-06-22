@@ -75,3 +75,22 @@ This document covers the terminal-facing API surface for Ami Aura Lite. The Core
 - Product sales and service consumption create `StockMovement` rows so inventory can be audited by source type and source id.
 - Marketing attribution uses the latest valid automation touch in the attribution window and links the touch to the resulting order revenue.
 - The terminal API is intentionally shaped so it can later move behind a separate terminal service without changing the client contract.
+
+## Cashier Discount Allocation
+
+`POST /terminal/cashier/checkout` supports the same order-level discount allocation contract as the management order APIs.
+
+Request fields:
+
+| Field | Description |
+| --- | --- |
+| `discountMode` | `none`, `amount`, `rate`, `package_price`, or `manual` |
+| `discountAmount` | Order discount amount for `amount` mode |
+| `discountRate` | Discount rate for `rate` mode, for example `0.8` means 20% off |
+| `packagePrice` | Final package deal price for `package_price` mode |
+| `allocationMethod` | `price_ratio` by default |
+| `discountSource` | `order`, `package`, `promotion`, `coupon`, or `manual` |
+| `items[].listAmount` | Original line amount, defaults to `quantity * unitPrice` |
+| `items[].isGift` | Gift line, net revenue is zero and it is excluded from order discount allocation |
+
+Response fields include `listAmount`, `itemDiscountAmount`, `orderDiscountAmount`, `totalDiscountAmount`, `netAmount`, `discountSource`, `allocationMethod`, and the same line-level fields on `items[]`. Cashier receipts should display original amount, discount, and paid amount from these values.

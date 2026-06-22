@@ -42,6 +42,8 @@ interface CardUsageRecord {
   beauticianId?: number;
   beauticianName?: string;
   operationPermission?: string;
+  operatorId?: number;
+  operatorName?: string;
   deviceId?: number;
   deviceName?: string;
   deviceCode?: string;
@@ -58,9 +60,23 @@ const CARD_STATUS_LABELS: Record<string, string> = {
   unknown: '未记录',
 };
 
+function padDatePart(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function formatLocalDateTime(date: Date) {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())} ${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}:${padDatePart(date.getSeconds())}`;
+}
+
 function formatDateTime(value?: string) {
   if (!value) return '-';
-  return value.replace('T', ' ').slice(0, 19);
+  const text = String(value);
+  const shouldParseAsInstant = text.includes('T') || /(?:Z|[+-]\d{2}:?\d{2})$/.test(text);
+  if (shouldParseAsInstant) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return formatLocalDateTime(date);
+  }
+  return text.replace('T', ' ').slice(0, 19);
 }
 
 function formatDate(value?: string) {
@@ -236,7 +252,7 @@ export function CardVerification() {
                     <div className="mt-1 text-xs text-gray-500">核销前 {record.beforeRemainingTimes ?? '-'} 次</div>
                   </TableCell>
                   <TableCell>
-                    <div>{record.beauticianName || record.operationPermission || '未记录'}</div>
+                    <div>{record.operatorName || record.beauticianName || record.operationPermission || '无操作人记录'}</div>
                     <div className="mt-1 text-xs text-gray-500">{record.deviceName || record.deviceCode || '无终端记录'}</div>
                   </TableCell>
                   <TableCell>{formatDateTime(record.verifiedAt || record.usageTime)}</TableCell>
@@ -332,7 +348,7 @@ export function CardVerification() {
                 <InfoGrid
                   items={[
                     ['使用项目', selected.projectName || '-'],
-                    ['核销美容师', selected.beauticianName || selected.operationPermission || '-'],
+                    ['核销人员', selected.operatorName || selected.beauticianName || selected.operationPermission || '-'],
                     ['美容师ID', selected.beauticianId ?? '-'],
                     ['核销终端', selected.deviceName || '-'],
                     ['终端编号', selected.deviceCode || '-'],

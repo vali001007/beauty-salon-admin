@@ -17,7 +17,8 @@ const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'customerName', header: '客户', width: 12 },
   { key: 'customerPhone', header: '联系电话', width: 15 },
   { key: 'storeName', header: '门店', width: 20 },
-  { key: 'totalAmount', header: '总金额', width: 12 },
+  { key: 'itemSummary', header: '订单明细', width: 42 },
+  { key: 'totalAmount', header: '订单金额', width: 12 },
   { key: 'paymentMethod', header: '支付方式', width: 12 },
   { key: 'status', header: '状态', width: 10 },
   { key: 'createdAt', header: '下单时间', width: 18 },
@@ -46,6 +47,30 @@ type OrderFormState = {
   remark: string;
 };
 
+type DiscountFormState = {
+  mode: 'none' | 'amount' | 'rate' | 'package_price';
+  amount: string;
+  rate: string;
+  packagePrice: string;
+};
+
+type DiscountPreview = {
+  grossAmount: number;
+  discountAmount: number;
+  netAmount: number;
+  discountMode: 'none' | 'amount' | 'rate' | 'package_price';
+  discountSource: 'order' | 'package' | 'manual';
+  discountRate?: number;
+  packagePrice?: number;
+};
+
+const DISCOUNT_MODE_OPTIONS: Array<{ value: DiscountFormState['mode']; label: string }> = [
+  { value: 'none', label: '无优惠' },
+  { value: 'amount', label: '优惠金额' },
+  { value: 'rate', label: '折扣率' },
+  { value: 'package_price', label: '套餐价' },
+];
+
 const createEmptyItem = (): DraftItem => ({
   rowId: Date.now() + Math.floor(Math.random() * 1000),
   productId: '',
@@ -55,13 +80,64 @@ const createEmptyItem = (): DraftItem => ({
   unitPrice: 0,
 });
 
+const createEmptyDiscount = (): DiscountFormState => ({
+  mode: 'none',
+  amount: '',
+  rate: '',
+  packagePrice: '',
+});
+
+function getDiscountPreview(totalAmount: number, discount: DiscountFormState): DiscountPreview {
+  const grossAmount = Math.max(0, Number(totalAmount || 0));
+  if (discount.mode === 'amount') {
+    const discountAmount = Math.min(grossAmount, Math.max(0, Number(discount.amount) || 0));
+    return {
+      grossAmount,
+      discountAmount,
+      netAmount: Math.max(0, grossAmount - discountAmount),
+      discountMode: 'amount' as const,
+      discountSource: 'manual' as const,
+    };
+  }
+  if (discount.mode === 'rate') {
+    const discountRate = Math.min(1, Math.max(0, Number(discount.rate) || 0));
+    const discountAmount = Number((grossAmount * (1 - discountRate)).toFixed(2));
+    return {
+      grossAmount,
+      discountAmount,
+      netAmount: Math.max(0, grossAmount - discountAmount),
+      discountMode: 'rate' as const,
+      discountRate,
+      discountSource: 'manual' as const,
+    };
+  }
+  if (discount.mode === 'package_price') {
+    const packagePrice = Math.min(grossAmount, Math.max(0, Number(discount.packagePrice) || 0));
+    const discountAmount = Math.max(0, grossAmount - packagePrice);
+    return {
+      grossAmount,
+      discountAmount,
+      netAmount: packagePrice,
+      discountMode: 'package_price' as const,
+      packagePrice,
+      discountSource: 'package' as const,
+    };
+  }
+  return {
+    grossAmount,
+    discountAmount: 0,
+    netAmount: grossAmount,
+    discountMode: 'none' as const,
+    discountSource: 'order' as const,
+  };
+}
+
 function formatCurrency(value: number) {
   return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function getOrderItems(order: ProductOrder): ProductOrderItem[] {
-  if (Array.isArray(order.items) && order.items.length) return order.items;
-  return (order.orderItems ?? []).map((item) => ({
+  const items = Array.isArray(order.items) && order.items.length ? order.items : (order.orderItems ?? []).map((item) => ({
     id: item.id,
     itemId: item.itemId ?? undefined,
     itemType: item.itemType,
@@ -71,8 +147,60 @@ function getOrderItems(order: ProductOrder): ProductOrderItem[] {
     unitPrice: Number(item.unitPrice),
     subtotal: Number(item.subtotal),
     discount: Number(item.discount || 0),
+    listAmount: item.listAmount === undefined ? undefined : Number(item.listAmount),
+    totalDiscountAmount: item.totalDiscountAmount === undefined ? undefined : Number(item.totalDiscountAmount),
+    netAmount: item.netAmount === undefined ? undefined : Number(item.netAmount),
+    orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount === undefined ? undefined : Number(item.orderAllocatedDiscountAmount),
+    itemDiscountAmount: item.itemDiscountAmount === undefined ? undefined : Number(item.itemDiscountAmount),
     payload: item.payload,
   }));
+  return items;
+}
+
+function getOrderItemTypeLabel(item: ProductOrderItem) {
+  const type = String(item.itemType ?? 'product').toLowerCase();
+  const map: Record<string, string> = {
+    product: '商品',
+    goods: '商品',
+    project: '项目',
+    card: '卡项',
+    recharge: '充值',
+  };
+  return map[type] ?? '其他';
+}
+
+function getProductItemName(item: ProductOrderItem) {
+  return item.productName?.trim() || '未记录商品';
+}
+
+function getOrderItemAmount(item: ProductOrderItem) {
+  return Number(item.netAmount ?? item.subtotal ?? Number(item.quantity || 0) * Number(item.unitPrice || 0));
+}
+
+function getOrderItemListAmount(item: ProductOrderItem) {
+  return Number(item.listAmount ?? Number(item.quantity || 0) * Number(item.unitPrice || 0));
+}
+
+function getOrderItemDiscountAmount(item: ProductOrderItem) {
+  return Number(item.totalDiscountAmount ?? item.discount ?? Math.max(0, getOrderItemListAmount(item) - getOrderItemAmount(item)));
+}
+
+function getOrderItemDirectDiscountAmount(item: ProductOrderItem) {
+  return Number(item.itemDiscountAmount ?? 0);
+}
+
+function getOrderItemAllocatedDiscountAmount(item: ProductOrderItem) {
+  return Number(item.orderAllocatedDiscountAmount ?? Math.max(0, getOrderItemDiscountAmount(item) - getOrderItemDirectDiscountAmount(item)));
+}
+
+function getOrderItemsAmount(items: ProductOrderItem[]) {
+  return items.reduce((sum, item) => sum + getOrderItemAmount(item), 0);
+}
+
+function getProductItemsSummary(items: ProductOrderItem[]) {
+  return items.length
+    ? items.map((item) => `${getOrderItemTypeLabel(item)}：${getProductItemName(item)} x${Number(item.quantity || 0)} ${formatCurrency(getOrderItemAmount(item))}`).join('；')
+    : '未记录';
 }
 
 export function ProductOrderManagement() {
@@ -98,6 +226,7 @@ export function ProductOrderManagement() {
     remark: '',
   });
   const [draftItems, setDraftItems] = useState<DraftItem[]>([createEmptyItem()]);
+  const [discountForm, setDiscountForm] = useState<DiscountFormState>(createEmptyDiscount());
 
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const stores = useStoreStore((state) => state.stores);
@@ -181,11 +310,12 @@ export function ProductOrderManagement() {
     () => draftItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0),
     [draftItems],
   );
+  const discountPreview = useMemo(() => getDiscountPreview(totalAmount, discountForm), [discountForm, totalAmount]);
 
   const activeOrders = orders.filter((order) => !['已取消', '已退款'].includes(order.status));
   const completedCount = orders.filter((order) => order.status === '已完成').length;
   const pendingCount = orders.filter((order) => ['待付款', '已付款'].includes(order.status)).length;
-  const activeAmount = activeOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+  const activeAmount = activeOrders.reduce((sum, order) => sum + getOrderItemsAmount(getOrderItems(order)), 0);
 
   const getStatusColor = (status: ProductOrder['status']) => {
     switch (status) {
@@ -218,6 +348,7 @@ export function ProductOrderManagement() {
     setCustomerSearch('');
     setShowCustomerOptions(false);
     setDraftItems([createEmptyItem()]);
+    setDiscountForm(createEmptyDiscount());
   };
 
   const handleOpenCreate = () => {
@@ -326,12 +457,19 @@ export function ProductOrderManagement() {
         sku: item.sku,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        listAmount: item.quantity * item.unitPrice,
         subtotal: item.quantity * item.unitPrice,
       })),
-      totalAmount,
+      totalAmount: discountPreview.netAmount,
+      discountMode: discountPreview.discountMode,
+      discountAmount: discountPreview.discountMode === 'amount' ? discountPreview.discountAmount : undefined,
+      discountRate: discountPreview.discountRate,
+      packagePrice: discountPreview.packagePrice,
+      allocationMethod: 'price_ratio',
+      discountSource: discountPreview.discountSource,
       status: form.status,
       paymentMethod: form.paymentMethod,
-      paidAmount: ['已付款', '已完成'].includes(form.status) ? totalAmount : 0,
+      paidAmount: ['已付款', '已完成'].includes(form.status) ? discountPreview.netAmount : 0,
       remark: form.remark.trim() || undefined,
       source: 'admin',
     };
@@ -351,7 +489,18 @@ export function ProductOrderManagement() {
   };
 
   const handleExport = () => {
-    exportToExcel(orders, ORDER_EXPORT_COLUMNS, '商品订单报表');
+    exportToExcel(
+      orders.map((order) => {
+        const items = getOrderItems(order);
+        return {
+          ...order,
+          itemSummary: getProductItemsSummary(items),
+          totalAmount: getOrderItemsAmount(items),
+        };
+      }),
+      ORDER_EXPORT_COLUMNS,
+      '商品订单报表',
+    );
   };
 
   return (
@@ -439,8 +588,9 @@ export function ProductOrderManagement() {
               <TableHead>订单编号</TableHead>
               <TableHead>客户</TableHead>
               <TableHead>门店</TableHead>
-              <TableHead>商品数</TableHead>
-              <TableHead>总金额</TableHead>
+              <TableHead>订单明细</TableHead>
+              <TableHead>明细数</TableHead>
+              <TableHead>订单金额</TableHead>
               <TableHead>支付方式</TableHead>
               <TableHead>来源</TableHead>
               <TableHead>状态</TableHead>
@@ -459,8 +609,37 @@ export function ProductOrderManagement() {
                     <div className="text-xs text-gray-500">{order.customerPhone || '-'}</div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">{order.storeName || '-'}</TableCell>
+                  <TableCell className="min-w-44 max-w-64">
+                    {items.length ? (
+                      <div className="space-y-1">
+                        {items.slice(0, 2).map((item, index) => {
+                          const itemName = getProductItemName(item);
+                          return (
+                            <div key={`${item.id}-${index}`} className="flex items-center gap-2 text-sm">
+                              <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{getOrderItemTypeLabel(item)}</span>
+                              <span className="truncate font-medium text-gray-800" title={itemName}>
+                                {itemName}
+                              </span>
+                              <span className="shrink-0 text-xs text-gray-500">x{Number(item.quantity || 0)}</span>
+                              <span className="shrink-0 text-xs font-medium text-gray-700">{formatCurrency(getOrderItemAmount(item))}</span>
+                            </div>
+                          );
+                        })}
+                        {items.length > 2 && (
+                          <div className="text-xs text-gray-500">另 {items.length - 2} 项，点详情查看</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">未记录</span>
+                    )}
+                  </TableCell>
                   <TableCell>{items.length}</TableCell>
-                  <TableCell className="font-medium text-gray-800">{formatCurrency(order.totalAmount)}</TableCell>
+                  <TableCell className="font-medium text-gray-800">
+                    <div>{formatCurrency(Number(order.netAmount ?? getOrderItemsAmount(items)))}</div>
+                    {Number(order.totalDiscountAmount || 0) > 0 && (
+                      <div className="text-xs font-normal text-amber-600">优惠 {formatCurrency(Number(order.totalDiscountAmount || 0))}</div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm text-gray-600">{order.paymentMethod}</TableCell>
                   <TableCell className="text-sm text-gray-600">{order.source === 'terminal' ? 'Ami Aura Lite' : '管理端'}</TableCell>
                   <TableCell>
@@ -485,7 +664,7 @@ export function ProductOrderManagement() {
             })}
             {orders.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} className="py-12 text-center text-gray-400">
+                <TableCell colSpan={11} className="py-12 text-center text-gray-400">
                   暂无匹配的商品订单
                 </TableCell>
               </TableRow>
@@ -723,10 +902,77 @@ export function ProductOrderManagement() {
             />
           </label>
 
+          <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-gray-700">优惠方式</span>
+                <select
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                  value={discountForm.mode}
+                  onChange={(event) =>
+                    setDiscountForm((prev) => ({ ...prev, mode: event.target.value as DiscountFormState['mode'] }))
+                  }
+                >
+                  {DISCOUNT_MODE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {discountForm.mode === 'amount' && (
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-gray-700">优惠金额</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={discountForm.amount}
+                    onChange={(event) => setDiscountForm((prev) => ({ ...prev, amount: event.target.value }))}
+                    placeholder="例如 120"
+                  />
+                </label>
+              )}
+              {discountForm.mode === 'rate' && (
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-gray-700">折扣率</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={discountForm.rate}
+                    onChange={(event) => setDiscountForm((prev) => ({ ...prev, rate: event.target.value }))}
+                    placeholder="0.8 表示八折"
+                  />
+                </label>
+              )}
+              {discountForm.mode === 'package_price' && (
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-gray-700">套餐成交价</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={discountForm.packagePrice}
+                    onChange={(event) => setDiscountForm((prev) => ({ ...prev, packagePrice: event.target.value }))}
+                    placeholder="例如 680"
+                  />
+                </label>
+              )}
+              <div className="flex flex-col justify-end rounded-lg bg-white px-3 py-2">
+                <span className="text-xs text-gray-500">本单优惠</span>
+                <span className="text-lg font-semibold text-blue-700">{formatCurrency(discountPreview.discountAmount)}</span>
+              </div>
+              <div className="flex flex-col justify-end rounded-lg bg-white px-3 py-2">
+                <span className="text-xs text-gray-500">应收净额</span>
+                <span className="text-lg font-semibold text-gray-900">{formatCurrency(discountPreview.netAmount)}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
             <div>
-              <div className="text-sm text-gray-500">订单总金额</div>
-              <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(totalAmount)}</div>
+              <div className="text-sm text-gray-500">原价小计</div>
+              <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(discountPreview.grossAmount)}</div>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setShowCreate(false)} disabled={submitting}>
@@ -796,25 +1042,35 @@ export function ProductOrderManagement() {
               </div>
 
               <div>
-                <h4 className="mb-3 font-medium text-gray-800">商品明细</h4>
+                <h4 className="mb-3 font-medium text-gray-800">订单明细</h4>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50/80">
-                      <TableHead>商品名称</TableHead>
+                      <TableHead>类型</TableHead>
+                      <TableHead>明细名称</TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>数量</TableHead>
                       <TableHead>单价</TableHead>
-                      <TableHead className="text-right">小计</TableHead>
+                      <TableHead className="text-right">原价</TableHead>
+                      <TableHead className="text-right">单项优惠</TableHead>
+                      <TableHead className="text-right">分摊优惠</TableHead>
+                      <TableHead className="text-right">实收</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {getOrderItems(selectedOrder).map((item) => (
                       <TableRow key={item.id}>
+                        <TableCell>
+                          <span className="inline-flex rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{getOrderItemTypeLabel(item)}</span>
+                        </TableCell>
                         <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
                         <TableCell className="font-mono text-sm text-gray-600">{item.sku || '-'}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(item.subtotal)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(getOrderItemListAmount(item))}</TableCell>
+                        <TableCell className="text-right text-amber-600">{formatCurrency(getOrderItemDirectDiscountAmount(item))}</TableCell>
+                        <TableCell className="text-right text-orange-600">{formatCurrency(getOrderItemAllocatedDiscountAmount(item))}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(getOrderItemAmount(item))}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -830,8 +1086,15 @@ export function ProductOrderManagement() {
 
               <div className="flex justify-end border-t border-gray-200 pt-4">
                 <div className="text-right">
-                  <div className="text-sm text-gray-600">订单总额</div>
-                  <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(selectedOrder.totalAmount)}</div>
+                  <div className="text-sm text-gray-600">订单实收</div>
+                  <div className="mt-1 text-2xl font-semibold text-blue-600">
+                    {formatCurrency(Number(selectedOrder.netAmount ?? getOrderItemsAmount(getOrderItems(selectedOrder))))}
+                  </div>
+                  {Number(selectedOrder.totalDiscountAmount || 0) > 0 && (
+                    <div className="mt-1 text-sm text-amber-600">
+                      原价 {formatCurrency(Number(selectedOrder.listAmount || 0))}，优惠 {formatCurrency(Number(selectedOrder.totalDiscountAmount || 0))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

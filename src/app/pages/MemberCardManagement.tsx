@@ -14,6 +14,7 @@ import {
 import { getStores } from '@/api/store';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { usePagination } from '@/hooks/usePagination';
+import { useStoreStore } from '@/stores/storeStore';
 import type { Customer, MemberCardAccount, MemberCardTransaction, Store } from '@/types';
 
 type FormMode = 'open' | 'recharge' | 'gift' | 'deduct';
@@ -42,7 +43,6 @@ const DEMO_CUSTOMERS = [
 ];
 
 const initialForm = {
-  storeId: '',
   customerId: '',
   rechargeAmount: '0.00',
   giftAmount: '0.00',
@@ -117,6 +117,9 @@ function AmountStepper({
 }
 
 export function MemberCardManagement() {
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const globalStores = useStoreStore((state) => state.stores);
+  const loadGlobalStores = useStoreStore((state) => state.loadStores);
   const [keywordInput, setKeywordInput] = useState('');
   const [storeInput, setStoreInput] = useState('');
   const [filters, setFilters] = useState<{ keyword?: string; storeId?: number }>({});
@@ -136,6 +139,7 @@ export function MemberCardManagement() {
     usePagination<MemberCardAccount>(getMemberCardsPaginated, stableFilters);
 
   useEffect(() => {
+    void loadGlobalStores();
     Promise.all([getCustomers(), getStores()])
       .then(([customerItems, storeItems]) => {
         setCustomers(customerItems);
@@ -144,7 +148,7 @@ export function MemberCardManagement() {
       .catch(() => {
         toast.error('开卡选项加载失败，请稍后重试');
       });
-  }, []);
+  }, [loadGlobalStores]);
 
   const storeOptions = useMemo(
     () => (isRealApi ? stores.map((store) => ({ id: store.id, name: store.name })) : DEMO_STORES),
@@ -157,6 +161,14 @@ export function MemberCardManagement() {
         : DEMO_CUSTOMERS,
     [customers],
   );
+  const currentStore = useMemo(() => {
+    if (!currentStoreId) return null;
+    return (
+      globalStores.find((store) => store.id === currentStoreId) ??
+      stores.find((store) => store.id === currentStoreId) ??
+      null
+    );
+  }, [currentStoreId, globalStores, stores]);
 
   const openForm = (mode: FormMode, account?: MemberCardAccount) => {
     setIsFormOpen(true);
@@ -164,7 +176,6 @@ export function MemberCardManagement() {
     setSelectedAccount(account ?? null);
     setForm({
       ...initialForm,
-      storeId: account ? String(account.storeId) : '',
       customerId: account ? String(account.customerId) : '',
     });
   };
@@ -178,18 +189,17 @@ export function MemberCardManagement() {
   const submitForm = async () => {
     const rechargeAmount = parseAmount(form.rechargeAmount);
     const giftAmount = parseAmount(form.giftAmount);
-    const selectedStore = storeOptions.find((item) => item.id === Number(form.storeId));
     const selectedCustomer = customerOptions.find((item) => item.id === Number(form.customerId));
 
     try {
       setSubmitting(true);
       if (formMode === 'open') {
-        if (!selectedStore) throw new Error('请选择门店');
+        if (!currentStoreId || !currentStore) throw new Error('请先在顶部标题栏选择具体门店');
         if (!selectedCustomer) throw new Error('请选择客户');
         if (rechargeAmount <= 0) throw new Error('充值金额必须大于 0');
         await openMemberCard({
-          storeId: selectedStore.id,
-          storeName: selectedStore.name,
+          storeId: currentStore.id,
+          storeName: currentStore.name,
           customerId: selectedCustomer.id,
           customerName: selectedCustomer.name,
           customerPhone: selectedCustomer.phone,
@@ -320,6 +330,7 @@ export function MemberCardManagement() {
               <TableHead>累计消费</TableHead>
               <TableHead>可用余额</TableHead>
               <TableHead>赠送余额</TableHead>
+              <TableHead>办理人员</TableHead>
               <TableHead>备注</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -334,6 +345,7 @@ export function MemberCardManagement() {
                 <TableCell>{formatCurrency(account.totalConsumed)}</TableCell>
                 <TableCell className="font-medium">{formatCurrency(account.availableBalance)}</TableCell>
                 <TableCell>{formatCurrency(account.giftBalance)}</TableCell>
+                <TableCell>{account.handlerName || '-'}</TableCell>
                 <TableCell>
                   <span className="block max-w-[150px] truncate" title={account.remark}>
                     {account.remark || '-'}
@@ -364,7 +376,7 @@ export function MemberCardManagement() {
             ))}
             {accounts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
                   暂无会员卡数据
                 </TableCell>
               </TableRow>
@@ -412,23 +424,6 @@ export function MemberCardManagement() {
             <div className="space-y-5 px-6 py-5">
               {formMode === 'open' ? (
                 <>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-semibold text-foreground">
-                      <span className="mr-1 text-destructive">*</span>所属门店
-                    </span>
-                    <select
-                      value={form.storeId}
-                      onChange={(event) => setForm((prev) => ({ ...prev, storeId: event.target.value }))}
-                      className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    >
-                      <option value="">请选择门店</option>
-                      {storeOptions.map((store) => (
-                        <option key={store.id} value={store.id}>
-                          {store.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <label className="block">
                     <span className="mb-2 block text-sm font-semibold text-foreground">
                       <span className="mr-1 text-destructive">*</span>选择用户

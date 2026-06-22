@@ -30,6 +30,12 @@ export function StoreSwitcher() {
     return stores.filter((s) => user.storeIds.includes(s.id));
   }, [stores, isSuperAdmin, user?.storeIds]);
 
+  useEffect(() => {
+    if (currentStoreId === null && accessibleStores.length === 1) {
+      setCurrentStore(accessibleStores[0].id);
+    }
+  }, [accessibleStores, currentStoreId, setCurrentStore]);
+
   const handleValueChange = (value: string) => {
     if (value === ALL_STORES_VALUE) {
       setCurrentStore(null);

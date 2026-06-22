@@ -10,10 +10,10 @@ import {
   type CommissionRecord,
   type CommissionType,
 } from '@/api/commission';
-import { getBeauticians } from '@/api/beautician';
+import { getUsers } from '@/api/user';
 import { usePermission } from '@/hooks/usePermission';
 import { exportToExcel } from '@/utils/excel';
-import type { Beautician } from '@/types';
+import type { SystemUser } from '@/types/user';
 
 const typeLabels: Record<CommissionType, string> = {
   project: '项目',
@@ -43,11 +43,11 @@ export function CommissionRecords() {
   const canManageFinance = usePermission('core:finance:manage');
   const canExportFinance = usePermission('core:finance:export');
   const [records, setRecords] = useState<CommissionRecord[]>([]);
-  const [beauticians, setBeauticians] = useState<Beautician[]>([]);
+  const [staffUsers, setStaffUsers] = useState<SystemUser[]>([]);
   const [summary, setSummary] = useState({ totalAmount: 0, pendingAmount: 0, confirmedAmount: 0, settledAmount: 0, count: 0 });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ settleMonth: currentMonth(), beauticianId: '', type: '', status: '' });
+  const [filters, setFilters] = useState({ settleMonth: currentMonth(), staffUserId: '', type: '', status: '' });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -56,18 +56,18 @@ export function CommissionRecords() {
         page: 1,
         pageSize: 500,
         settleMonth: filters.settleMonth || undefined,
-        beauticianId: filters.beauticianId || undefined,
+        staffUserId: filters.staffUserId || undefined,
         type: filters.type || undefined,
         status: filters.status || undefined,
       };
-      const [recordPage, recordSummary, beauticianList] = await Promise.all([
+      const [recordPage, recordSummary, userList] = await Promise.all([
         getCommissionRecords(params),
         getCommissionSummary(params),
-        getBeauticians(),
+        getUsers(),
       ]);
       setRecords(recordPage.items);
       setSummary(recordSummary);
-      setBeauticians(beauticianList);
+      setStaffUsers(userList.filter((user) => user.status === '启用'));
       setSelectedIds([]);
     } catch (error: any) {
       toast.error(error?.message || '加载提成明细失败');
@@ -127,7 +127,7 @@ export function CommissionRecords() {
     exportToExcel(
       records.map((record) => ({
         createdAt: record.createdAt ? String(record.createdAt).slice(0, 10) : '',
-        beauticianName: record.beauticianName ?? '',
+        staffUserName: record.staffUserName ?? record.beauticianName ?? '',
         type: typeLabels[record.type],
         orderNo: record.orderNo ?? '',
         itemName: record.orderItem?.name ?? '',
@@ -139,7 +139,7 @@ export function CommissionRecords() {
       })),
       [
         { key: 'createdAt', header: '日期', width: 14 },
-        { key: 'beauticianName', header: '美容师', width: 16 },
+        { key: 'staffUserName', header: '员工', width: 16 },
         { key: 'type', header: '类型', width: 12 },
         { key: 'orderNo', header: '订单号', width: 20 },
         { key: 'itemName', header: '项目/商品', width: 22 },
@@ -158,7 +158,7 @@ export function CommissionRecords() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">提成明细</h1>
-          <p className="mt-1 text-sm text-muted-foreground">查看每位美容师的提成流水，确认后可进入月度结算。</p>
+          <p className="mt-1 text-sm text-muted-foreground">查看每位员工的提成流水，确认后可进入月度结算。</p>
         </div>
         <div className="flex gap-2">
           {canExportFinance ? (
@@ -197,12 +197,12 @@ export function CommissionRecords() {
         />
         <select
           className="h-10 rounded-md border border-border bg-background px-3 text-sm"
-          value={filters.beauticianId}
-          onChange={(event) => setFilters((prev) => ({ ...prev, beauticianId: event.target.value }))}
+          value={filters.staffUserId}
+          onChange={(event) => setFilters((prev) => ({ ...prev, staffUserId: event.target.value }))}
         >
-          <option value="">全部美容师</option>
-          {beauticians.map((beautician) => (
-            <option key={beautician.id} value={beautician.id}>{beautician.name}</option>
+          <option value="">全部员工</option>
+          {staffUsers.map((user) => (
+            <option key={user.id} value={user.id}>{user.name || user.username}</option>
           ))}
         </select>
         <select className="h-10 rounded-md border border-border bg-background px-3 text-sm" value={filters.type} onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}>
@@ -227,7 +227,7 @@ export function CommissionRecords() {
               </TableHead>
             ) : null}
             <TableHead>日期</TableHead>
-            <TableHead>美容师</TableHead>
+            <TableHead>员工</TableHead>
             <TableHead>类型</TableHead>
             <TableHead>订单/项目</TableHead>
             <TableHead>金额基数</TableHead>
@@ -251,7 +251,7 @@ export function CommissionRecords() {
                 </TableCell>
               ) : null}
               <TableCell>{record.createdAt ? String(record.createdAt).slice(0, 10) : '-'}</TableCell>
-              <TableCell>{record.beauticianName ?? `#${record.beauticianId}`}</TableCell>
+              <TableCell>{record.staffUserName ?? record.beauticianName ?? `#${record.staffUserId ?? record.beauticianId ?? '-'}`}</TableCell>
               <TableCell>{typeLabels[record.type]}</TableCell>
               <TableCell>
                 <div className="font-medium">{record.orderItem?.name ?? record.ruleName ?? '-'}</div>

@@ -439,8 +439,10 @@ export function GoodsProductManagement() {
             <div className="mt-4 space-y-4">
               <div className="rounded-lg bg-gray-50 p-3">
                 <div className="font-medium text-gray-800">{saleProduct.name}</div>
-                <div className="mt-1 text-sm text-gray-500">
-                  产品零售价：{formatCurrency(saleProduct.retailPrice)}，SKU：{saleProduct.sku}
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                  <span>产品零售价：{formatCurrency(saleProduct.retailPrice)}</span>
+                  <span>成本价：{formatCurrency(saleProduct.costPrice)}</span>
+                  <span>SKU：{saleProduct.sku}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

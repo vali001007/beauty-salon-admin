@@ -32,6 +32,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
 import { formatScopedValue } from '@/utils/fieldMask';
 import { CustomerAppEventTable } from '../components/CustomerAppEventTable';
+import { formatBusinessDate } from '@/utils/businessTime';
 
 const CUSTOMER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'name', header: '客户名称', width: 15 },
@@ -93,8 +94,8 @@ const getCustomerDataTabFromQuery = (tab: string | null): CustomerDataTab =>
 const cleanHealthText = (value?: string | null) => (value && value !== '-' ? value : '');
 
 const formatHealthDate = (value?: string | null) => {
-  if (!value || value === '-') return new Date().toISOString().slice(0, 10);
-  return value.includes('T') ? value.slice(0, 10) : value;
+  if (!value || value === '-') return formatBusinessDate(new Date());
+  return value.includes('T') ? formatBusinessDate(value) : value;
 };
 
 const PROFILE_REASON_TYPE_LABELS: Record<string, string> = {

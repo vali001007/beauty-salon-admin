@@ -46,6 +46,7 @@ import type {
   SupplierOrderStatus,
   SupplierPayload,
 } from '@/types';
+import { formatBusinessDate } from '@/utils/businessTime';
 
 const emptySupplierForm: SupplierPayload = {
   name: '',
@@ -116,8 +117,7 @@ function formatPercent(value?: number | null) {
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value.slice(0, 10) : date.toLocaleDateString('zh-CN');
+  return formatBusinessDate(value) || value.slice(0, 10);
 }
 
 function getStatusVariant(status: SupplierOrderStatus) {

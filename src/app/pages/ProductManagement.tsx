@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Upload, Download, Edit, Eye, Ban, Image as ImageIcon, Loader2, FileDown, CircleCheck } from 'lucide-react';
+import { Plus, Upload, Download, Edit, Eye, Ban, Image as ImageIcon, Loader2, FileDown, CircleCheck, Sparkles } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ImportDialog } from '../components/ImportDialog';
@@ -7,10 +7,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { productSchema, type ProductFormData } from '@/schemas/product';
 import { getCategories, getProductsPaginated, createProduct, updateProduct, importProducts } from '@/api/product';
+import { adoptIndustryProductTemplateAsProduct, getIndustryProductTemplates } from '@/api/industry';
 import { usePagination } from '@/hooks/usePagination';
 import { exportToExcel, downloadTemplate } from '@/utils/excel';
 import { toast } from 'sonner';
-import type { Category, Product } from '@/types';
+import type { Category, IndustryProductTemplate, Product } from '@/types';
 import type { ExportColumn } from '@/types/excel';
 
 const PRODUCT_EXPORT_COLUMNS: ExportColumn[] = [
@@ -41,6 +42,12 @@ const PRODUCT_IMPORT_SAMPLE = [
   { name: '示例产品', brand: '示例品牌', spec: '30ml', unit: '瓶', costPrice: 100, retailPrice: 200, shelfLife: 730, supplier: '示例供应商' },
 ];
 
+function formatMoneyRange(min?: number | null, max?: number | null) {
+  if (min == null && max == null) return '未配置';
+  if (min != null && max != null) return `¥${Number(min).toFixed(2)} - ¥${Number(max).toFixed(2)}`;
+  return `¥${Number(min ?? max).toFixed(2)}`;
+}
+
 function flattenCategories(categories: Category[]): Category[] {
   return categories.flatMap((category) => [category, ...flattenCategories(category.children ?? [])]);
 }
@@ -51,10 +58,15 @@ export function ProductManagement() {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showIndustryAdoptionDialog, setShowIndustryAdoptionDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [industryProductTemplates, setIndustryProductTemplates] = useState<IndustryProductTemplate[]>([]);
+  const [industryTemplatesLoading, setIndustryTemplatesLoading] = useState(false);
+  const [selectedIndustryProductTemplateId, setSelectedIndustryProductTemplateId] = useState('');
+  const [isAdoptingIndustryProduct, setIsAdoptingIndustryProduct] = useState(false);
 
   const filters = useMemo(
     () => ({ keyword: searchKeyword || undefined, categoryId: selectedCategory ?? undefined }),
@@ -62,6 +74,9 @@ export function ProductManagement() {
   );
   const { data: products, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<Product>(getProductsPaginated, filters);
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
+  const selectedIndustryProductTemplate = industryProductTemplates.find(
+    (template) => String(template.id) === selectedIndustryProductTemplateId,
+  );
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -126,6 +141,16 @@ export function ProductManagement() {
     setShowAddDialog(true);
   };
 
+  const openIndustryAdoptionDialog = () => {
+    setSelectedIndustryProductTemplateId('');
+    setShowIndustryAdoptionDialog(true);
+    setIndustryTemplatesLoading(true);
+    getIndustryProductTemplates({ status: 'published' })
+      .then((templates) => setIndustryProductTemplates(templates))
+      .catch((error) => toast.error(error instanceof Error ? error.message : '行业标准品加载失败'))
+      .finally(() => setIndustryTemplatesLoading(false));
+  };
+
   const openEditDialog = (product: Product) => {
     setEditingProduct(product);
     reset({
@@ -153,6 +178,26 @@ export function ProductManagement() {
       toast.error(err?.message || '更新售卖状态失败');
     } finally {
       setUpdatingStatusId(null);
+    }
+  };
+
+  const handleAdoptIndustryProduct = async () => {
+    if (!selectedIndustryProductTemplate) {
+      toast.error('请选择行业标准品');
+      return;
+    }
+    setIsAdoptingIndustryProduct(true);
+    try {
+      await adoptIndustryProductTemplateAsProduct(selectedIndustryProductTemplate.id, {
+        categoryName: selectedIndustryProductTemplate.category,
+      });
+      toast.success(`已从行业标准品创建「${selectedIndustryProductTemplate.name}」`);
+      setShowIndustryAdoptionDialog(false);
+      refresh();
+    } catch (error: any) {
+      toast.error(error?.message || '采用行业标准品失败');
+    } finally {
+      setIsAdoptingIndustryProduct(false);
     }
   };
 
@@ -202,6 +247,9 @@ export function ProductManagement() {
           </Button>
           <Button variant="outline" className="gap-2" onClick={() => exportToExcel(products, PRODUCT_EXPORT_COLUMNS, '产品数据')}>
             <Download className="w-4 h-4" /> 导出
+          </Button>
+          <Button variant="outline" className="gap-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={openIndustryAdoptionDialog}>
+            <Sparkles className="w-4 h-4" /> 从行业标准品创建
           </Button>
           <Button className="gap-2" onClick={openCreateDialog}>
             <Plus className="w-4 h-4" /> 添加产品
@@ -312,7 +360,7 @@ export function ProductManagement() {
             </TableBody>
           </Table>
           )}
-          
+
           {/* Pagination */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
             <div className="text-sm text-gray-600">共 {total} 条</div>
@@ -345,7 +393,7 @@ export function ProductManagement() {
                 </label>
                 <Input value={editingProduct?.sku ?? '保存后自动生成'} disabled className="bg-gray-50" />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   产品名称 <span className="text-red-500">*</span>
@@ -356,7 +404,7 @@ export function ProductManagement() {
                 />
                 {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   品牌 <span className="text-red-500">*</span>
@@ -367,7 +415,7 @@ export function ProductManagement() {
                 />
                 {errors.brand && <p className="text-red-500 text-xs mt-1">{errors.brand.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   规格 <span className="text-red-500">*</span>
@@ -378,7 +426,7 @@ export function ProductManagement() {
                 />
                 {errors.spec && <p className="text-red-500 text-xs mt-1">{errors.spec.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   单位 <span className="text-red-500">*</span>
@@ -395,7 +443,7 @@ export function ProductManagement() {
                 </select>
                 {errors.unit && <p className="text-red-500 text-xs mt-1">{errors.unit.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   成本价 <span className="text-red-500">*</span>
@@ -408,7 +456,7 @@ export function ProductManagement() {
                 />
                 {errors.costPrice && <p className="text-red-500 text-xs mt-1">{errors.costPrice.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   零售价 <span className="text-red-500">*</span>
@@ -421,7 +469,7 @@ export function ProductManagement() {
                 />
                 {errors.retailPrice && <p className="text-red-500 text-xs mt-1">{errors.retailPrice.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   保质期天数 <span className="text-red-500">*</span>
@@ -433,7 +481,7 @@ export function ProductManagement() {
                 />
                 {errors.shelfLife && <p className="text-red-500 text-xs mt-1">{errors.shelfLife.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   分类 <span className="text-red-500">*</span>
@@ -451,7 +499,7 @@ export function ProductManagement() {
                 </select>
                 {errors.categoryId && <p className="text-red-500 text-xs mt-1">{errors.categoryId.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   供应商 <span className="text-red-500">*</span>
@@ -462,7 +510,7 @@ export function ProductManagement() {
                 />
                 {errors.supplier && <p className="text-red-500 text-xs mt-1">{errors.supplier.message}</p>}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   最小采购量 <span className="text-red-500">*</span>
@@ -474,7 +522,7 @@ export function ProductManagement() {
                 />
                 {errors.minPurchaseQty && <p className="text-red-500 text-xs mt-1">{errors.minPurchaseQty.message}</p>}
               </div>
-              
+
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">产品图片</label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
@@ -484,7 +532,7 @@ export function ProductManagement() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-3 mt-6">
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
                 取消
@@ -584,6 +632,88 @@ export function ProductManagement() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showIndustryAdoptionDialog} onOpenChange={setShowIndustryAdoptionDialog}>
+        <DialogContent className="max-w-2xl" aria-describedby="industry-product-adoption-description">
+          <DialogHeader>
+            <DialogTitle>从行业标准品创建产品</DialogTitle>
+          </DialogHeader>
+          <p id="industry-product-adoption-description" className="text-sm text-gray-500">
+            采用后会创建门店本地产品档案，用于库存、BOM、扣耗和成本核算；未来供应链映射仍保持未接入状态。
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">行业标准品</label>
+              <select
+                value={selectedIndustryProductTemplateId}
+                onChange={(event) => setSelectedIndustryProductTemplateId(event.target.value)}
+                disabled={industryTemplatesLoading || isAdoptingIndustryProduct}
+                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
+              >
+                <option value="">{industryTemplatesLoading ? '正在加载行业标准品...' : '请选择已发布标准品'}</option>
+                {industryProductTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.category} / {template.name} / {template.recommendedSpec || '-'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedIndustryProductTemplate && (
+              <div className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-950 md:grid-cols-2">
+                <div>
+                  <div className="text-xs text-blue-500">标准编码</div>
+                  <div className="mt-1 font-medium">{selectedIndustryProductTemplate.standardProductCode}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-500">分类 / 类型</div>
+                  <div className="mt-1 font-medium">
+                    {selectedIndustryProductTemplate.category} / {selectedIndustryProductTemplate.productType}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-500">建议规格</div>
+                  <div className="mt-1 font-medium">{selectedIndustryProductTemplate.recommendedSpec || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-500">单位</div>
+                  <div className="mt-1 font-medium">{selectedIndustryProductTemplate.unit || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-500">参考成本</div>
+                  <div className="mt-1 font-medium">
+                    {formatMoneyRange(selectedIndustryProductTemplate.referenceCostMin, selectedIndustryProductTemplate.referenceCostMax)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-500">参考零售价</div>
+                  <div className="mt-1 font-medium">
+                    {formatMoneyRange(selectedIndustryProductTemplate.referenceRetailPriceMin, selectedIndustryProductTemplate.referenceRetailPriceMax)}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowIndustryAdoptionDialog(false)}
+                disabled={isAdoptingIndustryProduct}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                className="gap-2"
+                onClick={handleAdoptIndustryProduct}
+                disabled={!selectedIndustryProductTemplate || industryTemplatesLoading || isAdoptingIndustryProduct}
+              >
+                {isAdoptingIndustryProduct ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                采用并创建产品
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

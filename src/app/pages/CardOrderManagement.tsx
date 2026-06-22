@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Search, Plus, RotateCcw, X, Minus, Loader2 } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { createCardUsage, getCards, getCardOrdersPaginated } from '@/api/card';
+import { createCardOrder, createCardUsage, getCards, getCardOrdersPaginated } from '@/api/card';
 import { usePagination } from '@/hooks/usePagination';
 import type { Card } from '@/types/card';
 import { toast } from 'sonner';
@@ -14,6 +14,8 @@ interface CardOrder {
   cardName: string;
   userName: string;
   customerPhone?: string;
+  handlerId?: number;
+  handlerName?: string;
   totalTimes?: number;
   remainingTimes?: number;
   cardProjects?: ConsumeProject[];
@@ -80,6 +82,7 @@ export function CardOrderManagement() {
   const { data: orders, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
   const [cards, setCards] = useState<Card[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Dialog form state
   const [formData, setFormData] = useState({
@@ -229,8 +232,41 @@ export function CardOrderManagement() {
     setShowPresetPicker(false);
   };
 
-  const handleSubmit = () => {
-    setIsDialogOpen(false);
+  const handleSubmit = async () => {
+    if (!formData.cardId) {
+      toast.error('请选择次卡');
+      return;
+    }
+    if (!formData.userName.trim()) {
+      toast.error('请选择客户');
+      return;
+    }
+    if (!formData.expireTime) {
+      toast.error('请选择过期时间');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const totalTimes = selectedCard?.totalTimes ?? projectItems.reduce((sum, item) => sum + item.totalCount, 0);
+      await createCardOrder({
+        cardId: Number(formData.cardId),
+        userName: formData.userName.trim(),
+        cardName: selectedCard?.name ?? '',
+        actualPrice: Number(formData.discountPrice || formData.cardPrice || 0),
+        totalTimes,
+        remainingTimes: totalTimes,
+        expireTime: formData.expireTime,
+      });
+      toast.success('次卡开卡成功');
+      setIsDialogOpen(false);
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡开卡失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCardChange = (cardId: string) => {
@@ -335,6 +371,7 @@ export function CardOrderManagement() {
             <TableHead>状态</TableHead>
             <TableHead>购买时间</TableHead>
             <TableHead>过期时间</TableHead>
+            <TableHead>办理人员</TableHead>
             <TableHead className="text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
@@ -354,6 +391,7 @@ export function CardOrderManagement() {
                 </TableCell>
                 <TableCell>{order.purchaseTime}</TableCell>
                 <TableCell>{order.expireTime}</TableCell>
+                <TableCell>{order.handlerName || '-'}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-3 text-sm">
                     <button className="text-blue-500 hover:text-blue-600">查看</button>
@@ -764,7 +802,7 @@ export function CardOrderManagement() {
               </div>
 
               {/* Custom Projects Section */}
-              
+
             </div>
 
             {/* Dialog Footer */}
@@ -772,8 +810,8 @@ export function CardOrderManagement() {
               <Button variant="outline" onClick={handleCloseDialog}>
                 取消
               </Button>
-              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleSubmit}>
-                确定
+              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? '提交中...' : '确定'}
               </Button>
             </div>
           </div>

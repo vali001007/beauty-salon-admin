@@ -1,13 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, RotateCcw, Plus, Edit, Trash2, Loader2, Sparkles } from 'lucide-react';
+import { Search, RotateCcw, Plus, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AddProjectDialog } from '../components/AddProjectDialog';
 import { MarketingPageGeneratorDialog, type MarketingPageGeneratorSource } from '../components/MarketingPageGeneratorDialog';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { projectSchema, type ProjectFormData } from '@/schemas/project';
-import { getProjectsPaginated, createProject, updateProject } from '@/api/project';
+import { getProjectsPaginated, deleteProject } from '@/api/project';
 import { getProjectTypes, type ProjectType } from '@/api/projectType';
 import { toast } from 'sonner';
 import type { Project } from '@/types';
@@ -41,17 +37,16 @@ function ToggleSwitch({ checked }: { checked: boolean }) {
 
 export function ProjectManagement() {
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
-  const [showQuickAddDialog, setShowQuickAddDialog] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectTypeList, setProjectTypeList] = useState<ProjectType[]>([]);
   const [marketingPageSource, setMarketingPageSource] = useState<MarketingPageGeneratorSource | null>(null);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<number>>(new Set());
   const projectFilters = useMemo(() => ({}), []);
   const { data: projects, total, page, pageSize, loading, setPage, setPageSize, refresh } =
     usePagination<Project>(getProjectsPaginated, projectFilters);
-
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProjectFormData>({
-    resolver: zodResolver(projectSchema),
-  });
+  const currentPageProjectIds = useMemo(() => projects.map((project) => project.id), [projects]);
+  const isAllCurrentPageSelected = currentPageProjectIds.length > 0
+    && currentPageProjectIds.every((id) => selectedProjectIds.has(id));
 
   const loadProjects = useCallback(async () => {
     try {
@@ -72,45 +67,17 @@ export function ProjectManagement() {
     loadProjectTypes();
   }, [loadProjectTypes]);
 
-  const onQuickSubmit = async (data: ProjectFormData) => {
-    try {
-      if (editingProject) {
-        await updateProject(editingProject.id, {
-          name: data.name,
-          duration: data.duration,
-          price: data.price,
-        });
-        toast.success('项目更新成功');
-      } else {
-        await createProject({
-          name: data.name,
-          type: '面部护理',
-          duration: data.duration,
-          price: data.price,
-          storeName: '心悦芸美容养生会所',
-          recommend: false,
-          online: true,
-          home: false,
-          status: true,
-          sort: 0,
-        });
-        toast.success('项目创建成功');
-      }
-      handleCloseQuickDialog();
-      loadProjects();
-    } catch (err: any) {
-      toast.error(err?.message || (editingProject ? '更新项目失败' : '创建项目失败'));
-    }
-  };
+  useEffect(() => {
+    setSelectedProjectIds((prev) => {
+      const visibleIds = new Set(currentPageProjectIds);
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [currentPageProjectIds]);
 
   const handleOpenQuickEdit = (project: Project) => {
     setEditingProject(project);
-    reset({
-      name: project.name,
-      duration: project.duration,
-      price: project.price,
-    });
-    setShowQuickAddDialog(true);
+    setIsAddProjectDialogOpen(true);
   };
 
   const openMarketingPageGenerator = (project: Project) => {
@@ -121,10 +88,51 @@ export function ProjectManagement() {
     });
   };
 
-  const handleCloseQuickDialog = () => {
-    setShowQuickAddDialog(false);
+  const toggleProjectSelection = (projectId: number) => {
+    setSelectedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
+
+  const toggleCurrentPageSelection = () => {
+    setSelectedProjectIds((prev) => {
+      if (isAllCurrentPageSelected) {
+        return new Set();
+      }
+      return new Set(currentPageProjectIds);
+    });
+  };
+
+  const handleDeleteSelectedProjects = async () => {
+    const ids = [...selectedProjectIds];
+    if (ids.length === 0) {
+      toast.warning('请先勾选需要删除的项目');
+      return;
+    }
+
+    const confirmed = window.confirm(`确认删除已选 ${ids.length} 个项目？删除后项目列表和预约选择中将不再展示，历史订单和BOM记录会保留。`);
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(ids.map((id) => deleteProject(id)));
+      setSelectedProjectIds(new Set());
+      toast.success(`已删除 ${ids.length} 个项目`);
+      loadProjects();
+    } catch (err: any) {
+      toast.error(err?.message || '删除项目失败');
+    }
+  };
+
+  const handleCloseProjectDialog = () => {
+    setIsAddProjectDialogOpen(false);
     setEditingProject(null);
-    reset();
+    loadProjects();
   };
 
   return (
@@ -157,13 +165,20 @@ export function ProjectManagement() {
       {/* Actions */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
-          <Button className="bg-blue-50 hover:bg-blue-100 text-[#1890ff] border border-blue-200 gap-1.5 px-4 shadow-sm" onClick={() => setIsAddProjectDialogOpen(true)}>
+          <Button
+            className="bg-blue-50 hover:bg-blue-100 text-[#1890ff] border border-blue-200 gap-1.5 px-4 shadow-sm"
+            onClick={() => {
+              setEditingProject(null);
+              setIsAddProjectDialogOpen(true);
+            }}
+          >
              <Plus className="w-4 h-4" /> 新增
           </Button>
-          <Button className="bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 gap-1.5 px-4 shadow-sm">
-            <Edit className="w-4 h-4" /> 修改
-          </Button>
-          <Button className="bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 gap-1.5 px-4 shadow-sm">
+          <Button
+            className="bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 gap-1.5 px-4 shadow-sm disabled:opacity-50"
+            onClick={handleDeleteSelectedProjects}
+            disabled={selectedProjectIds.size === 0}
+          >
             <Trash2 className="w-4 h-4" /> 删除
           </Button>
         </div>
@@ -182,10 +197,16 @@ export function ProjectManagement() {
           <TableHeader>
             <TableRow className="bg-gray-50/80 border-b border-gray-200">
               <TableHead className="w-12 text-center">
-                <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-500" />
+                <input
+                  type="checkbox"
+                  aria-label="选择当前页全部项目"
+                  className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                  checked={isAllCurrentPageSelected}
+                  onChange={toggleCurrentPageSelection}
+                />
               </TableHead>
-              <TableHead>图片</TableHead>
               <TableHead>项目编号</TableHead>
+              <TableHead>图片</TableHead>
               <TableHead>项目名称</TableHead>
               <TableHead>所属门店</TableHead>
               <TableHead>项目类型</TableHead>
@@ -195,7 +216,6 @@ export function ProjectManagement() {
               <TableHead className="text-center">首页展示</TableHead>
               <TableHead className="text-center">状态</TableHead>
               <TableHead>项目时长</TableHead>
-              <TableHead>排序</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -203,8 +223,15 @@ export function ProjectManagement() {
             {projects.map((project) => (
               <TableRow key={project.id} className="hover:bg-blue-50/40 transition-colors group">
                 <TableCell className="text-center align-middle">
-                  <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-500" />
+                  <input
+                    type="checkbox"
+                    aria-label={`选择项目 ${project.name}`}
+                    className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                    checked={selectedProjectIds.has(project.id)}
+                    onChange={() => toggleProjectSelection(project.id)}
+                  />
                 </TableCell>
+                <TableCell className="font-medium text-gray-500 align-middle">{project.id}</TableCell>
                 <TableCell className="align-middle">
                   <div className="w-12 h-12 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center border border-gray-200 shadow-sm">
                     {project.image ? (
@@ -214,7 +241,6 @@ export function ProjectManagement() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="font-medium text-gray-500 align-middle">{project.id}</TableCell>
                 <TableCell className="font-semibold text-gray-800 align-middle">{project.name}</TableCell>
                 <TableCell className="text-gray-600 align-middle">{project.storeName}</TableCell>
                 <TableCell className="text-gray-600 align-middle">{project.type}</TableCell>
@@ -232,7 +258,6 @@ export function ProjectManagement() {
                   <ToggleSwitch checked={project.status} />
                 </TableCell>
                 <TableCell className="text-gray-600 align-middle">{project.duration} 分钟</TableCell>
-                <TableCell className="text-gray-500 align-middle">{project.sort}</TableCell>
                 <TableCell className="text-right align-middle">
                   <div className="flex items-center justify-end gap-3">
                     <button className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 text-sm" onClick={() => openMarketingPageGenerator(project)}>
@@ -250,7 +275,7 @@ export function ProjectManagement() {
         </Table>
         )}
       </div>
-      
+
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-500 px-2 mt-4">
         <span>共 {total} 条数据</span>
@@ -286,52 +311,11 @@ export function ProjectManagement() {
       </div>
 
       {/* Full Add Project Dialog (rich editor) */}
-      <AddProjectDialog open={isAddProjectDialogOpen} onClose={() => { setIsAddProjectDialogOpen(false); loadProjects(); }} />
-
-      {/* Quick Edit Dialog */}
-      <Dialog open={showQuickAddDialog} onOpenChange={handleCloseQuickDialog}>
-        <DialogContent className="max-w-md" aria-describedby="project-dialog-description">
-          <DialogHeader>
-            <DialogTitle>{editingProject ? '编辑项目' : '快速添加项目'}</DialogTitle>
-          </DialogHeader>
-          <span id="project-dialog-description" className="sr-only">{editingProject ? '编辑项目信息' : '快速创建新项目'}</span>
-          <form onSubmit={handleSubmit(onQuickSubmit)}>
-            <div className="space-y-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  项目名称 <span className="text-red-500">*</span>
-                </label>
-                <Input placeholder="请输入项目名称" {...register('name')} />
-                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  服务时长（分钟） <span className="text-red-500">*</span>
-                </label>
-                <Input type="number" placeholder="如：60" {...register('duration', { valueAsNumber: true })} />
-                {errors.duration && <p className="text-red-500 text-xs mt-1">{errors.duration.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  价格 <span className="text-red-500">*</span>
-                </label>
-                <Input type="number" step="0.01" placeholder="0.00" {...register('price', { valueAsNumber: true })} />
-                {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price.message}</p>}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <Button type="button" variant="outline" onClick={handleCloseQuickDialog}>取消</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {editingProject ? '保存' : '确认添加'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <AddProjectDialog
+        open={isAddProjectDialogOpen}
+        initialProject={editingProject}
+        onClose={handleCloseProjectDialog}
+      />
 
       <MarketingPageGeneratorDialog
         source={marketingPageSource}
