@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { CustomerSelectItem, RechargeConfirmInput, RechargeFlowData } from "../types";
 import { cn } from "./ui/utils";
-import { CustomerSelectList } from "./CustomerSelectList";
+import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
 import { GiftProjectDetails } from "./GiftProjectDetails";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
@@ -66,7 +66,14 @@ export function RechargeFlowCard({
         <div className="flex flex-col gap-5">
           <div>
             <div className="mb-3 text-sm font-medium text-[#6F6678]">第一步：选择客户</div>
-            <CustomerSelectList customers={customers} selectedCustomerId={selectedCustomer?.id} onSelect={setSelectedCustomer} />
+            <CustomerAsyncSelect
+              scene="recharge"
+              value={selectedCustomer?.id}
+              onChange={(customer) => setSelectedCustomer(customer as CustomerSelectItem | null)}
+              defaultItems={customers}
+              placeholder="请选择充值客户"
+              searchPlaceholder="输入姓名或手机号搜索客户"
+            />
           </div>
           <button type="button" onClick={() => setStep(2)} disabled={!selectedCustomer} className="h-13 rounded-2xl bg-[#C9956C] text-base font-semibold text-white disabled:opacity-40">
             下一步：填写充值信息

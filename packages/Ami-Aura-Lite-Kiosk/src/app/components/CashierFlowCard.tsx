@@ -3,7 +3,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import type { CashierConfirmInput, CashierCustomer, CashierFlowData, CashierOrderItemInput } from "../types";
 import type { TerminalCashierShift } from "@/types/terminal";
 import { cn } from "./ui/utils";
-import { CustomerSelectList } from "./CustomerSelectList";
+import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
 
 type CatalogItem = CashierFlowData["catalog"][number];
 type CartItem = {
@@ -15,6 +15,8 @@ type CartItem = {
   category: string;
   quantity: number;
   unitPrice: number;
+  beauticianId?: number;
+  beauticianName?: string;
 };
 
 type CompletedCartItem = CartItem & CashierOrderItemInput;
@@ -56,6 +58,16 @@ const PAYMENT_METHODS: Array<{
   { value: MEMBER_CARD_PAYMENT_METHOD, label: "会员卡划扣", requiresMemberCard: true },
 ];
 
+const DISCOUNT_MODE_OPTIONS: Array<{
+  value: NonNullable<CashierConfirmInput["discountMode"]>;
+  label: string;
+}> = [
+  { value: "none", label: "无优惠" },
+  { value: "amount", label: "优惠金额" },
+  { value: "rate", label: "折扣率" },
+  { value: "package_price", label: "套餐价" },
+];
+
 export function CashierFlowCard({
   data,
   onConfirm,
@@ -68,7 +80,10 @@ export function CashierFlowCard({
   const [step, setStep] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<CashierCustomer | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [discountMode, setDiscountMode] = useState<NonNullable<CashierConfirmInput["discountMode"]>>("none");
   const [discountAmount, setDiscountAmount] = useState("");
+  const [discountRate, setDiscountRate] = useState("");
+  const [packagePrice, setPackagePrice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<CashierConfirmInput["paymentMethod"]>("微信");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,18 +100,27 @@ export function CashierFlowCard({
   );
   const projectCatalog = catalog.filter((item) => item.itemType === "project");
   const productCatalog = catalog.filter((item) => item.itemType === "product");
+  const beauticians = safeArray(data.beauticians).filter((item) => item.status === "在职");
   const completedCart = cart.filter(isCompleteCartItem);
   const hasIncompleteRows = cart.some((item) => !isCompleteCartItem(item));
+  const hasMissingBeauticianRows = completedCart.some((item) => !item.beauticianId);
 
   const subtotal = completedCart.reduce((total, item) => total + item.quantity * item.unitPrice, 0);
-  const discount = Math.min(subtotal, Math.max(0, Number(discountAmount) || 0));
+  const discount =
+    discountMode === "amount"
+      ? Math.min(subtotal, Math.max(0, Number(discountAmount) || 0))
+      : discountMode === "rate"
+        ? Number((subtotal * (1 - Math.min(1, Math.max(0, Number(discountRate) || 0)))).toFixed(2))
+        : discountMode === "package_price"
+          ? Math.max(0, subtotal - Math.min(subtotal, Math.max(0, Number(packagePrice) || 0)))
+          : 0;
   const receivable = Math.max(0, subtotal - discount);
   const canUseMemberCardDeduct = Boolean(selectedCustomer?.memberCardDeductEnabled);
   const memberCardDeductLabel = selectedCustomer?.memberCardDeductLabel ?? "该客户暂无可划扣会员卡";
   const requireOpenShift = Boolean(loadShiftStatus);
   const isShiftOpen = !requireOpenShift || shift?.status === "open";
   const shiftHint = shiftLoading ? "正在确认当前收银班次..." : "当前未开班，请先在前台工作台开班后再收银。";
-  const canGoPayment = Boolean(selectedCustomer && completedCart.length > 0 && !hasIncompleteRows && isShiftOpen);
+  const canGoPayment = Boolean(selectedCustomer && completedCart.length > 0 && !hasIncompleteRows && !hasMissingBeauticianRows && isShiftOpen);
 
   const refreshShift = async () => {
     if (!loadShiftStatus) return;
@@ -160,6 +184,21 @@ export function CashierFlowCard({
     );
   };
 
+  const selectBeautician = (rowId: string, beauticianId: string) => {
+    const beautician = beauticians.find((item) => String(item.id) === beauticianId);
+    setCart((prev) =>
+      prev.map((item) =>
+        item.rowId === rowId
+          ? {
+              ...item,
+              beauticianId: beautician ? beautician.id : undefined,
+              beauticianName: beautician?.name,
+            }
+          : item,
+      ),
+    );
+  };
+
   const renderCatalogOptions = (items: CatalogItem[]) =>
     items.map((item) => (
       <option key={item.id} value={item.id}>
@@ -177,6 +216,10 @@ export function CashierFlowCard({
       setError("请先选择所有明细行的项目或商品，或删除空白行");
       return;
     }
+    if (hasMissingBeauticianRows) {
+      setError("请为每条收费明细选择服务员工，用于提成归属");
+      return;
+    }
     if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canUseMemberCardDeduct) {
       setError("该客户暂无可划扣会员卡，请更换支付方式");
       return;
@@ -188,14 +231,23 @@ export function CashierFlowCard({
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phone,
-        items: completedCart.map(({ itemType, itemId, name, quantity, unitPrice }) => ({
+        items: completedCart.map(({ itemType, itemId, name, quantity, unitPrice, beauticianId, beauticianName }) => ({
           itemType,
           itemId,
           name,
           quantity,
           unitPrice,
+          listAmount: quantity * unitPrice,
+          subtotal: quantity * unitPrice,
+          beauticianId,
+          beauticianName,
         })),
         discountAmount: discount,
+        discountMode,
+        discountRate: discountMode === "rate" ? Math.min(1, Math.max(0, Number(discountRate) || 0)) : undefined,
+        packagePrice: discountMode === "package_price" ? receivable : undefined,
+        allocationMethod: "price_ratio",
+        discountSource: discountMode === "package_price" ? "package" : discountMode === "none" ? "order" : "manual",
         paymentMethod,
       });
       setStep(3);
@@ -246,13 +298,14 @@ export function CashierFlowCard({
 
       {step === 1 ? (
         <div className="flex flex-col gap-5">
-          <div>
-            <CustomerSelectList
-              customers={customers}
-              selectedCustomerId={selectedCustomer?.id}
-              onSelect={setSelectedCustomer}
-            />
-          </div>
+          <CustomerAsyncSelect
+            scene="cashier"
+            value={selectedCustomer?.id}
+            onChange={(customer) => setSelectedCustomer(customer as CashierCustomer | null)}
+            defaultItems={customers}
+            placeholder="请选择客户"
+            searchPlaceholder="输入客户姓名或手机号"
+          />
 
           <div>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -275,10 +328,11 @@ export function CashierFlowCard({
           {cart.length ? (
             <div className="overflow-hidden rounded-2xl border border-black/5 bg-[#F7F5F2]">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left">
+                <table className="w-full min-w-[920px] text-left">
                   <thead className="bg-white/70 text-xs font-medium text-[#6F6678]">
                     <tr>
                       <th className="px-4 py-3">项目/商品</th>
+                      <th className="w-40 px-4 py-3">服务员工</th>
                       <th className="w-28 px-4 py-3">类型</th>
                       <th className="w-32 px-4 py-3">数量</th>
                       <th className="w-28 px-4 py-3 text-right">单价</th>
@@ -298,6 +352,20 @@ export function CashierFlowCard({
                             <option value="">请选择项目或商品</option>
                             {projectCatalog.length ? <optgroup label="项目">{renderCatalogOptions(projectCatalog)}</optgroup> : null}
                             {productCatalog.length ? <optgroup label="商品">{renderCatalogOptions(productCatalog)}</optgroup> : null}
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={item.beauticianId ? String(item.beauticianId) : ""}
+                            onChange={(event) => selectBeautician(item.rowId, event.target.value)}
+                            className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
+                          >
+                            <option value="">请选择员工</option>
+                            {beauticians.map((beautician) => (
+                              <option key={beautician.id} value={beautician.id}>
+                                {beautician.name}
+                              </option>
+                            ))}
                           </select>
                         </td>
                         <td className="px-4 py-3">
@@ -356,6 +424,11 @@ export function CashierFlowCard({
                   存在未选择项目/商品的明细行，请补充或删除后再收款。
                 </div>
               ) : null}
+              {!hasIncompleteRows && hasMissingBeauticianRows ? (
+                <div className="border-t border-black/5 px-4 py-2 text-xs text-amber-700">
+                  存在未选择服务员工的明细行，请补充后再收款。
+                </div>
+              ) : null}
               <div className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-[#6F6678]">小计</span>
                 <span className="text-lg font-semibold text-[#1F1B2D]">￥{subtotal.toLocaleString()}</span>
@@ -394,16 +467,60 @@ export function CashierFlowCard({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-[#6F6678]">优惠金额（选填）</span>
-              <input
-                type="number"
-                min={0}
-                value={discountAmount}
-                onChange={(event) => setDiscountAmount(event.target.value)}
-                placeholder="输入优惠金额"
+              <span className="text-sm font-medium text-[#6F6678]">优惠方式</span>
+              <select
+                value={discountMode}
+                onChange={(event) => setDiscountMode(event.target.value as NonNullable<CashierConfirmInput["discountMode"]>)}
                 className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
-              />
+              >
+                {DISCOUNT_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
+            {discountMode === "amount" ? (
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-[#6F6678]">优惠金额</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={discountAmount}
+                  onChange={(event) => setDiscountAmount(event.target.value)}
+                  placeholder="输入优惠金额"
+                  className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
+                />
+              </label>
+            ) : null}
+            {discountMode === "rate" ? (
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-[#6F6678]">折扣率</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={discountRate}
+                  onChange={(event) => setDiscountRate(event.target.value)}
+                  placeholder="0.8 表示八折"
+                  className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
+                />
+              </label>
+            ) : null}
+            {discountMode === "package_price" ? (
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-[#6F6678]">套餐成交价</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={packagePrice}
+                  onChange={(event) => setPackagePrice(event.target.value)}
+                  placeholder="输入本次套餐成交价"
+                  className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
+                />
+              </label>
+            ) : null}
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium text-[#6F6678]">支付方式</span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">

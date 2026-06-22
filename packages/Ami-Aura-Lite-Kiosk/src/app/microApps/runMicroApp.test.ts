@@ -68,6 +68,14 @@ const state = vi.hoisted(() => {
     })),
     serviceRecordFlowLoader: vi.fn(async () => ({ title: '服务记录', tasks: [], beauticianName: '沈晴' })),
     cashierFlowLoader: vi.fn(async () => ({ title: '收银', customers: [], catalog: [] })),
+    rechargeFlowLoader: vi.fn(async () => ({
+      title: '会员充值',
+      subtitle: 'Ami 全量演示门店',
+      source: 'Ami_Core 客户选择、充值订单、项目数据',
+      customers: [{ id: 7, name: '马语嫣', phone: '13873801982', memberLevel: '钻石会员', tags: [] }],
+      giftProjects: [],
+      generatedAt: '2026-06-20 03:45',
+    })),
     customerCardLoader: vi.fn(async () => ({
       customer: { id: 1, name: '张三', phone: '13800000000', memberLevel: '金卡', tags: [] },
       summary: '张三客户摘要',
@@ -131,7 +139,7 @@ vi.mock('../services/auraCoreService', () => ({
   getOperationResult: vi.fn(),
   prefetchAuraBootstrap: vi.fn(async () => undefined),
   getReceptionDashboard: state.receptionDashboardLoader,
-  getRechargeFlow: vi.fn(),
+  getRechargeFlow: state.rechargeFlowLoader,
   getRegistrationFlow: vi.fn(),
   getStaffSchedules: state.staffSchedulesLoader,
   getServiceRecordFlow: state.serviceRecordFlowLoader,
@@ -225,6 +233,14 @@ describe('runMicroApp cache and prefetch behavior', () => {
       groups: [],
     });
     state.serviceRecordFlowLoader.mockResolvedValue({ title: '服务记录', tasks: [], beauticianName: '沈晴' });
+    state.rechargeFlowLoader.mockResolvedValue({
+      title: '会员充值',
+      subtitle: 'Ami 全量演示门店',
+      source: 'Ami_Core 客户选择、充值订单、项目数据',
+      customers: [{ id: 7, name: '马语嫣', phone: '13873801982', memberLevel: '钻石会员', tags: [] }],
+      giftProjects: [],
+      generatedAt: '2026-06-20 03:45',
+    });
     state.customerCardLoader.mockResolvedValue({
       customer: { id: 1, name: '张三', phone: '13800000000', memberLevel: '金卡', tags: [] },
       summary: '张三客户摘要',
@@ -459,6 +475,32 @@ describe('runMicroApp cache and prefetch behavior', () => {
 
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'serviceRecord' });
     expect(state.serviceRecordFlowLoader).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens recharge flow from the recharge quick action', async () => {
+    const intent: AuraResolvedIntent = {
+      name: 'recharge.create',
+      role: 'reception',
+      action: 'operation.recharge',
+      source: 'quick_action',
+      confidence: 1,
+      slots: {},
+      missingSlots: [],
+      riskLevel: 'medium',
+      requiresConfirmation: true,
+      showUserCommand: true,
+      loadingLabel: '正在准备会员充值',
+    };
+
+    const result = await runMicroAppIntent(intent, 'operation.recharge');
+
+    expect(result.messages[0]?.type).toBe('recharge');
+    expect(result.messages[0]?.payload).toMatchObject({
+      kind: 'recharge',
+      data: { title: '会员充值', customers: [expect.objectContaining({ name: '马语嫣' })] },
+    });
+    expect(state.rechargeFlowLoader).toHaveBeenCalledTimes(1);
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
   });
 
   it('routes legacy complete-service action to the service record form', async () => {

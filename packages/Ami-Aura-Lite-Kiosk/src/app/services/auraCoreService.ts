@@ -1,4 +1,5 @@
 import { format, startOfWeek } from 'date-fns';
+import { formatBusinessDateTime } from '../utils/businessTime';
 import {
   getBeauticians,
   getCards,
@@ -24,6 +25,7 @@ import {
   getTerminalManagerDashboard,
   getTerminalCustomerGrowthDashboard,
   getTerminalCustomerGrowthCandidates,
+  getTerminalCustomerSelectContext,
   getTerminalFollowUpTasks,
   getTerminalCashierContext,
   getTerminalCardVerificationContext,
@@ -77,6 +79,11 @@ import {
 import { AURA_ROLE_LABELS, getAuraRoleDefinition, resolveAuraAvailableRoles, resolveAuraRole } from '@/config/aura';
 import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
+import {
+  getActiveTerminalOperatorParams,
+  resolveTerminalBootstrapParams,
+  setActiveTerminalOperatorContext,
+} from './terminalOperatorContext';
 import type { AuraBootstrap, AuraRole, AuraTerminalUser } from '@/types/aura';
 import type { AgentRole, AgentRunResult } from '@/types/agent';
 import type { BusinessQueryContext, BusinessQueryResponse } from '@/types/businessQuery';
@@ -267,7 +274,6 @@ let bootstrapCache: {
 } | null = null;
 let bootstrapPromise: { key: string; promise: Promise<AuraBootstrap> } | null = null;
 let auraDemoLoginPromise: Promise<void> | null = null;
-let activeBootstrapParams: TerminalBootstrapParams | undefined;
 let roleDashboardCache: { value: TerminalRoleDashboard; storeId: number | null; createdAt: number } | null = null;
 let roleDashboardPromise: Promise<TerminalRoleDashboard> | null = null;
 let coreSnapshotCache: { value: CoreSnapshot; storeId: number | null; createdAt: number } | null = null;
@@ -320,7 +326,7 @@ export function setConversationScope(scope?: string | number | null) {
 }
 
 export function setActiveTerminalOperator(operatorId?: number | null, role?: AuraRole | null) {
-  activeBootstrapParams = operatorId ? { operatorId, ...(role ? { role } : {}) } : undefined;
+  setActiveTerminalOperatorContext(operatorId, role);
 }
 
 export function appendToConversation(role: 'user' | 'assistant', content: string) {
@@ -787,12 +793,11 @@ function getBootstrapCacheOperatorId(params?: TerminalBootstrapParams) {
 }
 
 function resolveBootstrapParams(params?: TerminalBootstrapParams) {
-  return params ?? activeBootstrapParams;
+  return resolveTerminalBootstrapParams(params);
 }
 
 function getActiveOperatorParams() {
-  const operatorId = resolveBootstrapParams()?.operatorId;
-  return operatorId ? { operatorId } : undefined;
+  return getActiveTerminalOperatorParams();
 }
 
 async function fetchCachedBootstrap(params?: TerminalBootstrapParams) {
@@ -872,6 +877,15 @@ function filterByStoreName<T extends { storeName?: string }>(items: T[], storeNa
   if (!storeName) return items;
   const normalized = storeName.trim();
   return items.filter((item) => !item.storeName || item.storeName === normalized);
+}
+
+function isSelectableBeautician(beautician: Beautician) {
+  const status = String(beautician.status ?? '').trim();
+  const normalizedStatus = status.toLowerCase();
+  return (
+    !['离职', '绂昏亴', '停用'].includes(status) &&
+    !['inactive', 'disabled'].includes(normalizedStatus)
+  );
 }
 
 async function loadActiveProjectNames(): Promise<string[]> {
@@ -1449,9 +1463,8 @@ async function fetchCoreSnapshot(): Promise<CoreSnapshot> {
       ? (inventoryAlertsResult.data as Record<string, unknown>)
       : {};
   const catalogBeauticians = asList<CoreSnapshot['beauticians'][number]>(catalog.beauticians);
-  const beauticians = catalogBeauticians.length
-    ? catalogBeauticians
-    : asList<CoreSnapshot['beauticians'][number]>(beauticiansResult.data);
+  const adminBeauticians = asList<CoreSnapshot['beauticians'][number]>(beauticiansResult.data);
+  const beauticians = adminBeauticians.length ? adminBeauticians : catalogBeauticians;
   const stockItems = asList<CoreSnapshot['stockItems'][number]>(stockItemsResult.data);
   const expiringProducts = asList<CoreSnapshot['expiringProducts'][number]>(alerts.expiring);
   const replenishment = asList<CoreSnapshot['replenishment'][number]>(alerts.replenishment);
@@ -2742,36 +2755,26 @@ export async function getAppointmentEditOptions(): Promise<AppointmentEditOption
   const [catalogResult, projects, beauticians] = await Promise.all([
     optionalCoreCall<unknown>('终端目录', () => getTerminalCatalogSync(), null),
     optionalCoreCall('项目数据', () => getProjects(), []),
-    optionalCoreCall('美容师数据', () => getBeauticians(), []),
+    optionalCoreCall('美容师数据', () => getBeauticians({ storeName }), []),
   ]);
   const catalog =
     catalogResult.data && typeof catalogResult.data === 'object' ? (catalogResult.data as Record<string, unknown>) : {};
   const terminalProjects = asList<Project>(catalog.projects);
   const terminalBeauticians = asList<Beautician>(catalog.beauticians);
+  const adminBeauticians = asList<Beautician>(beauticians.data);
   const projectItems = terminalProjects.length ? terminalProjects : asList<Project>(projects.data);
-  const beauticianItems = terminalBeauticians.length ? terminalBeauticians : asList<Beautician>(beauticians.data);
+  const beauticianItems = adminBeauticians.length ? adminBeauticians : terminalBeauticians;
 
   return {
     projects: filterByStoreName(projectItems, storeName).filter((project) => project.status !== false),
-    beauticians: filterByStoreName(beauticianItems, storeName).filter(
-      (beautician) => !['离职', '绂昏亴', 'inactive', 'disabled'].includes(String(beautician.status)),
-    ),
+    beauticians: filterByStoreName(beauticianItems, storeName).filter(isSelectableBeautician),
   };
 }
 
 export async function getAppointmentCreateOptions(): Promise<AppointmentCreateOptions> {
-  const [snapshot, options] = await Promise.all([loadCoreSnapshot(), getAppointmentEditOptions()]);
-  const today = getTodayRange().today;
-  const customers = [...snapshot.customers].sort((left, right) => {
-    const leftReservation = getCustomerReservation(snapshot, left.id, left.name);
-    const rightReservation = getCustomerReservation(snapshot, right.id, right.name);
-    const leftToday = leftReservation && isReservationOnDate(leftReservation, today) ? 1 : 0;
-    const rightToday = rightReservation && isReservationOnDate(rightReservation, today) ? 1 : 0;
-    return rightToday - leftToday;
-  });
-
+  const options = await getAppointmentEditOptions();
   return {
-    customers,
+    customers: [],
     projects: options.projects,
     beauticians: options.beauticians,
   };
@@ -3307,15 +3310,7 @@ function getCustomerMemberCardDeductMeta(customer: CoreSnapshot['customers'][num
     record.balance,
     cashBalance + giftBalance,
   );
-  const activeCardsCount = readNumericValue(
-    record.activeCustomerCardsCount,
-    record.customerCardsCount,
-    Array.isArray(record.activeCards) ? record.activeCards.length : 0,
-    Array.isArray(record.customerCards)
-      ? record.customerCards.filter((card) => card?.status !== 'inactive' && Number(card?.remainingTimes ?? 0) > 0)
-          .length
-      : 0,
-  );
+  const activeCardsCount = getActiveCustomerCardCount(customer);
 
   return {
     enabled: totalBalance > 0 || activeCardsCount > 0,
@@ -3327,6 +3322,19 @@ function getCustomerMemberCardDeductMeta(customer: CoreSnapshot['customers'][num
           ? `${activeCardsCount} 张可用会员卡`
           : '暂无可划扣会员卡',
   };
+}
+
+function getActiveCustomerCardCount(customer: CoreSnapshot['customers'][number]) {
+  const record = customer as Record<string, any>;
+  return readNumericValue(
+    record.activeCustomerCardsCount,
+    record.customerCardsCount,
+    Array.isArray(record.activeCards) ? record.activeCards.length : 0,
+    Array.isArray(record.customerCards)
+      ? record.customerCards.filter((card) => card?.status !== 'inactive' && Number(card?.remainingTimes ?? 0) > 0)
+          .length
+      : 0,
+  );
 }
 
 function getContextCustomerDeductMeta(customer: TerminalContextCustomer) {
@@ -3576,65 +3584,51 @@ export async function getBeauticianCustomerList(): Promise<BeauticianCustomerLis
   };
 }
 
-function buildCustomerSelectItems(snapshot: CoreSnapshot) {
-  const customerMap = new Map<
-    number,
-    { customer: CoreSnapshot['customers'][number]; reservation?: Record<string, any> }
-  >();
-  asList<CoreSnapshot['reservations'][number]>(snapshot.reservations).forEach((reservation) => {
-    const item = reservation as Record<string, any>;
-    const customer = findCustomerForReservation(snapshot, item);
-    if (customer && !customerMap.has(customer.id)) {
-      customerMap.set(customer.id, { customer, reservation: item });
-    }
-  });
-  asList<CoreSnapshot['customers'][number]>(snapshot.customers)
-    .slice(0, 30)
-    .forEach((customer) => {
-      if (!customerMap.has(customer.id)) {
-        customerMap.set(customer.id, { customer });
-      }
-    });
-
-  return Array.from(customerMap.values()).map(({ customer, reservation }) => {
-    const deductMeta = getCustomerMemberCardDeductMeta(customer);
-    return {
-      id: customer.id,
-      name: customer.name,
-      phone: customer.phone,
-      memberLevel: customer.memberLevel,
-      tags: customer.tags?.slice(0, 3) ?? [],
-      isAppointedToday: Boolean(reservation),
-      appointmentTime: reservation
-        ? formatTimeOnly(reservation.appointmentTime ?? getReservationTime(reservation))
-        : undefined,
-      memberCardDeductEnabled: deductMeta.enabled,
-      memberCardDeductBalance: deductMeta.balance,
-      memberCardDeductLabel: deductMeta.label,
-    };
-  });
-}
-
 async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
+  let context: Awaited<ReturnType<typeof getTerminalCardVerificationContext>> | null = null;
   try {
-    const context = await getTerminalCardVerificationContext();
-    const customers = asList<TerminalContextCustomer>(context.customers).map(toCardVerificationCustomerFromContext);
-    if (customers.length) {
-      return {
-        title: '次卡核销',
-        subtitle: context.storeName ?? '当前门店',
-        source: 'Ami_Core 核销轻量上下文',
-        generatedAt: context.generatedAt
-          ? format(new Date(context.generatedAt), 'yyyy-MM-dd HH:mm')
-          : format(new Date(), 'yyyy-MM-dd HH:mm'),
-        customers: customers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
-      };
-    }
+    context = await getTerminalCardVerificationContext();
   } catch (err) {
     console.warn('Ami Aura Lite 轻量核销上下文加载失败，降级到本地快照', err);
   }
+  try {
+    const customerContext = await getTerminalCustomerSelectContext({ scene: 'verification', limit: 50 });
+    const contextCustomers = asList<TerminalContextCustomer>(customerContext.items).map(toCardVerificationCustomerFromContext);
+    if (contextCustomers.length) {
+      return {
+        title: '次卡核销',
+        subtitle: context?.storeName ?? '当前门店',
+        source: 'Ami_Core 统一客户选择、核销轻量上下文',
+        generatedAt: customerContext.generatedAt
+          ? format(new Date(customerContext.generatedAt), 'yyyy-MM-dd HH:mm')
+          : format(new Date(), 'yyyy-MM-dd HH:mm'),
+        customers: contextCustomers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
+      };
+    }
+  } catch (err) {
+    console.warn('Ami Aura Lite 统一核销客户选择加载失败，继续使用核销上下文', err);
+  }
 
-  const { snapshot } = await loadCardVerificationSnapshot();
+  let snapshot: CoreSnapshot;
+  try {
+    const loaded = await loadCardVerificationSnapshot();
+    snapshot = loaded.snapshot;
+  } catch (err) {
+    const contextCustomers = asList<TerminalContextCustomer>(context?.customers).map(toCardVerificationCustomerFromContext);
+    if (contextCustomers.length) {
+      return {
+        title: '次卡核销',
+        subtitle: context?.storeName ?? '当前门店',
+        source: 'Ami_Core 核销轻量上下文',
+        generatedAt: context?.generatedAt
+          ? format(new Date(context.generatedAt), 'yyyy-MM-dd HH:mm')
+          : format(new Date(), 'yyyy-MM-dd HH:mm'),
+        customers: contextCustomers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
+      };
+    }
+    throw err;
+  }
+  const contextById = new Map(asList<TerminalContextCustomer>(context?.customers).map((customer) => [customer.id, customer]));
   const appointmentCustomers = asList<CoreSnapshot['reservations'][number]>(snapshot.reservations)
     .map((reservation) => {
       const item = reservation as Record<string, any>;
@@ -3642,7 +3636,10 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
       if (!customer) return null;
       return { customer, reservation: item };
     })
-    .filter(Boolean) as Array<{ customer: CoreSnapshot['customers'][number]; reservation: Record<string, any> }>;
+    .filter((item): item is { customer: CoreSnapshot['customers'][number]; reservation: Record<string, any> } => {
+      if (!item) return false;
+      return getActiveCustomerCardCount(item.customer) > 0;
+    });
 
   const customerMap = new Map<
     number,
@@ -3650,7 +3647,7 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
   >();
   appointmentCustomers.forEach((item) => customerMap.set(item.customer.id, item));
   asList<CoreSnapshot['customers'][number]>(snapshot.customers)
-    .slice(0, 30)
+    .filter((customer) => getActiveCustomerCardCount(customer) > 0)
     .forEach((customer) => {
       if (!customerMap.has(customer.id)) {
         customerMap.set(customer.id, { customer });
@@ -3659,29 +3656,45 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
 
   const customers = Array.from(customerMap.values()).map(({ customer, reservation }) => {
     const matchedReservation = reservation ?? getCustomerReservation(snapshot, customer.id, customer.name);
+    const contextCustomer = contextById.get(customer.id);
+    const contextItem = contextCustomer ? toCardVerificationCustomerFromContext(contextCustomer) : null;
     return {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
-      avatarUrl: pickCustomerAvatarUrl(customer),
-      memberLevel: customer.memberLevel,
-      tags: customer.tags?.slice(0, 3) ?? [],
-      profileLabel: customer.skinCondition || customer.source || '画像待补充',
-      lastVisitDate: customer.lastVisitDate || '暂无到店记录',
-      isAppointedToday: Boolean(matchedReservation),
+      avatarUrl: contextItem?.avatarUrl ?? pickCustomerAvatarUrl(customer),
+      memberLevel: customer.memberLevel || contextItem?.memberLevel || '普通客户',
+      tags: (customer.tags?.length ? customer.tags : contextItem?.tags)?.slice(0, 3) ?? [],
+      profileLabel: customer.skinCondition || customer.source || contextItem?.profileLabel || '画像待补充',
+      lastVisitDate: customer.lastVisitDate || contextItem?.lastVisitDate || '暂无到店记录',
+      isAppointedToday: Boolean(matchedReservation || contextItem?.isAppointedToday),
       appointmentTime: matchedReservation
         ? formatTimeOnly(matchedReservation.appointmentTime ?? getReservationTime(matchedReservation))
-        : undefined,
-      appointmentProjectName: matchedReservation?.projectName,
+        : contextItem?.appointmentTime,
+      appointmentProjectName: matchedReservation?.projectName ?? contextItem?.appointmentProjectName,
     };
   });
 
   return {
     title: '次卡核销',
     subtitle: snapshot.store?.name ?? '当前门店',
-    source: 'Ami_Core 预约、客户、卡项数据',
-    generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm'),
+    source: context ? 'Ami_Core 管理端客户、核销轻量上下文' : 'Ami_Core 预约、客户、卡项数据',
+    generatedAt: context?.generatedAt
+      ? format(new Date(context.generatedAt), 'yyyy-MM-dd HH:mm')
+      : format(new Date(), 'yyyy-MM-dd HH:mm'),
     customers: customers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
+  };
+}
+
+function toCustomerSelectItemFromContext(customer: TerminalContextCustomer) {
+  return {
+    id: customer.id,
+    name: customer.name,
+    phone: customer.phone,
+    memberLevel: customer.memberLevel,
+    tags: customer.tags?.slice(0, 3) ?? [],
+    isAppointedToday: Boolean(customer.isAppointedToday),
+    appointmentTime: customer.appointmentTime ? formatTimeOnly(customer.appointmentTime) : undefined,
   };
 }
 
@@ -3792,14 +3805,34 @@ function buildCardUsageReceipt(
   };
 }
 
+function resolveCardVerificationBeauticianId(
+  snapshot: CoreSnapshot,
+  input: { customerId?: number; customerName?: string },
+  bootstrap?: AuraBootstrap,
+) {
+  const currentBeauticianId = readNumericValue(bootstrap?.currentBeautician?.id);
+  if (currentBeauticianId) return currentBeauticianId;
+
+  const customer = input.customerId ? snapshot.customers.find((item) => item.id === input.customerId) : undefined;
+  const customerId = input.customerId ?? customer?.id;
+  const customerName = input.customerName ?? customer?.name ?? '';
+  if (!customerId || !customerName) return undefined;
+
+  const reservation = getCustomerReservation(snapshot, customerId, customerName) as Record<string, unknown> | undefined;
+  const reservationBeautician = reservation?.beautician as Record<string, unknown> | undefined;
+  const reservationBeauticianId = readNumericValue(reservation?.beauticianId, reservationBeautician?.id);
+  return reservationBeauticianId || undefined;
+}
+
 export async function confirmCardVerification(input: CardVerificationConfirmInput): Promise<OperationResultData> {
-  const snapshot = await loadCoreSnapshot();
-  const beautician = snapshot.beauticians[0];
+  const [{ bootstrap }, snapshot] = await Promise.all([getAuraBootstrapSession(), loadCoreSnapshot()]);
+  const beauticianId = resolveCardVerificationBeauticianId(snapshot, { customerId: input.customerId }, bootstrap);
   const record = await verifyTerminalCardUsage({
     customerCardId: input.customerCardId,
     projectId: input.projectId,
     times: input.times,
-    beauticianId: beautician?.id ?? 0,
+    operatorId: getActiveOperatorParams()?.operatorId ?? undefined,
+    ...(beauticianId ? { beauticianId } : {}),
   });
   invalidateCardVerificationCaches();
 
@@ -3819,6 +3852,7 @@ async function buildCashierFlow(): Promise<CashierFlowData> {
     const projects = asList<Project>(context.projects);
     const products = asList<Awaited<ReturnType<typeof getProducts>>[number]>(context.products);
     const customers = asList<TerminalContextCustomer>(context.customers).map(toCashierCustomerFromContext);
+    const beauticians = asList<Beautician>(context.beauticians);
     if (customers.length || projects.length || products.length) {
       return {
         title: '收银开单',
@@ -3829,6 +3863,7 @@ async function buildCashierFlow(): Promise<CashierFlowData> {
           : format(new Date(), 'yyyy-MM-dd HH:mm'),
         shiftRequired: context.shiftRequired !== false,
         customers,
+        beauticians,
         catalog: [
           ...projects
             .filter((project) => project.status)
@@ -3859,11 +3894,12 @@ async function buildCashierFlow(): Promise<CashierFlowData> {
     console.warn('Ami Aura Lite 轻量收银上下文加载失败，降级到本地快照', err);
   }
 
-  const [snapshot, catalogResult, projectsResult, productsResult] = await Promise.all([
-    loadCoreSnapshot(),
+  const [{ storeName }, catalogResult, projectsResult, productsResult, beauticiansResult] = await Promise.all([
+    getAuraBootstrapSession(),
     optionalCoreCall<unknown>('终端目录', () => getTerminalCatalogSync(), null),
     optionalCoreCall('项目数据', () => getProjects(), []),
     optionalCoreCall('商品数据', () => getProducts({ status: '在售' }), []),
+    optionalCoreCall('美容师数据', () => getBeauticians(), []),
   ]);
   const catalog =
     catalogResult.data && typeof catalogResult.data === 'object' ? (catalogResult.data as Record<string, unknown>) : {};
@@ -3876,11 +3912,14 @@ async function buildCashierFlow(): Promise<CashierFlowData> {
 
   return {
     title: '收银开单',
-    subtitle: snapshot.store?.name ?? '当前门店',
-    source: 'Ami_Core 客户、项目、商品数据',
+    subtitle: storeName || '当前门店',
+    source: 'Ami_Core 项目、商品数据；客户请通过统一客户选择搜索',
     generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm'),
-    shiftRequired: snapshot.store?.shiftRequired !== false,
-    customers: buildCustomerSelectItems(snapshot),
+    shiftRequired: true,
+    customers: [],
+    beauticians: asList<Beautician>(catalog.beauticians).length
+      ? asList<Beautician>(catalog.beauticians)
+      : asList<Beautician>(beauticiansResult.data),
     catalog: [
       ...projects
         .filter((project) => project.status)
@@ -3924,7 +3963,10 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
     name: item.name,
     quantity: item.quantity,
     unitPrice: item.unitPrice,
-    subtotal: item.quantity * item.unitPrice,
+    listAmount: item.listAmount ?? item.quantity * item.unitPrice,
+    subtotal: item.subtotal ?? item.quantity * item.unitPrice,
+    beauticianId: item.beauticianId,
+    beauticianName: item.beauticianName,
   }));
   const subtotal = sum(items, (item) => item.subtotal);
   const discountAmount = Math.min(subtotal, Math.max(0, input.discountAmount || 0));
@@ -3935,6 +3977,11 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
     customerPhone: customer.phone,
     items,
     discountAmount,
+    discountMode: input.discountMode,
+    discountRate: input.discountRate,
+    packagePrice: input.packagePrice,
+    allocationMethod: input.allocationMethod,
+    discountSource: input.discountSource,
     paymentMethod: input.paymentMethod,
     remark:
       discountAmount > 0 ? `Ami Aura Lite 收银优惠 ￥${discountAmount.toLocaleString()}` : 'Ami Aura Lite 收银开单',
@@ -3978,14 +4025,24 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
 }
 
 async function buildCardOpeningFlow(): Promise<CardOpeningFlowData> {
-  const [snapshot, giftProjects] = await Promise.all([loadCoreSnapshot(), loadActiveProjectNames()]);
-  const cards = asList<CoreSnapshot['cards'][number]>(snapshot.cards);
+  const [{ storeName }, catalogResult, cardsResult, customerContext, giftProjects] = await Promise.all([
+    getAuraBootstrapSession(),
+    optionalCoreCall<unknown>('终端目录', () => getTerminalCatalogSync(), null),
+    optionalCoreCall('卡项数据', () => getCards(), []),
+    getTerminalCustomerSelectContext({ scene: 'card_opening', limit: 50 }).catch(() => null),
+    loadActiveProjectNames(),
+  ]);
+  const catalog =
+    catalogResult.data && typeof catalogResult.data === 'object' ? (catalogResult.data as Record<string, unknown>) : {};
+  const cards = asList<CoreSnapshot['cards'][number]>(catalog.cards).length
+    ? asList<CoreSnapshot['cards'][number]>(catalog.cards)
+    : asList<CoreSnapshot['cards'][number]>(cardsResult.data);
   return {
     title: '办卡开单',
-    subtitle: snapshot.store?.name ?? '当前门店',
-    source: 'Ami_Core 客户、次卡、项目数据',
+    subtitle: storeName || '当前门店',
+    source: 'Ami_Core 客户选择、次卡、项目数据',
     generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm'),
-    customers: buildCustomerSelectItems(snapshot),
+    customers: asList<TerminalContextCustomer>(customerContext?.items).map(toCustomerSelectItemFromContext),
     cards: cards
       .filter((card) => card.status === '上架')
       .map((card) => ({
@@ -4189,13 +4246,17 @@ export async function confirmRegistration(input: RegistrationConfirmInput): Prom
 }
 
 async function buildRechargeFlow(): Promise<RechargeFlowData> {
-  const [snapshot, giftProjects] = await Promise.all([loadCoreSnapshot(), loadActiveProjectNames()]);
+  const [{ storeName }, customerContext, giftProjects] = await Promise.all([
+    getAuraBootstrapSession(),
+    getTerminalCustomerSelectContext({ scene: 'recharge', limit: 50 }).catch(() => null),
+    loadActiveProjectNames(),
+  ]);
   return {
     title: '会员充值',
-    subtitle: snapshot.store?.name ?? '当前门店',
-    source: 'Ami_Core 客户、充值订单、项目数据',
+    subtitle: storeName || '当前门店',
+    source: 'Ami_Core 客户选择、充值订单、项目数据',
     generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm'),
-    customers: buildCustomerSelectItems(snapshot),
+    customers: asList<TerminalContextCustomer>(customerContext?.items).map(toCustomerSelectItemFromContext),
     giftProjects,
   };
 }
@@ -4767,11 +4828,16 @@ export async function getOperationResult(action: string): Promise<OperationResul
           nextSteps: ['查询其他客户', '办理新卡', '改用收银'],
         };
       }
+      const beauticianId = resolveCardVerificationBeauticianId(snapshot, {
+        customerId: customer.id,
+        customerName: customer.name,
+      });
       const record = await verifyTerminalCardUsage({
         customerCardId: customerCard.id,
         projectId: 101,
         times: 1,
-        beauticianId: beautician?.id ?? 0,
+        operatorId: getActiveOperatorParams()?.operatorId ?? undefined,
+        ...(beauticianId ? { beauticianId } : {}),
       });
       invalidateCardVerificationCaches();
       return {
@@ -4836,7 +4902,7 @@ export async function getOperationResult(action: string): Promise<OperationResul
       const job = await createTerminalPrintJob({
         sourceType: 'custom',
         title: 'Ami Aura Lite 小票',
-        content: `${storeName}\n打印时间：${new Date().toLocaleString()}`,
+        content: `${storeName}\n打印时间：${formatBusinessDateTime(new Date(), { seconds: true })}`,
         copies: 1,
       });
       return {

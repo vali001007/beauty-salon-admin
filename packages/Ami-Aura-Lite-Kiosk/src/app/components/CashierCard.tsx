@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { AlertCircle, CheckCircle, Minus, Plus, Printer, Trash2, X } from "lucide-react";
 import { PaymentStep } from "./PaymentStep";
 import { SearchableSelect } from "./SearchableSelect";
+import { formatBusinessDate, formatBusinessDateTime } from "../utils/businessTime";
 
 export interface CashierCustomerOption {
   id: string;
@@ -59,8 +60,8 @@ function ReceiptOverlay({
   paidAt: Date;
   onClose: () => void;
 }) {
-  const dateStr = paidAt.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-  const timeStr = paidAt.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dateStr = formatBusinessDate(paidAt);
+  const timeStr = formatBusinessDateTime(paidAt, { seconds: true }).slice(11);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

@@ -259,6 +259,7 @@ export interface CashierFlowData {
   shiftRequired?: boolean;
   customers: CashierCustomer[];
   catalog: CashierCatalogItem[];
+  beauticians: Beautician[];
 }
 
 export interface CashierOrderItemInput {
@@ -267,6 +268,10 @@ export interface CashierOrderItemInput {
   name: string;
   quantity: number;
   unitPrice: number;
+  listAmount?: number;
+  subtotal?: number;
+  beauticianId?: number;
+  beauticianName?: string;
 }
 
 export type TerminalPaymentMethod =
@@ -294,6 +299,11 @@ export interface CashierConfirmInput {
   customerPhone?: string;
   items: CashierOrderItemInput[];
   discountAmount: number;
+  discountMode?: 'none' | 'amount' | 'rate' | 'package_price' | 'manual';
+  discountRate?: number;
+  packagePrice?: number;
+  allocationMethod?: 'price_ratio' | 'manual';
+  discountSource?: 'order' | 'package' | 'promotion' | 'coupon' | 'manual';
   paymentMethod: TerminalPaymentMethod;
 }
 

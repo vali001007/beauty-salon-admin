@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CreditCard } from "lucide-react";
 import type { CardOpeningConfirmInput, CardOpeningFlowData, CardOpenOption, CustomerSelectItem } from "../types";
 import { cn } from "./ui/utils";
-import { CustomerSelectList } from "./CustomerSelectList";
+import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
 import { GiftProjectDetails } from "./GiftProjectDetails";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
@@ -99,7 +99,14 @@ export function CardOpeningFlowCard({
         <div className="flex flex-col gap-5">
           <div>
             <div className="mb-3 text-sm font-medium text-[#6F6678]">第一步：选择客户</div>
-            <CustomerSelectList customers={customers} selectedCustomerId={selectedCustomer?.id} onSelect={setSelectedCustomer} />
+            <CustomerAsyncSelect
+              scene="card_opening"
+              value={selectedCustomer?.id}
+              onChange={(customer) => setSelectedCustomer(customer as CustomerSelectItem | null)}
+              defaultItems={customers}
+              placeholder="请选择办卡客户"
+              searchPlaceholder="输入姓名或手机号搜索客户"
+            />
           </div>
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">

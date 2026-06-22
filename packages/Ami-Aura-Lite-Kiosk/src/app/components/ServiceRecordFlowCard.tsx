@@ -1,7 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Camera, CheckSquare, Eraser, FileText, Mic } from 'lucide-react';
+import type { TerminalCustomerSelectItem } from '@/types/terminal';
 import type { ServiceRecordConfirmInput, ServiceRecordFlowData, ServiceRecordTaskOption } from '../types';
+import { CustomerAsyncSelect } from './CustomerAsyncSelect';
 import { cn } from './ui/utils';
+import { formatBusinessDateTime } from '../utils/businessTime';
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -44,6 +47,7 @@ export function ServiceRecordFlowCard({
 }) {
   const tasks = safeArray(data.tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<number | ''>(tasks[0]?.id ?? '');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | ''>(tasks[0]?.customerId ?? '');
   const [result, setResult] = useState('服务已完成，客户状态稳定。');
   const [customerFeedback, setCustomerFeedback] = useState('');
   const [customerInfoUpdate, setCustomerInfoUpdate] = useState('');
@@ -61,6 +65,28 @@ export function ServiceRecordFlowCard({
   const [loading, setLoading] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const taskCustomers = useMemo(() => {
+    const customerMap = new Map<number, TerminalCustomerSelectItem>();
+    tasks.forEach((task) => {
+      if (customerMap.has(task.customerId)) return;
+      customerMap.set(task.customerId, {
+        id: task.customerId,
+        name: task.customerName,
+        phone: task.customerPhone,
+        memberLevel: '服务客户',
+        tags: [task.projectName].filter(Boolean),
+        isAppointedToday: true,
+        appointmentTime: task.appointmentTime,
+        sceneBadges: ['待记录服务'],
+        priorityLabel: '待记录',
+      });
+    });
+    return [...customerMap.values()];
+  }, [tasks]);
+  const customerTasks = useMemo(
+    () => tasks.filter((task) => selectedCustomerId && task.customerId === Number(selectedCustomerId)),
+    [selectedCustomerId, tasks],
+  );
   const selectedTask = useMemo(() => tasks.find((task) => task.id === Number(selectedTaskId)), [selectedTaskId, tasks]);
   const canSubmit = Boolean(selectedTask && result.trim() && nextSuggestion.trim());
   const materialItems = safeArray(selectedTask?.consumptionItems);
@@ -79,6 +105,25 @@ export function ServiceRecordFlowCard({
       actualQty: Number.isFinite(actualQty) && actualQty >= 0 ? actualQty : item.actualQty,
     };
   });
+
+  useEffect(() => {
+    if (!tasks.length) return;
+    if (!selectedCustomerId) {
+      setSelectedCustomerId(tasks[0].customerId);
+      setSelectedTaskId(tasks[0].id);
+      return;
+    }
+    if (selectedTask && selectedTask.customerId === Number(selectedCustomerId)) return;
+    const nextTask = tasks.find((task) => task.customerId === Number(selectedCustomerId));
+    setSelectedTaskId(nextTask?.id ?? '');
+  }, [selectedCustomerId, selectedTask, tasks]);
+
+  const handleCustomerChange = (customer: TerminalCustomerSelectItem | null) => {
+    const customerId = customer?.id;
+    setSelectedCustomerId(customerId ?? '');
+    const nextTask = customerId ? tasks.find((task) => task.customerId === customerId) : undefined;
+    setSelectedTaskId(nextTask?.id ?? '');
+  };
 
   const submit = async () => {
     if (!selectedTask || !canSubmit) return;
@@ -202,7 +247,7 @@ export function ServiceRecordFlowCard({
             {data.subtitle} · {data.beauticianName}
           </div>
           <div className="mt-1 text-xs text-[#9B92A3]">
-            生成时间 {new Date(data.generatedAt).toLocaleString('zh-CN')}
+            生成时间 {formatBusinessDateTime(data.generatedAt, { seconds: true })}
           </div>
         </div>
         <span className="rounded-full bg-[#2D1B69]/8 px-3 py-1 text-xs font-medium text-[#2D1B69]">
@@ -220,20 +265,40 @@ export function ServiceRecordFlowCard({
         </div>
       ) : (
         <>
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-[#6F6678]">选择待记录客户</span>
-            <select
-              value={selectedTaskId}
-              onChange={(event) => setSelectedTaskId(Number(event.target.value))}
-              className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
-            >
-              {tasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {formatTaskLabel(task)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CustomerAsyncSelect
+            scene="service_record"
+            value={selectedCustomerId}
+            onChange={handleCustomerChange}
+            defaultItems={taskCustomers}
+            onlyMyCustomers
+            label="选择待记录客户"
+            placeholder="请选择服务客户"
+            searchPlaceholder="输入姓名或手机号搜索本人服务客户"
+            emptyText="未找到当前账号可记录服务的客户。"
+          />
+
+          {selectedCustomerId && !customerTasks.length ? (
+            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              该客户当前暂无待记录服务任务，请确认是否已到店或由前台生成服务任务。
+            </div>
+          ) : null}
+
+          {customerTasks.length > 1 ? (
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-[#6F6678]">选择服务任务</span>
+              <select
+                value={selectedTaskId}
+                onChange={(event) => setSelectedTaskId(Number(event.target.value))}
+                className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
+              >
+                {customerTasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {formatTaskLabel(task)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           {selectedTask ? (
             <div className="grid gap-3 rounded-2xl bg-[#F7F5F2] p-4 text-sm sm:grid-cols-3">

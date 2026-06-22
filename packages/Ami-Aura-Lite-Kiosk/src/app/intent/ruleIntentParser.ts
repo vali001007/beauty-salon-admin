@@ -114,6 +114,10 @@ function isTypedTextSource(source: AuraCommandSource) {
   return source === 'text';
 }
 
+function isNaturalLanguageSource(source: AuraCommandSource) {
+  return source === 'text' || source === 'voice';
+}
+
 export function isExactQuickActionCommand(command: string, definition: RoleDefinition) {
   const text = normalizeCommandText(command);
   if (!text) return false;
@@ -258,7 +262,7 @@ function isAppointmentWorkbenchCommand(text: string, role: Role) {
 
 function isBusinessQueryCommand(text: string, role: Role) {
   const hasQueryVerb =
-    /查|查询|看|看看|分析|统计|列出|排行|排名|对比|哪些|哪个|多少|几|谁|怎么样|情况|趋势|增长|下降|预警|不足|到期|表现|业绩|最多|最少|高频|失败|异常|问题/.test(text);
+    /查|查询|看|看看|分析|统计|列出|排行|排名|对比|哪些|哪个|什么|有没有|多少|几个|几位|几笔|几单|来几个|几|谁|怎么样|情况|趋势|增长|下降|预警|不足|到期|表现|业绩|最多|最少|高频|失败|异常|问题|忙不忙|做什么/.test(text);
   const hasAdvancedQueryVerb =
     /建议|复盘|机会|毛利|成本|异常|风险|最值得|优先|重点|跟进|回访|邀约|唤醒|复购|沉睡|高价值|名单|适合|推荐|优秀|较好|做得好|服务质量|成交|贡献/.test(text);
   const isContextFollowUp = /这些|上述|上面|它们|他们|该批|这批/.test(text) && /商品|产品|库存|客户|顾客|会员|买/.test(text);
@@ -269,7 +273,7 @@ function isBusinessQueryCommand(text: string, role: Role) {
   const hasBeauticianSelfPerformanceIntent =
     role === 'beautician' && /我|本人|自己/.test(text) && /表现|业绩|绩效|服务质量|服务完成|成交|销售|贡献|复购/.test(text);
   const hasDomain =
-    /商品|产品|项目|客户|顾客|会员|老客|新客|流失|排班|预约|订单|收入|营收|营业额|流水|收银|收款|结账|支付|次卡|卡项|会员卡|财务|库存|营销|活动|员工|人员|美容师|顾问|提成|佣金|门店|多店|自动化|补货|供应链|采购|经营|小程序|渠道|推广页|终端|设备|会话|对话|打印机|扫码器|摄像头|售后|退款|服务质量/.test(
+    /商品|产品|项目|客户|顾客|会员|老客|新客|流失|排班|预约|订单|收入|营收|营业额|流水|业绩|收银|收款|结账|支付|次卡|卡项|会员卡|财务|库存|缺货|临期|营销|活动|员工|人员|美容师|顾问|提成|佣金|门店|店里|上班|多店|自动化|补货|供应链|采购|经营|小程序|渠道|推广页|终端|设备|会话|对话|打印机|扫码器|摄像头|售后|退款|服务质量|皮肤|肤况|护理|服务/.test(
       text,
     );
   const isReadOnlyQuestion =
@@ -287,7 +291,7 @@ function isBusinessQueryCommand(text: string, role: Role) {
 }
 
 function shouldRouteToAgent(text: string, role: Role, source: AuraCommandSource) {
-  if (isLocalDirectCommand(text, role) && !(isTypedTextSource(source) && isBusinessQueryCommand(text, role))) return false;
+  if (isLocalDirectCommand(text, role) && !(isNaturalLanguageSource(source) && isBusinessQueryCommand(text, role))) return false;
   if (/^(查|查询|搜索|找|看看|看一下|帮我查|帮我看)/.test(text) && isCustomerLookupCommand(text)) return false;
   return isBusinessQueryCommand(text, role);
 }
@@ -372,7 +376,7 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
     return withPermissionCheck('business.query', role, definition, command, source, true);
   }
 
-  if (isTypedTextSource(source)) {
+  if (isNaturalLanguageSource(source)) {
     return buildResolvedIntent({
       action: null,
       role,

@@ -116,6 +116,27 @@ describe("parseAiIntentFallback", () => {
     expect(result.loadingLabel).toBe("正在基于 Ami_Core 生成回答");
   });
 
+  it("falls back to AI Q&A when voice input is classified as a fixed quick-action flow", async () => {
+    resolveTerminalIntent.mockResolvedValue({
+      intentName: "recharge.create",
+      action: "operation.recharge",
+      confidence: 0.95,
+      slots: {},
+      missingSlots: [],
+      reason: "AI matched recharge",
+    });
+
+    const result = await parseAiIntentFallback({
+      command: "帮我充值",
+      role: "reception",
+      definition: definition("reception"),
+      source: "voice",
+    });
+
+    expect(result.action).toBeNull();
+    expect(result.loadingLabel).toBe("正在基于 Ami_Core 生成回答");
+  });
+
   it("rejects unauthorized AI actions even when confidence is high", async () => {
     resolveTerminalIntent.mockResolvedValue({
       intentName: "manager.dashboard.view",
