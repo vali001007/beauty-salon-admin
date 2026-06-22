@@ -82,6 +82,7 @@ model Store {
   amiMonthlyBills          AmiMonthlyBill[]
   suppliers                Supplier[]
   supplierOrders           SupplierOrder[]
+  procurementOrders        ProcurementOrder[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
   beauticianAvailabilities BeauticianAvailability[]
   beauticianTimeOffs       BeauticianTimeOff[]
@@ -92,6 +93,7 @@ model Store {
   customerAppEvents        CustomerAppEvent[]
   amiGlowDisplayConfigs    AmiGlowDisplayConfig[]
   terminalFollowUpTasks    TerminalFollowUpTask[]
+  operatingCosts           OperatingCost[]
 
   @@index([status])
 }
@@ -104,6 +106,7 @@ model User {
   phone        String?
   email        String?
   avatar       String?
+  supplySupplierId Int?
   status       String    @default("active")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -115,15 +118,24 @@ model User {
   refreshTokens       RefreshToken[]
   stockMovements      StockMovement[]
   smartSchedulingRuns SmartSchedulingRun[] @relation("SmartSchedulingRunCreatedBy")
+  handledBalanceTransactions CustomerBalanceTransaction[] @relation("BalanceTransactionOperator")
+  handledCustomerCards CustomerCard[] @relation("CustomerCardOperator")
+  handledCardUsageRecords CardUsageRecord[] @relation("CardUsageOperator")
   cashierShifts       CashierShift[]
   terminalConversations TerminalConversation[]
   beauticianProfiles Beautician[]
   assignedFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpAssignedUser")
   createdFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpCreatedBy")
   completedFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpCompletedBy")
+  createdOperatingCosts  OperatingCost[]        @relation("OperatingCostCreatedBy")
+  commissionRules        CommissionRule[]        @relation("CommissionRuleUser")
+  commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
+  commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
+  supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([phone])
+  @@index([supplySupplierId])
 }
 
 model RefreshToken {
@@ -315,6 +327,8 @@ model Product {
   stockMovements StockMovement[]
   suppliers      ProductSupplier[]
   supplierItems  SupplierOrderItem[]
+  supplyMappings SupplyCatalogMapping[]
+  procurementItems ProcurementOrderItem[]
 
   @@index([storeId])
   @@index([status])
@@ -529,6 +543,10 @@ model Project {
   price       Decimal   @default(0)
   duration    Int       @default(60)
   image       String?
+  recommend   Boolean   @default(false)
+  online      Boolean   @default(true)
+  home        Boolean   @default(false)
+  sort        Int       @default(0)
   status      String    @default("active")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -554,6 +572,534 @@ model ProjectBomItem {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+}
+
+// ─── Industry Data Platform ─────────────────────────────────────────────────
+
+model IndustryDataSource {
+  id              Int       @id @default(autoincrement())
+  name            String
+  sourceType      String    @default("manual")
+  licenseType     String?
+  confidenceLevel String    @default("medium")
+  applicableScope String?
+  ownerName       String?
+  sourceUrl       String?
+  notes           String?
+  status          String    @default("draft")
+  lastVerifiedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  evidences        IndustryEvidence[]
+  serviceTemplates IndustryServiceTemplate[]
+  bomTemplates     IndustryProjectBomTemplate[]
+  knowledgeItems   IndustryKnowledgeItem[]
+
+  @@index([sourceType])
+  @@index([status])
+  @@index([confidenceLevel])
+}
+
+model IndustryEvidence {
+  id          Int      @id @default(autoincrement())
+  sourceId    Int
+  title       String
+  evidenceType String  @default("link")
+  url         String?
+  filePath    String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  source IndustryDataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@index([evidenceType])
+}
+
+model IndustryServiceTemplate {
+  id                     Int       @id @default(autoincrement())
+  code                   String    @unique
+  name                   String
+  aliases                Json?
+  category               String
+  subCategory            String?
+  targetStoreTypes       Json?
+  recommendedDurationMin Int?
+  recommendedDurationMax Int?
+  referencePriceMin      Decimal?
+  referencePriceMax      Decimal?
+  targetCustomers        Json?
+  contraindications      Json?
+  recommendedFrequency   String?
+  sellingPoints          Json?
+  bomUnavailableReason   String?
+  status                 String    @default("draft")
+  version                Int       @default(1)
+  sourceId               Int?
+  publishedAt            DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
+
+  source         IndustryDataSource?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  bomTemplates   IndustryProjectBomTemplate[]
+  adoptionRecords IndustryAdoptionRecord[]
+
+  @@index([category])
+  @@index([status])
+  @@index([sourceId])
+  @@index([name])
+}
+
+model IndustryProductTemplate {
+  id                          Int       @id @default(autoincrement())
+  standardProductCode          String    @unique
+  name                        String
+  aliases                     Json?
+  category                    String
+  subCategory                 String?
+  productType                 String
+  recommendedSpec             String?
+  unit                        String?
+  packageUnit                 String?
+  referenceCostMin            Decimal?
+  referenceCostMax            Decimal?
+  referenceRetailPriceMin     Decimal?
+  referenceRetailPriceMax     Decimal?
+  applicableServiceCategories Json?
+  supplyCategoryCode          String?
+  preferredSpecKey            String?
+  externalMappingKey          String?
+  futureSupplyMappingStatus   String    @default("not_connected")
+  status                      String    @default("draft")
+  version                     Int       @default(1)
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+  deletedAt                   DateTime?
+
+  bomItems       IndustryProjectBomItemTemplate[]
+  supplyMappings SupplyCatalogMapping[]
+
+  @@index([category])
+  @@index([productType])
+  @@index([status])
+  @@index([futureSupplyMappingStatus])
+  @@index([name])
+}
+
+// ─── Supply Platform ────────────────────────────────────────────────────────
+
+model SupplySupplier {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  companyName         String?
+  contactName         String?
+  phone               String?
+  email               String?
+  address             String?
+  serviceRegions      Json?
+  categories          Json?
+  qualificationStatus String    @default("pending")
+  settlementMode      String    @default("monthly")
+  paymentTerms        String?
+  rebateRate          Decimal?
+  platformFeeRate     Decimal?
+  status              String    @default("pending")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  qualifications SupplierQualification[]
+  users          User[]
+  skus           SupplySku[]
+  quotes         SupplyQuote[]
+  orders         ProcurementOrder[]
+  shipments      SupplierShipment[]
+  settlements    SupplySettlement[]
+
+  @@index([status])
+  @@index([qualificationStatus])
+  @@index([name])
+}
+
+model SupplierQualification {
+  id           Int       @id @default(autoincrement())
+  supplierId   Int
+  type         String
+  fileUrl      String
+  fileName     String?
+  status       String    @default("pending")
+  reviewedBy   Int?
+  reviewedAt   DateTime?
+  rejectReason String?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  supplier SupplySupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([type])
+}
+
+model SupplySku {
+  id                 Int       @id @default(autoincrement())
+  supplierId         Int
+  categoryId         Int?
+  name               String
+  brand              String?
+  spec               String?
+  unit               String?
+  barcode            String?
+  images             Json?
+  shelfLife          Int?
+  qualificationFiles Json?
+  description        String?
+  status             String    @default("draft")
+  auditStatus        String    @default("draft")
+  reviewedBy         Int?
+  reviewedAt         DateTime?
+  rejectReason       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  supplier      SupplySupplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  quotes        SupplyQuote[]
+  mappings      SupplyCatalogMapping[]
+  orderItems    ProcurementOrderItem[]
+  shipmentItems SupplierShipmentItem[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([auditStatus])
+  @@index([name])
+  @@index([barcode])
+}
+
+model SupplyQuote {
+  id             Int       @id @default(autoincrement())
+  supplySkuId    Int
+  supplierId     Int
+  price          Decimal   @default(0)
+  taxIncluded    Boolean   @default(true)
+  moq            Int       @default(1)
+  leadDays       Int?
+  stockStatus    String    @default("available")
+  availableStock Int?
+  regionScope    Json?
+  storeScope     Json?
+  validFrom      DateTime?
+  validTo        DateTime?
+  status         String    @default("draft")
+  auditStatus    String    @default("draft")
+  reviewedBy     Int?
+  reviewedAt     DateTime?
+  rejectReason   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  sku        SupplySku             @relation(fields: [supplySkuId], references: [id], onDelete: Cascade)
+  supplier   SupplySupplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  orderItems ProcurementOrderItem[]
+
+  @@index([supplySkuId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([auditStatus])
+  @@index([validTo])
+}
+
+model SupplyCatalogMapping {
+  id                        Int      @id @default(autoincrement())
+  supplySkuId                Int
+  productId                  Int?
+  storeId                    Int?
+  standardProductTemplateId  Int?
+  mappingStatus              String   @default("active")
+  isPreferred                Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  supplySku               SupplySku                @relation(fields: [supplySkuId], references: [id], onDelete: Cascade)
+  product                 Product?                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  industryProductTemplate IndustryProductTemplate? @relation(fields: [standardProductTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([supplySkuId])
+  @@index([productId])
+  @@index([storeId])
+  @@index([standardProductTemplateId])
+  @@index([mappingStatus])
+}
+
+model ProcurementOrder {
+  id                  Int       @id @default(autoincrement())
+  orderNo             String    @unique
+  storeId             Int
+  supplierId          Int
+  status              String    @default("pending_supplier_confirm")
+  totalAmount         Decimal   @default(0)
+  platformFee         Decimal   @default(0)
+  rebateAmount        Decimal   @default(0)
+  netAmount           Decimal   @default(0)
+  expectedArrivalDate DateTime?
+  sourceType          String    @default("manual")
+  sourceNo            String?
+  createdBy           Int?
+  acceptedAt          DateTime?
+  rejectedAt          DateTime?
+  shippedAt           DateTime?
+  receivedAt          DateTime?
+  settledAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  store      Store                  @relation(fields: [storeId], references: [id])
+  supplier   SupplySupplier         @relation(fields: [supplierId], references: [id])
+  items      ProcurementOrderItem[]
+  shipments  SupplierShipment[]
+
+  @@index([storeId])
+  @@index([supplierId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ProcurementOrderItem {
+  id          Int     @id @default(autoincrement())
+  orderId     Int
+  productId   Int?
+  supplySkuId Int
+  quoteId     Int?
+  quantity    Int
+  unitPrice   Decimal @default(0)
+  subtotal    Decimal @default(0)
+  receivedQty Int     @default(0)
+
+  order         ProcurementOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  supplySku     SupplySku            @relation(fields: [supplySkuId], references: [id])
+  quote         SupplyQuote?         @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  shipmentItems SupplierShipmentItem[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([supplySkuId])
+  @@index([quoteId])
+}
+
+model SupplierShipment {
+  id                Int       @id @default(autoincrement())
+  orderId           Int
+  supplierId        Int
+  shipmentNo        String    @unique
+  logisticsCompany  String?
+  trackingNo        String?
+  status            String    @default("shipped")
+  shippedAt         DateTime?
+  expectedArrivalAt DateTime?
+  receivedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  order    ProcurementOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier SupplySupplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  items    SupplierShipmentItem[]
+
+  @@index([orderId])
+  @@index([supplierId])
+  @@index([status])
+}
+
+model SupplierShipmentItem {
+  id             Int       @id @default(autoincrement())
+  shipmentId     Int
+  orderItemId    Int
+  supplySkuId    Int
+  shippedQty     Int
+  receivedQty    Int       @default(0)
+  batchNo        String?
+  productionDate DateTime?
+  expiryDate     DateTime?
+
+  shipment SupplierShipment   @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderItem ProcurementOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  supplySku SupplySku           @relation(fields: [supplySkuId], references: [id])
+
+  @@index([shipmentId])
+  @@index([orderItemId])
+  @@index([supplySkuId])
+}
+
+model SupplySettlement {
+  id                  Int       @id @default(autoincrement())
+  supplierId          Int
+  settleMonth         String
+  orderCount          Int       @default(0)
+  totalAmount         Decimal   @default(0)
+  rebateAmount        Decimal   @default(0)
+  platformFee         Decimal   @default(0)
+  adjustmentAmount    Decimal   @default(0)
+  netPayable          Decimal   @default(0)
+  status              String    @default("draft")
+  confirmedAt         DateTime?
+  supplierConfirmedAt DateTime?
+  paidAt              DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  supplier SupplySupplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([supplierId, settleMonth])
+  @@index([supplierId])
+  @@index([settleMonth])
+  @@index([status])
+}
+
+model IndustryProjectBomTemplate {
+  id                Int       @id @default(autoincrement())
+  serviceTemplateId Int
+  version           Int       @default(1)
+  totalCostMin      Decimal?
+  totalCostMax      Decimal?
+  status            String    @default("draft")
+  sourceId          Int?
+  publishedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  serviceTemplate IndustryServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+  source          IndustryDataSource?     @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  items           IndustryProjectBomItemTemplate[]
+
+  @@unique([serviceTemplateId, version])
+  @@index([serviceTemplateId])
+  @@index([status])
+}
+
+model IndustryProjectBomItemTemplate {
+  id                     Int      @id @default(autoincrement())
+  bomTemplateId           Int
+  productTemplateId       Int
+  itemRole                String   @default("main_material")
+  standardQty             Decimal  @default(0)
+  unit                    String
+  lossRate                Decimal  @default(0)
+  required                Boolean  @default(true)
+  costIncluded            Boolean  @default(true)
+  serviceStep             String?
+  allowSubstitute         Boolean  @default(false)
+  substituteGroupCode     String?
+  futureSupplyRequired    Boolean  @default(false)
+  futureSupplyMappingKey  String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  bomTemplate     IndustryProjectBomTemplate @relation(fields: [bomTemplateId], references: [id], onDelete: Cascade)
+  productTemplate IndustryProductTemplate    @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([bomTemplateId])
+  @@index([productTemplateId])
+  @@index([substituteGroupCode])
+}
+
+model IndustrySalaryBenchmark {
+  id                   Int       @id @default(autoincrement())
+  jobRole              String
+  roleCategory         String?
+  employeeLevel        String?
+  targetStoreTypes     Json?
+  cityTier             String?
+  baseSalaryMin        Decimal?
+  baseSalaryMax        Decimal?
+  commissionRateMin    Decimal?
+  commissionRateMax    Decimal?
+  serviceFeeMin        Decimal?
+  serviceFeeMax        Decimal?
+  performanceMetrics   Json?
+  responsibilities     Json?
+  capabilityRequirements Json?
+  status               String    @default("draft")
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  @@index([jobRole])
+  @@index([roleCategory])
+  @@index([status])
+}
+
+model IndustryKnowledgeItem {
+  id                           Int       @id @default(autoincrement())
+  domain                       String
+  title                        String
+  content                      String
+  structuredPayload            Json?
+  tags                         Json?
+  applicableServiceTemplateIds Json?
+  applicableProductTemplateIds Json?
+  applicableRoles              Json?
+  sourceId                     Int?
+  reviewStatus                 String    @default("draft")
+  version                      Int       @default(1)
+  effectiveFrom                DateTime?
+  effectiveTo                  DateTime?
+  publishedAt                  DateTime?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+  deletedAt                    DateTime?
+
+  source IndustryDataSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([domain])
+  @@index([reviewStatus])
+  @@index([sourceId])
+}
+
+model IndustryAdoptionRecord {
+  id                    Int      @id @default(autoincrement())
+  storeId                Int?
+  adoptedByUserId        Int?
+  adoptionType           String
+  serviceTemplateId      Int?
+  productTemplateId      Int?
+  templateVersion        Int?
+  localProjectId         Int?
+  localProductId         Int?
+  localBomItemIds        Json?
+  payload                Json?
+  createdAt              DateTime @default(now())
+
+  serviceTemplate IndustryServiceTemplate? @relation(fields: [serviceTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([adoptionType])
+  @@index([serviceTemplateId])
+  @@index([productTemplateId])
+}
+
+model IndustrySupplyMappingRequest {
+  id                         Int      @id @default(autoincrement())
+  productTemplateId           Int?
+  bomItemTemplateId           Int?
+  requestType                 String   @default("mapping")
+  status                      String   @default("not_connected")
+  requestedByStoreId          Int?
+  requestedByUserId           Int?
+  note                        String?
+  payload                     Json?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@index([productTemplateId])
+  @@index([bomItemTemplateId])
+  @@index([status])
 }
 
 // ─── Beauticians ─────────────────────────────────────────────────────────────
@@ -611,6 +1157,7 @@ model CommissionRule {
   targetType      String   @default("all")
   targetId        Int?
   levelId         Int?
+  userId          Int?
   rate            Decimal
   fixedAmount     Decimal?
   calcBase        String   @default("total")
@@ -624,16 +1171,19 @@ model CommissionRule {
 
   store   Store              @relation(fields: [storeId], references: [id])
   level   BeauticianLevel?   @relation(fields: [levelId], references: [id])
+  user    User?              @relation("CommissionRuleUser", fields: [userId], references: [id], onDelete: SetNull)
   records CommissionRecord[]
 
   @@index([storeId, type, status])
   @@index([levelId])
+  @@index([userId])
 }
 
 model CommissionRecord {
   id           Int       @id @default(autoincrement())
   storeId      Int
-  beauticianId Int
+  staffUserId  Int?
+  beauticianId Int?
   orderId      Int?
   orderItemId  Int?
   ruleId       Int?
@@ -649,12 +1199,14 @@ model CommissionRecord {
   createdAt    DateTime  @default(now())
 
   store      Store           @relation(fields: [storeId], references: [id])
-  beautician Beautician      @relation(fields: [beauticianId], references: [id])
+  staffUser  User?           @relation("CommissionRecordStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
+  beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   order      ProductOrder?   @relation(fields: [orderId], references: [id])
   orderItem  OrderItem?      @relation(fields: [orderItemId], references: [id])
   rule       CommissionRule? @relation(fields: [ruleId], references: [id])
 
   @@index([beauticianId, settleMonth])
+  @@index([staffUserId, settleMonth])
   @@index([storeId, status])
   @@index([orderId])
   @@index([orderItemId])
@@ -664,7 +1216,8 @@ model CommissionRecord {
 model CommissionSettlement {
   id             Int       @id @default(autoincrement())
   storeId        Int
-  beauticianId   Int
+  staffUserId    Int?
+  beauticianId   Int?
   settleMonth    String
   projectAmount  Decimal   @default(0)
   productAmount  Decimal   @default(0)
@@ -682,10 +1235,12 @@ model CommissionSettlement {
   updatedAt      DateTime  @updatedAt
 
   store      Store      @relation(fields: [storeId], references: [id])
-  beautician Beautician @relation(fields: [beauticianId], references: [id])
+  staffUser  User?      @relation("CommissionSettlementStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
+  beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
 
-  @@unique([storeId, beauticianId, settleMonth])
+  @@unique([storeId, staffUserId, settleMonth])
   @@index([storeId, settleMonth])
+  @@index([staffUserId])
   @@index([beauticianId])
 }
 
@@ -714,6 +1269,30 @@ model CashierShift {
   @@index([deviceId, status])
   @@index([operatorId])
   @@index([status])
+}
+
+model OperatingCost {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  periodMonth       String
+  costDate          DateTime
+  category          String
+  amount            Decimal  @default(0)
+  allocationType    String   @default("store_month")
+  relatedCampaignId Int?
+  relatedEmployeeId Int?
+  remark            String?
+  createdBy         Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store   Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  creator User? @relation("OperatingCostCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([storeId, periodMonth])
+  @@index([category])
+  @@index([costDate])
+  @@index([createdBy])
 }
 
 model DailySettlement {
@@ -758,6 +1337,17 @@ model ProductOrder {
   customerName String?
   storeId      Int?
   totalAmount  Decimal  @default(0)
+  listAmount   Decimal  @default(0)
+  itemDiscountAmount  Decimal @default(0)
+  orderDiscountAmount Decimal @default(0)
+  totalDiscountAmount Decimal @default(0)
+  netAmount           Decimal @default(0)
+  discountSource      String  @default("none")
+  allocationMethod    String  @default("none")
+  promotionId         Int?
+  couponId            Int?
+  packageId           Int?
+  discountPayload     Json?
   status       String   @default("completed")
   payMethod    String?
   source       String?
@@ -783,6 +1373,7 @@ model ProductOrder {
   @@index([customerId])
   @@index([storeId])
   @@index([createdAt])
+  @@index([storeId, createdAt])
 }
 
 model OrderItem {
@@ -793,8 +1384,18 @@ model OrderItem {
   name         String
   quantity     Decimal
   unitPrice    Decimal
+  listAmount   Decimal  @default(0)
   subtotal     Decimal
   discount     Decimal  @default(0)
+  itemDiscountAmount           Decimal @default(0)
+  orderAllocatedDiscountAmount Decimal @default(0)
+  totalDiscountAmount          Decimal @default(0)
+  netAmount                    Decimal @default(0)
+  discountSource               String  @default("none")
+  allocationMethod             String  @default("none")
+  discountPayload              Json?
+  isGift                       Boolean @default(false)
+  eligibleForOrderDiscount     Boolean @default(true)
   beauticianId Int?
   payload      Json?
   createdAt    DateTime @default(now())
@@ -861,6 +1462,7 @@ model CustomerCard {
   id             Int      @id @default(autoincrement())
   customerId     Int
   cardId         Int
+  operatorId     Int?
   cardName       String
   totalTimes     Int
   remainingTimes Int
@@ -870,8 +1472,10 @@ model CustomerCard {
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   card     Card     @relation(fields: [cardId], references: [id])
+  operator User?    @relation("CustomerCardOperator", fields: [operatorId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
+  @@index([operatorId])
   @@index([status])
 }
 
@@ -883,15 +1487,18 @@ model CardUsageRecord {
   projectName    String
   times          Int
   remainingTimes Int
+  operatorId     Int?
   beauticianId   Int?
   deviceId       Int?
   verifiedAt     DateTime @default(now())
 
   customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  operator   User?           @relation("CardUsageOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   device     TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
+  @@index([operatorId])
   @@index([beauticianId])
   @@index([deviceId])
   @@index([verifiedAt])
@@ -1789,6 +2396,7 @@ model CustomerBalanceTransaction {
   customerId        Int
   storeId           Int
   orderId           Int?
+  operatorId        Int?
   transactionNo     String   @unique
   type              String
   amount            Decimal
@@ -1805,10 +2413,12 @@ model CustomerBalanceTransaction {
   customer Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
   store    Store                  @relation(fields: [storeId], references: [id], onDelete: Cascade)
   order    ProductOrder?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  operator User?                  @relation("BalanceTransactionOperator", fields: [operatorId], references: [id], onDelete: SetNull)
 
   @@index([customerId, createdAt])
   @@index([storeId, createdAt])
   @@index([orderId])
+  @@index([operatorId])
   @@index([type])
 }
 

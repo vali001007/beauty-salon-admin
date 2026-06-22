@@ -3,9 +3,10 @@ import { InventoryService } from './inventory.service.js';
 import { InventoryController } from './inventory.controller.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
 import { CommissionModule } from '../commission/commission.module.js';
+import { SupplyPlatformModule } from '../supply-platform/supply-platform.module.js';
 
 @Module({
-  imports: [TerminalModule, CommissionModule],
+  imports: [TerminalModule, CommissionModule, SupplyPlatformModule],
   controllers: [InventoryController],
   providers: [InventoryService],
   exports: [InventoryService],

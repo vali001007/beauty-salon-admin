@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-operation-profit-scripts",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": ["prisma/operation-profit-*.ts"],
+  "exclude": ["node_modules", "dist", "dist-operation-profit-scripts"]
+}
