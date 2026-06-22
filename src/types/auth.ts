@@ -25,6 +25,8 @@ export interface AuthUser {
   permissions: string[];
   deniedPermissions?: string[];
   storeIds: number[];
+  supplySupplierId?: number | null;
+  supplySupplierName?: string | null;
   platformScopes?: import('./permission').PlatformScopes;
   dataScopes?: import('./permission').DataScopes;
   fieldScopes?: import('./permission').FieldScopes;

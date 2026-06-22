@@ -44,6 +44,8 @@ function normalizeMemberCardAccount(item: ApiMemberCardAccount): MemberCardAccou
     totalConsumed: toNumber(item.totalConsumed),
     availableBalance: toNumber(item.availableBalance),
     giftBalance: toNumber(item.giftBalance),
+    handlerId: item.handlerId === undefined ? undefined : Number(item.handlerId),
+    handlerName: item.handlerName,
     remark: item.remark,
     createdAt: normalizeDate(item.createdAt),
     updatedAt: normalizeDateTime(item.updatedAt),
@@ -79,6 +81,8 @@ function normalizeMemberCardTransaction(item: ApiMemberCardTransaction): MemberC
     giftBalanceBefore: toNumber(item.giftBalanceBefore),
     giftBalanceAfter: toNumber(item.giftBalanceAfter),
     paymentMethod: item.paymentMethod,
+    operatorId: item.operatorId === undefined ? undefined : Number(item.operatorId),
+    operatorName: item.operatorName,
     remark: item.remark,
     createdAt: normalizeDateTime(item.createdAt),
   };

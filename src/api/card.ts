@@ -1,5 +1,6 @@
 import type { Card } from '@/types/card';
 import type { CardFormData } from '@/schemas/card';
+import type { CreateCardOrderPayload } from './real/card';
 import { realGetCards, realCreateCard, realUpdateCard, realDeleteCard, realCreateCardOrder, realCreateCardUsage } from './real/card';
 
 export const getCards: () => Promise<Card[]> =
@@ -14,7 +15,7 @@ export const updateCard: (id: number, data: Partial<CardFormData>) => Promise<Ca
 export const deleteCard: (id: number) => Promise<void> =
   realDeleteCard;
 
-export const createCardOrder: (data: { cardId: number; userId: number; actualPrice: number }) => Promise<any> =
+export const createCardOrder: (data: CreateCardOrderPayload) => Promise<any> =
   realCreateCardOrder;
 
 export const createCardUsage: (data: {
@@ -24,6 +25,7 @@ export const createCardUsage: (data: {
   cardName?: string;
   projectName: string;
   consumedTimes: number;
+  operatorId?: number;
 }) => Promise<any> = realCreateCardUsage;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';

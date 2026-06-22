@@ -63,18 +63,27 @@ export interface ExpiringProduct {
 
 export interface ReplenishmentSuggestion {
   id: number;
+  productId?: number;
   productName: string;
   sku: string;
   currentStock: number;
   forecast7Days: number;
   safetyStock: number;
   inTransit: number;
+  inTransitQty?: number;
   suggestedQty: number;
   supplierId?: number;
+  supplierName?: string;
   supplier: string;
+  supplySkuId?: number;
+  supplySkuName?: string;
+  quoteId?: number;
   supplyPrice?: number;
   moq?: number | null;
+  leadDays?: number | null;
   estimatedAmount: number;
+  reason?: string;
+  availabilityStatus?: 'platform_available' | 'legacy_supplier_available' | 'manual_purchase' | string;
   checked: boolean;
 }
 

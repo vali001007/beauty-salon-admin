@@ -111,6 +111,8 @@ export interface CommissionRule {
   targetId?: number;
   levelId?: number;
   level?: { id: number; name: string };
+  userId?: number;
+  user?: { id: number; name: string; username?: string };
   rate: number;
   fixedAmount?: number;
   calcBase: string;
@@ -127,7 +129,9 @@ export interface CommissionRecord {
   id: number;
   storeId: number;
   storeName?: string;
-  beauticianId: number;
+  staffUserId?: number;
+  staffUserName?: string;
+  beauticianId?: number;
   beauticianName?: string;
   orderId?: number;
   orderNo?: string;
@@ -150,7 +154,9 @@ export interface CommissionSummary {
   settledAmount: number;
   count: number;
   items: Array<{
-    beauticianId: number;
+    staffUserId?: number;
+    staffUserName?: string;
+    beauticianId?: number;
     beauticianName?: string;
     totalAmount: number;
     pendingAmount: number;
@@ -164,7 +170,9 @@ export interface CommissionSettlement {
   id: number;
   storeId: number;
   storeName?: string;
-  beauticianId: number;
+  staffUserId?: number;
+  staffUserName?: string;
+  beauticianId?: number;
   beauticianName?: string;
   settleMonth: string;
   projectAmount: number;

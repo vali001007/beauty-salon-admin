@@ -31,6 +31,8 @@ import type {
   TerminalConsumptionRecord,
   TerminalConsumptionRecordCreateRequest,
   TerminalCustomerCard,
+  TerminalCustomerSelectQuery,
+  TerminalCustomerSelectResponse,
   TerminalCustomerSummary,
   TerminalDevice,
   TerminalDeviceHeartbeatRequest,
@@ -131,6 +133,7 @@ import {
   realGetTerminalConversationDetail,
   realGetTerminalConversationHistory,
   realGetTerminalCardVerificationContext,
+  realGetTerminalCustomerSelectContext,
   realGetTerminalBeauticianCommission,
   realGetCurrentTerminalBeautician,
   realGetCurrentTerminalBeauticianCommission,
@@ -292,6 +295,11 @@ export const getTerminalCashierContext: () => Promise<TerminalCashierContext> =
 
 export const getTerminalCardVerificationContext: (params?: { keyword?: string }) => Promise<TerminalCardVerificationContext> =
   realGetTerminalCardVerificationContext;
+
+export const getTerminalCustomerSelectContext: (
+  params?: TerminalCustomerSelectQuery,
+) => Promise<TerminalCustomerSelectResponse> =
+  realGetTerminalCustomerSelectContext;
 
 export const getTerminalBeauticianCommission: (
   beauticianId: number,

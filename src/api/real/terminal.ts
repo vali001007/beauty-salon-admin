@@ -30,6 +30,8 @@ import type {
   TerminalConversationRecord,
   TerminalConsumptionRecord,
   TerminalConsumptionRecordCreateRequest,
+  TerminalCustomerSelectQuery,
+  TerminalCustomerSelectResponse,
   TerminalCustomerCard,
   TerminalCustomerSummary,
   TerminalDevice,
@@ -202,6 +204,12 @@ export async function realGetTerminalCashierContext(): Promise<TerminalCashierCo
 
 export async function realGetTerminalCardVerificationContext(params?: { keyword?: string }): Promise<TerminalCardVerificationContext> {
   return apiClient.get('/terminal/context/card-verification', { params });
+}
+
+export async function realGetTerminalCustomerSelectContext(
+  params?: TerminalCustomerSelectQuery,
+): Promise<TerminalCustomerSelectResponse> {
+  return apiClient.get('/terminal/context/customer-select', { params });
 }
 
 export async function realGetTerminalBeauticianCommission(
@@ -517,13 +525,33 @@ export async function realCreateTerminalCashierOrder(
     customerPhone: data.customerPhone,
     payMethod: data.paymentMethod ?? 'cash',
     discountAmount: data.discountAmount,
+    discountMode: data.discountMode,
+    discountRate: data.discountRate,
+    packagePrice: data.packagePrice,
+    allocationMethod: data.allocationMethod,
+    discountSource: data.discountSource,
+    promotionId: data.promotionId,
+    couponId: data.couponId,
     items: extractArray<TerminalCashierOrderCreateRequest['items'][number]>(data.items).map((item) => ({
       itemId: item.itemId ?? 0,
       itemType: item.itemType,
       name: item.name,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      listAmount: item.listAmount,
       subtotal: item.subtotal,
+      discount: item.discount,
+      itemDiscountAmount: item.itemDiscountAmount,
+      orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
+      totalDiscountAmount: item.totalDiscountAmount,
+      netAmount: item.netAmount,
+      discountSource: item.discountSource,
+      allocationMethod: item.allocationMethod,
+      discountPayload: item.discountPayload,
+      isGift: item.isGift,
+      eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+      beauticianId: item.beauticianId,
+      beauticianName: item.beauticianName,
     })),
     remark: data.remark,
   });

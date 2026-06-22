@@ -1,4 +1,4 @@
-import type { Service, ConsumptionRecord, ForecastItem } from '@/types/bom';
+import type { BomPayloadItem, Service, ConsumptionRecord, ForecastItem } from '@/types/bom';
 import apiClient from '../client';
 
 export async function realGetBomList(): Promise<Service[]> {
@@ -21,7 +21,10 @@ export async function realCreateBom(data: Omit<Service, 'id'>): Promise<Service>
   return apiClient.post('/bom/services', data);
 }
 
-export async function realUpdateBom(id: number, data: Partial<Service>): Promise<Service> {
+export async function realUpdateBom(
+  id: number,
+  data: Partial<Omit<Service, 'bom'>> & { bom?: BomPayloadItem[] },
+): Promise<Service> {
   return apiClient.put(`/bom/services/${id}`, data);
 }
 

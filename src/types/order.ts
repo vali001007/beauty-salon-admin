@@ -11,6 +11,17 @@ export interface ProductOrder {
   storeName: string;
   items: ProductOrderItem[];
   totalAmount: number;
+  listAmount?: number;
+  itemDiscountAmount?: number;
+  orderDiscountAmount?: number;
+  totalDiscountAmount?: number;
+  netAmount?: number;
+  discountSource?: string;
+  allocationMethod?: string;
+  promotionId?: number;
+  couponId?: number;
+  packageId?: number;
+  discountPayload?: unknown;
   status: ProductOrderStatus;
   paymentMethod: ProductOrderPaymentMethod;
   payMethod?: string;
@@ -32,8 +43,20 @@ export interface ProductOrderItem {
   sku: string;
   quantity: number;
   unitPrice: number;
+  listAmount?: number;
   subtotal: number;
   discount?: number;
+  itemDiscountAmount?: number;
+  orderAllocatedDiscountAmount?: number;
+  totalDiscountAmount?: number;
+  netAmount?: number;
+  discountSource?: string;
+  allocationMethod?: string;
+  discountPayload?: unknown;
+  isGift?: boolean;
+  eligibleForOrderDiscount?: boolean;
+  beauticianId?: number;
+  beauticianName?: string;
   payload?: unknown;
 }
 
@@ -51,6 +74,14 @@ export interface ProductOrderCreatePayload {
   storeName?: string;
   items: ProductOrderCreateItem[];
   totalAmount: number;
+  discountMode?: 'none' | 'amount' | 'rate' | 'package_price' | 'manual';
+  discountAmount?: number;
+  discountRate?: number;
+  packagePrice?: number;
+  allocationMethod?: 'price_ratio' | 'manual';
+  discountSource?: 'order' | 'package' | 'promotion' | 'coupon' | 'manual';
+  promotionId?: number;
+  couponId?: number;
   status: ProductOrderStatus;
   paymentMethod: ProductOrderPaymentMethod;
   payMethod?: string;
@@ -58,6 +89,92 @@ export interface ProductOrderCreatePayload {
   transactionNo?: string;
   remark?: string;
   source?: 'admin' | 'terminal' | string;
+}
+
+export interface ProjectOrderProfitCommissionRecord {
+  id: number;
+  staffUserId?: number | null;
+  staffUserName: string;
+  beauticianId?: number | null;
+  beauticianName?: string | null;
+  ruleId?: number | null;
+  ruleName?: string | null;
+  sourceAmount: number;
+  rate: number;
+  amount: number;
+  status: string;
+  settleMonth?: string | null;
+}
+
+export interface ProjectOrderProfitBomItem {
+  projectId?: number;
+  productId: number;
+  productName: string;
+  unit?: string | null;
+  standardQty: number;
+  quantity: number;
+  costPrice: number;
+  costAmount: number;
+}
+
+export interface ProjectOrderProfitMaterialMovement {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  unit?: string | null;
+  costPrice: number;
+  costAmount: number;
+  occurredAt?: string;
+  remark?: string | null;
+}
+
+export interface ProjectOrderProfitItem {
+  orderItemId: number;
+  projectId?: number;
+  projectName: string;
+  quantity: number;
+  unitPrice: number;
+  income: number;
+  standardMaterialCost: number;
+  commissionCost: number;
+  totalCost: number;
+  grossProfit: number;
+  grossMargin: number;
+  beauticianId?: number | null;
+  beauticianName?: string | null;
+  bomItems: ProjectOrderProfitBomItem[];
+  commissionRecords: ProjectOrderProfitCommissionRecord[];
+  missingReasons: string[];
+}
+
+export interface ProjectOrderProfitDetail {
+  orderId: number;
+  orderNo: string;
+  customerId?: number | null;
+  customerName: string;
+  customerPhone?: string;
+  storeId?: number | null;
+  storeName: string;
+  status: string;
+  source?: string | null;
+  createdAt?: string;
+  paymentMethod?: string;
+  totalIncome: number;
+  standardMaterialCost: number;
+  actualMaterialCost: number;
+  materialCost: number;
+  commissionCost: number;
+  unassignedCommissionCost: number;
+  totalCost: number;
+  grossProfit: number;
+  grossMargin: number;
+  materialCostSource: 'actual_stock_movement' | 'standard_bom' | string;
+  dataQuality: 'complete' | 'partial' | string;
+  missingReasons: string[];
+  items: ProjectOrderProfitItem[];
+  actualMaterialMovements: ProjectOrderProfitMaterialMovement[];
+  unassignedCommissionRecords: ProjectOrderProfitCommissionRecord[];
 }
 
 export interface OrderItem {
@@ -68,8 +185,20 @@ export interface OrderItem {
   name: string;
   quantity: number;
   unitPrice: number;
+  listAmount?: number;
   subtotal: number;
   discount: number;
+  itemDiscountAmount?: number;
+  orderAllocatedDiscountAmount?: number;
+  totalDiscountAmount?: number;
+  netAmount?: number;
+  discountSource?: string;
+  allocationMethod?: string;
+  discountPayload?: unknown;
+  isGift?: boolean;
+  eligibleForOrderDiscount?: boolean;
+  beauticianId?: number | null;
+  beauticianName?: string | null;
   payload?: unknown;
   createdAt: string;
 }
@@ -168,6 +297,8 @@ export interface MemberCardAccount {
   totalConsumed: number;
   availableBalance: number;
   giftBalance: number;
+  handlerId?: number;
+  handlerName?: string;
   remark?: string;
   createdAt: string;
   updatedAt?: string;
@@ -194,6 +325,8 @@ export interface MemberCardTransaction {
   giftBalanceBefore: number;
   giftBalanceAfter: number;
   paymentMethod?: string;
+  operatorId?: number;
+  operatorName?: string;
   remark?: string;
   createdAt: string;
 }

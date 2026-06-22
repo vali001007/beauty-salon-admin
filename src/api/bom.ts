@@ -1,4 +1,4 @@
-import type { Service, ConsumptionRecord, ForecastItem } from '@/types/bom';
+import type { BomPayloadItem, Service, ConsumptionRecord, ForecastItem } from '@/types/bom';
 import { realGetBomList, realGetBomConsumption, realGetBomConsumptionRecords, realGetBomForecast, realCreateBom, realUpdateBom, realDeleteBom } from './real/bom';
 
 export const getBomList: () => Promise<Service[]> =
@@ -16,7 +16,7 @@ export const getBomForecast: () => Promise<ForecastItem[]> =
 export const createBom: (data: Omit<Service, 'id'>) => Promise<Service> =
   realCreateBom;
 
-export const updateBom: (id: number, data: Partial<Service>) => Promise<Service> =
+export const updateBom: (id: number, data: Partial<Omit<Service, 'bom'>> & { bom?: BomPayloadItem[] }) => Promise<Service> =
   realUpdateBom;
 
 export const deleteBom: (id: number) => Promise<void> =

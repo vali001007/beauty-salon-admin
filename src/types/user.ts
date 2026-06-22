@@ -9,6 +9,8 @@ export interface SystemUser {
   extraPermissions?: string[];
   deniedPermissions?: string[];
   storeIds: number[];
+  supplySupplierId?: number | null;
+  supplySupplierName?: string | null;
   status: '启用' | '禁用';
   lastLogin: string;
   createdAt: string;

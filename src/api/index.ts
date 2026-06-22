@@ -22,5 +22,8 @@ export * from './ai';
 export * from './dashboard';
 export * from './commission';
 export * from './supply-chain';
+export * from './supplyPlatform';
+export * from './industry';
 export * from './businessQuery';
 export * from './agent';
+export * from './operationProfit';

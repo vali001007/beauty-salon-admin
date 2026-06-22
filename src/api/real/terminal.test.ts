@@ -104,4 +104,48 @@ describe('terminal real API payload normalization', () => {
       result: '已电话沟通',
     });
   });
+
+  it('keeps cashier item service staff fields when submitting checkout', async () => {
+    const { realCreateTerminalCashierOrder } = await import('./terminal');
+
+    await realCreateTerminalCashierOrder({
+      customerId: 1,
+      customerName: '徐欣怡',
+      customerPhone: '18822013339',
+      paymentMethod: 'wechat',
+      items: [
+        {
+          itemType: 'project',
+          itemId: 101,
+          name: '深层补水护理',
+          quantity: 1,
+          unitPrice: 298,
+          subtotal: 298,
+          beauticianId: 2,
+          beauticianName: '沈晴',
+        },
+      ],
+    });
+
+    expect(apiClientMock.post).toHaveBeenCalledWith('/terminal/cashier/checkout', {
+      customerId: 1,
+      customerName: '徐欣怡',
+      customerPhone: '18822013339',
+      payMethod: 'wechat',
+      discountAmount: undefined,
+      items: [
+        {
+          itemId: 101,
+          itemType: 'project',
+          name: '深层补水护理',
+          quantity: 1,
+          unitPrice: 298,
+          subtotal: 298,
+          beauticianId: 2,
+          beauticianName: '沈晴',
+        },
+      ],
+      remark: undefined,
+    });
+  });
 });

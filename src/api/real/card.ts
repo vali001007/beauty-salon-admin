@@ -19,6 +19,11 @@ type ApiCardOrder = {
   customerName?: string;
   customerPhone?: string;
   customer?: { id?: number; name?: string; phone?: string };
+  handlerId?: number | string;
+  handlerName?: string;
+  operatorId?: number | string;
+  operatorName?: string;
+  operator?: { id?: number; name?: string; username?: string };
   card?: { id?: number; price?: number | string; projects?: unknown };
   cardProjects?: unknown;
   totalTimes?: number | string;
@@ -31,6 +36,20 @@ type ApiCardOrder = {
   purchaseTime?: string;
   purchaseDate?: string;
   createdAt?: string;
+  expireTime?: string;
+  expiryDate?: string;
+};
+
+export type CreateCardOrderPayload = {
+  cardId: number;
+  userId?: number;
+  customerId?: number;
+  userName?: string;
+  customerName?: string;
+  cardName?: string;
+  actualPrice: number;
+  totalTimes?: number;
+  remainingTimes?: number;
   expireTime?: string;
   expiryDate?: string;
 };
@@ -95,6 +114,8 @@ function normalizeCardOrder(item: ApiCardOrder) {
     cardName: item.cardName ?? '',
     userName: item.userName ?? item.customerName ?? item.customer?.name ?? '未知客户',
     customerPhone: item.customerPhone ?? item.customer?.phone ?? '',
+    handlerId: Number(item.handlerId ?? item.operatorId ?? item.operator?.id ?? 0) || undefined,
+    handlerName: item.handlerName ?? item.operatorName ?? item.operator?.name ?? item.operator?.username ?? '',
     totalTimes: Number(item.totalTimes ?? 0),
     remainingTimes: Number(item.remainingTimes ?? 0),
     cardProjects: projects,
@@ -124,7 +145,7 @@ export async function realDeleteCard(id: number): Promise<void> {
   return apiClient.delete(`/cards/${id}`);
 }
 
-export async function realCreateCardOrder(data: { cardId: number; userId: number; actualPrice: number }): Promise<any> {
+export async function realCreateCardOrder(data: CreateCardOrderPayload): Promise<any> {
   return apiClient.post('/orders/card', data);
 }
 
@@ -135,6 +156,7 @@ export async function realCreateCardUsage(data: {
   cardName?: string;
   projectName: string;
   consumedTimes: number;
+  operatorId?: number;
 }): Promise<any> {
   return apiClient.post('/cards/usage', data);
 }

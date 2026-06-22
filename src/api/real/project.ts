@@ -10,12 +10,13 @@ type ApiProject = Omit<Partial<Project>, 'type' | 'status'> & {
 };
 
 type ApiProjectBomItem = Partial<ProjectBomItem> & {
-  product?: {
-    id?: number;
-    name?: string;
-    sku?: string;
-    unit?: string;
-  };
+    product?: {
+      id?: number;
+      name?: string;
+      sku?: string;
+      unit?: string;
+      costPrice?: number | string;
+    };
 };
 
 export type ProjectBomPayloadItem = {
@@ -32,6 +33,7 @@ function normalizeProjectBomItem(item: ApiProjectBomItem): NonNullable<Project['
     sku: item.sku ?? item.product?.sku ?? '',
     standardQty: Number(item.standardQty ?? 0),
     unit: item.unit ?? item.product?.unit ?? '',
+    costPrice: Number(item.costPrice ?? item.product?.costPrice ?? 0),
   };
 }
 
@@ -44,8 +46,8 @@ function normalizeProject(item: ApiProject): Project {
     duration: Number(item.duration ?? 0),
     price: Number(item.price ?? 0),
     storeName: item.storeName ?? item.store?.name ?? '',
-    recommend: item.recommend ?? true,
-    online: item.online ?? true,
+    recommend: Boolean(item.recommend ?? false),
+    online: Boolean(item.online ?? true),
     home: item.home ?? false,
     status: typeof item.status === 'boolean' ? item.status : item.status === undefined || item.status === 'active',
     sort: Number(item.sort ?? item.id ?? 0),

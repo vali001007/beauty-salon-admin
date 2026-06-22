@@ -10,6 +10,11 @@ export type {
   ProductOrderCreateItem,
   ProductOrderStatus,
   ProductOrderPaymentMethod,
+  ProjectOrderProfitDetail,
+  ProjectOrderProfitItem,
+  ProjectOrderProfitBomItem,
+  ProjectOrderProfitCommissionRecord,
+  ProjectOrderProfitMaterialMovement,
   OrderItem,
   PaymentRecord,
   RefundRecord,
@@ -44,5 +49,8 @@ export * from './ai';
 export * from './dashboard';
 export * from './promotion';
 export * from './supply-chain';
+export * from './supplyPlatform';
+export * from './industry';
 export * from './businessQuery';
 export * from './agent';
+export * from './operationProfit';
