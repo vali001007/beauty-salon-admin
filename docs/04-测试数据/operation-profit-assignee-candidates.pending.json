@@ -1,0 +1,111 @@
+{
+  "purpose": "operation-profit-assignee-candidates-pending-business-confirmation",
+  "storeId": 6,
+  "from": "2026-06-01",
+  "to": "2026-06-30",
+  "generatedBy": "operation-profit:assignee-audit",
+  "warning": "This file is a candidate draft only. Do not apply until business replaces confirmedBy and confirms every assignment.",
+  "sourceSummary": {
+    "scannedOrders": 43,
+    "missingAssigneeItems": 33,
+    "itemTypeCounts": {
+      "project": 24,
+      "product": 9
+    },
+    "confidenceCounts": {
+      "high": 0,
+      "medium": 4,
+      "low": 5,
+      "none": 24
+    },
+    "candidateSourceCounts": {
+      "card_usage": 6,
+      "service_task": 3,
+      "reservation": 5
+    },
+    "candidateDraftAssignments": 9
+  },
+  "assignments": [
+    {
+      "orderItemId": 1072,
+      "beauticianId": 40,
+      "source": "card_usage:428",
+      "confidence": "medium",
+      "score": 74,
+      "reason": "候选：同客户同项目消课，距离 0.03 天，score 74",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1079,
+      "beauticianId": 41,
+      "source": "service_task:502",
+      "confidence": "low",
+      "score": 55,
+      "reason": "候选：同客户近期已完成服务，距离 0.37 天，score 55；商品归属需人工确认",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1080,
+      "beauticianId": 40,
+      "source": "card_usage:431",
+      "confidence": "medium",
+      "score": 74,
+      "reason": "候选：同客户同项目消课，距离 0 天，score 74",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1082,
+      "beauticianId": 40,
+      "source": "card_usage:431",
+      "confidence": "medium",
+      "score": 74,
+      "reason": "候选：同客户同项目消课，距离 0.14 天，score 74",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1086,
+      "beauticianId": 41,
+      "source": "card_usage:438",
+      "confidence": "medium",
+      "score": 64,
+      "reason": "候选：同客户同项目消课，距离 4.67 天，score 64",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1092,
+      "beauticianId": 46,
+      "source": "reservation:740",
+      "confidence": "low",
+      "score": 50,
+      "reason": "候选：同客户近期预约确认，距离 0.67 天，score 50；商品归属需人工确认；需确认美容师账号绑定",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1097,
+      "beauticianId": 46,
+      "source": "reservation:812",
+      "confidence": "low",
+      "score": 50,
+      "reason": "候选：同客户近期预约待确认，距离 0.9 天，score 50；商品归属需人工确认；需确认美容师账号绑定",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1102,
+      "beauticianId": 44,
+      "source": "service_task:334",
+      "confidence": "low",
+      "score": 55,
+      "reason": "候选：同客户近期待服务任务，距离 0.22 天，score 55；商品归属需人工确认；需确认美容师账号绑定",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1111,
+      "beauticianId": 50,
+      "source": "service_task:514",
+      "confidence": "low",
+      "score": 55,
+      "reason": "候选：同客户近期已完成服务，距离 0.48 天，score 55；商品归属需人工确认；需确认美容师账号绑定",
+      "confirmedBy": "pending_business_confirmation"
+    }
+  ]
+}

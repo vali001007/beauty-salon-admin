@@ -1,0 +1,36 @@
+{
+  "purpose": "operation-profit-project-master-confirmed-business-template",
+  "storeId": 6,
+  "from": "2026-06-01",
+  "to": "2026-06-30",
+  "warning": "Draft only. Choose resolution=repair_project or historical_exception for every item before running confirmation-audit --requireReady.",
+  "fixes": [
+    {
+      "orderItemId": 1087,
+      "resolution": "repair_project",
+      "targetProjectId": 73,
+      "targetProjectName": "敏感肌舒缓修护",
+      "source": "operation-profit:bom-audit/reference-template:73",
+      "reason": "候选：原项目明细 itemId=101 在项目表不存在，同 ID 是商品“术后舒缓喷雾”；参考项目 73 与订单成交价 398 一致且已有 BOM。",
+      "confirmedBy": "TODO_REAL_BUSINESS_CONFIRMER"
+    },
+    {
+      "orderItemId": 1088,
+      "resolution": "repair_project",
+      "targetProjectId": 73,
+      "targetProjectName": "敏感肌舒缓修护",
+      "source": "operation-profit:bom-audit/reference-template:73",
+      "reason": "候选：原项目明细 itemId=101 在项目表不存在，同 ID 是商品“术后舒缓喷雾”；参考项目 73 与订单成交价 398 一致且已有 BOM。",
+      "confirmedBy": "TODO_REAL_BUSINESS_CONFIRMER"
+    },
+    {
+      "orderItemId": 1089,
+      "resolution": "repair_project",
+      "targetProjectId": 73,
+      "targetProjectName": "敏感肌舒缓修护",
+      "source": "operation-profit:bom-audit/reference-template:73",
+      "reason": "候选：原项目明细 itemId=101 在项目表不存在，同 ID 是商品“术后舒缓喷雾”；参考项目 73 与订单成交价 398 一致且已有 BOM。",
+      "confirmedBy": "TODO_REAL_BUSINESS_CONFIRMER"
+    }
+  ]
+}

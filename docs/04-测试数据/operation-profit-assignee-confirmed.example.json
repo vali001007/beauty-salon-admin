@@ -1,0 +1,18 @@
+{
+  "assignments": [
+    {
+      "orderItemId": 1100,
+      "beauticianId": 40,
+      "source": "service_task:504",
+      "reason": "示例：归属候选审计 high，需业务确认后才能用于真实写回",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "orderItemId": 1098,
+      "beauticianId": 40,
+      "source": "service_task:504",
+      "reason": "示例：归属候选审计 high，需业务确认后才能用于真实写回",
+      "confirmedBy": "pending_business_confirmation"
+    }
+  ]
+}
