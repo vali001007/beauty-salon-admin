@@ -36,6 +36,11 @@ export class ConsumeCardDto {
   @IsInt()
   beauticianId?: number;
 
+  @ApiPropertyOptional({ description: '操作人ID（管理端账号或终端当前用户）' })
+  @IsOptional()
+  @IsInt()
+  operatorId?: number;
+
   @ApiPropertyOptional({ description: '消耗次数', example: 1 })
   @IsOptional()
   @IsInt()

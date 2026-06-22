@@ -75,7 +75,7 @@ export class CommissionController {
 
   @Post('rules/batch')
   @Permissions('core:finance:manage')
-  @ApiOperation({ summary: '按行业模板导入提成规则' })
+  @ApiOperation({ summary: '提成规则模板导入已停用，规则需绑定具体员工' })
   batchCreateRules(@Body('template') template?: string, @Headers('x-store-id') storeHeader?: string) {
     return this.commissionService.batchCreateFromTemplate(storeHeader, template);
   }

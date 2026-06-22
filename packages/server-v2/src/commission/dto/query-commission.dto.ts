@@ -36,6 +36,12 @@ export class QueryCommissionRulesDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  userId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   status?: string;
 
@@ -67,6 +73,12 @@ export class QueryCommissionRecordsDto {
   storeId?: number;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  staffUserId?: number;
+
+  @ApiPropertyOptional({ description: '历史兼容字段：美容师 ID。新提成主体使用 staffUserId。' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

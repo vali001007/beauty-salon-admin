@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TerminalDashboardCacheService } from '../terminal/terminal-dashboard-cache.service.js';
 import { CommissionService } from '../commission/commission.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
+import { SupplyPlatformService } from '../supply-platform/supply-platform.service.js';
 
 @Injectable()
 export class InventoryService {
@@ -9,6 +11,7 @@ export class InventoryService {
     private prisma: PrismaService,
     private terminalDashboardCache: TerminalDashboardCacheService,
     private commissionService?: CommissionService,
+    private supplyPlatformService?: SupplyPlatformService,
   ) {}
 
   private invalidateInventoryDashboardCache(storeId?: number | null) {
@@ -188,7 +191,7 @@ export class InventoryService {
         totalAmount: Number(order.totalAmount ?? 0),
         productCount: orderItems.length,
         storeName: payload?.storeName ?? '全部门店',
-        createDate: order.createdAt.toISOString().slice(0, 10),
+        createDate: formatBusinessDate(order.createdAt),
         expectedDate: payload?.expectedDate ?? '',
         items: orderItems,
       };
@@ -220,7 +223,7 @@ export class InventoryService {
       totalAmount,
       productCount: items.length,
       storeName: payload.storeName,
-      createDate: order.createdAt.toISOString().slice(0, 10),
+      createDate: formatBusinessDate(order.createdAt),
       expectedDate: payload.expectedDate,
       items,
     };
@@ -346,31 +349,90 @@ export class InventoryService {
       },
     });
 
+    const productIds = products.map((product) => product.id);
+    const inTransitByProduct = storeId && this.supplyPlatformService
+      ? await this.supplyPlatformService.getInTransitByProduct(storeId, productIds)
+      : new Map<number, number>();
+    const platformMappings = productIds.length
+      ? await this.prisma.supplyCatalogMapping.findMany({
+          where: {
+            productId: { in: productIds },
+            mappingStatus: 'active',
+            supplySku: { status: 'active', auditStatus: 'approved', deletedAt: null },
+          },
+          include: {
+            supplySku: {
+              include: {
+                supplier: { select: { id: true, name: true, status: true } },
+                quotes: {
+                  where: {
+                    status: 'active',
+                    auditStatus: 'approved',
+                    deletedAt: null,
+                    OR: [{ validTo: null }, { validTo: { gte: new Date() } }],
+                  },
+                  orderBy: [{ price: 'asc' }],
+                  take: 1,
+                },
+              },
+            },
+          },
+          orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }],
+        })
+      : [];
+    const mappingByProduct = new Map<number, (typeof platformMappings)[number]>();
+    for (const mapping of platformMappings) {
+      if (mapping.productId && !mappingByProduct.has(mapping.productId)) mappingByProduct.set(mapping.productId, mapping);
+    }
+
     const suggestions = products
       .filter((p) => Number(p.currentStock) <= Number(p.safetyStock))
       .map((product) => {
         const primarySupplier = product.suppliers?.[0];
+        const platformMapping = mappingByProduct.get(product.id);
+        const platformSku = platformMapping?.supplySku;
+        const platformQuote = platformSku?.quotes?.[0];
         const currentStock = Number(product.currentStock ?? 0);
         const safetyStock = Number(product.safetyStock ?? 0);
-        const baseSuggestedQty = Math.max(0, safetyStock * 2 - currentStock);
-        const moq = primarySupplier?.moq ?? product.minPurchaseQty ?? null;
+        const inTransit = inTransitByProduct.get(product.id) ?? 0;
+        const baseSuggestedQty = Math.max(0, safetyStock * 2 - currentStock - inTransit);
+        const moq = platformQuote?.moq ?? primarySupplier?.moq ?? product.minPurchaseQty ?? null;
         const suggestedQty = Math.max(baseSuggestedQty, Number(moq ?? 0));
-        const supplyPrice = Number(primarySupplier?.supplyPrice ?? product.costPrice ?? 0);
+        const supplyPrice = Number(platformQuote?.price ?? primarySupplier?.supplyPrice ?? product.costPrice ?? 0);
+        const supplierId = platformSku?.supplierId ?? primarySupplier?.supplierId;
+        const supplierName = platformSku?.supplier?.name ?? primarySupplier?.supplier?.name ?? product.supplier ?? '默认供应商';
+        const availabilityStatus = platformQuote ? 'platform_available' : primarySupplier ? 'legacy_supplier_available' : 'manual_purchase';
+        const reasonParts = [
+          `当前库存 ${currentStock}`,
+          `安全库存 ${safetyStock}`,
+          inTransit > 0 ? `在途 ${inTransit}` : '暂无在途',
+          moq ? `起订量 ${moq}` : '',
+          platformQuote?.leadDays ? `交期 ${platformQuote.leadDays} 天` : '',
+        ].filter(Boolean);
 
         return {
           id: product.id,
+          productId: product.id,
           productName: product.name,
           sku: product.sku,
           currentStock,
           forecast7Days: Math.max(1, Math.round(safetyStock * 0.8)),
           safetyStock,
-          inTransit: 0,
+          inTransit,
+          inTransitQty: inTransit,
           suggestedQty,
-          supplierId: primarySupplier?.supplierId,
-          supplier: primarySupplier?.supplier?.name ?? product.supplier ?? '默认供应商',
+          supplierId,
+          supplier: supplierName,
+          supplierName,
+          supplySkuId: platformSku?.id,
+          supplySkuName: platformSku?.name,
+          quoteId: platformQuote?.id,
           supplyPrice,
           moq,
+          leadDays: platformQuote?.leadDays ?? primarySupplier?.leadDays ?? null,
           estimatedAmount: suggestedQty * supplyPrice,
+          reason: reasonParts.join('，'),
+          availabilityStatus,
         };
       });
     if (suggestions.length && storeId && this.commissionService) {

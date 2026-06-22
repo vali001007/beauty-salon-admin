@@ -165,6 +165,7 @@ describe('OrdersService project order inventory consumption', () => {
         findMany: jest.fn().mockResolvedValue([{ projectId: 101, productId: 301, standardQty: 2, unit: '支' }]),
       },
       product: {
+        findMany: jest.fn().mockResolvedValue([{ id: 301, costPrice: 18 }]),
         findFirst: jest.fn().mockResolvedValue({ id: 301, storeId: 1, currentStock: 10, unit: '支' }),
         update: jest.fn().mockResolvedValue({ id: 301 }),
       },
@@ -259,6 +260,27 @@ describe('OrdersService project order inventory consumption', () => {
       items: [{ productId: 301, productName: '补水精华', quantity: 3, unitPrice: 40, subtotal: 120 }],
     });
 
+    expect(tx.product.findMany).toHaveBeenCalledWith({
+      where: { id: { in: [301] }, storeId: 1, deletedAt: null },
+      select: { id: true, costPrice: true },
+    });
+    expect(tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          orderId: 501,
+          itemType: 'product',
+          itemId: 301,
+          payload: expect.objectContaining({
+            costPrice: 18,
+            productCostPrice: 18,
+            costAmount: 54,
+            productCostAmount: 54,
+            costSource: 'product_master',
+            costCapturedAt: expect.any(String),
+          }),
+        }),
+      ],
+    });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: 301 },
       data: { currentStock: { decrement: 3 } },
@@ -290,5 +312,123 @@ describe('OrdersService project order inventory consumption', () => {
     expect(tx.projectBomItem.findMany).not.toHaveBeenCalled();
     expect(tx.product.update).not.toHaveBeenCalled();
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrdersService project order profit detail', () => {
+  it('calculates income, BOM cost, actual material cost, commission and gross profit', async () => {
+    const prisma: any = {
+      productOrder: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 501,
+          orderNo: 'PO-501',
+          customerId: 11,
+          customerName: '罗若兰',
+          customer: { id: 11, name: '罗若兰', phone: '15947941614' },
+          storeId: 1,
+          store: { id: 1, name: 'Ami 全量演示门店' },
+          totalAmount: 400,
+          status: 'completed',
+          payMethod: 'wechat',
+          source: 'admin',
+          createdAt: new Date('2026-06-20T10:00:00.000Z'),
+          orderItems: [
+            {
+              id: 701,
+              orderId: 501,
+              itemType: 'project',
+              itemId: 101,
+              name: '肩颈舒压',
+              quantity: 2,
+              unitPrice: 200,
+              subtotal: 400,
+              discount: 0,
+              beauticianId: 31,
+              beautician: { id: 31, name: '周宁' },
+              payload: {},
+              commissionRecords: [
+                {
+                  id: 801,
+                  staffUserId: 21,
+                  staffUser: { id: 21, name: '周宁', username: 'zhouning' },
+                  beauticianId: 31,
+                  beautician: { id: 31, name: '周宁' },
+                  ruleId: 91,
+                  rule: { id: 91, name: '项目通用提成' },
+                  sourceAmount: 400,
+                  rate: 0.1,
+                  amount: 40,
+                  status: 'pending',
+                  settleMonth: '2026-06',
+                },
+              ],
+            },
+          ],
+          paymentRecords: [{ method: 'wechat' }],
+        }),
+      },
+      projectBomItem: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            projectId: 101,
+            productId: 301,
+            standardQty: 1.5,
+            unit: 'ml',
+            product: { id: 301, name: '按摩精油', unit: 'ml', costPrice: 20 },
+          },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 901,
+            productId: 301,
+            quantity: -3,
+            unit: 'ml',
+            occurredAt: new Date('2026-06-20T10:05:00.000Z'),
+            remark: '项目订单自动扣耗材：肩颈舒压',
+            product: { id: 301, name: '按摩精油', unit: 'ml', costPrice: 20 },
+          },
+        ]),
+      },
+      commissionRecord: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new OrdersService(prisma as PrismaService, {} as any);
+
+    const result = await service.findProjectOrderProfit(501);
+
+    expect(prisma.productOrder.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 501, orderItems: { some: { itemType: 'project' } } },
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      orderId: 501,
+      totalIncome: 400,
+      standardMaterialCost: 60,
+      actualMaterialCost: 60,
+      materialCost: 60,
+      commissionCost: 40,
+      totalCost: 100,
+      grossProfit: 300,
+      grossMargin: 0.75,
+      materialCostSource: 'actual_stock_movement',
+      dataQuality: 'complete',
+    }));
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      projectName: '肩颈舒压',
+      beauticianName: '周宁',
+      income: 400,
+      standardMaterialCost: 60,
+      commissionCost: 40,
+      grossProfit: 300,
+      grossMargin: 0.75,
+    }));
+    expect(result.items[0].bomItems).toEqual([
+      expect.objectContaining({ productName: '按摩精油', quantity: 3, costAmount: 60 }),
+    ]);
+    expect(result.items[0].commissionRecords).toEqual([
+      expect.objectContaining({ staffUserName: '周宁', ruleName: '项目通用提成', amount: 40 }),
+    ]);
   });
 });

@@ -99,8 +99,46 @@ export class CardsService {
     return this.prisma.card.delete({ where: { id } });
   }
 
-  async createCustomerCard(data: any) {
-    return this.prisma.customerCard.create({ data });
+  async createCustomerCard(data: any, operatorId?: number) {
+    const cardId = Number(data.cardId);
+    if (!cardId) throw new BadRequestException('请选择次卡');
+
+    let customerId = Number(data.customerId ?? data.userId);
+    let customer = customerId
+      ? await this.prisma.customer.findUnique({ where: { id: customerId } })
+      : null;
+    const customerName = String(data.customerName ?? data.userName ?? '').trim();
+    if (!customer && customerName) {
+      customer = await this.prisma.customer.findFirst({ where: { name: customerName } });
+    }
+    if (!customer) throw new BadRequestException('请选择客户');
+    customerId = customer.id;
+
+    const card = await this.prisma.card.findUnique({ where: { id: cardId } });
+    if (!card) throw new NotFoundException('次卡不存在');
+
+    const expiryDate = data.expiryDate ?? data.expireTime
+      ? new Date(data.expiryDate ?? data.expireTime)
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const totalTimes = Number(data.totalTimes ?? card.totalTimes ?? 0);
+
+    return this.prisma.customerCard.create({
+      data: {
+        customerId,
+        cardId,
+        operatorId: operatorId || undefined,
+        cardName: data.cardName ?? card.name,
+        totalTimes,
+        remainingTimes: Number(data.remainingTimes ?? totalTimes),
+        expiryDate,
+        status: data.status ?? 'active',
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        card: { select: { id: true, price: true, totalTimes: true, projects: true } },
+        operator: { select: { id: true, name: true, username: true } },
+      },
+    });
   }
 
   async verifyCardUsage(data: {
@@ -111,6 +149,7 @@ export class CardsService {
     projectName: string;
     times?: number;
     consumedTimes?: number;
+    operatorId?: number;
     beauticianId?: number;
     deviceId?: number;
   }) {
@@ -174,6 +213,7 @@ export class CardsService {
           projectName: data.projectName,
           times,
           remainingTimes: updatedCard.remainingTimes,
+          operatorId: data.operatorId,
           beauticianId: data.beauticianId,
           deviceId: data.deviceId,
         },

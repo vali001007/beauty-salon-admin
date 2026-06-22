@@ -37,4 +37,9 @@ export class CreateUserDto {
   @IsArray()
   @IsInt({ each: true })
   storeIds?: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  supplySupplierId?: number;
 }

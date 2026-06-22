@@ -36,6 +36,11 @@ export class CreateCommissionRuleDto {
   @IsInt()
   levelId?: number;
 
+  @ApiProperty({ description: '适用员工，必须来自系统管理-用户管理' })
+  @Type(() => Number)
+  @IsInt()
+  userId!: number;
+
   @ApiProperty({ description: '比例。0.08 表示 8%' })
   @Type(() => Number)
   @IsNumber()
@@ -55,7 +60,7 @@ export class CreateCommissionRuleDto {
   @IsIn(COMMISSION_CALC_BASES)
   calcBase?: string;
 
-  @ApiPropertyOptional({ description: '是否启用指定美容师加成' })
+  @ApiPropertyOptional({ description: '是否启用指定员工加成' })
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()

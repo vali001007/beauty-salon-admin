@@ -5,6 +5,7 @@ import type { BusinessTask } from '../agent/business-task/business-task.types.js
 import { QueryPlannerService } from '../semantic-query/query-planner.service.js';
 import { SemanticQueryExecutorService } from '../semantic-query/semantic-query-executor.service.js';
 import type { SemanticQueryResult } from '../semantic-query/query-plan.types.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 import { BUSINESS_QUERY_CAPABILITIES, getBusinessQueryCapability } from './business-query.capabilities.js';
 import type {
   BusinessQueryCapabilityId,
@@ -3046,7 +3047,7 @@ export class BusinessQueryService {
 
   private formatRange(start?: Date, end?: Date) {
     if (!start || !end) return undefined;
-    return `${start.toISOString().slice(0, 10)} 至 ${end.toISOString().slice(0, 10)}`;
+    return `${formatBusinessDate(start)} 至 ${formatBusinessDate(end)}`;
   }
 
   private maskPhone(value?: string | null) {

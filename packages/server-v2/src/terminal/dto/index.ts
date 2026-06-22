@@ -36,3 +36,8 @@ export {
   CreateTerminalFollowUpTaskDto,
   QueryTerminalFollowUpTasksDto,
 } from './follow-up-task.dto.js';
+export {
+  TERMINAL_CUSTOMER_SELECT_SCENES,
+  TerminalCustomerSelectQueryDto,
+} from './customer-select.dto.js';
+export type { TerminalCustomerSelectScene } from './customer-select.dto.js';

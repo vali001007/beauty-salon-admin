@@ -132,4 +132,103 @@ describe('BomService', () => {
       }),
     ]);
   });
+
+  it('maps project order stock movements to order number and service employee', async () => {
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        id: 301,
+        sourceType: 'project_order',
+        sourceId: 501,
+        sourceNo: 'PO501',
+        movementType: 'service_consume',
+        quantity: -2,
+        occurredAt: new Date('2026-06-20T04:00:00.000Z'),
+        remark: '项目订单自动扣耗材：肩颈舒压',
+        product: { name: '肩颈护理耗材包' },
+        store: { name: 'Ami 全量演示门店' },
+      },
+    ]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        id: 501,
+        orderNo: 'PO501',
+        customerName: '胡语嫣',
+        customer: { name: '胡语嫣' },
+        orderItems: [
+          {
+            id: 701,
+            itemType: 'project',
+            name: '补水护理',
+            payload: { beauticianName: '许诺' },
+          },
+          {
+            id: 702,
+            itemType: 'project',
+            name: '肩颈舒压',
+            beautician: { name: '周宁' },
+            payload: { beauticianName: '历史员工' },
+          },
+        ],
+      },
+    ]);
+    prisma.serviceTask.findMany.mockResolvedValue([]);
+    prisma.consumptionRecord.findMany.mockResolvedValue([]);
+
+    const result = await service.getConsumptionRecords();
+
+    expect(result[0]).toEqual(expect.objectContaining({
+      id: 301,
+      date: '2026-06-20',
+      orderNo: 'PO501',
+      serviceName: '肩颈舒压',
+      customerName: '胡语嫣',
+      serviceEmployee: '周宁',
+      beautician: '周宁',
+      productName: '肩颈护理耗材包',
+      actualQty: 2,
+      sourceType: 'project_order',
+      sourceId: 501,
+      sourceNo: 'PO501',
+    }));
+  });
+
+  it('uses business timezone for card usage consumption date', async () => {
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        id: 213,
+        sourceType: 'card_usage',
+        sourceId: 437,
+        movementType: 'service_consume',
+        quantity: -1,
+        occurredAt: new Date('2026-06-19T17:51:29.000Z'),
+        remark: '次卡核销自动扣耗材：深层补水护理',
+        product: { name: '一次性护理巾' },
+        store: { name: 'Ami 全量演示门店' },
+      },
+    ]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([
+      {
+        id: 437,
+        customerName: '林雨薇',
+        projectName: '深层补水护理',
+        beautician: { name: '宋乔' },
+      },
+    ]);
+    prisma.productOrder.findMany.mockResolvedValue([]);
+    prisma.serviceTask.findMany.mockResolvedValue([]);
+    prisma.consumptionRecord.findMany.mockResolvedValue([]);
+
+    const result = await service.getConsumptionRecords();
+
+    expect(result[0]).toEqual(expect.objectContaining({
+      id: 213,
+      date: '2026-06-20',
+      serviceName: '深层补水护理',
+      customerName: '林雨薇',
+      beautician: '宋乔',
+      productName: '一次性护理巾',
+      sourceType: 'card_usage',
+    }));
+  });
 });

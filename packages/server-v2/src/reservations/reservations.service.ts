@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate, toBusinessDateOnly } from '../common/utils/business-time.js';
 
 @Injectable()
 export class ReservationsService {
@@ -25,19 +26,19 @@ export class ReservationsService {
     if (storeId) where.storeId = storeId;
     if (status) where.status = status;
     if (date) {
-      const start = new Date(date);
+      const start = toBusinessDateOnly(date);
       if (!Number.isNaN(start.getTime())) {
-        start.setHours(0, 0, 0, 0);
         const end = new Date(start);
         end.setDate(end.getDate() + 1);
         where.date = { gte: start, lt: end };
       }
     } else if (startDate || endDate) {
       where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
+      if (startDate) where.date.gte = toBusinessDateOnly(startDate);
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        const end = toBusinessDateOnly(endDate);
+        end.setDate(end.getDate() + 1);
+        end.setMilliseconds(end.getMilliseconds() - 1);
         where.date.lte = end;
       }
     }
@@ -206,7 +207,7 @@ export class ReservationsService {
   }
 
   private mapReservation(reservation: any) {
-    const dateText = this.toIso(reservation.date).slice(0, 10);
+    const dateText = formatBusinessDate(reservation.date);
     const appointmentTime = `${dateText} ${reservation.startTime || '00:00'}:00`;
     const createdAt = this.toIso(reservation.createdAt);
     const projectDuration = Number(reservation.project?.duration ?? 60);

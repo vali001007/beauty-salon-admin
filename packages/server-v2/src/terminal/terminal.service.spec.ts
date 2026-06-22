@@ -72,6 +72,9 @@ describe('TerminalService automation', () => {
       product: {
         findMany: jest.fn(),
       },
+      project: {
+        findUnique: jest.fn(),
+      },
       terminalConversation: {
         create: jest.fn(),
         update: jest.fn(),
@@ -82,6 +85,9 @@ describe('TerminalService automation', () => {
       },
       terminalFollowUpTask: {
         findFirst: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+        groupBy: jest.fn(),
         create: jest.fn(),
       },
       recommendationEvent: {
@@ -114,6 +120,47 @@ describe('TerminalService automation', () => {
       '低库存提醒',
       '每日收工报告',
     ]);
+  });
+
+  it('returns project BOM items for service preparation', async () => {
+    prisma.project.findUnique.mockResolvedValue({
+      id: 301,
+      name: '深层补水护理',
+      bomItems: [
+        {
+          id: 501,
+          productId: 401,
+          standardQty: 3,
+          unit: 'ml',
+          product: {
+            id: 401,
+            name: '补水精华液',
+            sku: 'IND-1-STD-SERUM-HYDRATING-001',
+          },
+        },
+      ],
+    });
+
+    const result = await service.getProjectBom(301);
+
+    expect(prisma.project.findUnique).toHaveBeenCalledWith({
+      where: { id: 301 },
+      include: { bomItems: { include: { product: true } } },
+    });
+    expect(result).toEqual({
+      projectId: 301,
+      projectName: '深层补水护理',
+      items: [
+        {
+          id: 501,
+          productId: 401,
+          productName: '补水精华液',
+          sku: 'IND-1-STD-SERUM-HYDRATING-001',
+          standardQty: 3,
+          unit: 'ml',
+        },
+      ],
+    });
   });
 
   it('returns only customers with usable cards in card verification context', async () => {
@@ -202,6 +249,188 @@ describe('TerminalService automation', () => {
       name: '李伟明',
       activeCustomerCardsCount: 1,
     });
+  });
+
+  it('supports all P2 customer select scenes through the unified endpoint contract', async () => {
+    prisma.store.findUnique.mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' });
+    prisma.user.findFirst.mockResolvedValue({
+      id: 32,
+      username: 'frontdesk_32',
+      name: '陈前台',
+      status: 'active',
+      roles: [{ role: { key: 'reception', permissions: ['terminal:customer:read'] } }],
+      stores: [{ storeId: 1 }],
+    });
+    prisma.beautician.findFirst.mockResolvedValue(null);
+    prisma.terminalFollowUpTask.findMany.mockResolvedValue([]);
+    prisma.serviceTask.findMany.mockResolvedValue([]);
+    prisma.reservation.findMany.mockResolvedValue([]);
+    prisma.customer.findMany.mockResolvedValue([
+      {
+        id: 12,
+        name: '罗雅婷',
+        phone: '13565060344',
+        gender: '女',
+        memberLevel: '金卡会员',
+        source: 'terminal',
+        totalSpent: 6800,
+        visitCount: 12,
+        lastVisitDate: new Date('2026-06-01T00:00:00.000Z'),
+        skinCondition: '',
+        tags: ['VIP'],
+        balanceAccounts: [],
+        customerCards: [{ id: 467 }],
+      },
+    ]);
+
+    const scenes = ['appointment', 'cashier', 'card_opening', 'recharge', 'verification', 'follow_up', 'service_record'] as const;
+
+    const results = await Promise.all(
+      scenes.map((scene) =>
+        service.getCustomerSelectContext(1, 32, {
+          scene,
+          operatorId: 32,
+          limit: 20,
+        }),
+      ),
+    );
+
+    expect(results.map((result) => result.scene)).toEqual(scenes);
+    expect(results.every((result) => Array.isArray(result.items))).toBe(true);
+  });
+
+  it('scopes follow-up customer select to assigned active tasks for the current operator', async () => {
+    prisma.store.findUnique.mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' });
+    prisma.user.findFirst.mockResolvedValue({
+      id: 32,
+      username: 'beautician_32',
+      name: '沈晴',
+      status: 'active',
+      roles: [{ role: { key: 'beautician', permissions: ['terminal:service:complete'] } }],
+      stores: [{ storeId: 1 }],
+    });
+    prisma.beautician.findFirst.mockResolvedValue({ id: 43 });
+    prisma.terminalFollowUpTask.findMany.mockResolvedValue([{ customerId: 12 }, { customerId: 13 }]);
+    prisma.reservation.findMany.mockResolvedValue([]);
+    prisma.customer.findMany.mockResolvedValue([
+      {
+        id: 12,
+        name: '罗雅婷',
+        phone: '13565060344',
+        gender: '女',
+        memberLevel: '金卡会员',
+        source: 'terminal',
+        totalSpent: 6800,
+        visitCount: 12,
+        lastVisitDate: new Date('2026-06-01T00:00:00.000Z'),
+        skinCondition: '',
+        tags: [],
+        balanceAccounts: [],
+        customerCards: [],
+      },
+      {
+        id: 13,
+        name: '陈若兰',
+        phone: '13800000002',
+        gender: '女',
+        memberLevel: '银卡会员',
+        source: 'terminal',
+        totalSpent: 4200,
+        visitCount: 8,
+        lastVisitDate: new Date('2026-06-02T00:00:00.000Z'),
+        skinCondition: '',
+        tags: ['补水'],
+        balanceAccounts: [],
+        customerCards: [],
+      },
+    ]);
+
+    const result = await service.getCustomerSelectContext(1, 32, {
+      scene: 'follow_up',
+      operatorId: 32,
+      limit: 20,
+    });
+
+    expect(prisma.terminalFollowUpTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 1,
+          deletedAt: null,
+          status: { in: ['pending', 'in_progress', 'expired'] },
+          OR: [{ assigneeUserId: 32 }, { assigneeBeauticianId: 43 }],
+        }),
+      }),
+    );
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: [12, 13] },
+        }),
+      }),
+    );
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].sceneBadges).toContain('待跟进');
+  });
+
+  it('does not fall back to full-store customers when service record has no bound beautician', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 99,
+      username: 'beautician_without_binding',
+      name: '未绑定美容师',
+      status: 'active',
+      roles: [{ role: { key: 'beautician', permissions: ['terminal:service:complete'] } }],
+      stores: [{ storeId: 1 }],
+    });
+    prisma.beautician.findFirst.mockResolvedValue(null);
+
+    const result = await service.getCustomerSelectContext(1, 99, {
+      scene: 'service_record',
+      operatorId: 99,
+      limit: 20,
+    });
+
+    expect(result.items).toEqual([]);
+    expect(prisma.serviceTask.findMany).not.toHaveBeenCalled();
+    expect(prisma.customer.findMany).not.toHaveBeenCalled();
+  });
+
+  it('uses the same assignee scope for follow-up task list and summary', async () => {
+    prisma.terminalFollowUpTask.findMany.mockResolvedValue([]);
+    prisma.terminalFollowUpTask.count.mockResolvedValue(0);
+    prisma.terminalFollowUpTask.groupBy.mockResolvedValue([]);
+
+    const result = await service.getFollowUpTasks(1, {
+      page: 1,
+      pageSize: 20,
+      assigneeRole: 'reception',
+      assigneeUserId: 32,
+      status: 'expired',
+    } as any);
+
+    expect(prisma.terminalFollowUpTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 1,
+          deletedAt: null,
+          assigneeRole: 'reception',
+          assigneeUserId: 32,
+          status: 'expired',
+        }),
+      }),
+    );
+    expect(prisma.terminalFollowUpTask.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 1,
+          deletedAt: null,
+          assigneeRole: 'reception',
+          assigneeUserId: 32,
+        }),
+      }),
+    );
+    expect(result.items).toEqual([]);
+    expect(result.summary.expired).toBe(0);
+    expect(result.summary.overdue).toBe(0);
   });
 
   it('returns actionable customer growth recommendations instead of generic wake-up copy', async () => {
@@ -960,6 +1189,7 @@ describe('TerminalService automation', () => {
         createdAt: new Date('2026-06-08T10:00:00.000Z'),
         updatedAt: new Date('2026-06-08T10:01:00.000Z'),
       }),
+      findUnique: jest.fn().mockResolvedValue({ storeId: 1 }),
     };
     prisma.orderItem = {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -981,6 +1211,7 @@ describe('TerminalService automation', () => {
     };
     prisma.beautician = {
       findFirst: jest.fn().mockResolvedValue({ id: 2, levelId: 3 }),
+      findMany: jest.fn().mockResolvedValue([{ id: 2, levelId: 3, userId: 22 }]),
     };
 
     const result = await service.checkout(
@@ -1052,6 +1283,7 @@ describe('TerminalService automation', () => {
     expect(commissionService.calculateOrderCommissions).toHaveBeenCalledWith({
       storeId: 1,
       orderId: 501,
+      staffUserId: 22,
       beauticianId: 2,
       levelId: 3,
       isDesignated: false,
@@ -1072,7 +1304,11 @@ describe('TerminalService automation', () => {
       update: jest.fn().mockResolvedValue({ id: 10 }),
     };
     prisma.product = {
-      findMany: jest.fn().mockResolvedValue([{ id: 301, name: '补水精华' }]),
+      findMany: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 301, name: '补水精华' }])
+        .mockResolvedValueOnce([{ id: 301, name: '补水精华' }])
+        .mockResolvedValueOnce([{ id: 301, costPrice: 18 }]),
       findFirst: jest.fn().mockResolvedValue({ id: 301, storeId: 1, currentStock: 10, unit: '支' }),
       update: jest.fn().mockResolvedValue({ id: 301 }),
     };
@@ -1091,6 +1327,7 @@ describe('TerminalService automation', () => {
         createdAt: new Date('2026-06-08T10:00:00.000Z'),
         updatedAt: new Date('2026-06-08T10:01:00.000Z'),
       }),
+      findUnique: jest.fn().mockResolvedValue({ storeId: 1 }),
     };
     prisma.orderItem = {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -1127,6 +1364,27 @@ describe('TerminalService automation', () => {
       99,
     );
 
+    expect(prisma.product.findMany).toHaveBeenLastCalledWith({
+      where: { id: { in: [301] }, storeId: 1, deletedAt: null },
+      select: { id: true, costPrice: true },
+    });
+    expect(prisma.orderItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          orderId: 502,
+          itemType: 'product',
+          itemId: 301,
+          payload: expect.objectContaining({
+            costPrice: 18,
+            productCostPrice: 18,
+            costAmount: 54,
+            productCostAmount: 54,
+            costSource: 'product_master',
+            costCapturedAt: expect.any(String),
+          }),
+        }),
+      ],
+    });
     expect(prisma.product.update).toHaveBeenCalledWith({
       where: { id: 301 },
       data: { currentStock: { decrement: 3 } },
@@ -1145,6 +1403,126 @@ describe('TerminalService automation', () => {
       }),
     });
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
+  });
+
+  it('accepts cashier item beauticianName and resolves it to beauticianId', async () => {
+    prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
+    prisma.cashierShift = {
+      findFirst: jest.fn().mockResolvedValue({ id: 9001 }),
+    };
+    prisma.store = {
+      findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Store A' }),
+    };
+    prisma.customer = {
+      update: jest.fn().mockResolvedValue({ id: 10 }),
+    };
+    prisma.product = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma.project = {
+      findMany: jest.fn().mockResolvedValue([{ id: 101, name: 'Hydration' }]),
+    };
+    prisma.projectBomItem = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma.stockMovement = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+    };
+    prisma.productOrder = {
+      create: jest.fn().mockImplementation(async ({ data }: any) => ({
+        id: 503,
+        orderNo: 'PO503',
+        customerId: 10,
+        customerName: 'Customer A',
+        storeId: 1,
+        totalAmount: 200,
+        payMethod: 'wechat',
+        items: data.items,
+        createdAt: new Date('2026-06-08T10:00:00.000Z'),
+        updatedAt: new Date('2026-06-08T10:01:00.000Z'),
+      })),
+      findUnique: jest.fn().mockResolvedValue({ storeId: 1 }),
+    };
+    prisma.orderItem = {
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findMany: jest.fn().mockResolvedValue([
+        { id: 703, itemType: 'project', itemId: 101, subtotal: 200, beauticianId: 2 },
+      ]),
+    };
+    prisma.paymentRecord = {
+      create: jest.fn().mockResolvedValue({ id: 603, orderId: 503, method: 'wechat', amount: 200 }),
+    };
+    prisma.marketingAttribution = {
+      findFirst: jest.fn().mockResolvedValue(null),
+    };
+    prisma.marketingAutomationTouch = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma.consumptionRecord = {
+      create: jest.fn().mockResolvedValue({ id: 803 }),
+    };
+    prisma.beautician = {
+      findMany: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 2, name: '沈晴' }])
+        .mockResolvedValueOnce([{ id: 2, levelId: 3, userId: 22 }]),
+    };
+
+    await service.checkout(
+      1,
+      {
+        customerId: 10,
+        customerName: 'Customer A',
+        customerPhone: '13800000000',
+        payMethod: 'wechat',
+        items: [
+          {
+            itemId: 101,
+            itemType: 'project',
+            name: 'Hydration',
+            quantity: 1,
+            unitPrice: 200,
+            beauticianName: '沈晴',
+          },
+        ],
+      } as any,
+      99,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(prisma.beautician.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 1,
+        status: 'active',
+        OR: [{ name: { contains: '沈晴' } }],
+      },
+      select: { id: true, name: true },
+    });
+    expect(prisma.productOrder.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              beauticianId: 2,
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(prisma.orderItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          orderId: 503,
+          beauticianId: 2,
+        }),
+      ],
+    });
+    expect(commissionService.calculateOrderCommissions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [expect.objectContaining({ beauticianId: 2, orderItemId: 703 })],
+      }),
+    );
   });
 
   it('deducts project BOM stock after terminal card verification', async () => {
@@ -1195,6 +1573,8 @@ describe('TerminalService automation', () => {
         customerCardId: 66,
         customerId: 10,
         projectId: 101,
+        beauticianId: 999,
+        operatorId: 21,
         times: 1,
       },
       99,
@@ -1204,6 +1584,20 @@ describe('TerminalService automation', () => {
     expect(prisma.customerCard.update).toHaveBeenCalledWith({
       where: { id: 66 },
       data: { remainingTimes: 4 },
+    });
+    expect(prisma.beautician.findFirst).toHaveBeenCalledWith({
+      where: { id: 999, storeId: 1, status: 'active' },
+      select: { id: true, levelId: true, userId: true },
+    });
+    expect(prisma.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 10,
+        cardName: '补水护理 10 次卡',
+        projectName: '深层补水护理',
+        operatorId: 21,
+        beauticianId: undefined,
+        deviceId: 99,
+      }),
     });
     expect(prisma.projectBomItem.findMany).toHaveBeenCalledWith({
       where: { projectId: 101 },

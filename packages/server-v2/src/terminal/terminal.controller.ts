@@ -23,6 +23,7 @@ import {
   RefundBalanceDto,
   ReservationAvailabilityQueryDto,
   RescheduleReservationDto,
+  TerminalCustomerSelectQueryDto,
   UpdateTerminalCustomerHealthProfileDto,
   UpdateReservationDto,
   UpdateTerminalAutomationDto,
@@ -343,8 +344,12 @@ export class TerminalCardController {
 
   @Post('consume')
   @ApiOperation({ summary: '确认核销' })
-  consume(@CurrentDevice('id') deviceId: number, @Body() dto: ConsumeCardDto) {
-    return this.terminalService.consumeCard(dto, deviceId);
+  consume(
+    @CurrentDevice('id') deviceId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() dto: ConsumeCardDto,
+  ) {
+    return this.terminalService.consumeCard({ ...dto, operatorId: dto.operatorId ?? userId }, deviceId);
   }
 }
 
@@ -377,8 +382,12 @@ export class TerminalOrderController {
 
   @Post('card-orders')
   @ApiOperation({ summary: '办卡订单' })
-  createCardOrder(@CurrentDevice('storeId') storeId: number, @Body() dto: CreateCardOrderDto) {
-    return this.terminalService.createCardOrder(storeId, dto);
+  createCardOrder(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() dto: CreateCardOrderDto,
+  ) {
+    return this.terminalService.createCardOrder(storeId, dto, userId);
   }
 
   @Post('cashier-orders/:id/complete-payment')
@@ -909,5 +918,16 @@ export class TerminalContextController {
   @ApiOperation({ summary: 'Ami Aura Lite 次卡核销上下文轻量数据' })
   getCardVerificationContext(@CurrentDevice('storeId') storeId: number, @Query('keyword') keyword?: string) {
     return this.terminalService.getCardVerificationContext(storeId, keyword);
+  }
+
+  @Get('customer-select')
+  @UseGuards(DeviceAuthGuard)
+  @ApiOperation({ summary: 'Ami Aura Lite 统一客户选择轻量数据' })
+  getCustomerSelectContext(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Query() query: TerminalCustomerSelectQueryDto,
+  ) {
+    return this.terminalService.getCustomerSelectContext(storeId, userId, query);
   }
 }

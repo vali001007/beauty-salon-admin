@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 
 type ProductProjectRecommendationType =
   | 'product_expiry_clearance'
@@ -936,7 +937,7 @@ export class ProductProjectRecommendationService {
     return {
       id: input.id,
       recommendationType: input.recommendationType,
-      recommendationKey: `${input.recommendationType}:${input.id}:${new Date().toISOString().slice(0, 10)}`,
+      recommendationKey: `${input.recommendationType}:${input.id}:${formatBusinessDate(new Date())}`,
       title: input.title,
       reason: input.reason,
       targetCustomers: input.targetLabel ?? `目标客户（${targetCount}人）`,
@@ -1736,7 +1737,7 @@ export class ProductProjectRecommendationService {
   }
 
   private toDateKey(date: Date | string) {
-    return new Date(date).toISOString().slice(0, 10);
+    return formatBusinessDate(date);
   }
 
   private average(values: number[]) {

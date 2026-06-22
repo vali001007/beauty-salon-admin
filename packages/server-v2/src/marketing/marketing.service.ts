@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProductProjectRecommendationService } from './product-project-recommendation.service.js';
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 
 type PageQuery = {
   page?: number;
@@ -921,7 +922,7 @@ export class MarketingService {
     if (totalCustomers <= 0) return todayRun;
 
     const { start } = this.getShanghaiBusinessDayRange();
-    const lockKey = `${storeId ?? 'all'}:${start.toISOString().slice(0, 10)}`;
+    const lockKey = `${storeId ?? 'all'}:${formatBusinessDate(start)}`;
     let lock = this.dailyPredictionLocks.get(lockKey);
     if (!lock) {
       lock = this.runPredictions(storeId).then(() => undefined);
@@ -1979,8 +1980,8 @@ export class MarketingService {
     const end = new Date(start);
     end.setDate(end.getDate() + 30);
     return {
-      startDate: start.toISOString().slice(0, 10),
-      endDate: end.toISOString().slice(0, 10),
+      startDate: formatBusinessDate(start),
+      endDate: formatBusinessDate(end),
     };
   }
 
@@ -3364,7 +3365,7 @@ export class MarketingService {
       const reachedCount = strategy.executions.reduce((sum, item) => sum + item.reachedCount, 0);
       const triggeredCount = strategy.executions.reduce((sum, item) => sum + item.triggeredCount, 0);
       const couponUsedRate = triggeredCount ? `${Math.round((reachedCount / triggeredCount) * 100)}%` : '0%';
-      const lastExecuted = strategy.lastExecutedAt?.toISOString().slice(0, 10) ?? '-';
+      const lastExecuted = strategy.lastExecutedAt ? formatBusinessDate(strategy.lastExecutedAt) : '-';
 
       return {
         id: strategy.id,
@@ -3540,7 +3541,7 @@ export class MarketingService {
         cost,
         roi: this.formatRoi(revenue, cost),
         conversionRate: this.formatRate(conversionCount, reachedCount),
-        dateRange: strategy.lastExecutedAt ? `最近执行 ${strategy.lastExecutedAt.toISOString().slice(0, 10)}` : undefined,
+        dateRange: strategy.lastExecutedAt ? `最近执行 ${formatBusinessDate(strategy.lastExecutedAt)}` : undefined,
         lastEventAt: strategy.lastExecutedAt?.toISOString(),
         detailPath: '/customer-marketing/automation',
         emptyReason: reachedCount === 0 ? '该自动营销规则暂无执行或触达记录。' : undefined,
@@ -3586,7 +3587,7 @@ export class MarketingService {
         cost,
         roi: this.formatRoi(revenue, cost),
         conversionRate: this.formatRate(conversionCount, exposureCount),
-        dateRange: page.publishedAt ? `发布于 ${page.publishedAt.toISOString().slice(0, 10)}` : undefined,
+        dateRange: page.publishedAt ? `发布于 ${formatBusinessDate(page.publishedAt)}` : undefined,
         lastEventAt: this.getLatestDate(events.map((event: any) => event.occurredAt)),
         detailPath: '/customer-marketing/assets',
         emptyReason: events.length === 0 ? '该营销页面暂无浏览、点击或留资事件。' : undefined,
@@ -3667,7 +3668,7 @@ export class MarketingService {
           cost,
           roi: this.formatRoi(strategyRevenue + eventRevenue, cost),
           conversionRate: this.formatRate(conversionCount, totalExposureCount || clickCount),
-          dateRange: [promotion.startAt?.toISOString().slice(0, 10), promotion.endAt?.toISOString().slice(0, 10)]
+          dateRange: [promotion.startAt ? formatBusinessDate(promotion.startAt) : undefined, promotion.endAt ? formatBusinessDate(promotion.endAt) : undefined]
             .filter(Boolean)
             .join(' 至 '),
           lastEventAt: events[0]?.occurredAt?.toISOString(),
@@ -3934,7 +3935,7 @@ export class MarketingService {
           cost,
           roi: this.formatRoi(0, cost),
           conversionRate: this.formatRate(conversionCount, exposureCount || clickCount),
-          dateRange: [config.startAt?.toISOString().slice(0, 10), config.endAt?.toISOString().slice(0, 10)]
+          dateRange: [config.startAt ? formatBusinessDate(config.startAt) : undefined, config.endAt ? formatBusinessDate(config.endAt) : undefined]
             .filter(Boolean)
             .join(' 至 '),
           lastEventAt: events[0]?.occurredAt?.toISOString(),

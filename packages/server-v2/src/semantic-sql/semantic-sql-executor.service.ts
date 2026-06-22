@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 import type { SemanticSqlRequest, SemanticSqlResult } from './semantic-sql.types.js';
 
 const MAX_LIMIT = 100;
@@ -295,6 +296,6 @@ export class SemanticSqlExecutorService {
   }
 
   private formatDate(value: Date) {
-    return value.toISOString().slice(0, 10);
+    return formatBusinessDate(value);
   }
 }

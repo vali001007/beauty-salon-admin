@@ -12,7 +12,7 @@ export class UsersService {
   async findAll() {
     return this.prisma.user.findMany({
       where: { deletedAt: null },
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -33,7 +33,7 @@ export class UsersService {
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        include: { roles: { include: { role: true } }, stores: true },
+        include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -47,7 +47,7 @@ export class UsersService {
   async findById(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
     });
     if (!user || user.deletedAt) throw new NotFoundException('用户不存在');
     return user;
@@ -68,6 +68,7 @@ export class UsersService {
         name: dto.name,
         phone: dto.phone,
         email: dto.email,
+        supplySupplierId: dto.supplySupplierId,
         roles: dto.roleIds?.length
           ? { create: dto.roleIds.map((roleId) => ({ roleId })) }
           : undefined,
@@ -75,7 +76,7 @@ export class UsersService {
           ? { create: dto.storeIds.map((storeId) => ({ storeId })) }
           : undefined,
       },
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
     });
   }
 
@@ -87,6 +88,7 @@ export class UsersService {
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.status !== undefined) data.status = dto.status;
+    if (dto.supplySupplierId !== undefined) data.supplySupplierId = dto.supplySupplierId;
     if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 12);
 
     if (dto.roleIds) {
@@ -106,7 +108,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data,
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
     });
   }
 

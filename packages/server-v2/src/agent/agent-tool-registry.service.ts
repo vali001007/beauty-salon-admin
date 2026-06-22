@@ -5,6 +5,7 @@ import { MarketingService } from '../marketing/marketing.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { TerminalService } from '../terminal/terminal.service.js';
 import { SmartSchedulingService } from '../scheduling/smart-scheduling.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 import type {
   AgentEvidence,
   AgentToolDefinition,
@@ -2751,7 +2752,7 @@ export class AgentToolRegistryService {
 
     const evidence: AgentEvidence = {
       source: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'],
-      dateRange: `${start.toISOString().slice(0, 10)} 至 ${now.toISOString().slice(0, 10)}`,
+      dateRange: `${formatBusinessDate(start)} 至 ${formatBusinessDate(now)}`,
       metricDefinition:
         '商品活动机会 = 库存压力、近 30 天销量、90 天临期库存、毛利空间和购买客户数的规则评分；仅生成建议，不自动创建活动。',
       filters: ['storeId=当前门店', 'Product.deletedAt is null', 'OrderItem.itemType=product', '订单状态 in completed/paid'],
@@ -4975,7 +4976,7 @@ export class AgentToolRegistryService {
   }
 
   private formatDate(value: Date) {
-    return value.toISOString().slice(0, 10);
+    return formatBusinessDate(value);
   }
 
   private formatTime(value: Date) {

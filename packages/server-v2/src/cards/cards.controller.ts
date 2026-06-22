@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CardsService } from './cards.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 
 @ApiTags('Cards')
 @ApiBearerAuth()
@@ -46,17 +47,24 @@ export class CardsController {
     return this.cardsService.remove(id);
   }
 
+  @Post('customer-cards')
+  @Permissions('core:order:card-orders')
+  @ApiOperation({ summary: '客户次卡开卡' })
+  createCustomerCard(@Body() dto: any, @CurrentUser('id') userId?: number) {
+    return this.cardsService.createCustomerCard(dto, userId);
+  }
+
   @Post('verify-usage')
   @Permissions('core:order:card-usage')
   @ApiOperation({ summary: '次卡核销' })
-  verifyUsage(@Body() dto: any) {
-    return this.cardsService.verifyCardUsage(dto);
+  verifyUsage(@Body() dto: any, @CurrentUser('id') userId?: number) {
+    return this.cardsService.verifyCardUsage({ ...dto, operatorId: dto.operatorId ?? userId });
   }
 
   @Post('usage')
   @Permissions('core:order:card-usage')
   @ApiOperation({ summary: '次卡核销（兼容入口）' })
-  createUsage(@Body() dto: any) {
-    return this.cardsService.verifyCardUsage(dto);
+  createUsage(@Body() dto: any, @CurrentUser('id') userId?: number) {
+    return this.cardsService.verifyCardUsage({ ...dto, operatorId: dto.operatorId ?? userId });
   }
 }

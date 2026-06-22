@@ -58,6 +58,7 @@ describe('CardsService inventory consumption', () => {
       customerCardId: 66,
       projectName: '深层补水护理',
       consumedTimes: 1,
+      operatorId: 7,
     });
 
     expect(tx.customerCard.update).toHaveBeenCalledWith({
@@ -83,6 +84,14 @@ describe('CardsService inventory consumption', () => {
         sourceType: 'card_usage',
         sourceId: 88,
         sourceNo: '补水护理 10 次卡',
+      }),
+    });
+    expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        operatorId: 7,
+        customerId: 10,
+        cardName: '补水护理 10 次卡',
+        projectName: '深层补水护理',
       }),
     });
   });

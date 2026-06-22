@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { QueryCustomersDto } from './dto/query-customers.dto.js';
+import { formatBusinessDate, formatBusinessDateTime } from '../common/utils/business-time.js';
 
 type ConsumptionNameMaps = {
   projects?: Map<number, string>;
@@ -11,21 +12,43 @@ type ConsumptionNameMaps = {
   fallbackByRecordId?: Map<number, string>;
 };
 
+type UnifiedConsumptionRow = {
+  id: string | number;
+  customerId: number;
+  userName: string;
+  storeName?: string;
+  consumeType: string;
+  consumeContent: string;
+  payMethod?: string;
+  amountValue: number;
+  campaign?: string;
+  consumeDate: Date;
+  sourceType: string;
+  sourceId: number;
+  orderNo?: string;
+};
+
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
   private formatDate(value?: Date | null) {
-    return value ? value.toISOString().slice(0, 10) : '';
+    return formatBusinessDate(value);
   }
 
   private formatDateTime(value?: Date | null) {
-    return value ? value.toISOString().replace('T', ' ').slice(0, 16) : '';
+    return formatBusinessDateTime(value);
   }
 
   private formatMoney(value: unknown) {
     const amount = Number(value ?? 0);
     return `￥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  private toNumber(value: unknown) {
+    if (value === null || value === undefined) return 0;
+    const amount = typeof value === 'string' ? Number(value.replace(/[^\d.-]/g, '')) : Number(value);
+    return Number.isFinite(amount) ? amount : 0;
   }
 
   private toCustomerView(customer: any) {
@@ -325,6 +348,352 @@ export class CustomersService {
     return records.map((record) => this.toConsumptionRecordView(record, names));
   }
 
+  private normalizeConsumptionDate(value: unknown) {
+    const date = value ? new Date(value as any) : new Date(0);
+    return Number.isNaN(date.getTime()) ? new Date(0) : date;
+  }
+
+  private inferOrderConsumeType(order: any) {
+    const items = this.getOrderItems(order);
+    const types = new Set(items.map((item: any) => String(item.itemType ?? item.type ?? '').toLowerCase()));
+    if (types.has('recharge')) return String(order.orderNo ?? '').startsWith('MO') ? '会员开卡' : '会员充值';
+    if (types.has('card')) return '次卡开卡';
+    if (types.has('project')) return '项目订单';
+    if (types.has('product') || types.has('goods')) return '商品订单';
+    return '订单消费';
+  }
+
+  private getOrderItems(order: any) {
+    if (Array.isArray(order.orderItems) && order.orderItems.length) return order.orderItems;
+    return Array.isArray(order.items) ? order.items : [];
+  }
+
+  private formatOrderItemLabel(item: any) {
+    const name = String(item.name ?? item.productName ?? item.projectName ?? item.cardName ?? item.itemName ?? '').trim();
+    const type = String(item.itemType ?? item.type ?? '').toLowerCase();
+    const typeLabel =
+      type === 'project'
+        ? '项目'
+        : type === 'product' || type === 'goods'
+          ? '商品'
+          : type === 'card'
+            ? '次卡'
+            : type === 'recharge'
+              ? '会员充值'
+              : '消费项目';
+    const quantity = this.toNumber(item.quantity ?? item.qty ?? 1) || 1;
+    return `${name || typeLabel} x${quantity}`;
+  }
+
+  private formatOrderContent(order: any) {
+    const items = this.getOrderItems(order).map((item: any) => this.formatOrderItemLabel(item)).filter(Boolean);
+    const prefix = order.orderNo ? `订单号 ${order.orderNo}` : '';
+    const content = items.length ? items.join('、') : String(order.remark ?? '').trim();
+    return [prefix, content].filter(Boolean).join('；') || '-';
+  }
+
+  private mapOrderToUnifiedConsumption(order: any): UnifiedConsumptionRow {
+    const customerId = this.toNumber(order.customerId ?? order.customer?.id);
+    return {
+      id: `order-${order.id}`,
+      customerId,
+      userName: order.customer?.name ?? order.customerName ?? '',
+      storeName: order.customer?.store?.name ?? order.store?.name ?? '',
+      consumeType: this.inferOrderConsumeType(order),
+      consumeContent: this.formatOrderContent(order),
+      payMethod: order.payMethod ?? order.paymentRecords?.[0]?.method ?? '',
+      amountValue: this.toNumber(order.totalAmount),
+      campaign: order.source === 'terminal' ? '终端收银' : order.source === 'admin' ? '管理端订单' : order.source ?? '',
+      consumeDate: this.normalizeConsumptionDate(order.paymentRecords?.[0]?.paidAt ?? order.updatedAt ?? order.createdAt),
+      sourceType: 'order',
+      sourceId: this.toNumber(order.id),
+      orderNo: order.orderNo,
+    };
+  }
+
+  private mapBalanceTransactionToUnifiedConsumption(transaction: any): UnifiedConsumptionRow {
+    const type = String(transaction.type ?? '');
+    const typeLabel =
+      type === 'open'
+        ? '会员开卡'
+        : type === 'recharge'
+          ? '会员充值'
+          : type === 'deduct' || type === 'consume'
+            ? '会员卡划扣'
+            : type === 'gift'
+              ? '会员赠送'
+              : '会员卡流水';
+    const amount = this.toNumber(transaction.amount);
+    const giftAmount = this.toNumber(transaction.giftAmount);
+    const contentParts = [
+      transaction.order?.orderNo ? `订单号 ${transaction.order.orderNo}` : `流水号 ${transaction.transactionNo}`,
+      typeLabel,
+      giftAmount > 0 ? `赠送 ${this.formatMoney(giftAmount)}` : '',
+      transaction.remark,
+    ];
+    return {
+      id: `balance-${transaction.id}`,
+      customerId: this.toNumber(transaction.customerId),
+      userName: transaction.customer?.name ?? '',
+      storeName: transaction.customer?.store?.name ?? transaction.store?.name ?? '',
+      consumeType: typeLabel,
+      consumeContent: contentParts.filter(Boolean).join('；'),
+      payMethod: transaction.paymentMethod ?? '',
+      amountValue: amount,
+      campaign: transaction.operator?.name ? `办理人员：${transaction.operator.name}` : '',
+      consumeDate: this.normalizeConsumptionDate(transaction.createdAt),
+      sourceType: 'balance_transaction',
+      sourceId: this.toNumber(transaction.id),
+      orderNo: transaction.order?.orderNo,
+    };
+  }
+
+  private mapCustomerCardToUnifiedConsumption(card: any): UnifiedConsumptionRow {
+    const price = this.toNumber(card.card?.price);
+    return {
+      id: `customer-card-${card.id}`,
+      customerId: this.toNumber(card.customerId),
+      userName: card.customer?.name ?? '',
+      storeName: card.customer?.store?.name ?? '',
+      consumeType: '次卡开卡',
+      consumeContent: `开卡：${card.cardName}；总次数 ${card.totalTimes} 次；到期 ${this.formatDate(card.expiryDate)}`,
+      payMethod: '',
+      amountValue: price,
+      campaign: card.operator?.name ? `办理人员：${card.operator.name}` : '次卡开卡',
+      consumeDate: this.normalizeConsumptionDate(card.createdAt),
+      sourceType: 'customer_card',
+      sourceId: this.toNumber(card.id),
+    };
+  }
+
+  private mapCardUsageToUnifiedConsumption(record: any): UnifiedConsumptionRow {
+    const matchedCard =
+      record.customer?.customerCards?.find((card: any) => card.cardName === record.cardName) ??
+      record.customer?.customerCards?.[0];
+    const cardPrice = this.toNumber(matchedCard?.card?.price);
+    const totalTimes = this.toNumber(matchedCard?.card?.totalTimes ?? matchedCard?.totalTimes);
+    const unitValue = totalTimes > 0 ? cardPrice / totalTimes : 0;
+    const times = this.toNumber(record.times) || 1;
+    return {
+      id: `card-usage-${record.id}`,
+      customerId: this.toNumber(record.customerId),
+      userName: record.customer?.name ?? record.customerName ?? '',
+      storeName: record.customer?.store?.name ?? '',
+      consumeType: '次卡核销',
+      consumeContent: `核销：${record.cardName}；项目 ${record.projectName} x${times} 次；剩余 ${record.remainingTimes} 次`,
+      payMethod: '次卡核销',
+      amountValue: Math.round(unitValue * times * 100) / 100,
+      campaign: record.beautician?.name ? `服务人员：${record.beautician.name}` : '',
+      consumeDate: this.normalizeConsumptionDate(record.verifiedAt),
+      sourceType: 'card_usage',
+      sourceId: this.toNumber(record.id),
+    };
+  }
+
+  private mapConsumptionRecordToUnifiedConsumption(record: any): UnifiedConsumptionRow {
+    return {
+      id: `consumption-${record.id}`,
+      customerId: this.toNumber(record.customerId),
+      userName: record.customer?.name ?? record.userName ?? '',
+      storeName: record.customer?.store?.name ?? '',
+      consumeType: record.consumeType,
+      consumeContent: record.consumeContent,
+      payMethod: record.payMethod,
+      amountValue: this.toNumber(record.amount),
+      campaign: record.campaign,
+      consumeDate: this.normalizeConsumptionDate(record.consumeTime),
+      sourceType: 'consumption_record',
+      sourceId: this.toNumber(record.id),
+    };
+  }
+
+  private toUnifiedConsumptionView(row: UnifiedConsumptionRow) {
+    return {
+      id: row.id,
+      customerId: row.customerId,
+      userName: row.userName,
+      storeName: row.storeName ?? '',
+      consumeType: row.consumeType,
+      consumeContent: row.consumeContent || '-',
+      payMethod: row.payMethod || '-',
+      amount: this.formatMoney(row.amountValue),
+      campaign: row.campaign || '-',
+      consumeTime: this.formatDateTime(row.consumeDate),
+      sourceType: row.sourceType,
+      sourceId: row.sourceId,
+      orderNo: row.orderNo,
+    };
+  }
+
+  private isNearDuplicateConsumption(row: UnifiedConsumptionRow, orders: UnifiedConsumptionRow[]) {
+    if (row.sourceType !== 'consumption_record') return false;
+    const time = row.consumeDate.getTime();
+    return orders.some((order) => {
+      if (order.customerId !== row.customerId) return false;
+      if (Math.abs(order.amountValue - row.amountValue) > 0.01) return false;
+      return Math.abs(order.consumeDate.getTime() - time) <= 10 * 60 * 1000;
+    });
+  }
+
+  private filterUnifiedConsumptionRows(rows: UnifiedConsumptionRow[], keyword: string) {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    if (!normalizedKeyword) return rows;
+    return rows.filter((row) =>
+      [
+        row.userName,
+        row.storeName,
+        row.consumeType,
+        row.consumeContent,
+        row.payMethod,
+        row.campaign,
+        row.orderNo,
+        String(row.customerId),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedKeyword)),
+    );
+  }
+
+  private async loadUnifiedConsumptionRows(params: { customerId?: number; keyword?: string; storeId?: number; take?: number } = {}) {
+    const keyword = String(params.keyword ?? '').trim();
+    const take = params.take ?? 3000;
+    const customerWhere: any = {
+      ...(params.customerId ? { id: params.customerId } : {}),
+      ...(params.storeId ? { storeId: params.storeId } : {}),
+      deletedAt: null,
+    };
+    const customerFilter = params.customerId || params.storeId ? { customer: customerWhere } : {};
+    const orderWhere: any = {
+      customerId: { not: null },
+      status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+      ...(params.customerId ? { customerId: params.customerId } : {}),
+    };
+    if (params.storeId) {
+      orderWhere.OR = [
+        { storeId: params.storeId },
+        { customer: { storeId: params.storeId, deletedAt: null } },
+      ];
+    }
+
+    const [consumptionRecords, orders, balanceTransactions, customerCards, cardUsageRecords] = await Promise.all([
+      this.prisma.consumptionRecord.findMany({
+        where: this.getCustomerConsumptionWhere({
+          ...(params.customerId ? { customerId: params.customerId } : {}),
+          ...(params.customerId || params.storeId ? customerFilter : {}),
+        }),
+        select: {
+          id: true,
+          customerId: true,
+          consumeType: true,
+          consumeContent: true,
+          payMethod: true,
+          amount: true,
+          campaign: true,
+          consumeTime: true,
+          customer: { select: { name: true, store: { select: { name: true } } } },
+        },
+        orderBy: { consumeTime: 'desc' },
+        take,
+      }),
+      this.prisma.productOrder.findMany({
+        where: orderWhere,
+        include: {
+          customer: { select: { id: true, name: true, phone: true, store: { select: { name: true } } } },
+          store: { select: { id: true, name: true } },
+          orderItems: true,
+          paymentRecords: { orderBy: { paidAt: 'desc' }, take: 1 },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.customerBalanceTransaction.findMany({
+        where: {
+          type: { in: ['open', 'recharge', 'deduct', 'consume'] },
+          ...(params.customerId ? { customerId: params.customerId } : {}),
+          ...(params.storeId ? { storeId: params.storeId } : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true, phone: true, store: { select: { name: true } } } },
+          store: { select: { id: true, name: true } },
+          order: { select: { id: true, orderNo: true } },
+          operator: { select: { id: true, name: true, username: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.customerCard.findMany({
+        where: {
+          ...(params.customerId ? { customerId: params.customerId } : {}),
+          ...(params.storeId ? { customer: { ...customerWhere } } : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true, phone: true, store: { select: { name: true } } } },
+          card: { select: { id: true, name: true, price: true, totalTimes: true } },
+          operator: { select: { id: true, name: true, username: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.cardUsageRecord.findMany({
+        where: {
+          ...(params.customerId ? { customerId: params.customerId } : {}),
+          ...(params.storeId ? { customer: customerWhere } : {}),
+        },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              store: { select: { name: true } },
+              customerCards: {
+                orderBy: { createdAt: 'desc' },
+                select: {
+                  id: true,
+                  cardName: true,
+                  totalTimes: true,
+                  remainingTimes: true,
+                  createdAt: true,
+                  card: { select: { id: true, price: true, totalTimes: true } },
+                },
+              },
+            },
+          },
+          beautician: { select: { id: true, name: true } },
+        },
+        orderBy: { verifiedAt: 'desc' },
+        take,
+      }),
+    ]);
+
+    const namedConsumptionRecords = await this.toConsumptionRecordViews(consumptionRecords);
+    const orderRows = orders.map((order) => this.mapOrderToUnifiedConsumption(order)).filter((row) => row.customerId);
+    const balanceOrderNos = new Set(orderRows.map((row) => row.orderNo).filter(Boolean));
+    const balanceRows = balanceTransactions
+      .map((transaction) => this.mapBalanceTransactionToUnifiedConsumption(transaction))
+      .filter((row) => row.customerId && (!row.orderNo || !balanceOrderNos.has(row.orderNo)));
+    const customerCardRows = customerCards
+      .map((card) => this.mapCustomerCardToUnifiedConsumption(card))
+      .filter((row) => {
+        if (!row.customerId) return false;
+        const dateKey = row.consumeDate.toISOString().slice(0, 10);
+        return !orderRows.some(
+          (order) =>
+            order.consumeType === '次卡开卡' &&
+            order.customerId === row.customerId &&
+            order.consumeDate.toISOString().slice(0, 10) === dateKey &&
+            order.consumeContent.includes(row.consumeContent.replace(/^开卡：/, '').split('；')[0] ?? ''),
+        );
+      });
+    const cardUsageRows = cardUsageRecords.map((record) => this.mapCardUsageToUnifiedConsumption(record)).filter((row) => row.customerId);
+    const consumptionRows = namedConsumptionRecords
+      .map((record) => this.mapConsumptionRecordToUnifiedConsumption(record))
+      .filter((row) => !this.isNearDuplicateConsumption(row, orderRows));
+    const rows = [...orderRows, ...balanceRows, ...customerCardRows, ...cardUsageRows, ...consumptionRows]
+      .sort((a, b) => b.consumeDate.getTime() - a.consumeDate.getTime() || String(b.id).localeCompare(String(a.id)));
+    return this.filterUnifiedConsumptionRows(rows, keyword);
+  }
+
   private getCustomerConsumptionWhere(extra: Record<string, any> = {}) {
     return {
       ...extra,
@@ -470,66 +839,15 @@ export class CustomersService {
   }
 
   async getConsumptionRecords(customerId: number, page = 1, pageSize = 20) {
-    const where = this.getCustomerConsumptionWhere({ customerId });
-    const [items, total] = await Promise.all([
-      this.prisma.consumptionRecord.findMany({
-        where,
-        select: {
-          id: true,
-          customerId: true,
-          consumeType: true,
-          consumeContent: true,
-          payMethod: true,
-          amount: true,
-          campaign: true,
-          consumeTime: true,
-          customer: {
-            select: {
-              name: true,
-              store: { select: { name: true } },
-            },
-          },
-        },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: { consumeTime: 'desc' },
-      }),
-      this.prisma.consumptionRecord.count({ where }),
-    ]);
-    const viewItems = await this.toConsumptionRecordViews(items);
+    const rows = await this.loadUnifiedConsumptionRows({ customerId });
+    const total = rows.length;
+    const viewItems = rows.slice((page - 1) * pageSize, page * pageSize).map((row) => this.toUnifiedConsumptionView(row));
     return { items: viewItems, data: viewItems, total, page, pageSize };
   }
 
   async getAllConsumptionRecords(storeId?: number) {
-    const where: any = this.getCustomerConsumptionWhere();
-    if (storeId) {
-      where.customer = {
-        storeId,
-        deletedAt: null,
-      };
-    }
-
-    const records = await this.prisma.consumptionRecord.findMany({
-      where,
-      select: {
-        id: true,
-        customerId: true,
-        consumeType: true,
-        consumeContent: true,
-        payMethod: true,
-        amount: true,
-        campaign: true,
-        consumeTime: true,
-        customer: {
-          select: {
-            name: true,
-            store: { select: { name: true } },
-          },
-        },
-      },
-      orderBy: { consumeTime: 'desc' },
-    });
-    return this.toConsumptionRecordViews(records);
+    const rows = await this.loadUnifiedConsumptionRows({ storeId });
+    return rows.map((row) => this.toUnifiedConsumptionView(row));
   }
 
   async getConsumptionRecordsPaginated(
@@ -539,59 +857,9 @@ export class CustomersService {
     const page = Math.max(1, Number(query.page || 1));
     const pageSize = Math.min(50, Math.max(10, Number(query.pageSize || 10)));
     const keyword = String(query.keyword ?? '').trim();
-    const where: any = this.getCustomerConsumptionWhere();
-    const and: any[] = [];
-
-    if (storeId) {
-      and.push({
-        customer: {
-          storeId,
-          deletedAt: null,
-        },
-      });
-    }
-
-    if (keyword) {
-      and.push({
-        OR: [
-          { consumeType: { contains: keyword, mode: 'insensitive' } },
-          { consumeContent: { contains: keyword, mode: 'insensitive' } },
-          { payMethod: { contains: keyword, mode: 'insensitive' } },
-          { campaign: { contains: keyword, mode: 'insensitive' } },
-          { customer: { name: { contains: keyword, mode: 'insensitive' } } },
-          { customer: { phone: { contains: keyword } } },
-        ],
-      });
-    }
-
-    if (and.length) where.AND = and;
-
-    const [items, total] = await Promise.all([
-      this.prisma.consumptionRecord.findMany({
-        where,
-        select: {
-          id: true,
-          customerId: true,
-          consumeType: true,
-          consumeContent: true,
-          payMethod: true,
-          amount: true,
-          campaign: true,
-          consumeTime: true,
-          customer: {
-            select: {
-              name: true,
-              store: { select: { name: true } },
-            },
-          },
-        },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: { consumeTime: 'desc' },
-      }),
-      this.prisma.consumptionRecord.count({ where }),
-    ]);
-    const viewItems = await this.toConsumptionRecordViews(items);
+    const rows = await this.loadUnifiedConsumptionRows({ keyword, storeId });
+    const total = rows.length;
+    const viewItems = rows.slice((page - 1) * pageSize, page * pageSize).map((row) => this.toUnifiedConsumptionView(row));
     return { items: viewItems, data: viewItems, total, page, pageSize };
   }
 

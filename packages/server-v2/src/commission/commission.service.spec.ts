@@ -9,6 +9,7 @@ describe('CommissionService', () => {
       project: { findUnique: jest.fn(), findFirst: jest.fn() },
       product: { findUnique: jest.fn(), findFirst: jest.fn() },
       card: { findUnique: jest.fn() },
+      user: { findFirst: jest.fn() },
       beauticianLevel: { findUnique: jest.fn() },
       projectBomItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
@@ -83,6 +84,7 @@ describe('CommissionService', () => {
     prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({
       id: 10,
       ...data,
+      staffUser: { id: data.staffUserId, name: '李老师' },
       beautician: { id: data.beauticianId, name: '李老师' },
       store: { id: data.storeId, name: '静安店' },
       order: { id: data.orderId, orderNo: 'PO1' },
@@ -91,6 +93,7 @@ describe('CommissionService', () => {
 
     const record = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       orderId: 3,
       type: 'project',
@@ -123,6 +126,7 @@ describe('CommissionService', () => {
 
     await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'project',
       sourceAmount: 1000,
@@ -142,6 +146,7 @@ describe('CommissionService', () => {
 
     const record = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'project',
       sourceAmount: 1000,
@@ -163,6 +168,7 @@ describe('CommissionService', () => {
 
     const record = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'product',
       sourceAmount: 1000,
@@ -187,6 +193,7 @@ describe('CommissionService', () => {
 
     const projectRecord = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'project',
       itemId: 99,
@@ -194,6 +201,7 @@ describe('CommissionService', () => {
     });
     const productRecord = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'product',
       itemId: 88,
@@ -215,6 +223,7 @@ describe('CommissionService', () => {
 
     const record = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       levelId: 3,
       type: 'project',
@@ -226,7 +235,7 @@ describe('CommissionService', () => {
         storeId: 1,
         type: 'project',
         status: 'active',
-        OR: [{ levelId: null }, { levelId: 3 }],
+        AND: [{ OR: [{ userId: null }, { userId: 21 }] }, { OR: [{ levelId: null }, { levelId: 3 }] }],
       },
     });
     expect(prisma.commissionRecord.create).toHaveBeenCalledWith(
@@ -237,16 +246,51 @@ describe('CommissionService', () => {
     expect(record?.amount).toBe(120);
   });
 
+  it('prefers employee-specific rule over level and generic rules when priority is equal', async () => {
+    prisma.commissionRule.findMany.mockResolvedValue([
+      { id: 31, targetType: 'all', levelId: null, userId: null, rate: 0.05, calcBase: 'total', priority: 1 },
+      { id: 32, targetType: 'all', levelId: 3, userId: null, rate: 0.12, calcBase: 'total', priority: 1 },
+      { id: 33, targetType: 'all', levelId: null, userId: 21, rate: 0.15, calcBase: 'total', priority: 1 },
+    ]);
+    prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: 33, ...data }));
+
+    const record = await service.calculateCommission({
+      storeId: 1,
+      staffUserId: 21,
+      beauticianId: 2,
+      levelId: 3,
+      type: 'project',
+      sourceAmount: 1000,
+    });
+
+    expect(prisma.commissionRule.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 1,
+        type: 'project',
+        status: 'active',
+        AND: [{ OR: [{ userId: null }, { userId: 21 }] }, { OR: [{ levelId: null }, { levelId: 3 }] }],
+      },
+    });
+    expect(prisma.commissionRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ ruleId: 33, amount: 150, rate: 0.15 }),
+      }),
+    );
+    expect(record?.amount).toBe(150);
+  });
+
   it('returns null for invalid commission input without querying rules', async () => {
     const zeroAmountRecord = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'project',
       sourceAmount: 0,
     });
     const missingBeauticianRecord = await service.calculateCommission({
       storeId: 1,
-      beauticianId: 0,
+      staffUserId: 0,
+      beauticianId: 2,
       type: 'project',
       sourceAmount: 100,
     });
@@ -264,6 +308,7 @@ describe('CommissionService', () => {
     const records = await service.calculateOrderCommissions({
       storeId: 1,
       orderId: 99,
+      staffUserId: 21,
       beauticianId: 2,
       items: [
         { itemType: 'card', subtotal: 500, orderItemId: 1 },
@@ -288,6 +333,7 @@ describe('CommissionService', () => {
 
     const record = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'product',
       sourceAmount: 300,
@@ -304,6 +350,7 @@ describe('CommissionService', () => {
 
     const record = await service.calculateCommission({
       storeId: 1,
+      staffUserId: 21,
       beauticianId: 2,
       type: 'product',
       sourceAmount: 1000,
@@ -326,7 +373,7 @@ describe('CommissionService', () => {
     });
   });
 
-  it('lists, creates, updates, archives and batch imports commission rules', async () => {
+  it('lists, creates, updates, archives and rejects unassigned template commission rules', async () => {
     prisma.commissionRule.findMany.mockResolvedValue([
       {
         id: 1,
@@ -360,7 +407,11 @@ describe('CommissionService', () => {
 
     expect(prisma.commissionRule.findMany).toHaveBeenCalledWith({
       where: { storeId: 3, type: 'project', status: 'active', levelId: 2, name: { contains: '项目', mode: 'insensitive' } },
-      include: { store: { select: { id: true, name: true } }, level: true },
+      include: {
+        store: { select: { id: true, name: true } },
+        level: true,
+        user: { select: { id: true, name: true, username: true } },
+      },
       skip: 5,
       take: 5,
       orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
@@ -368,6 +419,7 @@ describe('CommissionService', () => {
     expect(page.items[0]).toEqual(expect.objectContaining({ id: 1, rate: 0.12, designatedBonus: 0.2, minThreshold: 5 }));
 
     prisma.beauticianLevel.findUnique.mockResolvedValue({ id: 2 });
+    prisma.user.findFirst.mockResolvedValue({ id: 21 });
     prisma.project.findFirst.mockResolvedValue({ id: 99 });
     prisma.product.findFirst.mockResolvedValue({ id: 88 });
     prisma.card.findUnique.mockResolvedValue({ id: 66 });
@@ -398,29 +450,27 @@ describe('CommissionService', () => {
       targetType: 'specific',
       targetId: 99,
       levelId: 2,
+      userId: 21,
       rate: 0.12,
     });
     expect(prisma.beauticianLevel.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: { id: 21, status: 'active', deletedAt: null, stores: { some: { storeId: 3 } } },
+    });
     expect(prisma.project.findFirst).toHaveBeenCalledWith({ where: { id: 99, storeId: 3 } });
     expect(created).toEqual(expect.objectContaining({ name: '指定项目', rate: 0.12 }));
 
     prisma.commissionRule.findUnique
-      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '旧规则', type: 'project', targetType: 'all', rate: 0.08 })
-      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '已更新', type: 'product', targetType: 'specific', targetId: 88, rate: 0.07 });
+      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '旧规则', type: 'project', targetType: 'all', rate: 0.08, userId: 21 })
+      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '已更新', type: 'product', targetType: 'specific', targetId: 88, rate: 0.07, userId: 21 });
 
     const updated = await service.updateRule(9, { name: '商品指定', type: 'product', targetType: 'specific', targetId: 88, rate: 0.07 });
     const archived = await service.deleteRule(9);
-    const batch = await service.batchCreateFromTemplate(3, 'vip');
+    await expect(service.batchCreateFromTemplate(3, 'vip')).rejects.toThrow('提成规则必须绑定到具体员工');
 
     expect(prisma.product.findFirst).toHaveBeenCalledWith({ where: { id: 88, storeId: 3 } });
     expect(updated).toEqual(expect.objectContaining({ name: '商品指定', type: 'product' }));
     expect(archived.status).toBe('archived');
-    expect(batch.total).toBe(5);
-    expect(prisma.commissionRule.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ name: 'vip-项目通用提成 8%', type: 'project' }),
-      }),
-    );
   });
 
   it('queries commission records with finance filters and serialized source fields', async () => {
@@ -428,6 +478,7 @@ describe('CommissionService', () => {
       {
         id: 7,
         storeId: 3,
+        staffUserId: 21,
         beauticianId: 5,
         orderId: 9,
         orderItemId: 11,
@@ -438,6 +489,7 @@ describe('CommissionService', () => {
         amount: '80.04',
         status: 'pending',
         createdAt: new Date('2026-06-08T09:00:00.000Z'),
+        staffUser: { id: 21, name: 'Alice', username: 'alice' },
         beautician: { id: 5, name: 'Alice' },
         store: { id: 3, name: 'Store A' },
         order: { id: 9, orderNo: 'PO-9', customerName: 'Customer A' },
@@ -451,15 +503,16 @@ describe('CommissionService', () => {
       page: '2',
       pageSize: '10',
       storeId: '3',
-      beauticianId: '5',
+      staffUserId: '21',
       type: 'project',
       status: 'pending',
       settleMonth: '2026-06',
     });
 
     expect(prisma.commissionRecord.findMany).toHaveBeenCalledWith({
-      where: { storeId: 3, beauticianId: 5, type: 'project', status: 'pending', settleMonth: '2026-06' },
+      where: { storeId: 3, staffUserId: 21, type: 'project', status: 'pending', settleMonth: '2026-06' },
       include: {
+        staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
         store: { select: { id: true, name: true } },
         order: { select: { id: true, orderNo: true, customerName: true } },
@@ -471,7 +524,7 @@ describe('CommissionService', () => {
       orderBy: { createdAt: 'desc' },
     });
     expect(prisma.commissionRecord.count).toHaveBeenCalledWith({
-      where: { storeId: 3, beauticianId: 5, type: 'project', status: 'pending', settleMonth: '2026-06' },
+      where: { storeId: 3, staffUserId: 21, type: 'project', status: 'pending', settleMonth: '2026-06' },
     });
     expect(result).toEqual(
       expect.objectContaining({
@@ -484,6 +537,7 @@ describe('CommissionService', () => {
             sourceAmount: 1000.5,
             rate: 0.08,
             amount: 80.04,
+            staffUserName: 'Alice',
             beauticianName: 'Alice',
             storeName: 'Store A',
             orderNo: 'PO-9',
@@ -494,19 +548,19 @@ describe('CommissionService', () => {
     );
   });
 
-  it('summarizes commission records by beautician and status for the selected month', async () => {
+  it('summarizes commission records by staff user and status for the selected month', async () => {
     prisma.commissionRecord.findMany.mockResolvedValue([
-      { beauticianId: 5, amount: '100', status: 'pending', beautician: { id: 5, name: 'Alice' } },
-      { beauticianId: 5, amount: 50, status: 'confirmed', beautician: { id: 5, name: 'Alice' } },
-      { beauticianId: 6, amount: 20, status: 'settled', beautician: { id: 6, name: 'Bob' } },
-      { beauticianId: 6, amount: 10, status: 'cancelled', beautician: { id: 6, name: 'Bob' } },
+      { staffUserId: 21, beauticianId: 5, amount: '100', status: 'pending', staffUser: { id: 21, name: 'Alice' }, beautician: { id: 5, name: 'Alice' } },
+      { staffUserId: 21, beauticianId: 5, amount: 50, status: 'confirmed', staffUser: { id: 21, name: 'Alice' }, beautician: { id: 5, name: 'Alice' } },
+      { staffUserId: 22, beauticianId: 6, amount: 20, status: 'settled', staffUser: { id: 22, name: 'Bob' }, beautician: { id: 6, name: 'Bob' } },
+      { staffUserId: 22, beauticianId: 6, amount: 10, status: 'cancelled', staffUser: { id: 22, name: 'Bob' }, beautician: { id: 6, name: 'Bob' } },
     ]);
 
     const result = await service.getRecordSummary({ storeId: 3, settleMonth: '2026-06', type: 'project' });
 
     expect(prisma.commissionRecord.findMany).toHaveBeenCalledWith({
       where: { storeId: 3, type: 'project', settleMonth: '2026-06' },
-      include: { beautician: { select: { id: true, name: true } } },
+      include: { staffUser: { select: { id: true, name: true, username: true } }, beautician: { select: { id: true, name: true } } },
     });
     expect(result).toEqual({
       totalAmount: 180,
@@ -515,12 +569,12 @@ describe('CommissionService', () => {
       settledAmount: 20,
       count: 4,
       items: [
-        { beauticianId: 5, beauticianName: 'Alice', totalAmount: 150, pendingAmount: 100, confirmedAmount: 50, settledAmount: 0, count: 2 },
-        { beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 20, count: 2 },
+        { staffUserId: 21, staffUserName: 'Alice', beauticianId: 5, beauticianName: 'Alice', totalAmount: 150, pendingAmount: 100, confirmedAmount: 50, settledAmount: 0, count: 2 },
+        { staffUserId: 22, staffUserName: 'Bob', beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 20, count: 2 },
       ],
       data: [
-        { beauticianId: 5, beauticianName: 'Alice', totalAmount: 150, pendingAmount: 100, confirmedAmount: 50, settledAmount: 0, count: 2 },
-        { beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 20, count: 2 },
+        { staffUserId: 21, staffUserName: 'Alice', beauticianId: 5, beauticianName: 'Alice', totalAmount: 150, pendingAmount: 100, confirmedAmount: 50, settledAmount: 0, count: 2 },
+        { staffUserId: 22, staffUserName: 'Bob', beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 20, count: 2 },
       ],
     });
   });
@@ -564,15 +618,16 @@ describe('CommissionService', () => {
     expect(batch).toEqual({ count: 2 });
   });
 
-  it('generates monthly settlement grouped by beautician and type', async () => {
+  it('generates monthly settlement grouped by staff user and type', async () => {
     prisma.commissionRecord.findMany.mockResolvedValue([
-      { beauticianId: 1, type: 'project', amount: 100 },
-      { beauticianId: 1, type: 'product', amount: 20 },
-      { beauticianId: 2, type: 'recharge', amount: 30 },
+      { staffUserId: 21, beauticianId: 1, type: 'project', amount: 100 },
+      { staffUserId: 21, beauticianId: 1, type: 'product', amount: 20 },
+      { staffUserId: 22, beauticianId: 2, type: 'recharge', amount: 30 },
     ]);
     prisma.commissionSettlement.upsert.mockImplementation(async ({ create }: any) => ({
-      id: create.beauticianId,
+      id: create.staffUserId,
       ...create,
+      staffUser: { id: create.staffUserId, name: `员工${create.staffUserId}` },
       beautician: { id: create.beauticianId, name: `美容师${create.beauticianId}` },
       store: { id: create.storeId, name: '静安店' },
     }));
@@ -583,6 +638,7 @@ describe('CommissionService', () => {
     expect(prisma.commissionSettlement.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
+          staffUserId: 21,
           beauticianId: 1,
           projectAmount: 100,
           productAmount: 20,
@@ -611,6 +667,7 @@ describe('CommissionService', () => {
         confirmedAt,
         paidAt: null,
         store: { id: 8, name: '静安店' },
+        staffUser: { id: 21, name: '李老师', username: 'li' },
         beautician: { id: 2, name: '李老师' },
       },
     ]);
@@ -619,13 +676,17 @@ describe('CommissionService', () => {
 
     expect(prisma.commissionSettlement.findMany).toHaveBeenCalledWith({
       where: { storeId: 8, settleMonth: '2026-06', status: 'confirmed' },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
-      orderBy: [{ settleMonth: 'desc' }, { beauticianId: 'asc' }],
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
+      orderBy: [{ settleMonth: 'desc' }, { staffUserId: 'asc' }],
     });
     expect(result.filename).toBe('commission-settlements-2026-06.csv');
     expect(result.contentType).toBe('text/csv; charset=utf-8');
     expect(result.total).toBe(1);
-    expect(result.content).toContain('"月份","门店","美容师","项目提成"');
+    expect(result.content).toContain('"月份","门店","员工","项目提成"');
     expect(result.content).toContain('"2026-06","静安店","李老师","100","20","30","40","5","195","10","185","confirmed"');
   });
 
@@ -635,6 +696,7 @@ describe('CommissionService', () => {
     const settlement = {
       id: 20,
       storeId: 3,
+      staffUserId: 21,
       beauticianId: 5,
       settleMonth: '2026-06',
       projectAmount: 100,
@@ -647,6 +709,7 @@ describe('CommissionService', () => {
       netAmount: 195,
       status: 'draft',
       store: { id: 3, name: 'Store A' },
+      staffUser: { id: 21, name: 'Alice', username: 'alice' },
       beautician: { id: 5, name: 'Alice' },
     };
     prisma.commissionSettlement.findUnique.mockResolvedValue(settlement);
@@ -657,18 +720,26 @@ describe('CommissionService', () => {
 
     expect(prisma.commissionSettlement.findUnique).toHaveBeenCalledWith({
       where: { id: 20 },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
     });
     expect(prisma.commissionSettlement.update).toHaveBeenCalledWith({
       where: { id: 20 },
       data: { status: 'confirmed', confirmedAt: systemNow, confirmedBy: 99 },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
     });
     expect(prisma.commissionRecord.updateMany).toHaveBeenCalledWith({
-      where: { storeId: 3, beauticianId: 5, settleMonth: '2026-06', status: 'confirmed' },
+      where: { storeId: 3, staffUserId: 21, settleMonth: '2026-06', status: 'confirmed' },
       data: { status: 'settled', settledAt: systemNow },
     });
-    expect(result).toEqual(expect.objectContaining({ id: 20, status: 'confirmed', netAmount: 195, beauticianName: 'Alice' }));
+    expect(result).toEqual(expect.objectContaining({ id: 20, status: 'confirmed', netAmount: 195, staffUserName: 'Alice' }));
   });
 
   it('marks a confirmed commission settlement as paid', async () => {
@@ -677,6 +748,7 @@ describe('CommissionService', () => {
     const settlement = {
       id: 20,
       storeId: 3,
+      staffUserId: 21,
       beauticianId: 5,
       settleMonth: '2026-06',
       projectAmount: 100,
@@ -689,6 +761,7 @@ describe('CommissionService', () => {
       netAmount: 195,
       status: 'confirmed',
       store: { id: 3, name: 'Store A' },
+      staffUser: { id: 21, name: 'Alice', username: 'alice' },
       beautician: { id: 5, name: 'Alice' },
     };
     prisma.commissionSettlement.findUnique.mockResolvedValue(settlement);
@@ -699,7 +772,11 @@ describe('CommissionService', () => {
     expect(prisma.commissionSettlement.update).toHaveBeenCalledWith({
       where: { id: 20 },
       data: { status: 'paid', paidAt: systemNow },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
     });
     expect(prisma.commissionRecord.updateMany).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ id: 20, status: 'paid', netAmount: 195, storeName: 'Store A' }));

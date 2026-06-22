@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 
 type BomItemInput = {
   productId?: number;
@@ -51,6 +52,14 @@ export class BomService {
       acc[movement.sourceType].push(Number(movement.sourceId));
       return acc;
     }, {});
+    const orderSourceIds = [...new Set([...(sourceIdsByType.project_order ?? []), ...(sourceIdsByType.product_order ?? [])])];
+    const orderSourceNos = [
+      ...new Set(
+        movements
+          .filter((movement: any) => ['project_order', 'product_order'].includes(String(movement.sourceType ?? '')) && movement.sourceNo)
+          .map((movement: any) => String(movement.sourceNo)),
+      ),
+    ];
 
     const [cardUsageRecords, productOrders, serviceTasks, consumptionRecords] = await Promise.all([
       sourceIdsByType.card_usage?.length
@@ -59,10 +68,30 @@ export class BomService {
             include: { beautician: true },
           })
         : [],
-      sourceIdsByType.project_order?.length || sourceIdsByType.product_order?.length
+      orderSourceIds.length || orderSourceNos.length
         ? this.prisma.productOrder.findMany({
-            where: { id: { in: [...new Set([...(sourceIdsByType.project_order ?? []), ...(sourceIdsByType.product_order ?? [])])] } },
-            include: { customer: true, orderItems: true },
+            where: {
+              OR: [
+                ...(orderSourceIds.length ? [{ id: { in: orderSourceIds } }] : []),
+                ...(orderSourceNos.length ? [{ orderNo: { in: orderSourceNos } }] : []),
+              ],
+            },
+            select: {
+              id: true,
+              orderNo: true,
+              customerName: true,
+              customer: { select: { name: true } },
+              orderItems: {
+                select: {
+                  id: true,
+                  itemType: true,
+                  name: true,
+                  beauticianId: true,
+                  payload: true,
+                  beautician: { select: { name: true } },
+                },
+              },
+            },
           })
         : [],
       sourceIdsByType.service_record?.length || sourceIdsByType.service_task?.length
@@ -81,22 +110,32 @@ export class BomService {
 
     const cardUsageById = new Map(cardUsageRecords.map((record: any) => [record.id, record]));
     const orderById = new Map(productOrders.map((order: any) => [order.id, order]));
+    const orderByNo = new Map(productOrders.map((order: any) => [order.orderNo, order]));
     const taskById = new Map(serviceTasks.map((task: any) => [task.id, task]));
     const consumptionById = new Map(consumptionRecords.map((record: any) => [record.id, record]));
 
     const movementRows = movements.map((movement: any) => {
       const sourceType = String(movement.sourceType ?? '');
       const sourceId = Number(movement.sourceId ?? 0);
+      const sourceNo = movement.sourceNo ? String(movement.sourceNo) : '';
       const cardUsage = sourceType === 'card_usage' ? cardUsageById.get(sourceId) : null;
-      const order = ['project_order', 'product_order'].includes(sourceType) ? orderById.get(sourceId) : null;
+      const order = ['project_order', 'product_order'].includes(sourceType)
+        ? orderById.get(sourceId) ?? (sourceNo ? orderByNo.get(sourceNo) : null)
+        : null;
       const task = ['service_record', 'service_task'].includes(sourceType) ? taskById.get(sourceId) : null;
       const consumption = sourceType === 'consumption_record' ? consumptionById.get(sourceId) : null;
-      const orderProjectItem = order?.orderItems?.find((item: any) => item.itemType === 'project');
+      const orderProjectItem = this.resolveOrderProjectItem(order, movement);
+      const serviceEmployee =
+        cardUsage?.beautician?.name ??
+        task?.beautician?.name ??
+        this.resolveOrderServiceEmployee(order, orderProjectItem) ??
+        '未记录';
       const actualQty = Math.abs(Number(movement.quantity ?? 0));
 
       return {
         id: movement.id,
-        date: movement.occurredAt.toISOString().slice(0, 10),
+        date: formatBusinessDate(movement.occurredAt),
+        orderNo: order?.orderNo ?? (['project_order', 'product_order'].includes(sourceType) ? movement.sourceNo ?? undefined : undefined),
         serviceName:
           cardUsage?.projectName ??
           task?.project?.name ??
@@ -111,10 +150,8 @@ export class BomService {
           order?.customer?.name ??
           consumption?.customer?.name ??
           '散客',
-        beautician:
-          cardUsage?.beautician?.name ??
-          task?.beautician?.name ??
-          '未记录',
+        serviceEmployee,
+        beautician: serviceEmployee,
         storeName: movement.store?.name ?? consumption?.customer?.store?.name ?? '默认门店',
         productName: movement.product?.name ?? '未知商品',
         standardQty: actualQty,
@@ -124,6 +161,7 @@ export class BomService {
         consumeContent: movement.remark ?? '',
         sourceType,
         sourceId,
+        sourceNo: movement.sourceNo ?? undefined,
       };
     });
 
@@ -140,9 +178,11 @@ export class BomService {
       const amount = Number(record.amount ?? 0);
       return {
         id: record.id,
-        date: record.consumeTime.toISOString().slice(0, 10),
+        date: formatBusinessDate(record.consumeTime),
+        orderNo: undefined,
         serviceName: content,
         customerName: record.customer?.name ?? '散客',
+        serviceEmployee: '未记录',
         beautician: '未记录',
         storeName: record.customer?.store?.name ?? '默认门店',
         productName: content,
@@ -153,6 +193,39 @@ export class BomService {
         consumeContent: content,
       };
     });
+  }
+
+  private resolveOrderProjectItem(order: any, movement: any) {
+    const projectItems = (order?.orderItems ?? []).filter((item: any) => String(item?.itemType ?? '').toLowerCase() === 'project');
+    if (!projectItems.length) return null;
+    const remark = String(movement?.remark ?? '');
+    if (remark) {
+      const matched = projectItems.find((item: any) => item?.name && remark.includes(String(item.name)));
+      if (matched) return matched;
+    }
+    return projectItems[0] ?? null;
+  }
+
+  private resolveOrderServiceEmployee(order: any, preferredItem?: any) {
+    const preferredName = this.getOrderItemServiceEmployee(preferredItem);
+    if (preferredName) return preferredName;
+
+    const names = new Set<string>();
+    for (const item of order?.orderItems ?? []) {
+      if (String(item?.itemType ?? '').toLowerCase() !== 'project') continue;
+      const name = this.getOrderItemServiceEmployee(item);
+      if (name) names.add(name);
+    }
+    return names.size ? Array.from(names).join('、') : undefined;
+  }
+
+  private getOrderItemServiceEmployee(item: any) {
+    const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+      ? item.payload as Record<string, unknown>
+      : {};
+    const payloadName = payload.beauticianName ? String(payload.beauticianName).trim() : '';
+    const relationName = item?.beautician?.name ? String(item.beautician.name).trim() : '';
+    return relationName || payloadName || undefined;
   }
 
   async getForecast() {
@@ -255,10 +328,12 @@ export class BomService {
   private toService(project: any) {
     const bom = (project.bomItems ?? []).map((item: any) => ({
       id: item.id,
+      productId: item.productId ?? item.product?.id,
       productName: item.product?.name ?? item.productName ?? '',
       sku: item.product?.sku ?? item.sku ?? '',
       standardQty: Number(item.standardQty ?? 0),
       unit: item.unit ?? item.product?.unit ?? '',
+      costPrice: Number(item.product?.costPrice ?? 0),
     }));
     return {
       id: project.id,
