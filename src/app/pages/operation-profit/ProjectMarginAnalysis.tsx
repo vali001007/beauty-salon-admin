@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProjectMargins, type ProjectMarginRow } from '@/api/operationProfit';
 import { useStoreStore } from '@/stores/storeStore';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import {
   DateRangeFilters,
   EmptyBlock,
+  compactMoney,
   errorMessage,
   LoadingBlock,
-  MetricCard,
   missingReasonLabels,
   money,
   monthStartText,
@@ -35,6 +36,98 @@ function materialCostForMargin(row: ProjectMarginRow) {
   return row.actualMaterialCost > 0 ? row.actualMaterialCost : row.standardMaterialCost;
 }
 
+function CompactMetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-3">
+      <div className="truncate text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{value}</div>
+      {hint ? <div className="mt-1 truncate text-xs text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
+}
+
+type ProjectMarginOrderDetail = NonNullable<ProjectMarginRow['sourceOrders']>[number];
+type ProjectMarginCardUsageDetail = NonNullable<ProjectMarginRow['sourceCardUsages']>[number];
+
+type ProjectMarginUnifiedSource = {
+  key: string;
+  sourceType: 'project_order' | 'card_usage';
+  sourceLabel: '项目订单' | '次卡核销';
+  sourceTone: string;
+  sourceNo: string;
+  date?: string;
+  customerName: string;
+  relatedInfo: string;
+  quantity: number;
+  income: number;
+  materialCost: number;
+  commissionCost: number;
+  totalCost: number;
+  grossProfit: number;
+  marginRate: number;
+};
+
+function resolveMarginRate(sourceMarginRate: number | undefined, income: number, grossProfit: number) {
+  if (typeof sourceMarginRate === 'number') return sourceMarginRate;
+  return income > 0 ? grossProfit / income : 0;
+}
+
+function mapOrderSource(source: ProjectMarginOrderDetail): ProjectMarginUnifiedSource {
+  const materialCost = Number(source.materialCost ?? 0);
+  const commissionCost = Number(source.commissionCost ?? 0);
+  const totalCost = Number(source.totalCost ?? materialCost + commissionCost);
+  const grossProfit = Number(source.grossProfit ?? source.amount - totalCost);
+  return {
+    key: `project-${source.orderId}-${source.orderItemId}`,
+    sourceType: 'project_order',
+    sourceLabel: '项目订单',
+    sourceTone: 'border-blue-200 bg-blue-50 text-blue-700',
+    sourceNo: source.orderNo || String(source.orderId),
+    date: source.orderedAt,
+    customerName: source.customerName || '散客',
+    relatedInfo: '-',
+    quantity: source.quantity,
+    income: source.amount,
+    materialCost,
+    commissionCost,
+    totalCost,
+    grossProfit,
+    marginRate: resolveMarginRate(source.marginRate, source.amount, grossProfit),
+  };
+}
+
+function mapCardUsageSource(source: ProjectMarginCardUsageDetail): ProjectMarginUnifiedSource {
+  const materialCost = Number(source.materialCost ?? 0);
+  const commissionCost = Number(source.commissionCost ?? 0);
+  const totalCost = Number(source.totalCost ?? materialCost + commissionCost);
+  const grossProfit = Number(source.grossProfit ?? source.recognizedAmount - totalCost);
+  return {
+    key: `card-usage-${source.id}`,
+    sourceType: 'card_usage',
+    sourceLabel: '次卡核销',
+    sourceTone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    sourceNo: `#${source.id}`,
+    date: source.verifiedAt,
+    customerName: source.customerName || (source.customerId ? `客户 ${source.customerId}` : '散客'),
+    relatedInfo: source.cardName || source.sourceOrderNo || (source.sourceOrderId ? String(source.sourceOrderId) : '-'),
+    quantity: source.times,
+    income: source.recognizedAmount,
+    materialCost,
+    commissionCost,
+    totalCost,
+    grossProfit,
+    marginRate: resolveMarginRate(source.marginRate, source.recognizedAmount, grossProfit),
+  };
+}
+
+function buildUnifiedSources(row: ProjectMarginRow | null): ProjectMarginUnifiedSource[] {
+  if (!row) return [];
+  return [
+    ...(row.sourceOrders ?? []).map(mapOrderSource),
+    ...(row.sourceCardUsages ?? []).map(mapCardUsageSource),
+  ].sort((left, right) => String(left.date ?? '').localeCompare(String(right.date ?? '')));
+}
+
 export function ProjectMarginAnalysis() {
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const [filters, setFilters] = useState({ from: monthStartText(), to: todayText(), status: '' });
@@ -42,6 +135,7 @@ export function ProjectMarginAnalysis() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [selectedRow, setSelectedRow] = useState<ProjectMarginRow | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -81,6 +175,7 @@ export function ProjectMarginAnalysis() {
       ),
     [rows],
   );
+  const selectedSources = useMemo(() => buildUnifiedSources(selectedRow), [selectedRow]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const updateFilters = (patch: Partial<typeof filters>) => {
     setPage(1);
@@ -116,12 +211,12 @@ export function ProjectMarginAnalysis() {
         </select>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="项目数" value={String(total)} hint={`当前页 ${rows.length} 项`} />
-        <MetricCard label="当前页项目收入" value={money(summary.serviceIncome)} />
-        <MetricCard label="当前页耗材成本" value={money(summary.materialCost)} />
-        <MetricCard label="当前页提成成本" value={money(summary.commissionCost)} />
-        <MetricCard label="当前页贡献毛利" value={money(summary.contributionProfit)} hint={`${summary.missingCount} 个项目有成本缺口`} />
+      <section className="grid grid-cols-5 gap-2">
+        <CompactMetricCard label="项目" value={String(total)} hint={`${rows.length} 项`} />
+        <CompactMetricCard label="收入" value={compactMoney(summary.serviceIncome)} />
+        <CompactMetricCard label="耗材" value={compactMoney(summary.materialCost)} />
+        <CompactMetricCard label="提成" value={compactMoney(summary.commissionCost)} />
+        <CompactMetricCard label="毛利" value={compactMoney(summary.contributionProfit)} hint={`缺口 ${summary.missingCount}`} />
       </section>
 
       {loading && !rows.length ? (
@@ -141,6 +236,7 @@ export function ProjectMarginAnalysis() {
                 <TableHead className="text-right">贡献毛利</TableHead>
                 <TableHead className="text-right">毛利率</TableHead>
                 <TableHead>缺口</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -179,6 +275,12 @@ export function ProjectMarginAnalysis() {
                         <span className="text-sm text-muted-foreground">完整</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setSelectedRow(row)}>
+                        <FileText className="h-4 w-4" />
+                        查看订单
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -213,6 +315,62 @@ export function ProjectMarginAnalysis() {
       ) : (
         <EmptyBlock label="当前筛选条件下暂无项目毛利数据" />
       )}
+
+      <Dialog open={Boolean(selectedRow)} onOpenChange={(open) => !open && setSelectedRow(null)}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>订单明细 - {selectedRow?.projectName}</DialogTitle>
+            <DialogDescription>
+              项目订单 {selectedRow?.sourceOrders?.length ?? 0} 条，次卡核销 {selectedRow?.sourceCardUsages?.length ?? 0} 条；收入、耗材和提成已计入项目毛利汇总。
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSources.length ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>来源</TableHead>
+                    <TableHead>编号</TableHead>
+                    <TableHead>日期</TableHead>
+                    <TableHead>客户</TableHead>
+                    <TableHead>卡项/来源</TableHead>
+                    <TableHead className="text-right">数量/次数</TableHead>
+                    <TableHead className="text-right">收入</TableHead>
+                    <TableHead className="text-right">耗材成本</TableHead>
+                    <TableHead className="text-right">提成</TableHead>
+                    <TableHead className="text-right">总成本</TableHead>
+                    <TableHead className="text-right">毛利</TableHead>
+                    <TableHead className="text-right">毛利率</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedSources.map((source) => (
+                    <TableRow key={source.key}>
+                      <TableCell>
+                        <StatusBadge tone={source.sourceTone}>{source.sourceLabel}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{source.sourceNo}</TableCell>
+                      <TableCell>{source.date ? String(source.date).slice(0, 10) : '-'}</TableCell>
+                      <TableCell>{source.customerName}</TableCell>
+                      <TableCell>{source.relatedInfo}</TableCell>
+                      <TableCell className="text-right">{source.quantity}</TableCell>
+                      <TableCell className="text-right">{money(source.income)}</TableCell>
+                      <TableCell className="text-right">{money(source.materialCost)}</TableCell>
+                      <TableCell className="text-right">{money(source.commissionCost)}</TableCell>
+                      <TableCell className="text-right">{money(source.totalCost)}</TableCell>
+                      <TableCell className="text-right font-medium">{money(source.grossProfit)}</TableCell>
+                      <TableCell className="text-right">{percent(source.marginRate)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <EmptyBlock label="暂无订单或次卡核销明细" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

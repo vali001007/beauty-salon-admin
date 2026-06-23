@@ -58,6 +58,7 @@ function permissionForPath(path: string): string {
   if (path.startsWith('/operation-profit/product-margins')) return 'core:product-margin:view';
   if (path.startsWith('/operation-profit/project-margins')) return 'core:project-margin:view';
   if (path.startsWith('/operation-profit/prepaid-liabilities')) return 'core:prepaid-liability:view';
+  if (path.startsWith('/operation-profit/card-liabilities')) return 'core:prepaid-liability:view';
   if (path.startsWith('/operation-profit/beautician-performance')) return 'core:beautician-performance:view';
   if (path.startsWith('/operation-profit/costs')) return 'core:operation-cost:view';
   if (path.startsWith('/operation-profit')) return 'core:operation-profit:view';

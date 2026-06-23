@@ -81,11 +81,46 @@ describe('margin analysis pages', () => {
           avgDealPrice: 480,
           serviceCount: 1,
           serviceIncome: 480,
+          orderServiceIncome: 300,
+          cardUsageIncome: 180,
           standardMaterialCost: 70,
           actualMaterialCost: 0,
           commissionCost: 0,
           contributionProfit: 410,
           marginRate: 0.854,
+          sourceOrders: [
+            {
+              orderId: 20,
+              orderNo: 'POM-001',
+              orderItemId: 2,
+              orderedAt: '2026-06-11',
+              customerName: '王女士',
+              quantity: 1,
+              amount: 300,
+              materialCost: 40,
+              commissionCost: 20,
+              totalCost: 60,
+              grossProfit: 240,
+              marginRate: 0.8,
+            },
+          ],
+          sourceCardUsages: [
+            {
+              id: 88,
+              customerId: 6,
+              customerName: '赵女士',
+              cardName: '水光护理 10 次卡',
+              times: 1,
+              recognizedAmount: 180,
+              materialCost: 30,
+              commissionCost: 10,
+              totalCost: 40,
+              grossProfit: 140,
+              marginRate: 0.7778,
+              sourceOrderNo: 'CO-001',
+              verifiedAt: '2026-06-12T10:00:00.000Z',
+            },
+          ],
           status: 'cost_missing',
           missingCostReasons: ['missing_project_master', 'missing_bom', 'missing_actual_consumption', 'missing_commission'],
         },
@@ -197,6 +232,17 @@ describe('margin analysis pages', () => {
     expect(screen.getByText('项目 BOM 缺失')).toBeInTheDocument();
     expect(screen.getByText('实际耗材流水缺失')).toBeInTheDocument();
     expect(screen.getByText('提成记录缺失')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /查看订单/ }));
+    expect(screen.getByText('订单明细 - 水光护理')).toBeInTheDocument();
+    expect(screen.getByText('POM-001')).toBeInTheDocument();
+    expect(screen.getByText('王女士')).toBeInTheDocument();
+    expect(screen.getByText('水光护理 10 次卡')).toBeInTheDocument();
+    expect(screen.getByText('CO-001')).toBeInTheDocument();
+    expect(screen.getByText('¥60.00')).toBeInTheDocument();
+    expect(screen.getByText('¥240.00')).toBeInTheDocument();
+    expect(screen.getAllByText('¥40.00').length).toBeGreaterThan(0);
+    expect(screen.getByText('¥140.00')).toBeInTheDocument();
 
     fireEvent.change(screen.getByDisplayValue('全部状态'), { target: { value: 'cost_missing' } });
 

@@ -49,6 +49,7 @@ describe('API facades', () => {
       realUpdateProductOrder: vi.fn(),
       realDeleteProductOrder: vi.fn(),
       realRefundProductOrder: vi.fn(),
+      realGetProductOrderProfit: vi.fn(),
       realGetProjectOrders: vi.fn(),
       realGetProjectOrderById: vi.fn(),
       realGetProjectOrderProfit,

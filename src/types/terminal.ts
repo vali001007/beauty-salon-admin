@@ -786,6 +786,10 @@ export interface TerminalCashierOrderCreateRequest {
 export interface TerminalCashierOrder {
   id: number;
   orderNo: string;
+  checkoutGroupNo?: string;
+  orderKind?: 'product' | 'project' | 'mixed' | string;
+  splitOrderIds?: number[];
+  splitOrderNos?: string[];
   customerId?: number;
   customerName: string;
   customerPhone?: string;
@@ -820,6 +824,7 @@ export interface TerminalCardOrderCreateRequest {
   customerPhone?: string;
   cardId: number;
   cardName: string;
+  operatorId?: number;
   amount: number;
   totalTimes: number;
   discountAmount?: number;
@@ -837,6 +842,8 @@ export interface TerminalCardOrder {
   customerPhone?: string;
   cardId: number;
   cardName: string;
+  operatorId?: number;
+  operatorName?: string;
   storeId: number;
   storeName: string;
   amount: number;

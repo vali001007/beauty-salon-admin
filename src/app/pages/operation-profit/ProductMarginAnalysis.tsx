@@ -8,9 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import {
   DateRangeFilters,
   EmptyBlock,
+  compactMoney,
   errorMessage,
   LoadingBlock,
-  MetricCard,
   missingReasonLabels,
   money,
   monthStartText,
@@ -45,6 +45,16 @@ const sortLabels: Record<string, string> = {
 };
 
 const PAGE_SIZE = 100;
+
+function CompactMetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-3">
+      <div className="truncate text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{value}</div>
+      {hint ? <div className="mt-1 truncate text-xs text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
+}
 
 export function ProductMarginAnalysis() {
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
@@ -159,13 +169,13 @@ export function ProductMarginAnalysis() {
         </select>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <MetricCard label="商品数" value={String(total)} hint={`当前页 ${rows.length} 个`} />
-        <MetricCard label="当前页销量" value={String(summary.quantitySold)} />
-        <MetricCard label="当前页净收入" value={money(summary.netSalesAmount)} />
-        <MetricCard label="当前页商品成本" value={money(summary.productCost)} />
-        <MetricCard label="当前页提成成本" value={money(summary.commissionCost)} />
-        <MetricCard label="当前页商品毛利" value={money(summary.grossProfit)} hint={`毛利率 ${percent(marginRate)}；${summary.missingCount} 个成本缺口`} />
+      <section className="grid grid-cols-6 gap-2">
+        <CompactMetricCard label="商品" value={String(total)} hint={`${rows.length} 个`} />
+        <CompactMetricCard label="销量" value={String(summary.quantitySold)} />
+        <CompactMetricCard label="净收" value={compactMoney(summary.netSalesAmount)} />
+        <CompactMetricCard label="成本" value={compactMoney(summary.productCost)} />
+        <CompactMetricCard label="提成" value={compactMoney(summary.commissionCost)} />
+        <CompactMetricCard label="毛利" value={compactMoney(summary.grossProfit)} hint={`${percent(marginRate)} / 缺口 ${summary.missingCount}`} />
       </section>
 
       {summary.lossCount > 0 ? (

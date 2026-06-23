@@ -1,5 +1,6 @@
 import type {
   Customer,
+  CustomerCardPortrait,
   CustomerCreatePayload,
   CustomerConsumptionRecord,
   CustomerHealthProfile,
@@ -18,6 +19,7 @@ import type {
 import {
   realGetCustomers,
   realGetCustomerById,
+  realGetCustomerCardPortraits,
   realGetCustomerProfile,
   realCreateCustomer,
   realUpdateCustomer,
@@ -57,6 +59,10 @@ import { realGetCustomersPaginated } from './real/customer';
 
 export const getCustomersPaginated: (params: PaginationParams & { keyword?: string; name?: string; phone?: string; memberLevel?: string; storeName?: string }) => Promise<PaginatedResponse<Customer>> =
   realGetCustomersPaginated;
+
+export const getCustomerCardPortraits: (
+  params: PaginationParams & { keyword?: string; name?: string; phone?: string; memberLevel?: string; storeName?: string },
+) => Promise<PaginatedResponse<CustomerCardPortrait>> = realGetCustomerCardPortraits;
 
 import type { ImportResult } from '@/types/excel';
 import { realImportCustomers } from './real/customer';

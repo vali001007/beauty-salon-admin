@@ -26,6 +26,7 @@ function normalizePaginated<T>(response: any): PaginatedResponse<T> {
     total: Number(response?.total ?? items.length),
     page: Number(response?.page ?? 1),
     pageSize: Number(response?.pageSize ?? (items.length || 20)),
+    ...(response?.summary ? { summary: response.summary } : {}),
   };
 }
 

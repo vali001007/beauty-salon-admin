@@ -6,6 +6,7 @@ import type {
   ProductOrderItem,
   ProductOrderPaymentMethod,
   ProductOrderStatus,
+  ProductOrderProfitDetail,
   ProjectOrderProfitDetail,
 } from '@/types';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
@@ -15,6 +16,8 @@ import { extractArray, normalizePaginatedResponse } from './response';
 type ApiProductOrder = Partial<ProductOrder> & {
   customer?: { id?: number; name?: string; phone?: string };
   store?: { id?: number; name?: string };
+  checkoutGroupNo?: string;
+  orderKind?: string;
   status?: string;
   payMethod?: string;
   paymentMethod?: string;
@@ -137,6 +140,8 @@ function normalizeProductOrder(item: ApiProductOrder): ProductOrder {
   return {
     id: Number(item.id ?? 0),
     orderNo: item.orderNo ?? '',
+    checkoutGroupNo: item.checkoutGroupNo,
+    orderKind: item.orderKind,
     customerId: item.customerId ?? item.customer?.id,
     customerName: item.customerName ?? item.customer?.name ?? '散客',
     customerPhone: item.customerPhone ?? item.customer?.phone ?? '',
@@ -234,6 +239,10 @@ export async function realGetProductOrders(params?: { status?: string; keyword?:
 export async function realGetProductOrderById(id: number): Promise<ProductOrder | undefined> {
   const item = await apiClient.get<unknown, ApiProductOrder>(`/orders/product/${id}`);
   return normalizeProductOrder(item);
+}
+
+export async function realGetProductOrderProfit(id: number): Promise<ProductOrderProfitDetail> {
+  return apiClient.get<unknown, ProductOrderProfitDetail>(`/orders/product/${id}/profit`);
 }
 
 export async function realCreateProductOrder(data: ProductOrderCreatePayload): Promise<ProductOrder> {

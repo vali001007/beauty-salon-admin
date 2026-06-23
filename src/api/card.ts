@@ -1,10 +1,26 @@
 import type { Card } from '@/types/card';
 import type { CardFormData } from '@/schemas/card';
-import type { CreateCardOrderPayload } from './real/card';
-import { realGetCards, realCreateCard, realUpdateCard, realDeleteCard, realCreateCardOrder, realCreateCardUsage } from './real/card';
+import type { CardOrderProfitDetail, CardOrderUpdatePayload, CardOrderVoidPayload, CardUsageProfitDetail, CreateCardOrderPayload } from './real/card';
+import {
+  realGetCards,
+  realGetSaleCards,
+  realCreateCard,
+  realUpdateCard,
+  realDeleteCard,
+  realCreateCardOrder,
+  realCreateCardUsage,
+  realGetCardOrderById,
+  realGetCardOrderProfit,
+  realGetCardUsageProfit,
+  realUpdateCardOrder,
+  realVoidCardOrder,
+} from './real/card';
 
 export const getCards: () => Promise<Card[]> =
   realGetCards;
+
+export const getSaleCards: (params?: { storeId?: number }) => Promise<Card[]> =
+  realGetSaleCards;
 
 export const createCard: (data: CardFormData) => Promise<Card> =
   realCreateCard;
@@ -17,6 +33,21 @@ export const deleteCard: (id: number) => Promise<void> =
 
 export const createCardOrder: (data: CreateCardOrderPayload) => Promise<any> =
   realCreateCardOrder;
+
+export const getCardOrderById: (id: string | number) => Promise<any> =
+  realGetCardOrderById;
+
+export const updateCardOrder: (id: string | number, data: CardOrderUpdatePayload) => Promise<any> =
+  realUpdateCardOrder;
+
+export const voidCardOrder: (id: string | number, data?: CardOrderVoidPayload) => Promise<any> =
+  realVoidCardOrder;
+
+export const getCardOrderProfit: (id: string | number) => Promise<CardOrderProfitDetail> =
+  realGetCardOrderProfit;
+
+export const getCardUsageProfit: (id: string | number) => Promise<CardUsageProfitDetail> =
+  realGetCardUsageProfit;
 
 export const createCardUsage: (data: {
   cardOrderId?: string | number;

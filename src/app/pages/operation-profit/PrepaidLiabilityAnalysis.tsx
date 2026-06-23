@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getPrepaidLiabilities, type PrepaidLiabilityRow } from '@/api/operationProfit';
+import type { PrepaidLiabilitySummary } from '@/types/operationProfit';
 import { useStoreStore } from '@/stores/storeStore';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import {
@@ -9,7 +10,7 @@ import {
   EmptyBlock,
   errorMessage,
   LoadingBlock,
-  MetricCard,
+  compactMoney,
   money,
   PageHeader,
   statusTone,
@@ -22,49 +23,108 @@ const riskLabels: Record<string, string> = {
   high: '高风险',
 };
 
-export function PrepaidLiabilityAnalysis() {
+type LiabilityPageMode = 'balance' | 'card';
+
+const pageCopy: Record<
+  LiabilityPageMode,
+  {
+    title: string;
+    description: string;
+    keywordPlaceholder: string;
+    riskOnlyLabel: string;
+    emptyLabel: string;
+    loadError: string;
+  }
+> = {
+  balance: {
+    title: '会员卡（储值）履约',
+    description: '独立查看会员储值现金余额和赠送余额形成的待履约权益，识别高余额、沉睡和长期未消费客户。',
+    keywordPlaceholder: '搜索客户、权益名称、流水号',
+    riskOnlyLabel: '只看有风险的储值权益',
+    emptyLabel: '当前没有符合条件的储值履约风险',
+    loadError: '会员卡（储值）履约加载失败',
+  },
+  card: {
+    title: '次卡履约',
+    description: '独立查看次卡剩余次数折算的待履约权益，识别临期、沉睡和高剩余权益客户。',
+    keywordPlaceholder: '搜索客户、卡项名称、订单号',
+    riskOnlyLabel: '只看有风险的次卡权益',
+    emptyLabel: '当前没有符合条件的次卡履约风险',
+    loadError: '次卡履约加载失败',
+  },
+};
+
+function CompactMetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-3">
+      <div className="truncate text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{value}</div>
+      {hint ? <div className="mt-1 truncate text-xs text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
+}
+
+function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const [riskOnly, setRiskOnly] = useState(true);
+  const [keyword, setKeyword] = useState('');
   const [rows, setRows] = useState<PrepaidLiabilityRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [serverSummary, setServerSummary] = useState<PrepaidLiabilitySummary | undefined>();
   const [loading, setLoading] = useState(false);
+  const copy = pageCopy[mode];
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await getPrepaidLiabilities({ page: 1, pageSize: 100, storeId: currentStoreId ?? undefined, riskOnly });
+      const page = await getPrepaidLiabilities({
+        page: 1,
+        pageSize: 100,
+        storeId: currentStoreId ?? undefined,
+        riskOnly,
+        type: mode,
+        keyword: keyword.trim() || undefined,
+      });
       setRows(page.items);
       setTotal(page.total);
+      setServerSummary(page.summary);
     } catch (error) {
-      toast.error(errorMessage(error, '会员卡履约加载失败'));
+      toast.error(errorMessage(error, copy.loadError));
     } finally {
       setLoading(false);
     }
-  }, [currentStoreId, riskOnly]);
+  }, [copy.loadError, currentStoreId, riskOnly, mode, keyword]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const summary = useMemo(
+  const fallbackSummary = useMemo(
     () =>
       rows.reduce(
         (sum, row) => ({
-          estimatedRemainingValue: sum.estimatedRemainingValue + row.estimatedRemainingValue,
+          totalLiability: sum.totalLiability + row.estimatedRemainingValue,
+          cardLiability: sum.cardLiability + (row.liabilityType !== 'balance' ? row.estimatedRemainingValue : 0),
+          balanceLiability: sum.balanceLiability + (row.liabilityType === 'balance' ? row.estimatedRemainingValue : 0),
+          cashBalance: sum.cashBalance + Number(row.cashBalance ?? 0),
+          giftBalance: sum.giftBalance + Number(row.giftBalance ?? 0),
           highRisk: sum.highRisk + (row.riskLevel === 'high' ? 1 : 0),
           mediumRisk: sum.mediumRisk + (row.riskLevel === 'medium' ? 1 : 0),
-          remainingTimes: sum.remainingTimes + Number(row.remainingTimes ?? 0),
         }),
-        { estimatedRemainingValue: 0, highRisk: 0, mediumRisk: 0, remainingTimes: 0 },
+        { totalLiability: 0, cardLiability: 0, balanceLiability: 0, cashBalance: 0, giftBalance: 0, highRisk: 0, mediumRisk: 0 },
       ),
     [rows],
   );
+  const summary = serverSummary ?? fallbackSummary;
+  const remainingTimes = useMemo(() => rows.reduce((sum, row) => sum + Number(row.remainingTimes ?? 0), 0), [rows]);
+  const highRiskCount = summary.highRisk;
+  const mediumRiskCount = summary.mediumRisk;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="会员卡履约"
-        description="把会员卡剩余次数折算为待履约权益，识别临期、沉睡和高剩余权益客户。"
+        title={copy.title}
+        description={copy.description}
         actions={
           <Button variant="outline" className="gap-2" onClick={() => void loadData()} disabled={loading}>
             <RefreshCcw className="h-4 w-4" />
@@ -74,54 +134,98 @@ export function PrepaidLiabilityAnalysis() {
       />
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
+        <input
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          placeholder={copy.keywordPlaceholder}
+          className="h-10 min-w-64 rounded-md border border-border bg-background px-3 text-sm"
+        />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="h-4 w-4" checked={riskOnly} onChange={(event) => setRiskOnly(event.target.checked)} />
-          只看有风险的会员卡
+          {copy.riskOnlyLabel}
         </label>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="会员卡数" value={String(total)} hint={`当前加载 ${rows.length} 张`} />
-        <MetricCard label="剩余权益估算" value={money(summary.estimatedRemainingValue)} />
-        <MetricCard label="剩余次数" value={String(summary.remainingTimes)} />
-        <MetricCard label="高风险" value={String(summary.highRisk)} />
-        <MetricCard label="中风险" value={String(summary.mediumRisk)} />
-      </section>
+      {mode === 'balance' ? (
+        <section className="grid grid-cols-5 gap-2">
+          <CompactMetricCard label="储值" value={String(total)} hint={`${rows.length} 条`} />
+          <CompactMetricCard label="余额" value={compactMoney(summary.balanceLiability)} />
+          <CompactMetricCard label="现金" value={compactMoney(summary.cashBalance)} />
+          <CompactMetricCard label="赠送" value={compactMoney(summary.giftBalance)} />
+          <CompactMetricCard label="风险" value={String(highRiskCount)} hint={`中危 ${mediumRiskCount}`} />
+        </section>
+      ) : (
+        <section className="grid grid-cols-5 gap-2">
+          <CompactMetricCard label="次卡" value={String(total)} hint={`${rows.length} 条`} />
+          <CompactMetricCard label="权益" value={compactMoney(summary.cardLiability)} />
+          <CompactMetricCard label="次数" value={String(remainingTimes)} />
+          <CompactMetricCard label="高危" value={String(highRiskCount)} />
+          <CompactMetricCard label="中危" value={String(mediumRiskCount)} />
+        </section>
+      )}
 
       {loading && !rows.length ? (
         <LoadingBlock />
       ) : rows.length ? (
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>客户</TableHead>
-              <TableHead>卡项</TableHead>
-              <TableHead>风险</TableHead>
-              <TableHead className="text-right">剩余次数</TableHead>
-              <TableHead className="text-right">剩余权益估算</TableHead>
-              <TableHead>到期日</TableHead>
-              <TableHead>最近消课</TableHead>
-              <TableHead>原因</TableHead>
-            </TableRow>
+            {mode === 'balance' ? (
+              <TableRow>
+                <TableHead>客户</TableHead>
+                <TableHead>权益名称</TableHead>
+                <TableHead>风险</TableHead>
+                <TableHead className="text-right">现金余额</TableHead>
+                <TableHead className="text-right">赠送余额</TableHead>
+                <TableHead className="text-right">待履约余额</TableHead>
+                <TableHead>最近流水</TableHead>
+                <TableHead>原因</TableHead>
+              </TableRow>
+            ) : (
+              <TableRow>
+                <TableHead>客户</TableHead>
+                <TableHead>卡项</TableHead>
+                <TableHead>风险</TableHead>
+                <TableHead className="text-right">剩余次数</TableHead>
+                <TableHead className="text-right">剩余权益估算</TableHead>
+                <TableHead>到期日</TableHead>
+                <TableHead>最近核销</TableHead>
+                <TableHead>原因</TableHead>
+              </TableRow>
+            )}
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.customerCardId}>
+              <TableRow key={`${row.liabilityType ?? 'card'}-${row.customerCardId || row.customerId}`}>
                 <TableCell>
                   <div className="font-medium">{row.customerName || `客户 ${row.customerId}`}</div>
                   <div className="mt-1 text-xs text-muted-foreground">ID {row.customerId}</div>
                 </TableCell>
                 <TableCell>
                   <div>{row.cardName}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">总次数 {row.totalTimes}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {mode === 'balance' ? '会员卡储值余额' : `总次数 ${row.totalTimes}`}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <StatusBadge tone={statusTone(row.riskLevel)}>{riskLabels[row.riskLevel] ?? row.riskLevel}</StatusBadge>
                 </TableCell>
-                <TableCell className="text-right">{row.remainingTimes}</TableCell>
-                <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
-                <TableCell>{dateText(row.expiryDate)}</TableCell>
-                <TableCell>{dateText(row.lastUsedAt)}</TableCell>
+                {mode === 'balance' ? (
+                  <>
+                    <TableCell className="text-right">{money(row.cashBalance ?? 0)}</TableCell>
+                    <TableCell className="text-right">{money(row.giftBalance ?? 0)}</TableCell>
+                    <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
+                  </>
+                ) : (
+                  <>
+                    <TableCell className="text-right">{row.remainingTimes}</TableCell>
+                    <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
+                    <TableCell>{dateText(row.expiryDate)}</TableCell>
+                  </>
+                )}
+                <TableCell>
+                  <div>{dateText(row.lastUsedAt)}</div>
+                  {row.lastTransactionOrderNo ? <div className="mt-1 text-xs text-muted-foreground">{row.lastTransactionOrderNo}</div> : null}
+                </TableCell>
                 <TableCell>
                   {row.riskReasons.length ? (
                     <div className="flex flex-wrap gap-1">
@@ -140,8 +244,16 @@ export function PrepaidLiabilityAnalysis() {
           </TableBody>
         </Table>
       ) : (
-        <EmptyBlock label="当前没有符合条件的会员卡履约风险" />
+        <EmptyBlock label={copy.emptyLabel} />
       )}
     </div>
   );
+}
+
+export function PrepaidLiabilityAnalysis() {
+  return <PrepaidLiabilityPage mode="balance" />;
+}
+
+export function CardPackageLiabilityAnalysis() {
+  return <PrepaidLiabilityPage mode="card" />;
 }

@@ -147,6 +147,14 @@ export interface CommissionRecord {
   createdAt?: string;
 }
 
+export type UpdateCommissionRecordInput = Partial<{
+  staffUserId: number;
+  sourceAmount: number;
+  rate: number;
+  amount: number;
+  remark: string;
+}>;
+
 export interface CommissionSummary {
   totalAmount: number;
   pendingAmount: number;
@@ -276,6 +284,10 @@ export async function realGetCommissionSummary(params: Record<string, unknown>) 
 
 export async function realConfirmCommissionRecord(id: number) {
   return apiClient.put(`/commission/records/${id}/confirm`);
+}
+
+export async function realUpdateCommissionRecord(id: number, data: UpdateCommissionRecordInput) {
+  return apiClient.put<unknown, CommissionRecord>(`/commission/records/${id}`, data);
 }
 
 export async function realBatchConfirmCommissionRecords(data: { ids?: number[]; settleMonth?: string }) {

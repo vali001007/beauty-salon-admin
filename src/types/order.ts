@@ -4,6 +4,8 @@ export type ProductOrderPaymentMethod = '现金' | '微信' | '支付宝' | '银
 export interface ProductOrder {
   id: number;
   orderNo: string;
+  checkoutGroupNo?: string;
+  orderKind?: 'product' | 'project' | 'mixed' | string;
   customerId?: number;
   customerName: string;
   customerPhone: string;
@@ -177,6 +179,75 @@ export interface ProjectOrderProfitDetail {
   unassignedCommissionRecords: ProjectOrderProfitCommissionRecord[];
 }
 
+export type ProductOrderProfitCostSource = 'order_snapshot' | 'stock_movement' | 'product_master' | 'missing' | 'mixed' | string;
+
+export interface ProductOrderProfitStockMovement {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  unit?: string | null;
+  costPrice: number;
+  costAmount: number;
+  occurredAt?: string;
+  remark?: string | null;
+}
+
+export interface ProductOrderProfitItem {
+  orderItemId: number;
+  productId?: number;
+  productName: string;
+  sku?: string;
+  categoryName?: string;
+  brand?: string;
+  quantity: number;
+  unitPrice: number;
+  listAmount: number;
+  discountAmount: number;
+  salesAmount: number;
+  refundAmount: number;
+  netSalesAmount: number;
+  unitCost: number;
+  costSource: ProductOrderProfitCostSource;
+  productCost: number;
+  commissionCost: number;
+  totalCost: number;
+  grossProfit: number;
+  grossMargin: number;
+  commissionRecords: ProjectOrderProfitCommissionRecord[];
+  missingReasons: string[];
+}
+
+export interface ProductOrderProfitDetail {
+  orderId: number;
+  orderNo: string;
+  customerId?: number | null;
+  customerName: string;
+  customerPhone?: string;
+  storeId?: number | null;
+  storeName: string;
+  status: string;
+  source?: string | null;
+  createdAt?: string;
+  paymentMethod?: string;
+  listAmount: number;
+  discountAmount: number;
+  refundAmount: number;
+  totalSalesAmount: number;
+  productCost: number;
+  commissionCost: number;
+  unassignedCommissionCost: number;
+  totalCost: number;
+  grossProfit: number;
+  grossMargin: number;
+  costSource: ProductOrderProfitCostSource;
+  dataQuality: 'complete' | 'partial' | string;
+  missingReasons: string[];
+  items: ProductOrderProfitItem[];
+  stockMovements: ProductOrderProfitStockMovement[];
+  unassignedCommissionRecords: ProjectOrderProfitCommissionRecord[];
+}
+
 export interface OrderItem {
   id: number;
   orderId: number;
@@ -300,6 +371,11 @@ export interface MemberCardAccount {
   handlerId?: number;
   handlerName?: string;
   remark?: string;
+  lastTransactionNo?: string;
+  lastOrderNo?: string;
+  lastTransactionType?: MemberCardTransactionType;
+  lastTransactionAmount?: number;
+  lastTransactionAt?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -339,6 +415,7 @@ export interface MemberCardOpenPayload {
   customerPhone?: string;
   rechargeAmount: number;
   giftAmount?: number;
+  giftProjects?: string[];
   paymentMethod?: string;
   remark?: string;
 }
@@ -346,6 +423,7 @@ export interface MemberCardOpenPayload {
 export interface MemberCardRechargePayload {
   rechargeAmount: number;
   giftAmount?: number;
+  giftProjects?: string[];
   paymentMethod?: string;
   remark?: string;
 }

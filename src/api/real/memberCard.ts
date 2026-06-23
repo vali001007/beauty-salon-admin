@@ -47,6 +47,12 @@ function normalizeMemberCardAccount(item: ApiMemberCardAccount): MemberCardAccou
     handlerId: item.handlerId === undefined ? undefined : Number(item.handlerId),
     handlerName: item.handlerName,
     remark: item.remark,
+    lastTransactionNo: item.lastTransactionNo,
+    lastOrderNo: item.lastOrderNo,
+    lastTransactionType: item.lastTransactionType,
+    lastTransactionAmount:
+      item.lastTransactionAmount === undefined ? undefined : toNumber(item.lastTransactionAmount),
+    lastTransactionAt: normalizeDateTime(item.lastTransactionAt),
     createdAt: normalizeDate(item.createdAt),
     updatedAt: normalizeDateTime(item.updatedAt),
   };

@@ -1,7 +1,7 @@
 /* global HTMLCanvasElement, HTMLVideoElement, MediaStream, FileReader */
-import { useEffect, useState, useMemo, useRef, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef, type ChangeEvent } from 'react';
 import { useSearchParams } from 'react-router';
-import { Search, Plus, Trash2, Upload, Eye, Loader2, Download, FileDown, Edit2, Camera, Sparkles } from 'lucide-react';
+import { Search, Plus, Trash2, Upload, Eye, Loader2, Download, FileDown, Edit2, Camera, Sparkles, RefreshCw } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ImportDialog } from '../components/ImportDialog';
@@ -11,6 +11,7 @@ import { customerSchema, type CustomerFormData } from '@/schemas/customer';
 import {
   getCustomers,
   getCustomersPaginated,
+  getCustomerCardPortraits,
   createCustomer,
   updateCustomer,
   importCustomers,
@@ -24,7 +25,7 @@ import { analyzeSkinPhoto } from '@/api/ai';
 import { usePagination } from '@/hooks/usePagination';
 import { exportToExcel, downloadTemplate } from '@/utils/excel';
 import { toast } from 'sonner';
-import type { Customer, CustomerCreatePayload, CustomerConsumptionRecord, CustomerHealthProfile, CustomerProfile } from '@/types';
+import type { Customer, CustomerCardPortrait, CustomerCreatePayload, CustomerConsumptionRecord, CustomerHealthProfile, CustomerProfile } from '@/types';
 import type { SkinPhotoAnalyzeResult } from '@/types/ai';
 import type { ExportColumn } from '@/types/excel';
 import { PasswordConfirmDialog } from '../components/PasswordConfirmDialog';
@@ -85,11 +86,32 @@ const CUSTOMER_IMPORT_SAMPLE = [
   { name: '示例客户', storeName: '心悦芸美容养生会所', email: '', phone: '13800138000', wechat: '', gender: '女', maritalStatus: '未知', birthday: '1996-01-01', age: 30, occupation: '', workplace: '', address: '', hasAllergy: '无', hasSurgery: '无', skinCondition: '', memberLevel: '无', source: '门店', remark: '' },
 ];
 
-const CUSTOMER_DATA_TABS = ['base', 'spend', 'health', 'miniapp', 'profile'] as const;
+const CUSTOMER_DATA_TABS = ['base', 'spend', 'health', 'cards', 'miniapp', 'profile'] as const;
 type CustomerDataTab = (typeof CUSTOMER_DATA_TABS)[number];
+const CUSTOMER_DATA_TAB_ORDER: CustomerDataTab[] = ['base', 'spend', 'health', 'cards', 'miniapp', 'profile'];
 
 const getCustomerDataTabFromQuery = (tab: string | null): CustomerDataTab =>
   CUSTOMER_DATA_TABS.includes(tab as CustomerDataTab) ? (tab as CustomerDataTab) : 'base';
+
+const formatCurrency = (value?: number | null) =>
+  `¥${Number(value ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+const getCardStatusLabel = (status?: string) => {
+  const key = String(status ?? '');
+  if (key === 'active') return '可用';
+  if (key === 'expired') return '过期';
+  if (key === 'voided' || key === 'cancelled') return '已退卡';
+  if (key === 'used_up') return '已用完';
+  return key || '-';
+};
+
+const getCardStatusClassName = (status?: string) => {
+  const key = String(status ?? '');
+  if (key === 'active') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (key === 'expired') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (key === 'voided' || key === 'cancelled') return 'border-red-200 bg-red-50 text-red-600';
+  return 'border-gray-200 bg-gray-50 text-gray-600';
+};
 
 const cleanHealthText = (value?: string | null) => (value && value !== '-' ? value : '');
 
@@ -419,20 +441,48 @@ export function CustomerData() {
     [currentStoreName, customerNameFilter, customerPhoneFilter],
   );
   const { data: customers, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<Customer>(getCustomersPaginated, filters);
+  const fetchCustomerCardPortraits = useCallback(
+    (params: Parameters<typeof getCustomerCardPortraits>[0]) => {
+      if (activeTab !== 'cards') {
+        return Promise.resolve({
+          items: [],
+          data: [],
+          total: 0,
+          page: params.page ?? 1,
+          pageSize: params.pageSize ?? 10,
+        });
+      }
+      return getCustomerCardPortraits(params);
+    },
+    [activeTab],
+  );
+  const {
+    data: cardPortraits,
+    total: cardPortraitTotal,
+    page: cardPortraitPage,
+    pageSize: cardPortraitPageSize,
+    loading: cardPortraitLoading,
+    error: cardPortraitError,
+    setPage: setCardPortraitPage,
+    setPageSize: setCardPortraitPageSize,
+    refresh: refreshCardPortraits,
+  } = usePagination<CustomerCardPortrait>(fetchCustomerCardPortraits, filters);
 
   const handleCustomerSearch = () => {
     setCustomerNameFilter(customerNameInput.trim());
     setCustomerPhoneFilter(customerPhoneInput.trim());
     setSelectedIds([]);
     setPage(1);
+    setCardPortraitPage(1);
   };
 
   useEffect(() => {
     setSelectedIds([]);
     setPage(1);
+    setCardPortraitPage(1);
     setSpendPage(1);
     setHealthPage(1);
-  }, [currentStoreId, setPage]);
+  }, [currentStoreId, setCardPortraitPage, setPage]);
 
   useEffect(() => {
     if (!spendSearchInput.trim() && spendSearchKeyword) {
@@ -446,13 +496,15 @@ export function CustomerData() {
       setCustomerNameFilter('');
       setSelectedIds([]);
       setPage(1);
+      setCardPortraitPage(1);
     }
     if (!customerPhoneInput.trim() && customerPhoneFilter) {
       setCustomerPhoneFilter('');
       setSelectedIds([]);
       setPage(1);
+      setCardPortraitPage(1);
     }
-  }, [customerNameInput, customerNameFilter, customerPhoneInput, customerPhoneFilter, setPage]);
+  }, [customerNameInput, customerNameFilter, customerPhoneInput, customerPhoneFilter, setCardPortraitPage, setPage]);
 
   useEffect(() => {
     if (videoRef.current && cameraStream) {
@@ -871,11 +923,12 @@ export function CustomerData() {
           { id: 'base', label: '基础信息' },
           { id: 'spend', label: '消费记录' },
           { id: 'health', label: '肌肤档案' },
+          { id: 'cards', label: '卡项画像' },
           { id: 'profile', label: '客户画像' },
           { id: 'miniapp', label: '小程序行为' },
         ].sort((left, right) =>
-          ['base', 'spend', 'health', 'miniapp', 'profile'].indexOf(left.id) -
-          ['base', 'spend', 'health', 'miniapp', 'profile'].indexOf(right.id)
+          CUSTOMER_DATA_TAB_ORDER.indexOf(left.id as CustomerDataTab) -
+          CUSTOMER_DATA_TAB_ORDER.indexOf(right.id as CustomerDataTab)
         ).map((tab) => (
           <button
             key={tab.id}
@@ -1290,6 +1343,167 @@ export function CustomerData() {
             </div>
           </div>
         </>
+      )}
+
+      {activeTab === 'cards' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap">客户名称</label>
+              <Input
+                placeholder="请输入客户名称"
+                className="w-48"
+                value={customerNameInput}
+                onChange={(event) => setCustomerNameInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') handleCustomerSearch();
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap">手机号码</label>
+              <Input
+                placeholder="请输入手机号码"
+                className="w-48"
+                value={customerPhoneInput}
+                onChange={(event) => setCustomerPhoneInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') handleCustomerSearch();
+                }}
+              />
+            </div>
+            <Button className="gap-2" onClick={handleCustomerSearch}>
+              <Search className="w-4 h-4" /> 搜索
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={refreshCardPortraits}>
+              <RefreshCw className={`w-4 h-4 ${cardPortraitLoading ? 'animate-spin' : ''}`} /> 刷新
+            </Button>
+          </div>
+
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-800">
+            卡项画像按客户展示已购次卡和当前门店可售但未购卡项，用于卡项插秧、复购推荐和权益补齐。
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50/80">
+                <TableHead className="min-w-[170px]">客户</TableHead>
+                <TableHead className="min-w-[260px]">已购卡项</TableHead>
+                <TableHead className="min-w-[260px]">未购卡项</TableHead>
+                <TableHead className="min-w-[180px]">插秧建议</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cardPortraitLoading && cardPortraits.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-10 text-center text-gray-500">
+                    正在加载卡项画像...
+                  </TableCell>
+                </TableRow>
+              ) : cardPortraitError ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-10 text-center">
+                    <div className="flex flex-col items-center gap-3 text-gray-500">
+                      <span>卡项画像加载失败：{cardPortraitError}</span>
+                      <Button variant="outline" size="sm" onClick={refreshCardPortraits}>
+                        重试加载
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : cardPortraits.length ? cardPortraits.map((row) => {
+                const activeCards = row.purchasedCards.filter((card) => card.status === 'active');
+                const lowRemainingCards = activeCards.filter((card) => card.remainingTimes <= Math.max(1, Math.ceil(card.totalTimes * 0.2)));
+                return (
+                  <TableRow key={row.customerId} className="align-top hover:bg-blue-50/30">
+                    <TableCell>
+                      <div className="font-medium text-gray-800">{row.customerName}</div>
+                      <div className="mt-1 text-xs text-gray-500">{formatScopedValue(row.customerPhone, fieldScopes?.customerPhone ?? 'visible', 'phone')}</div>
+                      <div className="mt-1 text-xs text-gray-500">{row.storeName || '-'}</div>
+                    </TableCell>
+                    <TableCell>
+                      {row.purchasedCards.length ? (
+                        <div className="space-y-2">
+                          {row.purchasedCards.slice(0, 4).map((card) => (
+                            <div key={card.customerCardId} className="rounded-lg border border-gray-100 bg-white p-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium text-gray-800">{card.cardName}</span>
+                                <span className={`rounded-full border px-2 py-0.5 text-xs ${getCardStatusClassName(card.status)}`}>
+                                  {getCardStatusLabel(card.status)}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                剩余 {card.remainingTimes}/{card.totalTimes} 次；实收 {formatCurrency(card.paidAmount)}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-400">到期 {card.expireTime || '-'}</div>
+                            </div>
+                          ))}
+                          {row.purchasedCards.length > 4 && (
+                            <div className="text-xs text-gray-500">另有 {row.purchasedCards.length - 4} 张已购卡项</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">暂无已购卡项</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {row.missingCards.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {row.missingCards.slice(0, 8).map((card) => (
+                            <span key={card.cardId} className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
+                              {card.cardName} · {card.totalTimes}次 · {formatCurrency(card.price)}
+                            </span>
+                          ))}
+                          {row.missingCards.length > 8 && (
+                            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500">
+                              +{row.missingCards.length - 8}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-emerald-600">当前可售卡项已覆盖</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm">
+                        <div className="font-medium text-gray-800">
+                          已购 {row.purchasedCount}，未购 {row.missingCount}
+                        </div>
+                        {lowRemainingCards.length ? (
+                          <div className="text-amber-700">优先跟进：{lowRemainingCards.map((card) => card.cardName).slice(0, 2).join('、')} 剩余次数偏低</div>
+                        ) : row.missingCards.length ? (
+                          <div className="text-emerald-700">可推荐：{row.missingCards.slice(0, 2).map((card) => card.cardName).join('、')}</div>
+                        ) : (
+                          <div className="text-gray-500">维持权益服务和核销提醒</div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              }) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-10 text-center text-gray-500">
+                    暂无客户卡项画像
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+            <div className="text-sm text-gray-600">共 {cardPortraitTotal} 条</div>
+            <div className="flex items-center gap-2">
+              <select value={cardPortraitPageSize} onChange={(e) => setCardPortraitPageSize(Number(e.target.value))} className="h-8 px-2 text-sm border border-gray-300 rounded">
+                <option value={10}>10条/页</option>
+                <option value={20}>20条/页</option>
+                <option value={50}>50条/页</option>
+              </select>
+              <Button variant="outline" size="sm" disabled={cardPortraitPage <= 1} onClick={() => setCardPortraitPage(cardPortraitPage - 1)}>上一页</Button>
+              <span className="text-sm text-gray-600">{cardPortraitPage} / {Math.ceil(cardPortraitTotal / cardPortraitPageSize) || 1}</span>
+              <Button variant="outline" size="sm" disabled={cardPortraitPage >= Math.ceil(cardPortraitTotal / cardPortraitPageSize)} onClick={() => setCardPortraitPage(cardPortraitPage + 1)}>下一页</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {activeTab === 'miniapp' && (

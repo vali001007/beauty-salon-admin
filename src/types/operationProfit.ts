@@ -46,6 +46,8 @@ export interface ProductMarginQuery extends OperationProfitQuery, PaginationPara
 export interface PrepaidLiabilityQuery extends PaginationParams {
   storeId?: number;
   riskOnly?: boolean;
+  type?: 'all' | 'card' | 'balance';
+  keyword?: string;
 }
 
 export interface BeauticianPerformanceQuery extends OperationProfitQuery {
@@ -156,11 +158,49 @@ export interface ProjectMarginRow {
   avgDealPrice: number;
   serviceCount: number;
   serviceIncome: number;
+  orderServiceIncome?: number;
+  cardUsageIncome?: number;
+  orderServiceCount?: number;
+  cardUsageCount?: number;
   standardMaterialCost: number;
   actualMaterialCost: number;
+  orderMaterialCost?: number;
+  cardUsageMaterialCost?: number;
   commissionCost: number;
+  orderCommissionCost?: number;
+  cardUsageCommissionCost?: number;
   contributionProfit: number;
   marginRate: number;
+  sourceOrders?: Array<{
+    orderId: number;
+    orderNo?: string;
+    orderItemId: number;
+    orderedAt?: string;
+    customerName?: string;
+    quantity: number;
+    amount: number;
+    materialCost?: number;
+    commissionCost?: number;
+    totalCost?: number;
+    grossProfit?: number;
+    marginRate?: number;
+  }>;
+  sourceCardUsages?: Array<{
+    id: number;
+    customerId?: number;
+    customerName?: string;
+    cardName?: string;
+    times: number;
+    recognizedAmount: number;
+    materialCost?: number;
+    commissionCost?: number;
+    totalCost?: number;
+    grossProfit?: number;
+    marginRate?: number;
+    sourceOrderId?: number;
+    sourceOrderNo?: string;
+    verifiedAt?: string;
+  }>;
   status: 'high_profit' | 'normal' | 'low_margin' | 'loss' | 'needs_optimization' | 'cost_missing' | string;
   missingCostReasons: MissingCostReason[];
 }
@@ -206,6 +246,7 @@ export interface ProductMarginRow {
 }
 
 export interface PrepaidLiabilityRow {
+  liabilityType?: 'card' | 'balance';
   customerId: number;
   customerName: string;
   customerCardId: number;
@@ -213,11 +254,26 @@ export interface PrepaidLiabilityRow {
   cardName: string;
   totalTimes: number;
   remainingTimes: number;
+  cashBalance?: number;
+  giftBalance?: number;
   estimatedRemainingValue: number;
   expiryDate: string;
   lastUsedAt?: string;
+  lastTransactionType?: string;
+  lastTransactionOrderId?: number;
+  lastTransactionOrderNo?: string;
   riskLevel: 'low' | 'medium' | 'high' | string;
   riskReasons: string[];
+}
+
+export interface PrepaidLiabilitySummary {
+  totalLiability: number;
+  cardLiability: number;
+  balanceLiability: number;
+  cashBalance: number;
+  giftBalance: number;
+  highRisk: number;
+  mediumRisk: number;
 }
 
 export interface BeauticianPerformanceRow {
@@ -239,5 +295,5 @@ export interface BeauticianPerformanceRow {
 export type OperationCostPage = PaginatedResponse<OperationCost>;
 export type ProductMarginPage = PaginatedResponse<ProductMarginRow>;
 export type ProjectMarginPage = PaginatedResponse<ProjectMarginRow>;
-export type PrepaidLiabilityPage = PaginatedResponse<PrepaidLiabilityRow>;
+export type PrepaidLiabilityPage = PaginatedResponse<PrepaidLiabilityRow> & { summary?: PrepaidLiabilitySummary };
 export type BeauticianPerformancePage = PaginatedResponse<BeauticianPerformanceRow>;

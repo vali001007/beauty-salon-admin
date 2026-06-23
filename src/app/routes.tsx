@@ -64,6 +64,7 @@ const OperationProfitOverview = lazyWithRetry(() => import('./pages/operation-pr
 const ProductMarginAnalysis = lazyWithRetry(() => import('./pages/operation-profit/ProductMarginAnalysis').then(m => ({ default: m.ProductMarginAnalysis })), 'ProductMarginAnalysis');
 const ProjectMarginAnalysis = lazyWithRetry(() => import('./pages/operation-profit/ProjectMarginAnalysis').then(m => ({ default: m.ProjectMarginAnalysis })), 'ProjectMarginAnalysis');
 const PrepaidLiabilityAnalysis = lazyWithRetry(() => import('./pages/operation-profit/PrepaidLiabilityAnalysis').then(m => ({ default: m.PrepaidLiabilityAnalysis })), 'PrepaidLiabilityAnalysis');
+const CardPackageLiabilityAnalysis = lazyWithRetry(() => import('./pages/operation-profit/PrepaidLiabilityAnalysis').then(m => ({ default: m.CardPackageLiabilityAnalysis })), 'CardPackageLiabilityAnalysis');
 const BeauticianPerformance = lazyWithRetry(() => import('./pages/operation-profit/BeauticianPerformance').then(m => ({ default: m.BeauticianPerformance })), 'BeauticianPerformance');
 const OperationCostSettings = lazyWithRetry(() => import('./pages/operation-profit/OperationCostSettings').then(m => ({ default: m.OperationCostSettings })), 'OperationCostSettings');
 const SupplierManagement = lazyWithRetry(() => import('./pages/supply-chain/SupplierManagement').then(m => ({ default: m.SupplierManagement })), 'SupplierManagement');
@@ -203,6 +204,7 @@ export const router = createBrowserRouter([
       { path: 'operation-profit/product-margins', handle: { permission: 'core:product-margin:view' }, element: withGuard('core:product-margin:view', ProductMarginAnalysis) },
       { path: 'operation-profit/project-margins', handle: { permission: 'core:project-margin:view' }, element: withGuard('core:project-margin:view', ProjectMarginAnalysis) },
       { path: 'operation-profit/prepaid-liabilities', handle: { permission: 'core:prepaid-liability:view' }, element: withGuard('core:prepaid-liability:view', PrepaidLiabilityAnalysis) },
+      { path: 'operation-profit/card-liabilities', handle: { permission: 'core:prepaid-liability:view' }, element: withGuard('core:prepaid-liability:view', CardPackageLiabilityAnalysis) },
       { path: 'operation-profit/beautician-performance', handle: { permission: 'core:beautician-performance:view' }, element: withGuard('core:beautician-performance:view', BeauticianPerformance) },
       { path: 'operation-profit/costs', handle: { permission: 'core:operation-cost:view' }, element: withGuard('core:operation-cost:view', OperationCostSettings) },
 

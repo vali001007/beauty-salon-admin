@@ -134,7 +134,7 @@ function createBlankCommissionDraft(projectName?: string): CommissionDraftRule {
     rate: 0.08,
     fixedAmount: '',
     calcBase: 'total',
-    priority: 0,
+    priority: 100,
     status: 'active',
   };
 }
@@ -149,7 +149,7 @@ function createCommissionDraftFromRule(rule: CommissionRule, projectName?: strin
     rate: Number(rule.rate ?? 0),
     fixedAmount: rule.fixedAmount === undefined || rule.fixedAmount === null ? '' : Number(rule.fixedAmount),
     calcBase: (rule.calcBase as CommissionCalcBase) || 'total',
-    priority: Math.max(Number(rule.priority ?? 0), 1),
+    priority: Math.max(Number(rule.priority ?? 0), 100),
     status: 'active',
   };
 }
@@ -179,12 +179,6 @@ function createCommissionDraftRules(project: Project | null | undefined, rules: 
     }));
 }
 
-const calcBaseLabels: Record<CommissionCalcBase, string> = {
-  total: '订单金额',
-  service_fee: '服务金额',
-  profit: '毛利',
-};
-
 function getCommissionUserName(rule: CommissionRule) {
   return rule.user?.name || rule.user?.username || `员工 ${rule.userId ?? '-'}`;
 }
@@ -200,9 +194,9 @@ function getSelectedStaffNames(userIds: number[], users: SystemUser[]) {
 }
 
 function getDraftSourceLabel(draft: CommissionDraftRule) {
-  if (draft.ruleId) return '项目专属';
-  if (draft.sourceRuleId) return '引用规则';
-  return '自定义';
+  if (draft.ruleId) return '项目例外';
+  if (draft.sourceRuleId) return '规则库引用';
+  return '项目例外';
 }
 
 function getRuleTargetLabel(rule: CommissionRule, projectTypes: ProjectType[]) {
@@ -309,7 +303,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
           setStaffUsers(users.filter((user) => user.status === '启用'));
           setCommissionDrafts(createCommissionDraftRules(initialProject, rules));
         })
-        .catch(() => toast.error('提成规则或员工列表加载失败，提成配置暂不可维护'))
+        .catch(() => toast.error('提成规则或员工列表加载失败，适用提成暂不可维护'))
         .finally(() => setCommissionLoading(false));
     }
   }, [initialProject, open]);
@@ -549,7 +543,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
   const validateCommissionInfo = () => {
     for (const draft of commissionDrafts) {
       if (draft.userIds.length === 0) {
-        toast.error('提成配置中存在未选择员工的规则，请补充或删除');
+        toast.error('适用提成中存在未选择员工的项目例外，请补充或删除');
         return false;
       }
       const fixedAmount = draft.fixedAmount === '' ? undefined : Number(draft.fixedAmount);
@@ -619,8 +613,8 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
           rate: Number(draft.rate || 0),
           fixedAmount: draft.fixedAmount === '' ? undefined : Number(draft.fixedAmount),
           calcBase: draft.calcBase,
-          priority: Number(draft.priority || 0),
-          status: draft.status,
+          priority: Math.max(Number(draft.priority || 0), 100),
+          status: 'active',
         };
         if (draft.ruleId && index === 0) {
           await updateCommissionRule(draft.ruleId, payload);
@@ -667,7 +661,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
         })),
       );
       await persistCommissionRules(project);
-      toast.success(initialProject ? '项目、BOM 与提成配置更新成功' : '项目、BOM 与提成配置创建成功');
+      toast.success(initialProject ? '项目、BOM 与适用提成更新成功' : '项目、BOM 与适用提成创建成功');
       onClose();
     } catch (err: any) {
       toast.error(err?.message || (initialProject ? '更新项目失败' : '创建项目失败'));
@@ -814,7 +808,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600">
                   3
                 </span>
-                提成配置
+                适用提成
               </button>
             </div>
             {currentStep === 'basic' && (
@@ -1460,9 +1454,9 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="text-base font-semibold text-gray-800">项目提成配置</h3>
+                    <h3 className="text-base font-semibold text-gray-800">适用提成</h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      提成规则模块中的已启用规则仅作为推荐配置；当前项目可主动引用已配置规则，也可自定义项目专属规则。
+                      财务管理-提成规则是统一规则库；当前项目只维护需要覆盖通用规则的项目例外，避免两边重复配置。
                     </p>
                   </div>
                   <button
@@ -1472,21 +1466,21 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" />
-                    自定义提成
+                    新增项目例外
                   </button>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="text-xs text-gray-500">推荐规则</div>
+                    <div className="text-xs text-gray-500">规则库推荐</div>
                     <div className="mt-1 text-lg font-semibold text-gray-900">{recommendedCommissionRules.length}</div>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="text-xs text-gray-500">已选项目规则</div>
+                    <div className="text-xs text-gray-500">当前项目例外</div>
                     <div className="mt-1 text-lg font-semibold text-gray-900">{commissionDrafts.length}</div>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="text-xs text-gray-500">可选配置规则</div>
+                    <div className="text-xs text-gray-500">可引用规则</div>
                     <div className="mt-1 text-lg font-semibold text-gray-900">{availableConfiguredCommissionRules.length}</div>
                   </div>
                 </div>
@@ -1494,14 +1488,14 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                     <label className="flex-1 space-y-1 text-sm">
-                      <span className="font-medium text-gray-700">从已配置规则添加</span>
+                      <span className="font-medium text-gray-700">从规则库引用</span>
                       <select
                         value={selectedCommissionRuleId}
                         onChange={(event) => setSelectedCommissionRuleId(event.target.value)}
                         disabled={commissionLoading || availableConfiguredCommissionRules.length === 0}
                         className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <option value="">请选择已启用的项目提成规则</option>
+                        <option value="">请选择财务规则库中的项目规则</option>
                         {availableConfiguredCommissionRules.map((rule) => (
                           <option key={rule.id} value={rule.id}>
                             {rule.name} / {getRuleTargetLabel(rule, projectTypeList)} / {getCommissionUserName(rule)} /{' '}
@@ -1518,16 +1512,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                         className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Plus className="h-4 w-4" />
-                        引用规则
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAddCommissionDraft}
-                        disabled={commissionLoading || staffUsers.length === 0}
-                        className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Plus className="h-4 w-4" />
-                        自定义规则
+                        引用
                       </button>
                     </div>
                   </div>
@@ -1536,21 +1521,21 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                 {commissionLoading && (
                   <div className="flex items-center justify-center rounded-lg border border-gray-200 py-8 text-sm text-gray-500">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-500" />
-                    正在加载提成规则...
+                    正在加载适用提成...
                   </div>
                 )}
 
                 {!commissionLoading && staffUsers.length === 0 && (
                   <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                    暂无可选员工。推荐规则仍会展示；如需引用或自定义项目规则，请先在系统管理-用户管理中维护门店员工。
+                    暂无可选员工。规则库推荐仍会展示；如需创建项目例外，请先在系统管理-用户管理中维护门店员工。
                   </div>
                 )}
 
                 {!commissionLoading && recommendedCommissionRules.length > 0 && (
                   <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-800">推荐提成规则</h4>
-                      <span className="text-xs text-gray-500">来自【提成规则】模块，仅推荐，添加后才进入当前项目</span>
+                      <h4 className="text-sm font-semibold text-gray-800">规则库推荐</h4>
+                      <span className="text-xs text-gray-500">来自【财务管理-提成规则】，添加后作为当前项目例外生效</span>
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
                       {recommendedCommissionRules.map((rule) => {
@@ -1583,18 +1568,18 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
 
                 {!commissionLoading && commissionDetailCount === 0 && (
                   <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                    当前项目暂未选择提成规则。可从推荐或已配置规则中添加，也可以直接自定义规则。
+                    当前项目默认沿用财务规则库；如该项目有特殊提成，再从规则库引用或新增项目例外。
                   </div>
                 )}
 
                 {!commissionLoading && commissionDetailCount > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-800">当前项目已选提成规则明细</h4>
-                      <span className="text-xs text-gray-500">已选规则可编辑或删除，推荐规则不会强制使用</span>
+                      <h4 className="text-sm font-semibold text-gray-800">当前项目例外规则</h4>
+                      <span className="text-xs text-gray-500">项目例外优先生效；完整规则仍在财务管理维护</span>
                     </div>
                     <div className="overflow-x-auto rounded-lg border border-gray-200">
-                      <table className="w-full min-w-[1280px] text-sm">
+                      <table className="w-full min-w-[980px] text-sm">
                         <thead className="bg-gray-50 text-left text-gray-600">
                           <tr>
                             <th className="w-28 px-4 py-3 font-medium">来源</th>
@@ -1603,9 +1588,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                             <th className="px-4 py-3 font-medium">规则名称</th>
                             <th className="w-28 px-4 py-3 font-medium">比例</th>
                             <th className="w-28 px-4 py-3 font-medium">固定金额</th>
-                            <th className="w-32 px-4 py-3 font-medium">计算基数</th>
-                            <th className="w-24 px-4 py-3 font-medium">优先级</th>
-                            <th className="w-24 px-4 py-3 font-medium">状态</th>
                             <th className="w-16 px-4 py-3 text-right font-medium">操作</th>
                           </tr>
                         </thead>
@@ -1615,7 +1597,9 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                               <td className="px-4 py-3">
                                 <div className="text-xs font-medium text-blue-700">{getDraftSourceLabel(draft)}</div>
                                 {draft.sourceRuleName && (
-                                  <div className="mt-1 max-w-[120px] truncate text-xs text-gray-400">{draft.sourceRuleName}</div>
+                                  <div className="mt-1 max-w-[120px] truncate text-xs text-gray-400">
+                                    源自：{draft.sourceRuleName}
+                                  </div>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-gray-600">指定项目</td>
@@ -1678,35 +1662,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                                   }
                                   className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                                 />
-                              </td>
-                              <td className="px-4 py-3">
-                                <select
-                                  value={draft.calcBase}
-                                  onChange={(event) => updateCommissionDraft(draft.rowId, 'calcBase', event.target.value as CommissionCalcBase)}
-                                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                >
-                                  <option value="total">订单金额</option>
-                                  <option value="service_fee">服务金额</option>
-                                  <option value="profit">毛利</option>
-                                </select>
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  value={draft.priority}
-                                  onChange={(event) => updateCommissionDraft(draft.rowId, 'priority', Number(event.target.value) || 0)}
-                                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <select
-                                  value={draft.status}
-                                  onChange={(event) => updateCommissionDraft(draft.rowId, 'status', event.target.value as CommissionDraftStatus)}
-                                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                >
-                                  <option value="active">启用</option>
-                                  <option value="disabled">停用</option>
-                                </select>
                               </td>
                               <td className="px-4 py-3 text-right">
                                 <button

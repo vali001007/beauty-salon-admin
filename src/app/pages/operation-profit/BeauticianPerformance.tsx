@@ -11,7 +11,6 @@ import {
   EmptyBlock,
   errorMessage,
   LoadingBlock,
-  MetricCard,
   missingReasonLabels,
   money,
   monthStartText,
@@ -19,6 +18,16 @@ import {
   StatusBadge,
   todayText,
 } from './utils';
+
+function CompactMetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-3">
+      <div className="truncate text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{value}</div>
+      {hint ? <div className="mt-1 truncate text-xs text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
+}
 
 export function BeauticianPerformance() {
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
@@ -86,13 +95,13 @@ export function BeauticianPerformance() {
 
       <DateRangeFilters from={filters.from} to={filters.to} loading={loading} onChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))} onRefresh={() => void loadData()} />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <MetricCard label="美容师数" value={String(rows.length)} />
-        <MetricCard label="服务收入" value={money(summary.serviceIncome)} />
-        <MetricCard label="服务次数" value={String(summary.serviceCount)} />
-        <MetricCard label="客户数" value={String(summary.customerCount)} />
-        <MetricCard label="办卡金额" value={money(summary.cardSalesAmount)} />
-        <MetricCard label="贡献毛利" value={money(summary.contributionProfit)} hint={`提成 ${money(summary.commissionCost)}`} />
+      <section className="grid grid-cols-6 gap-2">
+        <CompactMetricCard label="员工" value={String(rows.length)} />
+        <CompactMetricCard label="收入" value={compactMoney(summary.serviceIncome)} />
+        <CompactMetricCard label="次数" value={String(summary.serviceCount)} />
+        <CompactMetricCard label="客户" value={String(summary.customerCount)} />
+        <CompactMetricCard label="办卡" value={compactMoney(summary.cardSalesAmount)} />
+        <CompactMetricCard label="毛利" value={compactMoney(summary.contributionProfit)} hint={`提成 ${compactMoney(summary.commissionCost)}`} />
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4">

@@ -207,6 +207,10 @@ function getOrderItemsAmount(items: ProductOrderItem[]) {
   return items.reduce((sum, item) => sum + getOrderItemAmount(item), 0);
 }
 
+function getDisplayOrderNo(order: ProductOrder) {
+  return order.checkoutGroupNo || order.orderNo;
+}
+
 function getProjectItemsSummary(items: ProductOrderItem[]) {
   return items.length
     ? items.map((item) => `${getProjectItemName(item)} x${Number(item.quantity || 0)} ${formatCurrency(getOrderItemAmount(item))}`).join('；')
@@ -708,7 +712,12 @@ export function ProjectOrderManagement() {
               const itemAmount = getOrderItemsAmount(items);
               return (
                 <TableRow key={order.id} className="hover:bg-blue-50/30">
-                  <TableCell className="font-mono text-sm font-medium text-blue-600">{order.orderNo}</TableCell>
+                  <TableCell className="font-mono text-sm font-medium text-blue-600">
+                    <div>{getDisplayOrderNo(order)}</div>
+                    {order.checkoutGroupNo && order.checkoutGroupNo !== order.orderNo ? (
+                      <div className="text-xs font-normal text-gray-400">分单 {order.orderNo}</div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium text-gray-800">{order.customerName || '散客'}</div>
                     <div className="text-xs text-gray-500">{order.customerPhone || '-'}</div>
@@ -1133,7 +1142,10 @@ export function ProjectOrderManagement() {
               <div className="grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 md:grid-cols-3">
                 <div>
                   <div className="text-sm text-gray-600">订单编号</div>
-                  <div className="mt-1 font-mono text-sm font-medium text-gray-800">{selectedOrder.orderNo}</div>
+                  <div className="mt-1 font-mono text-sm font-medium text-gray-800">{getDisplayOrderNo(selectedOrder)}</div>
+                  {selectedOrder.checkoutGroupNo && selectedOrder.checkoutGroupNo !== selectedOrder.orderNo ? (
+                    <div className="mt-0.5 text-xs text-gray-500">物理分单号：{selectedOrder.orderNo}</div>
+                  ) : null}
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">客户</div>
