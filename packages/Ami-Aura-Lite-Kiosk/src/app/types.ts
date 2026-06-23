@@ -335,6 +335,7 @@ export interface CardOpeningFlowData {
   customers: CustomerSelectItem[];
   cards: CardOpenOption[];
   giftProjects: string[];
+  salesUsers: TerminalSalesUserOption[];
 }
 
 export interface CardOpeningConfirmInput {
@@ -343,6 +344,14 @@ export interface CardOpeningConfirmInput {
   discountAmount: number;
   giftProjects: string[];
   paymentMethod: TerminalOrderPaymentMethod;
+  operatorId?: number;
+}
+
+export interface TerminalSalesUserOption {
+  id: number;
+  name: string;
+  username?: string;
+  roleLabel?: string;
 }
 
 export interface RegistrationFlowData {
@@ -479,6 +488,8 @@ export interface OperationReceiptItem {
   name: string;
   quantity: number;
   unitPrice: number;
+  listAmount?: number;
+  discountAmount?: number;
   subtotal: number;
 }
 

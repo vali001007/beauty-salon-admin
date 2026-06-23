@@ -23,12 +23,14 @@ export function CardOpeningFlowCard({
   const [selectedCard, setSelectedCard] = useState<CardOpenOption | null>(null);
   const [discountAmount, setDiscountAmount] = useState("");
   const [giftProjects, setGiftProjects] = useState<string[]>([]);
+  const [selectedOperatorId, setSelectedOperatorId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<CardOpeningConfirmInput["paymentMethod"]>("微信");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customers = safeArray(data.customers);
   const cards = safeArray(data.cards);
   const availableGiftProjects = safeArray(data.giftProjects);
+  const salesUsers = safeArray(data.salesUsers);
   const cardsByType = useMemo(() => {
     const groups = new Map<string, CardOpenOption[]>();
     cards.forEach((card) => {
@@ -56,6 +58,12 @@ export function CardOpeningFlowCard({
     });
   }, [availableGiftProjects]);
 
+  useEffect(() => {
+    if (selectedOperatorId && !salesUsers.some((user) => String(user.id) === selectedOperatorId)) {
+      setSelectedOperatorId("");
+    }
+  }, [salesUsers, selectedOperatorId]);
+
   const selectCard = (cardId: string) => {
     const nextCard = cards.find((card) => String(card.id) === cardId) ?? null;
     setSelectedCard(nextCard);
@@ -75,6 +83,7 @@ export function CardOpeningFlowCard({
         discountAmount: discount,
         giftProjects,
         paymentMethod,
+        operatorId: selectedOperatorId ? Number(selectedOperatorId) : undefined,
       });
       setStep(3);
     } catch (err) {
@@ -180,6 +189,21 @@ export function CardOpeningFlowCard({
             selectedProjects={giftProjects}
             onChange={setGiftProjects}
           />
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-[#6F6678]">销售人员</span>
+            <select
+              value={selectedOperatorId}
+              onChange={(event) => setSelectedOperatorId(event.target.value)}
+              className="h-12 rounded-xl border border-black/10 bg-white px-3 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20"
+            >
+              <option value="">不指定销售人员</option>
+              {salesUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name || user.username || `员工 ${user.id}`}{user.roleLabel ? ` · ${user.roleLabel}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="grid grid-cols-4 gap-2">
             {PAYMENT_METHODS.map((method) => (
               <button key={method} type="button" onClick={() => setPaymentMethod(method)} className={cn("h-12 rounded-xl border text-sm font-medium", paymentMethod === method ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white")}>

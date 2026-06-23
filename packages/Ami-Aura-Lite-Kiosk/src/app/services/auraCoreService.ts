@@ -3,6 +3,7 @@ import { formatBusinessDateTime } from '../utils/businessTime';
 import {
   getBeauticians,
   getCards,
+  getSaleCards,
   getCustomers,
   getCustomersPaginated,
   getProjects,
@@ -163,6 +164,10 @@ function getTodayRange() {
 
 function sum<T>(items: T[], pick: (item: T) => number) {
   return items.reduce((total, item) => total + pick(item), 0);
+}
+
+function toMoney(value: unknown): number {
+  return Number(Number(value || 0).toFixed(2));
 }
 
 function asList<T>(value: unknown): T[] {
@@ -1416,6 +1421,34 @@ async function getAuraBootstrapSession() {
     storeName: bootstrap.currentStore?.name ?? bootstrap.availableStores[0]?.name ?? '',
     storeId: bootstrap.currentStore?.id,
   };
+}
+
+const SALES_USER_ROLE_LABELS: Record<string, string> = {
+  super_admin: '系统管理员',
+  store_manager: '店长',
+  manager: '店长',
+  reception: '前台',
+  cashier: '收银',
+  consultant: '顾问',
+  beautician: '美容师',
+};
+
+function toSalesUserRoleLabel(user: AuraTerminalUser) {
+  const labels = asList<string>(user.roles)
+    .map((role) => SALES_USER_ROLE_LABELS[role] ?? role)
+    .filter(Boolean);
+  return Array.from(new Set(labels)).join(' / ');
+}
+
+function toSalesUserOptions(users: AuraTerminalUser[] = []) {
+  return users
+    .filter((user) => user.status !== 'disabled' && !user.disabledReason?.includes('禁用'))
+    .map((user) => ({
+      id: user.id,
+      name: user.name || user.username || `员工 ${user.id}`,
+      username: user.username,
+      roleLabel: toSalesUserRoleLabel(user),
+    }));
 }
 
 async function fetchCoreSnapshot(): Promise<CoreSnapshot> {
@@ -3968,9 +4001,9 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
     beauticianId: item.beauticianId,
     beauticianName: item.beauticianName,
   }));
-  const subtotal = sum(items, (item) => item.subtotal);
+  const subtotal = toMoney(sum(items, (item) => item.subtotal));
   const discountAmount = Math.min(subtotal, Math.max(0, input.discountAmount || 0));
-  const paidAmount = Math.max(0, subtotal - discountAmount);
+  const paidAmount = toMoney(Math.max(0, subtotal - discountAmount));
   const order = await createTerminalCashierOrder({
     customerId: customer.id,
     customerName: customer.name,
@@ -4004,31 +4037,33 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
     receipt: {
       sourceType: 'cashier_order',
       sourceId: paid.id,
-      receiptNo: paid.orderNo,
+      receiptNo: paid.checkoutGroupNo ?? paid.orderNo,
       storeName: paid.storeName,
       customerName: customer.name,
       customerPhone: customer.phone,
       cashierName: snapshot.user?.name ?? snapshot.user?.username,
       paymentMethod: input.paymentMethod,
-      items: items.map((item) => ({
+      items: asList<typeof paid.items[number]>(paid.items).map((item) => ({
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        subtotal: item.subtotal,
+        listAmount: toMoney(item.listAmount ?? item.quantity * item.unitPrice),
+        discountAmount: toMoney(item.totalDiscountAmount ?? item.discount ?? 0),
+        subtotal: toMoney(item.netAmount ?? item.subtotal),
       })),
-      subtotalAmount: subtotal,
-      discountAmount,
-      paidAmount,
+      subtotalAmount: toMoney(paid.listAmount ?? subtotal),
+      discountAmount: toMoney(paid.totalDiscountAmount ?? discountAmount),
+      paidAmount: toMoney(paid.netAmount ?? paid.totalAmount ?? paidAmount),
       createdAt: paid.paidAt ?? paid.completedAt ?? paid.createdAt ?? new Date().toISOString(),
     },
   };
 }
 
 async function buildCardOpeningFlow(): Promise<CardOpeningFlowData> {
-  const [{ storeName }, catalogResult, cardsResult, customerContext, giftProjects] = await Promise.all([
-    getAuraBootstrapSession(),
+  const { bootstrap, storeName, storeId } = await getAuraBootstrapSession();
+  const [catalogResult, cardsResult, customerContext, giftProjects] = await Promise.all([
     optionalCoreCall<unknown>('终端目录', () => getTerminalCatalogSync(), null),
-    optionalCoreCall('卡项数据', () => getCards(), []),
+    optionalCoreCall('可售次卡数据', () => getSaleCards({ storeId: storeId ?? undefined }), []),
     getTerminalCustomerSelectContext({ scene: 'card_opening', limit: 50 }).catch(() => null),
     loadActiveProjectNames(),
   ]);
@@ -4055,6 +4090,7 @@ async function buildCardOpeningFlow(): Promise<CardOpeningFlowData> {
         projects: asList<{ projectName: string }>(card.projects).map((project) => project.projectName),
       })),
     giftProjects,
+    salesUsers: toSalesUserOptions(bootstrap.terminalUsers),
   };
 }
 
@@ -4082,6 +4118,7 @@ export async function confirmCardOpening(input: CardOpeningConfirmInput): Promis
     discountAmount,
     giftProjects: input.giftProjects,
     paymentMethod: input.paymentMethod,
+    operatorId: input.operatorId,
     remark: asList<string>(input.giftProjects).length
       ? `赠送项目：${asList<string>(input.giftProjects).join('、')}`
       : 'Ami Aura Lite 办卡',

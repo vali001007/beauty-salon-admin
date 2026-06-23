@@ -627,6 +627,14 @@ function getReceiptMethodLabel(receipt: OperationReceiptData) {
   return receipt.sourceType === "card_usage" ? "核销方式" : "支付方式";
 }
 
+function getReceiptItemListAmount(item: OperationReceiptData["items"][number]) {
+  return typeof item.listAmount === "number" ? item.listAmount : item.quantity * item.unitPrice;
+}
+
+function getReceiptItemDiscountAmount(item: OperationReceiptData["items"][number]) {
+  return typeof item.discountAmount === "number" ? item.discountAmount : Math.max(0, getReceiptItemListAmount(item) - item.subtotal);
+}
+
 function buildReceiptContent(receipt: OperationReceiptData) {
   const receiptTitle = getReceiptTitle(receipt);
   const monetary = isMonetaryReceipt(receipt);
@@ -640,9 +648,14 @@ function buildReceiptContent(receipt: OperationReceiptData) {
     receipt.customerPhone ? `电话: ${receipt.customerPhone}` : "",
     receipt.cashierName ? `收银员: ${receipt.cashierName}` : "",
     "------------------------------",
-    ...receipt.items.map((item) =>
-      monetary ? `${item.name} x${item.quantity} ${formatMoney(item.subtotal)}` : `${item.name} x${item.quantity}`,
-    ),
+    ...receipt.items.flatMap((item) => {
+      if (!monetary) return [`${item.name} x${item.quantity}`];
+      const discount = getReceiptItemDiscountAmount(item);
+      return [
+        `${item.name} x${item.quantity} ${formatMoney(item.subtotal)}`,
+        discount > 0 ? `  原价 ${formatMoney(getReceiptItemListAmount(item))} 优惠 ${formatMoney(discount)}` : "",
+      ].filter(Boolean);
+    }),
     "------------------------------",
     monetary ? `应收: ${formatMoney(receipt.subtotalAmount)}` : "",
     monetary ? `优惠: ${formatMoney(receipt.discountAmount)}` : "",
@@ -742,13 +755,23 @@ function ReceiptPreviewDialog({
               <span className="text-center">数量</span>
               {monetary ? <span className="text-right">金额</span> : null}
             </div>
-            {receipt.items.map((item, index) => (
+            {receipt.items.map((item, index) => {
+              const discount = getReceiptItemDiscountAmount(item);
+              return (
               <div key={`${item.name}-${index}`} className={`grid ${monetary ? "grid-cols-[1fr_44px_80px]" : "grid-cols-[1fr_44px]"} gap-2 text-xs`}>
-                <span className="truncate">{item.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">{item.name}</span>
+                  {monetary && discount > 0 ? (
+                    <span className="mt-0.5 block text-[10px] text-[#8B8294]">
+                      原价 {formatMoney(getReceiptItemListAmount(item))} · 优惠 -{formatMoney(discount)}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-center">x{item.quantity}</span>
                 {monetary ? <span className="text-right">{formatMoney(item.subtotal)}</span> : null}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {monetary || receipt.paymentMethod ? (
