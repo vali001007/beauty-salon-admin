@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CardsService } from './cards.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -17,6 +17,16 @@ export class CardsController {
   @ApiOperation({ summary: '获取次卡列表' })
   findAll() {
     return this.cardsService.findAll();
+  }
+
+  @Get('sale-options')
+  @Permissions('core:goods:cards', 'core:order:card-orders')
+  @ApiOperation({ summary: '获取可售次卡列表' })
+  findSaleOptions(@Query('storeId') storeId?: string) {
+    const normalizedStoreId = storeId ? Number(storeId) : undefined;
+    return this.cardsService.findSaleOptions({
+      storeId: Number.isFinite(normalizedStoreId) ? normalizedStoreId : undefined,
+    });
   }
 
   @Get(':id')

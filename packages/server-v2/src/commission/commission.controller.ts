@@ -25,6 +25,7 @@ import {
   QueryCommissionSettlementsDto,
   QueryDailySettlementDto,
   QueryPlatformRevenueDto,
+  UpdateCommissionRecordDto,
 } from './dto/query-commission.dto.js';
 
 @ApiTags('Commission')
@@ -99,6 +100,13 @@ export class CommissionController {
   @ApiOperation({ summary: '确认提成流水' })
   confirmRecord(@Param('id', ParseIntPipe) id: number) {
     return this.commissionService.confirmRecord(id);
+  }
+
+  @Put('records/:id')
+  @Permissions('core:finance:manage')
+  @ApiOperation({ summary: '修改提成流水' })
+  updateRecord(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCommissionRecordDto) {
+    return this.commissionService.updateRecord(id, dto);
   }
 
   @Put('records/batch-confirm')

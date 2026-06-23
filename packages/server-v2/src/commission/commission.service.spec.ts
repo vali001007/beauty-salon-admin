@@ -11,6 +11,7 @@ describe('CommissionService', () => {
       card: { findUnique: jest.fn() },
       user: { findFirst: jest.fn() },
       beauticianLevel: { findUnique: jest.fn() },
+      beautician: { findFirst: jest.fn() },
       projectBomItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
       store: { findMany: jest.fn(), count: jest.fn() },
@@ -579,6 +580,84 @@ describe('CommissionService', () => {
     });
   });
 
+  it('updates an unsettled commission record and keeps order cost source on the same record', async () => {
+    const confirmedAt = new Date('2026-06-08T10:00:00.000Z');
+    prisma.commissionRecord.findUnique.mockResolvedValue({
+      id: 7,
+      storeId: 3,
+      staffUserId: 21,
+      beauticianId: 5,
+      sourceAmount: 1000,
+      rate: 0.08,
+      amount: 80,
+      status: 'confirmed',
+      confirmedAt,
+    });
+    prisma.user.findFirst.mockResolvedValue({ id: 22 });
+    prisma.beautician.findFirst.mockResolvedValue({ id: 6 });
+    prisma.commissionRecord.update.mockResolvedValue({
+      id: 7,
+      storeId: 3,
+      staffUserId: 22,
+      beauticianId: 6,
+      orderId: 9,
+      orderItemId: 11,
+      type: 'project',
+      sourceAmount: 500,
+      rate: 0.1,
+      amount: 55,
+      status: 'confirmed',
+      confirmedAt,
+      remark: '调整提成',
+      staffUser: { id: 22, name: 'Bob', username: 'bob' },
+      beautician: { id: 6, name: 'Bob' },
+      store: { id: 3, name: 'Store A' },
+      order: { id: 9, orderNo: 'PO-9', customerName: 'Customer A' },
+      orderItem: { id: 11, name: 'Hydration', itemType: 'project', itemId: 101 },
+      rule: { id: 13, name: 'Project rule' },
+    });
+
+    const result = await service.updateRecord(7, {
+      staffUserId: 22,
+      sourceAmount: 500,
+      rate: 0.1,
+      amount: 55,
+      remark: '调整提成',
+    });
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: { id: 22, status: 'active', deletedAt: null, stores: { some: { storeId: 3 } } },
+      select: { id: true },
+    });
+    expect(prisma.beautician.findFirst).toHaveBeenCalledWith({
+      where: { storeId: 3, userId: 22, status: 'active' },
+      select: { id: true },
+    });
+    expect(prisma.commissionRecord.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 7 },
+        data: expect.objectContaining({
+          staffUserId: 22,
+          beauticianId: 6,
+          sourceAmount: 500,
+          rate: 0.1,
+          amount: 55,
+          status: 'confirmed',
+          confirmedAt,
+          remark: '调整提成',
+        }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({ id: 7, amount: 55, staffUserName: 'Bob', orderNo: 'PO-9' }));
+  });
+
+  it('rejects updates for settled commission records', async () => {
+    prisma.commissionRecord.findUnique.mockResolvedValue({ id: 8, status: 'settled' });
+
+    await expect(service.updateRecord(8, { amount: 20 })).rejects.toThrow('已结算提成不能修改');
+    expect(prisma.commissionRecord.update).not.toHaveBeenCalled();
+  });
+
   it('confirms a single commission record and supports filtered batch confirmation', async () => {
     const systemNow = new Date('2026-06-08T10:00:00.000Z');
     jest.useFakeTimers().setSystemTime(systemNow);
@@ -736,7 +815,7 @@ describe('CommissionService', () => {
       },
     });
     expect(prisma.commissionRecord.updateMany).toHaveBeenCalledWith({
-      where: { storeId: 3, staffUserId: 21, settleMonth: '2026-06', status: 'confirmed' },
+      where: { storeId: 3, staffUserId: 21, settleMonth: '2026-06', status: { in: ['pending', 'confirmed'] } },
       data: { status: 'settled', settledAt: systemNow },
     });
     expect(result).toEqual(expect.objectContaining({ id: 20, status: 'confirmed', netAmount: 195, staffUserName: 'Alice' }));

@@ -38,6 +38,16 @@ export class CustomersController {
     return this.customersService.findPaginated(query, storeId ? +storeId : undefined);
   }
 
+  @Get('card-portraits')
+  @Permissions('core:customer:view')
+  @ApiOperation({ summary: '分页获取客户卡项画像' })
+  getCardPortraits(
+    @Query() query: QueryCustomersDto,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.customersService.getCardPortraits(query, storeId ? +storeId : undefined);
+  }
+
   @Get('consumption-records')
   @Permissions('core:customer:view')
   @ApiOperation({ summary: '获取客户消费记录' })

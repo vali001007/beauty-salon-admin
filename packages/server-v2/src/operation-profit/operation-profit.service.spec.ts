@@ -283,6 +283,45 @@ describe('OperationProfitService', () => {
     expect(result.items[0].missingCostReasons).toEqual(expect.arrayContaining(['missing_bom']));
   });
 
+  it('sorts project margin rows by real service income before inactive projects', async () => {
+    const prisma = createPrisma();
+    mockProjectMarginProjects(prisma, [
+      { id: 102, name: '本期未成交项目', price: 300, type: { name: '面护' }, bomItems: [] },
+      {
+        id: 101,
+        name: '本期有成交项目',
+        price: 500,
+        type: { name: '面护' },
+        bomItems: [{ productId: 301, standardQty: 1, product: { id: 301, costPrice: 80 } }],
+      },
+    ]);
+    prisma.project.count.mockResolvedValue(2);
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        id: 20,
+        orderNo: 'O20',
+        totalAmount: 500,
+        status: 'completed',
+        createdAt: new Date('2026-06-12T10:00:00.000Z'),
+        orderItems: [{ id: 11, itemType: 'project', itemId: 101, name: '本期有成交项目', quantity: 1, subtotal: 500 }],
+        paymentRecords: [],
+        refundRecords: [],
+      },
+    ]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.card.findMany.mockResolvedValue([]);
+    prisma.stockMovement.findMany.mockResolvedValue([
+      { sourceType: 'project_order', sourceId: 20, productId: 301, quantity: -1, remark: '项目订单自动扣耗材：本期有成交项目', product: { costPrice: 80 } },
+    ]);
+    prisma.commissionRecord.findMany.mockResolvedValue([{ id: 31, orderItemId: 11, type: 'project', amount: 50, status: 'pending' }]);
+
+    const service = new OperationProfitService(prisma as any);
+    const result = await service.getProjectMargins({ storeId: 1, from: '2026-06-01', to: '2026-06-30', page: 1, pageSize: 2 });
+
+    expect(result.items.map((item: any) => item.projectName)).toEqual(['本期有成交项目', '本期未成交项目']);
+    expect(result.items[0]).toMatchObject({ serviceCount: 1, serviceIncome: 500 });
+  });
+
   it('attributes project stock movements by project BOM and remark instead of whole order', async () => {
     const prisma = createPrisma();
     mockProjectMarginProjects(prisma, [

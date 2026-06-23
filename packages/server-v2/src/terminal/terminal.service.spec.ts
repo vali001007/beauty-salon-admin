@@ -108,6 +108,120 @@ describe('TerminalService automation', () => {
     jest.useRealTimers();
   });
 
+  function mockTerminalCardOrderDeps(operatorUser: any = null) {
+    const customerCardCreate = jest.fn().mockResolvedValue({
+      id: 601,
+      remainingTimes: 10,
+    });
+    const productOrderCreate = jest.fn().mockResolvedValue({
+      id: 701,
+      orderNo: 'CO701',
+    });
+
+    prisma.store.findUnique.mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' });
+    prisma.customer = {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue({ id: 10, name: '罗雅婷', phone: '13565060344' }),
+      update: jest.fn(),
+    };
+    prisma.card = {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 51,
+        name: '抗衰管理 6 次卡',
+        price: 3680,
+        totalTimes: 6,
+        projects: [],
+      }),
+    };
+    prisma.user.findFirst.mockResolvedValue(operatorUser);
+    prisma.customerCard = {
+      create: customerCardCreate,
+      update: jest.fn(),
+      findMany: jest.fn(),
+    };
+    prisma.orderItem = {
+      findMany: jest.fn().mockResolvedValue([{ id: 801, itemType: 'card', itemId: 51, subtotal: 3280 }]),
+    };
+    prisma.$transaction = jest.fn(async (callback: any) => callback({
+      customerCard: { create: customerCardCreate },
+      productOrder: { create: productOrderCreate },
+      customer: { update: jest.fn() },
+    }));
+    (service as any).createOrderItems = jest.fn();
+    (service as any).createPaymentRecord = jest.fn();
+    (service as any).applyMarketingAttribution = jest.fn();
+    (service as any).calculateTerminalCommissions = jest.fn();
+    (service as any).refreshDailySettlementForOrder = jest.fn();
+    (service as any).invalidateCardDashboardCache = jest.fn();
+    (service as any).invalidateCashierDashboardCache = jest.fn();
+
+    return { customerCardCreate };
+  }
+
+  it('uses selected sales user for terminal card orders', async () => {
+    const { customerCardCreate } = mockTerminalCardOrderDeps({
+      id: 22,
+      name: '周顾问',
+      username: 'zhou',
+      roles: [{ role: { key: 'consultant' } }],
+      stores: [{ storeId: 1 }],
+    });
+
+    const result = await service.createCardOrder(
+      1,
+      {
+        customerId: 10,
+        customerName: '罗雅婷',
+        cardId: 51,
+        cardName: '抗衰管理 6 次卡',
+        amount: 3280,
+        totalTimes: 6,
+        operatorId: 22,
+      },
+      9,
+    );
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 22, status: 'active' }),
+    }));
+    expect(customerCardCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ operatorId: 22 }),
+    });
+    expect(result).toEqual(expect.objectContaining({ operatorId: 22, operatorName: '周顾问' }));
+  });
+
+  it('uses current terminal user for terminal card orders when sales user is not selected', async () => {
+    const { customerCardCreate } = mockTerminalCardOrderDeps({
+      id: 9,
+      name: '许收银',
+      username: 'xu',
+      roles: [{ role: { key: 'cashier' } }],
+      stores: [{ storeId: 1 }],
+    });
+
+    const result = await service.createCardOrder(
+      1,
+      {
+        customerId: 10,
+        customerName: '罗雅婷',
+        cardId: 51,
+        cardName: '抗衰管理 6 次卡',
+        amount: 3280,
+        totalTimes: 6,
+      },
+      9,
+    );
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 9, status: 'active' }),
+    }));
+    expect(customerCardCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ operatorId: 9 }),
+    });
+    expect(result).toEqual(expect.objectContaining({ operatorId: 9, operatorName: '许收银' }));
+  });
+
   it('returns the six P0 terminal automation templates', () => {
     const templates = service.getTerminalAutomationTemplates();
 

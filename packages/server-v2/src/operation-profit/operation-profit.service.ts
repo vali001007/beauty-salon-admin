@@ -142,6 +142,17 @@ export class OperationProfitService {
     return map;
   }
 
+  private getCardUsageRecognizedAmount(record: any, cardUnitValueByName: Map<string, number>, missingReasons?: Set<MissingCostReason>) {
+    const amount = this.toNumber(record?.recognizedAmount);
+    if (amount > 0) return amount;
+    const unitValue = this.toNumber(record?.recognizedUnitValue) || this.toNumber(cardUnitValueByName.get(record?.cardName));
+    if (unitValue <= 0) {
+      missingReasons?.add('missing_card_unit_value');
+      return 0;
+    }
+    return unitValue * (this.toNumber(record?.times) || 1);
+  }
+
   private async getOrders(range: DateRange, storeId?: number) {
     return this.prisma.productOrder.findMany({
       where: {
@@ -167,7 +178,11 @@ export class OperationProfitService {
       },
       include: {
         customer: { select: { id: true, name: true, storeId: true } },
+        card: { select: { id: true, name: true, price: true, totalTimes: true } },
+        project: { select: { id: true, name: true } },
         beautician: { select: { id: true, name: true } },
+        sourceOrder: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+        sourceOrderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
       },
       orderBy: { verifiedAt: 'asc' },
     });
@@ -272,14 +287,21 @@ export class OperationProfitService {
     orderItemIds: number[],
     storeId?: number,
     params?: { staffUserId?: number | null; beauticianId?: number | null },
+    cardUsageRecordIds: number[] = [],
   ) {
-    if (!orderItemIds.length) return 0;
+    if (!orderItemIds.length && !cardUsageRecordIds.length) return 0;
     const staffUserId = this.toNumber(params?.staffUserId);
     const beauticianId = this.toNumber(params?.beauticianId);
+    const sourceFilters: any[] = [];
+    if (cardUsageRecordIds.length) {
+      if (orderItemIds.length) sourceFilters.push({ orderItemId: { in: orderItemIds } });
+      sourceFilters.push({ cardUsageRecordId: { in: cardUsageRecordIds } });
+      sourceFilters.push({ sourceType: 'card_usage', sourceId: { in: cardUsageRecordIds } });
+    }
     const result = await this.prisma.commissionRecord.aggregate({
       where: {
         ...(storeId ? { storeId } : {}),
-        orderItemId: { in: orderItemIds },
+        ...(cardUsageRecordIds.length ? { OR: sourceFilters } : { orderItemId: { in: orderItemIds } }),
         type: { in: ['project', 'product'] },
         ...(staffUserId > 0 ? { staffUserId } : beauticianId > 0 ? { beauticianId } : {}),
         status: { not: 'cancelled' },
@@ -289,12 +311,18 @@ export class OperationProfitService {
     return this.toNumber(result._sum.amount);
   }
 
-  private async getCommissionCostForOrderItems(orderItemIds: number[], storeId?: number) {
-    if (!orderItemIds.length) return 0;
+  private async getCommissionCostForOrderItems(orderItemIds: number[], storeId?: number, cardUsageRecordIds: number[] = []) {
+    if (!orderItemIds.length && !cardUsageRecordIds.length) return 0;
+    const sourceFilters: any[] = [];
+    if (cardUsageRecordIds.length) {
+      if (orderItemIds.length) sourceFilters.push({ orderItemId: { in: orderItemIds } });
+      sourceFilters.push({ cardUsageRecordId: { in: cardUsageRecordIds } });
+      sourceFilters.push({ sourceType: 'card_usage', sourceId: { in: cardUsageRecordIds } });
+    }
     const result = await this.prisma.commissionRecord.aggregate({
       where: {
         ...(storeId ? { storeId } : {}),
-        orderItemId: { in: orderItemIds },
+        ...(cardUsageRecordIds.length ? { OR: sourceFilters } : { orderItemId: { in: orderItemIds } }),
         type: { in: ['project', 'product'] },
         status: { not: 'cancelled' },
       },
@@ -410,14 +438,10 @@ export class OperationProfitService {
     const rechargeIncome = Math.max(rechargeFromItems, this.toNumber(rechargeFromBalance._sum.amount));
 
     const missingReasons = new Set<MissingCostReason>();
-    const cardConsumptionIncome = cardUsageRecords.reduce((sum, record) => {
-      const unitValue = cardUnitValueByName.get(record.cardName);
-      if (!unitValue) {
-        missingReasons.add('missing_card_unit_value');
-        return sum;
-      }
-      return sum + unitValue * this.toNumber(record.times || 1);
-    }, 0);
+    const cardConsumptionIncome = cardUsageRecords.reduce(
+      (sum, record) => sum + this.getCardUsageRecognizedAmount(record, cardUnitValueByName, missingReasons),
+      0,
+    );
 
     const cashIncome = paidOrders.reduce((sum, order) => sum + this.toNumber(order.totalAmount), 0) + rechargeIncome - refundAmount;
     const operatingIncome = singleServiceIncome + cardConsumptionIncome + productSales;
@@ -425,10 +449,11 @@ export class OperationProfitService {
       .filter((item) => this.isServiceItem(item.itemType) || this.isProductItem(item.itemType))
       .map((item) => Number(item.id))
       .filter(Boolean);
+    const cardUsageRecordIds = cardUsageRecords.map((record) => Number(record.id)).filter(Boolean);
     const [actualMaterialCost, productCostSummary, commissionCost] = await Promise.all([
       this.getServiceMaterialCost(range, storeId),
       this.getProductCostFromItems(allOrderItems, storeId),
-      this.getCommissionCostForOrderItems(operatingOrderItemIds, storeId),
+      this.getCommissionCostForOrderItems(operatingOrderItemIds, storeId, cardUsageRecordIds),
     ]);
     const productCost = productCostSummary.cost;
 
@@ -469,7 +494,7 @@ export class OperationProfitService {
     }
     for (const record of cardUsageRecords) {
       const row = ensureTrend(this.dateKey(record.verifiedAt));
-      row.operatingIncome += this.toNumber(cardUnitValueByName.get(record.cardName)) * this.toNumber(record.times || 1);
+      row.operatingIncome += this.getCardUsageRecognizedAmount(record, cardUnitValueByName);
     }
     const trend = Array.from(trendByDate.values()).map((row) => ({
       ...row,
@@ -498,7 +523,12 @@ export class OperationProfitService {
       },
       incomeBreakdown: [
         { key: 'single_service', label: '单次服务收入', amount: this.round(singleServiceIncome) },
-        { key: 'card_consumption', label: '会员卡消课收入', amount: this.round(cardConsumptionIncome), estimated: true },
+        {
+          key: 'card_consumption',
+          label: '次卡履约收入',
+          amount: this.round(cardConsumptionIncome),
+          estimated: missingReasons.has('missing_card_unit_value'),
+        },
         { key: 'product_sales', label: '产品销售收入', amount: this.round(productSales) },
         { key: 'card_sales', label: '办卡现金流', amount: this.round(cardSales), cashOnly: true },
         { key: 'recharge', label: '充值现金流', amount: this.round(rechargeIncome), cashOnly: true },
@@ -759,13 +789,11 @@ export class OperationProfitService {
     const where: any = { deletedAt: null };
     if (storeId) where.storeId = storeId;
 
-    const shouldLoadAllProjects = Boolean(query.status);
     const [projects, allProjectIds, total] = await Promise.all([
       this.prisma.project.findMany({
         where,
         include: { type: true, bomItems: { include: { product: { select: { id: true, name: true, costPrice: true, unit: true } } } } },
         orderBy: { createdAt: 'desc' },
-        ...(shouldLoadAllProjects ? {} : { skip: (page - 1) * pageSize, take: pageSize }),
       }),
       this.prisma.project.findMany({
         where,
@@ -780,13 +808,13 @@ export class OperationProfitService {
       this.getCardUnitValueByName(),
     ]);
     const orderItems = orders.flatMap((order) => order.orderItems.map((item) => ({ ...item, order, orderId: order.id, orderNo: order.orderNo })));
-    const projectIdsOnPage = new Set(projects.map((project) => project.id));
     const allProjectIdSet = new Set(allProjectIds.map((project) => project.id));
     const missingProjectOrderItems = orderItems.filter((item) => this.isServiceItem(item.itemType) && item.itemId && !allProjectIdSet.has(Number(item.itemId)));
     const projectOrderItemIds = orderItems
       .filter((item) => this.isServiceItem(item.itemType) && item.itemId)
       .map((item) => Number(item.id))
       .filter(Boolean);
+    const cardUsageRecordIds = cardUsageRecords.map((record) => Number(record.id)).filter(Boolean);
     const movements = await this.prisma.stockMovement.findMany({
       where: {
         ...(storeId ? { storeId } : {}),
@@ -796,32 +824,37 @@ export class OperationProfitService {
       },
       include: { product: { select: { costPrice: true } } },
     });
-    const commissionRecords = await this.prisma.commissionRecord.findMany({
-      where: {
-        ...(storeId ? { storeId } : {}),
-        orderItemId: { in: projectOrderItemIds },
-        type: 'project',
-        status: { not: 'cancelled' },
-      },
-    });
+    const commissionSourceWhere = cardUsageRecordIds.length
+      ? [
+          ...(projectOrderItemIds.length ? [{ orderItemId: { in: projectOrderItemIds } }] : []),
+          { cardUsageRecordId: { in: cardUsageRecordIds } },
+          { sourceType: 'card_usage', sourceId: { in: cardUsageRecordIds } },
+        ]
+      : [];
+    const commissionRecords = projectOrderItemIds.length || commissionSourceWhere.length
+      ? await this.prisma.commissionRecord.findMany({
+          where: {
+            ...(storeId ? { storeId } : {}),
+            ...(cardUsageRecordIds.length ? { OR: commissionSourceWhere } : { orderItemId: { in: projectOrderItemIds } }),
+            type: 'project',
+            status: { not: 'cancelled' },
+          },
+        })
+      : [];
 
     const rows = projects.map((project) => {
       const missingReasons = new Set<MissingCostReason>();
-      const projectOrderItems = orderItems.filter((item) => this.isServiceItem(item.itemType) && projectIdsOnPage.has(Number(item.itemId)) && Number(item.itemId) === project.id);
+      const projectOrderItems = orderItems.filter((item) => this.isServiceItem(item.itemType) && Number(item.itemId) === project.id);
       const orderServiceIncome = projectOrderItems.reduce(
         (sum, item) => sum + Math.max(0, this.getItemNetAmount(item) - this.getRefundShare(item)),
         0,
       );
       const orderServiceCount = projectOrderItems.reduce((sum, item) => sum + (this.toNumber(item.quantity) || 1), 0);
-      const projectCardUsage = cardUsageRecords.filter((record) => record.projectName === project.name);
-      const cardConsumptionIncome = projectCardUsage.reduce((sum, record) => {
-        const unitValue = cardUnitValueByName.get(record.cardName);
-        if (!unitValue) {
-          missingReasons.add('missing_card_unit_value');
-          return sum;
-        }
-        return sum + unitValue * this.toNumber(record.times || 1);
-      }, 0);
+      const projectCardUsage = cardUsageRecords.filter((record) => this.toNumber(record.projectId) === project.id || record.projectName === project.name);
+      const cardConsumptionIncome = projectCardUsage.reduce(
+        (sum, record) => sum + this.getCardUsageRecognizedAmount(record, cardUnitValueByName, missingReasons),
+        0,
+      );
       const cardServiceCount = projectCardUsage.reduce((sum, record) => sum + this.toNumber(record.times || 1), 0);
       const serviceCount = orderServiceCount + cardServiceCount;
       const serviceIncome = orderServiceIncome + cardConsumptionIncome;
@@ -830,21 +863,102 @@ export class OperationProfitService {
         project.bomItems.reduce((sum, item) => sum + this.toNumber(item.standardQty) * this.toNumber(item.product?.costPrice), 0) * serviceCount;
       const orderIds = new Set(projectOrderItems.map((item) => Number(item.orderId)));
       const cardUsageIds = new Set(projectCardUsage.map((record) => Number(record.id)));
-      const actualMaterialCost = movements.reduce((sum, movement) => {
+      const orderMaterialCost = movements.reduce((sum, movement) => {
         if (movement.sourceType === 'project_order' && !orderIds.has(Number(movement.sourceId))) return sum;
-        if (movement.sourceType === 'card_usage' && !cardUsageIds.has(Number(movement.sourceId))) return sum;
-        if (!['project_order', 'card_usage'].includes(String(movement.sourceType))) return sum;
+        if (movement.sourceType !== 'project_order') return sum;
         if (!this.movementBelongsToProject(movement, project)) return sum;
         return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
       }, 0);
+      const cardUsageMaterialCost = movements.reduce((sum, movement) => {
+        if (movement.sourceType === 'card_usage' && !cardUsageIds.has(Number(movement.sourceId))) return sum;
+        if (movement.sourceType !== 'card_usage') return sum;
+        if (!this.movementBelongsToProject(movement, project)) return sum;
+        return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+      }, 0);
+      const actualMaterialCost = orderMaterialCost + cardUsageMaterialCost;
       if (serviceCount > 0 && actualMaterialCost <= 0) missingReasons.add('missing_actual_consumption');
-      const commissionCost = commissionRecords
+      const orderCommissionCost = commissionRecords
         .filter((record) => projectOrderItems.some((item) => item.id === record.orderItemId))
         .reduce((sum, record) => sum + this.toNumber(record.amount), 0);
+      const cardUsageCommissionCost = commissionRecords
+        .filter(
+          (record) =>
+            cardUsageIds.has(Number(record.cardUsageRecordId)) ||
+            (String(record.sourceType) === 'card_usage' && cardUsageIds.has(Number(record.sourceId))),
+        )
+        .reduce((sum, record) => sum + this.toNumber(record.amount), 0);
+      const commissionCost = orderCommissionCost + cardUsageCommissionCost;
       if (serviceIncome > 0 && commissionCost <= 0) missingReasons.add('missing_commission');
       const materialCost = actualMaterialCost > 0 ? actualMaterialCost : standardMaterialCost;
       const contributionProfit = serviceIncome - materialCost - commissionCost;
       const marginRate = serviceIncome > 0 ? contributionProfit / serviceIncome : 0;
+      const standardMaterialUnitCost = project.bomItems.reduce(
+        (sum, item) => sum + this.toNumber(item.standardQty) * this.toNumber(item.product?.costPrice),
+        0,
+      );
+      const orderSourceRows = projectOrderItems.slice(0, 20).map((item) => {
+        const quantity = this.toNumber(item.quantity) || 1;
+        const amount = Math.max(0, this.getItemNetAmount(item) - this.getRefundShare(item));
+        const itemOrderId = Number(item.orderId);
+        const itemMaterialCost = movements.reduce((sum, movement) => {
+          if (movement.sourceType !== 'project_order' || Number(movement.sourceId) !== itemOrderId) return sum;
+          if (!this.movementBelongsToProject(movement, project)) return sum;
+          return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+        }, 0);
+        const materialCostForItem = itemMaterialCost > 0 ? itemMaterialCost : standardMaterialUnitCost * quantity;
+        const commissionCostForItem = commissionRecords
+          .filter((record) => Number(record.orderItemId) === Number(item.id))
+          .reduce((sum, record) => sum + this.toNumber(record.amount), 0);
+        const totalCost = materialCostForItem + commissionCostForItem;
+        return {
+          orderId: item.orderId,
+          orderNo: item.orderNo,
+          orderItemId: item.id,
+          orderedAt: item.order?.createdAt ? this.dateKey(item.order.createdAt) : undefined,
+          customerName: item.order?.customerName,
+          quantity,
+          amount: this.round(amount),
+          materialCost: this.round(materialCostForItem),
+          commissionCost: this.round(commissionCostForItem),
+          totalCost: this.round(totalCost),
+          grossProfit: this.round(amount - totalCost),
+          marginRate: amount > 0 ? this.round((amount - totalCost) / amount, 4) : 0,
+        };
+      });
+      const cardUsageSourceRows = projectCardUsage.slice(0, 20).map((record) => {
+        const usageId = Number(record.id);
+        const amount = this.getCardUsageRecognizedAmount(record, cardUnitValueByName);
+        const materialCostForUsage = movements.reduce((sum, movement) => {
+          if (movement.sourceType !== 'card_usage' || Number(movement.sourceId) !== usageId) return sum;
+          if (!this.movementBelongsToProject(movement, project)) return sum;
+          return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+        }, 0);
+        const fallbackMaterialCost = materialCostForUsage > 0 ? materialCostForUsage : standardMaterialUnitCost * (this.toNumber(record.times) || 1);
+        const commissionCostForUsage = commissionRecords
+          .filter(
+            (commission) =>
+              Number(commission.cardUsageRecordId) === usageId ||
+              (String(commission.sourceType) === 'card_usage' && Number(commission.sourceId) === usageId),
+          )
+          .reduce((sum, commission) => sum + this.toNumber(commission.amount), 0);
+        const totalCost = fallbackMaterialCost + commissionCostForUsage;
+        return {
+          id: record.id,
+          customerId: record.customerId,
+          customerName: record.customerName,
+          cardName: record.cardName,
+          times: this.toNumber(record.times) || 1,
+          recognizedAmount: this.round(amount),
+          materialCost: this.round(fallbackMaterialCost),
+          commissionCost: this.round(commissionCostForUsage),
+          totalCost: this.round(totalCost),
+          grossProfit: this.round(amount - totalCost),
+          marginRate: amount > 0 ? this.round((amount - totalCost) / amount, 4) : 0,
+          sourceOrderId: record.sourceOrderId,
+          sourceOrderNo: record.sourceOrder?.orderNo,
+          verifiedAt: record.verifiedAt,
+        };
+      });
       const status =
         missingReasons.size > 0
           ? 'cost_missing'
@@ -865,13 +979,23 @@ export class OperationProfitService {
         avgDealPrice: serviceCount > 0 ? this.round(serviceIncome / serviceCount) : 0,
         serviceCount: this.round(serviceCount),
         serviceIncome: this.round(serviceIncome),
+        orderServiceIncome: this.round(orderServiceIncome),
+        cardUsageIncome: this.round(cardConsumptionIncome),
+        orderServiceCount: this.round(orderServiceCount),
+        cardUsageCount: this.round(cardServiceCount),
         standardMaterialCost: this.round(standardMaterialCost),
         actualMaterialCost: this.round(actualMaterialCost),
+        orderMaterialCost: this.round(orderMaterialCost),
+        cardUsageMaterialCost: this.round(cardUsageMaterialCost),
         commissionCost: this.round(commissionCost),
+        orderCommissionCost: this.round(orderCommissionCost),
+        cardUsageCommissionCost: this.round(cardUsageCommissionCost),
         contributionProfit: this.round(contributionProfit),
         marginRate: this.round(marginRate, 4),
         status,
         missingCostReasons: Array.from(missingReasons),
+        sourceOrders: orderSourceRows,
+        sourceCardUsages: cardUsageSourceRows,
       };
     });
     const missingProjectRowMap = missingProjectOrderItems.reduce((map, item) => {
@@ -916,36 +1040,44 @@ export class OperationProfitService {
         missingCostReasons: Array.from(row.missingCostReasons),
       };
     });
+    const sortedRows = [...rows, ...missingProjectRows].sort((a, b) => {
+      const activityDelta = this.toNumber(b.serviceIncome) - this.toNumber(a.serviceIncome);
+      if (activityDelta) return activityDelta;
+      const countDelta = this.toNumber(b.serviceCount) - this.toNumber(a.serviceCount);
+      if (countDelta) return countDelta;
+      return Number(b.projectId) - Number(a.projectId);
+    });
+    const filtered = query.status ? sortedRows.filter((row) => row.status === query.status) : sortedRows;
     const start = (page - 1) * pageSize;
     const end = page * pageSize;
-    const rowsForPage = query.status
-      ? [...rows, ...missingProjectRows]
-      : [...rows, ...missingProjectRows.slice(Math.max(0, start - total), Math.max(0, end - total))];
-
-    const filtered = query.status ? rowsForPage.filter((row) => row.status === query.status) : rowsForPage;
-    const items = query.status ? filtered.slice(start, end) : filtered;
-    return { items, data: items, total: query.status ? filtered.length : total + missingProjectRows.length, page, pageSize };
+    const items = filtered.slice(start, end);
+    return { items, data: items, total: filtered.length, page, pageSize };
   }
 
   async getPrepaidLiabilities(query: QueryPrepaidLiabilitiesDto, headerStoreId?: string) {
     const storeId = this.asOptionalStoreId(query.storeId ?? headerStoreId);
     const page = Number(query.page ?? 1);
     const pageSize = Number(query.pageSize ?? 20);
+    const type = query.type ?? 'all';
+    const keyword = String(query.keyword ?? '').trim().toLowerCase();
     const where: any = { status: 'active', remainingTimes: { gt: 0 } };
     if (storeId) where.customer = { storeId };
 
-    const cards = await this.prisma.customerCard.findMany({
-      where,
-      include: {
-        customer: { select: { id: true, name: true, storeId: true } },
-        card: { select: { id: true, name: true, price: true, totalTimes: true } },
-      },
-      orderBy: { expiryDate: 'asc' },
-    });
+    const cards =
+      type === 'balance'
+        ? []
+        : await this.prisma.customerCard.findMany({
+            where,
+            include: {
+              customer: { select: { id: true, name: true, storeId: true } },
+              card: { select: { id: true, name: true, price: true, totalTimes: true } },
+            },
+            orderBy: { expiryDate: 'asc' },
+          });
     const customerIds = Array.from(new Set(cards.map((card) => card.customerId)));
     const usageRecords = customerIds.length
       ? await this.prisma.cardUsageRecord.findMany({
-          where: { customerId: { in: customerIds } },
+          where: { OR: [{ customerCardId: { in: cards.map((card) => card.id) } }, { customerId: { in: customerIds } }] },
           orderBy: { verifiedAt: 'desc' },
         })
       : [];
@@ -956,10 +1088,14 @@ export class OperationProfitService {
     }
 
     const now = new Date();
-    const rows = cards.map((card) => {
-      const lastUsage = usageByCustomerCard.get(`${card.customerId}:${card.cardName}`);
+    const cardRows = cards.map((card) => {
+      const lastUsage = usageByCustomerCard.get(`${card.customerId}:${card.cardName}`) ?? usageRecords.find((usage) => usage.customerCardId === card.id);
       const totalTimes = this.toNumber(card.card?.totalTimes ?? card.totalTimes);
-      const unitValue = totalTimes > 0 ? this.toNumber(card.card?.price) / totalTimes : 0;
+      const unitValue =
+        this.toNumber((card as any).recognizedUnitValue) ||
+        (totalTimes > 0
+          ? (this.toNumber((card as any).paidAmount) || this.toNumber(card.card?.price)) / totalTimes
+          : 0);
       const estimatedRemainingValue = unitValue * this.toNumber(card.remainingTimes);
       const daysToExpiry = Math.ceil((card.expiryDate.getTime() - now.getTime()) / 86400000);
       const daysSinceLastUsed = lastUsage ? Math.floor((now.getTime() - lastUsage.verifiedAt.getTime()) / 86400000) : null;
@@ -969,6 +1105,7 @@ export class OperationProfitService {
       if (estimatedRemainingValue >= 1000 || card.remainingTimes >= Math.max(5, Math.ceil(totalTimes * 0.5))) riskReasons.push('剩余权益较高');
       const riskLevel = riskReasons.length >= 2 ? 'high' : riskReasons.length === 1 ? 'medium' : 'low';
       return {
+        liabilityType: 'card',
         customerId: card.customerId,
         customerName: card.customer?.name ?? '',
         customerCardId: card.id,
@@ -983,9 +1120,82 @@ export class OperationProfitService {
         riskReasons,
       };
     });
-    const filtered = query.riskOnly === true || String(query.riskOnly) === 'true' ? rows.filter((row) => row.riskLevel !== 'low') : rows;
+
+    const balanceAccounts =
+      type === 'card'
+        ? []
+        : await this.prisma.customerBalanceAccount.findMany({
+            where: {
+              status: 'active',
+              ...(storeId ? { storeId } : {}),
+              OR: [{ cashBalance: { gt: 0 } }, { giftBalance: { gt: 0 } }],
+            },
+            include: {
+              customer: { select: { id: true, name: true, storeId: true } },
+              transactions: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                select: { id: true, type: true, amount: true, giftAmount: true, createdAt: true, orderId: true, order: { select: { orderNo: true } } },
+              },
+            },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+    const balanceRows = balanceAccounts.map((account) => {
+      const cashBalance = this.toNumber(account.cashBalance);
+      const giftBalance = this.toNumber(account.giftBalance);
+      const estimatedRemainingValue = cashBalance + giftBalance;
+      const lastTransaction = account.transactions?.[0];
+      const riskReasons: string[] = [];
+      if (estimatedRemainingValue >= 1000) riskReasons.push('储值余额较高');
+      if (giftBalance > 0) riskReasons.push('含赠送余额');
+      if (!lastTransaction) riskReasons.push('暂无余额流水');
+      const riskLevel = estimatedRemainingValue >= 1000 ? 'high' : giftBalance > 0 ? 'medium' : 'low';
+      return {
+        liabilityType: 'balance',
+        customerId: account.customerId,
+        customerName: account.customer?.name ?? '',
+        customerCardId: 0,
+        cardId: undefined,
+        cardName: '会员储值余额',
+        totalTimes: 0,
+        remainingTimes: 0,
+        cashBalance: this.round(cashBalance),
+        giftBalance: this.round(giftBalance),
+        estimatedRemainingValue: this.round(estimatedRemainingValue),
+        expiryDate: '',
+        lastUsedAt: lastTransaction?.createdAt?.toISOString(),
+        lastTransactionType: lastTransaction?.type,
+        lastTransactionOrderId: lastTransaction?.orderId,
+        lastTransactionOrderNo: lastTransaction?.order?.orderNo,
+        riskLevel,
+        riskReasons,
+      };
+    });
+
+    const rows = [...cardRows, ...balanceRows].sort((a, b) => this.toNumber(b.estimatedRemainingValue) - this.toNumber(a.estimatedRemainingValue));
+    const keywordFiltered = keyword
+      ? rows.filter((row) =>
+          [row.customerName, String(row.customerId), row.cardName, (row as any).lastTransactionOrderNo]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(keyword)),
+        )
+      : rows;
+    const filtered =
+      query.riskOnly === true || String(query.riskOnly) === 'true' ? keywordFiltered.filter((row) => row.riskLevel !== 'low') : keywordFiltered;
+    const summary = {
+      totalLiability: this.round(filtered.reduce((sum, row) => sum + this.toNumber(row.estimatedRemainingValue), 0)),
+      cardLiability: this.round(filtered.filter((row) => row.liabilityType === 'card').reduce((sum, row) => sum + this.toNumber(row.estimatedRemainingValue), 0)),
+      balanceLiability: this.round(
+        filtered.filter((row) => row.liabilityType === 'balance').reduce((sum, row) => sum + this.toNumber(row.estimatedRemainingValue), 0),
+      ),
+      cashBalance: this.round(filtered.reduce((sum, row: any) => sum + this.toNumber(row.cashBalance), 0)),
+      giftBalance: this.round(filtered.reduce((sum, row: any) => sum + this.toNumber(row.giftBalance), 0)),
+      highRisk: filtered.filter((row) => row.riskLevel === 'high').length,
+      mediumRisk: filtered.filter((row) => row.riskLevel === 'medium').length,
+    };
     const items = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return { items, data: items, total: filtered.length, page, pageSize };
+    return { items, data: items, total: filtered.length, page, pageSize, summary };
   }
 
   async getBeauticianPerformance(query: QueryBeauticianPerformanceDto, headerStoreId?: string) {
@@ -1008,7 +1218,7 @@ export class OperationProfitService {
         const cardSaleItems = items.filter((item) => this.isCardSaleItem(item.itemType));
         const usageItems = cardUsageRecords.filter((record) => record.beauticianId === beautician.id);
         const cardUsageIncome = usageItems.reduce(
-          (sum, record) => sum + this.toNumber(cardUnitValueByName.get(record.cardName)) * this.toNumber(record.times || 1),
+          (sum, record) => sum + this.getCardUsageRecognizedAmount(record, cardUnitValueByName),
           0,
         );
         const serviceIncome = serviceItems.reduce((sum, item) => sum + this.getItemNetAmount(item), 0) + cardUsageIncome;
@@ -1019,10 +1229,16 @@ export class OperationProfitService {
         const customerIds = new Set<number>();
         for (const item of items) if (item.customerId) customerIds.add(Number(item.customerId));
         for (const usage of usageItems) customerIds.add(usage.customerId);
-        const commissionCost = await this.getCommissionCostForPerformance(commissionOrderItemIds, storeId, {
-          staffUserId: beautician.userId,
-          beauticianId: beautician.id,
-        });
+        const cardUsageRecordIds = usageItems.map((record) => Number(record.id)).filter(Boolean);
+        const commissionCost = await this.getCommissionCostForPerformance(
+          commissionOrderItemIds,
+          storeId,
+          {
+            staffUserId: beautician.userId,
+            beauticianId: beautician.id,
+          },
+          cardUsageRecordIds,
+        );
         const contributionProfit = serviceIncome - commissionCost;
         const cardSalesAmount = cardSaleItems.reduce((sum, item) => sum + this.getItemNetAmount(item), 0);
         return {
@@ -1031,6 +1247,8 @@ export class OperationProfitService {
           storeId: beautician.storeId,
           storeName: beautician.store?.name,
           serviceIncome: this.round(serviceIncome),
+          orderServiceIncome: this.round(serviceItems.reduce((sum, item) => sum + this.getItemNetAmount(item), 0)),
+          cardUsageIncome: this.round(cardUsageIncome),
           serviceCount: this.round(serviceCount),
           customerCount: customerIds.size,
           avgTicket: customerIds.size ? this.round(serviceIncome / customerIds.size) : 0,

@@ -247,6 +247,16 @@ export class QueryPrepaidLiabilitiesDto {
   @IsOptional()
   riskOnly?: boolean;
 
+  @ApiPropertyOptional({ enum: ['all', 'card', 'balance'], default: 'all' })
+  @IsOptional()
+  @IsIn(['all', 'card', 'balance'])
+  type?: 'all' | 'card' | 'balance';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  keyword?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)

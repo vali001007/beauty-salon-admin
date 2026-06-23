@@ -17,6 +17,7 @@ import { CommissionService } from '../commission/commission.service.js';
 import { DiscountAllocationService } from '../orders/discount-allocation.service.js';
 import { CustomerProfileService } from '../customers/customer-profile.service.js';
 import { TerminalDashboardCacheService } from './terminal-dashboard-cache.service.js';
+import { CardsService } from '../cards/cards.service.js';
 import { collectAuraUserFieldScopes, resolveAuraAvailableRolesForUser } from './terminal-role-access.js';
 import { formatBusinessDate, formatBusinessDateTime, toBusinessDateOnly } from '../common/utils/business-time.js';
 import { DeviceLoginDto } from './dto/device-login.dto.js';
@@ -87,6 +88,8 @@ type TerminalCustomerSelectScope = {
   forcedEmpty?: boolean;
 };
 
+type TerminalCheckoutOrderKind = 'product' | 'project';
+
 @Injectable()
 export class TerminalService implements OnModuleInit, OnModuleDestroy {
   private automationScheduler?: NodeJS.Timeout;
@@ -101,6 +104,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     private terminalDashboardCache: TerminalDashboardCacheService = new TerminalDashboardCacheService(),
     @Optional() private customerProfileService?: CustomerProfileService,
     @Optional() private discountAllocationService: DiscountAllocationService = new DiscountAllocationService(),
+    @Optional() private cardsService?: CardsService,
   ) {}
 
   onModuleInit() {
@@ -121,6 +125,43 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return Number(value);
   }
 
+  private roundCurrency(value: number) {
+    return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  }
+
+  private buildCardPricingSnapshot(params: {
+    card: any;
+    paidAmount: number;
+    totalTimes: number;
+    giftTimes?: number;
+    discountAmount?: number;
+  }) {
+    const totalTimes = Math.max(0, this.toNumber(params.totalTimes));
+    const paidAmount = Math.max(0, this.toNumber(params.paidAmount));
+    return {
+      cardId: params.card?.id,
+      cardName: params.card?.name,
+      cardPrice: this.toNumber(params.card?.price),
+      paidAmount,
+      discountAmount: Math.max(0, this.toNumber(params.discountAmount)),
+      totalTimes,
+      giftTimes: Math.max(0, this.toNumber(params.giftTimes)),
+      recognizedUnitValue: totalTimes > 0 ? this.roundCurrency(paidAmount / totalTimes) : 0,
+      projects: Array.isArray(params.card?.projects) ? params.card.projects : [],
+    };
+  }
+
+  private resolveCardRecognizedUnitValue(customerCard: any) {
+    const unitValue = this.toNumber(customerCard?.recognizedUnitValue);
+    if (unitValue > 0) return unitValue;
+    const paidAmount = this.toNumber(customerCard?.paidAmount);
+    const totalTimes = this.toNumber(customerCard?.totalTimes);
+    if (paidAmount > 0 && totalTimes > 0) return this.roundCurrency(paidAmount / totalTimes);
+    const cardPrice = this.toNumber(customerCard?.card?.price);
+    const cardTimes = this.toNumber(customerCard?.card?.totalTimes ?? totalTimes);
+    return cardPrice > 0 && cardTimes > 0 ? this.roundCurrency(cardPrice / cardTimes) : 0;
+  }
+
   private toIso(value?: Date | string | null): string {
     if (!value) return '';
     return value instanceof Date ? value.toISOString() : String(value);
@@ -128,6 +169,52 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private toLocalDateText(value?: Date | string | null): string {
     return formatBusinessDate(value);
+  }
+
+  private resolveCardValidDays(card: any) {
+    const validDays = this.toNumber(card?.validDays);
+    return Number.isFinite(validDays) && validDays > 0 ? validDays : 365;
+  }
+
+  private serializeTerminalSaleCard(card: any) {
+    const totalTimes = this.toNumber(card.totalTimes);
+    return {
+      id: card.id,
+      name: card.name,
+      type: card.type ?? '次卡',
+      totalTimes,
+      price: this.toNumber(card.price),
+      validDays: this.resolveCardValidDays(card),
+      storeId: card.storeId ?? card.store?.id ?? null,
+      storeName: card.storeName ?? card.store?.name ?? (card.storeId ? '' : '全部门店'),
+      status: card.status === '上架' || card.status === 'active' ? '上架' : '下架',
+      createdAt: card.createdAt instanceof Date ? card.createdAt.toISOString() : card.createdAt,
+      projects: Array.isArray(card.projects)
+        ? card.projects
+            .map((project: any) =>
+              typeof project === 'string'
+                ? { projectName: project, timesPerCard: totalTimes || 1 }
+                : {
+                    projectName: project.projectName ?? project.name ?? '',
+                    timesPerCard: this.toNumber(project.timesPerCard ?? project.totalCount ?? (totalTimes || 1)),
+                  },
+            )
+            .filter((project: any) => project.projectName)
+        : [],
+    };
+  }
+
+  private async getTerminalSaleCards(storeId: number) {
+    if (this.cardsService) {
+      return this.cardsService.findSaleOptions({ storeId, limit: 80 });
+    }
+    const cards = await this.prisma.card.findMany({
+      where: { status: 'active', OR: [{ storeId: null }, { storeId }] },
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      take: 80,
+    });
+    return cards.map((card) => this.serializeTerminalSaleCard(card));
   }
 
   private getTerminalConversationModel() {
@@ -276,6 +363,25 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }
     if (!this.hasTerminalRoleSignal(user)) {
       throw new BadRequestException('当前账号未配置智能终端权限');
+    }
+    return user;
+  }
+
+  private async assertStoreUserAllowed(storeId: number, userId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        deletedAt: null,
+        status: 'active',
+        OR: [
+          { stores: { some: { storeId } } },
+          { roles: { some: { role: { key: { in: ['super_admin', 'store_manager'] } } } } },
+        ],
+      },
+      include: { roles: { include: { role: true } }, stores: true },
+    });
+    if (!user) {
+      throw new BadRequestException('销售人员不属于当前门店或已停用');
     }
     return user;
   }
@@ -1184,6 +1290,42 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private isProductOrderItemType(itemType?: string) {
     return ['product', 'goods'].includes(String(itemType ?? '').toLowerCase());
+  }
+
+  private getCheckoutItemKind(itemType?: string): TerminalCheckoutOrderKind {
+    return String(itemType ?? '').toLowerCase() === 'project' ? 'project' : 'product';
+  }
+
+  private getCheckoutOrderKindSuffix(kind: TerminalCheckoutOrderKind) {
+    return kind === 'project' ? 'S' : 'G';
+  }
+
+  private summarizeCheckoutItems(items: any[]) {
+    const round = (value: number) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+    const listAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0));
+    const itemDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.itemDiscountAmount), 0));
+    const orderDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.orderAllocatedDiscountAmount), 0));
+    const totalDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.totalDiscountAmount ?? item.discount), 0));
+    const netAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.netAmount ?? item.subtotal), 0));
+    return {
+      listAmount,
+      itemDiscountAmount,
+      orderDiscountAmount,
+      totalDiscountAmount,
+      netAmount,
+      totalAmount: netAmount,
+    };
+  }
+
+  private groupCheckoutItemsByKind(items: any[]) {
+    const grouped = new Map<TerminalCheckoutOrderKind, any[]>();
+    for (const item of items) {
+      const kind = this.getCheckoutItemKind(item.itemType);
+      const list = grouped.get(kind) ?? [];
+      list.push(item);
+      grouped.set(kind, list);
+    }
+    return Array.from(grouped.entries()).map(([kind, orderItems]) => ({ kind, items: orderItems }));
   }
 
   private async attachProductCostSnapshots(
@@ -2515,7 +2657,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           include: { type: true },
           take: 80,
         }),
-        this.prisma.card.findMany({ where: { status: 'active' }, take: 80 }),
+        this.getTerminalSaleCards(storeId),
         this.prisma.product.findMany({
           where: { storeId, deletedAt: null, status: 'active' },
           include: { category: true },
@@ -2577,23 +2719,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         status: item.status === 'active',
         sort: item.id,
       })),
-      cards: cards.map((item) => ({
-        id: item.id,
-        name: item.name,
-        type: '次卡',
-        totalTimes: item.totalTimes,
-        price: this.toNumber(item.price),
-        validDays: 365,
-        storeName: store.name,
-        status: item.status === 'active' ? '上架' : '下架',
-        createdAt: item.createdAt.toISOString(),
-        projects: Array.isArray(item.projects)
-          ? (item.projects as any[]).map((project) => ({
-              projectName: project.projectName ?? project.name ?? '护理项目',
-              timesPerCard: project.timesPerCard ?? 1,
-            }))
-          : [],
-      })),
+      cards,
       products: products.map((item) => ({
         id: item.id,
         name: item.name,
@@ -3911,12 +4037,29 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
       const record = await tx.cardUsageRecord.create({
         data: {
+          customerCardId: customerCard.id,
+          cardId: customerCard.cardId,
+          projectId: project?.id ?? dto.projectId,
+          storeId: customerCard.customer.storeId,
           customerId,
           customerName: customerCard.customer.name,
           cardName: customerCard.cardName,
           projectName: project?.name || '未知项目',
           times,
           remainingTimes: updatedCard.remainingTimes,
+          recognizedUnitValue: this.resolveCardRecognizedUnitValue(customerCard),
+          recognizedAmount: this.roundCurrency(this.resolveCardRecognizedUnitValue(customerCard) * times),
+          sourceOrderId: customerCard.sourceOrderId,
+          sourceOrderItemId: customerCard.sourceOrderItemId,
+          pricingSnapshot:
+            customerCard.pricingSnapshot ??
+            this.buildCardPricingSnapshot({
+              card: customerCard.card,
+              paidAmount: this.toNumber(customerCard.paidAmount) || this.toNumber(customerCard.card?.price),
+              totalTimes: customerCard.totalTimes,
+              discountAmount: this.toNumber(customerCard.discountAmount),
+              giftTimes: this.toNumber(customerCard.giftTimes),
+            }),
           operatorId: dto.operatorId,
           beauticianId,
           deviceId: terminalDeviceId,
@@ -3936,19 +4079,20 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     if (beauticianId && beautician) {
       try {
-        const cardUnitPrice = customerCard.card.totalTimes
-          ? (this.toNumber(customerCard.card.price) / customerCard.card.totalTimes) * times
-          : 0;
-        if (beautician.userId && cardUnitPrice > 0) {
+        const recognizedAmount = this.toNumber(result.record.recognizedAmount);
+        if (beautician.userId && recognizedAmount > 0) {
           await this.commissionService.calculateCommission({
             storeId: customerCard.customer.storeId,
             staffUserId: beautician.userId,
             beauticianId,
             type: 'project',
             itemId: dto.projectId,
-            sourceAmount: cardUnitPrice,
+            sourceAmount: recognizedAmount,
             levelId: beautician.levelId ?? undefined,
             isDesignated: false,
+            sourceType: 'card_usage',
+            sourceId: result.record.id,
+            cardUsageRecordId: result.record.id,
             remark: `次卡核销：${customerCard.cardName}`,
           });
         }
@@ -3972,6 +4116,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       beauticianId,
       deviceId: terminalDeviceId,
       verifiedAt: result.record.verifiedAt,
+      recognizedAmount: this.toNumber(result.record.recognizedAmount),
     };
   }
 
@@ -4052,6 +4197,20 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderItemId: item.id,
       })),
     });
+    await this.refreshDailySettlementForOrder(input.storeId, input.order.id, 'terminal_checkout');
+  }
+
+  private async refreshDailySettlementForOrder(storeId: number, orderId: number, source: string) {
+    try {
+      const order = await this.prisma.productOrder.findUnique({
+        where: { id: orderId },
+        select: { createdAt: true, status: true },
+      });
+      if (!order || !['completed', 'paid'].includes(order.status)) return;
+      await this.commissionService.generateDailySettlement(storeId, order.createdAt);
+    } catch (error) {
+      console.warn(`Daily settlement refresh failed after ${source}`, error);
+    }
   }
 
   async checkout(storeId: number, dto: CheckoutDto, deviceId?: number) {
@@ -4077,8 +4236,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       ...item,
       beauticianId: item.beauticianId ?? (this.toNumber(resolvedDtoItems[index]?.beauticianId ?? dto.beauticianId) || undefined),
     }));
+    const itemGroups = this.groupCheckoutItemsByKind(allocatedItems);
     const result = await this.prisma.$transaction(async (tx) => {
-      const orderNo = `PO${Date.now().toString(36).toUpperCase()}`;
+      const checkoutGroupNo = `PO${Date.now().toString(36).toUpperCase()}`;
       const shouldLoadCustomer = paymentMethod === 'member_balance' || !dto.customerName;
       const customer =
         dto.customerId && shouldLoadCustomer ? await tx.customer.findUnique({ where: { id: dto.customerId } }) : null;
@@ -4087,71 +4247,82 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       if (paymentMethod === 'member_balance' && !customer) {
         throw new BadRequestException('会员余额支付必须选择客户');
       }
-      const order = await tx.productOrder.create({
-        data: {
-          orderNo,
-          customerId: dto.customerId,
-          customerName,
-          storeId,
-          totalAmount,
-          listAmount: allocation.order.listAmount,
-          itemDiscountAmount: allocation.order.itemDiscountAmount,
-          orderDiscountAmount: allocation.order.orderDiscountAmount,
-          totalDiscountAmount: allocation.order.totalDiscountAmount,
-          netAmount: allocation.order.netAmount,
-          discountSource: allocation.order.discountSource,
-          allocationMethod: allocation.order.allocationMethod,
-          promotionId: allocation.order.promotionId,
-          couponId: allocation.order.couponId,
-          packageId: allocation.order.packageId,
-          discountPayload: allocation.order.discountPayload as Prisma.InputJsonValue,
-          payMethod: paymentMethod,
-          source: 'terminal',
-          status: 'completed',
-          items: allocatedItems.map((item, index) => ({
-            itemType: item.itemType,
-            itemId: item.itemId,
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            discount: item.discount,
-            listAmount: item.listAmount,
-            itemDiscountAmount: item.itemDiscountAmount,
-            orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
-            totalDiscountAmount: item.totalDiscountAmount,
-            netAmount: item.netAmount,
-            discountSource: item.discountSource,
-            allocationMethod: item.allocationMethod,
-            isGift: item.isGift,
-            beauticianId: this.toNumber(allocatedItems[index]?.beauticianId ?? dto.beauticianId) || undefined,
-          })),
-          remark: dto.remark,
-        },
-      });
 
-      await this.createOrderItems(
-        tx,
-        order.id,
-        allocatedItems.map((item) => ({ ...item, beauticianId: item.beauticianId ?? dto.beauticianId })),
-      );
-      const consumedProjectBom = await this.consumeProjectBomForCheckout(
-        tx,
-        storeId,
-        order,
-        allocatedItems,
-        dto.remark,
-      );
-
-      for (const item of allocatedItems) {
-        if (this.isProductOrderItemType(item.itemType)) {
-          await this.createStockMovementForItem(tx, storeId, item, 'sale_out', {
-            type: 'product_order',
-            id: order.id,
-            no: order.orderNo,
+      const createdOrders: any[] = [];
+      let consumedProjectBom = false;
+      for (const group of itemGroups) {
+        const summary = this.summarizeCheckoutItems(group.items);
+        const orderNo =
+          itemGroups.length > 1
+            ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}`
+            : checkoutGroupNo;
+        const orderItemsPayload = group.items.map((item, index) => ({
+          itemType: item.itemType,
+          itemId: item.itemId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          discount: item.discount,
+          listAmount: item.listAmount,
+          itemDiscountAmount: item.itemDiscountAmount,
+          orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
+          totalDiscountAmount: item.totalDiscountAmount,
+          netAmount: item.netAmount,
+          discountSource: item.discountSource,
+          allocationMethod: item.allocationMethod,
+          isGift: item.isGift,
+          beauticianId: this.toNumber(group.items[index]?.beauticianId ?? dto.beauticianId) || undefined,
+        }));
+        const order = await tx.productOrder.create({
+          data: {
+            orderNo,
+            checkoutGroupNo,
+            orderKind: group.kind,
+            customerId: dto.customerId,
+            customerName,
+            storeId,
+            totalAmount: summary.totalAmount,
+            listAmount: summary.listAmount,
+            itemDiscountAmount: summary.itemDiscountAmount,
+            orderDiscountAmount: summary.orderDiscountAmount,
+            totalDiscountAmount: summary.totalDiscountAmount,
+            netAmount: summary.netAmount,
+            discountSource: allocation.order.discountSource,
+            allocationMethod: allocation.order.allocationMethod,
+            promotionId: allocation.order.promotionId,
+            couponId: allocation.order.couponId,
+            packageId: allocation.order.packageId,
+            discountPayload: allocation.order.discountPayload as Prisma.InputJsonValue,
+            payMethod: paymentMethod,
+            source: 'terminal',
+            status: 'completed',
+            items: orderItemsPayload,
             remark: dto.remark,
-          });
+          },
+        });
+
+        await this.createOrderItems(
+          tx,
+          order.id,
+          group.items.map((item) => ({ ...item, beauticianId: item.beauticianId ?? dto.beauticianId })),
+        );
+
+        if (group.kind === 'project') {
+          consumedProjectBom = (await this.consumeProjectBomForCheckout(tx, storeId, order, group.items, dto.remark)) || consumedProjectBom;
         }
+
+        for (const item of group.items) {
+          if (this.isProductOrderItemType(item.itemType)) {
+            await this.createStockMovementForItem(tx, storeId, item, 'sale_out', {
+              type: 'product_order',
+              id: order.id,
+              no: order.orderNo,
+              remark: dto.remark,
+            });
+          }
+        }
+        createdOrders.push(order);
       }
 
       if (dto.customerId) {
@@ -4169,7 +4340,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
             customerId: dto.customerId!,
             type: 'consume',
             amount: totalAmount,
-            orderId: order.id,
+            orderId: createdOrders[0]?.id,
             paymentMethod,
             remark: dto.remark ?? '终端收银余额支付',
           });
@@ -4186,18 +4357,24 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
-      return { order, customer, customerName, customerPhone, consumedProjectBom };
+      return { order: createdOrders[0], orders: createdOrders, customer, customerName, customerPhone, consumedProjectBom, checkoutGroupNo };
     });
-    await this.createPaymentRecord(this.prisma, result.order.id, paymentMethod, totalAmount);
-    this.scheduleCheckoutPostCommitTasks({
-      storeId,
-      dto,
-      order: result.order,
-      totalAmount,
-      paymentMethod,
-      itemCount: normalizedItems.length,
-      deviceId,
-    });
+    await Promise.all(
+      result.orders.map((order: any) =>
+        this.createPaymentRecord(this.prisma, order.id, paymentMethod, this.toNumber(order.netAmount ?? order.totalAmount)),
+      ),
+    );
+    for (const order of result.orders) {
+      this.scheduleCheckoutPostCommitTasks({
+        storeId,
+        dto,
+        order,
+        totalAmount: this.toNumber(order.netAmount ?? order.totalAmount),
+        paymentMethod,
+        itemCount: normalizedItems.length,
+        deviceId,
+      });
+    }
     const responseItems = allocatedItems;
     this.invalidateCashierDashboardCache(storeId);
     if (
@@ -4210,6 +4387,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return {
       id: result.order.id,
       orderNo: result.order.orderNo,
+      checkoutGroupNo: result.checkoutGroupNo,
+      orderKind: itemGroups.length > 1 ? 'mixed' : result.order.orderKind,
+      splitOrderIds: result.orders.map((order: any) => order.id),
+      splitOrderNos: result.orders.map((order: any) => order.orderNo),
       customerId: dto.customerId,
       customerName: result.order.customerName ?? result.customerName ?? result.customer?.name ?? '',
       customerPhone: result.customerPhone ?? result.customer?.phone ?? '',
@@ -4272,6 +4453,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       dto.transactionNo,
     );
     await this.applyMarketingAttribution(this.prisma, order, paidAmount);
+    await this.refreshDailySettlementForOrder(order.storeId ?? 0, order.id, 'terminal_payment');
     const store = order.storeId ? await this.getStore(order.storeId) : null;
     return {
       id: order.id,
@@ -4303,7 +4485,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     ];
   }
 
-  async createCardOrder(storeId: number, dto: CreateCardOrderDto, operatorId?: number) {
+  async createCardOrder(storeId: number, dto: CreateCardOrderDto, currentUserId?: number) {
     const [store, customer, card] = await Promise.all([
       this.getStore(storeId),
       dto.customerId ? this.prisma.customer.findUnique({ where: { id: dto.customerId } }) : Promise.resolve(null),
@@ -4311,22 +4493,32 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     ]);
     if (!card) throw new NotFoundException('卡项不存在');
     const expireTime = new Date();
-    expireTime.setDate(expireTime.getDate() + 365);
+    expireTime.setDate(expireTime.getDate() + this.resolveCardValidDays(card));
     const originalAmount = this.toNumber(card.price);
     const discountAmount = Math.min(originalAmount, Math.max(0, this.toNumber(dto.discountAmount)));
     const amount = Math.max(0, this.toNumber(dto.amount ?? originalAmount - discountAmount));
     const totalTimes = dto.totalTimes ?? card.totalTimes;
     const giftProjects = Array.isArray(dto.giftProjects) ? dto.giftProjects : [];
+    const pricingSnapshot = this.buildCardPricingSnapshot({ card, paidAmount: amount, totalTimes, discountAmount });
+    const selectedOperatorId = this.toNumber(dto.operatorId) || this.toNumber(currentUserId) || undefined;
+    const selectedOperator = selectedOperatorId
+      ? await this.assertStoreUserAllowed(storeId, selectedOperatorId)
+      : null;
     const result = await this.prisma.$transaction(async (tx) => {
       const customerCard = dto.customerId
         ? await tx.customerCard.create({
             data: {
               customerId: dto.customerId,
               cardId: card.id,
-              operatorId: operatorId || undefined,
+              operatorId: selectedOperator?.id,
               cardName: dto.cardName ?? card.name,
               totalTimes,
               remainingTimes: totalTimes,
+              paidAmount: amount,
+              discountAmount,
+              giftTimes: 0,
+              recognizedUnitValue: pricingSnapshot.recognizedUnitValue,
+              pricingSnapshot,
               expiryDate: expireTime,
               status: 'active',
             },
@@ -4337,10 +4529,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       const order = await tx.productOrder.create({
         data: {
           orderNo,
+          orderKind: 'card',
           customerId: dto.customerId,
           customerName: customer?.name ?? dto.customerName,
           storeId,
           totalAmount: amount,
+          listAmount: originalAmount,
+          itemDiscountAmount: discountAmount,
+          orderDiscountAmount: 0,
+          totalDiscountAmount: discountAmount,
+          netAmount: amount,
+          discountSource: discountAmount > 0 ? 'manual' : 'none',
+          allocationMethod: discountAmount > 0 ? 'item' : 'none',
           payMethod: this.getPaymentMethod(dto.paymentMethod),
           source: 'terminal',
           status: 'completed',
@@ -4367,9 +4567,15 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         itemId: card.id,
         name: card.name,
         quantity: 1,
-        unitPrice: amount,
+        unitPrice: originalAmount,
+        listAmount: originalAmount,
         subtotal: amount,
         discount: discountAmount,
+        itemDiscountAmount: discountAmount,
+        totalDiscountAmount: discountAmount,
+        netAmount: amount,
+        discountSource: discountAmount > 0 ? 'manual' : 'none',
+        allocationMethod: discountAmount > 0 ? 'item' : 'none',
         beauticianId: dto.beauticianId,
         giftProjects,
       },
@@ -4377,6 +4583,16 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     await this.createPaymentRecord(this.prisma, result.order.id, dto.paymentMethod, amount, dto.transactionNo);
     await this.applyMarketingAttribution(this.prisma, result.order, amount);
     const cardOrderItems = await this.prisma.orderItem.findMany({ where: { orderId: result.order.id } });
+    const cardOrderItem = cardOrderItems.find((item: any) => item.itemType === 'card' && this.toNumber(item.itemId) === card.id);
+    if (result.customerCard && cardOrderItem) {
+      await this.prisma.customerCard.update({
+        where: { id: result.customerCard.id },
+        data: {
+          sourceOrderId: result.order.id,
+          sourceOrderItemId: cardOrderItem.id,
+        },
+      });
+    }
     await this.calculateTerminalCommissions({
       storeId,
       orderId: result.order.id,
@@ -4389,6 +4605,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderItemId: item.id,
       })),
     });
+    await this.refreshDailySettlementForOrder(storeId, result.order.id, 'terminal_card_order');
     this.invalidateCardDashboardCache(storeId);
     this.invalidateCashierDashboardCache(storeId);
 
@@ -4400,6 +4617,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       customerPhone: customer?.phone ?? dto.customerPhone ?? '',
       cardId: card.id,
       cardName: card.name,
+      operatorId: selectedOperator?.id,
+      operatorName: selectedOperator?.name ?? selectedOperator?.username ?? '',
       storeId,
       storeName: store.name,
       amount,
@@ -4429,10 +4648,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       const created = await tx.productOrder.create({
         data: {
           orderNo,
+          orderKind: 'recharge',
           customerId: dto.customerId,
           customerName: customer?.name ?? dto.customerName,
           storeId,
           totalAmount: amount,
+          listAmount: amount,
+          itemDiscountAmount: 0,
+          orderDiscountAmount: 0,
+          totalDiscountAmount: 0,
+          netAmount: amount,
+          discountSource: 'none',
+          allocationMethod: 'none',
           payMethod: this.getPaymentMethod(dto.paymentMethod),
           source: 'terminal',
           status: 'completed',
@@ -4510,6 +4737,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         name: '会员充值',
         quantity: 1,
         unitPrice: amount,
+        listAmount: amount,
+        subtotal: amount,
+        netAmount: amount,
         beauticianId: dto.beauticianId,
         giftAmount,
         giftProjects,
@@ -4530,6 +4760,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderItemId: item.id,
       })),
     });
+    await this.refreshDailySettlementForOrder(storeId, result.order.id, 'terminal_recharge_order');
     this.invalidateCashierDashboardCache(storeId);
     return {
       id: result.order.id,

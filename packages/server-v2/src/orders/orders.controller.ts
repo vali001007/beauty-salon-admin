@@ -12,7 +12,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 export class OrdersController {
   constructor(private ordersService: OrdersService) {}
 
-  private canViewProjectOrderProfit(user?: { roles?: string[]; permissions?: string[] }) {
+  private canViewOrderProfit(user?: { roles?: string[]; permissions?: string[] }) {
     const roles = user?.roles ?? [];
     const permissions = user?.permissions ?? [];
     return permissions.includes('*') || roles.includes('super_admin') || roles.includes('store_manager');
@@ -74,10 +74,20 @@ export class OrdersController {
   @Permissions('core:order:projects', 'core:project-order-profit:view')
   @ApiOperation({ summary: '获取项目订单利润明细' })
   findProjectOrderProfit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
-    if (!this.canViewProjectOrderProfit(user)) {
+    if (!this.canViewOrderProfit(user)) {
       throw new ForbiddenException('仅店长和系统管理员可查看项目订单利润');
     }
     return this.ordersService.findProjectOrderProfit(id);
+  }
+
+  @Get('product/:id/profit')
+  @Permissions('core:order:products', 'core:product-order-profit:view')
+  @ApiOperation({ summary: '获取商品订单利润明细' })
+  findProductOrderProfit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (!this.canViewOrderProfit(user)) {
+      throw new ForbiddenException('仅店长和系统管理员可查看商品订单利润');
+    }
+    return this.ordersService.findProductOrderProfit(id);
   }
 
   @Get('project/:id')
@@ -205,6 +215,47 @@ export class OrdersController {
     @Query('cardName') cardName?: string,
   ) {
     return this.ordersService.findCardOrdersPaginated({ page, pageSize, userName, cardName });
+  }
+
+  @Get('card-orders/:id/profit')
+  @Permissions('core:order:card-orders', 'core:card-order-profit:view')
+  @ApiOperation({ summary: '获取次卡订单利润明细' })
+  findCardOrderProfit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (!this.canViewOrderProfit(user)) {
+      throw new ForbiddenException('仅店长和系统管理员可查看次卡订单利润');
+    }
+    return this.ordersService.findCardOrderProfit(id);
+  }
+
+  @Get('card-orders/:id')
+  @Permissions('core:order:card-orders')
+  @ApiOperation({ summary: '获取次卡开卡记录详情' })
+  findCardOrderById(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.findCardOrderById(id);
+  }
+
+  @Put('card-orders/:id')
+  @Permissions('core:order:card-orders')
+  @ApiOperation({ summary: '编辑次卡开卡记录' })
+  updateCardOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.ordersService.updateCardOrder(id, dto);
+  }
+
+  @Post('card-orders/:id/void')
+  @Permissions('core:order:card-orders')
+  @ApiOperation({ summary: '次卡退卡作废' })
+  voidCardOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.ordersService.voidCardOrder(id, dto);
+  }
+
+  @Get('card-usage/:id/profit')
+  @Permissions('core:order:card-usage', 'core:card-order-profit:view')
+  @ApiOperation({ summary: '获取次卡核销利润明细' })
+  findCardUsageProfit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (!this.canViewOrderProfit(user)) {
+      throw new ForbiddenException('仅店长和系统管理员可查看次卡核销利润');
+    }
+    return this.ordersService.findCardUsageProfit(id);
   }
 
   @Get('card-usage/paginated')

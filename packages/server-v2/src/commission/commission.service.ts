@@ -19,6 +19,9 @@ export type CalculateCommissionParams = {
   beauticianId?: number;
   orderId?: number;
   orderItemId?: number;
+  sourceType?: string;
+  sourceId?: number;
+  cardUsageRecordId?: number;
   type: 'project' | 'product' | 'card_sale' | 'recharge' | 'new_customer';
   itemId?: number;
   categoryId?: number;
@@ -943,12 +946,16 @@ export class CommissionService {
         beauticianId: params.beauticianId,
         orderId: params.orderId,
         orderItemId: params.orderItemId,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId,
+        cardUsageRecordId: params.cardUsageRecordId,
         ruleId: rule.id,
         type: params.type,
         sourceAmount: base,
         rate,
         amount,
-        status: 'pending',
+        status: 'confirmed',
+        confirmedAt: new Date(),
         settleMonth: this.getSettleMonth(),
         remark: params.remark,
       },
@@ -1101,6 +1108,70 @@ export class CommissionService {
     };
   }
 
+  async updateRecord(
+    id: number,
+    dto: { staffUserId?: number; sourceAmount?: number; rate?: number; amount?: number; remark?: string },
+  ) {
+    const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
+    if (!record) throw new NotFoundException('提成流水不存在');
+    if (record.status === 'settled') throw new BadRequestException('已结算提成不能修改，请先撤销结算后再调整');
+    if (record.status === 'cancelled') throw new BadRequestException('已取消提成不能修改');
+
+    const data: any = {};
+    const staffUserId = this.toNumber(dto.staffUserId);
+    if (staffUserId > 0 && staffUserId !== this.toNumber(record.staffUserId)) {
+      const staffUser = await this.prisma.user.findFirst({
+        where: { id: staffUserId, status: 'active', deletedAt: null, stores: { some: { storeId: record.storeId } } },
+        select: { id: true },
+      });
+      if (!staffUser) throw new BadRequestException('员工不存在或不属于当前门店');
+      const beautician = await this.prisma.beautician.findFirst({
+        where: { storeId: record.storeId, userId: staffUserId, status: 'active' },
+        select: { id: true },
+      });
+      data.staffUserId = staffUserId;
+      data.beauticianId = beautician?.id ?? null;
+    }
+
+    const hasSourceAmount = dto.sourceAmount !== undefined && dto.sourceAmount !== null;
+    const hasRate = dto.rate !== undefined && dto.rate !== null;
+    const hasAmount = dto.amount !== undefined && dto.amount !== null;
+    const sourceAmount = hasSourceAmount ? this.toNumber(dto.sourceAmount) : this.toNumber(record.sourceAmount);
+    const rate = hasRate ? this.toNumber(dto.rate) : this.toNumber(record.rate);
+    if (hasSourceAmount) {
+      if (sourceAmount < 0) throw new BadRequestException('金额基数不能小于 0');
+      data.sourceAmount = sourceAmount;
+    }
+    if (hasRate) {
+      if (rate < 0) throw new BadRequestException('提成比例不能小于 0');
+      data.rate = rate;
+    }
+    if (hasAmount) {
+      const amount = this.toNumber(dto.amount);
+      if (amount < 0) throw new BadRequestException('提成金额不能小于 0');
+      data.amount = Math.round(amount * 100) / 100;
+    } else if (hasSourceAmount || hasRate) {
+      data.amount = Math.round(sourceAmount * rate * 100) / 100;
+    }
+    if (dto.remark !== undefined) data.remark = dto.remark?.trim() || null;
+    data.status = 'confirmed';
+    data.confirmedAt = record.confirmedAt ?? new Date();
+
+    const updated = await this.prisma.commissionRecord.update({
+      where: { id },
+      data,
+      include: {
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true } },
+        order: { select: { id: true, orderNo: true, customerName: true } },
+        orderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
+        rule: { select: { id: true, name: true } },
+      },
+    });
+    return this.serializeRecord(updated);
+  }
+
   async confirmRecord(id: number) {
     const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('提成流水不存在');
@@ -1136,7 +1207,7 @@ export class CommissionService {
     if (!settleMonth) throw new BadRequestException('缺少结算月份');
 
     const records = await this.prisma.commissionRecord.findMany({
-      where: { storeId, settleMonth, status: 'confirmed' },
+      where: { storeId, settleMonth, status: { in: ['pending', 'confirmed'] } },
     });
     const grouped = new Map<number, any>();
     for (const record of records) {
@@ -1304,7 +1375,7 @@ export class CommissionService {
         storeId: settlement.storeId,
         staffUserId: settlement.staffUserId,
         settleMonth: settlement.settleMonth,
-        status: 'confirmed',
+        status: { in: ['pending', 'confirmed'] },
       },
       data: { status: 'settled', settledAt: new Date() },
     });

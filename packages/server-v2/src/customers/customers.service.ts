@@ -780,6 +780,128 @@ export class CustomersService {
     return { items: viewItems, data: viewItems, total, page, pageSize };
   }
 
+  async getCardPortraits(query: QueryCustomersDto, storeId?: number) {
+    const page = Number(query.page ?? 1) || 1;
+    const pageSize = Number(query.pageSize ?? 20) || 20;
+    const { keyword, name, phone, memberLevel, storeName } = query;
+    const where: any = { deletedAt: null };
+
+    if (storeId) where.storeId = storeId;
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword, mode: 'insensitive' } },
+        { phone: { contains: keyword } },
+      ];
+    }
+    if (name) where.name = { contains: name, mode: 'insensitive' };
+    if (phone) where.phone = { contains: phone };
+    if (memberLevel) where.memberLevel = memberLevel;
+    if (storeName) where.store = { name: storeName };
+
+    const [customers, total, saleCards] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        include: { store: { select: { id: true, name: true } } },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.customer.count({ where }),
+      this.prisma.card.findMany({
+        where: {
+          status: 'active',
+          ...(storeId ? { OR: [{ storeId: null }, { storeId }] } : {}),
+        },
+        include: { store: { select: { id: true, name: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      }),
+    ]);
+
+    const customerIds = customers.map((customer) => customer.id);
+    const customerCards = customerIds.length
+      ? await this.prisma.customerCard.findMany({
+          where: { customerId: { in: customerIds } },
+          include: {
+            card: { select: { id: true, name: true, price: true, totalTimes: true, validDays: true, projects: true, status: true } },
+            operator: { select: { id: true, name: true, username: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+    const customerCardsByCustomerId = new Map<number, any[]>();
+    for (const card of customerCards) {
+      const list = customerCardsByCustomerId.get(card.customerId) ?? [];
+      list.push(card);
+      customerCardsByCustomerId.set(card.customerId, list);
+    }
+
+    const toCardProjects = (value: unknown) => {
+      const parsed = Array.isArray(value) ? value : this.tryParseJson(value);
+      return (Array.isArray(parsed) ? parsed : [])
+        .map((project: any) => ({
+          projectName: String(project?.projectName ?? project?.name ?? project ?? '').trim(),
+          timesPerCard: this.toNumber(project?.timesPerCard ?? project?.totalCount ?? project?.times ?? 0),
+        }))
+        .filter((project) => project.projectName);
+    };
+
+    const toAvailableCard = (card: any) => ({
+      cardId: card.id,
+      cardName: card.name,
+      totalTimes: this.toNumber(card.totalTimes),
+      price: this.toNumber(card.price),
+      validDays: this.toNumber(card.validDays),
+      storeId: card.storeId ?? null,
+      storeName: card.store?.name ?? '全部门店',
+      projects: toCardProjects(card.projects),
+    });
+
+    const availableCards = saleCards.map(toAvailableCard);
+    const items = customers.map((customer) => {
+      const purchasedCards = (customerCardsByCustomerId.get(customer.id) ?? []).map((card) => ({
+        customerCardId: card.id,
+        cardId: card.cardId,
+        cardName: card.cardName ?? card.card?.name ?? '',
+        totalTimes: this.toNumber(card.totalTimes),
+        remainingTimes: this.toNumber(card.remainingTimes),
+        usedTimes: Math.max(0, this.toNumber(card.totalTimes) - this.toNumber(card.remainingTimes)),
+        paidAmount: this.toNumber(card.paidAmount),
+        discountAmount: this.toNumber(card.discountAmount),
+        giftTimes: this.toNumber(card.giftTimes),
+        status: card.status,
+        expireTime: this.formatDate(card.expiryDate),
+        purchaseTime: this.formatDate(card.createdAt),
+        operatorName: card.operator?.name ?? card.operator?.username ?? '',
+        projects: toCardProjects(card.card?.projects),
+      }));
+      const purchasedActiveIds = new Set(
+        purchasedCards
+          .filter((card) => !['voided', 'cancelled'].includes(String(card.status)))
+          .map((card) => card.cardId)
+          .filter(Boolean),
+      );
+      const missingCards = availableCards.filter((card) => !purchasedActiveIds.has(card.cardId));
+
+      return {
+        customerId: customer.id,
+        customerName: customer.name,
+        customerPhone: customer.phone ?? '',
+        storeId: customer.storeId,
+        storeName: customer.store?.name ?? '',
+        memberLevel: customer.memberLevel,
+        totalSpent: this.toNumber(customer.totalSpent),
+        lastVisitDate: this.formatDate(customer.lastVisitDate),
+        purchasedCards,
+        missingCards,
+        purchasedCount: purchasedCards.length,
+        missingCount: missingCards.length,
+      };
+    });
+
+    return { items, data: items, total, page, pageSize };
+  }
+
   async findById(id: number) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },

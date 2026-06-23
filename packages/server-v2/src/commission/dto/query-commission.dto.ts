@@ -76,6 +76,7 @@ export class QueryCommissionRecordsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   staffUserId?: number;
 
   @ApiPropertyOptional({ description: '历史兼容字段：美容师 ID。新提成主体使用 staffUserId。' })
@@ -128,6 +129,40 @@ export class BatchConfirmCommissionRecordsDto {
   @IsOptional()
   @IsString()
   settleMonth?: string;
+}
+
+export class UpdateCommissionRecordDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  staffUserId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sourceAmount?: number;
+
+  @ApiPropertyOptional({ description: '提成比例，传 0.08 表示 8%。' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  rate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  amount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  remark?: string;
 }
 
 export class QueryCommissionSettlementsDto {

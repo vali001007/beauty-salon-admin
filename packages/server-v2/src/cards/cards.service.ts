@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CommissionService } from '../commission/commission.service.js';
 
 @Injectable()
 export class CardsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private commissionService: CommissionService,
+  ) {}
 
   private toNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
@@ -12,6 +16,130 @@ export class CardsService {
 
   private createStockMovementNo(prefix = 'SM') {
     return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  }
+
+  private roundCurrency(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private normalizeCardStatus(status: unknown) {
+    const value = String(status ?? '').trim();
+    if (!value || ['active', 'enabled', '上架', '在售', 'true'].includes(value)) return 'active';
+    if (['inactive', 'disabled', '下架', '停售', 'false'].includes(value)) return 'inactive';
+    return value;
+  }
+
+  private toOptionalPositiveNumber(value: unknown) {
+    if (value === null || value === undefined || value === '') return undefined;
+    const normalized = Number(value);
+    return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined;
+  }
+
+  private resolveCardValidDays(card: any) {
+    const validDays = this.toOptionalPositiveNumber(card?.validDays);
+    return validDays ?? 365;
+  }
+
+  private resolveCardExpiryDate(data: any, card: any) {
+    const explicitDate = data.expiryDate ?? data.expireTime;
+    if (explicitDate) return new Date(explicitDate);
+    return new Date(Date.now() + this.resolveCardValidDays(card) * 24 * 60 * 60 * 1000);
+  }
+
+  private buildCardMutationData(data: any, mode: 'create' | 'update') {
+    const payload: any = {};
+    if (data.name !== undefined) payload.name = String(data.name).trim();
+    if (data.description !== undefined) payload.description = data.description ? String(data.description) : null;
+    if (data.totalTimes !== undefined) payload.totalTimes = Number(data.totalTimes);
+    if (data.price !== undefined) payload.price = Number(data.price);
+    if (data.projects !== undefined || mode === 'create') {
+      payload.projects = Array.isArray(data.projects) ? data.projects : [];
+    }
+    if (data.status !== undefined) payload.status = this.normalizeCardStatus(data.status);
+    if (data.validDays !== undefined || mode === 'create') {
+      payload.validDays = this.toOptionalPositiveNumber(data.validDays) ?? 365;
+    }
+    if (data.sortOrder !== undefined || data.sort !== undefined) {
+      payload.sortOrder = Number(data.sortOrder ?? data.sort) || 0;
+    }
+    if (data.storeId !== undefined) {
+      payload.storeId = this.toOptionalPositiveNumber(data.storeId) ?? null;
+    }
+    return payload;
+  }
+
+  private serializeCard(card: any) {
+    const totalTimes = Number(card.totalTimes ?? 0);
+    const projects = Array.isArray(card.projects)
+      ? card.projects
+          .map((project: any) =>
+            typeof project === 'string'
+              ? { projectName: project, timesPerCard: totalTimes || 1 }
+              : {
+                  projectName: project.projectName ?? project.name ?? '',
+                  timesPerCard: Number(project.timesPerCard ?? project.totalCount ?? (totalTimes || 1)),
+                },
+          )
+          .filter((project: any) => project.projectName)
+      : [];
+    return {
+      id: card.id,
+      name: card.name,
+      description: card.description ?? '',
+      type: '次卡',
+      totalTimes,
+      price: this.toNumber(card.price),
+      validDays: this.resolveCardValidDays(card),
+      storeId: card.storeId ?? card.store?.id ?? null,
+      storeName: card.store?.name ?? (card.storeId ? '' : '全部门店'),
+      status: this.normalizeCardStatus(card.status) === 'active' ? '上架' : '下架',
+      sortOrder: Number(card.sortOrder ?? 0),
+      createdAt: card.createdAt instanceof Date ? card.createdAt.toISOString() : card.createdAt,
+      projects,
+    };
+  }
+
+  private async findCardOrThrow(id: number) {
+    const card = await this.prisma.card.findUnique({
+      where: { id },
+      include: { store: { select: { id: true, name: true } } },
+    });
+    if (!card) throw new NotFoundException('次卡不存在');
+    return card;
+  }
+
+  private buildCardPricingSnapshot(params: {
+    card: any;
+    paidAmount: number;
+    totalTimes: number;
+    giftTimes?: number;
+    discountAmount?: number;
+  }) {
+    const totalTimes = Math.max(0, this.toNumber(params.totalTimes));
+    const paidAmount = Math.max(0, this.toNumber(params.paidAmount));
+    const recognizedUnitValue = totalTimes > 0 ? this.roundCurrency(paidAmount / totalTimes) : 0;
+    return {
+      cardId: params.card?.id,
+      cardName: params.card?.name,
+      cardPrice: this.toNumber(params.card?.price),
+      paidAmount,
+      discountAmount: Math.max(0, this.toNumber(params.discountAmount)),
+      totalTimes,
+      giftTimes: Math.max(0, this.toNumber(params.giftTimes)),
+      recognizedUnitValue,
+      projects: Array.isArray(params.card?.projects) ? params.card.projects : [],
+    };
+  }
+
+  private resolveRecognizedUnitValue(customerCard: any) {
+    const snapshotUnit = this.toNumber(customerCard?.recognizedUnitValue);
+    if (snapshotUnit > 0) return snapshotUnit;
+    const paidAmount = this.toNumber(customerCard?.paidAmount);
+    const totalTimes = this.toNumber(customerCard?.totalTimes);
+    if (paidAmount > 0 && totalTimes > 0) return this.roundCurrency(paidAmount / totalTimes);
+    const cardPrice = this.toNumber(customerCard?.card?.price);
+    const cardTimes = this.toNumber(customerCard?.card?.totalTimes ?? totalTimes);
+    return cardPrice > 0 && cardTimes > 0 ? this.roundCurrency(cardPrice / cardTimes) : 0;
   }
 
   private async consumeProjectBomForCardUsage(
@@ -76,26 +204,51 @@ export class CardsService {
   }
 
   async findAll() {
-    return this.prisma.card.findMany({ orderBy: { createdAt: 'desc' } });
+    const cards = await this.prisma.card.findMany({
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
+    return cards.map((card) => this.serializeCard(card));
   }
 
   async findById(id: number) {
-    const card = await this.prisma.card.findUnique({ where: { id } });
-    if (!card) throw new NotFoundException('次卡不存在');
-    return card;
+    return this.serializeCard(await this.findCardOrThrow(id));
+  }
+
+  async findSaleOptions(params: { storeId?: number; limit?: number } = {}) {
+    const storeId = this.toOptionalPositiveNumber(params.storeId);
+    const cards = await this.prisma.card.findMany({
+      where: {
+        status: 'active',
+        ...(storeId ? { OR: [{ storeId: null }, { storeId }] } : {}),
+      },
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      take: params.limit ?? 200,
+    });
+    return cards.map((card) => this.serializeCard(card));
   }
 
   async create(data: any) {
-    return this.prisma.card.create({ data });
+    const card = await this.prisma.card.create({
+      data: this.buildCardMutationData(data, 'create'),
+      include: { store: { select: { id: true, name: true } } },
+    });
+    return this.serializeCard(card);
   }
 
   async update(id: number, data: any) {
-    await this.findById(id);
-    return this.prisma.card.update({ where: { id }, data });
+    await this.findCardOrThrow(id);
+    const card = await this.prisma.card.update({
+      where: { id },
+      data: this.buildCardMutationData(data, 'update'),
+      include: { store: { select: { id: true, name: true } } },
+    });
+    return this.serializeCard(card);
   }
 
   async remove(id: number) {
-    await this.findById(id);
+    await this.findCardOrThrow(id);
     return this.prisma.card.delete({ where: { id } });
   }
 
@@ -117,10 +270,11 @@ export class CardsService {
     const card = await this.prisma.card.findUnique({ where: { id: cardId } });
     if (!card) throw new NotFoundException('次卡不存在');
 
-    const expiryDate = data.expiryDate ?? data.expireTime
-      ? new Date(data.expiryDate ?? data.expireTime)
-      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const expiryDate = this.resolveCardExpiryDate(data, card);
     const totalTimes = Number(data.totalTimes ?? card.totalTimes ?? 0);
+    const paidAmount = Math.max(0, this.toNumber(data.paidAmount ?? data.amount ?? data.actualPrice ?? card.price));
+    const discountAmount = Math.max(0, this.toNumber(card.price) - paidAmount);
+    const pricingSnapshot = this.buildCardPricingSnapshot({ card, paidAmount, totalTimes, discountAmount });
 
     return this.prisma.customerCard.create({
       data: {
@@ -130,6 +284,11 @@ export class CardsService {
         cardName: data.cardName ?? card.name,
         totalTimes,
         remainingTimes: Number(data.remainingTimes ?? totalTimes),
+        paidAmount,
+        discountAmount,
+        giftTimes: 0,
+        recognizedUnitValue: pricingSnapshot.recognizedUnitValue,
+        pricingSnapshot,
         expiryDate,
         status: data.status ?? 'active',
       },
@@ -165,7 +324,7 @@ export class CardsService {
           : { customerId: Number(data.customerId), cardName: data.cardName, status: 'active' },
         include: {
           customer: { select: { name: true, storeId: true } },
-          card: { select: { projects: true } },
+          card: { select: { id: true, name: true, price: true, totalTimes: true, projects: true } },
         },
       });
       if (!customerCard) throw new NotFoundException('未找到有效次卡');
@@ -204,15 +363,37 @@ export class CardsService {
         where: { id: customerCard.id },
         data: { remainingTimes: customerCard.remainingTimes - times },
       });
+      const matchedProjectId = this.toNumber((matchedProject as any).projectId ?? (matchedProject as any).id) || undefined;
+      const cardId = this.toNumber(customerCard.cardId) || this.toNumber(customerCard.card?.id) || undefined;
+      const recognizedUnitValue = this.resolveRecognizedUnitValue(customerCard);
+      const recognizedAmount = this.roundCurrency(recognizedUnitValue * times);
+      const pricingSnapshot =
+        customerCard.pricingSnapshot ??
+        this.buildCardPricingSnapshot({
+          card: { ...customerCard.card, id: cardId, name: customerCard.card?.name ?? customerCard.cardName },
+          paidAmount: this.toNumber(customerCard.paidAmount) || this.toNumber(customerCard.card?.price),
+          totalTimes: this.toNumber(customerCard.totalTimes),
+          discountAmount: this.toNumber(customerCard.discountAmount),
+          giftTimes: this.toNumber(customerCard.giftTimes),
+        });
 
       const record = await tx.cardUsageRecord.create({
         data: {
+          customerCardId: customerCard.id,
+          cardId,
+          projectId: matchedProjectId,
+          storeId: customerCard.customer.storeId,
           customerId: customerCard.customerId,
           customerName: customerCard.customer?.name ?? '',
           cardName: customerCard.cardName,
           projectName: data.projectName,
           times,
           remainingTimes: updatedCard.remainingTimes,
+          recognizedUnitValue,
+          recognizedAmount,
+          sourceOrderId: customerCard.sourceOrderId,
+          sourceOrderItemId: customerCard.sourceOrderItemId,
+          pricingSnapshot,
           operatorId: data.operatorId,
           beauticianId: data.beauticianId,
           deviceId: data.deviceId,
@@ -222,11 +403,37 @@ export class CardsService {
       await this.consumeProjectBomForCardUsage(tx, {
         storeId: customerCard.customer.storeId,
         projectName: data.projectName,
-        projectId: this.toNumber((matchedProject as any).projectId ?? (matchedProject as any).id) || undefined,
+        projectId: matchedProjectId,
         times,
         recordId: record.id,
         cardName: customerCard.cardName,
       });
+
+      if (data.beauticianId && recognizedAmount > 0) {
+        const beautician = await tx.beautician.findFirst({
+          where: { id: data.beauticianId, storeId: customerCard.customer.storeId, status: 'active' },
+          select: { id: true, levelId: true, userId: true },
+        });
+        if (beautician?.userId) {
+          await this.commissionService.calculateCommission(
+            {
+              storeId: customerCard.customer.storeId,
+              staffUserId: beautician.userId,
+              beauticianId: beautician.id,
+              type: 'project',
+              itemId: matchedProjectId,
+              sourceAmount: recognizedAmount,
+              levelId: beautician.levelId ?? undefined,
+              isDesignated: false,
+              sourceType: 'card_usage',
+              sourceId: record.id,
+              cardUsageRecordId: record.id,
+              remark: `次卡核销：${customerCard.cardName}`,
+            },
+            tx,
+          );
+        }
+      }
 
       return record;
     });

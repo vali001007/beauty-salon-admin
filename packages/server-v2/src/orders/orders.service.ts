@@ -27,6 +27,11 @@ export class OrdersService {
     return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
   }
 
+  private resolveCardValidDays(card: any) {
+    const validDays = this.toNumber(card?.validDays);
+    return Number.isFinite(validDays) && validDays > 0 ? validDays : 365;
+  }
+
   private toJson(value: unknown): Prisma.InputJsonValue {
     return value as Prisma.InputJsonValue;
   }
@@ -41,6 +46,47 @@ export class OrdersService {
 
   private createStockMovementNo(prefix = 'SM') {
     return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  }
+
+  private async assertStoreUserAllowed(storeId: number, userId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        deletedAt: null,
+        status: 'active',
+        OR: [
+          { stores: { some: { storeId } } },
+          { roles: { some: { role: { key: { in: ['super_admin', 'store_manager'] } } } } },
+        ],
+      },
+      include: { roles: { include: { role: true } }, stores: true },
+    });
+    if (!user) {
+      throw new BadRequestException('销售人员不属于当前门店或已停用');
+    }
+    return user;
+  }
+
+  private buildCardPricingSnapshot(params: {
+    card: any;
+    paidAmount: number;
+    totalTimes: number;
+    giftTimes?: number;
+    discountAmount?: number;
+  }) {
+    const totalTimes = Math.max(0, this.toNumber(params.totalTimes));
+    const paidAmount = Math.max(0, this.toNumber(params.paidAmount));
+    return {
+      cardId: params.card?.id,
+      cardName: params.card?.name,
+      cardPrice: this.toNumber(params.card?.price),
+      paidAmount,
+      discountAmount: Math.max(0, this.toNumber(params.discountAmount)),
+      totalTimes,
+      giftTimes: Math.max(0, this.toNumber(params.giftTimes)),
+      recognizedUnitValue: totalTimes > 0 ? this.round(paidAmount / totalTimes) : 0,
+      projects: Array.isArray(params.card?.projects) ? params.card.projects : [],
+    };
   }
 
   private isPaidLikeStatus(status?: string) {
@@ -136,6 +182,73 @@ export class OrdersService {
 
   private isProductOrderItemType(itemType?: string) {
     return ['product', 'goods'].includes(String(itemType ?? '').toLowerCase());
+  }
+
+  private getPayloadNumber(payload: unknown, keys: string[]) {
+    if (!payload || typeof payload !== 'object') return undefined;
+    const source = payload as Record<string, unknown>;
+    for (const key of keys) {
+      const value = source[key];
+      if (value === null || value === undefined || value === '') continue;
+      const normalized = Number(value);
+      if (Number.isFinite(normalized) && normalized > 0) return normalized;
+    }
+    return undefined;
+  }
+
+  private getItemNetAmount(item: any) {
+    return this.toNumber(item?.netAmount ?? item?.subtotal);
+  }
+
+  private getItemListAmount(item: any) {
+    return this.toNumber(item?.listAmount ?? item?.subtotal);
+  }
+
+  private getOrderRefundAmount(order: any) {
+    return (order?.refundRecords ?? [])
+      .filter((refund: any) => ['completed', 'success', 'paid', 'refunded'].includes(String(refund.status)))
+      .reduce((sum: number, refund: any) => sum + this.toNumber(refund.amount), 0);
+  }
+
+  private getRefundShare(item: any, order: any) {
+    const orderTotal = Math.max(this.toNumber(order?.netAmount ?? order?.totalAmount), 0);
+    if (orderTotal <= 0) return 0;
+    const refundAmount = this.getOrderRefundAmount(order);
+    if (refundAmount <= 0) return 0;
+    const itemAmount = this.getItemNetAmount(item);
+    return Math.min(itemAmount, refundAmount * (itemAmount / orderTotal));
+  }
+
+  private resolveProductItemCost(item: any, productCostById: Map<number, number>, stockMovementProductIds: Set<number>) {
+    const quantity = this.toNumber(item.quantity || 1) || 1;
+    const snapshotUnitCost = this.getPayloadNumber(item.payload, ['costPrice', 'unitCost', 'productCostPrice']);
+    const snapshotCostAmount = this.getPayloadNumber(item.payload, ['costAmount', 'productCostAmount']);
+    if (snapshotCostAmount !== undefined) {
+      return {
+        unitCost: quantity > 0 ? snapshotCostAmount / quantity : snapshotCostAmount,
+        costAmount: snapshotCostAmount,
+        source: 'order_snapshot',
+      };
+    }
+    if (snapshotUnitCost !== undefined) {
+      return {
+        unitCost: snapshotUnitCost,
+        costAmount: snapshotUnitCost * quantity,
+        source: 'order_snapshot',
+      };
+    }
+
+    const productId = Number(item.itemId);
+    const masterUnitCost = this.toNumber(productCostById.get(productId));
+    if (masterUnitCost > 0) {
+      return {
+        unitCost: masterUnitCost,
+        costAmount: masterUnitCost * quantity,
+        source: stockMovementProductIds.has(productId) ? 'stock_movement' : 'product_master',
+      };
+    }
+
+    return { unitCost: 0, costAmount: 0, source: 'missing' };
   }
 
   private async attachProductCostSnapshots(
@@ -382,13 +495,33 @@ export class OrdersService {
     };
   }
 
-  private serializeProductOrder(order: any) {
+  private getOrderItemScopeSummary(items: any[]) {
+    const listAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.listAmount ?? item.quantity * item.unitPrice), 0));
+    const itemDiscountAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.itemDiscountAmount), 0));
+    const orderDiscountAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.orderAllocatedDiscountAmount), 0));
+    const totalDiscountAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.totalDiscountAmount ?? item.discount), 0));
+    const netAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.netAmount ?? item.subtotal), 0));
+    return {
+      listAmount,
+      itemDiscountAmount,
+      orderDiscountAmount,
+      totalDiscountAmount,
+      netAmount,
+      totalAmount: netAmount,
+    };
+  }
+
+  private serializeProductOrder(order: any, scopeItemType?: string) {
     const rawItems = Array.isArray(order.orderItems) && order.orderItems.length
       ? order.orderItems
       : Array.isArray(order.items)
         ? order.items
         : [];
     const payment = Array.isArray(order.paymentRecords) ? order.paymentRecords[0] : undefined;
+    const items = rawItems
+      .map((item: any, index: number) => this.toProductOrderItem(item, index))
+      .filter((item: any) => !scopeItemType || String(item.itemType).toLowerCase() === scopeItemType);
+    const scopedSummary = scopeItemType ? this.getOrderItemScopeSummary(items) : undefined;
     return {
       ...order,
       customerId: order.customerId ?? order.customer?.id,
@@ -396,13 +529,15 @@ export class OrdersService {
       customerPhone: order.customer?.phone ?? '',
       storeId: order.storeId ?? order.store?.id,
       storeName: order.store?.name ?? '',
-      items: rawItems.map((item: any, index: number) => this.toProductOrderItem(item, index)),
-      totalAmount: this.toNumber(order.totalAmount),
-      listAmount: this.toNumber(order.listAmount || order.totalAmount),
-      itemDiscountAmount: this.toNumber(order.itemDiscountAmount),
-      orderDiscountAmount: this.toNumber(order.orderDiscountAmount),
-      totalDiscountAmount: this.toNumber(order.totalDiscountAmount),
-      netAmount: this.toNumber(order.netAmount || order.totalAmount),
+      checkoutGroupNo: order.checkoutGroupNo ?? order.orderNo,
+      orderKind: order.orderKind,
+      items,
+      totalAmount: scopedSummary?.totalAmount ?? this.toNumber(order.totalAmount),
+      listAmount: scopedSummary?.listAmount ?? this.toNumber(order.listAmount || order.totalAmount),
+      itemDiscountAmount: scopedSummary?.itemDiscountAmount ?? this.toNumber(order.itemDiscountAmount),
+      orderDiscountAmount: scopedSummary?.orderDiscountAmount ?? this.toNumber(order.orderDiscountAmount),
+      totalDiscountAmount: scopedSummary?.totalDiscountAmount ?? this.toNumber(order.totalDiscountAmount),
+      netAmount: scopedSummary?.netAmount ?? this.toNumber(order.netAmount || order.totalAmount),
       discountSource: order.discountSource,
       allocationMethod: order.allocationMethod,
       promotionId: order.promotionId,
@@ -414,6 +549,16 @@ export class OrdersService {
       createdAt: order.createdAt,
       completedAt: payment?.paidAt ?? undefined,
     };
+  }
+
+  private async refreshDailySettlementForOrder(order: any, source: string) {
+    const storeId = this.toNumber(order?.storeId);
+    if (!storeId || !['completed', 'paid'].includes(String(order?.status))) return;
+    try {
+      await this.commissionService.generateDailySettlement(storeId, order.createdAt ?? new Date());
+    } catch (error) {
+      console.warn(`Daily settlement refresh failed after ${source}`, error);
+    }
   }
 
   private async calculateOrderCommissionIfNeeded(tx: any, order: any, data: any) {
@@ -736,7 +881,7 @@ export class OrdersService {
       this.prisma.productOrder.count({ where }),
     ]);
 
-    const normalizedItems = items.map((item) => this.serializeProductOrder(item));
+    const normalizedItems = items.map((item) => this.serializeProductOrder(item, itemType?.toLowerCase()));
     return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
   }
 
@@ -758,7 +903,7 @@ export class OrdersService {
       },
     });
     if (!order) throw new NotFoundException('订单不存在');
-    return this.serializeProductOrder(order);
+    return this.serializeProductOrder(order, 'product');
   }
 
   async findProjectOrderById(id: number) {
@@ -775,7 +920,189 @@ export class OrdersService {
       },
     });
     if (!order) throw new NotFoundException('项目订单不存在');
-    return this.serializeProductOrder(order);
+    return this.serializeProductOrder(order, 'project');
+  }
+
+  async findProductOrderProfit(id: number) {
+    const order = await this.prisma.productOrder.findFirst({
+      where: { id, orderItems: { some: { itemType: { in: ['product', 'goods'] } } } },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        store: { select: { id: true, name: true } },
+        orderItems: {
+          where: { itemType: { in: ['product', 'goods'] } },
+          include: {
+            commissionRecords: {
+              where: { status: { not: 'cancelled' } },
+              include: {
+                staffUser: { select: { id: true, name: true, username: true } },
+                beautician: { select: { id: true, name: true } },
+                rule: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+        paymentRecords: true,
+        refundRecords: true,
+      },
+    });
+    if (!order) throw new NotFoundException('商品订单不存在');
+
+    const productItems = order.orderItems.filter((item: any) => this.isProductOrderItemType(item.itemType));
+    const productIds = [...new Set(productItems.map((item: any) => this.toNumber(item.itemId)).filter(Boolean))];
+    const [products, movements, unassignedCommissionRecords] = await Promise.all([
+      productIds.length
+        ? this.prisma.product.findMany({
+            where: { id: { in: productIds }, ...(order.storeId ? { storeId: order.storeId } : {}) },
+            include: { category: { select: { id: true, name: true } } },
+          })
+        : Promise.resolve([]),
+      productIds.length
+        ? this.prisma.stockMovement.findMany({
+            where: {
+              productId: { in: productIds },
+              sourceType: 'product_order',
+              sourceId: order.id,
+              movementType: 'sale_out',
+            },
+            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            orderBy: { occurredAt: 'asc' },
+          })
+        : Promise.resolve([]),
+      this.prisma.commissionRecord.findMany({
+        where: {
+          orderId: order.id,
+          orderItemId: null,
+          type: 'product',
+          status: { not: 'cancelled' },
+        },
+        include: {
+          staffUser: { select: { id: true, name: true, username: true } },
+          beautician: { select: { id: true, name: true } },
+          rule: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+
+    const productById = new Map((products as any[]).map((product) => [Number(product.id), product]));
+    const productCostById = new Map((products as any[]).map((product) => [Number(product.id), this.toNumber(product.costPrice)]));
+    const stockMovementProductIds = new Set((movements as any[]).map((movement) => Number(movement.productId)));
+    const serializeCommissionRecord = (record: any) => ({
+      id: record.id,
+      staffUserId: record.staffUserId,
+      staffUserName: record.staffUser?.name ?? record.staffUser?.username ?? record.beautician?.name ?? '未关联员工',
+      beauticianId: record.beauticianId,
+      beauticianName: record.beautician?.name,
+      ruleId: record.ruleId,
+      ruleName: record.rule?.name,
+      sourceAmount: this.round(this.toNumber(record.sourceAmount)),
+      rate: this.round(this.toNumber(record.rate), 4),
+      amount: this.round(this.toNumber(record.amount)),
+      status: record.status,
+      settleMonth: record.settleMonth,
+    });
+
+    const items = productItems.map((item: any) => {
+      const quantity = this.toNumber(item.quantity) || 1;
+      const productId = this.toNumber(item.itemId) || undefined;
+      const product = productId ? productById.get(productId) : undefined;
+      const listAmount = this.getItemListAmount(item);
+      const salesAmount = this.getItemNetAmount(item);
+      const refundAmount = this.getRefundShare(item, order);
+      const netSalesAmount = Math.max(0, salesAmount - refundAmount);
+      const cost = this.resolveProductItemCost(item, productCostById, stockMovementProductIds);
+      const commissionRecords = (item.commissionRecords ?? []).map(serializeCommissionRecord);
+      const commissionCost = commissionRecords.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+      const productCost = cost.costAmount;
+      const totalCost = productCost + commissionCost;
+      const grossProfit = netSalesAmount - totalCost;
+      const missingReasons = new Set<string>();
+      if (!productId || !product) missingReasons.add('商品档案缺失');
+      if (cost.source === 'missing') missingReasons.add('商品成本缺失');
+      if (salesAmount > 0 && commissionCost <= 0) missingReasons.add('提成记录缺失');
+
+      return {
+        orderItemId: item.id,
+        productId,
+        productName: product?.name ?? item.name,
+        sku: product?.sku ?? '',
+        categoryName: product?.category?.name,
+        brand: product?.brand,
+        quantity: this.round(quantity, 4),
+        unitPrice: this.round(this.toNumber(item.unitPrice)),
+        listAmount: this.round(listAmount),
+        discountAmount: this.round(this.toNumber(item.totalDiscountAmount ?? item.discount)),
+        salesAmount: this.round(salesAmount),
+        refundAmount: this.round(refundAmount),
+        netSalesAmount: this.round(netSalesAmount),
+        unitCost: this.round(cost.unitCost),
+        costSource: cost.source,
+        productCost: this.round(productCost),
+        commissionCost: this.round(commissionCost),
+        totalCost: this.round(totalCost),
+        grossProfit: this.round(grossProfit),
+        grossMargin: netSalesAmount > 0 ? this.round(grossProfit / netSalesAmount, 4) : 0,
+        commissionRecords,
+        missingReasons: Array.from(missingReasons),
+      };
+    });
+
+    const stockMovements = (movements as any[]).map((movement) => {
+      const quantity = Math.abs(this.toNumber(movement.quantity));
+      const costPrice = this.toNumber(movement.product?.costPrice);
+      return {
+        id: movement.id,
+        productId: movement.productId,
+        productName: movement.product?.name ?? `商品#${movement.productId}`,
+        quantity: this.round(quantity, 4),
+        unit: movement.unit ?? movement.product?.unit,
+        costPrice: this.round(costPrice),
+        costAmount: this.round(quantity * costPrice),
+        occurredAt: movement.occurredAt,
+        remark: movement.remark,
+      };
+    });
+    const unassignedCommission = (unassignedCommissionRecords as any[]).map(serializeCommissionRecord);
+    const unassignedCommissionCost = unassignedCommission.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const totalSalesAmount = items.reduce((sum, item) => sum + item.netSalesAmount, 0);
+    const productCost = items.reduce((sum, item) => sum + item.productCost, 0);
+    const commissionCost = items.reduce((sum, item) => sum + item.commissionCost, 0);
+    const totalCost = productCost + commissionCost + unassignedCommissionCost;
+    const grossProfit = totalSalesAmount - totalCost;
+    const costSources = [...new Set(items.map((item) => item.costSource))];
+    const missingReasons = new Set<string>();
+    if (items.some((item) => item.missingReasons.length)) missingReasons.add('存在商品行成本或提成缺口');
+    if (unassignedCommissionCost > 0) missingReasons.add('存在未分配到订单行的历史提成记录');
+
+    return {
+      orderId: order.id,
+      orderNo: order.orderNo,
+      customerId: order.customerId,
+      customerName: order.customerName ?? order.customer?.name ?? '散客',
+      customerPhone: order.customer?.phone ?? '',
+      storeId: order.storeId,
+      storeName: order.store?.name ?? '',
+      status: order.status,
+      source: order.source,
+      createdAt: order.createdAt,
+      paymentMethod: order.payMethod ?? order.paymentRecords?.[0]?.method,
+      listAmount: this.round(items.reduce((sum, item) => sum + item.listAmount, 0)),
+      discountAmount: this.round(items.reduce((sum, item) => sum + item.discountAmount, 0)),
+      refundAmount: this.round(items.reduce((sum, item) => sum + item.refundAmount, 0)),
+      totalSalesAmount: this.round(totalSalesAmount),
+      productCost: this.round(productCost),
+      commissionCost: this.round(commissionCost),
+      unassignedCommissionCost: this.round(unassignedCommissionCost),
+      totalCost: this.round(totalCost),
+      grossProfit: this.round(grossProfit),
+      grossMargin: totalSalesAmount > 0 ? this.round(grossProfit / totalSalesAmount, 4) : 0,
+      costSource: costSources.length === 1 ? costSources[0] : costSources.includes('missing') ? 'missing' : 'mixed',
+      dataQuality: missingReasons.size > 0 ? 'partial' : 'complete',
+      missingReasons: Array.from(missingReasons),
+      items,
+      stockMovements,
+      unassignedCommissionRecords: unassignedCommission,
+    };
   }
 
   async findProjectOrderProfit(id: number) {
@@ -974,13 +1301,15 @@ export class OrdersService {
     const status = this.normalizeOrderStatus(data.status);
     const payMethod = this.normalizePaymentMethod(data.payMethod ?? data.paymentMethod);
 
-    return this.prisma.$transaction(async (tx) => {
+    const createdOrder = await this.prisma.$transaction(async (tx) => {
       const customer = await this.resolveOrderCustomer(tx, data);
       const storeId = data.storeId ? Number(data.storeId) : undefined;
       const orderItems = await this.attachProductCostSnapshots(tx, storeId, items);
       const order = await tx.productOrder.create({
         data: {
           orderNo,
+          checkoutGroupNo: data.checkoutGroupNo ?? orderNo,
+          orderKind: data.orderKind ?? (items.some((item) => String(item.itemType).toLowerCase() === 'project') ? 'project' : 'product'),
           customerId: customer?.id,
           customerName: data.customerName ?? customer?.name,
           storeId,
@@ -1079,6 +1408,8 @@ export class OrdersService {
         },
       }).then((createdOrder) => this.serializeProductOrder(createdOrder));
     });
+    await this.refreshDailySettlementForOrder(createdOrder, 'admin_order');
+    return createdOrder;
   }
 
   async createProjectOrder(data: any) {
@@ -1239,8 +1570,10 @@ export class OrdersService {
       .filter((item: any) => ['deduct', 'consume'].includes(String(item.type)))
       .reduce((sum: number, item: any) => sum + this.toNumber(item.amount) + this.toNumber(item.giftAmount), 0);
     const latestRemark = transactions.find((item: any) => item.remark)?.remark;
+    const latestTransaction = transactions[0];
     const openTransaction = transactions.find((item: any) => String(item.type) === 'open');
     const handler = openTransaction?.operator;
+    const latestOrderNo = latestTransaction?.order?.checkoutGroupNo ?? latestTransaction?.order?.orderNo;
 
     return {
       id: account.id,
@@ -1257,6 +1590,13 @@ export class OrdersService {
       handlerId: openTransaction?.operatorId ?? handler?.id,
       handlerName: handler?.name ?? handler?.username ?? '',
       remark: latestRemark ?? undefined,
+      lastTransactionNo: latestTransaction?.transactionNo ?? undefined,
+      lastOrderNo: latestOrderNo ?? undefined,
+      lastTransactionType: latestTransaction?.type ?? undefined,
+      lastTransactionAmount: latestTransaction
+        ? this.toNumber(latestTransaction.amount) + this.toNumber(latestTransaction.giftAmount)
+        : undefined,
+      lastTransactionAt: latestTransaction?.createdAt ?? undefined,
       createdAt: account.createdAt,
       updatedAt: account.updatedAt,
     };
@@ -1273,7 +1613,7 @@ export class OrdersService {
       storeId: transaction.storeId ?? transaction.store?.id,
       storeName: transaction.store?.name ?? '',
       orderId: transaction.orderId ?? transaction.order?.id,
-      orderNo: transaction.order?.orderNo ?? '',
+      orderNo: transaction.order?.checkoutGroupNo ?? transaction.order?.orderNo ?? '',
       transactionNo: transaction.transactionNo,
       type: transaction.type,
       typeLabel: this.getMemberCardTypeLabel(transaction.type),
@@ -1311,6 +1651,7 @@ export class OrdersService {
         { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
         { store: { name: { contains: keyword, mode: 'insensitive' } } },
         { order: { orderNo: { contains: keyword, mode: 'insensitive' } } },
+        { order: { checkoutGroupNo: { contains: keyword, mode: 'insensitive' } } },
       ];
     }
 
@@ -1320,7 +1661,7 @@ export class OrdersService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           store: { select: { id: true, name: true } },
-          order: { select: { id: true, orderNo: true } },
+          order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
           operator: { select: { id: true, name: true, username: true } },
         },
         skip: (page - 1) * pageSize,
@@ -1348,6 +1689,9 @@ export class OrdersService {
         { customer: { name: { contains: keyword, mode: 'insensitive' } } },
         { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
         { transactions: { some: { remark: { contains: keyword, mode: 'insensitive' } } } },
+        { transactions: { some: { transactionNo: { contains: keyword, mode: 'insensitive' } } } },
+        { transactions: { some: { order: { orderNo: { contains: keyword, mode: 'insensitive' } } } } },
+        { transactions: { some: { order: { checkoutGroupNo: { contains: keyword, mode: 'insensitive' } } } } },
       ];
       if (accountId > 0) keywordConditions.push({ id: accountId });
       where.OR = keywordConditions;
@@ -1360,7 +1704,10 @@ export class OrdersService {
           customer: { select: { id: true, name: true, phone: true } },
           store: { select: { id: true, name: true } },
           transactions: {
-            include: { operator: { select: { id: true, name: true, username: true } } },
+            include: {
+              operator: { select: { id: true, name: true, username: true } },
+              order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+            },
             orderBy: { createdAt: 'desc' },
           },
         },
@@ -1401,6 +1748,10 @@ export class OrdersService {
     const storeId = this.toNumber(data.storeId);
     const rechargeAmount = this.toNumber(data.rechargeAmount ?? data.amount);
     const giftAmount = this.toNumber(data.giftAmount);
+    const giftProjects = Array.isArray(data.giftProjects)
+      ? data.giftProjects.map((project: unknown) => String(project).trim()).filter(Boolean)
+      : [];
+    const giftProjectRemark = giftProjects.length ? `赠送项目：${giftProjects.join('、')}` : '';
     if (!customerId) throw new BadRequestException('请选择客户');
     if (!storeId) throw new BadRequestException('请选择门店');
     if (rechargeAmount <= 0) throw new BadRequestException('充值金额必须大于 0');
@@ -1433,6 +1784,7 @@ export class OrdersService {
       const order = await tx.productOrder.create({
         data: {
           orderNo: `${type === 'open' ? 'MO' : 'MR'}${Date.now().toString(36).toUpperCase()}`,
+          orderKind: type === 'open' ? 'member_card_open' : 'member_card_recharge',
           customerId,
           customerName: customer.name,
           storeId,
@@ -1441,12 +1793,12 @@ export class OrdersService {
           netAmount: rechargeAmount,
           discountSource: 'none',
           allocationMethod: 'none',
-          discountPayload: { giftAmount },
+          discountPayload: { giftAmount, giftProjects },
           status: 'completed',
           payMethod: this.normalizePaymentMethod(data.paymentMethod),
           source: data.source ?? 'admin',
-          items: [{ itemType: 'recharge', quantity: 1, unitPrice: rechargeAmount, giftAmount }],
-          remark: data.remark ?? (type === 'open' ? '会员开卡' : '会员充值'),
+          items: [{ itemType: 'recharge', quantity: 1, unitPrice: rechargeAmount, giftAmount, giftProjects }],
+          remark: data.remark ?? [type === 'open' ? '会员开卡' : '会员充值', giftProjectRemark].filter(Boolean).join('，'),
         },
       });
 
@@ -1469,7 +1821,7 @@ export class OrdersService {
           isGift: false,
           eligibleForOrderDiscount: false,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
-          payload: { giftAmount, remark: data.remark },
+          payload: { giftAmount, giftProjects, remark: data.remark },
         },
       });
 
@@ -1519,7 +1871,7 @@ export class OrdersService {
           giftBalanceAfter,
           paymentMethod: this.normalizePaymentMethod(data.paymentMethod),
           operatorId: this.toNumber(data.operatorId) || undefined,
-          remark: data.remark,
+          remark: data.remark ?? giftProjectRemark,
         },
       });
 
@@ -1534,7 +1886,10 @@ export class OrdersService {
         customer: { select: { id: true, name: true, phone: true } },
         store: { select: { id: true, name: true } },
         transactions: {
-          include: { operator: { select: { id: true, name: true, username: true } } },
+          include: {
+            operator: { select: { id: true, name: true, username: true } },
+            order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -1624,7 +1979,10 @@ export class OrdersService {
         customer: { select: { id: true, name: true, phone: true } },
         store: { select: { id: true, name: true } },
         transactions: {
-          include: { operator: { select: { id: true, name: true, username: true } } },
+          include: {
+            operator: { select: { id: true, name: true, username: true } },
+            order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -1637,13 +1995,16 @@ export class OrdersService {
     if (!account) throw new NotFoundException('会员卡不存在');
     const items = await this.prisma.customerBalanceTransaction.findMany({
       where: { accountId },
-      include: { operator: { select: { id: true, name: true, username: true } } },
+      include: {
+        operator: { select: { id: true, name: true, username: true } },
+        order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return items.map((item) => this.serializeMemberCardTransaction(item));
   }
 
-  async createCardOrder(storeId: number, data: any, operatorId?: number) {
+  async createCardOrder(storeId: number, data: any, _currentUserId?: number) {
     if (!storeId) throw new BadRequestException('请选择门店');
     const cardId = this.toNumber(data.cardId);
     if (!cardId) throw new BadRequestException('请选择次卡');
@@ -1674,18 +2035,28 @@ export class OrdersService {
     const totalTimes = this.toNumber(data.totalTimes ?? card.totalTimes) || this.toNumber(card.totalTimes);
     const expiryDate = data.expiryDate ?? data.expireTime
       ? new Date(data.expiryDate ?? data.expireTime)
-      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      : new Date(Date.now() + this.resolveCardValidDays(card) * 24 * 60 * 60 * 1000);
     const payMethod = this.normalizePaymentMethod(data.paymentMethod ?? data.payMethod ?? 'cash');
+    const pricingSnapshot = this.buildCardPricingSnapshot({ card, paidAmount: amount, totalTimes, discountAmount: discount });
+    const selectedOperatorId = this.toNumber(data.operatorId) || undefined;
+    const selectedOperator = selectedOperatorId
+      ? await this.assertStoreUserAllowed(storeId, selectedOperatorId)
+      : null;
 
     const result = await this.prisma.$transaction(async (tx) => {
       const customerCard = await tx.customerCard.create({
         data: {
           customerId,
           cardId: card.id,
-          operatorId: operatorId || undefined,
+          operatorId: selectedOperator?.id,
           cardName: data.cardName ?? card.name,
           totalTimes,
           remainingTimes: this.toNumber(data.remainingTimes ?? totalTimes) || totalTimes,
+          paidAmount: amount,
+          discountAmount: discount,
+          giftTimes: 0,
+          recognizedUnitValue: pricingSnapshot.recognizedUnitValue,
+          pricingSnapshot,
           expiryDate,
           status: data.status ?? 'active',
         },
@@ -1713,7 +2084,7 @@ export class OrdersService {
         },
       });
 
-      await tx.orderItem.create({
+      const orderItem = await tx.orderItem.create({
         data: {
           orderId: order.id,
           itemType: 'card',
@@ -1735,6 +2106,14 @@ export class OrdersService {
           eligibleForOrderDiscount: true,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
           payload: { cardName: card.name, totalTimes, expiryDate: expiryDate.toISOString() },
+        },
+      });
+
+      await tx.customerCard.update({
+        where: { id: customerCard.id },
+        data: {
+          sourceOrderId: order.id,
+          sourceOrderItemId: orderItem.id,
         },
       });
 
@@ -1761,10 +2140,11 @@ export class OrdersService {
 
       await this.applyMarketingAttribution(tx, order, amount);
       await this.applyMarketingPageAttribution(tx, order, amount);
-      return { customerCard, order };
+      return { customerCard: { ...customerCard, sourceOrderId: order.id, sourceOrderItemId: orderItem.id }, order };
     });
 
     await this.calculateOrderCommissionIfNeeded(this.prisma, result.order, data);
+    await this.refreshDailySettlementForOrder(result.order, 'admin_card_order');
     return {
       id: result.customerCard.id,
       orderId: result.order.id,
@@ -1774,6 +2154,8 @@ export class OrdersService {
       customerPhone: customer.phone ?? '',
       cardId: card.id,
       cardName: card.name,
+      operatorId: selectedOperator?.id,
+      operatorName: selectedOperator?.name ?? selectedOperator?.username ?? '',
       storeId,
       storeName: store.name,
       amount,
@@ -1783,6 +2165,74 @@ export class OrdersService {
       purchaseTime: result.customerCard.createdAt,
       expireTime: result.customerCard.expiryDate,
       paymentMethod: payMethod,
+    };
+  }
+
+  private buildCardOrderProjectSummary(card: any, customerCard: any, usageRecords: any[] = []) {
+    const projects = Array.isArray(card?.projects) ? card.projects : [];
+    return projects
+      .map((project: any) => {
+        const projectName = String(project.projectName ?? project.name ?? '').trim();
+        if (!projectName) return null;
+        const totalCount = Number(project.timesPerCard ?? project.totalCount ?? project.times ?? customerCard.totalTimes ?? 0);
+        const openedAt = new Date(customerCard.createdAt).getTime();
+        const expiredAt = new Date(customerCard.expiryDate).getTime();
+        const usedCount = usageRecords
+          .filter((record: any) => {
+            const verifiedAt = new Date(record.verifiedAt).getTime();
+            return (
+              record.projectName === projectName &&
+              (!Number.isFinite(openedAt) || verifiedAt >= openedAt) &&
+              (!Number.isFinite(expiredAt) || verifiedAt <= expiredAt)
+            );
+          })
+          .reduce((sum: number, record: any) => sum + Number(record.times ?? 0), 0);
+        return {
+          projectName,
+          totalCount,
+          usedCount,
+          remainCount: Math.max(totalCount - usedCount, 0),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  private serializeCardOrder(item: any, usageRecords: any[] = []) {
+    const sourceOrder = item.sourceOrder;
+    const sourceOrderItem = item.sourceOrderItem;
+    const refundAmount = (sourceOrder?.refundRecords ?? []).reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const recognizedAmount = usageRecords.reduce((sum: number, record: any) => {
+      const amount = this.toNumber(record.recognizedAmount);
+      return sum + (amount > 0 ? amount : this.toNumber(record.recognizedUnitValue) * this.toNumber(record.times));
+    }, 0);
+    return {
+      ...item,
+      id: item.id,
+      customerId: item.customerId,
+      customerName: item.customer?.name ?? '',
+      userName: item.customer?.name ?? '',
+      customerPhone: item.customer?.phone ?? '',
+      handlerId: item.operatorId ?? item.operator?.id,
+      handlerName: item.operator?.name ?? item.operator?.username ?? '',
+      cardId: item.cardId,
+      customerCardId: item.id,
+      sourceOrderId: item.sourceOrderId,
+      sourceOrderNo: sourceOrder?.orderNo,
+      sourceOrderItemId: item.sourceOrderItemId,
+      totalTimes: item.totalTimes,
+      remainingTimes: item.remainingTimes,
+      actualPrice: this.round(this.toNumber(item.paidAmount ?? sourceOrderItem?.netAmount ?? sourceOrder?.netAmount ?? sourceOrder?.totalAmount)),
+      listAmount: this.round(this.toNumber(sourceOrderItem?.listAmount ?? item.card?.price)),
+      discountAmount: this.round(this.toNumber(item.discountAmount ?? sourceOrderItem?.totalDiscountAmount)),
+      refundAmount: this.round(refundAmount),
+      recognizedAmount: this.round(recognizedAmount),
+      cardProjects: this.buildCardOrderProjectSummary(item.card, item, usageRecords),
+      purchaseTime: item.createdAt,
+      expireTime: item.expiryDate,
+      paymentMethod: sourceOrder?.payMethod ?? sourceOrder?.paymentRecords?.[0]?.method,
+      remark: sourceOrder?.remark,
+      storeId: sourceOrder?.storeId,
+      storeName: sourceOrder?.store?.name ?? '',
     };
   }
 
@@ -1800,6 +2250,8 @@ export class OrdersService {
           customer: { select: { id: true, name: true, phone: true } },
           card: { select: { id: true, price: true, totalTimes: true, projects: true } },
           operator: { select: { id: true, name: true, username: true } },
+          sourceOrder: { include: { paymentRecords: true, refundRecords: true, store: { select: { id: true, name: true } } } },
+          sourceOrderItem: true,
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -1823,49 +2275,507 @@ export class OrdersService {
         })
       : [];
 
-    const mapped = items.map((item: any) => {
-      const projects = Array.isArray(item.card?.projects) ? item.card.projects : [];
-      return {
-        ...item,
-        customerId: item.customerId,
-        customerName: item.customer?.name ?? '',
-        customerPhone: item.customer?.phone ?? '',
-        handlerId: item.operatorId ?? item.operator?.id,
-        handlerName: item.operator?.name ?? item.operator?.username ?? '',
-        cardId: item.cardId,
-        customerCardId: item.id,
-        totalTimes: item.totalTimes,
-        remainingTimes: item.remainingTimes,
-        cardProjects: projects
-          .map((project: any) => {
-            const projectName = String(project.projectName ?? project.name ?? '').trim();
-            if (!projectName) return null;
-            const totalCount = Number(project.timesPerCard ?? project.totalCount ?? project.times ?? item.totalTimes ?? 0);
-            const openedAt = new Date(item.createdAt).getTime();
-            const expiredAt = new Date(item.expiryDate).getTime();
-            const usedCount = usageRecords
-              .filter((record: any) => {
-                const verifiedAt = new Date(record.verifiedAt).getTime();
-                return (
-                  record.customerId === item.customerId &&
-                  record.cardName === item.cardName &&
-                  record.projectName === projectName &&
-                  (!Number.isFinite(openedAt) || verifiedAt >= openedAt) &&
-                  (!Number.isFinite(expiredAt) || verifiedAt <= expiredAt)
-                );
-              })
-              .reduce((sum: number, record: any) => sum + Number(record.times ?? 0), 0);
-            return {
-              projectName,
-              totalCount,
-              usedCount,
-              remainCount: Math.max(totalCount - usedCount, 0),
-            };
+    const mapped = items.map((item: any) => this.serializeCardOrder(
+      item,
+      usageRecords.filter((record: any) => record.customerId === item.customerId && record.cardName === item.cardName),
+    ));
+    return { items: mapped, data: mapped, total, page, pageSize };
+  }
+
+  async findCardOrderById(id: number) {
+    const item = await this.prisma.customerCard.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        card: { select: { id: true, price: true, totalTimes: true, projects: true } },
+        operator: { select: { id: true, name: true, username: true } },
+        sourceOrder: { include: { paymentRecords: true, refundRecords: true, store: { select: { id: true, name: true } } } },
+        sourceOrderItem: true,
+      },
+    });
+    if (!item) throw new NotFoundException('次卡订单不存在');
+    const usageRecords = await this.prisma.cardUsageRecord.findMany({
+      where: {
+        OR: [
+          { customerCardId: id },
+          { customerId: item.customerId, cardName: item.cardName },
+        ],
+      },
+      select: { customerId: true, cardName: true, projectName: true, times: true, remainingTimes: true, recognizedUnitValue: true, recognizedAmount: true, verifiedAt: true },
+      orderBy: { verifiedAt: 'desc' },
+    });
+    return this.serializeCardOrder(item, usageRecords);
+  }
+
+  async updateCardOrder(id: number, data: any) {
+    const item = await this.prisma.customerCard.findUnique({
+      where: { id },
+      include: { sourceOrder: true },
+    });
+    if (!item) throw new NotFoundException('次卡订单不存在');
+    if (item.status === 'voided') throw new BadRequestException('已作废次卡不可编辑');
+
+    const nextStatus = data.status === undefined ? undefined : String(data.status);
+    if (nextStatus && !['active', 'expired'].includes(nextStatus)) {
+      throw new BadRequestException('编辑只允许调整为已激活或已过期，退卡请使用作废功能');
+    }
+    const expiryValue = data.expiryDate ?? data.expireTime;
+    const updateData: any = {};
+    if (nextStatus) updateData.status = nextStatus;
+    if (expiryValue) {
+      const expiryDate = new Date(expiryValue);
+      if (Number.isNaN(expiryDate.getTime())) throw new BadRequestException('过期时间格式不正确');
+      updateData.expiryDate = expiryDate;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(updateData).length) {
+        await tx.customerCard.update({ where: { id }, data: updateData });
+      }
+      if (item.sourceOrderId && data.remark !== undefined) {
+        await tx.productOrder.update({
+          where: { id: item.sourceOrderId },
+          data: { remark: String(data.remark ?? '') },
+        });
+      }
+    });
+
+    return this.findCardOrderById(id);
+  }
+
+  async voidCardOrder(id: number, data?: { reason?: string; refundAmount?: number }) {
+    const item = await this.prisma.customerCard.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true } },
+        sourceOrder: { include: { refundRecords: true } },
+        usageRecords: true,
+      },
+    });
+    if (!item) throw new NotFoundException('次卡订单不存在');
+    if (item.status === 'voided') throw new BadRequestException('该次卡已作废');
+
+    const paidAmount = this.toNumber(item.paidAmount ?? item.sourceOrder?.netAmount ?? item.sourceOrder?.totalAmount);
+    const recognizedAmount = item.usageRecords.reduce((sum: number, record: any) => {
+      const amount = this.toNumber(record.recognizedAmount);
+      return sum + (amount > 0 ? amount : this.toNumber(record.recognizedUnitValue) * this.toNumber(record.times));
+    }, 0);
+    const existingRefundAmount = (item.sourceOrder?.refundRecords ?? []).reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const maxRefundAmount = this.round(Math.max(0, paidAmount - recognizedAmount - existingRefundAmount));
+    const requestedRefundAmount = data?.refundAmount === undefined ? maxRefundAmount : this.toNumber(data.refundAmount);
+    const refundAmount = this.round(Math.max(0, Math.min(requestedRefundAmount, maxRefundAmount)));
+    const reason = data?.reason ?? '次卡退卡作废';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (item.sourceOrderId && refundAmount > 0) {
+        await tx.refundRecord.create({
+          data: {
+            orderId: item.sourceOrderId,
+            refundNo: this.createRefundNo(),
+            amount: refundAmount,
+            reason,
+            status: 'success',
+            refundedAt: new Date(),
+          },
+        });
+        await tx.productOrder.update({
+          where: { id: item.sourceOrderId },
+          data: { status: 'refunded', remark: reason },
+        });
+        await this.reverseMarketingAttribution(tx, item.sourceOrderId, refundAmount);
+        await this.commissionService.reverseOrderCommissions(item.sourceOrderId, refundAmount, tx);
+      }
+      if (item.customerId && refundAmount > 0) {
+        await tx.customer.update({
+          where: { id: item.customerId },
+          data: { totalSpent: { decrement: refundAmount } },
+        });
+      }
+      return tx.customerCard.update({
+        where: { id },
+        data: { status: 'voided', remainingTimes: 0 },
+      });
+    });
+
+    if (item.sourceOrder) {
+      await this.refreshDailySettlementForOrder(item.sourceOrder, 'admin_card_order_void');
+    }
+    return {
+      ...(await this.findCardOrderById(id)),
+      refundAmount,
+      maxRefundAmount,
+      recognizedAmount: this.round(recognizedAmount),
+      status: updated.status,
+    };
+  }
+
+  async findCardOrderProfit(id: number) {
+    const item = await this.prisma.customerCard.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        card: { select: { id: true, name: true, price: true, totalTimes: true, projects: true } },
+        operator: { select: { id: true, name: true, username: true } },
+        usageRecords: {
+          include: {
+            project: { select: { id: true, name: true } },
+            commissionRecords: {
+              where: { status: { not: 'cancelled' } },
+              include: {
+                staffUser: { select: { id: true, name: true, username: true } },
+                beautician: { select: { id: true, name: true } },
+                rule: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+        sourceOrder: {
+          include: {
+            store: { select: { id: true, name: true } },
+            paymentRecords: true,
+            refundRecords: true,
+          },
+        },
+        sourceOrderItem: {
+          include: {
+            commissionRecords: {
+              where: { status: { not: 'cancelled' } },
+              include: {
+                staffUser: { select: { id: true, name: true, username: true } },
+                beautician: { select: { id: true, name: true } },
+                rule: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!item) throw new NotFoundException('次卡订单不存在');
+
+    const serializeCommissionRecord = (record: any) => ({
+      id: record.id,
+      staffUserId: record.staffUserId,
+      staffUserName: record.staffUser?.name ?? record.staffUser?.username ?? record.beautician?.name ?? '未关联员工',
+      beauticianId: record.beauticianId,
+      beauticianName: record.beautician?.name,
+      ruleId: record.ruleId,
+      ruleName: record.rule?.name,
+      sourceAmount: this.round(this.toNumber(record.sourceAmount)),
+      rate: this.round(this.toNumber(record.rate), 4),
+      amount: this.round(this.toNumber(record.amount)),
+      status: record.status,
+      settleMonth: record.settleMonth,
+    });
+
+    const unassignedCommissionRecords = item.sourceOrderId
+      ? await this.prisma.commissionRecord.findMany({
+          where: {
+            orderId: item.sourceOrderId,
+            orderItemId: null,
+            type: 'card_sale',
+            status: { not: 'cancelled' },
+          },
+          include: {
+            staffUser: { select: { id: true, name: true, username: true } },
+            beautician: { select: { id: true, name: true } },
+            rule: { select: { id: true, name: true } },
+          },
+        })
+      : [];
+
+    const usageProjectIds = [...new Set(item.usageRecords.map((record: any) => this.toNumber(record.projectId)).filter(Boolean))];
+    const usageRecordIds = item.usageRecords.map((record: any) => this.toNumber(record.id)).filter(Boolean);
+    const [usageBomItems, usageMaterialMovements] = await Promise.all([
+      usageProjectIds.length
+        ? this.prisma.projectBomItem.findMany({
+            where: { projectId: { in: usageProjectIds } },
+            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
           })
-          .filter(Boolean),
+        : Promise.resolve([]),
+      usageRecordIds.length
+        ? this.prisma.stockMovement.findMany({
+            where: {
+              sourceType: 'card_usage',
+              sourceId: { in: usageRecordIds },
+              movementType: { in: ['service_consume', 'service_consumption'] },
+            },
+            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            orderBy: { occurredAt: 'asc' },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const usageBomByProjectId = new Map<number, any[]>();
+    for (const bomItem of usageBomItems as any[]) {
+      const list = usageBomByProjectId.get(Number(bomItem.projectId)) ?? [];
+      list.push(bomItem);
+      usageBomByProjectId.set(Number(bomItem.projectId), list);
+    }
+    const materialMovementsByUsageId = new Map<number, any[]>();
+    for (const movement of usageMaterialMovements as any[]) {
+      const usageId = Number(movement.sourceId);
+      const list = materialMovementsByUsageId.get(usageId) ?? [];
+      list.push(movement);
+      materialMovementsByUsageId.set(usageId, list);
+    }
+
+    const listAmount = this.toNumber(item.sourceOrderItem?.listAmount ?? item.card?.price);
+    const paidAmount = this.toNumber(item.paidAmount ?? item.sourceOrderItem?.netAmount ?? item.sourceOrder?.netAmount ?? item.sourceOrder?.totalAmount);
+    const discountAmount = this.toNumber(item.discountAmount ?? item.sourceOrderItem?.totalDiscountAmount);
+    const refundAmount = (item.sourceOrder?.refundRecords ?? []).reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const netSalesAmount = Math.max(0, paidAmount - refundAmount);
+    const recognizedAmount = item.usageRecords.reduce((sum: number, record: any) => {
+      const amount = this.toNumber(record.recognizedAmount);
+      return sum + (amount > 0 ? amount : this.toNumber(record.recognizedUnitValue) * this.toNumber(record.times));
+    }, 0);
+    const remainingLiability = item.status === 'voided'
+      ? 0
+      : Math.max(0, paidAmount - refundAmount - recognizedAmount);
+    const saleCommissionRecords = (item.sourceOrderItem?.commissionRecords ?? []).map(serializeCommissionRecord);
+    const saleCommissionCost = saleCommissionRecords.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const unassignedCommission = unassignedCommissionRecords.map(serializeCommissionRecord);
+    const unassignedCommissionCost = unassignedCommission.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const totalCost = saleCommissionCost + unassignedCommissionCost;
+    const recognizedRatio = netSalesAmount > 0 ? Math.min(1, Math.max(0, recognizedAmount / netSalesAmount)) : 0;
+    const recognizedCommissionCost = this.round(totalCost * recognizedRatio);
+    const recognizedGrossProfit = recognizedAmount - recognizedCommissionCost;
+    const salesContribution = netSalesAmount - totalCost;
+    const usageRecords = item.usageRecords.map((record: any) => {
+      const usageId = this.toNumber(record.id);
+      const times = this.toNumber(record.times) || 1;
+      const usageRecognizedAmount = this.toNumber(record.recognizedAmount);
+      const projectId = this.toNumber(record.projectId) || undefined;
+      const itemBomItems = projectId ? usageBomByProjectId.get(projectId) ?? [] : [];
+      const materialMovements = materialMovementsByUsageId.get(usageId) ?? [];
+      const actualMaterialCost = materialMovements.reduce((sum: number, movement: any) => (
+        sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice)
+      ), 0);
+      const standardMaterialCost = itemBomItems.reduce((sum: number, bomItem: any) => {
+        const quantity = this.toNumber(bomItem.standardQty) * times;
+        return sum + quantity * this.toNumber(bomItem.product?.costPrice);
+      }, 0);
+      const materialCost = actualMaterialCost > 0 ? actualMaterialCost : standardMaterialCost;
+      const commissionCost = (record.commissionRecords ?? []).reduce((sum: number, commission: any) => sum + this.toNumber(commission.amount), 0);
+      const projectCost = materialCost + commissionCost;
+      const projectGrossProfit = usageRecognizedAmount - projectCost;
+      const recordMissingReasons = new Set<string>();
+      if (!projectId) recordMissingReasons.add('项目档案缺失');
+      if (actualMaterialCost <= 0 && standardMaterialCost <= 0) recordMissingReasons.add('项目耗材成本缺失');
+      if (usageRecognizedAmount > 0 && commissionCost <= 0) recordMissingReasons.add('项目提成记录缺失');
+
+      return {
+        id: record.id,
+        projectId,
+        projectName: record.project?.name ?? record.projectName,
+        times,
+        recognizedUnitValue: this.round(this.toNumber(record.recognizedUnitValue)),
+        recognizedAmount: this.round(usageRecognizedAmount),
+        remainingTimes: this.toNumber(record.remainingTimes),
+        verifiedAt: record.verifiedAt,
+        standardMaterialCost: this.round(standardMaterialCost),
+        actualMaterialCost: this.round(actualMaterialCost),
+        materialCost: this.round(materialCost),
+        materialCostSource: actualMaterialCost > 0 ? 'actual_stock_movement' : standardMaterialCost > 0 ? 'standard_bom' : 'missing',
+        commissionCost: this.round(commissionCost),
+        projectCost: this.round(projectCost),
+        projectGrossProfit: this.round(projectGrossProfit),
+        projectGrossMargin: usageRecognizedAmount > 0 ? this.round(projectGrossProfit / usageRecognizedAmount, 4) : 0,
+        missingReasons: Array.from(recordMissingReasons),
+        materialMovements: materialMovements.map((movement: any) => {
+          const quantity = Math.abs(this.toNumber(movement.quantity));
+          const costPrice = this.toNumber(movement.product?.costPrice);
+          return {
+            id: movement.id,
+            productId: movement.productId,
+            productName: movement.product?.name ?? `商品#${movement.productId}`,
+            quantity: this.round(quantity, 4),
+            unit: movement.unit ?? movement.product?.unit,
+            costPrice: this.round(costPrice),
+            costAmount: this.round(quantity * costPrice),
+            occurredAt: movement.occurredAt,
+            remark: movement.remark,
+          };
+        }),
+        commissionRecords: (record.commissionRecords ?? []).map(serializeCommissionRecord),
       };
     });
-    return { items: mapped, data: mapped, total, page, pageSize };
+    const missingReasons = new Set<string>();
+    if (!item.sourceOrderId) missingReasons.add('来源订单缺失');
+    if (!item.sourceOrderItemId) missingReasons.add('来源订单行缺失');
+    if (paidAmount > 0 && saleCommissionCost <= 0 && unassignedCommissionCost <= 0) missingReasons.add('开卡提成记录缺失');
+    if (usageRecords.some((record: any) => record.missingReasons.length)) missingReasons.add('存在核销项目成本或提成缺口');
+
+    return {
+      customerCardId: item.id,
+      sourceOrderId: item.sourceOrderId,
+      sourceOrderNo: item.sourceOrder?.orderNo,
+      customerId: item.customerId,
+      customerName: item.customer?.name ?? '',
+      customerPhone: item.customer?.phone ?? '',
+      storeId: item.sourceOrder?.storeId,
+      storeName: item.sourceOrder?.store?.name ?? '',
+      cardId: item.cardId,
+      cardName: item.cardName,
+      status: item.status,
+      totalTimes: item.totalTimes,
+      remainingTimes: item.remainingTimes,
+      paymentMethod: item.sourceOrder?.payMethod ?? item.sourceOrder?.paymentRecords?.[0]?.method,
+      purchaseTime: item.createdAt,
+      expireTime: item.expiryDate,
+      listAmount: this.round(listAmount),
+      discountAmount: this.round(discountAmount),
+      paidAmount: this.round(paidAmount),
+      refundAmount: this.round(refundAmount),
+      netSalesAmount: this.round(netSalesAmount),
+      recognizedAmount: this.round(recognizedAmount),
+      remainingLiability: this.round(remainingLiability),
+      saleCommissionCost: this.round(saleCommissionCost),
+      unassignedCommissionCost: this.round(unassignedCommissionCost),
+      totalCost: this.round(totalCost),
+      recognizedCommissionCost,
+      recognizedGrossProfit: this.round(recognizedGrossProfit),
+      recognizedGrossMargin: recognizedAmount > 0 ? this.round(recognizedGrossProfit / recognizedAmount, 4) : 0,
+      salesContribution: this.round(salesContribution),
+      grossProfit: this.round(recognizedGrossProfit),
+      grossMargin: recognizedAmount > 0 ? this.round(recognizedGrossProfit / recognizedAmount, 4) : 0,
+      dataQuality: missingReasons.size > 0 ? 'partial' : 'complete',
+      missingReasons: Array.from(missingReasons),
+      saleCommissionRecords,
+      unassignedCommissionRecords: unassignedCommission,
+      usageRecords,
+    };
+  }
+
+  async findCardUsageProfit(id: number) {
+    const record = await this.prisma.cardUsageRecord.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        customerCard: { select: { id: true, cardName: true, totalTimes: true, remainingTimes: true, status: true } },
+        card: { select: { id: true, name: true, price: true, totalTimes: true } },
+        project: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true } },
+        sourceOrder: { select: { id: true, orderNo: true, store: { select: { id: true, name: true } } } },
+        operator: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+        commissionRecords: {
+          where: { status: { not: 'cancelled' } },
+          include: {
+            staffUser: { select: { id: true, name: true, username: true } },
+            beautician: { select: { id: true, name: true } },
+            rule: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!record) throw new NotFoundException('次卡核销记录不存在');
+
+    const serializeCommissionRecord = (commission: any) => ({
+      id: commission.id,
+      staffUserId: commission.staffUserId,
+      staffUserName: commission.staffUser?.name ?? commission.staffUser?.username ?? commission.beautician?.name ?? '未关联员工',
+      beauticianId: commission.beauticianId,
+      beauticianName: commission.beautician?.name,
+      ruleId: commission.ruleId,
+      ruleName: commission.rule?.name,
+      sourceAmount: this.round(this.toNumber(commission.sourceAmount)),
+      rate: this.round(this.toNumber(commission.rate), 4),
+      amount: this.round(this.toNumber(commission.amount)),
+      status: commission.status,
+      settleMonth: commission.settleMonth,
+    });
+
+    const projectId = this.toNumber(record.projectId) || undefined;
+    const [bomItems, materialMovements] = await Promise.all([
+      projectId
+        ? this.prisma.projectBomItem.findMany({
+            where: { projectId },
+            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+          })
+        : Promise.resolve([]),
+      this.prisma.stockMovement.findMany({
+        where: {
+          sourceType: 'card_usage',
+          sourceId: id,
+          movementType: { in: ['service_consume', 'service_consumption'] },
+        },
+        include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+        orderBy: { occurredAt: 'asc' },
+      }),
+    ]);
+
+    const times = this.toNumber(record.times) || 1;
+    const recognizedAmount = this.toNumber(record.recognizedAmount) > 0
+      ? this.toNumber(record.recognizedAmount)
+      : this.toNumber(record.recognizedUnitValue) * times;
+    const actualMaterialCost = (materialMovements as any[]).reduce((sum: number, movement: any) => (
+      sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice)
+    ), 0);
+    const standardMaterialCost = (bomItems as any[]).reduce((sum: number, bomItem: any) => {
+      const quantity = this.toNumber(bomItem.standardQty) * times;
+      return sum + quantity * this.toNumber(bomItem.product?.costPrice);
+    }, 0);
+    const materialCost = actualMaterialCost > 0 ? actualMaterialCost : standardMaterialCost;
+    const commissionRecords = (record.commissionRecords ?? []).map(serializeCommissionRecord);
+    const commissionCost = commissionRecords.reduce((sum: number, commission: any) => sum + this.toNumber(commission.amount), 0);
+    const projectCost = materialCost + commissionCost;
+    const projectGrossProfit = recognizedAmount - projectCost;
+    const missingReasons = new Set<string>();
+    if (!projectId) missingReasons.add('项目档案缺失');
+    if (actualMaterialCost <= 0 && standardMaterialCost <= 0) missingReasons.add('项目耗材成本缺失');
+    if (recognizedAmount > 0 && commissionCost <= 0) missingReasons.add('项目提成记录缺失');
+
+    return {
+      id: record.id,
+      customerCardId: record.customerCardId,
+      sourceOrderId: record.sourceOrderId,
+      sourceOrderNo: record.sourceOrder?.orderNo,
+      customerId: record.customerId,
+      customerName: record.customer?.name ?? record.customerName,
+      customerPhone: record.customer?.phone ?? '',
+      storeId: record.storeId ?? record.sourceOrder?.store?.id,
+      storeName: record.store?.name ?? record.sourceOrder?.store?.name ?? '',
+      cardId: record.cardId,
+      cardName: record.customerCard?.cardName ?? record.card?.name ?? record.cardName,
+      cardStatus: record.customerCard?.status,
+      projectId,
+      projectName: record.project?.name ?? record.projectName,
+      times,
+      remainingTimes: this.toNumber(record.remainingTimes),
+      recognizedUnitValue: this.round(this.toNumber(record.recognizedUnitValue)),
+      recognizedAmount: this.round(recognizedAmount),
+      verifiedAt: record.verifiedAt,
+      operatorId: record.operatorId,
+      operatorName: record.operator?.name ?? record.operator?.username ?? '',
+      beauticianId: record.beauticianId,
+      beauticianName: record.beautician?.name ?? '',
+      standardMaterialCost: this.round(standardMaterialCost),
+      actualMaterialCost: this.round(actualMaterialCost),
+      materialCost: this.round(materialCost),
+      materialCostSource: actualMaterialCost > 0 ? 'actual_stock_movement' : standardMaterialCost > 0 ? 'standard_bom' : 'missing',
+      commissionCost: this.round(commissionCost),
+      projectCost: this.round(projectCost),
+      projectGrossProfit: this.round(projectGrossProfit),
+      projectGrossMargin: recognizedAmount > 0 ? this.round(projectGrossProfit / recognizedAmount, 4) : 0,
+      dataQuality: missingReasons.size > 0 ? 'partial' : 'complete',
+      missingReasons: Array.from(missingReasons),
+      materialMovements: (materialMovements as any[]).map((movement: any) => {
+        const quantity = Math.abs(this.toNumber(movement.quantity));
+        const costPrice = this.toNumber(movement.product?.costPrice);
+        return {
+          id: movement.id,
+          productId: movement.productId,
+          productName: movement.product?.name ?? `商品#${movement.productId}`,
+          quantity: this.round(quantity, 4),
+          unit: movement.unit ?? movement.product?.unit,
+          costPrice: this.round(costPrice),
+          costAmount: this.round(quantity * costPrice),
+          occurredAt: movement.occurredAt,
+          remark: movement.remark,
+        };
+      }),
+      commissionRecords,
+    };
   }
 
   // Card usage records

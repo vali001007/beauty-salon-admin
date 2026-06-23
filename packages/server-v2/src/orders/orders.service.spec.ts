@@ -109,6 +109,120 @@ describe('OrdersService marketing page attribution', () => {
   });
 });
 
+describe('OrdersService card order sales user', () => {
+  function createService(operatorUser: any = null) {
+    const customerCardCreate = jest.fn().mockResolvedValue({
+      id: 801,
+      remainingTimes: 6,
+      status: 'active',
+      createdAt: new Date('2026-06-20T10:00:00.000Z'),
+      expiryDate: new Date('2027-06-20T10:00:00.000Z'),
+    });
+    const productOrderCreate = jest.fn().mockResolvedValue({
+      id: 701,
+      orderNo: 'CO701',
+    });
+    const orderItemCreate = jest.fn().mockResolvedValue({
+      id: 901,
+    });
+    const tx = {
+      customerCard: {
+        create: customerCardCreate,
+        update: jest.fn(),
+      },
+      productOrder: {
+        create: productOrderCreate,
+      },
+      orderItem: {
+        create: orderItemCreate,
+      },
+      paymentRecord: {
+        create: jest.fn(),
+      },
+      customer: {
+        update: jest.fn(),
+      },
+    };
+    const prisma: any = {
+      customer: {
+        findFirst: jest.fn().mockResolvedValue({ id: 12, name: '罗雅婷', phone: '13565060344' }),
+      },
+      store: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' }),
+      },
+      card: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 51,
+          name: '抗衰管理 6 次卡',
+          price: 3680,
+          totalTimes: 6,
+          projects: [],
+        }),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue(operatorUser),
+      },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const service = new OrdersService(prisma as PrismaService, {} as any);
+    (service as any).applyMarketingAttribution = jest.fn();
+    (service as any).applyMarketingPageAttribution = jest.fn();
+    (service as any).calculateOrderCommissionIfNeeded = jest.fn();
+    (service as any).refreshDailySettlementForOrder = jest.fn();
+    return { service, prisma, customerCardCreate };
+  }
+
+  it('uses selected sales user for admin card orders', async () => {
+    const { service, prisma, customerCardCreate } = createService({
+      id: 22,
+      name: '周顾问',
+      username: 'zhou',
+      roles: [{ role: { key: 'consultant' } }],
+      stores: [{ storeId: 1 }],
+    });
+
+    const result = await service.createCardOrder(
+      1,
+      {
+        cardId: 51,
+        customerId: 12,
+        actualPrice: 3280,
+        operatorId: 22,
+        expireTime: '2027-06-20T10:00',
+      },
+      9,
+    );
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 22, status: 'active' }),
+    }));
+    expect(customerCardCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ operatorId: 22 }),
+    });
+    expect(result).toEqual(expect.objectContaining({ operatorId: 22, operatorName: '周顾问' }));
+  });
+
+  it('keeps admin card order sales user empty when not selected', async () => {
+    const { service, prisma, customerCardCreate } = createService(null);
+
+    await service.createCardOrder(
+      1,
+      {
+        cardId: 51,
+        customerId: 12,
+        actualPrice: 3280,
+        expireTime: '2027-06-20T10:00',
+      },
+      9,
+    );
+
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(customerCardCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ operatorId: undefined }),
+    });
+  });
+});
+
 describe('OrdersService project order inventory consumption', () => {
   let service: OrdersService;
   let prisma: any;
@@ -316,6 +430,126 @@ describe('OrdersService project order inventory consumption', () => {
 });
 
 describe('OrdersService project order profit detail', () => {
+  it('calculates product order income, product cost, commission and gross profit', async () => {
+    const prisma: any = {
+      productOrder: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 601,
+          orderNo: 'PO-601',
+          customerId: 12,
+          customerName: '李心怡',
+          customer: { id: 12, name: '李心怡', phone: '13884230304' },
+          storeId: 1,
+          store: { id: 1, name: 'Ami 全量演示门店' },
+          totalAmount: 360,
+          netAmount: 360,
+          status: 'completed',
+          payMethod: 'wechat',
+          source: 'admin',
+          createdAt: new Date('2026-06-21T10:00:00.000Z'),
+          refundRecords: [],
+          orderItems: [
+            {
+              id: 702,
+              orderId: 601,
+              itemType: 'product',
+              itemId: 301,
+              name: '抗衰紧致眼霜',
+              quantity: 2,
+              unitPrice: 198,
+              listAmount: 396,
+              subtotal: 360,
+              netAmount: 360,
+              totalDiscountAmount: 36,
+              payload: { productCostPrice: 88, productCostAmount: 176 },
+              commissionRecords: [
+                {
+                  id: 802,
+                  staffUserId: 22,
+                  staffUser: { id: 22, name: '韩雨', username: 'hanyu' },
+                  beauticianId: null,
+                  beautician: null,
+                  ruleId: 92,
+                  rule: { id: 92, name: '商品提成' },
+                  sourceAmount: 360,
+                  rate: 0.05,
+                  amount: 18,
+                  status: 'pending',
+                  settleMonth: '2026-06',
+                },
+              ],
+            },
+          ],
+          paymentRecords: [{ method: 'wechat' }],
+        }),
+      },
+      product: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 301,
+            name: '抗衰紧致眼霜',
+            sku: 'SKU-301',
+            brand: 'Ami Lab',
+            costPrice: 90,
+            retailPrice: 198,
+            category: { id: 3, name: '眼霜' },
+          },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 902,
+            productId: 301,
+            quantity: -2,
+            unit: '支',
+            occurredAt: new Date('2026-06-21T10:02:00.000Z'),
+            remark: '商品订单自动扣库存',
+            product: { id: 301, name: '抗衰紧致眼霜', unit: '支', costPrice: 90 },
+          },
+        ]),
+      },
+      commissionRecord: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new OrdersService(prisma as PrismaService, {} as any);
+
+    const result = await service.findProductOrderProfit(601);
+
+    expect(prisma.productOrder.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 601, orderItems: { some: { itemType: { in: ['product', 'goods'] } } } },
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      orderId: 601,
+      totalSalesAmount: 360,
+      productCost: 176,
+      commissionCost: 18,
+      totalCost: 194,
+      grossProfit: 166,
+      grossMargin: 0.4611,
+      costSource: 'order_snapshot',
+      dataQuality: 'complete',
+    }));
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      productName: '抗衰紧致眼霜',
+      quantity: 2,
+      netSalesAmount: 360,
+      unitCost: 88,
+      productCost: 176,
+      commissionCost: 18,
+      grossProfit: 166,
+      grossMargin: 0.4611,
+      costSource: 'order_snapshot',
+    }));
+    expect(result.items[0].commissionRecords).toEqual([
+      expect.objectContaining({ staffUserName: '韩雨', ruleName: '商品提成', amount: 18 }),
+    ]);
+    expect(result.stockMovements).toEqual([
+      expect.objectContaining({ productName: '抗衰紧致眼霜', quantity: 2, costAmount: 180 }),
+    ]);
+  });
+
   it('calculates income, BOM cost, actual material cost, commission and gross profit', async () => {
     const prisma: any = {
       productOrder: {
@@ -429,6 +663,268 @@ describe('OrdersService project order profit detail', () => {
     ]);
     expect(result.items[0].commissionRecords).toEqual([
       expect.objectContaining({ staffUserName: '周宁', ruleName: '项目通用提成', amount: 40 }),
+    ]);
+  });
+
+  it('calculates card order sales profit without duplicating card usage material cost', async () => {
+    const prisma: any = {
+      customerCard: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 801,
+          customerId: 12,
+          customer: { id: 12, name: '李心怡', phone: '13884230304' },
+          cardId: 51,
+          cardName: '综合护理 20 次卡',
+          totalTimes: 20,
+          remainingTimes: 18,
+          paidAmount: 5980,
+          discountAmount: 1000,
+          recognizedUnitValue: 299,
+          status: 'active',
+          sourceOrderId: 701,
+          sourceOrderItemId: 901,
+          createdAt: new Date('2026-06-22T10:00:00.000Z'),
+          expiryDate: new Date('2027-06-22T10:00:00.000Z'),
+          card: { id: 51, name: '综合护理 20 次卡', price: 6980, totalTimes: 20, projects: [] },
+          operator: { id: 1, name: '系统管理员', username: 'admin' },
+          sourceOrder: {
+            id: 701,
+            orderNo: 'CO-701',
+            storeId: 1,
+            store: { id: 1, name: 'Ami 全量演示门店' },
+            payMethod: 'wechat',
+            paymentRecords: [{ method: 'wechat' }],
+            refundRecords: [{ amount: 299, status: 'success' }],
+          },
+          sourceOrderItem: {
+            id: 901,
+            listAmount: 6980,
+            netAmount: 5980,
+            totalDiscountAmount: 1000,
+            commissionRecords: [
+              {
+                id: 1001,
+                staffUserId: 21,
+                staffUser: { id: 21, name: '韩雨', username: 'hanyu' },
+                beauticianId: null,
+                beautician: null,
+                ruleId: 88,
+                rule: { id: 88, name: '开卡提成' },
+                sourceAmount: 5980,
+                rate: 0.05,
+                amount: 299,
+                status: 'pending',
+                settleMonth: '2026-06',
+              },
+            ],
+          },
+          usageRecords: [
+            {
+              id: 1201,
+              projectId: 101,
+              project: { id: 101, name: '肩颈舒压' },
+              projectName: '肩颈舒压',
+              times: 1,
+              recognizedUnitValue: 299,
+              recognizedAmount: 299,
+              remainingTimes: 19,
+              verifiedAt: new Date('2026-06-23T10:00:00.000Z'),
+              commissionRecords: [
+                {
+                  id: 1301,
+                  staffUserId: 22,
+                  staffUser: { id: 22, name: '周宁', username: 'zhouning' },
+                  beauticianId: 31,
+                  beautician: { id: 31, name: '周宁' },
+                  ruleId: 89,
+                  rule: { id: 89, name: '项目核销提成' },
+                  sourceAmount: 299,
+                  rate: 0.08,
+                  amount: 23.92,
+                  status: 'pending',
+                  settleMonth: '2026-06',
+                },
+              ],
+            },
+          ],
+        }),
+      },
+      commissionRecord: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      projectBomItem: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            projectId: 101,
+            productId: 301,
+            standardQty: 1,
+            product: { id: 301, name: '按摩精油', unit: 'ml', costPrice: 20 },
+          },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 1401,
+            sourceType: 'card_usage',
+            sourceId: 1201,
+            productId: 301,
+            quantity: -1.5,
+            unit: 'ml',
+            occurredAt: new Date('2026-06-23T10:01:00.000Z'),
+            remark: '次卡核销自动扣耗材：肩颈舒压',
+            product: { id: 301, name: '按摩精油', unit: 'ml', costPrice: 20 },
+          },
+        ]),
+      },
+    };
+    const service = new OrdersService(prisma as PrismaService, {} as any);
+
+    const result = await service.findCardOrderProfit(801);
+
+    expect(prisma.customerCard.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 801 } }));
+    expect(result).toEqual(expect.objectContaining({
+      customerCardId: 801,
+      sourceOrderId: 701,
+      sourceOrderNo: 'CO-701',
+      paidAmount: 5980,
+      refundAmount: 299,
+      netSalesAmount: 5681,
+      recognizedAmount: 299,
+      remainingLiability: 5382,
+      saleCommissionCost: 299,
+      totalCost: 299,
+      recognizedCommissionCost: 15.74,
+      recognizedGrossProfit: 283.26,
+      recognizedGrossMargin: 0.9474,
+      salesContribution: 5382,
+      grossProfit: 283.26,
+      grossMargin: 0.9474,
+      dataQuality: 'complete',
+    }));
+    expect(result.saleCommissionRecords).toEqual([
+      expect.objectContaining({ staffUserName: '韩雨', ruleName: '开卡提成', amount: 299 }),
+    ]);
+    expect(result.usageRecords[0]).toEqual(expect.objectContaining({
+      projectName: '肩颈舒压',
+      recognizedAmount: 299,
+      standardMaterialCost: 20,
+      actualMaterialCost: 30,
+      materialCost: 30,
+      materialCostSource: 'actual_stock_movement',
+      commissionCost: 23.92,
+      projectCost: 53.92,
+      projectGrossProfit: 245.08,
+      projectGrossMargin: 0.8197,
+    }));
+  });
+
+  it('calculates card usage profit from recognized income, material cost and commission cost', async () => {
+    const prisma: any = {
+      cardUsageRecord: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 1201,
+          customerCardId: 801,
+          cardId: 18,
+          projectId: 101,
+          storeId: 1,
+          customerId: 55,
+          customerName: '孙思琪',
+          cardName: '综合养护 20 次卡',
+          projectName: '肩颈舒压',
+          times: 1,
+          remainingTimes: 9,
+          recognizedUnitValue: 299,
+          recognizedAmount: 299,
+          sourceOrderId: 701,
+          sourceOrderItemId: 702,
+          operatorId: 22,
+          beauticianId: 31,
+          verifiedAt: new Date('2026-06-23T10:00:00.000Z'),
+          customer: { id: 55, name: '孙思琪', phone: '13800000000' },
+          customerCard: { id: 801, cardName: '综合养护 20 次卡', totalTimes: 20, remainingTimes: 9, status: 'active' },
+          card: { id: 18, name: '综合养护 20 次卡', price: 5980, totalTimes: 20 },
+          project: { id: 101, name: '肩颈舒压' },
+          store: { id: 1, name: 'Ami 全量演示门店' },
+          sourceOrder: { id: 701, orderNo: 'CO-701', store: { id: 1, name: 'Ami 全量演示门店' } },
+          operator: { id: 22, name: '周宁', username: 'zhouning' },
+          beautician: { id: 31, name: '周宁' },
+          commissionRecords: [
+            {
+              id: 1301,
+              staffUserId: 22,
+              staffUser: { id: 22, name: '周宁', username: 'zhouning' },
+              beauticianId: 31,
+              beautician: { id: 31, name: '周宁' },
+              ruleId: 89,
+              rule: { id: 89, name: '项目核销提成' },
+              sourceAmount: 299,
+              rate: 0.08,
+              amount: 23.92,
+              status: 'pending',
+              settleMonth: '2026-06',
+            },
+          ],
+        }),
+      },
+      projectBomItem: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            projectId: 101,
+            productId: 301,
+            standardQty: 1,
+            product: { id: 301, name: '按摩精油', unit: 'ml', costPrice: 20 },
+          },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 1401,
+            sourceType: 'card_usage',
+            sourceId: 1201,
+            productId: 301,
+            quantity: -1.5,
+            unit: 'ml',
+            occurredAt: new Date('2026-06-23T10:01:00.000Z'),
+            remark: '次卡核销自动扣耗材：肩颈舒压',
+            product: { id: 301, name: '按摩精油', unit: 'ml', costPrice: 20 },
+          },
+        ]),
+      },
+    };
+    const service = new OrdersService(prisma as PrismaService, {} as any);
+
+    const result = await service.findCardUsageProfit(1201);
+
+    expect(prisma.cardUsageRecord.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 1201 } }));
+    expect(prisma.projectBomItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { projectId: 101 } }));
+    expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ sourceType: 'card_usage', sourceId: 1201 }),
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      id: 1201,
+      customerCardId: 801,
+      sourceOrderNo: 'CO-701',
+      customerName: '孙思琪',
+      cardName: '综合养护 20 次卡',
+      projectName: '肩颈舒压',
+      recognizedAmount: 299,
+      standardMaterialCost: 20,
+      actualMaterialCost: 30,
+      materialCost: 30,
+      materialCostSource: 'actual_stock_movement',
+      commissionCost: 23.92,
+      projectCost: 53.92,
+      projectGrossProfit: 245.08,
+      projectGrossMargin: 0.8197,
+      dataQuality: 'complete',
+    }));
+    expect(result.materialMovements).toEqual([
+      expect.objectContaining({ productName: '按摩精油', quantity: 1.5, costAmount: 30 }),
+    ]);
+    expect(result.commissionRecords).toEqual([
+      expect.objectContaining({ staffUserName: '周宁', ruleName: '项目核销提成', amount: 23.92 }),
     ]);
   });
 });
