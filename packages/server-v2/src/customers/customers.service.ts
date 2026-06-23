@@ -28,6 +28,20 @@ type UnifiedConsumptionRow = {
   orderNo?: string;
 };
 
+type ConsumptionRecordView = {
+  id: number;
+  customerId: number;
+  userName: string;
+  storeName?: string;
+  consumeType: string;
+  consumeContent: string;
+  payMethod?: string;
+  amount: string;
+  campaign?: string;
+  consumeTime: string;
+  rawConsumeTime?: Date | null;
+};
+
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
@@ -85,6 +99,7 @@ export class CustomersService {
       consumeContent: names.fallbackByRecordId?.get(record.id) ?? this.formatConsumptionContent(record.consumeContent, names),
       amount: this.formatMoney(record.amount),
       consumeTime: this.formatDateTime(record.consumeTime),
+      rawConsumeTime: record.consumeTime,
       customer: undefined,
     };
   }
@@ -490,18 +505,18 @@ export class CustomersService {
     };
   }
 
-  private mapConsumptionRecordToUnifiedConsumption(record: any): UnifiedConsumptionRow {
+  private mapConsumptionRecordToUnifiedConsumption(record: ConsumptionRecordView): UnifiedConsumptionRow {
     return {
       id: `consumption-${record.id}`,
       customerId: this.toNumber(record.customerId),
-      userName: record.customer?.name ?? record.userName ?? '',
-      storeName: record.customer?.store?.name ?? '',
+      userName: record.userName ?? '',
+      storeName: record.storeName ?? '',
       consumeType: record.consumeType,
       consumeContent: record.consumeContent,
       payMethod: record.payMethod,
       amountValue: this.toNumber(record.amount),
       campaign: record.campaign,
-      consumeDate: this.normalizeConsumptionDate(record.consumeTime),
+      consumeDate: this.normalizeConsumptionDate(record.rawConsumeTime ?? record.consumeTime),
       sourceType: 'consumption_record',
       sourceId: this.toNumber(record.id),
     };
