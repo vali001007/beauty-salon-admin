@@ -1,6 +1,7 @@
 import React from 'react';
 import { CalendarCheck, Clock3 } from 'lucide-react';
 import type { BeauticianScheduleFlowData, ServiceRecordTaskOption } from '../types';
+import { formatBusinessDateTime } from '../utils/businessTime';
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -28,7 +29,7 @@ export function BeauticianScheduleCard({ data }: { data: BeauticianScheduleFlowD
             {data.subtitle} · {data.beauticianName}
           </div>
           <div className="mt-1 text-xs text-[#9B92A3]">
-            生成时间 {new Date(data.generatedAt).toLocaleString('zh-CN')}
+            生成时间 {formatBusinessDateTime(data.generatedAt, { seconds: true })}
           </div>
         </div>
         <span className="rounded-full bg-[#2D1B69]/8 px-3 py-1 text-xs font-medium text-[#2D1B69]">

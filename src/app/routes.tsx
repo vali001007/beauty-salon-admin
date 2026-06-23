@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { createBrowserRouter } from 'react-router';
+import { Navigate, createBrowserRouter } from 'react-router';
 import { Layout } from './components/Layout';
 import { AuthGuard } from './components/AuthGuard';
 import { PermissionGuard } from './components/PermissionGuard';
@@ -60,9 +60,25 @@ const DailySettlement = lazyWithRetry(() => import('./pages/finance/DailySettlem
 const AmiPerformance = lazyWithRetry(() => import('./pages/finance/AmiPerformance').then(m => ({ default: m.AmiPerformance })), 'AmiPerformance');
 const AmiBilling = lazyWithRetry(() => import('./pages/finance/AmiBilling').then(m => ({ default: m.AmiBilling })), 'AmiBilling');
 const PlatformRevenue = lazyWithRetry(() => import('./pages/finance/PlatformRevenue').then(m => ({ default: m.PlatformRevenue })), 'PlatformRevenue');
+const OperationProfitOverview = lazyWithRetry(() => import('./pages/operation-profit/OperationProfitOverview').then(m => ({ default: m.OperationProfitOverview })), 'OperationProfitOverview');
+const ProductMarginAnalysis = lazyWithRetry(() => import('./pages/operation-profit/ProductMarginAnalysis').then(m => ({ default: m.ProductMarginAnalysis })), 'ProductMarginAnalysis');
+const ProjectMarginAnalysis = lazyWithRetry(() => import('./pages/operation-profit/ProjectMarginAnalysis').then(m => ({ default: m.ProjectMarginAnalysis })), 'ProjectMarginAnalysis');
+const PrepaidLiabilityAnalysis = lazyWithRetry(() => import('./pages/operation-profit/PrepaidLiabilityAnalysis').then(m => ({ default: m.PrepaidLiabilityAnalysis })), 'PrepaidLiabilityAnalysis');
+const CardPackageLiabilityAnalysis = lazyWithRetry(() => import('./pages/operation-profit/PrepaidLiabilityAnalysis').then(m => ({ default: m.CardPackageLiabilityAnalysis })), 'CardPackageLiabilityAnalysis');
+const BeauticianPerformance = lazyWithRetry(() => import('./pages/operation-profit/BeauticianPerformance').then(m => ({ default: m.BeauticianPerformance })), 'BeauticianPerformance');
+const OperationCostSettings = lazyWithRetry(() => import('./pages/operation-profit/OperationCostSettings').then(m => ({ default: m.OperationCostSettings })), 'OperationCostSettings');
 const SupplierManagement = lazyWithRetry(() => import('./pages/supply-chain/SupplierManagement').then(m => ({ default: m.SupplierManagement })), 'SupplierManagement');
 const PurchaseOrders = lazyWithRetry(() => import('./pages/supply-chain/PurchaseOrders').then(m => ({ default: m.PurchaseOrders })), 'PurchaseOrders');
 const SupplierSettlements = lazyWithRetry(() => import('./pages/supply-chain/SupplierSettlements').then(m => ({ default: m.SupplierSettlements })), 'SupplierSettlements');
+const SupplyPlatformMvp = lazyWithRetry(() => import('./pages/supply-platform/SupplyPlatformMvp').then(m => ({ default: m.SupplyPlatformMvp })), 'SupplyPlatformMvp');
+const IndustryServiceTemplates = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryServiceTemplates })), 'IndustryServiceTemplates');
+const IndustryProductTemplates = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryProductTemplates })), 'IndustryProductTemplates');
+const IndustryBomTemplates = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryBomTemplates })), 'IndustryBomTemplates');
+const IndustryKnowledge = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryKnowledge })), 'IndustryKnowledge');
+const IndustrySalaryBenchmarks = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustrySalaryBenchmarks })), 'IndustrySalaryBenchmarks');
+const IndustryDataSources = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryDataSources })), 'IndustryDataSources');
+const IndustryAdoptions = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryAdoptions })), 'IndustryAdoptions');
+const IndustrySupplyMappings = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustrySupplyMappings })), 'IndustrySupplyMappings');
 
 // Placeholder for unbuilt pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -182,10 +198,32 @@ export const router = createBrowserRouter([
       { path: 'finance/ami-billing', element: withGuard('core:finance:view', AmiBilling) },
       { path: 'finance/platform-revenue', element: withGuard('core:finance:view', PlatformRevenue) },
 
+      // Operation Profit
+      { path: 'operation-profit', element: <Navigate to="/operation-profit/overview" replace /> },
+      { path: 'operation-profit/overview', handle: { permission: 'core:operation-profit:view' }, element: withGuard('core:operation-profit:view', OperationProfitOverview) },
+      { path: 'operation-profit/product-margins', handle: { permission: 'core:product-margin:view' }, element: withGuard('core:product-margin:view', ProductMarginAnalysis) },
+      { path: 'operation-profit/project-margins', handle: { permission: 'core:project-margin:view' }, element: withGuard('core:project-margin:view', ProjectMarginAnalysis) },
+      { path: 'operation-profit/prepaid-liabilities', handle: { permission: 'core:prepaid-liability:view' }, element: withGuard('core:prepaid-liability:view', PrepaidLiabilityAnalysis) },
+      { path: 'operation-profit/card-liabilities', handle: { permission: 'core:prepaid-liability:view' }, element: withGuard('core:prepaid-liability:view', CardPackageLiabilityAnalysis) },
+      { path: 'operation-profit/beautician-performance', handle: { permission: 'core:beautician-performance:view' }, element: withGuard('core:beautician-performance:view', BeauticianPerformance) },
+      { path: 'operation-profit/costs', handle: { permission: 'core:operation-cost:view' }, element: withGuard('core:operation-cost:view', OperationCostSettings) },
+
       // Supply Chain
+      { path: 'supply-platform', element: withGuard('core:supply:view', SupplyPlatformMvp) },
       { path: 'supply-chain/suppliers', element: withGuard('core:supply:view', SupplierManagement) },
       { path: 'supply-chain/orders', element: withGuard('core:supply:view', PurchaseOrders) },
       { path: 'supply-chain/settlements', element: withGuard('core:supply:view', SupplierSettlements) },
+
+      // Industry Data Platform
+      { path: 'industry', element: <Navigate to="/industry/service-templates" replace /> },
+      { path: 'industry/service-templates', handle: { permission: 'core:industry:service-template' }, element: withGuard('core:industry:service-template', IndustryServiceTemplates) },
+      { path: 'industry/product-templates', handle: { permission: 'core:industry:product-template' }, element: withGuard('core:industry:product-template', IndustryProductTemplates) },
+      { path: 'industry/bom-templates', handle: { permission: 'core:industry:bom-template' }, element: withGuard('core:industry:bom-template', IndustryBomTemplates) },
+      { path: 'industry/knowledge', handle: { permission: 'core:industry:knowledge' }, element: withGuard('core:industry:knowledge', IndustryKnowledge) },
+      { path: 'industry/salary-benchmarks', handle: { permission: 'core:industry:salary' }, element: withGuard('core:industry:salary', IndustrySalaryBenchmarks) },
+      { path: 'industry/data-sources', handle: { permission: 'core:industry:data-source' }, element: withGuard('core:industry:data-source', IndustryDataSources) },
+      { path: 'industry/adoptions', handle: { permission: 'core:industry:adoption' }, element: withGuard('core:industry:adoption', IndustryAdoptions) },
+      { path: 'industry/supply-mappings', handle: { permission: 'core:industry:supply-mapping' }, element: withGuard('core:industry:supply-mapping', IndustrySupplyMappings) },
 
       // System Settings
       { path: 'system/users', element: withGuard('core:system:users', UserManagement) },

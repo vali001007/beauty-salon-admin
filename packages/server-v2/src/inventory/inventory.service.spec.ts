@@ -27,6 +27,9 @@ describe('InventoryService terminal dashboard cache', () => {
       transferOrder: {
         create: jest.fn(),
       },
+      supplyCatalogMapping: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     service = new InventoryService(prisma as any, terminalDashboardCache as any, commissionService as any);
   });

@@ -5,7 +5,9 @@ import {
   ChevronDown, ChevronRight, Menu, UserCircle, LogOut,
   MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
-  Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap
+  Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
+  Database, BookOpen, CheckCircle2,
+  type LucideIcon,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -17,7 +19,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const MENU_ITEMS = [
+type MenuChild = {
+  title: string;
+  path: string;
+  icon: LucideIcon;
+  permission: string;
+  group?: string;
+};
+
+type MenuItem = {
+  title: string;
+  icon: LucideIcon;
+  path: string;
+  children: MenuChild[];
+};
+
+export const MENU_ITEMS: MenuItem[] = [
   {
     title: '工作台',
     icon: Home,
@@ -103,23 +120,46 @@ const MENU_ITEMS = [
     icon: WalletCards,
     path: '/finance',
     children: [
-      { title: '日结报表', path: '/finance/daily-settlement', icon: ClipboardList, permission: 'core:finance:view' },
-      { title: '提成规则', path: '/finance/commission-rules', icon: Settings, permission: 'core:finance:manage' },
-      { title: '提成明细', path: '/finance/commission-records', icon: BarChart3, permission: 'core:finance:view' },
-      { title: '月度结算', path: '/finance/monthly-settlement', icon: WalletCards, permission: 'core:finance:view' },
-      { title: '数字员工绩效', path: '/finance/ami-performance', icon: BarChart3, permission: 'core:finance:view' },
-      { title: '数字员工账单', path: '/finance/ami-billing', icon: WalletCards, permission: 'core:finance:view' },
-      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:finance:view' },
+      { title: '日结报表', path: '/finance/daily-settlement', icon: ClipboardList, permission: 'core:finance:view', group: '结算与对账' },
+      { title: '月度结算', path: '/finance/monthly-settlement', icon: WalletCards, permission: 'core:finance:view', group: '结算与对账' },
+      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:finance:view', group: '结算与对账' },
+      { title: '数字员工账单', path: '/finance/ami-billing', icon: WalletCards, permission: 'core:finance:view', group: '结算与对账' },
+      { title: '提成规则', path: '/finance/commission-rules', icon: Settings, permission: 'core:finance:manage', group: '提成与人效' },
+      { title: '提成明细', path: '/finance/commission-records', icon: BarChart3, permission: 'core:finance:view', group: '提成与人效' },
+      { title: '员工人效', path: '/operation-profit/beautician-performance', icon: Users, permission: 'core:beautician-performance:view', group: '提成与人效' },
+      { title: '数字员工绩效', path: '/finance/ami-performance', icon: BarChart3, permission: 'core:finance:view', group: '提成与人效' },
+      { title: '利润看板', path: '/operation-profit/overview', icon: LayoutGrid, permission: 'core:operation-profit:view', group: '经营利润' },
+      { title: '商品毛利', path: '/operation-profit/product-margins', icon: ShoppingBag, permission: 'core:product-margin:view', group: '经营利润' },
+      { title: '项目毛利', path: '/operation-profit/project-margins', icon: TrendingUp, permission: 'core:project-margin:view', group: '经营利润' },
+      { title: '会员卡（储值）履约', path: '/operation-profit/prepaid-liabilities', icon: WalletCards, permission: 'core:prepaid-liability:view', group: '经营利润' },
+      { title: '次卡履约', path: '/operation-profit/card-liabilities', icon: FileText, permission: 'core:prepaid-liability:view', group: '经营利润' },
+      { title: '成本配置', path: '/operation-profit/costs', icon: Settings, permission: 'core:operation-cost:view', group: '经营利润' },
     ],
   },
   {
-    title: '供应链',
+    title: '供应链平台',
     icon: PackagePlus,
-    path: '/supply-chain',
+    path: '/supply-platform',
     children: [
-      { title: '供应商管理', path: '/supply-chain/suppliers', icon: Building2, permission: 'core:supply:view' },
-      { title: '采购订单', path: '/supply-chain/orders', icon: ShoppingCart, permission: 'core:supply:view' },
-      { title: '供应商结算', path: '/supply-chain/settlements', icon: WalletCards, permission: 'core:supply:view' },
+      { title: '平台 MVP', path: '/supply-platform', icon: PackagePlus, permission: 'core:supply:view' },
+      { title: '过渡供应商后台', path: '/supply-chain/suppliers', icon: Building2, permission: 'core:supply:view' },
+      { title: '过渡采购订单', path: '/supply-chain/orders', icon: ShoppingCart, permission: 'core:supply:view' },
+      { title: '过渡供应商结算', path: '/supply-chain/settlements', icon: WalletCards, permission: 'core:supply:view' },
+    ],
+  },
+  {
+    title: '行业数据平台',
+    icon: Database,
+    path: '/industry',
+    children: [
+      { title: '服务项目模板', path: '/industry/service-templates', icon: ClipboardList, permission: 'core:industry:service-template' },
+      { title: '项目 BOM 模板', path: '/industry/bom-templates', icon: FileText, permission: 'core:industry:bom-template' },
+      { title: '标准商品/耗品', path: '/industry/product-templates', icon: Package, permission: 'core:industry:product-template' },
+      { title: '岗位薪酬模板', path: '/industry/salary-benchmarks', icon: Users, permission: 'core:industry:salary' },
+      { title: '服务知识库', path: '/industry/knowledge', icon: BookOpen, permission: 'core:industry:knowledge' },
+      { title: '数据源管理', path: '/industry/data-sources', icon: Database, permission: 'core:industry:data-source' },
+      { title: '采用记录', path: '/industry/adoptions', icon: CheckCircle2, permission: 'core:industry:adoption' },
+      { title: '供应链预留映射', path: '/industry/supply-mappings', icon: PackagePlus, permission: 'core:industry:supply-mapping' },
     ],
   },
   {
@@ -148,7 +188,8 @@ export function Layout() {
     '/orders': true,
     '/inventory': true,
     '/finance': true,
-    '/supply-chain': true,
+    '/supply-platform': true,
+    '/industry': true,
     '/system': true,
   });
   const location = useLocation();
@@ -225,23 +266,33 @@ export function Layout() {
               
               {openMenus[menu.path] && (
                 <div className="flex flex-col">
-                  {menu.children.map((child) => (
-                    <NavLink
-                      key={child.path}
-                      to={child.path}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center gap-3 pl-14 pr-6 py-2.5 transition-colors",
-                          isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                            : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        )
-                      }
-                    >
-                      <child.icon className="w-4 h-4 opacity-70" />
-                      <span>{child.title}</span>
-                    </NavLink>
-                  ))}
+                  {menu.children.map((child, index) => {
+                    const previousChild = menu.children[index - 1];
+                    const showGroupLabel = child.group && child.group !== previousChild?.group;
+                    return (
+                      <React.Fragment key={child.path}>
+                        {showGroupLabel && (
+                          <div className="pl-14 pr-6 pt-3 pb-1 text-[11px] font-semibold text-sidebar-foreground/50">
+                            {child.group}
+                          </div>
+                        )}
+                        <NavLink
+                          to={child.path}
+                          className={({ isActive }) =>
+                            cn(
+                              "flex items-center gap-3 pl-14 pr-6 py-2.5 transition-colors",
+                              isActive
+                                ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                                : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            )
+                          }
+                        >
+                          <child.icon className="w-4 h-4 opacity-70" />
+                          <span>{child.title}</span>
+                        </NavLink>
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -2,12 +2,15 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { createPaginatedResponse } from '@/types/pagination';
 
 afterEach(() => {
+  vi.doUnmock('@/api/real/order');
   vi.doUnmock('@/api/real/customer');
   vi.doUnmock('@/api/real/inventory');
   vi.doUnmock('@/api/real/marketing');
   vi.doUnmock('@/api/real/terminal');
   vi.doUnmock('@/api/real/ai');
   vi.doUnmock('@/api/real/agent');
+  vi.doUnmock('@/api/real/operationProfit');
+  vi.doUnmock('@/api/real/supplyPlatform');
   vi.unstubAllEnvs();
   vi.resetModules();
 });
@@ -36,6 +39,166 @@ describe('API contract helpers', () => {
 });
 
 describe('API facades', () => {
+  it('routes project order profit calls to the real implementation', async () => {
+    const realGetProjectOrderProfit = vi.fn(async (id) => ({ orderId: id, totalIncome: 680 }));
+
+    vi.doMock('@/api/real/order', () => ({
+      realGetProductOrders: vi.fn(),
+      realGetProductOrderById: vi.fn(),
+      realCreateProductOrder: vi.fn(),
+      realUpdateProductOrder: vi.fn(),
+      realDeleteProductOrder: vi.fn(),
+      realRefundProductOrder: vi.fn(),
+      realGetProductOrderProfit: vi.fn(),
+      realGetProjectOrders: vi.fn(),
+      realGetProjectOrderById: vi.fn(),
+      realGetProjectOrderProfit,
+      realCreateProjectOrder: vi.fn(),
+      realGetProductOrdersPaginated: vi.fn(),
+      realGetProjectOrdersPaginated: vi.fn(),
+    }));
+    vi.resetModules();
+
+    const api = await import('@/api/order');
+
+    await expect(api.getProjectOrderProfit(501)).resolves.toEqual({ orderId: 501, totalIncome: 680 });
+    expect(realGetProjectOrderProfit).toHaveBeenCalledWith(501);
+  });
+
+  it('routes operation profit calls to the real implementation', async () => {
+    const realGetOperationProfitOverview = vi.fn(async (params) => ({ period: params, summary: {} }));
+    const realGetProductMargins = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetProjectMargins = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetPrepaidLiabilities = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetBeauticianPerformance = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetOperationCosts = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateOperationCost = vi.fn(async (data) => ({ id: 1, ...data }));
+    const realUpdateOperationCost = vi.fn(async (id, data) => ({ id, ...data }));
+    const realDeleteOperationCost = vi.fn(async (id) => ({ success: true, id }));
+    const realCopyOperationCostsFromPreviousMonth = vi.fn(async (data) => ({ items: [], data: [], total: 0, ...data }));
+
+    vi.doMock('@/api/real/operationProfit', () => ({
+      realGetOperationProfitOverview,
+      realGetProductMargins,
+      realGetProjectMargins,
+      realGetPrepaidLiabilities,
+      realGetBeauticianPerformance,
+      realGetOperationCosts,
+      realCreateOperationCost,
+      realUpdateOperationCost,
+      realDeleteOperationCost,
+      realCopyOperationCostsFromPreviousMonth,
+    }));
+    vi.resetModules();
+
+    const api = await import('@/api/operationProfit');
+
+    await api.getOperationProfitOverview({ from: '2026-06-01', to: '2026-06-30', basis: 'operating' });
+    await api.getProductMargins({ page: 1, pageSize: 20, from: '2026-06-01', to: '2026-06-30', sortBy: 'grossProfit' });
+    await api.getProjectMargins({ page: 1, pageSize: 20, from: '2026-06-01', to: '2026-06-30' });
+    await api.getPrepaidLiabilities({ page: 1, pageSize: 20, riskOnly: true });
+    await api.getBeauticianPerformance({ from: '2026-06-01', to: '2026-06-30' });
+    await api.getOperationCosts({ page: 1, pageSize: 50, periodMonth: '2026-06' });
+    await api.createOperationCost({ periodMonth: '2026-06', costDate: '2026-06-01', category: 'rent', amount: 1000 });
+    await api.updateOperationCost(1, { amount: 1200 });
+    await api.deleteOperationCost(1);
+    await api.copyOperationCostsFromPreviousMonth({ fromPeriodMonth: '2026-05', toPeriodMonth: '2026-06' });
+
+    expect(realGetOperationProfitOverview).toHaveBeenCalledWith({ from: '2026-06-01', to: '2026-06-30', basis: 'operating' });
+    expect(realGetProductMargins).toHaveBeenCalledWith({ page: 1, pageSize: 20, from: '2026-06-01', to: '2026-06-30', sortBy: 'grossProfit' });
+    expect(realGetProjectMargins).toHaveBeenCalledWith({ page: 1, pageSize: 20, from: '2026-06-01', to: '2026-06-30' });
+    expect(realGetPrepaidLiabilities).toHaveBeenCalledWith({ page: 1, pageSize: 20, riskOnly: true });
+    expect(realGetBeauticianPerformance).toHaveBeenCalledWith({ from: '2026-06-01', to: '2026-06-30' });
+    expect(realGetOperationCosts).toHaveBeenCalledWith({ page: 1, pageSize: 50, periodMonth: '2026-06' });
+    expect(realCreateOperationCost).toHaveBeenCalledWith({ periodMonth: '2026-06', costDate: '2026-06-01', category: 'rent', amount: 1000 });
+    expect(realUpdateOperationCost).toHaveBeenCalledWith(1, { amount: 1200 });
+    expect(realDeleteOperationCost).toHaveBeenCalledWith(1);
+    expect(realCopyOperationCostsFromPreviousMonth).toHaveBeenCalledWith({ fromPeriodMonth: '2026-05', toPeriodMonth: '2026-06' });
+  });
+
+  it('routes supply platform calls to the real implementation', async () => {
+    const realGetSupplySuppliers = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateSupplySupplier = vi.fn(async (data) => ({ id: 1, qualificationStatus: 'pending', status: 'active', ...data }));
+    const realUpdateSupplySupplierStatus = vi.fn(async (id, data) => ({ id, name: '供应商', ...data }));
+    const realCreateSupplierQualification = vi.fn(async (data) => ({ id: 11, status: 'pending', ...data }));
+    const realGetSupplySkus = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateSupplySku = vi.fn(async (data) => ({ id: 2, status: 'draft', auditStatus: 'draft', ...data }));
+    const realAuditSupplySku = vi.fn(async (id, data) => ({ id, supplierId: 1, name: 'SKU', ...data }));
+    const realGetSupplyQuotes = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateSupplyQuote = vi.fn(async (data) => ({ id: 3, status: 'draft', auditStatus: 'draft', ...data }));
+    const realAuditSupplyQuote = vi.fn(async (id, data) => ({ id, supplySkuId: 2, supplierId: 1, ...data }));
+    const realGetProcurementOrders = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetProcurementOrder = vi.fn(async (id) => ({ id, orderNo: 'SP-1', storeId: 1, supplierId: 1, status: 'shipped', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, sourceType: 'replenishment', items: [], shipments: [] }));
+    const realCreateProcurementOrder = vi.fn(async (data) => ({ id: 4, orderNo: 'SP-2', status: 'pending_supplier_confirm', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, items: [], ...data }));
+    const realUpdateProcurementOrderStatus = vi.fn(async (id, status) => ({ id, status }));
+    const realCreateSupplierShipment = vi.fn(async (id, data) => ({ id: 5, orderId: id, supplierId: 1, shipmentNo: 'SH-1', status: 'shipped', items: [], ...data }));
+    const realReceiveProcurementOrder = vi.fn(async (id, data) => ({ id, orderNo: 'SP-1', storeId: 1, supplierId: 1, status: 'received', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, sourceType: 'replenishment', items: [], shipments: [], receipt: data }));
+    const realGetSupplySettlements = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGenerateSupplySettlement = vi.fn(async (data) => ({ id: 6, supplierId: 1, orderCount: 0, totalAmount: 0, rebateAmount: 0, platformFee: 0, adjustmentAmount: 0, netPayable: 0, status: 'draft', ...data }));
+
+    vi.doMock('@/api/real/supplyPlatform', () => ({
+      realGetSupplySuppliers,
+      realCreateSupplySupplier,
+      realUpdateSupplySupplierStatus,
+      realCreateSupplierQualification,
+      realGetSupplySkus,
+      realCreateSupplySku,
+      realAuditSupplySku,
+      realGetSupplyQuotes,
+      realCreateSupplyQuote,
+      realAuditSupplyQuote,
+      realGetProcurementOrders,
+      realGetProcurementOrder,
+      realCreateProcurementOrder,
+      realUpdateProcurementOrderStatus,
+      realCreateSupplierShipment,
+      realReceiveProcurementOrder,
+      realGetSupplySettlements,
+      realGenerateSupplySettlement,
+    }));
+    vi.resetModules();
+
+    const api = await import('@/api/supplyPlatform');
+
+    await api.getSupplySuppliers({ page: 1, pageSize: 10 });
+    await api.createSupplySupplier({ name: 'A 供应商' });
+    await api.updateSupplySupplierStatus(1, { status: 'active', qualificationStatus: 'approved' });
+    await api.createSupplierQualification({ supplierId: 1, type: '营业执照', fileUrl: 'https://example.com/license.pdf' });
+    await api.getSupplySkus({ supplierId: 1 });
+    await api.createSupplySku({ supplierId: 1, name: '洁面乳' });
+    await api.auditSupplySku(2, { auditStatus: 'approved', status: 'active' });
+    await api.getSupplyQuotes({ supplierId: 1, availableOnly: true });
+    await api.createSupplyQuote({ supplySkuId: 2, supplierId: 1, price: 88 });
+    await api.auditSupplyQuote(3, { auditStatus: 'approved', status: 'active' });
+    await api.getProcurementOrders({ page: 1, pageSize: 10, storeId: 1 });
+    await api.getProcurementOrder(4);
+    await api.createProcurementOrder({ storeId: 1, supplierId: 1, items: [{ supplySkuId: 2, quantity: 1 }] });
+    await api.updateProcurementOrderStatus(4, 'accepted');
+    await api.createSupplierShipment(4, { items: [{ orderItemId: 1, supplySkuId: 2, shippedQty: 1 }] });
+    await api.receiveProcurementOrder(4, { items: [{ shipmentItemId: 1, receivedQty: 1 }] });
+    await api.getSupplySettlements({ page: 1, pageSize: 10 });
+    await api.generateSupplySettlement({ settleMonth: '2026-06' });
+
+    expect(realGetSupplySuppliers).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(realCreateSupplySupplier).toHaveBeenCalledWith({ name: 'A 供应商' });
+    expect(realUpdateSupplySupplierStatus).toHaveBeenCalledWith(1, { status: 'active', qualificationStatus: 'approved' });
+    expect(realCreateSupplierQualification).toHaveBeenCalledWith({ supplierId: 1, type: '营业执照', fileUrl: 'https://example.com/license.pdf' });
+    expect(realGetSupplySkus).toHaveBeenCalledWith({ supplierId: 1 });
+    expect(realCreateSupplySku).toHaveBeenCalledWith({ supplierId: 1, name: '洁面乳' });
+    expect(realAuditSupplySku).toHaveBeenCalledWith(2, { auditStatus: 'approved', status: 'active' });
+    expect(realGetSupplyQuotes).toHaveBeenCalledWith({ supplierId: 1, availableOnly: true });
+    expect(realCreateSupplyQuote).toHaveBeenCalledWith({ supplySkuId: 2, supplierId: 1, price: 88 });
+    expect(realAuditSupplyQuote).toHaveBeenCalledWith(3, { auditStatus: 'approved', status: 'active' });
+    expect(realGetProcurementOrders).toHaveBeenCalledWith({ page: 1, pageSize: 10, storeId: 1 });
+    expect(realGetProcurementOrder).toHaveBeenCalledWith(4);
+    expect(realCreateProcurementOrder).toHaveBeenCalledWith({ storeId: 1, supplierId: 1, items: [{ supplySkuId: 2, quantity: 1 }] });
+    expect(realUpdateProcurementOrderStatus).toHaveBeenCalledWith(4, 'accepted');
+    expect(realCreateSupplierShipment).toHaveBeenCalledWith(4, { items: [{ orderItemId: 1, supplySkuId: 2, shippedQty: 1 }] });
+    expect(realReceiveProcurementOrder).toHaveBeenCalledWith(4, { items: [{ shipmentItemId: 1, receivedQty: 1 }] });
+    expect(realGetSupplySettlements).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(realGenerateSupplySettlement).toHaveBeenCalledWith({ settleMonth: '2026-06' });
+  });
+
   it('routes customer insight calls to the real implementation', async () => {
     const realGetCustomerConsumptionRecords = vi.fn(async () => [{ id: 1, customerId: 1001 }]);
     const realGetCustomerConsumptionRecordsPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
@@ -49,6 +212,7 @@ describe('API facades', () => {
     const realGetCustomerProfileSkinAnalytics = vi.fn(async () => ({ skinTypes: [] }));
     const realGetCustomerProfileBehaviorAnalytics = vi.fn(async () => ({ items: [] }));
     const realGetCustomerProfilePredictionAnalytics = vi.fn(async () => ({ items: [] }));
+    const realGetCustomerCardPortraits = vi.fn(async () => ({ items: [], data: [], total: 0 }));
 
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/customer', () => ({
@@ -71,6 +235,7 @@ describe('API facades', () => {
       realGetCustomerProfileSkinAnalytics,
       realGetCustomerProfileBehaviorAnalytics,
       realGetCustomerProfilePredictionAnalytics,
+      realGetCustomerCardPortraits,
       realGetCustomerSegmentCount,
     }));
     vi.resetModules();
@@ -80,9 +245,11 @@ describe('API facades', () => {
     await expect(api.getCustomerConsumptionRecords()).resolves.toEqual([{ id: 1, customerId: 1001 }]);
     await expect(api.getCustomerHealthProfiles()).resolves.toEqual([{ id: 2, customerId: 1001, skinType: 'dry' }]);
     await expect(api.getCustomerProfileAnalytics()).resolves.toEqual({ totalCustomers: 0, segmentStats: [] });
+    await expect(api.getCustomerCardPortraits()).resolves.toEqual({ items: [], data: [], total: 0 });
     expect(realGetCustomerConsumptionRecords).toHaveBeenCalledTimes(1);
     expect(realGetCustomerHealthProfiles).toHaveBeenCalledTimes(1);
     expect(realGetCustomerProfileAnalytics).toHaveBeenCalledTimes(1);
+    expect(realGetCustomerCardPortraits).toHaveBeenCalledTimes(1);
   });
 
   it('routes inventory transfer pagination to the real implementation', async () => {
@@ -221,6 +388,7 @@ describe('API facades', () => {
     const realGetTerminalInventoryAlertsDashboard = vi.fn(async () => ({ lowStock: [] }));
     const realGetTerminalCashierContext = vi.fn(async () => ({ customers: [], projects: [], products: [] }));
     const realGetTerminalCardVerificationContext = vi.fn(async () => ({ customers: [] }));
+    const realGetTerminalCustomerSelectContext = vi.fn(async () => ({ items: [], scene: 'follow_up' }));
     const realGetTerminalBeauticianCommission = vi.fn(async () => ({ todayAmount: 0, monthAmount: 0, recentRecords: [] }));
     const realGetCurrentTerminalBeautician = vi.fn(async () => ({ id: 9, name: '美容师A' }));
     const realGetCurrentTerminalBeauticianDashboard = vi.fn(async () => ({ todayTasks: [] }));
@@ -296,6 +464,7 @@ describe('API facades', () => {
       realGetTerminalCustomerGrowthDashboard,
       realGetTerminalCashierContext,
       realGetTerminalCardVerificationContext,
+      realGetTerminalCustomerSelectContext,
       realGetTerminalBeauticianCommission,
       realGetCurrentTerminalBeautician,
       realGetCurrentTerminalBeauticianDashboard,
@@ -363,6 +532,7 @@ describe('API facades', () => {
     await api.getTerminalInventoryAlertsDashboard();
     await api.getTerminalCashierContext();
     await api.getTerminalCardVerificationContext({ keyword: '王' });
+    await api.getTerminalCustomerSelectContext({ scene: 'follow_up', operatorId: 9, keyword: '罗' });
     await api.getTerminalBeauticianCommission(9);
     await api.getCurrentTerminalBeautician({ operatorId: 9 });
     await api.getCurrentTerminalBeauticianDashboard({ operatorId: 9 });
@@ -393,6 +563,7 @@ describe('API facades', () => {
     expect(realGetTerminalInventoryAlertsDashboard).toHaveBeenCalledTimes(1);
     expect(realGetTerminalCashierContext).toHaveBeenCalledTimes(1);
     expect(realGetTerminalCardVerificationContext).toHaveBeenCalledWith({ keyword: '王' });
+    expect(realGetTerminalCustomerSelectContext).toHaveBeenCalledWith({ scene: 'follow_up', operatorId: 9, keyword: '罗' });
     expect(realGetTerminalBeauticianCommission).toHaveBeenCalledWith(9);
     expect(realGetCurrentTerminalBeautician).toHaveBeenCalledWith({ operatorId: 9 });
     expect(realGetCurrentTerminalBeauticianDashboard).toHaveBeenCalledWith({ operatorId: 9 });

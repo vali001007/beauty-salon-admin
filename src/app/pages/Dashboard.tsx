@@ -55,6 +55,13 @@ function permissionForPath(path: string): string {
   if (path.startsWith('/customers')) return 'core:customer:view';
   if (path.startsWith('/customer-marketing')) return 'core:marketing:view';
   if (path.startsWith('/finance')) return 'core:finance:view';
+  if (path.startsWith('/operation-profit/product-margins')) return 'core:product-margin:view';
+  if (path.startsWith('/operation-profit/project-margins')) return 'core:project-margin:view';
+  if (path.startsWith('/operation-profit/prepaid-liabilities')) return 'core:prepaid-liability:view';
+  if (path.startsWith('/operation-profit/card-liabilities')) return 'core:prepaid-liability:view';
+  if (path.startsWith('/operation-profit/beautician-performance')) return 'core:beautician-performance:view';
+  if (path.startsWith('/operation-profit/costs')) return 'core:operation-cost:view';
+  if (path.startsWith('/operation-profit')) return 'core:operation-profit:view';
   if (path.startsWith('/system/devices')) return 'core:system:stores';
   if (path.startsWith('/system/stores')) return 'core:system:stores';
   if (path.startsWith('/system/roles')) return 'core:system:roles';

@@ -1,5 +1,6 @@
 import type { Card } from '@/types/card';
 import type { CardFormData } from '@/schemas/card';
+import type { CreateCardOrderPayload } from '../real/card';
 
 const MOCK_CARDS: Card[] = [
   { id: 44, name: '元心卡', type: '护理卡', totalTimes: 10, price: 1991, validDays: 3650, storeName: '心悦美容养生会所', status: '上架', createdAt: '2026-03-13 18:23:31', projects: [{ projectName: '巨补水', timesPerCard: 10 }] },
@@ -41,15 +42,16 @@ export async function mockDeleteCard(id: number): Promise<void> {
   MOCK_CARDS.splice(index, 1);
 }
 
-export async function mockCreateCardOrder(data: { cardId: number; userId: number; actualPrice: number }): Promise<any> {
+export async function mockCreateCardOrder(data: CreateCardOrderPayload): Promise<any> {
   return {
     id: String(Date.now()),
-    cardName: MOCK_CARDS.find((c) => c.id === data.cardId)?.name ?? '未知卡',
-    userName: '新用户',
+    cardName: data.cardName || MOCK_CARDS.find((c) => c.id === data.cardId)?.name || '未知卡',
+    userName: data.userName || data.customerName || '新用户',
+    handlerName: '系统管理员',
     actualPrice: data.actualPrice,
     status: 'active',
     purchaseTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-    expireTime: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19),
+    expireTime: data.expireTime || data.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19),
   };
 }
 
@@ -75,6 +77,7 @@ interface CardOrder {
   cardName: string;
   userName: string;
   actualPrice: number;
+  handlerName?: string;
   status: 'active' | 'expired' | 'voided';
   purchaseTime: string;
   expireTime: string;

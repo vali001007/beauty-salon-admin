@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AiService } from './ai.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { IndustryService } from '../industry/industry.service';
 
 describe('AiService', () => {
   let service: AiService;
@@ -84,6 +85,88 @@ describe('AiService', () => {
       nextBookingHint: expect.any(String),
     });
     expect(result.structured?.preChecks.length).toBeGreaterThan(0);
+  });
+
+  it('adds only published industry knowledge context to terminal service advice', async () => {
+    const prisma = {
+      aiAuditLog: {
+        create: jest.fn(),
+      },
+    };
+    const industryService = {
+      findKnowledgeItems: jest.fn().mockResolvedValue([
+        {
+          id: 11,
+          title: '敏感肌护理禁忌',
+          domain: 'contraindication',
+          content: '服务前确认过敏史，避免刺激性焕肤操作。',
+          reviewStatus: 'approved',
+          safetyLevel: 'high',
+        },
+      ]),
+    };
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chatcmpl-terminal-service-advice',
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                preChecks: ['确认过敏史'],
+                keySteps: ['先清洁后舒缓'],
+                materialUsage: ['按本地 BOM 记录'],
+                followUpAdvice: '服务后观察泛红',
+                nextBookingHint: '两周后复查',
+              }),
+            },
+          },
+        ],
+        usage: { prompt_tokens: 20, completion_tokens: 8 },
+      }),
+    });
+    global.fetch = fetchMock as any;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: IndustryService, useValue: industryService },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, fallback?: string) => {
+              const values: Record<string, string> = {
+                LLM_PROVIDER: 'deepseek',
+                LLM_API_KEY: 'test-key',
+                LLM_BASE_URL: 'https://api.deepseek.com',
+                LLM_CHAT_PATH: '/chat/completions',
+                LLM_MODEL: 'deepseek-v4-flash',
+              };
+              return values[key] ?? fallback;
+            }),
+          },
+        },
+      ],
+    }).compile();
+    const realService = module.get<AiService>(AiService);
+
+    const result = await realService.generateTerminalServiceAdvice({ customerId: 1, projectId: 2 }, 7, 1);
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const userPayload = JSON.parse(requestBody.messages[1].content);
+
+    expect(industryService.findKnowledgeItems).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 5 }),
+      true,
+    );
+    expect(userPayload.industryKnowledge).toEqual([
+      expect.objectContaining({
+        id: 11,
+        title: '敏感肌护理禁忌',
+        sourceType: 'industry_knowledge',
+      }),
+    ]);
+    expect(result.structured?.industryKnowledge).toEqual(userPayload.industryKnowledge);
   });
 
   it('generates next best action with structured fields', async () => {

@@ -39,4 +39,9 @@ export class UpdateUserDto {
   @IsArray()
   @IsInt({ each: true })
   storeIds?: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  supplySupplierId?: number | null;
 }

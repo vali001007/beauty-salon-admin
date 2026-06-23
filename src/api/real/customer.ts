@@ -1,5 +1,6 @@
 import type {
   Customer,
+  CustomerCardPortrait,
   CustomerCreatePayload,
   CustomerConsumptionRecord,
   CustomerHealthProfile,
@@ -41,6 +42,12 @@ import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
 export async function realGetCustomersPaginated(params: PaginationParams & { keyword?: string; name?: string; phone?: string; memberLevel?: string; storeName?: string }): Promise<PaginatedResponse<Customer>> {
   return apiClient.get('/customers/paginated', { params });
+}
+
+export async function realGetCustomerCardPortraits(
+  params: PaginationParams & { keyword?: string; name?: string; phone?: string; memberLevel?: string; storeName?: string },
+): Promise<PaginatedResponse<CustomerCardPortrait>> {
+  return apiClient.get('/customers/card-portraits', { params });
 }
 
 import type { ImportResult } from '@/types/excel';

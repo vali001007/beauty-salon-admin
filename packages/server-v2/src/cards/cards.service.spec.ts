@@ -16,8 +16,14 @@ describe('CardsService inventory consumption', () => {
           remainingTimes: 5,
           expiryDate: new Date('2026-12-31T00:00:00.000Z'),
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          paidAmount: 680,
+          discountAmount: 0,
+          giftTimes: 0,
+          recognizedUnitValue: 68,
+          sourceOrderId: 501,
+          sourceOrderItemId: 601,
           customer: { name: '林若溪', storeId: 1 },
-          card: { projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }] },
+          card: { id: 11, price: 680, totalTimes: 10, projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }] },
         }),
         update: jest.fn().mockResolvedValue({ id: 66, remainingTimes: 4 }),
       },
@@ -46,11 +52,14 @@ describe('CardsService inventory consumption', () => {
       stockMovement: {
         create: jest.fn().mockResolvedValue({ id: 901 }),
       },
+      beautician: {
+        findFirst: jest.fn(),
+      },
     };
     prisma = {
       $transaction: jest.fn((callback: any) => callback(tx)),
     };
-    service = new CardsService(prisma);
+    service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
   });
 
   it('deducts project BOM stock after card usage verification', async () => {
@@ -58,6 +67,7 @@ describe('CardsService inventory consumption', () => {
       customerCardId: 66,
       projectName: '深层补水护理',
       consumedTimes: 1,
+      operatorId: 7,
     });
 
     expect(tx.customerCard.update).toHaveBeenCalledWith({
@@ -85,5 +95,129 @@ describe('CardsService inventory consumption', () => {
         sourceNo: '补水护理 10 次卡',
       }),
     });
+    expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        operatorId: 7,
+        customerId: 10,
+        cardName: '补水护理 10 次卡',
+        projectName: '深层补水护理',
+        customerCardId: 66,
+        cardId: 11,
+        projectId: 101,
+        storeId: 1,
+        recognizedUnitValue: 68,
+        recognizedAmount: 68,
+        sourceOrderId: 501,
+        sourceOrderItemId: 601,
+      }),
+    });
+  });
+});
+
+describe('CardsService sale options', () => {
+  it('returns active global and store-scoped cards with normalized fields', async () => {
+    const prisma: any = {
+      card: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 12,
+            name: '补水护理 10 次卡',
+            totalTimes: 10,
+            price: 2680,
+            validDays: 180,
+            storeId: 6,
+            store: { id: 6, name: 'Ami 全量演示门店' },
+            status: 'active',
+            sortOrder: 1,
+            createdAt: new Date('2026-06-01T00:00:00.000Z'),
+            projects: [{ projectName: '深层补水护理', timesPerCard: 10 }],
+          },
+          {
+            id: 13,
+            name: '全店通用次卡',
+            totalTimes: 8,
+            price: 1880,
+            validDays: null,
+            storeId: null,
+            store: null,
+            status: 'active',
+            sortOrder: 2,
+            createdAt: new Date('2026-06-02T00:00:00.000Z'),
+            projects: ['敏感肌舒缓修护'],
+          },
+        ]),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    const result = await service.findSaleOptions({ storeId: 6 });
+
+    expect(prisma.card.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        status: 'active',
+        OR: [{ storeId: null }, { storeId: 6 }],
+      },
+    }));
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 12,
+        status: '上架',
+        storeId: 6,
+        storeName: 'Ami 全量演示门店',
+        validDays: 180,
+        projects: [{ projectName: '深层补水护理', timesPerCard: 10 }],
+      }),
+      expect.objectContaining({
+        id: 13,
+        storeId: null,
+        storeName: '全部门店',
+        validDays: 365,
+        projects: [{ projectName: '敏感肌舒缓修护', timesPerCard: 8 }],
+      }),
+    ]);
+  });
+
+  it('drops display-only fields when creating cards', async () => {
+    const prisma: any = {
+      card: {
+        create: jest.fn().mockResolvedValue({
+          id: 20,
+          name: '抗衰管理 6 次卡',
+          totalTimes: 6,
+          price: 3680,
+          validDays: 120,
+          storeId: 6,
+          store: { id: 6, name: 'Ami 全量演示门店' },
+          status: 'active',
+          sortOrder: 0,
+          createdAt: new Date('2026-06-01T00:00:00.000Z'),
+          projects: [{ projectName: '紧致抗衰护理', timesPerCard: 6 }],
+        }),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await service.create({
+      name: '抗衰管理 6 次卡',
+      type: '次卡',
+      storeName: 'Ami 全量演示门店',
+      storeId: 6,
+      totalTimes: 6,
+      price: 3680,
+      validDays: 120,
+      status: '上架',
+      projects: [{ projectName: '紧致抗衰护理', timesPerCard: 6 }],
+    });
+
+    const data = prisma.card.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      name: '抗衰管理 6 次卡',
+      storeId: 6,
+      totalTimes: 6,
+      validDays: 120,
+      status: 'active',
+    });
+    expect(data).not.toHaveProperty('type');
+    expect(data).not.toHaveProperty('storeName');
   });
 });

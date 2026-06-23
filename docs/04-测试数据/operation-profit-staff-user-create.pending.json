@@ -1,0 +1,44 @@
+{
+  "purpose": "operation-profit-staff-user-create-pending-business-confirmation",
+  "sourceFile": "docs/04-测试数据/operation-profit-beautician-user-bindings.pending.json",
+  "generatedBy": "operation-profit:staff-user-template",
+  "warning": "This file is a candidate draft only. Business must confirm every created account, copy it to a formal JSON path, and set OPERATION_PROFIT_NEW_STAFF_DEFAULT_PASSWORD before apply.",
+  "sourceSummary": {
+    "missingUserBindingNoCandidateItems": 2,
+    "plannedStaffUsers": 2
+  },
+  "users": [
+    {
+      "action": "create_and_bind_staff_user",
+      "beauticianId": 44,
+      "username": "beautician_6_44",
+      "name": "韩雨",
+      "phone": "13866051415",
+      "roleKey": "beautician",
+      "storeId": 6,
+      "impactedOrderItemIds": [
+        1102
+      ],
+      "impactedAssignments": 1,
+      "source": "operation-profit:beautician-user-audit/no_candidate",
+      "reason": "No active same-name/same-phone store user candidate was found. Create a system user or bind an existing active store user before confirmation dry-run.",
+      "confirmedBy": "pending_business_confirmation"
+    },
+    {
+      "action": "create_and_bind_staff_user",
+      "beauticianId": 50,
+      "username": "beautician_6_50",
+      "name": "许诺",
+      "phone": "13866119410",
+      "roleKey": "beautician",
+      "storeId": 6,
+      "impactedOrderItemIds": [
+        1111
+      ],
+      "impactedAssignments": 1,
+      "source": "operation-profit:beautician-user-audit/no_candidate",
+      "reason": "No active same-name/same-phone store user candidate was found. Create a system user or bind an existing active store user before confirmation dry-run.",
+      "confirmedBy": "pending_business_confirmation"
+    }
+  ]
+}

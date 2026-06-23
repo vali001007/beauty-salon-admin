@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { AlertCircle, CheckCircle, Loader, Printer, RefreshCw, X } from "lucide-react";
+import { formatBusinessDate, formatBusinessDateTime } from "../utils/businessTime";
 
 export interface PrintReceiptItem {
   name: string;
@@ -47,8 +48,8 @@ function ReceiptPreviewOverlay({
   };
 
   const today = new Date();
-  const dateStr = today.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-  const timeStr = today.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dateStr = formatBusinessDate(today);
+  const timeStr = formatBusinessDateTime(today, { seconds: true }).slice(11);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

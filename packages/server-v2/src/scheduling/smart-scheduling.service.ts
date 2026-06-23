@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SchedulingService } from './scheduling.service.js';
 import { CommissionService } from '../commission/commission.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 
 type SmartScheduleStatus = 'available' | 'busy' | 'leave';
 
@@ -1091,11 +1092,11 @@ export class SmartSchedulingService {
 
   private toDateKey(value?: string | Date | null) {
     if (!value) return '';
-    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (value instanceof Date) return formatBusinessDate(value);
     const raw = String(value);
     if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
     const date = new Date(raw);
-    return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+    return Number.isNaN(date.getTime()) ? '' : formatBusinessDate(date);
   }
 
   private toTimeKey(value?: string | Date | null) {
@@ -1107,7 +1108,7 @@ export class SmartSchedulingService {
   private addDays(dateText: string, days: number) {
     const date = new Date(dateText);
     date.setDate(date.getDate() + days);
-    return date.toISOString().slice(0, 10);
+    return formatBusinessDate(date);
   }
 
   private daysBetween(startDate: string, endDate: string) {

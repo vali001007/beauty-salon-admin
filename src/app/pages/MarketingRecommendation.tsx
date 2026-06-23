@@ -45,6 +45,7 @@ import type { TerminalFollowUpTask, TerminalFollowUpTaskSummary } from '@/types/
 import type { Recommendation, UrgencyLevel } from '@/utils/marketingRecommendation';
 import { computeBehaviorProfiles, type BehaviorProfile } from '@/utils/customerSegmentation';
 import { buildMarketingPagePayloadFromActivity } from '@/utils/marketingPageGenerator';
+import { addBusinessDays, formatBusinessDate, formatBusinessDateTime, formatBusinessMonthDayTime } from '@/utils/businessTime';
 
 type SelectedCustomerGroup = {
   recommendation: Recommendation;
@@ -202,9 +203,7 @@ const FOLLOW_UP_ROLE_LABELS: Record<string, string> = {
 
 const formatFollowUpDateTime = (value?: string) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return formatBusinessMonthDayTime(value) || value;
 };
 
 const compactMetricText = (value?: string) =>
@@ -324,9 +323,7 @@ function getTerminalFollowUpDueAt() {
 
 function formatExecutionTime(value?: string) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatBusinessMonthDayTime(value);
 }
 
 function getExecutionStatusItems(rec: Recommendation) {
@@ -981,12 +978,10 @@ export function MarketingRecommendation() {
   };
 
   const getPreviewPeriod = () => {
-    const today = new Date();
-    const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 30);
+    const today = formatBusinessDate(new Date());
     return {
-      startDate: today.toISOString().slice(0, 10),
-      endDate: endDate.toISOString().slice(0, 10),
+      startDate: today,
+      endDate: addBusinessDays(today, 30),
     };
   };
 
@@ -1276,16 +1271,14 @@ export function MarketingRecommendation() {
 
   const createMiniPreviewData = (data?: PreviewInitialData): ActivityPageData => {
     const source: PreviewInitialData = data || createFallbackInitialData();
-    const today = new Date();
-    const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 30);
+    const today = formatBusinessDate(new Date());
 
     return {
       title: source.title || '会员专属护理活动',
       description: source.description || '基于客户画像与消费偏好，为目标会员推荐专属护理方案。',
       discount: source.discount || '到店享专属优惠',
-      startDate: today.toISOString().slice(0, 10),
-      endDate: endDate.toISOString().slice(0, 10),
+      startDate: today,
+      endDate: addBusinessDays(today, 30),
       targetCustomers: source.targetCustomers || '目标会员',
       posterImage: source.image,
       posterTitleColor: '#FFFFFF',
@@ -1917,7 +1910,7 @@ export function MarketingRecommendation() {
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                       <div className="flex-1 text-xs text-gray-400">
                         {rec.predictionRunFinishedAt && (
-                          <span>批次 {new Date(rec.predictionRunFinishedAt).toLocaleString('zh-CN')}</span>
+                          <span>批次 {formatBusinessDateTime(rec.predictionRunFinishedAt, { seconds: true })}</span>
                         )}
                       </div>
                       <button

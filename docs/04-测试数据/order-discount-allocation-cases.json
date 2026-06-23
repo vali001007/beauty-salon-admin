@@ -1,0 +1,161 @@
+{
+  "updatedAt": "2026-06-21",
+  "cases": [
+    {
+      "id": "project_product_package_price",
+      "name": "项目加商品套餐价",
+      "input": {
+        "discountMode": "package_price",
+        "packagePrice": 680,
+        "allocationMethod": "price_ratio",
+        "items": [
+          { "itemType": "project", "itemId": 101, "name": "补水项目", "quantity": 1, "unitPrice": 500 },
+          { "itemType": "product", "itemId": 201, "name": "面膜商品", "quantity": 1, "unitPrice": 300 }
+        ]
+      },
+      "expected": {
+        "listAmount": 800,
+        "orderDiscountAmount": 120,
+        "netAmount": 680,
+        "items": [
+          { "name": "补水项目", "listAmount": 500, "orderAllocatedDiscountAmount": 75, "netAmount": 425 },
+          { "name": "面膜商品", "listAmount": 300, "orderAllocatedDiscountAmount": 45, "netAmount": 255 }
+        ]
+      }
+    },
+    {
+      "id": "second_product_half_price",
+      "name": "商品第二件半价",
+      "input": {
+        "discountMode": "none",
+        "items": [
+          {
+            "itemType": "product",
+            "itemId": 202,
+            "name": "修护精华",
+            "quantity": 2,
+            "unitPrice": 200,
+            "itemDiscountAmount": 100,
+            "discountSource": "promotion"
+          }
+        ]
+      },
+      "expected": {
+        "listAmount": 400,
+        "itemDiscountAmount": 100,
+        "netAmount": 300,
+        "items": [
+          { "name": "修护精华", "listAmount": 400, "itemDiscountAmount": 100, "netAmount": 300 }
+        ]
+      }
+    },
+    {
+      "id": "project_gift_product",
+      "name": "买项目送商品",
+      "input": {
+        "discountMode": "none",
+        "items": [
+          { "itemType": "project", "itemId": 101, "name": "补水项目", "quantity": 1, "unitPrice": 500 },
+          { "itemType": "product", "itemId": 203, "name": "赠送面膜", "quantity": 1, "unitPrice": 100, "isGift": true }
+        ]
+      },
+      "expected": {
+        "listAmount": 600,
+        "totalDiscountAmount": 100,
+        "netAmount": 500,
+        "items": [
+          { "name": "补水项目", "listAmount": 500, "totalDiscountAmount": 0, "netAmount": 500 },
+          { "name": "赠送面膜", "listAmount": 100, "totalDiscountAmount": 100, "netAmount": 0, "isGift": true }
+        ]
+      }
+    },
+    {
+      "id": "card_order_gift_project",
+      "name": "办卡赠项目",
+      "input": {
+        "discountMode": "none",
+        "items": [
+          { "itemType": "card", "itemId": 301, "name": "10 次补水卡", "quantity": 1, "unitPrice": 1980 },
+          { "itemType": "project", "itemId": 102, "name": "赠肩颈护理", "quantity": 1, "unitPrice": 200, "isGift": true }
+        ]
+      },
+      "expected": {
+        "listAmount": 2180,
+        "netAmount": 1980,
+        "cardLiabilityAmount": 1980,
+        "giftProjectIncome": 0
+      }
+    },
+    {
+      "id": "recharge_with_gift_balance",
+      "name": "充值赠金额",
+      "input": {
+        "discountMode": "none",
+        "items": [
+          { "itemType": "recharge", "name": "会员充值", "quantity": 1, "unitPrice": 1000, "payload": { "giftAmount": 200 } }
+        ]
+      },
+      "expected": {
+        "listAmount": 1000,
+        "netAmount": 1000,
+        "cashBalanceIncrease": 1000,
+        "giftBalanceIncrease": 200,
+        "recognizedRevenue": 1000
+      }
+    },
+    {
+      "id": "order_rounding_discount",
+      "name": "整单抹零",
+      "input": {
+        "discountMode": "amount",
+        "discountAmount": 3,
+        "allocationMethod": "price_ratio",
+        "items": [
+          { "itemType": "project", "itemId": 101, "name": "补水项目", "quantity": 1, "unitPrice": 503 },
+          { "itemType": "product", "itemId": 201, "name": "面膜商品", "quantity": 1, "unitPrice": 300 }
+        ]
+      },
+      "expected": {
+        "listAmount": 803,
+        "orderDiscountAmount": 3,
+        "netAmount": 800,
+        "allocationRounding": "highest_list_amount_item"
+      }
+    },
+    {
+      "id": "coupon_money_off",
+      "name": "满减券",
+      "input": {
+        "discountMode": "amount",
+        "discountAmount": 200,
+        "discountSource": "coupon",
+        "couponId": 9001,
+        "allocationMethod": "price_ratio",
+        "items": [
+          { "itemType": "project", "itemId": 101, "name": "补水项目", "quantity": 1, "unitPrice": 600 },
+          { "itemType": "product", "itemId": 201, "name": "面膜商品", "quantity": 1, "unitPrice": 400 }
+        ]
+      },
+      "expected": {
+        "listAmount": 1000,
+        "orderDiscountAmount": 200,
+        "netAmount": 800,
+        "items": [
+          { "name": "补水项目", "orderAllocatedDiscountAmount": 120, "netAmount": 480 },
+          { "name": "面膜商品", "orderAllocatedDiscountAmount": 80, "netAmount": 320 }
+        ]
+      }
+    },
+    {
+      "id": "partial_refund_net_amount",
+      "name": "部分退款按明细净额",
+      "input": {
+        "orderItem": { "itemType": "project", "name": "补水项目", "quantity": 1, "listAmount": 500, "netAmount": 425 }
+      },
+      "expected": {
+        "maxRefundAmount": 425,
+        "mustNotRefundByListAmount": 500
+      }
+    }
+  ]
+}

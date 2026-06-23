@@ -24,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: { sub: number }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
     });
 
     if (!user || user.deletedAt || user.status !== 'active') {
@@ -45,6 +45,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       roles: user.roles.map((ur) => ur.role.key),
       permissions: Array.from(permissions),
       stores: user.stores.map((us) => us.storeId),
+      supplySupplierId: user.supplySupplierId,
+      supplySupplierName: user.supplySupplier?.name,
     };
   }
 }

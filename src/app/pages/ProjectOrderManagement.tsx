@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { BarChart3, Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createProjectOrder, getProjectOrdersPaginated } from '@/api/order';
+import { createProjectOrder, getProjectOrderProfit, getProjectOrdersPaginated } from '@/api/order';
 import { getCustomers } from '@/api/customer';
 import { getProjects } from '@/api/project';
+import { getBeauticians } from '@/api/beautician';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
+import { useAuthStore } from '@/stores/authStore';
+import { hasPermission } from '@/config/permissions';
 import { exportToExcel } from '@/utils/excel';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -16,7 +19,9 @@ import type {
   ProductOrderItem,
   ProductOrderPaymentMethod,
   ProductOrderStatus,
+  ProjectOrderProfitDetail,
   Project,
+  Beautician,
 } from '@/types';
 import type { ExportColumn } from '@/types/excel';
 
@@ -25,7 +30,8 @@ const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'customerName', header: '客户', width: 12 },
   { key: 'customerPhone', header: '联系电话', width: 15 },
   { key: 'storeName', header: '门店', width: 20 },
-  { key: 'totalAmount', header: '总金额', width: 12 },
+  { key: 'itemSummary', header: '项目明细', width: 36 },
+  { key: 'totalAmount', header: '项目金额', width: 12 },
   { key: 'paymentMethod', header: '支付方式', width: 12 },
   { key: 'status', header: '状态', width: 10 },
   { key: 'createdAt', header: '下单时间', width: 18 },
@@ -43,6 +49,8 @@ type DraftProjectItem = {
   duration: number;
   quantity: number;
   unitPrice: number;
+  beauticianId: string;
+  beauticianName: string;
 };
 
 type OrderFormState = {
@@ -55,6 +63,30 @@ type OrderFormState = {
   remark: string;
 };
 
+type DiscountFormState = {
+  mode: 'none' | 'amount' | 'rate' | 'package_price';
+  amount: string;
+  rate: string;
+  packagePrice: string;
+};
+
+type DiscountPreview = {
+  grossAmount: number;
+  discountAmount: number;
+  netAmount: number;
+  discountMode: 'none' | 'amount' | 'rate' | 'package_price';
+  discountSource: 'order' | 'package' | 'manual';
+  discountRate?: number;
+  packagePrice?: number;
+};
+
+const DISCOUNT_MODE_OPTIONS: Array<{ value: DiscountFormState['mode']; label: string }> = [
+  { value: 'none', label: '无优惠' },
+  { value: 'amount', label: '优惠金额' },
+  { value: 'rate', label: '折扣率' },
+  { value: 'package_price', label: '套餐价' },
+];
+
 const createEmptyItem = (): DraftProjectItem => ({
   rowId: Date.now() + Math.floor(Math.random() * 1000),
   projectId: '',
@@ -63,10 +95,68 @@ const createEmptyItem = (): DraftProjectItem => ({
   duration: 60,
   quantity: 1,
   unitPrice: 0,
+  beauticianId: '',
+  beauticianName: '',
 });
+
+const createEmptyDiscount = (): DiscountFormState => ({
+  mode: 'none',
+  amount: '',
+  rate: '',
+  packagePrice: '',
+});
+
+function getDiscountPreview(totalAmount: number, discount: DiscountFormState): DiscountPreview {
+  const grossAmount = Math.max(0, Number(totalAmount || 0));
+  if (discount.mode === 'amount') {
+    const discountAmount = Math.min(grossAmount, Math.max(0, Number(discount.amount) || 0));
+    return {
+      grossAmount,
+      discountAmount,
+      netAmount: Math.max(0, grossAmount - discountAmount),
+      discountMode: 'amount' as const,
+      discountSource: 'manual' as const,
+    };
+  }
+  if (discount.mode === 'rate') {
+    const discountRate = Math.min(1, Math.max(0, Number(discount.rate) || 0));
+    const discountAmount = Number((grossAmount * (1 - discountRate)).toFixed(2));
+    return {
+      grossAmount,
+      discountAmount,
+      netAmount: Math.max(0, grossAmount - discountAmount),
+      discountMode: 'rate' as const,
+      discountRate,
+      discountSource: 'manual' as const,
+    };
+  }
+  if (discount.mode === 'package_price') {
+    const packagePrice = Math.min(grossAmount, Math.max(0, Number(discount.packagePrice) || 0));
+    const discountAmount = Math.max(0, grossAmount - packagePrice);
+    return {
+      grossAmount,
+      discountAmount,
+      netAmount: packagePrice,
+      discountMode: 'package_price' as const,
+      packagePrice,
+      discountSource: 'package' as const,
+    };
+  }
+  return {
+    grossAmount,
+    discountAmount: 0,
+    netAmount: grossAmount,
+    discountMode: 'none' as const,
+    discountSource: 'order' as const,
+  };
+}
 
 function formatCurrency(value: number) {
   return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function formatPercent(value: number) {
+  return `${(Number(value || 0) * 100).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
 }
 
 function getOrderItems(order: ProductOrder): ProductOrderItem[] {
@@ -83,8 +173,48 @@ function getOrderItems(order: ProductOrder): ProductOrderItem[] {
       unitPrice: Number(item.unitPrice),
       subtotal: Number(item.subtotal),
       discount: Number(item.discount || 0),
+      listAmount: item.listAmount === undefined ? undefined : Number(item.listAmount),
+      totalDiscountAmount: item.totalDiscountAmount === undefined ? undefined : Number(item.totalDiscountAmount),
+      netAmount: item.netAmount === undefined ? undefined : Number(item.netAmount),
+      beauticianId: item.beauticianId === undefined || item.beauticianId === null ? undefined : Number(item.beauticianId),
+      beauticianName: item.beauticianName ?? (item.payload as { beauticianName?: string } | undefined)?.beauticianName,
       payload: item.payload,
     }));
+}
+
+function getServiceEmployeeText(items: ProductOrderItem[]) {
+  const names = Array.from(new Set(items.map((item) => item.beauticianName?.trim()).filter((name): name is string => Boolean(name))));
+  return names.length ? names.join('、') : '-';
+}
+
+function getProjectItemName(item: ProductOrderItem) {
+  return item.productName?.trim() || '未记录项目';
+}
+
+function getOrderItemAmount(item: ProductOrderItem) {
+  return Number(item.netAmount ?? item.subtotal ?? Number(item.quantity || 0) * Number(item.unitPrice || 0));
+}
+
+function getOrderItemListAmount(item: ProductOrderItem) {
+  return Number(item.listAmount ?? Number(item.quantity || 0) * Number(item.unitPrice || 0));
+}
+
+function getOrderItemDiscountAmount(item: ProductOrderItem) {
+  return Number(item.totalDiscountAmount ?? item.discount ?? Math.max(0, getOrderItemListAmount(item) - getOrderItemAmount(item)));
+}
+
+function getOrderItemsAmount(items: ProductOrderItem[]) {
+  return items.reduce((sum, item) => sum + getOrderItemAmount(item), 0);
+}
+
+function getDisplayOrderNo(order: ProductOrder) {
+  return order.checkoutGroupNo || order.orderNo;
+}
+
+function getProjectItemsSummary(items: ProductOrderItem[]) {
+  return items.length
+    ? items.map((item) => `${getProjectItemName(item)} x${Number(item.quantity || 0)} ${formatCurrency(getOrderItemAmount(item))}`).join('；')
+    : '未记录';
 }
 
 export function ProjectOrderManagement() {
@@ -92,10 +222,16 @@ export function ProjectOrderManagement() {
   const [keyword, setKeyword] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<ProductOrder | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [showProfit, setShowProfit] = useState(false);
+  const [profitDetail, setProfitDetail] = useState<ProjectOrderProfitDetail | null>(null);
+  const [profitLoading, setProfitLoading] = useState(false);
+  const [profitError, setProfitError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [beauticians, setBeauticians] = useState<Beautician[]>([]);
+  const [loadingBeauticians, setLoadingBeauticians] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
@@ -110,10 +246,12 @@ export function ProjectOrderManagement() {
     remark: '',
   });
   const [draftItems, setDraftItems] = useState<DraftProjectItem[]>([createEmptyItem()]);
+  const [discountForm, setDiscountForm] = useState<DiscountFormState>(createEmptyDiscount());
 
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const stores = useStoreStore((state) => state.stores);
   const loadStores = useStoreStore((state) => state.loadStores);
+  const currentUser = useAuthStore((state) => state.user);
 
   useEffect(() => {
     if (!stores.length) {
@@ -135,6 +273,36 @@ export function ProjectOrderManagement() {
     if (!selectedOrderStore) return [];
     return projects.filter((project) => project.storeName === selectedOrderStore.name);
   }, [projects, selectedOrderStore]);
+
+  const selectableBeauticians = useMemo(() => {
+    if (!selectedOrderStore) return [];
+    return beauticians.filter((beautician) => beautician.storeName === selectedOrderStore.name && beautician.status === '在职');
+  }, [beauticians, selectedOrderStore]);
+
+  useEffect(() => {
+    if (!showCreate || !selectedOrderStore) {
+      setBeauticians([]);
+      setLoadingBeauticians(false);
+      return;
+    }
+
+    let ignore = false;
+    setLoadingBeauticians(true);
+    getBeauticians({ storeName: selectedOrderStore.name })
+      .then((items) => {
+        if (!ignore) setBeauticians(items);
+      })
+      .catch(() => {
+        if (!ignore) toast.error('服务员工加载失败，请先确认美容师档案');
+      })
+      .finally(() => {
+        if (!ignore) setLoadingBeauticians(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedOrderStore, showCreate]);
 
   useEffect(() => {
     if (!showCreate || !selectedOrderStore) {
@@ -196,11 +364,19 @@ export function ProjectOrderManagement() {
     () => draftItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0),
     [draftItems],
   );
+  const discountPreview = useMemo(() => getDiscountPreview(totalAmount, discountForm), [discountForm, totalAmount]);
 
   const activeOrders = orders.filter((order) => !['已取消', '已退款'].includes(order.status));
   const completedCount = orders.filter((order) => order.status === '已完成').length;
   const pendingCount = orders.filter((order) => ['待付款', '已付款'].includes(order.status)).length;
-  const activeAmount = activeOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+  const activeAmount = activeOrders.reduce((sum, order) => sum + getOrderItemsAmount(getOrderItems(order)), 0);
+  const canViewProjectOrderProfit = useMemo(() => {
+    const roles = currentUser?.roles ?? [];
+    const permissions = currentUser?.permissions ?? [];
+    const deniedPermissions = currentUser?.deniedPermissions ?? [];
+    if (hasPermission(deniedPermissions, 'core:project-order-profit:view') || hasPermission(deniedPermissions, '*')) return false;
+    return hasPermission(permissions, '*') || roles.includes('super_admin') || roles.includes('store_manager');
+  }, [currentUser]);
 
   const getStatusColor = (status: ProductOrder['status']) => {
     switch (status) {
@@ -233,6 +409,7 @@ export function ProjectOrderManagement() {
     setCustomerSearch('');
     setShowCustomerOptions(false);
     setDraftItems([createEmptyItem()]);
+    setDiscountForm(createEmptyDiscount());
   };
 
   const handleOpenCreate = () => {
@@ -259,6 +436,14 @@ export function ProjectOrderManagement() {
     });
   };
 
+  const handleBeauticianSelect = (rowId: number, beauticianId: string) => {
+    const beautician = selectableBeauticians.find((item) => String(item.id) === beauticianId);
+    updateDraftItem(rowId, {
+      beauticianId,
+      beauticianName: beautician?.name ?? '',
+    });
+  };
+
   const addDraftItem = () => {
     setDraftItems((prev) => [...prev, createEmptyItem()]);
   };
@@ -279,6 +464,7 @@ export function ProjectOrderManagement() {
     setCustomers([]);
     setShowCustomerOptions(false);
     setDraftItems([createEmptyItem()]);
+    setDiscountForm(createEmptyDiscount());
   };
 
   const handleCustomerInputChange = (value: string) => {
@@ -313,8 +499,10 @@ export function ProjectOrderManagement() {
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice || 0),
         duration: Number(item.duration || 0),
+        beauticianId: item.beauticianId,
+        beauticianName: item.beauticianName.trim(),
       }))
-      .filter((item) => item.projectName && item.quantity > 0 && item.unitPrice >= 0);
+      .filter((item) => item.projectName && item.quantity > 0 && item.unitPrice >= 0 && item.beauticianId);
 
     if (!form.customerName.trim()) {
       toast.error('请填写客户姓名');
@@ -326,6 +514,10 @@ export function ProjectOrderManagement() {
     }
     if (!normalizedItems.length) {
       toast.error('请至少添加一条项目明细');
+      return;
+    }
+    if (draftItems.some((item) => item.projectName.trim() && !item.beauticianId)) {
+      toast.error('请为每条项目明细选择服务员工，便于提成归属');
       return;
     }
 
@@ -343,18 +535,29 @@ export function ProjectOrderManagement() {
         sku: item.projectType,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        listAmount: item.quantity * item.unitPrice,
         subtotal: item.quantity * item.unitPrice,
+        beauticianId: item.beauticianId ? Number(item.beauticianId) : undefined,
+        beauticianName: item.beauticianName || undefined,
         payload: {
           projectId: item.projectId ? Number(item.projectId) : undefined,
           projectName: item.projectName,
           projectType: item.projectType,
           duration: item.duration,
+          beauticianId: item.beauticianId ? Number(item.beauticianId) : undefined,
+          beauticianName: item.beauticianName || undefined,
         },
       })),
-      totalAmount,
+      totalAmount: discountPreview.netAmount,
+      discountMode: discountPreview.discountMode,
+      discountAmount: discountPreview.discountMode === 'amount' ? discountPreview.discountAmount : undefined,
+      discountRate: discountPreview.discountRate,
+      packagePrice: discountPreview.packagePrice,
+      allocationMethod: 'price_ratio',
+      discountSource: discountPreview.discountSource,
       status: form.status,
       paymentMethod: form.paymentMethod,
-      paidAmount: ['已付款', '已完成'].includes(form.status) ? totalAmount : 0,
+      paidAmount: ['已付款', '已完成'].includes(form.status) ? discountPreview.netAmount : 0,
       remark: form.remark.trim() || undefined,
       source: 'admin',
     };
@@ -374,7 +577,36 @@ export function ProjectOrderManagement() {
   };
 
   const handleExport = () => {
-    exportToExcel(orders, ORDER_EXPORT_COLUMNS, '项目订单报表');
+    exportToExcel(
+      orders.map((order) => {
+        const items = getOrderItems(order);
+        return {
+          ...order,
+          itemSummary: getProjectItemsSummary(items),
+          totalAmount: getOrderItemsAmount(items),
+        };
+      }),
+      ORDER_EXPORT_COLUMNS,
+      '项目订单报表',
+    );
+  };
+
+  const handleOpenProfit = async (order: ProductOrder) => {
+    setSelectedOrder(order);
+    setShowProfit(true);
+    setProfitDetail(null);
+    setProfitError('');
+    setProfitLoading(true);
+    try {
+      const detail = await getProjectOrderProfit(order.id);
+      setProfitDetail(detail);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '利润明细加载失败，请稍后重试';
+      setProfitError(message);
+      toast.error(message);
+    } finally {
+      setProfitLoading(false);
+    }
   };
 
   return (
@@ -462,8 +694,10 @@ export function ProjectOrderManagement() {
               <TableHead>订单编号</TableHead>
               <TableHead>客户</TableHead>
               <TableHead>门店</TableHead>
+              <TableHead>项目明细</TableHead>
               <TableHead>项目数</TableHead>
-              <TableHead>总金额</TableHead>
+              <TableHead>项目金额</TableHead>
+              <TableHead>服务员工</TableHead>
               <TableHead>支付方式</TableHead>
               <TableHead>来源</TableHead>
               <TableHead>状态</TableHead>
@@ -474,16 +708,54 @@ export function ProjectOrderManagement() {
           <TableBody>
             {orders.map((order) => {
               const items = getOrderItems(order);
+              const serviceEmployees = getServiceEmployeeText(items);
+              const itemAmount = getOrderItemsAmount(items);
               return (
                 <TableRow key={order.id} className="hover:bg-blue-50/30">
-                  <TableCell className="font-mono text-sm font-medium text-blue-600">{order.orderNo}</TableCell>
+                  <TableCell className="font-mono text-sm font-medium text-blue-600">
+                    <div>{getDisplayOrderNo(order)}</div>
+                    {order.checkoutGroupNo && order.checkoutGroupNo !== order.orderNo ? (
+                      <div className="text-xs font-normal text-gray-400">分单 {order.orderNo}</div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium text-gray-800">{order.customerName || '散客'}</div>
                     <div className="text-xs text-gray-500">{order.customerPhone || '-'}</div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">{order.storeName || '-'}</TableCell>
+                  <TableCell className="min-w-44 max-w-64">
+                    {items.length ? (
+                      <div className="space-y-1">
+                        {items.slice(0, 2).map((item, index) => {
+                          const itemName = getProjectItemName(item);
+                          return (
+                            <div key={`${item.id}-${index}`} className="flex items-center gap-2 text-sm">
+                              <span className="truncate font-medium text-gray-800" title={itemName}>
+                                {itemName}
+                              </span>
+                              <span className="shrink-0 text-xs text-gray-500">x{Number(item.quantity || 0)}</span>
+                              <span className="shrink-0 text-xs font-medium text-gray-700">{formatCurrency(getOrderItemAmount(item))}</span>
+                            </div>
+                          );
+                        })}
+                        {items.length > 2 && (
+                          <div className="text-xs text-gray-500">另 {items.length - 2} 项，点详情查看</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">未记录</span>
+                    )}
+                  </TableCell>
                   <TableCell>{items.length}</TableCell>
-                  <TableCell className="font-medium text-gray-800">{formatCurrency(order.totalAmount)}</TableCell>
+                  <TableCell className="font-medium text-gray-800">
+                    <div>{formatCurrency(Number(order.netAmount ?? itemAmount))}</div>
+                    {Number(order.totalDiscountAmount || 0) > 0 && (
+                      <div className="text-xs font-normal text-amber-600">优惠 {formatCurrency(Number(order.totalDiscountAmount || 0))}</div>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-[120px] truncate text-sm text-gray-600" title={serviceEmployees}>
+                    {serviceEmployees}
+                  </TableCell>
                   <TableCell className="text-sm text-gray-600">{order.paymentMethod}</TableCell>
                   <TableCell className="text-sm text-gray-600">{order.source === 'terminal' ? 'Ami Aura Lite' : '管理端'}</TableCell>
                   <TableCell>
@@ -493,22 +765,33 @@ export function ProjectOrderManagement() {
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">{order.createdAt}</TableCell>
                   <TableCell className="text-right">
-                    <button
-                      onClick={() => {
-                        setSelectedOrder(order);
-                        setShowDetail(true);
-                      }}
-                      className="inline-flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600"
-                    >
-                      <Eye className="h-3.5 w-3.5" /> 详情
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      {canViewProjectOrderProfit && (
+                        <button
+                          onClick={() => handleOpenProfit(order)}
+                          className="inline-flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
+                          title="查看项目订单利润明细"
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" /> 利润
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setShowDetail(true);
+                        }}
+                        className="inline-flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600"
+                      >
+                        <Eye className="h-3.5 w-3.5" /> 详情
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
             })}
             {orders.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} className="py-12 text-center text-gray-400">
+                <TableCell colSpan={12} className="py-12 text-center text-gray-400">
                   暂无匹配的项目订单
                 </TableCell>
               </TableRow>
@@ -655,7 +938,7 @@ export function ProjectOrderManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-gray-800">项目明细</h3>
-                <p className="mt-1 text-xs text-gray-500">项目来源于当前订单门店已配置项目。</p>
+                <p className="mt-1 text-xs text-gray-500">项目和服务员工来源于当前订单门店配置，用于提成和经营利润归属。</p>
               </div>
               <Button variant="outline" size="sm" onClick={addDraftItem} className="gap-1">
                 <Plus className="h-4 w-4" /> 添加项目
@@ -663,9 +946,10 @@ export function ProjectOrderManagement() {
             </div>
 
             <div className="rounded-xl border border-gray-200">
-              <div className="grid grid-cols-[1.5fr_1.3fr_0.8fr_0.8fr_0.9fr_0.9fr_48px] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500">
+              <div className="grid grid-cols-[1.45fr_1.2fr_1.15fr_0.75fr_0.7fr_0.85fr_0.85fr_48px] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500">
                 <span>项目档案</span>
                 <span>项目名称</span>
+                <span>服务员工</span>
                 <span>类型</span>
                 <span>数量</span>
                 <span>单价</span>
@@ -678,7 +962,7 @@ export function ProjectOrderManagement() {
                   return (
                     <div
                       key={item.rowId}
-                      className="grid grid-cols-[1.5fr_1.3fr_0.8fr_0.8fr_0.9fr_0.9fr_48px] gap-2 px-3 py-3"
+                      className="grid grid-cols-[1.45fr_1.2fr_1.15fr_0.75fr_0.7fr_0.85fr_0.85fr_48px] gap-2 px-3 py-3"
                     >
                       <select
                         className="h-10 min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm"
@@ -700,6 +984,21 @@ export function ProjectOrderManagement() {
                         onChange={(event) => updateDraftItem(item.rowId, { projectName: event.target.value })}
                         placeholder="项目名称"
                       />
+                      <select
+                        className="h-10 min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm"
+                        value={item.beauticianId}
+                        onChange={(event) => handleBeauticianSelect(item.rowId, event.target.value)}
+                        disabled={loadingBeauticians || !form.storeId}
+                      >
+                        <option value="">
+                          {loadingBeauticians ? '加载员工中...' : form.storeId ? '请选择员工' : '请先选择门店'}
+                        </option>
+                        {selectableBeauticians.map((beautician) => (
+                          <option key={beautician.id} value={beautician.id}>
+                            {beautician.name}
+                          </option>
+                        ))}
+                      </select>
                       <Input
                         value={item.projectType}
                         onChange={(event) => updateDraftItem(item.rowId, { projectType: event.target.value })}
@@ -746,10 +1045,77 @@ export function ProjectOrderManagement() {
             />
           </label>
 
+          <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-gray-700">优惠方式</span>
+                <select
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                  value={discountForm.mode}
+                  onChange={(event) =>
+                    setDiscountForm((prev) => ({ ...prev, mode: event.target.value as DiscountFormState['mode'] }))
+                  }
+                >
+                  {DISCOUNT_MODE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {discountForm.mode === 'amount' && (
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-gray-700">优惠金额</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={discountForm.amount}
+                    onChange={(event) => setDiscountForm((prev) => ({ ...prev, amount: event.target.value }))}
+                    placeholder="例如 120"
+                  />
+                </label>
+              )}
+              {discountForm.mode === 'rate' && (
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-gray-700">折扣率</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={discountForm.rate}
+                    onChange={(event) => setDiscountForm((prev) => ({ ...prev, rate: event.target.value }))}
+                    placeholder="0.8 表示八折"
+                  />
+                </label>
+              )}
+              {discountForm.mode === 'package_price' && (
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-gray-700">套餐成交价</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={discountForm.packagePrice}
+                    onChange={(event) => setDiscountForm((prev) => ({ ...prev, packagePrice: event.target.value }))}
+                    placeholder="例如 680"
+                  />
+                </label>
+              )}
+              <div className="flex flex-col justify-end rounded-lg bg-white px-3 py-2">
+                <span className="text-xs text-gray-500">本单优惠</span>
+                <span className="text-lg font-semibold text-blue-700">{formatCurrency(discountPreview.discountAmount)}</span>
+              </div>
+              <div className="flex flex-col justify-end rounded-lg bg-white px-3 py-2">
+                <span className="text-xs text-gray-500">应收净额</span>
+                <span className="text-lg font-semibold text-gray-900">{formatCurrency(discountPreview.netAmount)}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
             <div>
-              <div className="text-sm text-gray-500">订单总金额</div>
-              <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(totalAmount)}</div>
+              <div className="text-sm text-gray-500">原价小计</div>
+              <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(discountPreview.grossAmount)}</div>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setShowCreate(false)} disabled={submitting}>
@@ -776,7 +1142,10 @@ export function ProjectOrderManagement() {
               <div className="grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 md:grid-cols-3">
                 <div>
                   <div className="text-sm text-gray-600">订单编号</div>
-                  <div className="mt-1 font-mono text-sm font-medium text-gray-800">{selectedOrder.orderNo}</div>
+                  <div className="mt-1 font-mono text-sm font-medium text-gray-800">{getDisplayOrderNo(selectedOrder)}</div>
+                  {selectedOrder.checkoutGroupNo && selectedOrder.checkoutGroupNo !== selectedOrder.orderNo ? (
+                    <div className="mt-0.5 text-xs text-gray-500">物理分单号：{selectedOrder.orderNo}</div>
+                  ) : null}
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">客户</div>
@@ -789,6 +1158,10 @@ export function ProjectOrderManagement() {
                 <div>
                   <div className="text-sm text-gray-600">门店</div>
                   <div className="mt-1 text-sm text-gray-800">{selectedOrder.storeName || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">服务员工</div>
+                  <div className="mt-1 text-sm text-gray-800">{getServiceEmployeeText(getOrderItems(selectedOrder))}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">支付方式</div>
@@ -824,20 +1197,26 @@ export function ProjectOrderManagement() {
                   <TableHeader>
                     <TableRow className="bg-gray-50/80">
                       <TableHead>项目名称</TableHead>
+                      <TableHead>服务员工</TableHead>
                       <TableHead>类型</TableHead>
                       <TableHead>数量</TableHead>
                       <TableHead>单价</TableHead>
-                      <TableHead className="text-right">小计</TableHead>
+                      <TableHead className="text-right">原价</TableHead>
+                      <TableHead className="text-right">优惠</TableHead>
+                      <TableHead className="text-right">实收</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {getOrderItems(selectedOrder).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{item.beauticianName || '-'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{item.sku || '-'}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(item.subtotal)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(getOrderItemListAmount(item))}</TableCell>
+                        <TableCell className="text-right text-amber-600">{formatCurrency(getOrderItemDiscountAmount(item))}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(getOrderItemAmount(item))}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -853,10 +1232,269 @@ export function ProjectOrderManagement() {
 
               <div className="flex justify-end border-t border-gray-200 pt-4">
                 <div className="text-right">
-                  <div className="text-sm text-gray-600">订单总额</div>
-                  <div className="mt-1 text-2xl font-semibold text-blue-600">{formatCurrency(selectedOrder.totalAmount)}</div>
+                  <div className="text-sm text-gray-600">项目实收</div>
+                  <div className="mt-1 text-2xl font-semibold text-blue-600">
+                    {formatCurrency(Number(selectedOrder.netAmount ?? getOrderItemsAmount(getOrderItems(selectedOrder))))}
+                  </div>
+                  {Number(selectedOrder.totalDiscountAmount || 0) > 0 && (
+                    <div className="mt-1 text-sm text-amber-600">
+                      原价 {formatCurrency(Number(selectedOrder.listAmount || 0))}，优惠 {formatCurrency(Number(selectedOrder.totalDiscountAmount || 0))}
+                    </div>
+                  )}
                 </div>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showProfit} onOpenChange={setShowProfit}>
+        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto" aria-describedby="project-order-profit-desc">
+          <DialogHeader>
+            <DialogTitle>项目订单利润明细</DialogTitle>
+            <DialogDescription id="project-order-profit-desc">
+              逐单查看项目收入、项目 BOM 或实际耗材、提成成本与毛利。
+            </DialogDescription>
+          </DialogHeader>
+
+          {profitLoading && (
+            <div className="flex items-center justify-center py-16 text-gray-500">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-600" />
+              正在加载利润明细...
+            </div>
+          )}
+
+          {!profitLoading && profitError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{profitError}</div>
+          )}
+
+          {!profitLoading && !profitError && profitDetail && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-3 rounded-lg bg-gray-50 p-4 md:grid-cols-4">
+                <div>
+                  <div className="text-sm text-gray-600">订单编号</div>
+                  <div className="mt-1 font-mono text-sm font-medium text-gray-800">{profitDetail.orderNo}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">客户</div>
+                  <div className="mt-1 font-medium text-gray-800">{profitDetail.customerName || '散客'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">门店</div>
+                  <div className="mt-1 text-sm text-gray-800">{profitDetail.storeName || selectedOrder?.storeName || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">成本口径</div>
+                  <div className="mt-1 text-sm font-medium text-gray-800">
+                    {profitDetail.materialCostSource === 'actual_stock_movement' ? '实际扣耗材' : '标准 BOM 估算'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500">项目收入</div>
+                  <div className="mt-2 text-xl font-semibold text-gray-900">{formatCurrency(profitDetail.totalIncome)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500">耗材成本</div>
+                  <div className="mt-2 text-xl font-semibold text-gray-900">{formatCurrency(profitDetail.materialCost)}</div>
+                  <div className="mt-1 text-xs text-gray-500">标准 {formatCurrency(profitDetail.standardMaterialCost)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500">提成成本</div>
+                  <div className="mt-2 text-xl font-semibold text-gray-900">
+                    {formatCurrency(profitDetail.commissionCost + profitDetail.unassignedCommissionCost)}
+                  </div>
+                  {profitDetail.unassignedCommissionCost > 0 && (
+                    <div className="mt-1 text-xs text-amber-600">含未分配 {formatCurrency(profitDetail.unassignedCommissionCost)}</div>
+                  )}
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500">毛利</div>
+                  <div className={`mt-2 text-xl font-semibold ${profitDetail.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {formatCurrency(profitDetail.grossProfit)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-sm text-gray-500">毛利率</div>
+                  <div className={`mt-2 text-xl font-semibold ${profitDetail.grossMargin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {formatPercent(profitDetail.grossMargin)}
+                  </div>
+                </div>
+              </div>
+
+              {profitDetail.missingReasons.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="text-sm font-medium text-amber-800">数据提示</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {profitDetail.missingReasons.map((reason) => (
+                      <span key={reason} className="rounded-full bg-white px-2.5 py-1 text-xs text-amber-700 shadow-sm">
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h4 className="mb-3 font-medium text-gray-800">项目行毛利</h4>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/80">
+                      <TableHead>项目</TableHead>
+                      <TableHead>服务员工</TableHead>
+                      <TableHead>数量</TableHead>
+                      <TableHead className="text-right">收入</TableHead>
+                      <TableHead className="text-right">BOM 成本</TableHead>
+                      <TableHead className="text-right">提成</TableHead>
+                      <TableHead className="text-right">毛利</TableHead>
+                      <TableHead className="text-right">毛利率</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {profitDetail.items.map((item) => (
+                      <TableRow key={item.orderItemId}>
+                        <TableCell>
+                          <div className="font-medium text-gray-800">{item.projectName}</div>
+                          {item.missingReasons.length > 0 && (
+                            <div className="mt-1 text-xs text-amber-600">{item.missingReasons.join('、')}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">{item.beauticianName || '-'}</TableCell>
+                        <TableCell>{item.quantity}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.income)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.standardMaterialCost)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.commissionCost)}</TableCell>
+                        <TableCell className={`text-right font-medium ${item.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {formatCurrency(item.grossProfit)}
+                        </TableCell>
+                        <TableCell className={`text-right font-medium ${item.grossMargin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {formatPercent(item.grossMargin)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div>
+                  <h4 className="mb-3 font-medium text-gray-800">项目 BOM 成本明细</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50/80">
+                        <TableHead>项目</TableHead>
+                        <TableHead>耗材</TableHead>
+                        <TableHead className="text-right">数量</TableHead>
+                        <TableHead className="text-right">成本</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {profitDetail.items.flatMap((item) =>
+                        item.bomItems.map((bomItem) => (
+                          <TableRow key={`${item.orderItemId}-${bomItem.productId}`}>
+                            <TableCell className="text-sm text-gray-600">{item.projectName}</TableCell>
+                            <TableCell>
+                              <div className="font-medium text-gray-800">{bomItem.productName}</div>
+                              <div className="text-xs text-gray-500">
+                                单次 {bomItem.standardQty} {bomItem.unit || ''}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {bomItem.quantity} {bomItem.unit || ''}
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(bomItem.costAmount)}</TableCell>
+                          </TableRow>
+                        )),
+                      )}
+                      {profitDetail.items.every((item) => item.bomItems.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-8 text-center text-gray-400">
+                            暂无 BOM 成本明细
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div>
+                  <h4 className="mb-3 font-medium text-gray-800">提成成本明细</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50/80">
+                        <TableHead>项目/员工</TableHead>
+                        <TableHead>规则</TableHead>
+                        <TableHead className="text-right">基数</TableHead>
+                        <TableHead className="text-right">提成</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {profitDetail.items.flatMap((item) =>
+                        item.commissionRecords.map((record) => (
+                          <TableRow key={`${item.orderItemId}-${record.id}`}>
+                            <TableCell>
+                              <div className="font-medium text-gray-800">{item.projectName}</div>
+                              <div className="text-xs text-gray-500">{record.staffUserName}</div>
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">{record.ruleName || '-'}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(record.sourceAmount)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(record.amount)}</TableCell>
+                          </TableRow>
+                        )),
+                      )}
+                      {profitDetail.unassignedCommissionRecords.map((record) => (
+                        <TableRow key={`unassigned-${record.id}`}>
+                          <TableCell>
+                            <div className="font-medium text-amber-700">未分配订单行</div>
+                            <div className="text-xs text-gray-500">{record.staffUserName}</div>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">{record.ruleName || '-'}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(record.sourceAmount)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(record.amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {profitDetail.items.every((item) => item.commissionRecords.length === 0) &&
+                        profitDetail.unassignedCommissionRecords.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="py-8 text-center text-gray-400">
+                              暂无提成成本明细
+                            </TableCell>
+                          </TableRow>
+                        )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {profitDetail.actualMaterialMovements.length > 0 && (
+                <div>
+                  <h4 className="mb-3 font-medium text-gray-800">实际耗材扣减流水</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50/80">
+                        <TableHead>耗材</TableHead>
+                        <TableHead>备注</TableHead>
+                        <TableHead className="text-right">数量</TableHead>
+                        <TableHead className="text-right">成本</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {profitDetail.actualMaterialMovements.map((movement) => (
+                        <TableRow key={movement.id}>
+                          <TableCell className="font-medium text-gray-800">{movement.productName}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{movement.remark || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            {movement.quantity} {movement.unit || ''}
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(movement.costAmount)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

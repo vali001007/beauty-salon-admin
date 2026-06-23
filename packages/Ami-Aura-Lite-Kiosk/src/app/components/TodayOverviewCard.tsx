@@ -1,5 +1,6 @@
 import React from "react";
 import { AlertCircle, CalendarCheck, Clock, TrendingUp, UserCheck } from "lucide-react";
+import { formatBusinessDate } from "../utils/businessTime";
 
 export interface TodayOverviewStats {
   todayRevenue: number;
@@ -62,11 +63,7 @@ export function TodayOverviewCard({
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-[#1F1B2D]">Ami</h2>
         <span className="text-sm text-[#6F6678]">
-          {new Date().toLocaleDateString("zh-CN", {
-            month: "long",
-            day: "numeric",
-            weekday: "long",
-          })}
+          {formatBusinessDate(new Date())}
         </span>
       </div>
 

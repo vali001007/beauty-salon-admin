@@ -14,9 +14,12 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { CommissionService } from '../commission/commission.service.js';
+import { DiscountAllocationService } from '../orders/discount-allocation.service.js';
 import { CustomerProfileService } from '../customers/customer-profile.service.js';
 import { TerminalDashboardCacheService } from './terminal-dashboard-cache.service.js';
+import { CardsService } from '../cards/cards.service.js';
 import { collectAuraUserFieldScopes, resolveAuraAvailableRolesForUser } from './terminal-role-access.js';
+import { formatBusinessDate, formatBusinessDateTime, toBusinessDateOnly } from '../common/utils/business-time.js';
 import { DeviceLoginDto } from './dto/device-login.dto.js';
 import { DeviceHeartbeatDto } from './dto/device-heartbeat.dto.js';
 import { QuickCreateCustomerDto } from './dto/quick-create-customer.dto.js';
@@ -48,6 +51,10 @@ import {
   CreateTerminalFollowUpTaskDto,
   QueryTerminalFollowUpTasksDto,
 } from './dto/follow-up-task.dto.js';
+import type {
+  TerminalCustomerSelectQueryDto,
+  TerminalCustomerSelectScene,
+} from './dto/customer-select.dto.js';
 
 type TerminalDashboardInsight = {
   title: string;
@@ -67,7 +74,21 @@ type TerminalContextCustomerOptions = {
   keyword?: string;
   onlyWithActiveCards?: boolean;
   customerIds?: number[];
+  limit?: number;
 };
+
+type TerminalCustomerSelectOptions = TerminalContextCustomerOptions & {
+  scene?: TerminalCustomerSelectScene;
+  onlyMyCustomers?: boolean;
+  includeInactive?: boolean;
+};
+
+type TerminalCustomerSelectScope = {
+  customerIds: number[];
+  forcedEmpty?: boolean;
+};
+
+type TerminalCheckoutOrderKind = 'product' | 'project';
 
 @Injectable()
 export class TerminalService implements OnModuleInit, OnModuleDestroy {
@@ -82,6 +103,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     private commissionService: CommissionService,
     private terminalDashboardCache: TerminalDashboardCacheService = new TerminalDashboardCacheService(),
     @Optional() private customerProfileService?: CustomerProfileService,
+    @Optional() private discountAllocationService: DiscountAllocationService = new DiscountAllocationService(),
+    @Optional() private cardsService?: CardsService,
   ) {}
 
   onModuleInit() {
@@ -102,18 +125,96 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return Number(value);
   }
 
+  private roundCurrency(value: number) {
+    return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  }
+
+  private buildCardPricingSnapshot(params: {
+    card: any;
+    paidAmount: number;
+    totalTimes: number;
+    giftTimes?: number;
+    discountAmount?: number;
+  }) {
+    const totalTimes = Math.max(0, this.toNumber(params.totalTimes));
+    const paidAmount = Math.max(0, this.toNumber(params.paidAmount));
+    return {
+      cardId: params.card?.id,
+      cardName: params.card?.name,
+      cardPrice: this.toNumber(params.card?.price),
+      paidAmount,
+      discountAmount: Math.max(0, this.toNumber(params.discountAmount)),
+      totalTimes,
+      giftTimes: Math.max(0, this.toNumber(params.giftTimes)),
+      recognizedUnitValue: totalTimes > 0 ? this.roundCurrency(paidAmount / totalTimes) : 0,
+      projects: Array.isArray(params.card?.projects) ? params.card.projects : [],
+    };
+  }
+
+  private resolveCardRecognizedUnitValue(customerCard: any) {
+    const unitValue = this.toNumber(customerCard?.recognizedUnitValue);
+    if (unitValue > 0) return unitValue;
+    const paidAmount = this.toNumber(customerCard?.paidAmount);
+    const totalTimes = this.toNumber(customerCard?.totalTimes);
+    if (paidAmount > 0 && totalTimes > 0) return this.roundCurrency(paidAmount / totalTimes);
+    const cardPrice = this.toNumber(customerCard?.card?.price);
+    const cardTimes = this.toNumber(customerCard?.card?.totalTimes ?? totalTimes);
+    return cardPrice > 0 && cardTimes > 0 ? this.roundCurrency(cardPrice / cardTimes) : 0;
+  }
+
   private toIso(value?: Date | string | null): string {
     if (!value) return '';
     return value instanceof Date ? value.toISOString() : String(value);
   }
 
   private toLocalDateText(value?: Date | string | null): string {
-    if (!value) return '';
-    if (!(value instanceof Date)) return String(value).slice(0, 10);
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return formatBusinessDate(value);
+  }
+
+  private resolveCardValidDays(card: any) {
+    const validDays = this.toNumber(card?.validDays);
+    return Number.isFinite(validDays) && validDays > 0 ? validDays : 365;
+  }
+
+  private serializeTerminalSaleCard(card: any) {
+    const totalTimes = this.toNumber(card.totalTimes);
+    return {
+      id: card.id,
+      name: card.name,
+      type: card.type ?? '次卡',
+      totalTimes,
+      price: this.toNumber(card.price),
+      validDays: this.resolveCardValidDays(card),
+      storeId: card.storeId ?? card.store?.id ?? null,
+      storeName: card.storeName ?? card.store?.name ?? (card.storeId ? '' : '全部门店'),
+      status: card.status === '上架' || card.status === 'active' ? '上架' : '下架',
+      createdAt: card.createdAt instanceof Date ? card.createdAt.toISOString() : card.createdAt,
+      projects: Array.isArray(card.projects)
+        ? card.projects
+            .map((project: any) =>
+              typeof project === 'string'
+                ? { projectName: project, timesPerCard: totalTimes || 1 }
+                : {
+                    projectName: project.projectName ?? project.name ?? '',
+                    timesPerCard: this.toNumber(project.timesPerCard ?? project.totalCount ?? (totalTimes || 1)),
+                  },
+            )
+            .filter((project: any) => project.projectName)
+        : [],
+    };
+  }
+
+  private async getTerminalSaleCards(storeId: number) {
+    if (this.cardsService) {
+      return this.cardsService.findSaleOptions({ storeId, limit: 80 });
+    }
+    const cards = await this.prisma.card.findMany({
+      where: { status: 'active', OR: [{ storeId: null }, { storeId }] },
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      take: 80,
+    });
+    return cards.map((card) => this.serializeTerminalSaleCard(card));
   }
 
   private getTerminalConversationModel() {
@@ -121,8 +222,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private getDateOnly(value?: string | Date | null) {
-    if (!value) return new Date(new Date().toISOString().slice(0, 10));
-    if (value instanceof Date) return new Date(value.toISOString().slice(0, 10));
+    if (!value) return toBusinessDateOnly();
+    if (value instanceof Date) return toBusinessDateOnly(value);
     const raw = String(value).trim();
     const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : raw.slice(0, 10);
     const date = new Date(`${normalized}T00:00:00.000Z`);
@@ -196,8 +297,27 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       status: beautician.status === 'active' ? '在职' : beautician.status,
       storeId: beautician.storeId,
       storeName: storeName ?? beautician.store?.name ?? '当前门店',
-      joinDate: beautician.createdAt.toISOString().slice(0, 10),
+      joinDate: formatBusinessDate(beautician.createdAt),
       createdAt: beautician.createdAt.toISOString(),
+    };
+  }
+
+  private buildTerminalVisibleBeauticianWhere(
+    storeId: number,
+    extra: Prisma.BeauticianWhereInput = {},
+  ): Prisma.BeauticianWhereInput {
+    return {
+      storeId,
+      status: 'active',
+      user: {
+        is: {
+          deletedAt: null,
+          status: 'active',
+          roles: { some: { role: { key: 'beautician' } } },
+          stores: { some: { storeId } },
+        },
+      },
+      ...extra,
     };
   }
 
@@ -243,6 +363,25 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }
     if (!this.hasTerminalRoleSignal(user)) {
       throw new BadRequestException('当前账号未配置智能终端权限');
+    }
+    return user;
+  }
+
+  private async assertStoreUserAllowed(storeId: number, userId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        deletedAt: null,
+        status: 'active',
+        OR: [
+          { stores: { some: { storeId } } },
+          { roles: { some: { role: { key: { in: ['super_admin', 'store_manager'] } } } } },
+        ],
+      },
+      include: { roles: { include: { role: true } }, stores: true },
+    });
+    if (!user) {
+      throw new BadRequestException('销售人员不属于当前门店或已停用');
     }
     return user;
   }
@@ -1084,7 +1223,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return rawItems.map((item) => {
       const quantity = this.toNumber(item.quantity ?? item.qty ?? 1) || 1;
       const unitPrice = this.toNumber(item.unitPrice ?? item.price ?? item.amount);
-      const discount = this.toNumber(item.discount);
+      const discount = this.toNumber(item.totalDiscountAmount ?? item.discount);
       const subtotal = this.toNumber(item.subtotal ?? quantity * unitPrice - discount);
       const itemType = String(item.itemType ?? item.type ?? 'product');
       const itemId = item.itemId ?? item.productId ?? item.projectId ?? item.cardId;
@@ -1096,9 +1235,140 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         ),
         quantity,
         unitPrice,
+        listAmount: this.toNumber(item.listAmount) || quantity * unitPrice,
         subtotal,
         discount,
+        itemDiscountAmount: this.toNumber(item.itemDiscountAmount),
+        orderAllocatedDiscountAmount: this.toNumber(item.orderAllocatedDiscountAmount),
+        totalDiscountAmount: this.toNumber(item.totalDiscountAmount ?? discount),
+        netAmount: this.toNumber(item.netAmount ?? subtotal),
+        discountSource: item.discountSource,
+        allocationMethod: item.allocationMethod,
+        discountPayload: item.discountPayload,
+        isGift: Boolean(item.isGift),
+        eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+        beauticianId: this.toNumber(item.beauticianId) || undefined,
+        beauticianName: item.beauticianName ? String(item.beauticianName).trim() : undefined,
         payload: item,
+      };
+    });
+  }
+
+  private async resolveOrderItemBeauticianIds(storeId: number, rawItems: any[] = [], tx: any = this.prisma) {
+    const names = [
+      ...new Set(
+        rawItems
+          .filter((item) => !this.toNumber(item?.beauticianId) && item?.beauticianName)
+          .map((item) => String(item.beauticianName).trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (!names.length) return rawItems;
+
+    const beauticians = await tx.beautician.findMany({
+      where: {
+        storeId,
+        status: 'active',
+        OR: names.map((name) => ({ name: { contains: name } })),
+      },
+      select: { id: true, name: true },
+    });
+    const beauticianByName = new Map<string, number>();
+    for (const name of names) {
+      const matched = beauticians.find((beautician: any) => beautician.name === name) ?? beauticians.find((beautician: any) => beautician.name?.includes(name));
+      if (matched?.id) beauticianByName.set(name, matched.id);
+    }
+
+    return rawItems.map((item) => {
+      const beauticianId = this.toNumber(item?.beauticianId);
+      const beauticianName = item?.beauticianName ? String(item.beauticianName).trim() : '';
+      if (beauticianId || !beauticianName) return item;
+      const matchedId = beauticianByName.get(beauticianName);
+      return matchedId ? { ...item, beauticianId: matchedId } : item;
+    });
+  }
+
+  private isProductOrderItemType(itemType?: string) {
+    return ['product', 'goods'].includes(String(itemType ?? '').toLowerCase());
+  }
+
+  private getCheckoutItemKind(itemType?: string): TerminalCheckoutOrderKind {
+    return String(itemType ?? '').toLowerCase() === 'project' ? 'project' : 'product';
+  }
+
+  private getCheckoutOrderKindSuffix(kind: TerminalCheckoutOrderKind) {
+    return kind === 'project' ? 'S' : 'G';
+  }
+
+  private summarizeCheckoutItems(items: any[]) {
+    const round = (value: number) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+    const listAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0));
+    const itemDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.itemDiscountAmount), 0));
+    const orderDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.orderAllocatedDiscountAmount), 0));
+    const totalDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.totalDiscountAmount ?? item.discount), 0));
+    const netAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.netAmount ?? item.subtotal), 0));
+    return {
+      listAmount,
+      itemDiscountAmount,
+      orderDiscountAmount,
+      totalDiscountAmount,
+      netAmount,
+      totalAmount: netAmount,
+    };
+  }
+
+  private groupCheckoutItemsByKind(items: any[]) {
+    const grouped = new Map<TerminalCheckoutOrderKind, any[]>();
+    for (const item of items) {
+      const kind = this.getCheckoutItemKind(item.itemType);
+      const list = grouped.get(kind) ?? [];
+      list.push(item);
+      grouped.set(kind, list);
+    }
+    return Array.from(grouped.entries()).map(([kind, orderItems]) => ({ kind, items: orderItems }));
+  }
+
+  private async attachProductCostSnapshots(
+    tx: any,
+    storeId: number | undefined,
+    items: any[],
+  ) {
+    const productIds = [
+      ...new Set(
+        items
+          .filter((item) => this.isProductOrderItemType(item.itemType) && item.itemId)
+          .map((item) => Number(item.itemId))
+          .filter(Boolean),
+      ),
+    ];
+    if (!productIds.length) return items;
+
+    const products = await tx.product.findMany({
+      where: {
+        id: { in: productIds },
+        ...(storeId ? { storeId } : {}),
+        deletedAt: null,
+      },
+      select: { id: true, costPrice: true },
+    });
+    const costByProductId = new Map(products.map((product: any) => [product.id, this.toNumber(product.costPrice)]));
+    const capturedAt = new Date().toISOString();
+
+    return items.map((item) => {
+      if (!this.isProductOrderItemType(item.itemType) || !item.itemId) return item;
+      const costPrice = this.toNumber(costByProductId.get(Number(item.itemId)));
+      const quantity = this.toNumber(item.quantity ?? 1) || 1;
+      return {
+        ...item,
+        payload: {
+          ...(item.payload && typeof item.payload === 'object' ? item.payload : {}),
+          costPrice,
+          productCostPrice: costPrice,
+          costAmount: costPrice * quantity,
+          productCostAmount: costPrice * quantity,
+          costSource: 'product_master',
+          costCapturedAt: capturedAt,
+        },
       };
     });
   }
@@ -1133,16 +1403,16 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       cardIds.size ? tx.card.findMany({ where: { id: { in: [...cardIds] } }, select: { id: true, name: true } }) : [],
     ]);
 
-    const projectNameById = new Map(projects.map((item: any) => [item.id, item.name]));
-    const productNameById = new Map(products.map((item: any) => [item.id, item.name]));
-    const cardNameById = new Map(cards.map((item: any) => [item.id, item.name]));
+    const projectNameById = new Map<number, string>(projects.map((item: any) => [Number(item.id), String(item.name ?? '')]));
+    const productNameById = new Map<number, string>(products.map((item: any) => [Number(item.id), String(item.name ?? '')]));
+    const cardNameById = new Map<number, string>(cards.map((item: any) => [Number(item.id), String(item.name ?? '')]));
 
     return items.map((item) => {
       const type = String(item.itemType ?? '').toLowerCase();
       const resolvedName =
-        (type === 'project' ? projectNameById.get(item.itemId) : undefined) ||
-        (type === 'product' ? productNameById.get(item.itemId) : undefined) ||
-        (type === 'card' ? cardNameById.get(item.itemId) : undefined);
+        (type === 'project' && item.itemId ? projectNameById.get(item.itemId) : undefined) ||
+        (type === 'product' && item.itemId ? productNameById.get(item.itemId) : undefined) ||
+        (type === 'card' && item.itemId ? cardNameById.get(item.itemId) : undefined);
       if (resolvedName) return { ...item, name: resolvedName };
       if (this.isQuestionPlaceholder(item.name)) return { ...item, name: `${item.itemType}#${item.itemId ?? ''}` };
       return item;
@@ -1150,7 +1420,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async createOrderItems(tx: any, orderId: number, rawItems: any[] = []) {
-    const items = await this.resolveOrderItemNames(rawItems, tx);
+    const order = await tx.productOrder?.findUnique?.({ where: { id: orderId }, select: { storeId: true } });
+    const resolvedRawItems = order?.storeId ? await this.resolveOrderItemBeauticianIds(Number(order.storeId), rawItems, tx) : rawItems;
+    const normalized = await this.resolveOrderItemNames(resolvedRawItems, tx);
+    const items = await this.attachProductCostSnapshots(tx, this.toNumber(order?.storeId) || undefined, normalized);
     if (!items.length) return items;
 
     try {
@@ -1162,9 +1435,19 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          listAmount: item.listAmount,
           subtotal: item.subtotal,
           discount: item.discount,
-          beauticianId: this.toNumber(rawItems[index]?.beauticianId) || undefined,
+          itemDiscountAmount: item.itemDiscountAmount,
+          orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
+          totalDiscountAmount: item.totalDiscountAmount,
+          netAmount: item.netAmount,
+          discountSource: item.discountSource,
+          allocationMethod: item.allocationMethod,
+          discountPayload: item.discountPayload,
+          isGift: item.isGift,
+          eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+          beauticianId: this.toNumber(resolvedRawItems[index]?.beauticianId) || undefined,
           payload: item.payload,
         })),
       });
@@ -1206,23 +1489,58 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     orderId: number;
     beauticianId?: number;
     isDesignated?: boolean;
-    items: Array<{ itemType: string; itemId?: number; subtotal: number; orderItemId?: number }>;
+    items: Array<{ itemType: string; itemId?: number; beauticianId?: number | null; subtotal: number; orderItemId?: number }>;
   }) {
-    if (!input.beauticianId) return [];
     try {
-      const beautician = await this.prisma.beautician.findFirst({
-        where: { id: input.beauticianId, storeId: input.storeId },
-        select: { id: true, levelId: true },
-      });
-      if (!beautician) return [];
-      return this.commissionService.calculateOrderCommissions({
-        storeId: input.storeId,
-        orderId: input.orderId,
-        beauticianId: input.beauticianId,
-        levelId: beautician.levelId ?? undefined,
-        isDesignated: input.isDesignated,
-        items: input.items,
-      });
+      const fallbackBeauticianId = this.toNumber(input.beauticianId) || undefined;
+      const beauticianIds = [
+        ...new Set(
+          input.items
+            .map((item) => this.toNumber(item.beauticianId) || fallbackBeauticianId)
+            .filter((item: number | undefined): item is number => Boolean(item)),
+        ),
+      ];
+      if (!beauticianIds.length) return [];
+
+      const select = { id: true, levelId: true, userId: true };
+      const beauticians =
+        typeof this.prisma.beautician?.findMany === 'function'
+          ? await this.prisma.beautician.findMany({
+              where: { id: { in: beauticianIds }, storeId: input.storeId },
+              select,
+            })
+          : typeof this.prisma.beautician?.findFirst === 'function'
+            ? (
+                await Promise.all(
+                  beauticianIds.map((id) =>
+                    this.prisma.beautician.findFirst({ where: { id, storeId: input.storeId }, select }),
+                  ),
+                )
+              ).filter(Boolean)
+            : [];
+      const beauticianById = new Map<number, { id: number; levelId?: number | null; userId?: number | null }>(
+        beauticians.map((beautician: any) => [beautician.id, beautician]),
+      );
+      const records: any[] = [];
+
+      for (const item of input.items) {
+        const itemBeauticianId = this.toNumber(item.beauticianId) || fallbackBeauticianId;
+        if (!itemBeauticianId) continue;
+        const beautician = beauticianById.get(itemBeauticianId);
+        if (!beautician?.userId) continue;
+        const itemRecords = await this.commissionService.calculateOrderCommissions({
+          storeId: input.storeId,
+          orderId: input.orderId,
+          staffUserId: beautician.userId ?? undefined,
+          beauticianId: itemBeauticianId,
+          levelId: beautician.levelId ?? undefined,
+          isDesignated: input.isDesignated,
+          items: [item],
+        });
+        records.push(...itemRecords);
+      }
+
+      return records;
     } catch (error) {
       console.warn('终端提成流水生成失败', error);
       return [];
@@ -2329,8 +2647,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           orderBy: [{ id: 'asc' }],
         }),
         this.prisma.beautician.findMany({
-          where: { storeId, status: 'active' },
-          include: { level: true, user: true },
+          where: this.buildTerminalVisibleBeauticianWhere(storeId),
+          include: { level: true, user: true, store: true },
+          orderBy: { createdAt: 'desc' },
           take: 50,
         }),
         this.prisma.project.findMany({
@@ -2338,7 +2657,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           include: { type: true },
           take: 80,
         }),
-        this.prisma.card.findMany({ where: { status: 'active' }, take: 80 }),
+        this.getTerminalSaleCards(storeId),
         this.prisma.product.findMany({
           where: { storeId, deletedAt: null, status: 'active' },
           include: { category: true },
@@ -2400,23 +2719,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         status: item.status === 'active',
         sort: item.id,
       })),
-      cards: cards.map((item) => ({
-        id: item.id,
-        name: item.name,
-        type: '次卡',
-        totalTimes: item.totalTimes,
-        price: this.toNumber(item.price),
-        validDays: 365,
-        storeName: store.name,
-        status: item.status === 'active' ? '上架' : '下架',
-        createdAt: item.createdAt.toISOString(),
-        projects: Array.isArray(item.projects)
-          ? (item.projects as any[]).map((project) => ({
-              projectName: project.projectName ?? project.name ?? '护理项目',
-              timesPerCard: project.timesPerCard ?? 1,
-            }))
-          : [],
-      })),
+      cards,
       products: products.map((item) => ({
         id: item.id,
         name: item.name,
@@ -2476,9 +2779,135 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return customers;
   }
 
+  private parseTerminalCustomerIds(value?: string | number[]) {
+    if (Array.isArray(value)) {
+      return Array.from(new Set(value.map(Number).filter((item) => Number.isInteger(item) && item > 0)));
+    }
+    if (!value) return [];
+    return Array.from(
+      new Set(
+        String(value)
+          .split(',')
+          .map((item) => Number(item.trim()))
+          .filter((item) => Number.isInteger(item) && item > 0),
+      ),
+    ).slice(0, 100);
+  }
+
+  private async getTerminalCustomerSelectScopeIds(
+    storeId: number,
+    userId: number | undefined,
+    scene: TerminalCustomerSelectScene,
+    operatorId?: number,
+    onlyMyCustomers?: boolean,
+  ): Promise<TerminalCustomerSelectScope> {
+    const customerIds = new Set<number>();
+    const effectiveUserId = operatorId ?? userId;
+    const operatorUser = effectiveUserId
+      ? await this.prisma.user.findFirst({
+          where: { id: effectiveUserId, deletedAt: null, status: 'active' },
+          include: { roles: { include: { role: true } }, stores: true },
+        })
+      : null;
+    const availableRoles = this.getAuraAvailableRolesForUser(operatorUser);
+    const hasStoreScope = availableRoles.includes('manager') || availableRoles.includes('reception');
+    const shouldHonorOnlyMyCustomers = Boolean(onlyMyCustomers && !hasStoreScope);
+    const shouldScopeToCurrentStaff = Boolean(
+      effectiveUserId && (shouldHonorOnlyMyCustomers || (!hasStoreScope && (scene === 'follow_up' || scene === 'service_record'))),
+    );
+    const beautician = effectiveUserId
+      ? await this.prisma.beautician.findFirst({ where: { storeId, userId: effectiveUserId }, select: { id: true } })
+      : null;
+
+    if (scene === 'follow_up') {
+      const tasks = await this.prisma.terminalFollowUpTask.findMany({
+        where: {
+          storeId,
+          deletedAt: null,
+          status: { in: ['pending', 'in_progress', 'expired'] },
+          ...(shouldScopeToCurrentStaff
+            ? {
+                OR: [
+                  ...(effectiveUserId ? [{ assigneeUserId: effectiveUserId }] : []),
+                  ...(beautician?.id ? [{ assigneeBeauticianId: beautician.id }] : []),
+                ],
+              }
+            : {}),
+        },
+        select: { customerId: true },
+        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+        take: 200,
+      });
+      tasks.forEach((task) => customerIds.add(task.customerId));
+    }
+
+    if (scene === 'service_record' || shouldHonorOnlyMyCustomers) {
+      if (shouldScopeToCurrentStaff && !beautician?.id) {
+        return { customerIds: [], forcedEmpty: true };
+      }
+      const [tasks, reservations] = await Promise.all([
+        this.prisma.serviceTask.findMany({
+          where: {
+            storeId,
+            ...(beautician?.id ? { beauticianId: beautician.id } : {}),
+            status: { in: ['pending', 'in_progress', 'completed'] },
+          },
+          select: { customerId: true },
+          orderBy: { appointmentTime: 'desc' },
+          take: 200,
+        }),
+        this.prisma.reservation.findMany({
+          where: {
+            storeId,
+            ...(beautician?.id ? { beauticianId: beautician.id } : {}),
+            status: { not: 'cancelled' },
+          },
+          select: { customerId: true },
+          orderBy: { date: 'desc' },
+          take: 200,
+        }),
+      ]);
+      [...tasks, ...reservations].forEach((item) => customerIds.add(item.customerId));
+    }
+
+    return { customerIds: Array.from(customerIds) };
+  }
+
+  private toTerminalCustomerSceneBadges(customer: any, scene: TerminalCustomerSelectScene) {
+    const badges: string[] = [];
+    if (customer.isAppointedToday) badges.push('今日预约');
+    if (customer.activeCustomerCardsCount > 0) badges.push(`${customer.activeCustomerCardsCount} 张可用次卡`);
+    if (customer.totalBalance > 0) badges.push('有储值余额');
+    if (scene === 'follow_up') badges.push('待跟进');
+    if (scene === 'service_record') badges.push('服务客户');
+    return badges.slice(0, 4);
+  }
+
+  private toTerminalCustomerSelectItem(customer: any, scene: TerminalCustomerSelectScene) {
+    const sceneBadges = this.toTerminalCustomerSceneBadges(customer, scene);
+    return {
+      ...customer,
+      maskedPhone: customer.phone ? customer.phone.replace(/^(\d{3})\d{4}(\d+)/, '$1****$2') : '',
+      priorityLabel:
+        scene === 'verification' && customer.activeCustomerCardsCount > 0
+          ? '可核销'
+          : customer.isAppointedToday
+            ? '今日预约'
+            : sceneBadges[0],
+      sceneBadges,
+      disabled: scene === 'verification' && customer.activeCustomerCardsCount <= 0,
+      disabledReason:
+        scene === 'verification' && customer.activeCustomerCardsCount <= 0 ? '该客户暂无可核销次卡' : undefined,
+      metadata: {
+        appointmentTime: customer.appointmentTime,
+        activeCardCount: customer.activeCustomerCardsCount,
+      },
+    };
+  }
+
   private async getTerminalContextCustomers(
     storeId: number,
-    keywordOrOptions: string | TerminalContextCustomerOptions = '',
+    keywordOrOptions: string | TerminalCustomerSelectOptions = '',
   ) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -2486,6 +2915,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const options = typeof keywordOrOptions === 'string' ? { keyword: keywordOrOptions } : (keywordOrOptions ?? {});
     const normalizedKeyword = options.keyword?.trim() ?? '';
+    const limit = Math.min(Math.max(Number(options.limit ?? (normalizedKeyword ? 50 : 200)) || 200, 1), 500);
     const activeCardWhere = { status: 'active', remainingTimes: { gt: 0 } } as const;
     const onlyWithActiveCards = Boolean(options.onlyWithActiveCards);
     const scopedCustomerIds = Array.isArray(options.customerIds)
@@ -2544,12 +2974,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       this.prisma.customer.findMany({
         where: {
           storeId,
-          deletedAt: null,
+          ...(options.includeInactive ? {} : { deletedAt: null }),
           ...contextCustomerWhere,
         },
         select: customerSelect,
         orderBy: normalizedKeyword ? { lastVisitDate: 'desc' } : { totalSpent: 'desc' },
-        take: normalizedKeyword ? 20 : 30,
+        take: normalizedKeyword ? Math.min(limit, 50) : limit,
       }),
     ]);
 
@@ -2577,7 +3007,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           customer.name.toLowerCase().includes(normalizedKeywordLower) ||
           (customer.phone ?? '').includes(normalizedKeyword),
       )
-      .slice(0, 30)
+      .slice(0, limit)
       .map((customer) => {
         const reservation = byCustomerId.get(customer.id);
         const account = Array.isArray(customer.balanceAccounts) ? customer.balanceAccounts[0] : undefined;
@@ -2686,7 +3116,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       goals: profile.goals ?? undefined,
       recommendedCare: profile.recommendedCare ?? undefined,
       instrument: profile.instrument ?? undefined,
-      lastCheck: profile.lastCheck.toISOString().slice(0, 10),
+      lastCheck: formatBusinessDate(profile.lastCheck),
     };
   }
 
@@ -2731,7 +3161,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       goals: profile.goals ?? undefined,
       recommendedCare: profile.recommendedCare ?? undefined,
       instrument: profile.instrument ?? undefined,
-      lastCheck: profile.lastCheck.toISOString().slice(0, 10),
+      lastCheck: formatBusinessDate(profile.lastCheck),
     };
   }
 
@@ -2760,7 +3190,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       payMethod: item.payMethod,
       amount: `￥${this.toNumber(item.amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       campaign: item.campaign ?? '',
-      consumeTime: item.consumeTime.toISOString().replace('T', ' ').slice(0, 16),
+      consumeTime: formatBusinessDateTime(item.consumeTime),
     }));
 
     return { items: data, data, total, page, pageSize };
@@ -3561,7 +3991,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   async consumeCard(dto: ConsumeCardDto, deviceId: number) {
     const terminalDeviceId = this.toTerminalDeviceId(deviceId);
-    const beauticianId = dto.beauticianId && dto.beauticianId > 0 ? dto.beauticianId : undefined;
+    const requestedBeauticianId = dto.beauticianId && dto.beauticianId > 0 ? dto.beauticianId : undefined;
     const customerCard = await this.prisma.customerCard.findUnique({
       where: { id: dto.customerCardId },
       include: { card: true, customer: true },
@@ -3586,6 +4016,14 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('剩余次数不足');
     }
 
+    const beautician = requestedBeauticianId
+      ? await this.prisma.beautician.findFirst({
+          where: { id: requestedBeauticianId, storeId: customerCard.customer.storeId, status: 'active' },
+          select: { id: true, levelId: true, userId: true },
+        })
+      : null;
+    const beauticianId = beautician?.id;
+
     // 获取项目名称
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
@@ -3599,12 +4037,30 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
       const record = await tx.cardUsageRecord.create({
         data: {
+          customerCardId: customerCard.id,
+          cardId: customerCard.cardId,
+          projectId: project?.id ?? dto.projectId,
+          storeId: customerCard.customer.storeId,
           customerId,
           customerName: customerCard.customer.name,
           cardName: customerCard.cardName,
           projectName: project?.name || '未知项目',
           times,
           remainingTimes: updatedCard.remainingTimes,
+          recognizedUnitValue: this.resolveCardRecognizedUnitValue(customerCard),
+          recognizedAmount: this.roundCurrency(this.resolveCardRecognizedUnitValue(customerCard) * times),
+          sourceOrderId: customerCard.sourceOrderId,
+          sourceOrderItemId: customerCard.sourceOrderItemId,
+          pricingSnapshot:
+            customerCard.pricingSnapshot ??
+            this.buildCardPricingSnapshot({
+              card: customerCard.card,
+              paidAmount: this.toNumber(customerCard.paidAmount) || this.toNumber(customerCard.card?.price),
+              totalTimes: customerCard.totalTimes,
+              discountAmount: this.toNumber(customerCard.discountAmount),
+              giftTimes: this.toNumber(customerCard.giftTimes),
+            }),
+          operatorId: dto.operatorId,
           beauticianId,
           deviceId: terminalDeviceId,
         },
@@ -3621,24 +4077,22 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       return { updatedCard, record, consumedProjectBom };
     });
 
-    if (beauticianId) {
+    if (beauticianId && beautician) {
       try {
-        const beautician = await this.prisma.beautician.findFirst({
-          where: { id: beauticianId, storeId: customerCard.customer.storeId },
-          select: { id: true, levelId: true },
-        });
-        const cardUnitPrice = customerCard.card.totalTimes
-          ? (this.toNumber(customerCard.card.price) / customerCard.card.totalTimes) * times
-          : 0;
-        if (beautician && cardUnitPrice > 0) {
+        const recognizedAmount = this.toNumber(result.record.recognizedAmount);
+        if (beautician.userId && recognizedAmount > 0) {
           await this.commissionService.calculateCommission({
             storeId: customerCard.customer.storeId,
+            staffUserId: beautician.userId,
             beauticianId,
             type: 'project',
             itemId: dto.projectId,
-            sourceAmount: cardUnitPrice,
+            sourceAmount: recognizedAmount,
             levelId: beautician.levelId ?? undefined,
             isDesignated: false,
+            sourceType: 'card_usage',
+            sourceId: result.record.id,
+            cardUsageRecordId: result.record.id,
             remark: `次卡核销：${customerCard.cardName}`,
           });
         }
@@ -3662,6 +4116,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       beauticianId,
       deviceId: terminalDeviceId,
       verifiedAt: result.record.verifiedAt,
+      recognizedAmount: this.toNumber(result.record.recognizedAmount),
     };
   }
 
@@ -3738,22 +4193,52 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         itemType: item.itemType,
         itemId: item.itemId,
         beauticianId: item.beauticianId,
-        subtotal: this.toNumber(item.subtotal),
+        subtotal: this.toNumber((item as any).netAmount ?? item.subtotal),
         orderItemId: item.id,
       })),
     });
+    await this.refreshDailySettlementForOrder(input.storeId, input.order.id, 'terminal_checkout');
+  }
+
+  private async refreshDailySettlementForOrder(storeId: number, orderId: number, source: string) {
+    try {
+      const order = await this.prisma.productOrder.findUnique({
+        where: { id: orderId },
+        select: { createdAt: true, status: true },
+      });
+      if (!order || !['completed', 'paid'].includes(order.status)) return;
+      await this.commissionService.generateDailySettlement(storeId, order.createdAt);
+    } catch (error) {
+      console.warn(`Daily settlement refresh failed after ${source}`, error);
+    }
   }
 
   async checkout(storeId: number, dto: CheckoutDto, deviceId?: number) {
     await this.ensureOpenCashierShift(storeId, deviceId);
-    const subtotalAmount = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const discountAmount = Math.min(subtotalAmount, Math.max(0, this.toNumber(dto.discountAmount)));
-    const totalAmount = Math.max(0, subtotalAmount - discountAmount);
     const paymentMethod = this.getPaymentMethod(dto.payMethod);
     const store = await this.getStore(storeId);
-    const normalizedItems = await this.resolveOrderItemNames(dto.items as any[]);
+    const resolvedDtoItems = await this.resolveOrderItemBeauticianIds(storeId, dto.items as any[]);
+    const normalizedItems = await this.resolveOrderItemNames(resolvedDtoItems);
+    const allocation = this.discountAllocationService.allocate({
+      items: normalizedItems,
+      discountMode: dto.discountMode,
+      discountAmount: dto.discountAmount,
+      discountRate: dto.discountRate,
+      packagePrice: dto.packagePrice,
+      allocationMethod: dto.allocationMethod,
+      discountSource: dto.discountSource,
+      promotionId: dto.promotionId,
+      couponId: dto.couponId,
+      reason: dto.remark,
+    });
+    const totalAmount = allocation.order.netAmount;
+    const allocatedItems = allocation.items.map((item, index) => ({
+      ...item,
+      beauticianId: item.beauticianId ?? (this.toNumber(resolvedDtoItems[index]?.beauticianId ?? dto.beauticianId) || undefined),
+    }));
+    const itemGroups = this.groupCheckoutItemsByKind(allocatedItems);
     const result = await this.prisma.$transaction(async (tx) => {
-      const orderNo = `PO${Date.now().toString(36).toUpperCase()}`;
+      const checkoutGroupNo = `PO${Date.now().toString(36).toUpperCase()}`;
       const shouldLoadCustomer = paymentMethod === 'member_balance' || !dto.customerName;
       const customer =
         dto.customerId && shouldLoadCustomer ? await tx.customer.findUnique({ where: { id: dto.customerId } }) : null;
@@ -3762,51 +4247,82 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       if (paymentMethod === 'member_balance' && !customer) {
         throw new BadRequestException('会员余额支付必须选择客户');
       }
-      const order = await tx.productOrder.create({
-        data: {
-          orderNo,
-          customerId: dto.customerId,
-          customerName,
-          storeId,
-          totalAmount,
-          payMethod: paymentMethod,
-          source: 'terminal',
-          status: 'completed',
-          items: normalizedItems.map((item) => ({
-            itemType: item.itemType,
-            itemId: item.itemId,
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            discount: item.discount,
-          })),
-          remark: dto.remark,
-        },
-      });
 
-      await this.createOrderItems(
-        tx,
-        order.id,
-        (dto.items as any[]).map((item) => ({ ...item, beauticianId: item.beauticianId ?? dto.beauticianId })),
-      );
-      const consumedProjectBom = await this.consumeProjectBomForCheckout(
-        tx,
-        storeId,
-        order,
-        dto.items as any[],
-        dto.remark,
-      );
-
-      for (const item of dto.items as any[]) {
-        if (item.itemType === 'product' || item.productId) {
-          await this.createStockMovementForItem(tx, storeId, item, 'sale_out', {
-            type: 'product_order',
-            id: order.id,
-            no: order.orderNo,
+      const createdOrders: any[] = [];
+      let consumedProjectBom = false;
+      for (const group of itemGroups) {
+        const summary = this.summarizeCheckoutItems(group.items);
+        const orderNo =
+          itemGroups.length > 1
+            ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}`
+            : checkoutGroupNo;
+        const orderItemsPayload = group.items.map((item, index) => ({
+          itemType: item.itemType,
+          itemId: item.itemId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          discount: item.discount,
+          listAmount: item.listAmount,
+          itemDiscountAmount: item.itemDiscountAmount,
+          orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
+          totalDiscountAmount: item.totalDiscountAmount,
+          netAmount: item.netAmount,
+          discountSource: item.discountSource,
+          allocationMethod: item.allocationMethod,
+          isGift: item.isGift,
+          beauticianId: this.toNumber(group.items[index]?.beauticianId ?? dto.beauticianId) || undefined,
+        }));
+        const order = await tx.productOrder.create({
+          data: {
+            orderNo,
+            checkoutGroupNo,
+            orderKind: group.kind,
+            customerId: dto.customerId,
+            customerName,
+            storeId,
+            totalAmount: summary.totalAmount,
+            listAmount: summary.listAmount,
+            itemDiscountAmount: summary.itemDiscountAmount,
+            orderDiscountAmount: summary.orderDiscountAmount,
+            totalDiscountAmount: summary.totalDiscountAmount,
+            netAmount: summary.netAmount,
+            discountSource: allocation.order.discountSource,
+            allocationMethod: allocation.order.allocationMethod,
+            promotionId: allocation.order.promotionId,
+            couponId: allocation.order.couponId,
+            packageId: allocation.order.packageId,
+            discountPayload: allocation.order.discountPayload as Prisma.InputJsonValue,
+            payMethod: paymentMethod,
+            source: 'terminal',
+            status: 'completed',
+            items: orderItemsPayload,
             remark: dto.remark,
-          });
+          },
+        });
+
+        await this.createOrderItems(
+          tx,
+          order.id,
+          group.items.map((item) => ({ ...item, beauticianId: item.beauticianId ?? dto.beauticianId })),
+        );
+
+        if (group.kind === 'project') {
+          consumedProjectBom = (await this.consumeProjectBomForCheckout(tx, storeId, order, group.items, dto.remark)) || consumedProjectBom;
         }
+
+        for (const item of group.items) {
+          if (this.isProductOrderItemType(item.itemType)) {
+            await this.createStockMovementForItem(tx, storeId, item, 'sale_out', {
+              type: 'product_order',
+              id: order.id,
+              no: order.orderNo,
+              remark: dto.remark,
+            });
+          }
+        }
+        createdOrders.push(order);
       }
 
       if (dto.customerId) {
@@ -3824,7 +4340,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
             customerId: dto.customerId!,
             type: 'consume',
             amount: totalAmount,
-            orderId: order.id,
+            orderId: createdOrders[0]?.id,
             paymentMethod,
             remark: dto.remark ?? '终端收银余额支付',
           });
@@ -3834,30 +4350,36 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           data: {
             customerId: dto.customerId!,
             consumeType: '消费',
-            consumeContent: normalizedItems.map((item) => `${item.name} x${item.quantity}`).join('、'),
+            consumeContent: allocatedItems.map((item) => `${item.name} x${item.quantity}`).join('、'),
             payMethod: paymentMethod,
             amount: totalAmount,
           },
         });
       }
 
-      return { order, customer, customerName, customerPhone, consumedProjectBom };
+      return { order: createdOrders[0], orders: createdOrders, customer, customerName, customerPhone, consumedProjectBom, checkoutGroupNo };
     });
-    await this.createPaymentRecord(this.prisma, result.order.id, paymentMethod, totalAmount);
-    this.scheduleCheckoutPostCommitTasks({
-      storeId,
-      dto,
-      order: result.order,
-      totalAmount,
-      paymentMethod,
-      itemCount: normalizedItems.length,
-      deviceId,
-    });
-    const responseItems = normalizedItems;
+    await Promise.all(
+      result.orders.map((order: any) =>
+        this.createPaymentRecord(this.prisma, order.id, paymentMethod, this.toNumber(order.netAmount ?? order.totalAmount)),
+      ),
+    );
+    for (const order of result.orders) {
+      this.scheduleCheckoutPostCommitTasks({
+        storeId,
+        dto,
+        order,
+        totalAmount: this.toNumber(order.netAmount ?? order.totalAmount),
+        paymentMethod,
+        itemCount: normalizedItems.length,
+        deviceId,
+      });
+    }
+    const responseItems = allocatedItems;
     this.invalidateCashierDashboardCache(storeId);
     if (
       result.consumedProjectBom ||
-      (dto.items as any[]).some((item) => item.itemType === 'product' || item.productId)
+      resolvedDtoItems.some((item) => item.itemType === 'product' || item.productId)
     ) {
       this.invalidateInventoryDashboardCache(storeId);
     }
@@ -3865,6 +4387,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return {
       id: result.order.id,
       orderNo: result.order.orderNo,
+      checkoutGroupNo: result.checkoutGroupNo,
+      orderKind: itemGroups.length > 1 ? 'mixed' : result.order.orderKind,
+      splitOrderIds: result.orders.map((order: any) => order.id),
+      splitOrderNos: result.orders.map((order: any) => order.orderNo),
       customerId: dto.customerId,
       customerName: result.order.customerName ?? result.customerName ?? result.customer?.name ?? '',
       customerPhone: result.customerPhone ?? result.customer?.phone ?? '',
@@ -3876,9 +4402,30 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        listAmount: item.listAmount,
         subtotal: item.subtotal,
+        discount: item.discount,
+        itemDiscountAmount: item.itemDiscountAmount,
+        orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
+        totalDiscountAmount: item.totalDiscountAmount,
+        netAmount: item.netAmount,
+        discountSource: item.discountSource,
+        allocationMethod: item.allocationMethod,
+        isGift: item.isGift,
+        eligibleForOrderDiscount: item.eligibleForOrderDiscount,
       })),
       totalAmount,
+      listAmount: allocation.order.listAmount,
+      itemDiscountAmount: allocation.order.itemDiscountAmount,
+      orderDiscountAmount: allocation.order.orderDiscountAmount,
+      totalDiscountAmount: allocation.order.totalDiscountAmount,
+      netAmount: allocation.order.netAmount,
+      discountSource: allocation.order.discountSource,
+      allocationMethod: allocation.order.allocationMethod,
+      promotionId: allocation.order.promotionId,
+      couponId: allocation.order.couponId,
+      packageId: allocation.order.packageId,
+      discountPayload: allocation.order.discountPayload,
       status: 'completed',
       paymentMethod,
       createdAt: result.order.createdAt.toISOString(),
@@ -3906,6 +4453,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       dto.transactionNo,
     );
     await this.applyMarketingAttribution(this.prisma, order, paidAmount);
+    await this.refreshDailySettlementForOrder(order.storeId ?? 0, order.id, 'terminal_payment');
     const store = order.storeId ? await this.getStore(order.storeId) : null;
     return {
       id: order.id,
@@ -3937,7 +4485,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     ];
   }
 
-  async createCardOrder(storeId: number, dto: CreateCardOrderDto) {
+  async createCardOrder(storeId: number, dto: CreateCardOrderDto, currentUserId?: number) {
     const [store, customer, card] = await Promise.all([
       this.getStore(storeId),
       dto.customerId ? this.prisma.customer.findUnique({ where: { id: dto.customerId } }) : Promise.resolve(null),
@@ -3945,21 +4493,32 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     ]);
     if (!card) throw new NotFoundException('卡项不存在');
     const expireTime = new Date();
-    expireTime.setDate(expireTime.getDate() + 365);
+    expireTime.setDate(expireTime.getDate() + this.resolveCardValidDays(card));
     const originalAmount = this.toNumber(card.price);
     const discountAmount = Math.min(originalAmount, Math.max(0, this.toNumber(dto.discountAmount)));
     const amount = Math.max(0, this.toNumber(dto.amount ?? originalAmount - discountAmount));
     const totalTimes = dto.totalTimes ?? card.totalTimes;
     const giftProjects = Array.isArray(dto.giftProjects) ? dto.giftProjects : [];
+    const pricingSnapshot = this.buildCardPricingSnapshot({ card, paidAmount: amount, totalTimes, discountAmount });
+    const selectedOperatorId = this.toNumber(dto.operatorId) || this.toNumber(currentUserId) || undefined;
+    const selectedOperator = selectedOperatorId
+      ? await this.assertStoreUserAllowed(storeId, selectedOperatorId)
+      : null;
     const result = await this.prisma.$transaction(async (tx) => {
       const customerCard = dto.customerId
         ? await tx.customerCard.create({
             data: {
               customerId: dto.customerId,
               cardId: card.id,
+              operatorId: selectedOperator?.id,
               cardName: dto.cardName ?? card.name,
               totalTimes,
               remainingTimes: totalTimes,
+              paidAmount: amount,
+              discountAmount,
+              giftTimes: 0,
+              recognizedUnitValue: pricingSnapshot.recognizedUnitValue,
+              pricingSnapshot,
               expiryDate: expireTime,
               status: 'active',
             },
@@ -3970,10 +4529,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       const order = await tx.productOrder.create({
         data: {
           orderNo,
+          orderKind: 'card',
           customerId: dto.customerId,
           customerName: customer?.name ?? dto.customerName,
           storeId,
           totalAmount: amount,
+          listAmount: originalAmount,
+          itemDiscountAmount: discountAmount,
+          orderDiscountAmount: 0,
+          totalDiscountAmount: discountAmount,
+          netAmount: amount,
+          discountSource: discountAmount > 0 ? 'manual' : 'none',
+          allocationMethod: discountAmount > 0 ? 'item' : 'none',
           payMethod: this.getPaymentMethod(dto.paymentMethod),
           source: 'terminal',
           status: 'completed',
@@ -4000,9 +4567,15 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         itemId: card.id,
         name: card.name,
         quantity: 1,
-        unitPrice: amount,
+        unitPrice: originalAmount,
+        listAmount: originalAmount,
         subtotal: amount,
         discount: discountAmount,
+        itemDiscountAmount: discountAmount,
+        totalDiscountAmount: discountAmount,
+        netAmount: amount,
+        discountSource: discountAmount > 0 ? 'manual' : 'none',
+        allocationMethod: discountAmount > 0 ? 'item' : 'none',
         beauticianId: dto.beauticianId,
         giftProjects,
       },
@@ -4010,6 +4583,16 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     await this.createPaymentRecord(this.prisma, result.order.id, dto.paymentMethod, amount, dto.transactionNo);
     await this.applyMarketingAttribution(this.prisma, result.order, amount);
     const cardOrderItems = await this.prisma.orderItem.findMany({ where: { orderId: result.order.id } });
+    const cardOrderItem = cardOrderItems.find((item: any) => item.itemType === 'card' && this.toNumber(item.itemId) === card.id);
+    if (result.customerCard && cardOrderItem) {
+      await this.prisma.customerCard.update({
+        where: { id: result.customerCard.id },
+        data: {
+          sourceOrderId: result.order.id,
+          sourceOrderItemId: cardOrderItem.id,
+        },
+      });
+    }
     await this.calculateTerminalCommissions({
       storeId,
       orderId: result.order.id,
@@ -4022,6 +4605,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderItemId: item.id,
       })),
     });
+    await this.refreshDailySettlementForOrder(storeId, result.order.id, 'terminal_card_order');
     this.invalidateCardDashboardCache(storeId);
     this.invalidateCashierDashboardCache(storeId);
 
@@ -4033,6 +4617,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       customerPhone: customer?.phone ?? dto.customerPhone ?? '',
       cardId: card.id,
       cardName: card.name,
+      operatorId: selectedOperator?.id,
+      operatorName: selectedOperator?.name ?? selectedOperator?.username ?? '',
       storeId,
       storeName: store.name,
       amount,
@@ -4062,10 +4648,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       const created = await tx.productOrder.create({
         data: {
           orderNo,
+          orderKind: 'recharge',
           customerId: dto.customerId,
           customerName: customer?.name ?? dto.customerName,
           storeId,
           totalAmount: amount,
+          listAmount: amount,
+          itemDiscountAmount: 0,
+          orderDiscountAmount: 0,
+          totalDiscountAmount: 0,
+          netAmount: amount,
+          discountSource: 'none',
+          allocationMethod: 'none',
           payMethod: this.getPaymentMethod(dto.paymentMethod),
           source: 'terminal',
           status: 'completed',
@@ -4143,6 +4737,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         name: '会员充值',
         quantity: 1,
         unitPrice: amount,
+        listAmount: amount,
+        subtotal: amount,
+        netAmount: amount,
         beauticianId: dto.beauticianId,
         giftAmount,
         giftProjects,
@@ -4163,6 +4760,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderItemId: item.id,
       })),
     });
+    await this.refreshDailySettlementForOrder(storeId, result.order.id, 'terminal_recharge_order');
     this.invalidateCashierDashboardCache(storeId);
     return {
       id: result.order.id,
@@ -4340,13 +4938,28 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const [items, total] = await Promise.all([
       this.prisma.cardUsageRecord.findMany({
         where,
+        include: {
+          operator: { select: { id: true, name: true, username: true } },
+          beautician: { select: { id: true, name: true } },
+          device: { select: { id: true, name: true, deviceCode: true } },
+        },
         orderBy: { verifiedAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       this.prisma.cardUsageRecord.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    const mapped = items.map((item: any) => ({
+      ...item,
+      operatorName: item.operator?.name ?? item.operator?.username ?? '',
+      beauticianName: item.beautician?.name ?? '',
+      deviceName: item.device?.name ?? '',
+      deviceCode: item.device?.deviceCode ?? '',
+      operator: undefined,
+      beautician: undefined,
+      device: undefined,
+    }));
+    return { items: mapped, data: mapped, total, page, pageSize };
   }
 
   // ─── Skin Test ──────────────────────────────────────────────────────────────
@@ -4475,12 +5088,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const duration = Number(query.duration || project?.duration || 60);
     const [beauticians, reservations, schedules] = await Promise.all([
       this.prisma.beautician.findMany({
-        where: {
+        where: this.buildTerminalVisibleBeauticianWhere(
           storeId,
-          status: 'active',
-          ...(query.beauticianId ? { id: query.beauticianId } : {}),
-        },
-        orderBy: { id: 'asc' },
+          query.beauticianId ? { id: query.beauticianId } : {},
+        ),
+        orderBy: { createdAt: 'desc' },
       }),
       this.prisma.reservation.findMany({
         where: {
@@ -4535,7 +5147,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     return {
       storeId,
-      date: this.toIso(baseDate).slice(0, 10),
+      date: formatBusinessDate(baseDate),
       projectId: project?.id ?? query.projectId,
       projectName: project?.name,
       duration,
@@ -5206,6 +5818,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
         ];
       }
+      const summaryScopeWhere = { ...where };
+      delete summaryScopeWhere.status;
       const [items, total, grouped, booked, converted, convertedTasks, assigneeTasks] = await Promise.all([
         taskDelegate.findMany({
           where,
@@ -5217,29 +5831,26 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         taskDelegate.count({ where }),
         taskDelegate.groupBy({
           by: ['status'],
-          where: { storeId, deletedAt: null },
+          where: summaryScopeWhere,
           _count: { _all: true },
         }),
         taskDelegate.count({
           where: {
-            storeId,
-            deletedAt: null,
+            ...summaryScopeWhere,
             status: 'completed',
             OR: [{ resultType: 'booked' }, { reservationId: { not: null } }],
           },
         }),
         taskDelegate.count({
           where: {
-            storeId,
-            deletedAt: null,
+            ...summaryScopeWhere,
             status: 'completed',
             OR: [{ resultType: 'converted' }, { orderId: { not: null } }],
           },
         }),
         taskDelegate.findMany({
           where: {
-            storeId,
-            deletedAt: null,
+            ...summaryScopeWhere,
             status: 'completed',
             orderId: { not: null },
           },
@@ -5247,10 +5858,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           take: 1000,
         }),
         taskDelegate.findMany({
-          where: {
-            storeId,
-            deletedAt: null,
-          },
+          where: summaryScopeWhere,
           include: {
             assigneeUser: { select: { id: true, name: true, username: true } },
             assigneeBeautician: { select: { id: true, name: true } },
@@ -5262,8 +5870,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       const now = new Date();
       const overdue = await taskDelegate.count({
         where: {
-          storeId,
-          deletedAt: null,
+          ...summaryScopeWhere,
           status: { in: ['pending', 'in_progress'] },
           dueAt: { lt: now },
         },
@@ -5676,7 +6283,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private async findFallbackBeautician(storeId: number) {
     return this.prisma.beautician.findFirst({
-      where: { storeId, status: 'active' },
+      where: this.buildTerminalVisibleBeauticianWhere(storeId),
       orderBy: [{ userId: 'desc' }, { id: 'asc' }],
     });
   }
@@ -6317,9 +6924,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         take: 12,
       }),
       this.prisma.beautician.findMany({
-        where: { storeId, status: 'active' },
+        where: this.buildTerminalVisibleBeauticianWhere(storeId),
         include: { level: true },
-        orderBy: { id: 'asc' },
+        orderBy: { createdAt: 'desc' },
         take: 8,
       }),
       this.prisma.schedule.findMany({
@@ -6368,7 +6975,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         specialties: ['面部护理', '身体护理'],
         status: '在职',
         storeName: store.name,
-        joinDate: item.createdAt.toISOString().slice(0, 10),
+        joinDate: formatBusinessDate(item.createdAt),
         createdAt: item.createdAt.toISOString(),
       };
       return {
@@ -6762,6 +7369,89 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  async getCustomerSelectContext(
+    storeId: number,
+    userId: number | undefined,
+    query: TerminalCustomerSelectQueryDto,
+  ) {
+    const scene = query.scene ?? 'appointment';
+    const keyword = query.keyword?.trim() ?? '';
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 100);
+    const operatorId = Number.isFinite(Number(query.operatorId)) ? Number(query.operatorId) : undefined;
+    if (operatorId && operatorId !== userId) {
+      await this.assertTerminalOperatorAllowed(storeId, operatorId);
+    }
+    const requestedCustomerIds = this.parseTerminalCustomerIds(query.customerIds);
+    const scope = await this.getTerminalCustomerSelectScopeIds(
+      storeId,
+      userId,
+      scene,
+      operatorId,
+      query.onlyMyCustomers,
+    );
+    if (scope.forcedEmpty && !requestedCustomerIds.length) {
+      return {
+        scene,
+        keyword,
+        generatedAt: new Date().toISOString(),
+        fromCache: false,
+        items: [],
+        hasMore: false,
+      };
+    }
+    const scopedScenes = new Set<TerminalCustomerSelectScene>(['follow_up', 'service_record']);
+    const mergedCustomerIds =
+      scope.customerIds.length || requestedCustomerIds.length
+        ? Array.from(new Set([...requestedCustomerIds, ...scope.customerIds]))
+        : [];
+
+    if (scopedScenes.has(scene) && !mergedCustomerIds.length) {
+      return {
+        scene,
+        keyword,
+        generatedAt: new Date().toISOString(),
+        fromCache: false,
+        items: [],
+        hasMore: false,
+      };
+    }
+
+    const cacheKey = [
+      'customer-select',
+      storeId,
+      userId ?? 0,
+      operatorId ?? 0,
+      scene,
+      keyword,
+      limit,
+      query.onlyMyCustomers ? 'mine' : 'all',
+      query.includeInactive ? 'inactive' : 'active',
+      mergedCustomerIds.slice(0, 50).join(','),
+    ];
+    const ttlMs = keyword ? 60_000 : 2 * 60_000;
+
+    return this.withTerminalDashboardCache(cacheKey, ttlMs, async () => {
+      const customers = await this.getTerminalContextCustomers(storeId, {
+        keyword,
+        scene,
+        limit,
+        customerIds: mergedCustomerIds,
+        onlyWithActiveCards: scene === 'verification',
+        includeInactive: query.includeInactive,
+      });
+      const items = customers.map((customer) => this.toTerminalCustomerSelectItem(customer, scene));
+      return {
+        scene,
+        keyword,
+        generatedAt: new Date().toISOString(),
+        fromCache: false,
+        items,
+        total: undefined,
+        hasMore: items.length >= limit,
+      };
+    });
+  }
+
   async getCashierContext(storeId: number) {
     return this.withTerminalDashboardCache(
       ['cashier-context', storeId, this.toLocalDateText(new Date())],
@@ -6769,7 +7459,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       async () => {
         const [catalog, customers, store] = await Promise.all([
           this.getCatalogSync(storeId),
-          this.getTerminalContextCustomers(storeId),
+          this.getTerminalContextCustomers(storeId, { scene: 'cashier', limit: 50 }),
           this.getStore(storeId),
         ]);
         return {
@@ -6789,7 +7479,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       3 * 60_000,
       async () => {
         const [customers, store] = await Promise.all([
-          this.getTerminalContextCustomers(storeId, { keyword: keyword ?? '', onlyWithActiveCards: true }),
+          this.getTerminalContextCustomers(storeId, {
+            keyword: keyword ?? '',
+            scene: 'verification',
+            onlyWithActiveCards: true,
+            limit: keyword ? 50 : 50,
+          }),
           this.getStore(storeId),
         ]);
         return {
@@ -7103,7 +7798,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }).length;
 
     return {
-      date: today.toISOString().slice(0, 10),
+      date: formatBusinessDate(today),
       strategyCount: strategies.length,
       enabledCount,
       waitingApprovalCount,

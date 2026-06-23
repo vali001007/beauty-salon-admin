@@ -5,8 +5,10 @@ export interface Card {
   totalTimes: number;
   price: number;
   validDays: number;
+  storeId?: number;
   storeName: string;
   status: '上架' | '下架';
+  sortOrder?: number;
   createdAt: string;
   projects: CardProject[];
 }

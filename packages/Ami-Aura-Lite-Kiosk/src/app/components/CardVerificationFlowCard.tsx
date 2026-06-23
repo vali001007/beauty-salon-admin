@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { cn } from "./ui/utils";
-import { CustomerSelectList } from "./CustomerSelectList";
+import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -44,6 +44,23 @@ type SelectedProject = CardVerificationCardOption["projects"][number] & {
   remainingTimes: number;
   expiryDate: string;
 };
+
+function toVerificationCustomer(customer: CardVerificationCustomer | import("@/types/terminal").TerminalCustomerSelectItem): CardVerificationCustomer {
+  const record = customer as CardVerificationCustomer & import("@/types/terminal").TerminalCustomerSelectItem;
+  return {
+    id: record.id,
+    name: record.name,
+    phone: record.phone || record.maskedPhone || "",
+    avatarUrl: record.avatarUrl,
+    memberLevel: record.memberLevel || "普通客户",
+    tags: safeArray(record.tags),
+    profileLabel: record.profileLabel || record.skinCondition || record.priorityLabel || "画像待补充",
+    lastVisitDate: record.lastVisitDate || "暂无到店记录",
+    isAppointedToday: Boolean(record.isAppointedToday),
+    appointmentTime: record.appointmentTime,
+    appointmentProjectName: record.appointmentProjectName,
+  };
+}
 
 export function CardVerificationFlowCard({
   data,
@@ -156,13 +173,16 @@ export function CardVerificationFlowCard({
       {step === 1 ? (
         <div className="flex flex-col gap-4">
           <div className="text-sm font-medium text-[#6F6678]">第一步：选择客户，默认优先显示当天预约客户</div>
-          <CustomerSelectList
-            customers={customers}
-            selectedCustomerId={selectedCustomer?.id}
-            onSelect={(customer) => void chooseCustomer(customer)}
-            onViewDetails={setDetailCustomer}
-            loadingCustomerId={pendingCustomerId}
+          <CustomerAsyncSelect
+            scene="verification"
+            value={selectedCustomer?.id}
+            onChange={(customer) => {
+              if (customer) void chooseCustomer(toVerificationCustomer(customer));
+            }}
+            defaultItems={customers}
             disabled={loading}
+            placeholder="请选择有可用次卡的客户"
+            searchPlaceholder="输入姓名或手机号搜索可核销客户"
             emptyText="未找到有可用次卡的客户，请检查姓名或手机号。"
           />
         </div>

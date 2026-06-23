@@ -10,13 +10,18 @@ type PrismaLike = PrismaService | any;
 type CommissionRuleReferenceInput = Pick<CreateCommissionRuleDto, 'type' | 'targetType'> & {
   targetId?: number | null;
   levelId?: number | null;
+  userId?: number | null;
 };
 
 export type CalculateCommissionParams = {
   storeId: number;
-  beauticianId: number;
+  staffUserId?: number;
+  beauticianId?: number;
   orderId?: number;
   orderItemId?: number;
+  sourceType?: string;
+  sourceId?: number;
+  cardUsageRecordId?: number;
   type: 'project' | 'product' | 'card_sale' | 'recharge' | 'new_customer';
   itemId?: number;
   categoryId?: number;
@@ -31,17 +36,19 @@ export type CalculateCommissionParams = {
 export type CalculateOrderCommissionsParams = {
   storeId: number;
   orderId: number;
-  beauticianId: number;
+  staffUserId?: number;
+  beauticianId?: number;
   levelId?: number;
   isDesignated?: boolean;
-  items: Array<{
-    itemType: string;
-    itemId?: number | null;
-    categoryId?: number | null;
-    subtotal: number;
-    orderItemId?: number;
-    serviceFee?: number;
-    profit?: number;
+    items: Array<{
+      itemType: string;
+      itemId?: number | null;
+      categoryId?: number | null;
+      subtotal: number;
+      netAmount?: number;
+      orderItemId?: number;
+      serviceFee?: number;
+      profit?: number;
   }>;
 };
 
@@ -162,6 +169,7 @@ export class CommissionService {
       sourceAmount: this.toNumber(record.sourceAmount),
       rate: this.toNumber(record.rate),
       amount: this.toNumber(record.amount),
+      staffUserName: record.staffUser?.name ?? record.beautician?.name,
       beauticianName: record.beautician?.name,
       storeName: record.store?.name,
       orderNo: record.order?.orderNo,
@@ -192,6 +200,7 @@ export class CommissionService {
       totalAmount: this.toNumber(settlement.totalAmount),
       deductions: this.toNumber(settlement.deductions),
       netAmount: this.toNumber(settlement.netAmount),
+      staffUserName: settlement.staffUser?.name ?? settlement.beautician?.name,
       beauticianName: settlement.beautician?.name,
       storeName: settlement.store?.name,
     };
@@ -718,6 +727,7 @@ export class CommissionService {
     storeId?: number | string;
     type?: string;
     levelId?: number | string;
+    userId?: number | string;
     status?: string;
     keyword?: string;
   }) {
@@ -729,12 +739,13 @@ export class CommissionService {
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
     if (this.toNumber(query.levelId) > 0) where.levelId = this.toNumber(query.levelId);
+    if (this.toNumber(query.userId) > 0) where.userId = this.toNumber(query.userId);
     if (query.keyword) where.name = { contains: query.keyword, mode: 'insensitive' };
 
     const [items, total] = await Promise.all([
       this.prisma.commissionRule.findMany({
         where,
-        include: { store: { select: { id: true, name: true } }, level: true },
+        include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
@@ -748,7 +759,7 @@ export class CommissionService {
   async getRuleById(id: number) {
     const rule = await this.prisma.commissionRule.findUnique({
       where: { id },
-      include: { store: { select: { id: true, name: true } }, level: true },
+      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
     });
     if (!rule) throw new NotFoundException('提成规则不存在');
     return this.serializeRule(rule);
@@ -757,7 +768,19 @@ export class CommissionService {
   private async validateRuleReferences(storeId: number, dto: CommissionRuleReferenceInput) {
     if (dto.levelId) {
       const level = await this.prisma.beauticianLevel.findUnique({ where: { id: Number(dto.levelId) } });
-      if (!level) throw new BadRequestException('美容师等级不存在');
+      if (!level) throw new BadRequestException('员工等级不存在');
+    }
+
+    if (dto.userId) {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: Number(dto.userId),
+          status: 'active',
+          deletedAt: null,
+          stores: { some: { storeId } },
+        },
+      });
+      if (!user) throw new BadRequestException('适用员工必须来自系统管理-用户管理，且已启用并绑定当前门店');
     }
 
     if (dto.targetType === 'specific' && dto.targetId) {
@@ -778,6 +801,7 @@ export class CommissionService {
 
   async createRule(storeIdInput: number | string | undefined, dto: CreateCommissionRuleDto) {
     const storeId = this.asStoreId(storeIdInput);
+    if (!dto.userId) throw new BadRequestException('提成规则必须绑定到具体员工');
     await this.validateRuleReferences(storeId, dto);
     const rule = await this.prisma.commissionRule.create({
       data: {
@@ -787,6 +811,7 @@ export class CommissionService {
         targetType: dto.targetType ?? 'all',
         targetId: dto.targetId,
         levelId: dto.levelId,
+        userId: dto.userId,
         rate: dto.rate,
         fixedAmount: dto.fixedAmount,
         calcBase: dto.calcBase ?? 'total',
@@ -796,7 +821,7 @@ export class CommissionService {
         status: dto.status ?? 'active',
         priority: dto.priority ?? 0,
       },
-      include: { store: { select: { id: true, name: true } }, level: true },
+      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
     });
     return this.serializeRule(rule);
   }
@@ -804,7 +829,9 @@ export class CommissionService {
   async updateRule(id: number, dto: UpdateCommissionRuleDto) {
     const current = await this.prisma.commissionRule.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('提成规则不存在');
-    await this.validateRuleReferences(current.storeId, { ...current, ...dto });
+    const nextRule = { ...current, ...dto };
+    if (!nextRule.userId) throw new BadRequestException('提成规则必须绑定到具体员工');
+    await this.validateRuleReferences(current.storeId, nextRule);
     const rule = await this.prisma.commissionRule.update({
       where: { id },
       data: {
@@ -813,6 +840,7 @@ export class CommissionService {
         targetType: dto.targetType,
         targetId: dto.targetId,
         levelId: dto.levelId,
+        userId: dto.userId,
         rate: dto.rate,
         fixedAmount: dto.fixedAmount,
         calcBase: dto.calcBase,
@@ -822,7 +850,7 @@ export class CommissionService {
         status: dto.status,
         priority: dto.priority,
       },
-      include: { store: { select: { id: true, name: true } }, level: true },
+      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
     });
     return this.serializeRule(rule);
   }
@@ -832,25 +860,14 @@ export class CommissionService {
     const rule = await this.prisma.commissionRule.update({
       where: { id },
       data: { status: 'archived' },
-      include: { store: { select: { id: true, name: true } }, level: true },
+      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
     });
     return this.serializeRule(rule);
   }
 
   async batchCreateFromTemplate(storeIdInput: number | string | undefined, template = 'beauty_standard') {
-    const storeId = this.asStoreId(storeIdInput);
-    const rules: CreateCommissionRuleDto[] = [
-      { name: '项目通用提成 8%', type: 'project', targetType: 'all', rate: 0.08, priority: 10 },
-      { name: '商品销售提成 5%', type: 'product', targetType: 'all', rate: 0.05, priority: 10 },
-      { name: '次卡开卡提成 6%', type: 'card_sale', targetType: 'all', rate: 0.06, priority: 10 },
-      { name: '会员充值提成 3%', type: 'recharge', targetType: 'all', rate: 0.03, priority: 10 },
-      { name: '指定服务加成', type: 'project', targetType: 'all', rate: 0.08, isDesignated: true, designatedBonus: 0.2, priority: 20 },
-    ];
-    const created = [];
-    for (const rule of rules) {
-      created.push(await this.createRule(storeId, { ...rule, name: template === 'beauty_standard' ? rule.name : `${template}-${rule.name}` }));
-    }
-    return { items: created, data: created, total: created.length };
+    this.asStoreId(storeIdInput);
+    throw new BadRequestException(`提成规则必须绑定到具体员工，请按员工新增规则（模板：${template}）`);
   }
 
   private async resolveCategory(params: CalculateCommissionParams, client: PrismaLike) {
@@ -877,6 +894,8 @@ export class CommissionService {
     return matched.sort((a, b) => {
       const priorityDiff = this.toNumber(b.priority) - this.toNumber(a.priority);
       if (priorityDiff !== 0) return priorityDiff;
+      const userDiff = (b.userId ? 1 : 0) - (a.userId ? 1 : 0);
+      if (userDiff !== 0) return userDiff;
       const levelDiff = (b.levelId ? 1 : 0) - (a.levelId ? 1 : 0);
       if (levelDiff !== 0) return levelDiff;
       return (TARGET_TYPE_WEIGHT[b.targetType] ?? 0) - (TARGET_TYPE_WEIGHT[a.targetType] ?? 0);
@@ -884,14 +903,17 @@ export class CommissionService {
   }
 
   async calculateCommission(params: CalculateCommissionParams, client: PrismaLike = this.prisma) {
-    if (!params.storeId || !params.beauticianId || params.sourceAmount <= 0) return null;
+    if (!params.storeId || !params.staffUserId || params.sourceAmount <= 0) return null;
     const categoryId = await this.resolveCategory(params, client);
     const ruleWhere: any = {
       storeId: params.storeId,
       type: params.type,
       status: 'active',
     };
-    ruleWhere.OR = params.levelId ? [{ levelId: null }, { levelId: params.levelId }] : [{ levelId: null }];
+    const ruleUserId = params.staffUserId;
+    const userScope = ruleUserId ? [{ userId: null }, { userId: ruleUserId }] : [{ userId: null }];
+    const levelScope = params.levelId ? [{ levelId: null }, { levelId: params.levelId }] : [{ levelId: null }];
+    ruleWhere.AND = [{ OR: userScope }, { OR: levelScope }];
     const rules = await client.commissionRule.findMany({
       where: ruleWhere,
     });
@@ -920,19 +942,25 @@ export class CommissionService {
     const record = await client.commissionRecord.create({
       data: {
         storeId: params.storeId,
+        staffUserId: params.staffUserId,
         beauticianId: params.beauticianId,
         orderId: params.orderId,
         orderItemId: params.orderItemId,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId,
+        cardUsageRecordId: params.cardUsageRecordId,
         ruleId: rule.id,
         type: params.type,
         sourceAmount: base,
         rate,
         amount,
-        status: 'pending',
+        status: 'confirmed',
+        confirmedAt: new Date(),
         settleMonth: this.getSettleMonth(),
         remark: params.remark,
       },
       include: {
+        staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
         store: { select: { id: true, name: true } },
         order: { select: { id: true, orderNo: true } },
@@ -951,13 +979,14 @@ export class CommissionService {
         {
           storeId: params.storeId,
           orderId: params.orderId,
+          staffUserId: params.staffUserId,
           beauticianId: params.beauticianId,
           levelId: params.levelId,
           isDesignated: params.isDesignated,
           type: type as CalculateCommissionParams['type'],
           itemId: item.itemId ?? undefined,
           categoryId: item.categoryId ?? undefined,
-          sourceAmount: this.toNumber(item.subtotal),
+          sourceAmount: this.toNumber(item.netAmount ?? item.subtotal),
           serviceFee: item.serviceFee,
           profit: item.profit,
           orderItemId: item.orderItemId,
@@ -986,6 +1015,7 @@ export class CommissionService {
     page?: number | string;
     pageSize?: number | string;
     storeId?: number | string;
+    staffUserId?: number | string;
     beauticianId?: number | string;
     type?: string;
     status?: string;
@@ -995,8 +1025,10 @@ export class CommissionService {
     const pageSize = Math.max(1, this.toNumber(query.pageSize) || 20);
     const where: any = {};
     const storeId = this.toNumber(query.storeId);
+    const staffUserId = this.toNumber(query.staffUserId);
     const beauticianId = this.toNumber(query.beauticianId);
     if (storeId > 0) where.storeId = storeId;
+    if (staffUserId > 0) where.staffUserId = staffUserId;
     if (beauticianId > 0) where.beauticianId = beauticianId;
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
@@ -1006,6 +1038,7 @@ export class CommissionService {
       this.prisma.commissionRecord.findMany({
         where,
         include: {
+          staffUser: { select: { id: true, name: true, username: true } },
           beautician: { select: { id: true, name: true } },
           store: { select: { id: true, name: true } },
           order: { select: { id: true, orderNo: true, customerName: true } },
@@ -1022,11 +1055,13 @@ export class CommissionService {
     return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
   }
 
-  async getRecordSummary(query: { storeId?: number | string; beauticianId?: number | string; type?: string; status?: string; settleMonth?: string }) {
+  async getRecordSummary(query: { storeId?: number | string; staffUserId?: number | string; beauticianId?: number | string; type?: string; status?: string; settleMonth?: string }) {
     const where: any = {};
     const storeId = this.toNumber(query.storeId);
+    const staffUserId = this.toNumber(query.staffUserId);
     const beauticianId = this.toNumber(query.beauticianId);
     if (storeId > 0) where.storeId = storeId;
+    if (staffUserId > 0) where.staffUserId = staffUserId;
     if (beauticianId > 0) where.beauticianId = beauticianId;
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
@@ -1034,9 +1069,9 @@ export class CommissionService {
 
     const records = await this.prisma.commissionRecord.findMany({
       where,
-      include: { beautician: { select: { id: true, name: true } } },
+      include: { staffUser: { select: { id: true, name: true, username: true } }, beautician: { select: { id: true, name: true } } },
     });
-    const summaryByBeautician = new Map<number, any>();
+    const summaryByStaff = new Map<number, any>();
     const totals = { totalAmount: 0, pendingAmount: 0, confirmedAmount: 0, settledAmount: 0, count: records.length };
     for (const record of records) {
       const amount = this.toNumber(record.amount);
@@ -1045,7 +1080,10 @@ export class CommissionService {
       if (record.status === 'confirmed') totals.confirmedAmount += amount;
       if (record.status === 'settled') totals.settledAmount += amount;
 
-      const item = summaryByBeautician.get(record.beauticianId) ?? {
+      const groupId = record.staffUserId ?? record.beauticianId ?? 0;
+      const item = summaryByStaff.get(groupId) ?? {
+        staffUserId: record.staffUserId,
+        staffUserName: record.staffUser?.name ?? record.beautician?.name,
         beauticianId: record.beauticianId,
         beauticianName: record.beautician?.name,
         totalAmount: 0,
@@ -1059,14 +1097,79 @@ export class CommissionService {
       if (record.status === 'confirmed') item.confirmedAmount += amount;
       if (record.status === 'settled') item.settledAmount += amount;
       item.count += 1;
-      summaryByBeautician.set(record.beauticianId, item);
+      summaryByStaff.set(groupId, item);
     }
 
+    const summaryItems = Array.from(summaryByStaff.values());
     return {
       ...totals,
-      items: Array.from(summaryByBeautician.values()),
-      data: Array.from(summaryByBeautician.values()),
+      items: summaryItems,
+      data: summaryItems,
     };
+  }
+
+  async updateRecord(
+    id: number,
+    dto: { staffUserId?: number; sourceAmount?: number; rate?: number; amount?: number; remark?: string },
+  ) {
+    const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
+    if (!record) throw new NotFoundException('提成流水不存在');
+    if (record.status === 'settled') throw new BadRequestException('已结算提成不能修改，请先撤销结算后再调整');
+    if (record.status === 'cancelled') throw new BadRequestException('已取消提成不能修改');
+
+    const data: any = {};
+    const staffUserId = this.toNumber(dto.staffUserId);
+    if (staffUserId > 0 && staffUserId !== this.toNumber(record.staffUserId)) {
+      const staffUser = await this.prisma.user.findFirst({
+        where: { id: staffUserId, status: 'active', deletedAt: null, stores: { some: { storeId: record.storeId } } },
+        select: { id: true },
+      });
+      if (!staffUser) throw new BadRequestException('员工不存在或不属于当前门店');
+      const beautician = await this.prisma.beautician.findFirst({
+        where: { storeId: record.storeId, userId: staffUserId, status: 'active' },
+        select: { id: true },
+      });
+      data.staffUserId = staffUserId;
+      data.beauticianId = beautician?.id ?? null;
+    }
+
+    const hasSourceAmount = dto.sourceAmount !== undefined && dto.sourceAmount !== null;
+    const hasRate = dto.rate !== undefined && dto.rate !== null;
+    const hasAmount = dto.amount !== undefined && dto.amount !== null;
+    const sourceAmount = hasSourceAmount ? this.toNumber(dto.sourceAmount) : this.toNumber(record.sourceAmount);
+    const rate = hasRate ? this.toNumber(dto.rate) : this.toNumber(record.rate);
+    if (hasSourceAmount) {
+      if (sourceAmount < 0) throw new BadRequestException('金额基数不能小于 0');
+      data.sourceAmount = sourceAmount;
+    }
+    if (hasRate) {
+      if (rate < 0) throw new BadRequestException('提成比例不能小于 0');
+      data.rate = rate;
+    }
+    if (hasAmount) {
+      const amount = this.toNumber(dto.amount);
+      if (amount < 0) throw new BadRequestException('提成金额不能小于 0');
+      data.amount = Math.round(amount * 100) / 100;
+    } else if (hasSourceAmount || hasRate) {
+      data.amount = Math.round(sourceAmount * rate * 100) / 100;
+    }
+    if (dto.remark !== undefined) data.remark = dto.remark?.trim() || null;
+    data.status = 'confirmed';
+    data.confirmedAt = record.confirmedAt ?? new Date();
+
+    const updated = await this.prisma.commissionRecord.update({
+      where: { id },
+      data,
+      include: {
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true } },
+        order: { select: { id: true, orderNo: true, customerName: true } },
+        orderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
+        rule: { select: { id: true, name: true } },
+      },
+    });
+    return this.serializeRecord(updated);
   }
 
   async confirmRecord(id: number) {
@@ -1076,6 +1179,7 @@ export class CommissionService {
       where: { id },
       data: { status: 'confirmed', confirmedAt: new Date() },
       include: {
+        staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
         store: { select: { id: true, name: true } },
         order: { select: { id: true, orderNo: true } },
@@ -1103,11 +1207,14 @@ export class CommissionService {
     if (!settleMonth) throw new BadRequestException('缺少结算月份');
 
     const records = await this.prisma.commissionRecord.findMany({
-      where: { storeId, settleMonth, status: 'confirmed' },
+      where: { storeId, settleMonth, status: { in: ['pending', 'confirmed'] } },
     });
     const grouped = new Map<number, any>();
     for (const record of records) {
-      const item = grouped.get(record.beauticianId) ?? {
+      const staffUserId = this.toNumber(record.staffUserId);
+      if (!staffUserId) continue;
+      const item = grouped.get(staffUserId) ?? {
+        staffUserId: record.staffUserId,
         beauticianId: record.beauticianId,
         projectAmount: 0,
         productAmount: 0,
@@ -1121,16 +1228,17 @@ export class CommissionService {
       else if (record.type === 'card_sale') item.cardSaleAmount += amount;
       else if (record.type === 'recharge') item.rechargeAmount += amount;
       else item.otherAmount += amount;
-      grouped.set(record.beauticianId, item);
+      grouped.set(staffUserId, item);
     }
 
     const settlements = [];
     for (const item of grouped.values()) {
       const totalAmount = item.projectAmount + item.productAmount + item.cardSaleAmount + item.rechargeAmount + item.otherAmount;
       const settlement = await this.prisma.commissionSettlement.upsert({
-        where: { storeId_beauticianId_settleMonth: { storeId, beauticianId: item.beauticianId, settleMonth } },
+        where: { storeId_staffUserId_settleMonth: { storeId, staffUserId: item.staffUserId, settleMonth } },
         create: {
           storeId,
+          staffUserId: item.staffUserId,
           beauticianId: item.beauticianId,
           settleMonth,
           projectAmount: item.projectAmount,
@@ -1151,7 +1259,11 @@ export class CommissionService {
           totalAmount,
           netAmount: totalAmount,
         },
-        include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+        include: {
+          store: { select: { id: true, name: true } },
+          staffUser: { select: { id: true, name: true, username: true } },
+          beautician: { select: { id: true, name: true } },
+        },
       });
       settlements.push(this.serializeSettlement(settlement));
     }
@@ -1176,7 +1288,11 @@ export class CommissionService {
     const [items, total] = await Promise.all([
       this.prisma.commissionSettlement.findMany({
         where,
-        include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+        include: {
+          store: { select: { id: true, name: true } },
+          staffUser: { select: { id: true, name: true, username: true } },
+          beautician: { select: { id: true, name: true } },
+        },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: [{ settleMonth: 'desc' }, { updatedAt: 'desc' }],
@@ -1196,14 +1312,18 @@ export class CommissionService {
 
     const items = await this.prisma.commissionSettlement.findMany({
       where,
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
-      orderBy: [{ settleMonth: 'desc' }, { beauticianId: 'asc' }],
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
+      orderBy: [{ settleMonth: 'desc' }, { staffUserId: 'asc' }],
     });
     const rows = items.map((item: any) => this.serializeSettlement(item));
     const content = this.buildCsv(rows, [
       { key: 'settleMonth', header: '月份' },
       { key: 'storeName', header: '门店' },
-      { key: 'beauticianName', header: '美容师' },
+      { key: 'staffUserName', header: '员工' },
       { key: 'projectAmount', header: '项目提成' },
       { key: 'productAmount', header: '商品提成' },
       { key: 'cardSaleAmount', header: '开卡提成' },
@@ -1228,7 +1348,11 @@ export class CommissionService {
   async getSettlementById(id: number) {
     const settlement = await this.prisma.commissionSettlement.findUnique({
       where: { id },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
     });
     if (!settlement) throw new NotFoundException('结算单不存在');
     return this.serializeSettlement(settlement);
@@ -1239,14 +1363,19 @@ export class CommissionService {
     const settlement = await this.prisma.commissionSettlement.update({
       where: { id },
       data: { status: 'confirmed', confirmedAt: new Date(), confirmedBy },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
     });
+    if (!settlement.staffUserId) throw new BadRequestException('结算单缺少员工主体，无法确认');
     await this.prisma.commissionRecord.updateMany({
       where: {
         storeId: settlement.storeId,
-        beauticianId: settlement.beauticianId,
+        staffUserId: settlement.staffUserId,
         settleMonth: settlement.settleMonth,
-        status: 'confirmed',
+        status: { in: ['pending', 'confirmed'] },
       },
       data: { status: 'settled', settledAt: new Date() },
     });
@@ -1258,7 +1387,11 @@ export class CommissionService {
     const settlement = await this.prisma.commissionSettlement.update({
       where: { id },
       data: { status: 'paid', paidAt: new Date() },
-      include: { store: { select: { id: true, name: true } }, beautician: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
+        beautician: { select: { id: true, name: true } },
+      },
     });
     return this.serializeSettlement(settlement);
   }

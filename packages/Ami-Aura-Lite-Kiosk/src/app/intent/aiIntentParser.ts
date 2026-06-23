@@ -8,7 +8,7 @@ import { parseRuleIntent } from "./ruleIntentParser";
 import { buildSlots } from "./slotUtils";
 
 const MIN_AI_CONFIDENCE = 0.55;
-const TEXT_INPUT_BLOCKED_ACTIONS = new Set<AuraAction>([
+const NATURAL_LANGUAGE_BLOCKED_ACTIONS = new Set<AuraAction>([
   "manager.dashboard",
   "manager.staff",
   "manager.customers",
@@ -113,7 +113,7 @@ export async function parseAiIntentFallback(params: {
     const missingSlots = Array.isArray(result.missingSlots) ? result.missingSlots : [];
     const confidentEnough = result.confidence >= MIN_AI_CONFIDENCE;
     const explicitCompleteAction = Boolean(action && missingSlots.length === 0 && result.confidence >= 0.5);
-    if (params.source === "text" && action && TEXT_INPUT_BLOCKED_ACTIONS.has(action)) {
+    if ((params.source === "text" || params.source === "voice") && action && NATURAL_LANGUAGE_BLOCKED_ACTIONS.has(action)) {
       return buildRuleDefault(params);
     }
     if (!action || (!confidentEnough && !explicitCompleteAction)) {

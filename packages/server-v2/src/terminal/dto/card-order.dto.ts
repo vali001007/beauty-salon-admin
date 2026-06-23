@@ -25,6 +25,11 @@ export class CreateCardOrderDto {
   @IsInt()
   beauticianId?: number;
 
+  @ApiPropertyOptional({ description: '销售人员用户 ID，可为空' })
+  @IsOptional()
+  @IsInt()
+  operatorId?: number;
+
   @ApiProperty({ description: '卡项名称' })
   @IsString()
   cardName: string;

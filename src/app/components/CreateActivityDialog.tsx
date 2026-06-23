@@ -31,6 +31,7 @@ import {
   buildMarketingPagePayloadFromActivity,
   type ActivityMarketingPageItem,
 } from '@/utils/marketingPageGenerator';
+import { addBusinessDays, formatBusinessDate } from '@/utils/businessTime';
 
 interface CreateActivityDialogProps {
   open: boolean;
@@ -215,16 +216,14 @@ function matchRecommendedCatalogIds<T extends { id: number; name: string }>(
 }
 
 function toDateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return formatBusinessDate(date);
 }
 
 function getDefaultActivityPeriod() {
-  const startDate = new Date();
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 30);
+  const startDate = formatBusinessDate(new Date());
   return {
-    startDate: toDateInputValue(startDate),
-    endDate: toDateInputValue(endDate),
+    startDate,
+    endDate: addBusinessDays(startDate, 30),
   };
 }
 

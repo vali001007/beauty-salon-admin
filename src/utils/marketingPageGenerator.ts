@@ -1,6 +1,7 @@
 import type { ActivityPageSchema } from '@/types/ai';
 import type { MarketingActivity, Product, Project, RecommendedItem } from '@/types';
 import type { MarketingPageInput } from '@/types/marketing-page';
+import { addBusinessDays, formatBusinessDate } from '@/utils/businessTime';
 
 export type MarketingPageSourceType = 'product' | 'project';
 
@@ -80,16 +81,14 @@ export interface MarketingPageDraft {
 }
 
 function toDateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return formatBusinessDate(date);
 }
 
 function getDefaultPeriod() {
-  const start = new Date();
-  const end = new Date(start);
-  end.setDate(end.getDate() + 30);
+  const startDate = formatBusinessDate(new Date());
   return {
-    startDate: toDateInputValue(start),
-    endDate: toDateInputValue(end),
+    startDate,
+    endDate: addBusinessDays(startDate, 30),
   };
 }
 

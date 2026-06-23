@@ -463,6 +463,49 @@ export interface TerminalContextCustomer {
   appointmentProjectName?: string;
 }
 
+export type TerminalCustomerSelectScene =
+  | 'appointment'
+  | 'cashier'
+  | 'card_opening'
+  | 'recharge'
+  | 'verification'
+  | 'follow_up'
+  | 'service_record';
+
+export interface TerminalCustomerSelectQuery {
+  scene?: TerminalCustomerSelectScene;
+  keyword?: string;
+  limit?: number;
+  customerIds?: string;
+  operatorId?: number;
+  onlyMyCustomers?: boolean;
+  includeInactive?: boolean;
+}
+
+export interface TerminalCustomerSelectItem extends TerminalContextCustomer {
+  maskedPhone?: string;
+  priorityLabel?: string;
+  sceneBadges: string[];
+  disabled?: boolean;
+  disabledReason?: string;
+  metadata?: {
+    appointmentTime?: string;
+    activeCardCount?: number;
+    followUpTaskCount?: number;
+    assignedStaffName?: string;
+  };
+}
+
+export interface TerminalCustomerSelectResponse {
+  scene: TerminalCustomerSelectScene;
+  keyword: string;
+  generatedAt: string;
+  fromCache: boolean;
+  items: TerminalCustomerSelectItem[];
+  total?: number;
+  hasMore: boolean;
+}
+
 export interface TerminalCashierContext extends TerminalCatalogSync {
   customers: TerminalContextCustomer[];
   storeName: string;
@@ -609,7 +652,8 @@ export interface TerminalCardUsagePreview {
 
 export interface TerminalCardUsageVerifyRequest extends TerminalCardUsagePreviewRequest {
   taskId?: number;
-  beauticianId: number;
+  beauticianId?: number;
+  operatorId?: number;
   deviceId?: number;
 }
 
@@ -621,8 +665,10 @@ export interface TerminalCardUsageRecord {
   projectName: string;
   times: number;
   remainingTimes: number;
-  beauticianId: number;
-  deviceId: number;
+  operatorId?: number;
+  operatorName?: string;
+  beauticianId?: number;
+  deviceId?: number;
   verifiedAt: string;
 }
 
@@ -704,7 +750,20 @@ export interface TerminalCashierOrderItem {
   name: string;
   quantity: number;
   unitPrice: number;
+  listAmount?: number;
   subtotal: number;
+  discount?: number;
+  itemDiscountAmount?: number;
+  orderAllocatedDiscountAmount?: number;
+  totalDiscountAmount?: number;
+  netAmount?: number;
+  discountSource?: string;
+  allocationMethod?: string;
+  discountPayload?: unknown;
+  isGift?: boolean;
+  eligibleForOrderDiscount?: boolean;
+  beauticianId?: number;
+  beauticianName?: string;
 }
 
 export interface TerminalCashierOrderCreateRequest {
@@ -713,6 +772,13 @@ export interface TerminalCashierOrderCreateRequest {
   customerPhone?: string;
   items: TerminalCashierOrderItem[];
   discountAmount?: number;
+  discountMode?: 'none' | 'amount' | 'rate' | 'package_price' | 'manual';
+  discountRate?: number;
+  packagePrice?: number;
+  allocationMethod?: 'price_ratio' | 'manual';
+  discountSource?: 'order' | 'package' | 'promotion' | 'coupon' | 'manual';
+  promotionId?: number;
+  couponId?: number;
   paymentMethod?: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u6b21\u5361\u62b5\u6263' | '\u4f1a\u5458\u4f59\u989d' | 'cash' | 'wechat' | 'alipay' | 'card' | 'customer_card' | 'member_balance';
   remark?: string;
 }
@@ -720,6 +786,10 @@ export interface TerminalCashierOrderCreateRequest {
 export interface TerminalCashierOrder {
   id: number;
   orderNo: string;
+  checkoutGroupNo?: string;
+  orderKind?: 'product' | 'project' | 'mixed' | string;
+  splitOrderIds?: number[];
+  splitOrderNos?: string[];
   customerId?: number;
   customerName: string;
   customerPhone?: string;
@@ -727,6 +797,13 @@ export interface TerminalCashierOrder {
   storeName: string;
   items: TerminalCashierOrderItem[];
   totalAmount: number;
+  listAmount?: number;
+  itemDiscountAmount?: number;
+  orderDiscountAmount?: number;
+  totalDiscountAmount?: number;
+  netAmount?: number;
+  discountSource?: string;
+  allocationMethod?: string;
   status: 'pending_payment' | 'paid' | 'completed' | 'cancelled' | 'refunded';
   paymentMethod?: string;
   createdAt: string;
@@ -747,6 +824,7 @@ export interface TerminalCardOrderCreateRequest {
   customerPhone?: string;
   cardId: number;
   cardName: string;
+  operatorId?: number;
   amount: number;
   totalTimes: number;
   discountAmount?: number;
@@ -764,6 +842,8 @@ export interface TerminalCardOrder {
   customerPhone?: string;
   cardId: number;
   cardName: string;
+  operatorId?: number;
+  operatorName?: string;
   storeId: number;
   storeName: string;
   amount: number;

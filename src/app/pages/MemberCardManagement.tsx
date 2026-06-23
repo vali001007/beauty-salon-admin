@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CreditCard, Gift, Loader2, Minus, MinusCircle, Plus, ReceiptText, RotateCcw, Search, WalletCards } from 'lucide-react';
+import { CreditCard, Gift, Loader2, Minus, MinusCircle, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCustomers } from '@/api/customer';
 import { isRealApi } from '@/api/mode';
@@ -11,10 +11,12 @@ import {
   openMemberCard,
   rechargeMemberCard,
 } from '@/api/order';
+import { getProjects } from '@/api/project';
 import { getStores } from '@/api/store';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { usePagination } from '@/hooks/usePagination';
-import type { Customer, MemberCardAccount, MemberCardTransaction, Store } from '@/types';
+import { useStoreStore } from '@/stores/storeStore';
+import type { Customer, MemberCardAccount, MemberCardTransaction, Project, Store } from '@/types';
 
 type FormMode = 'open' | 'recharge' | 'gift' | 'deduct';
 
@@ -41,11 +43,13 @@ const DEMO_CUSTOMERS = [
   { id: 1001, name: '张三', phone: '13800001001' },
 ];
 
+const DEMO_GIFT_PROJECTS = ['深层补水护理', '敏感肌舒缓修护', '肩颈放松护理'];
+
 const initialForm = {
-  storeId: '',
   customerId: '',
   rechargeAmount: '0.00',
   giftAmount: '0.00',
+  giftProjects: [] as string[],
   paymentMethod: 'cash',
   remark: '',
 };
@@ -64,6 +68,16 @@ function dateText(value?: string) {
 
 function paymentMethodText(value?: string) {
   return PAYMENT_METHODS.find((item) => item.value === value)?.label ?? value ?? '-';
+}
+
+function transactionTypeText(value?: string) {
+  const labels: Record<string, string> = {
+    open: '开卡',
+    recharge: '充值',
+    gift: '赠送',
+    deduct: '划扣',
+  };
+  return value ? (labels[value] ?? value) : '-';
 }
 
 function AmountStepper({
@@ -116,12 +130,127 @@ function AmountStepper({
   );
 }
 
+function uniqueProjectNames(projects: string[]) {
+  return Array.from(new Set(projects.map((project) => project.trim()).filter(Boolean)));
+}
+
+function GiftProjectPicker({
+  projects,
+  selectedProjects,
+  onChange,
+}: {
+  projects: string[];
+  selectedProjects: string[];
+  onChange: (projects: string[]) => void;
+}) {
+  const [draftRows, setDraftRows] = useState<string[]>([]);
+  const selectedSet = useMemo(() => new Set(selectedProjects), [selectedProjects]);
+  const hasAvailableProject = projects.some((project) => !selectedSet.has(project));
+
+  const rows = useMemo(
+    () => [
+      ...selectedProjects.map((project) => ({ key: `selected-${project}`, project, draft: false })),
+      ...draftRows.map((key) => ({ key, project: '', draft: true })),
+    ],
+    [draftRows, selectedProjects],
+  );
+
+  const addRow = () => {
+    if (!hasAvailableProject) return;
+    setDraftRows((prev) => [...prev, `gift-project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`]);
+  };
+
+  const removeRow = (row: { key: string; project: string; draft: boolean }) => {
+    if (row.draft) {
+      setDraftRows((prev) => prev.filter((key) => key !== row.key));
+      return;
+    }
+    onChange(selectedProjects.filter((project) => project !== row.project));
+  };
+
+  const updateRow = (row: { key: string; project: string; draft: boolean }, nextProject: string) => {
+    if (row.draft) {
+      setDraftRows((prev) => prev.filter((key) => key !== row.key));
+      if (nextProject) onChange(uniqueProjectNames([...selectedProjects, nextProject]));
+      return;
+    }
+    if (!nextProject) {
+      onChange(selectedProjects.filter((project) => project !== row.project));
+      return;
+    }
+    onChange(uniqueProjectNames(selectedProjects.map((project) => (project === row.project ? nextProject : project))));
+  };
+
+  const renderOptions = (currentProject: string) => {
+    const unavailable = new Set(selectedProjects.filter((project) => project !== currentProject));
+    return projects
+      .filter((project) => project === currentProject || !unavailable.has(project))
+      .map((project) => (
+        <option key={project} value={project}>
+          {project}
+        </option>
+      ));
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-foreground">赠送项目</div>
+          <div className="mt-1 text-xs text-muted-foreground">可添加多个项目，与智能终端充值保持一致。</div>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addRow} disabled={!hasAvailableProject}>
+          <Plus className="h-4 w-4" />
+          添加项目
+        </Button>
+      </div>
+      {projects.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-background px-3 py-4 text-center text-sm text-muted-foreground">
+          暂无可选项目，请先在项目管理维护已启用项目。
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-background px-3 py-4 text-center text-sm text-muted-foreground">
+          暂未选择赠送项目。
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row) => (
+            <div key={row.key} className="flex items-center gap-2">
+              <select
+                value={row.project}
+                onChange={(event) => updateRow(row, event.target.value)}
+                className="h-10 flex-1 rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                <option value="">请选择赠送项目</option>
+                {renderOptions(row.project)}
+              </select>
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-destructive hover:bg-destructive/10"
+                onClick={() => removeRow(row)}
+                title="删除赠送项目"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 text-right text-xs text-muted-foreground">已选 {selectedProjects.length} 项</div>
+    </div>
+  );
+}
+
 export function MemberCardManagement() {
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const globalStores = useStoreStore((state) => state.stores);
+  const loadGlobalStores = useStoreStore((state) => state.loadStores);
   const [keywordInput, setKeywordInput] = useState('');
   const [storeInput, setStoreInput] = useState('');
   const [filters, setFilters] = useState<{ keyword?: string; storeId?: number }>({});
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('open');
   const [selectedAccount, setSelectedAccount] = useState<MemberCardAccount | null>(null);
@@ -136,15 +265,26 @@ export function MemberCardManagement() {
     usePagination<MemberCardAccount>(getMemberCardsPaginated, stableFilters);
 
   useEffect(() => {
-    Promise.all([getCustomers(), getStores()])
-      .then(([customerItems, storeItems]) => {
-        setCustomers(customerItems);
-        setStores(storeItems);
-      })
+    void loadGlobalStores();
+    getCustomers()
+      .then(setCustomers)
       .catch(() => {
-        toast.error('开卡选项加载失败，请稍后重试');
+        setCustomers([]);
+        toast.error('客户数据加载失败，请稍后重试');
       });
-  }, []);
+    getStores()
+      .then(setStores)
+      .catch(() => {
+        setStores([]);
+        toast.error('门店数据加载失败，请稍后重试');
+      });
+    getProjects()
+      .then(setProjects)
+      .catch(() => {
+        setProjects([]);
+        toast.error('项目数据加载失败，请稍后重试');
+      });
+  }, [loadGlobalStores]);
 
   const storeOptions = useMemo(
     () => (isRealApi ? stores.map((store) => ({ id: store.id, name: store.name })) : DEMO_STORES),
@@ -157,6 +297,21 @@ export function MemberCardManagement() {
         : DEMO_CUSTOMERS,
     [customers],
   );
+  const giftProjectOptions = useMemo(
+    () =>
+      isRealApi
+        ? uniqueProjectNames(projects.filter((project) => project.status !== false).map((project) => project.name))
+        : DEMO_GIFT_PROJECTS,
+    [projects],
+  );
+  const currentStore = useMemo(() => {
+    if (!currentStoreId) return null;
+    return (
+      globalStores.find((store) => store.id === currentStoreId) ??
+      stores.find((store) => store.id === currentStoreId) ??
+      null
+    );
+  }, [currentStoreId, globalStores, stores]);
 
   const openForm = (mode: FormMode, account?: MemberCardAccount) => {
     setIsFormOpen(true);
@@ -164,7 +319,6 @@ export function MemberCardManagement() {
     setSelectedAccount(account ?? null);
     setForm({
       ...initialForm,
-      storeId: account ? String(account.storeId) : '',
       customerId: account ? String(account.customerId) : '',
     });
   };
@@ -178,23 +332,23 @@ export function MemberCardManagement() {
   const submitForm = async () => {
     const rechargeAmount = parseAmount(form.rechargeAmount);
     const giftAmount = parseAmount(form.giftAmount);
-    const selectedStore = storeOptions.find((item) => item.id === Number(form.storeId));
     const selectedCustomer = customerOptions.find((item) => item.id === Number(form.customerId));
 
     try {
       setSubmitting(true);
       if (formMode === 'open') {
-        if (!selectedStore) throw new Error('请选择门店');
+        if (!currentStoreId || !currentStore) throw new Error('请先在顶部标题栏选择具体门店');
         if (!selectedCustomer) throw new Error('请选择客户');
         if (rechargeAmount <= 0) throw new Error('充值金额必须大于 0');
         await openMemberCard({
-          storeId: selectedStore.id,
-          storeName: selectedStore.name,
+          storeId: currentStore.id,
+          storeName: currentStore.name,
           customerId: selectedCustomer.id,
           customerName: selectedCustomer.name,
           customerPhone: selectedCustomer.phone,
           rechargeAmount,
           giftAmount,
+          giftProjects: form.giftProjects,
           paymentMethod: form.paymentMethod,
           remark: form.remark,
         });
@@ -204,6 +358,7 @@ export function MemberCardManagement() {
         await rechargeMemberCard(selectedAccount.id, {
           rechargeAmount,
           giftAmount,
+          giftProjects: form.giftProjects,
           paymentMethod: form.paymentMethod,
           remark: form.remark,
         });
@@ -271,7 +426,7 @@ export function MemberCardManagement() {
             <Input
               value={keywordInput}
               onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="编号/用户名/手机号/备注"
+              placeholder="会员编号/用户/手机/订单号/流水号"
               className="w-56"
             />
           </div>
@@ -320,6 +475,8 @@ export function MemberCardManagement() {
               <TableHead>累计消费</TableHead>
               <TableHead>可用余额</TableHead>
               <TableHead>赠送余额</TableHead>
+              <TableHead>办理人员</TableHead>
+              <TableHead>最近流水</TableHead>
               <TableHead>备注</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -334,6 +491,18 @@ export function MemberCardManagement() {
                 <TableCell>{formatCurrency(account.totalConsumed)}</TableCell>
                 <TableCell className="font-medium">{formatCurrency(account.availableBalance)}</TableCell>
                 <TableCell>{formatCurrency(account.giftBalance)}</TableCell>
+                <TableCell>{account.handlerName || '-'}</TableCell>
+                <TableCell>
+                  <div className="max-w-[170px] space-y-1 text-xs">
+                    <div className="font-medium text-foreground/80">{account.lastOrderNo || account.lastTransactionNo || '-'}</div>
+                    {account.lastTransactionNo && (
+                      <div className="truncate text-muted-foreground" title={account.lastTransactionNo}>
+                        {transactionTypeText(account.lastTransactionType)}
+                        {account.lastTransactionAmount !== undefined ? ` · ${formatCurrency(account.lastTransactionAmount)}` : ''}
+                      </div>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <span className="block max-w-[150px] truncate" title={account.remark}>
                     {account.remark || '-'}
@@ -364,7 +533,7 @@ export function MemberCardManagement() {
             ))}
             {accounts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="py-12 text-center text-muted-foreground">
                   暂无会员卡数据
                 </TableCell>
               </TableRow>
@@ -414,23 +583,6 @@ export function MemberCardManagement() {
                 <>
                   <label className="block">
                     <span className="mb-2 block text-sm font-semibold text-foreground">
-                      <span className="mr-1 text-destructive">*</span>所属门店
-                    </span>
-                    <select
-                      value={form.storeId}
-                      onChange={(event) => setForm((prev) => ({ ...prev, storeId: event.target.value }))}
-                      className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    >
-                      <option value="">请选择门店</option>
-                      {storeOptions.map((store) => (
-                        <option key={store.id} value={store.id}>
-                          {store.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-semibold text-foreground">
                       <span className="mr-1 text-destructive">*</span>选择用户
                     </span>
                     <select
@@ -472,6 +624,14 @@ export function MemberCardManagement() {
                   value={form.giftAmount}
                   onChange={(value) => setForm((prev) => ({ ...prev, giftAmount: value }))}
                   required={formMode === 'gift'}
+                />
+              )}
+
+              {(formMode === 'open' || formMode === 'recharge') && (
+                <GiftProjectPicker
+                  projects={giftProjectOptions}
+                  selectedProjects={form.giftProjects}
+                  onChange={(giftProjects) => setForm((prev) => ({ ...prev, giftProjects }))}
                 />
               )}
 
@@ -539,6 +699,7 @@ export function MemberCardManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>订单号</TableHead>
                       <TableHead>流水号</TableHead>
                       <TableHead>类型</TableHead>
                       <TableHead>金额</TableHead>
@@ -551,6 +712,7 @@ export function MemberCardManagement() {
                   <TableBody>
                     {transactions.map((transaction) => (
                       <TableRow key={transaction.id}>
+                        <TableCell>{transaction.orderNo || '-'}</TableCell>
                         <TableCell>{transaction.transactionNo}</TableCell>
                         <TableCell>{transaction.typeLabel}</TableCell>
                         <TableCell>{formatCurrency(transaction.amount)}</TableCell>
@@ -562,7 +724,7 @@ export function MemberCardManagement() {
                     ))}
                     {transactions.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                        <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                           暂无流水明细
                         </TableCell>
                       </TableRow>

@@ -28,6 +28,34 @@ export class CheckoutItemDto {
   @IsOptional()
   @IsNumber()
   subtotal?: number;
+
+  @ApiPropertyOptional({ description: '明细原价小计' })
+  @IsOptional()
+  @IsNumber()
+  listAmount?: number;
+
+  @ApiPropertyOptional({ description: '明细级优惠金额' })
+  @IsOptional()
+  @IsNumber()
+  itemDiscountAmount?: number;
+
+  @ApiPropertyOptional({ description: '是否赠品，赠品收入按 0 处理' })
+  @IsOptional()
+  isGift?: boolean;
+
+  @ApiPropertyOptional({ description: '是否参与整单优惠分摊' })
+  @IsOptional()
+  eligibleForOrderDiscount?: boolean;
+
+  @ApiPropertyOptional({ description: '服务员工/美容师ID，用于明细级提成归属' })
+  @IsOptional()
+  @IsInt()
+  beauticianId?: number;
+
+  @ApiPropertyOptional({ description: '服务员工/美容师名称，兼容终端展示字段；真实归属优先使用 beauticianId' })
+  @IsOptional()
+  @IsString()
+  beauticianName?: string;
 }
 
 export class CheckoutDto {
@@ -59,6 +87,41 @@ export class CheckoutDto {
   @IsOptional()
   @IsNumber()
   discountAmount?: number;
+
+  @ApiPropertyOptional({ description: '优惠模式: none | amount | rate | package_price | manual' })
+  @IsOptional()
+  @IsString()
+  discountMode?: 'none' | 'amount' | 'rate' | 'package_price' | 'manual';
+
+  @ApiPropertyOptional({ description: '折扣比例，如 85 表示 8.5 折' })
+  @IsOptional()
+  @IsNumber()
+  discountRate?: number;
+
+  @ApiPropertyOptional({ description: '套餐价，系统会反算整单优惠' })
+  @IsOptional()
+  @IsNumber()
+  packagePrice?: number;
+
+  @ApiPropertyOptional({ description: '分摊方式: price_ratio | manual' })
+  @IsOptional()
+  @IsString()
+  allocationMethod?: 'price_ratio' | 'manual';
+
+  @ApiPropertyOptional({ description: '优惠来源: order | package | promotion | coupon | manual' })
+  @IsOptional()
+  @IsString()
+  discountSource?: 'order' | 'package' | 'promotion' | 'coupon' | 'manual';
+
+  @ApiPropertyOptional({ description: '关联优惠活动 ID' })
+  @IsOptional()
+  @IsInt()
+  promotionId?: number;
+
+  @ApiPropertyOptional({ description: '关联优惠券 ID' })
+  @IsOptional()
+  @IsInt()
+  couponId?: number;
 
   @ApiPropertyOptional({ description: '是否指定美容师' })
   @IsOptional()

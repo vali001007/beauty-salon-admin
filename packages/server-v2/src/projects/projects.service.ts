@@ -139,6 +139,21 @@ export class ProjectsService {
     if (data.duration !== undefined) {
       payload.duration = Math.max(0, Number(data.duration));
     }
+    if (data.recommend !== undefined) {
+      payload.recommend = Boolean(data.recommend);
+    }
+    if (data.online !== undefined) {
+      payload.online = Boolean(data.online);
+    }
+    if (data.home !== undefined) {
+      payload.home = Boolean(data.home);
+    }
+    if (data.sort !== undefined || data.sortOrder !== undefined) {
+      payload.sort = Number(data.sort ?? data.sortOrder ?? 0);
+    }
+    if (data.image !== undefined) {
+      payload.image = data.image || null;
+    }
     if (data.status !== undefined) {
       payload.status = this.normalizeStatus(data.status);
     }

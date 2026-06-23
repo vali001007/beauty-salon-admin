@@ -22,4 +22,5 @@ export interface ProjectBomItem {
   sku: string;
   standardQty: number;
   unit: string;
+  costPrice?: number;
 }

@@ -111,6 +111,8 @@ export interface CommissionRule {
   targetId?: number;
   levelId?: number;
   level?: { id: number; name: string };
+  userId?: number;
+  user?: { id: number; name: string; username?: string };
   rate: number;
   fixedAmount?: number;
   calcBase: string;
@@ -127,7 +129,9 @@ export interface CommissionRecord {
   id: number;
   storeId: number;
   storeName?: string;
-  beauticianId: number;
+  staffUserId?: number;
+  staffUserName?: string;
+  beauticianId?: number;
   beauticianName?: string;
   orderId?: number;
   orderNo?: string;
@@ -143,6 +147,14 @@ export interface CommissionRecord {
   createdAt?: string;
 }
 
+export type UpdateCommissionRecordInput = Partial<{
+  staffUserId: number;
+  sourceAmount: number;
+  rate: number;
+  amount: number;
+  remark: string;
+}>;
+
 export interface CommissionSummary {
   totalAmount: number;
   pendingAmount: number;
@@ -150,7 +162,9 @@ export interface CommissionSummary {
   settledAmount: number;
   count: number;
   items: Array<{
-    beauticianId: number;
+    staffUserId?: number;
+    staffUserName?: string;
+    beauticianId?: number;
     beauticianName?: string;
     totalAmount: number;
     pendingAmount: number;
@@ -164,7 +178,9 @@ export interface CommissionSettlement {
   id: number;
   storeId: number;
   storeName?: string;
-  beauticianId: number;
+  staffUserId?: number;
+  staffUserName?: string;
+  beauticianId?: number;
   beauticianName?: string;
   settleMonth: string;
   projectAmount: number;
@@ -268,6 +284,10 @@ export async function realGetCommissionSummary(params: Record<string, unknown>) 
 
 export async function realConfirmCommissionRecord(id: number) {
   return apiClient.put(`/commission/records/${id}/confirm`);
+}
+
+export async function realUpdateCommissionRecord(id: number, data: UpdateCommissionRecordInput) {
+  return apiClient.put<unknown, CommissionRecord>(`/commission/records/${id}`, data);
 }
 
 export async function realBatchConfirmCommissionRecords(data: { ids?: number[]; settleMonth?: string }) {

@@ -9,17 +9,29 @@ export interface Service {
 
 export interface BOMItem {
   id: number;
+  productId?: number;
   productName: string;
   sku: string;
   standardQty: number;
   unit: string;
+  costPrice?: number;
+}
+
+export interface BomPayloadItem {
+  productId?: number;
+  productName?: string;
+  sku?: string;
+  standardQty: number;
+  unit?: string;
 }
 
 export interface ConsumptionRecord {
   id: number;
   date: string;
+  orderNo?: string;
   serviceName: string;
   customerName: string;
+  serviceEmployee?: string;
   beautician: string;
   storeName: string;
   productName: string;

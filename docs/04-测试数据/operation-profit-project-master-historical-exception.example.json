@@ -1,0 +1,27 @@
+{
+  "purpose": "operation-profit-project-master-historical-exception-example",
+  "storeId": 6,
+  "from": "2026-06-01",
+  "to": "2026-06-30",
+  "warning": "Example only. Business must copy this file, confirm every item, and replace confirmedBy before use.",
+  "fixes": [
+    {
+      "orderItemId": 1087,
+      "resolution": "historical_exception",
+      "reason": "业务确认：该历史订单项目身份无法追溯，作为历史异常保留，不修复 itemId。",
+      "confirmedBy": "业务确认人"
+    },
+    {
+      "orderItemId": 1088,
+      "resolution": "historical_exception",
+      "reason": "业务确认：该历史订单项目身份无法追溯，作为历史异常保留，不修复 itemId。",
+      "confirmedBy": "业务确认人"
+    },
+    {
+      "orderItemId": 1089,
+      "resolution": "historical_exception",
+      "reason": "业务确认：该历史订单项目身份无法追溯，作为历史异常保留，不修复 itemId。",
+      "confirmedBy": "业务确认人"
+    }
+  ]
+}

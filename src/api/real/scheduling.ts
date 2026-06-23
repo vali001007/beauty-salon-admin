@@ -1,6 +1,7 @@
 import type { ScheduleSlot } from '@/types/store';
 import apiClient from '../client';
 import { extractArray } from './response';
+import { addBusinessDays, formatBusinessDate } from '@/utils/businessTime';
 
 const TIME_SLOTS = [
   '09:00',
@@ -50,13 +51,11 @@ type ApiSchedule = {
 function toDateKey(value: string | Date | undefined): string {
   if (!value) return '';
   if (typeof value === 'string') return value.slice(0, 10);
-  return value.toISOString().slice(0, 10);
+  return formatBusinessDate(value);
 }
 
 function addDays(dateText: string, days: number): string {
-  const date = new Date(dateText);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return addBusinessDays(dateText, days);
 }
 
 function toMinutes(time: string | undefined): number {

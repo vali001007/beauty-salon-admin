@@ -60,8 +60,19 @@ import {
   startTerminalFollowUpTask,
 } from "@/api";
 import type { ScheduleSlot } from "@/types";
-import type { TerminalCashierShift, TerminalFollowUpTask, TerminalReservationAvailability } from "@/types/terminal";
+import type {
+  TerminalCashierShift,
+  TerminalCustomerSelectItem,
+  TerminalFollowUpTask,
+  TerminalReservationAvailability,
+} from "@/types/terminal";
+import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import {
+  addBusinessDays,
+  formatBusinessDate,
+  formatBusinessDateTime,
+} from "../utils/businessTime";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -96,9 +107,7 @@ const TERMINAL_DISPLAY_SLOTS: TerminalDisplaySlot[] = [
 ];
 
 function addDays(dateText: string, days: number) {
-  const date = new Date(dateText);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return addBusinessDays(dateText, days);
 }
 
 function getTerminalCurrentWeekStart() {
@@ -106,7 +115,7 @@ function getTerminalCurrentWeekStart() {
   const day = date.getDay();
   const offset = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + offset);
-  return date.toISOString().slice(0, 10);
+  return formatBusinessDate(date);
 }
 
 function getTerminalWeekDays(weekStart?: string) {
@@ -120,7 +129,7 @@ function getTerminalWeekDays(weekStart?: string) {
 
 function getTerminalDayOptions(weekStart?: string) {
   const weekDays = getTerminalWeekDays(weekStart);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatBusinessDate(new Date());
   return ["今日", "明日", "后日"].map((label, offset) => {
     const fullDate = addDays(today, offset);
     const weekDay = weekDays.find((day) => day.fullDate === fullDate);
@@ -590,9 +599,7 @@ function formatMoney(value: number) {
 }
 
 function formatReceiptTime(value?: string) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return new Date().toLocaleString("zh-CN", { hour12: false });
-  return date.toLocaleString("zh-CN", { hour12: false });
+  return formatBusinessDateTime(value || new Date(), { seconds: true });
 }
 
 function getReceiptTitle(receipt: OperationReceiptData) {
@@ -620,6 +627,14 @@ function getReceiptMethodLabel(receipt: OperationReceiptData) {
   return receipt.sourceType === "card_usage" ? "核销方式" : "支付方式";
 }
 
+function getReceiptItemListAmount(item: OperationReceiptData["items"][number]) {
+  return typeof item.listAmount === "number" ? item.listAmount : item.quantity * item.unitPrice;
+}
+
+function getReceiptItemDiscountAmount(item: OperationReceiptData["items"][number]) {
+  return typeof item.discountAmount === "number" ? item.discountAmount : Math.max(0, getReceiptItemListAmount(item) - item.subtotal);
+}
+
 function buildReceiptContent(receipt: OperationReceiptData) {
   const receiptTitle = getReceiptTitle(receipt);
   const monetary = isMonetaryReceipt(receipt);
@@ -633,9 +648,14 @@ function buildReceiptContent(receipt: OperationReceiptData) {
     receipt.customerPhone ? `电话: ${receipt.customerPhone}` : "",
     receipt.cashierName ? `收银员: ${receipt.cashierName}` : "",
     "------------------------------",
-    ...receipt.items.map((item) =>
-      monetary ? `${item.name} x${item.quantity} ${formatMoney(item.subtotal)}` : `${item.name} x${item.quantity}`,
-    ),
+    ...receipt.items.flatMap((item) => {
+      if (!monetary) return [`${item.name} x${item.quantity}`];
+      const discount = getReceiptItemDiscountAmount(item);
+      return [
+        `${item.name} x${item.quantity} ${formatMoney(item.subtotal)}`,
+        discount > 0 ? `  原价 ${formatMoney(getReceiptItemListAmount(item))} 优惠 ${formatMoney(discount)}` : "",
+      ].filter(Boolean);
+    }),
     "------------------------------",
     monetary ? `应收: ${formatMoney(receipt.subtotalAmount)}` : "",
     monetary ? `优惠: ${formatMoney(receipt.discountAmount)}` : "",
@@ -735,13 +755,23 @@ function ReceiptPreviewDialog({
               <span className="text-center">数量</span>
               {monetary ? <span className="text-right">金额</span> : null}
             </div>
-            {receipt.items.map((item, index) => (
+            {receipt.items.map((item, index) => {
+              const discount = getReceiptItemDiscountAmount(item);
+              return (
               <div key={`${item.name}-${index}`} className={`grid ${monetary ? "grid-cols-[1fr_44px_80px]" : "grid-cols-[1fr_44px]"} gap-2 text-xs`}>
-                <span className="truncate">{item.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">{item.name}</span>
+                  {monetary && discount > 0 ? (
+                    <span className="mt-0.5 block text-[10px] text-[#8B8294]">
+                      原价 {formatMoney(getReceiptItemListAmount(item))} · 优惠 -{formatMoney(discount)}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-center">x{item.quantity}</span>
                 {monetary ? <span className="text-right">{formatMoney(item.subtotal)}</span> : null}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {monetary || receipt.paymentMethod ? (
@@ -1331,7 +1361,7 @@ export function ReceptionDashboardCard({
     setOptionsLoading(true);
     try {
       const options = await getAppointmentCreateOptions();
-      setCreateOptions(options);
+      setCreateOptions({ ...options, customers: [] });
     } catch (err) {
       setCreateOptions({ customers: [], projects: [], beauticians: [] });
       setLocalError(err instanceof Error ? err.message : "新增预约可选数据加载失败");
@@ -1610,22 +1640,17 @@ export function ReceptionDashboardCard({
             <DialogDescription>选择客户、预约时间、项目和美容师，提交后写回 Ami_Core 预约模块。</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
-              客户
-              <select
+            <div>
+              <CustomerAsyncSelect
+                scene="appointment"
                 value={createForm.customerId}
-                onChange={(event) => setCreateForm((prev) => ({ ...prev, customerId: event.target.value }))}
-                disabled={optionsLoading || !createOptions.customers.length}
-                className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-[#2D1B69] disabled:bg-[#F7F5F2]"
-              >
-                <option value="">{optionsLoading ? "正在加载客户" : "请选择客户"}</option>
-                {createOptions.customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name} · {customer.phone || "未留手机号"} · {customer.memberLevel}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(customer) => setCreateForm((prev) => ({ ...prev, customerId: customer ? String(customer.id) : "" }))}
+                placeholder="请选择客户"
+                searchPlaceholder="输入客户姓名或手机号"
+                defaultItems={createOptions.customers}
+                disabled={Boolean(actionLoading)}
+              />
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-medium text-[#1F1B2D]">
                 预约日期
@@ -2365,9 +2390,7 @@ const followUpResultOptions = [
 
 function formatFollowUpDate(value?: string) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return formatBusinessDateTime(value) || value;
 }
 
 function getFollowUpStatusLabel(status?: string) {
@@ -2385,8 +2408,37 @@ function getFollowUpStatusClass(status?: string) {
   return "bg-[#2D1B69]/6 text-[#2D1B69]";
 }
 
+function toFollowUpCustomerSelectItems(tasks: TerminalFollowUpTask[]): TerminalCustomerSelectItem[] {
+  const customers = new Map<number, TerminalCustomerSelectItem>();
+  tasks.forEach((task) => {
+    if (!task.customerId || customers.has(task.customerId)) return;
+    const badges = [
+      getFollowUpStatusLabel(task.status),
+      getFollowUpPriorityLabel(task.priority),
+      task.assigneeUserName || task.assigneeBeauticianName ? `负责人 ${task.assigneeUserName || task.assigneeBeauticianName}` : "",
+    ].filter(Boolean);
+    customers.set(task.customerId, {
+      id: task.customerId,
+      name: task.customerName || `客户 #${task.customerId}`,
+      phone: task.customerPhone ?? "",
+      gender: "女",
+      memberLevel: task.customerMemberLevel ?? "普通客户",
+      tags: [],
+      source: "follow_up_task",
+      sceneBadges: badges,
+      priorityLabel: getFollowUpPriorityLabel(task.priority),
+      metadata: {
+        followUpTaskCount: tasks.filter((item) => item.customerId === task.customerId).length,
+        assignedStaffName: task.assigneeUserName || task.assigneeBeauticianName,
+      },
+    });
+  });
+  return Array.from(customers.values());
+}
+
 export function FollowUpTasksCard({ data }: { data: FollowUpTasksCardData }) {
   const [items, setItems] = React.useState<TerminalFollowUpTask[]>(() => safeArray(data.items));
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState<number | null>(null);
   const [updatingTaskIds, setUpdatingTaskIds] = React.useState<Set<number>>(new Set());
   const [completionTask, setCompletionTask] = React.useState<TerminalFollowUpTask | null>(null);
   const [completionResultType, setCompletionResultType] = React.useState("contacted");
@@ -2428,6 +2480,8 @@ export function FollowUpTasksCard({ data }: { data: FollowUpTasksCardData }) {
   };
 
   const activeCount = items.filter((item) => item.status !== "completed" && item.status !== "cancelled").length;
+  const customerOptions = React.useMemo(() => toFollowUpCustomerSelectItems(items), [items]);
+  const visibleItems = selectedCustomerId ? items.filter((item) => item.customerId === selectedCustomerId) : items;
 
   return (
     <CardShell title={data.title} subtitle={data.subtitle}>
@@ -2441,9 +2495,31 @@ export function FollowUpTasksCard({ data }: { data: FollowUpTasksCardData }) {
         </div>
       </div>
 
-      {items.length ? (
+      <div className="rounded-2xl border border-black/5 bg-white p-4">
+        <CustomerAsyncSelect
+          scene="follow_up"
+          value={selectedCustomerId ?? undefined}
+          onChange={(customer) => setSelectedCustomerId(customer?.id ?? null)}
+          label="客户筛选"
+          placeholder="全部跟进客户"
+          searchPlaceholder="输入姓名或手机号搜索跟进客户"
+          defaultItems={customerOptions}
+          emptyText="当前没有可跟进客户。"
+        />
+        {selectedCustomerId ? (
+          <button
+            type="button"
+            onClick={() => setSelectedCustomerId(null)}
+            className="mt-3 rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-[#6F6678]"
+          >
+            查看全部任务
+          </button>
+        ) : null}
+      </div>
+
+      {visibleItems.length ? (
         <div className="grid gap-3">
-          {items.map((task) => (
+          {visibleItems.map((task) => (
             <div key={task.id} className="rounded-2xl border border-black/5 bg-white p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
@@ -2501,7 +2577,7 @@ export function FollowUpTasksCard({ data }: { data: FollowUpTasksCardData }) {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-black/10 bg-white p-6 text-center text-sm text-[#6F6678]">
-          暂无管理端下发给当前账号的客户跟进任务。
+          {selectedCustomerId ? "该客户暂无管理端下发给当前账号的未完成跟进任务。" : "暂无管理端下发给当前账号的客户跟进任务。"}
         </div>
       )}
 
@@ -3395,16 +3471,9 @@ function formatBusinessMoney(value: number) {
   return `￥${value.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`;
 }
 
-function formatBusinessDate(value: unknown, includeTime: boolean) {
-  const date = value instanceof Date ? value : typeof value === "string" || typeof value === "number" ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return null;
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  if (!includeTime) return `${yyyy}-${mm}-${dd}`;
-  const hh = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+function formatBusinessQueryDate(value: unknown, includeTime: boolean) {
+  const dateValue = value instanceof Date || typeof value === "string" || typeof value === "number" ? value : undefined;
+  return includeTime ? formatBusinessDateTime(dateValue) : formatBusinessDate(dateValue);
 }
 
 function getBusinessQueryFieldLabel(key: string) {
@@ -3476,7 +3545,7 @@ function formatBusinessQueryValue(key: string, value: unknown): string {
     value instanceof Date ||
     (typeof value === "string" && /^\d{4}-\d{2}-\d{2}(T|\s)?/.test(value) && !normalizedKey.includes("days"));
   if (dateLike || (normalizedKey.includes("date") && !normalizedKey.includes("daterange"))) {
-    const formatted = formatBusinessDate(value, normalizedKey.includes("time") || normalizedKey.endsWith("at"));
+    const formatted = formatBusinessQueryDate(value, normalizedKey.includes("time") || normalizedKey.endsWith("at"));
     if (formatted) return formatted;
   }
 

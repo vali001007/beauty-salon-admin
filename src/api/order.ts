@@ -7,14 +7,18 @@ import type {
   MemberCardTransaction,
   ProductOrder,
   ProductOrderCreatePayload,
+  ProductOrderProfitDetail,
+  ProjectOrderProfitDetail,
 } from '@/types';
 import {
   realCreateProductOrder,
   realCreateProjectOrder,
   realDeleteProductOrder,
   realGetProductOrderById,
+  realGetProductOrderProfit,
   realGetProductOrders,
   realGetProjectOrderById,
+  realGetProjectOrderProfit,
   realGetProjectOrders,
   realRefundProductOrder,
   realUpdateProductOrder,
@@ -35,6 +39,9 @@ export const getProductOrders: (params?: { status?: string; keyword?: string; st
 export const getProductOrderById: (id: number) => Promise<ProductOrder | undefined> =
   realGetProductOrderById;
 
+export const getProductOrderProfit: (id: number) => Promise<ProductOrderProfitDetail> =
+  realGetProductOrderProfit;
+
 export const createProductOrder: (data: ProductOrderCreatePayload) => Promise<ProductOrder> =
   realCreateProductOrder;
 
@@ -52,6 +59,9 @@ export const getProjectOrders: (params?: { status?: string; keyword?: string; st
 
 export const getProjectOrderById: (id: number) => Promise<ProductOrder | undefined> =
   realGetProjectOrderById;
+
+export const getProjectOrderProfit: (id: number) => Promise<ProjectOrderProfitDetail> =
+  realGetProjectOrderProfit;
 
 export const createProjectOrder: (data: ProductOrderCreatePayload) => Promise<ProductOrder> =
   realCreateProjectOrder;

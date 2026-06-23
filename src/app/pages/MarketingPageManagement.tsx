@@ -38,6 +38,7 @@ import type {
 } from '@/types/marketing-page';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { formatBusinessDateTime } from '@/utils/businessTime';
 
 const SOURCE_LABELS: Record<string, string> = {
   product: '商品',
@@ -67,7 +68,7 @@ const CHANNEL_LABELS = Object.fromEntries(CHANNEL_OPTIONS.map((item) => [item.va
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-  return new Date(value).toLocaleString('zh-CN', { hour12: false });
+  return formatBusinessDateTime(value, { seconds: true }) || value;
 }
 
 function formatMoney(value?: number | null) {

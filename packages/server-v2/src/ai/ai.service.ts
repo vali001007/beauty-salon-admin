@@ -1,6 +1,8 @@
-import { BadGatewayException, Injectable } from '@nestjs/common';
+import { BadGatewayException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
+import { IndustryService } from '../industry/industry.service.js';
 
 type AiMessage = { role: string; content: string };
 type AiUsage = { provider: string; model: string; inputTokens: number; outputTokens: number };
@@ -37,6 +39,14 @@ type TerminalServiceAdviceStructured = {
   materialUsage: string[];
   followUpAdvice: string;
   nextBookingHint: string;
+};
+type IndustryKnowledgeContextItem = {
+  id: number;
+  title: string;
+  domain?: string;
+  content: string;
+  safetyLevel?: string;
+  sourceType: 'industry_knowledge';
 };
 type NextBestActionStructured = {
   action: 'recommend_project' | 'send_care_reminder' | 'offer_card' | 'escalate_to_consultant';
@@ -167,6 +177,7 @@ export class AiService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    @Optional() private industryService?: IndustryService,
   ) {
     this.provider = String(config.get('LLM_PROVIDER', 'mock')).trim().toLowerCase();
     this.model = config.get('LLM_MODEL', 'deepseek-v4-flash');
@@ -650,12 +661,13 @@ export class AiService {
   async generateTerminalServiceAdvice(data: { customerId?: number; projectId?: number; taskId?: number; skinTestId?: number }, userId?: number, storeId?: number) {
     const fallback = this.buildTerminalServiceAdviceFallback(data);
     const customerProfile = data.customerId ? await this.buildCustomerProfileContext(data.customerId) : null;
+    const industryKnowledge = await this.getPublishedIndustryKnowledgeContext({ pageSize: 5 });
     return this.runScenario('terminal_service_advice', userId, storeId, async () => {
       if (this.isMockProvider()) {
         return this.buildMockResult(
           'terminal_service_advice',
           this.formatTerminalServiceAdviceText(fallback),
-          fallback,
+          { ...fallback, industryKnowledge },
         );
       }
 
@@ -665,15 +677,48 @@ export class AiService {
           content:
             '你是美容门店服务规划助手。只能基于用户提供的 JSON 数据输出服务建议，不得编造项目名称、客户信息或耗材数量。必须输出合法 JSON，格式为 {"preChecks":[],"keySteps":[],"materialUsage":[],"followUpAdvice":"","nextBookingHint":""}。数组最多 4 条，每条不超过 30 字。',
         },
-        { role: 'user', content: JSON.stringify({ input: data, customerProfile, fallback }) },
+        { role: 'user', content: JSON.stringify({ input: data, customerProfile, industryKnowledge, fallback }) },
       ]);
       const structured = this.normalizeTerminalServiceAdvice(this.safeParseJsonObject(result.text), fallback);
       return {
         ...result,
         text: this.formatTerminalServiceAdviceText(structured),
-        structured,
+        structured: { ...structured, industryKnowledge },
       };
     });
+  }
+
+  async getPublishedIndustryKnowledgeContext(query: { keyword?: string; domain?: string; pageSize?: number } = {}) {
+    if (!this.industryService?.findKnowledgeItems) return [];
+    try {
+      const items = await this.industryService.findKnowledgeItems(
+        {
+          keyword: query.keyword,
+          domain: query.domain,
+          pageSize: query.pageSize ?? 5,
+        } as any,
+        true,
+      );
+      return items
+        .map((item: any): IndustryKnowledgeContextItem | null => {
+          const title = String(item?.title ?? '').trim();
+          const content = String(item?.content ?? '').trim();
+          if (!title || !content) return null;
+          return {
+            id: Number(item.id),
+            title: title.slice(0, 80),
+            domain: item.domain,
+            content: content.slice(0, 600),
+            safetyLevel: item.safetyLevel,
+            sourceType: 'industry_knowledge',
+          };
+        })
+        .filter(Boolean)
+        .slice(0, query.pageSize ?? 5) as IndustryKnowledgeContextItem[];
+    } catch (error) {
+      console.warn('AI industry knowledge context load failed', error);
+      return [];
+    }
   }
 
   async recommendNextBestAction(data: { customerId: number; context: any }, userId?: number, storeId?: number) {
@@ -959,8 +1004,8 @@ export class AiService {
     const heroTitle = this.toCustomerFacingActivityTitle(data, title);
     const audienceLabel = this.toCustomerFacingMarketingAudience(data);
     const offer = data.offer || '到店可享专属护理权益';
-    const startDate = data.startDate || new Date().toISOString().slice(0, 10);
-    const endDate = data.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const startDate = data.startDate || formatBusinessDate(new Date());
+    const endDate = data.endDate || formatBusinessDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
     const rawProjectNames = Array.isArray(data.projectNames) ? data.projectNames : [];
     const projectNames = rawProjectNames
       .map((name: string) => this.sanitizeMarketingInputText(name))

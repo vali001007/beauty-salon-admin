@@ -20,7 +20,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { username: dto.username },
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
     });
 
     if (!user || user.deletedAt) {
@@ -53,6 +53,8 @@ export class AuthService {
         permissions,
         stores: user.stores.map((us) => us.storeId),
         storeIds: user.stores.map((us) => us.storeId),
+        supplySupplierId: user.supplySupplierId,
+        supplySupplierName: user.supplySupplier?.name,
       },
     };
   }
@@ -115,7 +117,7 @@ export class AuthService {
   async getUserInfo(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { roles: { include: { role: true } }, stores: true },
+      include: { roles: { include: { role: true } }, stores: true, supplySupplier: true },
     });
 
     if (!user || user.deletedAt) {
@@ -135,6 +137,8 @@ export class AuthService {
       permissions,
       stores: user.stores.map((us) => us.storeId),
       storeIds: user.stores.map((us) => us.storeId),
+      supplySupplierId: user.supplySupplierId,
+      supplySupplierName: user.supplySupplier?.name,
     };
   }
 

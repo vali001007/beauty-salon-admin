@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 import {
   CustomerAppAdminDisplayConfigDto,
   CustomerAppAdminDisplayConfigQueryDto,
@@ -580,7 +581,7 @@ export class CustomerAppService {
       cardName: item.cardName,
       totalTimes: item.totalTimes,
       remainingTimes: item.remainingTimes,
-      expiryDate: item.expiryDate.toISOString().slice(0, 10),
+      expiryDate: formatBusinessDate(item.expiryDate),
       status: item.remainingTimes <= 0 ? 'used_up' : item.expiryDate < new Date() ? 'expired' : item.status,
       applicableProjects: this.extractCardProjects(item.card.projects),
     }));

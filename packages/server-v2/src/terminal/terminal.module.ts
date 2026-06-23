@@ -6,6 +6,8 @@ import { TerminalDashboardCacheService } from './terminal-dashboard-cache.servic
 import { AiModule } from '../ai/ai.module.js';
 import { CommissionModule } from '../commission/commission.module.js';
 import { CustomersModule } from '../customers/customers.module.js';
+import { OrdersModule } from '../orders/orders.module.js';
+import { CardsModule } from '../cards/cards.module.js';
 import { TerminalAdminDeviceController, TerminalDeviceAdminCompatController } from './terminal-admin-device.controller.js';
 import {
   TerminalDeviceController,
@@ -32,6 +34,8 @@ import { DeviceAuthGuard } from './guards/device-auth.guard.js';
     AiModule,
     CommissionModule,
     CustomersModule,
+    OrdersModule,
+    CardsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

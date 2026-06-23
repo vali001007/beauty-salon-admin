@@ -1,0 +1,52 @@
+{
+  "purpose": "operation-profit-beautician-user-bindings-confirmed-business-template",
+  "storeId": 6,
+  "sourceFile": "docs/04-测试数据/operation-profit-assignee-candidates.pending.json",
+  "generatedBy": "operation-profit:beautician-user-audit",
+  "warning": "Draft only. Confirm every beauticianId/userId binding before running confirmation-audit --requireReady.",
+  "sourceSummary": {
+    "inputAssignments": 9,
+    "assignmentBeauticians": 5,
+    "missingUserBindingBeauticians": 3,
+    "impactedAssignments": 4,
+    "bindingDraftItems": 1,
+    "missingUserBindingNoCandidateItems": 2
+  },
+  "missingUserBindingNoCandidates": [
+    {
+      "beauticianId": 44,
+      "beauticianName": "韩雨",
+      "phone": "13866051415",
+      "storeId": 6,
+      "impactedOrderItemIds": [
+        1102
+      ],
+      "impactedAssignments": 1,
+      "requiredAction": "create_or_bind_staff_user",
+      "reason": "No active same-name/same-phone store user candidate was found. Create a system user or bind an existing active store user before confirmation dry-run."
+    },
+    {
+      "beauticianId": 50,
+      "beauticianName": "许诺",
+      "phone": "13866119410",
+      "storeId": 6,
+      "impactedOrderItemIds": [
+        1111
+      ],
+      "impactedAssignments": 1,
+      "requiredAction": "create_or_bind_staff_user",
+      "reason": "No active same-name/same-phone store user candidate was found. Create a system user or bind an existing active store user before confirmation dry-run."
+    }
+  ],
+  "bindings": [
+    {
+      "beauticianId": 46,
+      "userId": 37,
+      "confidence": "high",
+      "score": 80,
+      "source": "user_match:same_name",
+      "reason": "候选：周宁 -> 周宁，same_name，score 80",
+      "confirmedBy": "TODO_REAL_BUSINESS_CONFIRMER"
+    }
+  ]
+}

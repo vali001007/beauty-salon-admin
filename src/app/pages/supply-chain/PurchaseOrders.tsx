@@ -38,6 +38,7 @@ import type {
   SupplierOrderPayloadItem,
   SupplierOrderStatus,
 } from '@/types';
+import { formatBusinessDate } from '@/utils/businessTime';
 
 type OrderDraftItem = SupplierOrderPayloadItem & {
   key: string;
@@ -108,8 +109,7 @@ function percent(value?: number | null) {
 
 function dateText(value?: string | null) {
   if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value).slice(0, 10) : date.toLocaleDateString('zh-CN');
+  return formatBusinessDate(value) || String(value).slice(0, 10);
 }
 
 function getStatusVariant(status: SupplierOrderStatus) {

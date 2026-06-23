@@ -1,26 +1,56 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Search, Plus, RotateCcw, X, Minus, Loader2 } from 'lucide-react';
+import { BarChart3, Search, Plus, RotateCcw, X, Minus, Loader2 } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
-import { createCardUsage, getCards, getCardOrdersPaginated } from '@/api/card';
+import {
+  createCardOrder,
+  createCardUsage,
+  getCardOrderById,
+  getCardOrderProfit,
+  getSaleCards,
+  getCardOrdersPaginated,
+  updateCardOrder,
+  voidCardOrder,
+} from '@/api/card';
+import { getCustomers } from '@/api/customer';
+import { getUsers } from '@/api/user';
 import { usePagination } from '@/hooks/usePagination';
+import { useStoreStore } from '@/stores/storeStore';
+import { useAuthStore } from '@/stores/authStore';
+import { hasPermission } from '@/config/permissions';
 import type { Card } from '@/types/card';
+import type { Customer, Store } from '@/types';
+import type { SystemUser } from '@/types/user';
+import type { CardOrderProfitDetail } from '@/api/real/card';
 import { toast } from 'sonner';
 
 interface CardOrder {
   id: string;
   customerId?: number;
   customerCardId?: number;
+  sourceOrderId?: number;
+  sourceOrderNo?: string;
+  sourceOrderItemId?: number;
   cardId?: number;
   cardName: string;
   userName: string;
   customerPhone?: string;
+  handlerId?: number;
+  handlerName?: string;
   totalTimes?: number;
   remainingTimes?: number;
   cardProjects?: ConsumeProject[];
   actualPrice: number;
+  listAmount?: number;
+  discountAmount?: number;
+  refundAmount?: number;
+  recognizedAmount?: number;
   status: 'active' | 'expired' | 'voided';
   purchaseTime: string;
   expireTime: string;
+  paymentMethod?: string;
+  remark?: string;
+  storeId?: number;
+  storeName?: string;
 }
 
 interface ConsumeProject {
@@ -66,7 +96,51 @@ function getExpireTime(startTime: string, validDays?: number): string {
   return formatDatetimeLocal(date);
 }
 
+function formatCurrency(value?: number): string {
+  return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatPercent(value?: number): string {
+  return `${(Number(value || 0) * 100).toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
+}
+
+function getMaterialCostSourceLabel(source?: string): string {
+  if (source === 'actual_stock_movement') return '实耗';
+  if (source === 'standard_bom') return 'BOM估算';
+  if (source === 'missing') return '缺失';
+  return source || '-';
+}
+
+const USER_ROLE_LABELS: Record<string, string> = {
+  super_admin: '系统管理员',
+  store_manager: '店长',
+  manager: '店长',
+  reception: '前台',
+  cashier: '收银',
+  consultant: '顾问',
+  beautician: '美容师',
+};
+
+function getSalesUserName(user: SystemUser): string {
+  return user.name || user.username || `员工 ${user.id}`;
+}
+
+function getSalesUserRoleLabel(user: SystemUser): string {
+  const labels = (user.roles ?? [])
+    .map((role) => USER_ROLE_LABELS[role] ?? role)
+    .filter(Boolean);
+  return Array.from(new Set(labels)).join(' / ');
+}
+
+function toDatetimeInput(value?: string): string {
+  if (!value) return '';
+  return value.replace(' ', 'T').slice(0, 16);
+}
+
 export function CardOrderManagement() {
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
+  const stores = useStoreStore((state) => state.stores);
+  const loadStores = useStoreStore((state) => state.loadStores);
   const [searchUserName, setSearchUserName] = useState('');
   const [searchCardName, setSearchCardName] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -79,7 +153,24 @@ export function CardOrderManagement() {
   }), [searchUserName, searchCardName]);
   const { data: orders, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
   const [cards, setCards] = useState<Card[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [salesUsers, setSalesUsers] = useState<SystemUser[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [salesUsersLoading, setSalesUsersLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const currentUser = useAuthStore((state) => state.user);
+  const [selectedOrder, setSelectedOrder] = useState<CardOrder | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editForm, setEditForm] = useState({ expireTime: '', status: 'active' as 'active' | 'expired', remark: '' });
+  const [voidSubmittingId, setVoidSubmittingId] = useState<string | null>(null);
+  const [isProfitOpen, setIsProfitOpen] = useState(false);
+  const [profitDetail, setProfitDetail] = useState<CardOrderProfitDetail | null>(null);
+  const [profitLoading, setProfitLoading] = useState(false);
+  const [profitError, setProfitError] = useState('');
 
   // Dialog form state
   const [formData, setFormData] = useState({
@@ -87,8 +178,10 @@ export function CardOrderManagement() {
     cardPrice: 0,
     discount: 100,
     discountPrice: 0,
+    customerId: '',
+    operatorId: '',
     userName: '',
-    storeName: '',
+    storeId: '',
     startTime: '',
     expireTime: '',
     paymentMethod: 'full' as 'full' | 'installment',
@@ -106,15 +199,54 @@ export function CardOrderManagement() {
     [cards, formData.cardId],
   );
   const selectedCardProjectItems = useMemo(() => toProjectItems(selectedCard), [selectedCard]);
+  const availableStores = useMemo(
+    () => stores.filter(store => store.status !== 'inactive' && store.status !== 'disabled'),
+    [stores],
+  );
+  const selectedStore = useMemo(
+    () => availableStores.find(store => String(store.id) === formData.storeId),
+    [availableStores, formData.storeId],
+  );
+  const selectedCustomer = useMemo(
+    () => customers.find(customer => String(customer.id) === formData.customerId),
+    [customers, formData.customerId],
+  );
+  const selectableSalesUsers = useMemo(() => {
+    const storeId = Number(formData.storeId) || undefined;
+    return salesUsers.filter((user) => {
+      if (user.status !== '启用') return false;
+      if (!storeId) return true;
+      const roles = user.roles ?? [];
+      return (
+        !user.storeIds?.length ||
+        user.storeIds.includes(storeId) ||
+        roles.includes('super_admin') ||
+        roles.includes('store_manager')
+      );
+    });
+  }, [formData.storeId, salesUsers]);
+  const canViewCardOrderProfit = useMemo(() => {
+    const roles = currentUser?.roles ?? [];
+    const permissions = currentUser?.permissions ?? [];
+    const deniedPermissions = currentUser?.deniedPermissions ?? [];
+    if (hasPermission(deniedPermissions, 'core:card-order-profit:view') || hasPermission(deniedPermissions, '*')) return false;
+    return hasPermission(permissions, '*') || roles.includes('super_admin') || roles.includes('store_manager');
+  }, [currentUser]);
 
   useEffect(() => {
+    if (!isDialogOpen) return;
     let mounted = true;
+    const storeId = Number(formData.storeId) || currentStoreId || undefined;
     setCardsLoading(true);
-    getCards()
+    getSaleCards(storeId ? { storeId } : undefined)
       .then((items) => {
         if (!mounted) return;
-        const enabledCards = items.filter(card => card.status !== '下架');
-        setCards(enabledCards);
+        setCards(items);
+        setFormData((prev) =>
+          prev.cardId && !items.some((card) => String(card.id) === prev.cardId)
+            ? { ...prev, cardId: '', cardPrice: 0, discountPrice: 0, expireTime: '' }
+            : prev,
+        );
       })
       .catch(() => {
         if (mounted) setCards([]);
@@ -127,6 +259,63 @@ export function CardOrderManagement() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!stores.length) {
+      void loadStores();
+    }
+  }, [loadStores, stores.length]);
+
+  useEffect(() => {
+    let mounted = true;
+    setCustomersLoading(true);
+    getCustomers()
+      .then((items) => {
+        if (mounted) setCustomers(items);
+      })
+      .catch(() => {
+        if (mounted) {
+          setCustomers([]);
+          toast.error('客户数据加载失败，请稍后重试');
+        }
+      })
+      .finally(() => {
+        if (mounted) setCustomersLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentStoreId, formData.storeId, isDialogOpen]);
+
+  useEffect(() => {
+    let mounted = true;
+    setSalesUsersLoading(true);
+    getUsers()
+      .then((items) => {
+        if (mounted) setSalesUsers(items.filter((user) => user.status === '启用'));
+      })
+      .catch(() => {
+        if (mounted) {
+          setSalesUsers([]);
+          toast.error('销售人员加载失败，请稍后重试');
+        }
+      })
+      .finally(() => {
+        if (mounted) setSalesUsersLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!formData.operatorId) return;
+    if (!selectableSalesUsers.some((user) => String(user.id) === formData.operatorId)) {
+      setFormData((prev) => ({ ...prev, operatorId: '' }));
+    }
+  }, [formData.operatorId, selectableSalesUsers]);
 
   // 次卡消费弹窗 state
   const [isConsumeDialogOpen, setIsConsumeDialogOpen] = useState(false);
@@ -194,8 +383,101 @@ export function CardOrderManagement() {
     return configs[status];
   };
 
-  const handleVoid = (orderId: string) => {
-    void orderId;
+  const loadCardOrderDetail = async (order: CardOrder) => {
+    setDetailLoading(true);
+    try {
+      const detail = await getCardOrderById(order.customerCardId ?? order.id);
+      setSelectedOrder(detail);
+      return detail as CardOrder;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡详情加载失败，请稍后重试';
+      toast.error(message);
+      setSelectedOrder(order);
+      return order;
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleOpenDetail = (order: CardOrder) => {
+    setSelectedOrder(order);
+    setIsDetailOpen(true);
+    void loadCardOrderDetail(order);
+  };
+
+  const handleOpenEdit = (order: CardOrder) => {
+    setSelectedOrder(order);
+    setEditForm({
+      expireTime: toDatetimeInput(order.expireTime),
+      status: order.status === 'expired' ? 'expired' : 'active',
+      remark: order.remark ?? '',
+    });
+    setIsEditOpen(true);
+    void loadCardOrderDetail(order).then((detail) => {
+      setEditForm({
+        expireTime: toDatetimeInput(detail.expireTime),
+        status: detail.status === 'expired' ? 'expired' : 'active',
+        remark: detail.remark ?? '',
+      });
+    });
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selectedOrder) return;
+    if (!editForm.expireTime) {
+      toast.error('请选择过期时间');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      await updateCardOrder(selectedOrder.customerCardId ?? selectedOrder.id, {
+        expireTime: editForm.expireTime,
+        status: editForm.status,
+        remark: editForm.remark,
+      });
+      toast.success('次卡订单已更新');
+      setIsEditOpen(false);
+      setSelectedOrder(null);
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡订单更新失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleVoid = async (order: CardOrder) => {
+    const confirmed = window.confirm(`确认作废并退卡「${order.cardName}」？系统会按未履约金额写入退款记录，并清空剩余次数。`);
+    if (!confirmed) return;
+    setVoidSubmittingId(order.id);
+    try {
+      const result = await voidCardOrder(order.customerCardId ?? order.id, { reason: '管理端次卡退卡作废' });
+      toast.success(`次卡已作废${result.refundAmount ? `，退款 ${formatCurrency(result.refundAmount)}` : ''}`);
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡作废失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setVoidSubmittingId(null);
+    }
+  };
+
+  const handleOpenProfit = async (order: CardOrder) => {
+    setSelectedOrder(order);
+    setProfitDetail(null);
+    setProfitError('');
+    setIsProfitOpen(true);
+    setProfitLoading(true);
+    try {
+      const detail = await getCardOrderProfit(order.customerCardId ?? order.id);
+      setProfitDetail(detail);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '利润明细加载失败，请稍后重试';
+      setProfitError(message);
+    } finally {
+      setProfitLoading(false);
+    }
   };
 
   const handleReset = () => {
@@ -212,8 +494,10 @@ export function CardOrderManagement() {
       cardPrice: 0,
       discount: 100,
       discountPrice: 0,
+      customerId: '',
+      operatorId: '',
       userName: '',
-      storeName: '',
+      storeId: currentStoreId ? String(currentStoreId) : '',
       startTime,
       expireTime: '',
       paymentMethod: 'full',
@@ -229,8 +513,55 @@ export function CardOrderManagement() {
     setShowPresetPicker(false);
   };
 
-  const handleSubmit = () => {
-    setIsDialogOpen(false);
+  const handleSubmit = async () => {
+    if (!formData.cardId) {
+      toast.error('请选择次卡');
+      return;
+    }
+    if (!formData.userName.trim()) {
+      toast.error('请选择客户');
+      return;
+    }
+    if (!formData.customerId || !selectedCustomer) {
+      toast.error('请选择真实客户');
+      return;
+    }
+    if (!formData.storeId || !selectedStore) {
+      toast.error('请选择所属门店');
+      return;
+    }
+    if (!formData.expireTime) {
+      toast.error('请选择过期时间');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const totalTimes = selectedCard?.totalTimes ?? projectItems.reduce((sum, item) => sum + item.totalCount, 0);
+      await createCardOrder({
+        cardId: Number(formData.cardId),
+        customerId: selectedCustomer.id,
+        operatorId: formData.operatorId ? Number(formData.operatorId) : undefined,
+        userId: selectedCustomer.id,
+        userName: selectedCustomer.name,
+        customerName: selectedCustomer.name,
+        storeId: selectedStore.id,
+        storeName: selectedStore.name,
+        cardName: selectedCard?.name ?? '',
+        actualPrice: Number(formData.discountPrice || formData.cardPrice || 0),
+        totalTimes,
+        remainingTimes: totalTimes,
+        expireTime: formData.expireTime,
+      });
+      toast.success('次卡开卡成功');
+      setIsDialogOpen(false);
+      refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '次卡开卡失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCardChange = (cardId: string) => {
@@ -244,7 +575,7 @@ export function CardOrderManagement() {
       cardPrice: price,
       discountPrice,
       expireTime,
-      storeName: card?.storeName && card.storeName !== '全部门店' ? card.storeName : prev.storeName,
+      storeId: card?.storeId ? String(card.storeId) : prev.storeId,
     }));
     setProjectItems(toProjectItems(card));
     setAdditionalItems([]);
@@ -335,6 +666,7 @@ export function CardOrderManagement() {
             <TableHead>状态</TableHead>
             <TableHead>购买时间</TableHead>
             <TableHead>过期时间</TableHead>
+            <TableHead>办理人员</TableHead>
             <TableHead className="text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
@@ -354,13 +686,37 @@ export function CardOrderManagement() {
                 </TableCell>
                 <TableCell>{order.purchaseTime}</TableCell>
                 <TableCell>{order.expireTime}</TableCell>
+                <TableCell>{order.handlerName || '-'}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-3 text-sm">
-                    <button className="text-blue-500 hover:text-blue-600">查看</button>
-                    <button className="text-blue-500 hover:text-blue-600">编辑</button>
-                    <button className="text-blue-500 hover:text-blue-600" onClick={() => handleOpenConsumeDialog(order)}>次卡核销</button>
+                    <button className="text-blue-500 hover:text-blue-600" onClick={() => handleOpenDetail(order)}>查看</button>
+                    <button
+                      className="text-blue-500 hover:text-blue-600 disabled:text-gray-300"
+                      onClick={() => handleOpenEdit(order)}
+                      disabled={order.status === 'voided'}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      className="text-blue-500 hover:text-blue-600 disabled:text-gray-300"
+                      onClick={() => handleOpenConsumeDialog(order)}
+                      disabled={order.status !== 'active' || (order.remainingTimes ?? 0) <= 0}
+                    >
+                      次卡核销
+                    </button>
+                    {canViewCardOrderProfit && (
+                      <button className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700" onClick={() => handleOpenProfit(order)}>
+                        <BarChart3 className="h-3.5 w-3.5" /> 利润
+                      </button>
+                    )}
                     {order.status !== 'voided' && (
-                      <button className="text-red-500 hover:text-red-600" onClick={() => handleVoid(order.id)}>作废</button>
+                      <button
+                        className="text-red-500 hover:text-red-600 disabled:text-gray-300"
+                        onClick={() => void handleVoid(order)}
+                        disabled={voidSubmittingId === order.id}
+                      >
+                        {voidSubmittingId === order.id ? '处理中' : '作废'}
+                      </button>
                     )}
                   </div>
                 </TableCell>
@@ -478,17 +834,24 @@ export function CardOrderManagement() {
                   <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">用户名称</label>
                   <select
                     className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.userName}
-                    onChange={(e) => setFormData({ ...formData, userName: e.target.value })}
+                    value={formData.customerId}
+                    onChange={(e) => {
+                      const customer = customers.find((item) => String(item.id) === e.target.value);
+                      setFormData({
+                        ...formData,
+                        customerId: e.target.value,
+                        userName: customer?.name ?? '',
+                        storeId: customer?.storeId ? String(customer.storeId) : formData.storeId,
+                      });
+                    }}
+                    disabled={customersLoading}
                   >
-                    <option value="">请选择客户</option>
-                    <option value="陈洁蓉">陈洁蓉</option>
-                    <option value="陈爱琴">陈爱琴</option>
-                    <option value="楮倩">楮倩</option>
-                    <option value="陈茶娟（阿慧）">陈茶娟（阿慧）</option>
-                    <option value="陈途">陈途</option>
-                    <option value="释团梅">释团梅</option>
-                    <option value="陈吉">陈吉</option>
+                    <option value="">{customersLoading ? '客户加载中...' : '请选择客户'}</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={String(customer.id)}>
+                        {customer.name}{customer.phone ? `（${customer.phone}）` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
@@ -496,12 +859,15 @@ export function CardOrderManagement() {
                   <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">所属门店</label>
                   <select
                     className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.storeName}
-                    onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
+                    value={formData.storeId}
+                    onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
                   >
                     <option value="">请选择所属门店</option>
-                    <option value="凤仪阁美容养生会所">凤仪阁美容养生会所</option>
-                    <option value="心悦美容养生会所">心悦美容养生会所</option>
+                    {availableStores.map((store) => (
+                      <option key={store.id} value={String(store.id)}>
+                        {store.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -763,8 +1129,32 @@ export function CardOrderManagement() {
                 </div>
               </div>
 
+              <div className="border border-gray-200 rounded-lg p-6">
+                <h3 className="text-sm font-medium text-gray-800 mb-4">销售人员</h3>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">销售人员</label>
+                  <select
+                    className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={formData.operatorId}
+                    onChange={(e) => setFormData({ ...formData, operatorId: e.target.value })}
+                    disabled={salesUsersLoading}
+                  >
+                    <option value="">{salesUsersLoading ? '销售人员加载中...' : '不指定销售人员'}</option>
+                    {selectableSalesUsers.map((user) => {
+                      const roleLabel = getSalesUserRoleLabel(user);
+                      return (
+                        <option key={user.id} value={String(user.id)}>
+                          {getSalesUserName(user)}{roleLabel ? ` · ${roleLabel}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div className="mt-2 text-xs text-gray-400">可为空；选择后将作为次卡订单的办理/销售归属。</div>
+              </div>
+
               {/* Custom Projects Section */}
-              
+
             </div>
 
             {/* Dialog Footer */}
@@ -772,9 +1162,355 @@ export function CardOrderManagement() {
               <Button variant="outline" onClick={handleCloseDialog}>
                 取消
               </Button>
-              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleSubmit}>
-                确定
+              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? '提交中...' : '确定'}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card Detail Dialog */}
+      {isDetailOpen && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-[760px] max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-medium">次卡订单详情</h2>
+                <p className="mt-1 text-sm text-gray-500">来源订单：{selectedOrder.sourceOrderNo || selectedOrder.id}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  setSelectedOrder(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              {detailLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> 正在刷新详情...
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+                <div>
+                  <div className="text-gray-500">客户</div>
+                  <div className="mt-1 font-medium text-gray-900">{selectedOrder.userName}</div>
+                  <div className="text-xs text-gray-500">{selectedOrder.customerPhone || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">次卡</div>
+                  <div className="mt-1 font-medium text-gray-900">{selectedOrder.cardName}</div>
+                  <div className="text-xs text-gray-500">{selectedOrder.remainingTimes ?? 0} / {selectedOrder.totalTimes ?? 0} 次</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">实收金额</div>
+                  <div className="mt-1 font-medium text-gray-900">{formatCurrency(selectedOrder.actualPrice)}</div>
+                  <div className="text-xs text-gray-500">优惠 {formatCurrency(selectedOrder.discountAmount)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">状态</div>
+                  <div className="mt-1 font-medium text-gray-900">{getStatusConfig(selectedOrder.status).text}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">购买时间</div>
+                  <div className="mt-1 font-medium text-gray-900">{selectedOrder.purchaseTime || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">过期时间</div>
+                  <div className="mt-1 font-medium text-gray-900">{selectedOrder.expireTime || '-'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-medium text-gray-800">项目核销进度</h3>
+                <div className="overflow-hidden rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium">项目</th>
+                        <th className="px-4 py-3 text-left font-medium">总次数</th>
+                        <th className="px-4 py-3 text-left font-medium">已核销</th>
+                        <th className="px-4 py-3 text-left font-medium">剩余</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedOrder.cardProjects ?? []).map((project) => (
+                        <tr key={project.projectName} className="border-t border-gray-100">
+                          <td className="px-4 py-3">{project.projectName}</td>
+                          <td className="px-4 py-3">{project.totalCount}</td>
+                          <td className="px-4 py-3">{project.usedCount}</td>
+                          <td className="px-4 py-3">{project.remainCount}</td>
+                        </tr>
+                      ))}
+                      {(!selectedOrder.cardProjects || selectedOrder.cardProjects.length === 0) && (
+                        <tr>
+                          <td className="px-4 py-8 text-center text-gray-400" colSpan={4}>暂无项目明细</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {selectedOrder.remark && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                  备注：{selectedOrder.remark}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  setSelectedOrder(null);
+                }}
+              >
+                关闭
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card Edit Dialog */}
+      {isEditOpen && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-[560px]">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-medium">编辑次卡订单</h2>
+                <p className="mt-1 text-sm text-gray-500">{selectedOrder.cardName} · {selectedOrder.userName}</p>
+              </div>
+              <button
+                onClick={() => setIsEditOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                次数、卡种和实收金额已进入核销和利润链路，编辑页不支持改写历史金额。
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">状态</label>
+                <select
+                  className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+                  value={editForm.status}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, status: event.target.value as 'active' | 'expired' }))}
+                >
+                  <option value="active">已激活</option>
+                  <option value="expired">已过期</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">过期时间</label>
+                <Input
+                  type="datetime-local"
+                  value={editForm.expireTime}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, expireTime: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">备注</label>
+                <textarea
+                  className="min-h-[88px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={editForm.remark}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, remark: event.target.value }))}
+                  placeholder="记录调整原因"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+              <Button variant="outline" onClick={() => setIsEditOpen(false)}>取消</Button>
+              <Button className="bg-[#1890ff] hover:bg-[#40a9ff]" onClick={handleEditSubmit} disabled={editSubmitting}>
+                {editSubmitting ? '保存中...' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card Profit Dialog */}
+      {isProfitOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-[1000px] max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-medium">次卡订单利润明细</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  开卡销售利润只统计次卡销售收入、退款和开卡提成；项目核销产生的耗材和服务提成归属到项目毛利。
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsProfitOpen(false);
+                  setProfitDetail(null);
+                  setProfitError('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {profitLoading && (
+                <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> 正在加载利润明细...
+                </div>
+              )}
+              {!profitLoading && profitError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{profitError}</div>
+              )}
+              {!profitLoading && !profitError && profitDetail && (
+                <>
+                  <div className="grid grid-cols-4 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+                    <div>
+                      <div className="text-gray-500">来源订单</div>
+                      <div className="mt-1 font-mono font-medium text-gray-900">{profitDetail.sourceOrderNo || selectedOrder?.id || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">客户</div>
+                      <div className="mt-1 font-medium text-gray-900">{profitDetail.customerName || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">次卡</div>
+                      <div className="mt-1 font-medium text-gray-900">{profitDetail.cardName}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">门店</div>
+                      <div className="mt-1 font-medium text-gray-900">{profitDetail.storeName || '-'}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-3">
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <div className="text-xs text-gray-500">实收收入</div>
+                      <div className="mt-2 text-lg font-semibold text-gray-900">{formatCurrency(profitDetail.netSalesAmount)}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        原价 {formatCurrency(profitDetail.listAmount)}；优惠 {formatCurrency(profitDetail.discountAmount)}；退款 {formatCurrency(profitDetail.refundAmount)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <div className="text-xs text-gray-500">已履约收入</div>
+                      <div className="mt-2 text-lg font-semibold text-gray-900">{formatCurrency(profitDetail.recognizedAmount)}</div>
+                      <div className="mt-1 text-xs text-gray-500">核销后确认</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <div className="text-xs text-gray-500">剩余负债</div>
+                      <div className="mt-2 text-lg font-semibold text-gray-900">{formatCurrency(profitDetail.remainingLiability)}</div>
+                      <div className="mt-1 text-xs text-gray-500">未履约权益</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <div className="text-xs text-gray-500">开卡提成</div>
+                      <div className="mt-2 text-lg font-semibold text-gray-900">{formatCurrency(profitDetail.totalCost)}</div>
+                      <div className="mt-1 text-xs text-gray-500">已分摊 {formatCurrency(profitDetail.recognizedCommissionCost)}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <div className="text-xs text-gray-500">已履约毛利</div>
+                      <div className={`mt-2 text-lg font-semibold ${profitDetail.recognizedGrossProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {formatCurrency(profitDetail.recognizedGrossProfit)}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">毛利率 {formatPercent(profitDetail.recognizedGrossMargin)}</div>
+                    </div>
+                  </div>
+
+                  {profitDetail.missingReasons.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                      数据缺口：{profitDetail.missingReasons.join('、')}
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="mb-3 text-sm font-medium text-gray-800">开卡提成</h3>
+                    <div className="overflow-hidden rounded-lg border border-gray-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium">员工</th>
+                            <th className="px-4 py-3 text-left font-medium">规则</th>
+                            <th className="px-4 py-3 text-right font-medium">计算基数</th>
+                            <th className="px-4 py-3 text-right font-medium">比例</th>
+                            <th className="px-4 py-3 text-right font-medium">提成</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...profitDetail.saleCommissionRecords, ...profitDetail.unassignedCommissionRecords].map((record) => (
+                            <tr key={record.id} className="border-t border-gray-100">
+                              <td className="px-4 py-3">{record.staffUserName}</td>
+                              <td className="px-4 py-3">{record.ruleName || '-'}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(record.sourceAmount)}</td>
+                              <td className="px-4 py-3 text-right">{formatPercent(record.rate)}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(record.amount)}</td>
+                            </tr>
+                          ))}
+                          {profitDetail.saleCommissionRecords.length === 0 && profitDetail.unassignedCommissionRecords.length === 0 && (
+                            <tr>
+                              <td className="px-4 py-8 text-center text-gray-400" colSpan={5}>暂无开卡提成记录</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-3 text-sm font-medium text-gray-800">核销履约记录</h3>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="min-w-[1050px] w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium">项目</th>
+                            <th className="px-4 py-3 text-right font-medium">次数</th>
+                            <th className="px-4 py-3 text-right font-medium">单次确认收入</th>
+                            <th className="px-4 py-3 text-right font-medium">确认收入</th>
+                            <th className="px-4 py-3 text-right font-medium">耗材成本</th>
+                            <th className="px-4 py-3 text-right font-medium">提成成本</th>
+                            <th className="px-4 py-3 text-right font-medium">项目成本</th>
+                            <th className="px-4 py-3 text-right font-medium">项目毛利</th>
+                            <th className="px-4 py-3 text-right font-medium">毛利率</th>
+                            <th className="px-4 py-3 text-left font-medium">核销时间</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profitDetail.usageRecords.map((record) => (
+                            <tr key={record.id} className="border-t border-gray-100">
+                              <td className="px-4 py-3">{record.projectName}</td>
+                              <td className="px-4 py-3 text-right">{record.times}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(record.recognizedUnitValue)}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(record.recognizedAmount)}</td>
+                              <td className="px-4 py-3 text-right">
+                                <div>{formatCurrency(record.materialCost)}</div>
+                                <div className={`text-xs ${record.materialCostSource === 'missing' ? 'text-amber-600' : 'text-gray-400'}`}>
+                                  {getMaterialCostSourceLabel(record.materialCostSource)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(record.commissionCost)}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(record.projectCost)}</td>
+                              <td className={`px-4 py-3 text-right font-medium ${record.projectGrossProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                {formatCurrency(record.projectGrossProfit)}
+                              </td>
+                              <td className={`px-4 py-3 text-right ${record.projectGrossMargin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                {formatPercent(record.projectGrossMargin)}
+                              </td>
+                              <td className="px-4 py-3">{record.verifiedAt ? String(record.verifiedAt).replace('T', ' ').slice(0, 19) : '-'}</td>
+                            </tr>
+                          ))}
+                          {profitDetail.usageRecords.length === 0 && (
+                            <tr>
+                              <td className="px-4 py-8 text-center text-gray-400" colSpan={10}>暂无核销履约记录</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

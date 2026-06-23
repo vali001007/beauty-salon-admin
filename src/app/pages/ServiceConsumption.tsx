@@ -1,10 +1,56 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, ChevronDown, ChevronRight, Edit, Plus } from 'lucide-react';
+import { AlertTriangle, Calendar, ChevronDown, ChevronRight, Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { getBomConsumptionRecords, getBomForecast, getBomList } from '@/api/bom';
-import type { ConsumptionRecord, ForecastItem, Service } from '@/types/bom';
+import { getBomConsumptionRecords, getBomForecast, getBomList, updateBom } from '@/api/bom';
+import { getProducts } from '@/api/product';
+import type { Product } from '@/types';
+import type { BOMItem, ConsumptionRecord, ForecastItem, Service } from '@/types/bom';
+
+type BomDraftItem = {
+  rowId: number;
+  productId: string;
+  productName: string;
+  sku: string;
+  standardQty: number;
+  unit: string;
+  unitCost: number;
+};
+
+const createEmptyBomDraftItem = (): BomDraftItem => ({
+  rowId: Date.now() + Math.floor(Math.random() * 1000),
+  productId: '',
+  productName: '',
+  sku: '',
+  standardQty: 1,
+  unit: '',
+  unitCost: 0,
+});
+
+function toBomDraftItem(item: BOMItem, products: Product[]): BomDraftItem {
+  const matchedProduct = products.find((product) => (
+    (item.productId && product.id === item.productId) ||
+    (item.sku && product.sku === item.sku)
+  ));
+  return {
+    rowId: item.id || Date.now() + Math.floor(Math.random() * 1000),
+    productId: item.productId ? String(item.productId) : matchedProduct ? String(matchedProduct.id) : '',
+    productName: item.productName,
+    sku: item.sku,
+    standardQty: Number(item.standardQty || 1),
+    unit: item.unit || matchedProduct?.unit || '',
+    unitCost: Number(item.costPrice ?? matchedProduct?.costPrice ?? 0),
+  };
+}
+
+function formatCurrency(value: number) {
+  return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function getBomItemCost(item: BomDraftItem) {
+  return Number(item.unitCost || 0) * Number(item.standardQty || 0);
+}
 
 export function ServiceConsumption() {
   const [activeTab, setActiveTab] = useState<'bom' | 'consumption' | 'forecast'>('bom');
@@ -15,20 +61,44 @@ export function ServiceConsumption() {
   const [expandedServices, setExpandedServices] = useState<number[]>([]);
   const [showEditBOMDialog, setShowEditBOMDialog] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [bomDraftItems, setBomDraftItems] = useState<BomDraftItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [savingBom, setSavingBom] = useState(false);
   const [filterAbnormal, setFilterAbnormal] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [serviceData, consumptionData, forecastData] = await Promise.all([
+      const [serviceResult, consumptionResult, forecastResult] = await Promise.allSettled([
         getBomList(),
         getBomConsumptionRecords(),
         getBomForecast(),
       ]);
-      setServices(serviceData);
-      setConsumption(consumptionData);
-      setForecast(forecastData);
-      setExpandedServices((current) => current.length > 0 ? current : serviceData.slice(0, 1).map((item) => item.id));
+
+      const failedModules: string[] = [];
+      if (serviceResult.status === 'fulfilled') {
+        setServices(serviceResult.value);
+        setExpandedServices((current) => current.length > 0 ? current : serviceResult.value.slice(0, 1).map((item) => item.id));
+      } else {
+        failedModules.push('BOM管理');
+      }
+
+      if (consumptionResult.status === 'fulfilled') {
+        setConsumption(consumptionResult.value);
+      } else {
+        failedModules.push('项目耗材消耗');
+      }
+
+      if (forecastResult.status === 'fulfilled') {
+        setForecast(forecastResult.value);
+      } else {
+        failedModules.push('库存预估');
+      }
+
+      if (failedModules.length) {
+        toast.error(`${failedModules.join('、')}数据加载失败`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : '服务消耗数据加载失败';
       toast.error(message);
@@ -49,17 +119,117 @@ export function ServiceConsumption() {
     );
   };
 
-  const handleEditBOM = (service: Service) => {
+  const ensureProductsLoaded = async () => {
+    if (products.length || productsLoading) return products;
+    setProductsLoading(true);
+    try {
+      const productList = await getProducts();
+      setProducts(productList);
+      return productList;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '商品列表加载失败，暂时无法编辑 BOM';
+      toast.error(message);
+      return [];
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const handleEditBOM = async (service: Service) => {
     setSelectedService(service);
+    setBomDraftItems(service.bom.map((item) => toBomDraftItem(item, products)));
     setShowEditBOMDialog(true);
+    const productList = await ensureProductsLoaded();
+    if (productList.length) {
+      setBomDraftItems(service.bom.map((item) => toBomDraftItem(item, productList)));
+    }
+  };
+
+  const handleAddBomItem = () => {
+    setBomDraftItems((current) => [...current, createEmptyBomDraftItem()]);
+  };
+
+  const handleRemoveBomItem = (rowId: number) => {
+    setBomDraftItems((current) => current.filter((item) => item.rowId !== rowId));
+  };
+
+  const updateBomDraftItem = (rowId: number, patch: Partial<BomDraftItem>) => {
+    setBomDraftItems((current) => current.map((item) => item.rowId === rowId ? { ...item, ...patch } : item));
+  };
+
+  const handleSelectBomProduct = (rowId: number, productId: string) => {
+    const product = products.find((item) => String(item.id) === productId);
+    updateBomDraftItem(rowId, {
+      productId,
+      productName: product?.name ?? '',
+      sku: product?.sku ?? '',
+      unit: product?.unit ?? '',
+      unitCost: Number(product?.costPrice ?? 0),
+    });
+  };
+
+  const handleSaveBom = async () => {
+    if (!selectedService) return;
+
+    const normalizedItems = bomDraftItems.map((item) => ({
+      ...item,
+      productId: item.productId.trim(),
+      standardQty: Number(item.standardQty || 0),
+    }));
+
+    if (normalizedItems.some((item) => !item.productId)) {
+      toast.error('请选择完整的 BOM 产品');
+      return;
+    }
+    if (normalizedItems.some((item) => item.standardQty <= 0)) {
+      toast.error('标准用量必须大于 0');
+      return;
+    }
+    const productIds = normalizedItems.map((item) => item.productId);
+    if (new Set(productIds).size !== productIds.length) {
+      toast.error('同一产品只需要配置一次，请合并用量');
+      return;
+    }
+
+    setSavingBom(true);
+    try {
+      const updatedService = await updateBom(selectedService.id, {
+        bom: normalizedItems.map((item) => ({
+          productId: Number(item.productId),
+          productName: item.productName,
+          sku: item.sku,
+          standardQty: item.standardQty,
+          unit: item.unit,
+        })),
+      });
+      setServices((current) => current.map((service) => service.id === updatedService.id ? updatedService : service));
+      setSelectedService(updatedService);
+      setBomDraftItems(updatedService.bom.map((item) => toBomDraftItem(item, products)));
+      setShowEditBOMDialog(false);
+      toast.success('BOM 已保存');
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'BOM 保存失败，请稍后重试';
+      toast.error(message);
+    } finally {
+      setSavingBom(false);
+    }
   };
 
   const filteredConsumption = useMemo(
     () => filterAbnormal ? consumption.filter((record) => record.isAbnormal) : consumption,
     [consumption, filterAbnormal],
   );
+  const serviceEmployeeOptions = useMemo(
+    () => Array.from(new Set(consumption.map((record) => record.serviceEmployee ?? record.beautician).filter(Boolean))),
+    [consumption],
+  );
 
   const totalAppointments = Math.max(38, Math.round(consumption.length * 8.5));
+  const bomTotalCost = useMemo(
+    () => bomDraftItems.reduce((total, item) => total + getBomItemCost(item), 0),
+    [bomDraftItems],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,7 +257,7 @@ export function ServiceConsumption() {
           }`}
           type="button"
         >
-          消耗记录
+          项目耗材消耗
           {activeTab === 'consumption' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />}
         </button>
         <button
@@ -184,9 +354,10 @@ export function ServiceConsumption() {
                 <option>凤仪阁美容养生会所</option>
               </select>
               <select className="h-9 px-3 text-sm border border-gray-300 rounded-md">
-                <option>全部美容师</option>
-                <option>李美容师</option>
-                <option>陈美容师</option>
+                <option>全部服务员工</option>
+                {serviceEmployeeOptions.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
               </select>
             </div>
 
@@ -206,9 +377,10 @@ export function ServiceConsumption() {
             <TableHeader>
               <TableRow className="bg-gray-50/80">
                 <TableHead>日期</TableHead>
+                <TableHead>订单编号</TableHead>
                 <TableHead>服务项目</TableHead>
                 <TableHead>客户</TableHead>
-                <TableHead>美容师</TableHead>
+                <TableHead>服务员工</TableHead>
                 <TableHead>门店</TableHead>
                 <TableHead>产品</TableHead>
                 <TableHead>标准用量</TableHead>
@@ -221,9 +393,10 @@ export function ServiceConsumption() {
               {filteredConsumption.map((record) => (
                 <TableRow key={record.id} className={`hover:bg-blue-50/30 ${record.deviation > 20 ? 'bg-red-50' : ''}`}>
                   <TableCell>{record.date}</TableCell>
+                  <TableCell className="font-mono text-sm text-gray-600">{record.orderNo || '-'}</TableCell>
                   <TableCell className="font-medium text-gray-800">{record.serviceName}</TableCell>
                   <TableCell>{record.customerName}</TableCell>
-                  <TableCell>{record.beautician}</TableCell>
+                  <TableCell>{record.serviceEmployee ?? record.beautician}</TableCell>
                   <TableCell className="text-sm text-gray-600">{record.storeName}</TableCell>
                   <TableCell>{record.productName}</TableCell>
                   <TableCell className="text-gray-600">{record.standardQty}</TableCell>
@@ -303,7 +476,7 @@ export function ServiceConsumption() {
       )}
 
       <Dialog open={showEditBOMDialog} onOpenChange={setShowEditBOMDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="edit-bom-description">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby="edit-bom-description">
           <DialogHeader>
             <DialogTitle>编辑BOM - {selectedService?.name}</DialogTitle>
           </DialogHeader>
@@ -312,7 +485,7 @@ export function ServiceConsumption() {
           {selectedService && (
             <div className="space-y-4 mt-4">
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-4 gap-4 text-sm">
                   <div>
                     <div className="text-gray-600">服务时长</div>
                     <div className="font-medium text-gray-800 mt-1">{selectedService.duration}分钟</div>
@@ -323,7 +496,11 @@ export function ServiceConsumption() {
                   </div>
                   <div>
                     <div className="text-gray-600">BOM产品数</div>
-                    <div className="font-medium text-gray-800 mt-1">{selectedService.bomCount}</div>
+                    <div className="font-medium text-gray-800 mt-1">{bomDraftItems.length}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">BOM总成本</div>
+                    <div className="font-medium text-gray-800 mt-1">{formatCurrency(bomTotalCost)}</div>
                   </div>
                 </div>
               </div>
@@ -331,18 +508,36 @@ export function ServiceConsumption() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-medium text-gray-800">产品明细</h4>
-                  <Button size="sm" variant="outline" className="gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleAddBomItem}
+                    disabled={productsLoading || savingBom}
+                  >
                     <Plus className="w-3 h-3" /> 添加产品
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  {selectedService.bom.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1 grid grid-cols-3 gap-3">
+                  {bomDraftItems.map((item) => (
+                    <div key={item.rowId} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1 grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.9fr] gap-3">
                         <div>
                           <div className="text-xs text-gray-500 mb-1">产品名称</div>
-                          <div className="text-sm font-medium text-gray-800">{item.productName}</div>
+                          <select
+                            className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
+                            value={item.productId}
+                            onChange={(event) => handleSelectBomProduct(item.rowId, event.target.value)}
+                            disabled={productsLoading || savingBom}
+                          >
+                            <option value="">{productsLoading ? '加载产品中...' : '请选择产品'}</option>
+                            {products.map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <div className="text-xs text-gray-500 mb-1">SKU</div>
@@ -354,17 +549,41 @@ export function ServiceConsumption() {
                             <Input
                               type="number"
                               className="w-20 h-8 text-sm"
-                              defaultValue={item.standardQty}
+                              min={0.01}
+                              step="0.01"
+                              value={item.standardQty}
+                              onChange={(event) => updateBomDraftItem(item.rowId, { standardQty: Number(event.target.value) })}
+                              disabled={savingBom}
                             />
                             <span className="text-sm text-gray-600">{item.unit}</span>
                           </div>
                         </div>
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">产品单价</div>
+                          <div className="text-sm font-medium text-gray-800">{formatCurrency(item.unitCost)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">成本小计</div>
+                          <div className="text-sm font-semibold text-emerald-700">{formatCurrency(getBomItemCost(item))}</div>
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50">
-                        删除
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:bg-red-50"
+                        onClick={() => handleRemoveBomItem(item.rowId)}
+                        disabled={savingBom}
+                        aria-label="删除 BOM 产品"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> 删除
                       </Button>
                     </div>
                   ))}
+                  {bomDraftItems.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500">
+                      当前项目未配置 BOM，点击“添加产品”维护耗材清单。
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -374,7 +593,9 @@ export function ServiceConsumption() {
             <Button variant="outline" onClick={() => setShowEditBOMDialog(false)}>
               取消
             </Button>
-            <Button onClick={() => toast.info('BOM 编辑接口将在后端联调阶段接入')}>保存修改</Button>
+            <Button onClick={handleSaveBom} disabled={savingBom || productsLoading}>
+              {savingBom ? '保存中...' : '保存修改'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

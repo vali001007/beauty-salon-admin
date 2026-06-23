@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 import type { BusinessTimeRange } from '../agent/business-task/business-task.types.js';
 import type { SemanticQueryEvidence, SemanticQueryPlan, SemanticQueryResult } from './query-plan.types.js';
 import { QueryTemplateRegistryService } from './query-template-registry.service.js';
@@ -845,7 +846,7 @@ export class SemanticQueryExecutorService {
   }
 
   private formatDate(value: Date) {
-    return value.toISOString().slice(0, 10);
+    return formatBusinessDate(value);
   }
 
   private formatMoney(value: number) {

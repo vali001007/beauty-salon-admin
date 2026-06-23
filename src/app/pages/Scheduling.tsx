@@ -17,6 +17,7 @@ import {
 import type { Beautician, ScheduleSlot } from '@/types';
 import { useStoreStore } from '@/stores/storeStore';
 import { Button } from '../components/UI';
+import { addBusinessDays, formatBusinessDate } from '@/utils/businessTime';
 
 type ViewMode = 'week' | 'day';
 type SlotStatus = 'normal' | 'booked' | 'expired' | 'leave' | 'busy';
@@ -169,7 +170,7 @@ function getWeekStart(offset: number): string {
   const diff = now.getDate() - day + (day === 0 ? -6 : 1) + offset * 7;
   const monday = new Date(now);
   monday.setDate(diff);
-  return monday.toISOString().split('T')[0];
+  return formatBusinessDate(monday);
 }
 
 function getSmartWeekOffset(period: SmartConfig['period'], currentOffset: number): number {
@@ -179,9 +180,7 @@ function getSmartWeekOffset(period: SmartConfig['period'], currentOffset: number
 }
 
 function addDays(dateText: string, days: number): string {
-  const date = new Date(dateText);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return addBusinessDays(dateText, days);
 }
 
 function toMinutes(time: string | undefined): number {

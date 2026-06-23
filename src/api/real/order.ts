@@ -6,6 +6,8 @@ import type {
   ProductOrderItem,
   ProductOrderPaymentMethod,
   ProductOrderStatus,
+  ProductOrderProfitDetail,
+  ProjectOrderProfitDetail,
 } from '@/types';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import apiClient from '../client';
@@ -14,11 +16,24 @@ import { extractArray, normalizePaginatedResponse } from './response';
 type ApiProductOrder = Partial<ProductOrder> & {
   customer?: { id?: number; name?: string; phone?: string };
   store?: { id?: number; name?: string };
+  checkoutGroupNo?: string;
+  orderKind?: string;
   status?: string;
   payMethod?: string;
   paymentMethod?: string;
   items?: unknown;
   totalAmount?: number | string;
+  listAmount?: number | string;
+  itemDiscountAmount?: number | string;
+  orderDiscountAmount?: number | string;
+  totalDiscountAmount?: number | string;
+  netAmount?: number | string;
+  discountSource?: string;
+  allocationMethod?: string;
+  promotionId?: number;
+  couponId?: number;
+  packageId?: number;
+  discountPayload?: unknown;
   orderItems?: OrderItem[];
   paymentRecords?: PaymentRecord[];
   createdAt?: string;
@@ -90,8 +105,20 @@ function normalizeOrderItem(item: Partial<ProductOrderItem> & Partial<OrderItem>
     sku: item.sku ?? '',
     quantity,
     unitPrice,
+    listAmount: item.listAmount === undefined ? undefined : Number(item.listAmount),
     subtotal,
     discount: item.discount === undefined ? undefined : Number(item.discount),
+    itemDiscountAmount: item.itemDiscountAmount === undefined ? undefined : Number(item.itemDiscountAmount),
+    orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount === undefined ? undefined : Number(item.orderAllocatedDiscountAmount),
+    totalDiscountAmount: item.totalDiscountAmount === undefined ? undefined : Number(item.totalDiscountAmount),
+    netAmount: item.netAmount === undefined ? undefined : Number(item.netAmount),
+    discountSource: item.discountSource,
+    allocationMethod: item.allocationMethod,
+    discountPayload: item.discountPayload,
+    isGift: item.isGift,
+    eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+    beauticianId: item.beauticianId === undefined || item.beauticianId === null ? undefined : Number(item.beauticianId),
+    beauticianName: item.beauticianName ?? (item.payload as { beauticianName?: string } | undefined)?.beauticianName,
     payload: item.payload,
   };
 }
@@ -113,6 +140,8 @@ function normalizeProductOrder(item: ApiProductOrder): ProductOrder {
   return {
     id: Number(item.id ?? 0),
     orderNo: item.orderNo ?? '',
+    checkoutGroupNo: item.checkoutGroupNo,
+    orderKind: item.orderKind,
     customerId: item.customerId ?? item.customer?.id,
     customerName: item.customerName ?? item.customer?.name ?? '散客',
     customerPhone: item.customerPhone ?? item.customer?.phone ?? '',
@@ -120,6 +149,17 @@ function normalizeProductOrder(item: ApiProductOrder): ProductOrder {
     storeName: item.storeName ?? item.store?.name ?? '未指定门店',
     items,
     totalAmount,
+    listAmount: item.listAmount === undefined ? undefined : Number(item.listAmount),
+    itemDiscountAmount: item.itemDiscountAmount === undefined ? undefined : Number(item.itemDiscountAmount),
+    orderDiscountAmount: item.orderDiscountAmount === undefined ? undefined : Number(item.orderDiscountAmount),
+    totalDiscountAmount: item.totalDiscountAmount === undefined ? undefined : Number(item.totalDiscountAmount),
+    netAmount: item.netAmount === undefined ? totalAmount : Number(item.netAmount),
+    discountSource: item.discountSource,
+    allocationMethod: item.allocationMethod,
+    promotionId: item.promotionId,
+    couponId: item.couponId,
+    packageId: item.packageId,
+    discountPayload: item.discountPayload,
     status: STATUS_FROM_API[rawStatus] ?? '已完成',
     paymentMethod: PAYMENT_FROM_API[rawPayment] ?? '现金',
     payMethod: item.payMethod,
@@ -141,6 +181,14 @@ function toApiCreatePayload(data: ProductOrderCreatePayload) {
     customerPhone: data.customerPhone,
     storeId: data.storeId,
     totalAmount: data.totalAmount,
+    discountMode: data.discountMode,
+    discountAmount: data.discountAmount,
+    discountRate: data.discountRate,
+    packagePrice: data.packagePrice,
+    allocationMethod: data.allocationMethod,
+    discountSource: data.discountSource,
+    promotionId: data.promotionId,
+    couponId: data.couponId,
     status: STATUS_TO_API[data.status] ?? data.status,
     paymentMethod: PAYMENT_TO_API[data.paymentMethod] ?? data.paymentMethod,
     payMethod: data.payMethod ?? PAYMENT_TO_API[data.paymentMethod] ?? data.paymentMethod,
@@ -157,8 +205,21 @@ function toApiCreatePayload(data: ProductOrderCreatePayload) {
       sku: item.sku,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      listAmount: item.listAmount,
       subtotal: item.subtotal,
       discount: item.discount,
+      itemDiscountAmount: item.itemDiscountAmount,
+      orderAllocatedDiscountAmount: item.orderAllocatedDiscountAmount,
+      totalDiscountAmount: item.totalDiscountAmount,
+      netAmount: item.netAmount,
+      discountSource: item.discountSource,
+      allocationMethod: item.allocationMethod,
+      discountPayload: item.discountPayload,
+      isGift: item.isGift,
+      eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+      beauticianId: item.beauticianId,
+      beauticianName: item.beauticianName,
+      payload: item.payload,
     })),
   };
 }
@@ -178,6 +239,10 @@ export async function realGetProductOrders(params?: { status?: string; keyword?:
 export async function realGetProductOrderById(id: number): Promise<ProductOrder | undefined> {
   const item = await apiClient.get<unknown, ApiProductOrder>(`/orders/product/${id}`);
   return normalizeProductOrder(item);
+}
+
+export async function realGetProductOrderProfit(id: number): Promise<ProductOrderProfitDetail> {
+  return apiClient.get<unknown, ProductOrderProfitDetail>(`/orders/product/${id}/profit`);
 }
 
 export async function realCreateProductOrder(data: ProductOrderCreatePayload): Promise<ProductOrder> {
@@ -214,6 +279,10 @@ export async function realGetProjectOrders(params?: { status?: string; keyword?:
 export async function realGetProjectOrderById(id: number): Promise<ProductOrder | undefined> {
   const item = await apiClient.get<unknown, ApiProductOrder>(`/orders/project/${id}`);
   return normalizeProductOrder(item);
+}
+
+export async function realGetProjectOrderProfit(id: number): Promise<ProjectOrderProfitDetail> {
+  return apiClient.get<unknown, ProjectOrderProfitDetail>(`/orders/project/${id}/profit`);
 }
 
 export async function realCreateProjectOrder(data: ProductOrderCreatePayload): Promise<ProductOrder> {

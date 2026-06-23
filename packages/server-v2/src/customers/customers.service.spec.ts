@@ -51,6 +51,27 @@ describe('CustomersService', () => {
         findMany: jest.fn(),
         count: jest.fn(),
       },
+      productOrder: {
+        findMany: jest.fn(),
+      },
+      customerBalanceTransaction: {
+        findMany: jest.fn(),
+      },
+      customerCard: {
+        findMany: jest.fn(),
+      },
+      cardUsageRecord: {
+        findMany: jest.fn(),
+      },
+      project: {
+        findMany: jest.fn(),
+      },
+      product: {
+        findMany: jest.fn(),
+      },
+      card: {
+        findMany: jest.fn(),
+      },
       customerHealthProfile: {
         create: jest.fn(),
         findUnique: jest.fn(),
@@ -239,6 +260,103 @@ describe('CustomersService', () => {
         where: { id: { in: [1, 2] } },
         data: { deletedAt: expect.any(Date) },
       });
+    });
+  });
+
+  describe('getConsumptionRecordsPaginated', () => {
+    beforeEach(() => {
+      prisma.consumptionRecord.findMany.mockResolvedValue([]);
+      prisma.productOrder.findMany.mockResolvedValue([]);
+      prisma.customerBalanceTransaction.findMany.mockResolvedValue([]);
+      prisma.customerCard.findMany.mockResolvedValue([]);
+      prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+      prisma.project.findMany.mockResolvedValue([]);
+      prisma.product.findMany.mockResolvedValue([]);
+      prisma.card.findMany.mockResolvedValue([]);
+    });
+
+    it('should include paid project orders even when no legacy consumption record exists', async () => {
+      prisma.productOrder.findMany.mockResolvedValue([
+        {
+          id: 178,
+          orderNo: 'PO1781893252477',
+          customerId: 1,
+          customerName: '陈天佑',
+          totalAmount: 398,
+          status: 'completed',
+          payMethod: 'wechat',
+          source: 'admin',
+          createdAt: new Date('2026-06-19T02:00:00.000Z'),
+          updatedAt: new Date('2026-06-19T02:00:00.000Z'),
+          customer: { id: 1, name: '陈天佑', phone: '13300000000', store: { name: 'Ami 全量演示门店' } },
+          store: { id: 1, name: 'Ami 全量演示门店' },
+          orderItems: [
+            {
+              id: 1,
+              itemType: 'project',
+              itemId: 85,
+              name: '深层补水护理',
+              quantity: 1,
+              unitPrice: 398,
+              subtotal: 398,
+            },
+          ],
+          paymentRecords: [{ method: 'wechat', paidAt: new Date('2026-06-19T02:01:00.000Z') }],
+        },
+      ]);
+
+      const result = await service.getConsumptionRecordsPaginated({ page: 1, pageSize: 10, keyword: 'PO1781893252477' }, 1);
+
+      expect(result.total).toBe(1);
+      expect(result.items[0]).toEqual(
+        expect.objectContaining({
+          userName: '陈天佑',
+          consumeType: '项目订单',
+          consumeContent: expect.stringContaining('PO1781893252477'),
+          amount: '￥398.00',
+          orderNo: 'PO1781893252477',
+        }),
+      );
+    });
+
+    it('should avoid duplicating terminal checkout rows already written to consumption records', async () => {
+      const paidAt = new Date('2026-06-19T03:00:00.000Z');
+      prisma.productOrder.findMany.mockResolvedValue([
+        {
+          id: 201,
+          orderNo: 'PO-DUP',
+          customerId: 1,
+          customerName: '陈天佑',
+          totalAmount: 268,
+          status: 'completed',
+          payMethod: 'cash',
+          source: 'terminal',
+          createdAt: paidAt,
+          updatedAt: paidAt,
+          customer: { id: 1, name: '陈天佑', phone: '13300000000', store: { name: 'Ami 全量演示门店' } },
+          store: { id: 1, name: 'Ami 全量演示门店' },
+          orderItems: [{ id: 1, itemType: 'product', itemId: 5, name: '屏障修护乳', quantity: 1, unitPrice: 268, subtotal: 268 }],
+          paymentRecords: [{ method: 'cash', paidAt }],
+        },
+      ]);
+      prisma.consumptionRecord.findMany.mockResolvedValue([
+        {
+          id: 88,
+          customerId: 1,
+          consumeType: '消费',
+          consumeContent: '屏障修护乳 x1',
+          payMethod: 'cash',
+          amount: 268,
+          campaign: null,
+          consumeTime: new Date('2026-06-19T03:05:00.000Z'),
+          customer: { name: '陈天佑', store: { name: 'Ami 全量演示门店' } },
+        },
+      ]);
+
+      const result = await service.getConsumptionRecordsPaginated({ page: 1, pageSize: 10 }, 1);
+
+      expect(result.total).toBe(1);
+      expect(result.items[0]).toEqual(expect.objectContaining({ sourceType: 'order', orderNo: 'PO-DUP' }));
     });
   });
 

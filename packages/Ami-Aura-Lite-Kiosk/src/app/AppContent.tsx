@@ -118,6 +118,15 @@ import type { AuraBootstrap } from "../../../../src/types/aura";
 
 type Payload = AuraPayload;
 
+const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
+  "cardVerification",
+  "cashier",
+  "cardOpening",
+  "registration",
+  "recharge",
+  "serviceRecord",
+]);
+
 function createMessage(
   type: MessageType,
   payload?: Payload | { text: string; source?: string },
@@ -428,6 +437,12 @@ function hydrateRoleHomeQueryCache(role: Role, payload: AuraHomePayload) {
   }
 }
 
+function shouldReplaceWithRoleHome(prev: Message[], messageMode?: "replace" | "append") {
+  if (messageMode === "append") return true;
+  if (prev.length === 0) return true;
+  return prev.length === 1 && prev[0]?.type === "dashboard";
+}
+
 function getRolePrefetchActions(role: Role) {
   if (role === "manager") {
     return [
@@ -532,10 +547,25 @@ export default function AppContent() {
     setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, message] : prev));
   };
 
-  const appendRunResult = (result: MicroAppRunResult, epoch = getConversationEpoch()) => {
+  const appendRunResult = (
+    result: MicroAppRunResult,
+    epoch = getConversationEpoch(),
+    options?: { prependMessages?: Message[]; replaceFixedFlowCards?: boolean },
+  ) => {
     if (!isConversationEpochActive(epoch)) return;
     const createdMessages = result.messages.map((message) => createMessage(message.type, message.payload, message.title));
-    setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, ...createdMessages] : prev));
+    setMessages((prev) => {
+      if (!isConversationEpochActive(epoch)) return prev;
+      const shouldReplaceFixedFlowCards =
+        options?.replaceFixedFlowCards && createdMessages.some((message) => FIXED_FLOW_MESSAGE_TYPES.has(message.type));
+      const baseMessages = shouldReplaceFixedFlowCards
+        ? prev.filter((message) => !FIXED_FLOW_MESSAGE_TYPES.has(message.type))
+        : prev;
+      const missingPrependedMessages = (options?.prependMessages ?? []).filter(
+        (message) => !baseMessages.some((item) => item.id === message.id),
+      );
+      return [...baseMessages, ...missingPrependedMessages, ...createdMessages];
+    });
 
     if (!result.refresh || createdMessages.length === 0) return;
 
@@ -823,7 +853,11 @@ export default function AppContent() {
       hydrateRoleHomeQueryCache(role, payload);
       const createdMessages = createHomeMessages(role, payload, state);
       const homeMessageId = createdMessages[0]?.id;
-      setMessages((prev) => (isConversationEpochActive(epoch) ? (options.messageMode === "append" ? [...prev, ...createdMessages] : createdMessages) : prev));
+      setMessages((prev) => {
+        if (!isConversationEpochActive(epoch)) return prev;
+        if (options.messageMode === "append") return [...prev, ...createdMessages];
+        return shouldReplaceWithRoleHome(prev, options.messageMode) ? createdMessages : prev;
+      });
       const bootstrapForCache = options.bootstrapForCache ?? bootstrap;
       if (bootstrapForCache) {
         writeAuraStartupCache({ bootstrap: bootstrapForCache, currentRole: role, homePayload: payload });
@@ -871,7 +905,11 @@ export default function AppContent() {
       setError(err instanceof Error ? err.message : "加载失败");
       if (!options.preserveMessagesOnError) {
         const errorMessage = createMessage("error", { text: "门店数据加载失败", source: "core" });
-        setMessages((prev) => (isConversationEpochActive(epoch) ? (options.messageMode === "append" ? [...prev, errorMessage] : [errorMessage]) : prev));
+        setMessages((prev) => {
+          if (!isConversationEpochActive(epoch)) return prev;
+          if (options.messageMode === "append") return [...prev, errorMessage];
+          return shouldReplaceWithRoleHome(prev, options.messageMode) ? [errorMessage] : prev;
+        });
       }
       return null;
     } finally {
@@ -1042,8 +1080,11 @@ export default function AppContent() {
 
     const intent = await resolveCommandIntent({ command, role: currentRole, definition: roleDefinition, source });
     if (!isConversationEpochActive(epoch)) return;
+    const userCommandMessage = shouldDisplayUserCommand(intent)
+      ? createMessage("query", { text: command }, "用户指令")
+      : null;
     if (shouldDisplayUserCommand(intent)) {
-      appendMessage(createMessage("query", { text: command }, "用户指令"), epoch);
+      appendMessage(userCommandMessage!, epoch);
     }
     const shouldDelayLoading = source === "quick_action" || isCacheableMicroAppAction(intent.action);
     setSuppressBlockingLoading(shouldDelayLoading);
@@ -1099,7 +1140,10 @@ export default function AppContent() {
       if (!loadingMessageShown && shouldDelayLoading) {
         setLoadingText("");
       }
-      appendRunResult(result, epoch);
+      appendRunResult(result, epoch, {
+        prependMessages: userCommandMessage ? [userCommandMessage] : undefined,
+        replaceFixedFlowCards: source === "quick_action",
+      });
       if (result.aiStream) {
         await appendStreamingAiAnswer(result.aiStream, epoch);
       }
@@ -1251,7 +1295,7 @@ export default function AppContent() {
       ) : null}
 
       <MessagePanel messages={messages}>
-        <div className="flex w-full flex-col gap-4 pb-36">
+        <div data-message-items className="flex w-full flex-col gap-4 pb-36">
           {loading && !hasInlineLoading && !suppressBlockingLoading ? <LoadingCard text={loadingText} /> : null}
           {error ? <SystemNotice title="Ami_Core 请求异常" subtitle={error} /> : null}
 

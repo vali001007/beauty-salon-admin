@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatBusinessDate } from '../common/utils/business-time.js';
 
 type PageQuery = {
   page?: number;
@@ -726,7 +727,7 @@ export class MarketingPagesService {
     }
     const dailyMap = new Map<string, { date: string; pv: number; uvSessions: Set<string>; leadCount: number; bookingCount: number }>();
     for (const event of events) {
-      const date = new Date(event.occurredAt).toISOString().slice(0, 10);
+      const date = formatBusinessDate(event.occurredAt);
       const stats = dailyMap.get(date) ?? { date, pv: 0, uvSessions: new Set<string>(), leadCount: 0, bookingCount: 0 };
       if (event.eventType === 'view') stats.pv += 1;
       stats.uvSessions.add(event.sessionId || `event-${event.id}`);

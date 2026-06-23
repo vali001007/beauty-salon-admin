@@ -99,6 +99,54 @@ export interface CustomerHealthProfile {
   lastCheck: string;
 }
 
+export interface CustomerCardPortraitCardProject {
+  projectName: string;
+  timesPerCard: number;
+}
+
+export interface CustomerPurchasedCardPortrait {
+  customerCardId: number;
+  cardId: number;
+  cardName: string;
+  totalTimes: number;
+  remainingTimes: number;
+  usedTimes: number;
+  paidAmount: number;
+  discountAmount: number;
+  giftTimes: number;
+  status: string;
+  expireTime: string;
+  purchaseTime: string;
+  operatorName?: string;
+  projects: CustomerCardPortraitCardProject[];
+}
+
+export interface CustomerMissingCardPortrait {
+  cardId: number;
+  cardName: string;
+  totalTimes: number;
+  price: number;
+  validDays: number;
+  storeId?: number | null;
+  storeName: string;
+  projects: CustomerCardPortraitCardProject[];
+}
+
+export interface CustomerCardPortrait {
+  customerId: number;
+  customerName: string;
+  customerPhone: string;
+  storeId?: number;
+  storeName: string;
+  memberLevel: string;
+  totalSpent: number;
+  lastVisitDate: string;
+  purchasedCards: CustomerPurchasedCardPortrait[];
+  missingCards: CustomerMissingCardPortrait[];
+  purchasedCount: number;
+  missingCount: number;
+}
+
 export interface CustomerMiniappBehaviorSummary {
   totalCustomers: number;
   boundCustomers: number;

@@ -1,4 +1,5 @@
 import type { AmiGlowEvent } from '@/types/customer-app';
+import { formatBusinessDateTime } from '@/utils/businessTime';
 
 export const CUSTOMER_APP_EVENT_TYPE_OPTIONS = [
   { value: '', label: '全部事件类型' },
@@ -61,9 +62,7 @@ export const formatCustomerAppTarget = (event: AmiGlowEvent) => {
 
 export const formatCustomerAppEventTime = (value?: string | null) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', { hour12: false });
+  return formatBusinessDateTime(value, { seconds: true }) || value;
 };
 
 export const getCustomerAppEventMetadataSummary = (metadata?: Record<string, unknown> | null) => {

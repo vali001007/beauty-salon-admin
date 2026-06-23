@@ -12,6 +12,7 @@ import { Badge } from '@/app/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
+import { formatBusinessDateTime } from '@/utils/businessTime';
 import type {
   TerminalDevice,
   TerminalDeviceProvisionRequest,
@@ -50,9 +51,7 @@ function isOffline(lastOnlineAt?: string) {
 
 function formatTime(value?: string) {
   if (!value) return '未上线';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', { hour12: false });
+  return formatBusinessDateTime(value, { seconds: true }) || value;
 }
 
 export function DeviceManagement() {

@@ -25,6 +25,7 @@ export {
   realOpenCashierShift as openCashierShift,
   realCloseCashierShift as closeCashierShift,
   realUpdateCommissionRule as updateCommissionRule,
+  realUpdateCommissionRecord as updateCommissionRecord,
 } from './real/commission';
 export type {
   AmiBillStatus,
@@ -45,4 +46,5 @@ export type {
   DailySettlement,
   DailySettlementStatus,
   PlatformRevenueSummary,
+  UpdateCommissionRecordInput,
 } from './real/commission';
