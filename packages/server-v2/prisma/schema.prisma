@@ -94,6 +94,8 @@ model Store {
   amiGlowDisplayConfigs    AmiGlowDisplayConfig[]
   terminalFollowUpTasks    TerminalFollowUpTask[]
   operatingCosts           OperatingCost[]
+  cardUsageRecords         CardUsageRecord[]
+  cards                    Card[]
 
   @@index([status])
 }
@@ -558,6 +560,7 @@ model Project {
   serviceTasks     ServiceTask[]
   reservations     Reservation[]
   beauticianSkills BeauticianProjectSkill[]
+  cardUsageRecords CardUsageRecord[]
 
   @@index([storeId])
   @@index([status])
@@ -1186,6 +1189,9 @@ model CommissionRecord {
   beauticianId Int?
   orderId      Int?
   orderItemId  Int?
+  sourceType   String?
+  sourceId     Int?
+  cardUsageRecordId Int?
   ruleId       Int?
   type         String
   sourceAmount Decimal
@@ -1203,6 +1209,7 @@ model CommissionRecord {
   beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   order      ProductOrder?   @relation(fields: [orderId], references: [id])
   orderItem  OrderItem?      @relation(fields: [orderItemId], references: [id])
+  cardUsageRecord CardUsageRecord? @relation(fields: [cardUsageRecordId], references: [id], onDelete: SetNull)
   rule       CommissionRule? @relation(fields: [ruleId], references: [id])
 
   @@index([beauticianId, settleMonth])
@@ -1210,6 +1217,8 @@ model CommissionRecord {
   @@index([storeId, status])
   @@index([orderId])
   @@index([orderItemId])
+  @@index([sourceType, sourceId])
+  @@index([cardUsageRecordId])
   @@index([ruleId])
 }
 
@@ -1333,6 +1342,8 @@ model DailySettlement {
 model ProductOrder {
   id           Int      @id @default(autoincrement())
   orderNo      String   @unique
+  checkoutGroupNo String?
+  orderKind    String   @default("product")
   customerId   Int?
   customerName String?
   storeId      Int?
@@ -1368,12 +1379,16 @@ model ProductOrder {
   balanceTransactions   CustomerBalanceTransaction[]
   commissionRecords     CommissionRecord[]
   amiPerformanceRecords AmiPerformanceRecord[]
+  sourceCustomerCards    CustomerCard[]               @relation("CustomerCardSourceOrder")
+  cardUsageSourceRecords CardUsageRecord[]            @relation("CardUsageSourceOrder")
 
   @@index([status])
   @@index([customerId])
   @@index([storeId])
   @@index([createdAt])
   @@index([storeId, createdAt])
+  @@index([checkoutGroupNo])
+  @@index([orderKind])
 }
 
 model OrderItem {
@@ -1403,6 +1418,8 @@ model OrderItem {
   order             ProductOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   beautician        Beautician?        @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   commissionRecords CommissionRecord[]
+  sourceCustomerCards CustomerCard[]    @relation("CustomerCardSourceOrderItem")
+  cardUsageSourceRecords CardUsageRecord[] @relation("CardUsageSourceOrderItem")
 
   @@index([orderId])
   @@index([itemType, itemId])
@@ -1452,10 +1469,19 @@ model Card {
   price       Decimal  @default(0)
   projects    Json
   status      String   @default("active")
+  storeId     Int?
+  validDays   Int      @default(365)
+  sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   customerCards CustomerCard[]
+  usageRecords  CardUsageRecord[]
+  store         Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([status])
+  @@index([sortOrder])
 }
 
 model CustomerCard {
@@ -1463,9 +1489,16 @@ model CustomerCard {
   customerId     Int
   cardId         Int
   operatorId     Int?
+  sourceOrderId  Int?
+  sourceOrderItemId Int?
   cardName       String
   totalTimes     Int
   remainingTimes Int
+  paidAmount     Decimal  @default(0)
+  discountAmount Decimal  @default(0)
+  giftTimes      Int      @default(0)
+  recognizedUnitValue Decimal @default(0)
+  pricingSnapshot Json?
   expiryDate     DateTime
   status         String   @default("active")
   createdAt      DateTime @default(now())
@@ -1473,31 +1506,58 @@ model CustomerCard {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   card     Card     @relation(fields: [cardId], references: [id])
   operator User?    @relation("CustomerCardOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  sourceOrder ProductOrder? @relation("CustomerCardSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  sourceOrderItem OrderItem? @relation("CustomerCardSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
+  usageRecords CardUsageRecord[]
 
   @@index([customerId])
   @@index([operatorId])
+  @@index([sourceOrderId])
+  @@index([sourceOrderItemId])
   @@index([status])
 }
 
 model CardUsageRecord {
   id             Int      @id @default(autoincrement())
+  customerCardId Int?
+  cardId         Int?
+  projectId      Int?
+  storeId        Int?
   customerId     Int
   customerName   String
   cardName       String
   projectName    String
   times          Int
   remainingTimes Int
+  recognizedUnitValue Decimal @default(0)
+  recognizedAmount Decimal @default(0)
+  sourceOrderId Int?
+  sourceOrderItemId Int?
+  pricingSnapshot Json?
   operatorId     Int?
   beauticianId   Int?
   deviceId       Int?
   verifiedAt     DateTime @default(now())
 
   customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerCard CustomerCard?  @relation(fields: [customerCardId], references: [id], onDelete: SetNull)
+  card       Card?            @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  project    Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  store      Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  sourceOrder ProductOrder?   @relation("CardUsageSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  sourceOrderItem OrderItem?  @relation("CardUsageSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
   operator   User?           @relation("CardUsageOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   device     TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  commissionRecords CommissionRecord[]
 
   @@index([customerId])
+  @@index([customerCardId, verifiedAt])
+  @@index([cardId])
+  @@index([projectId, verifiedAt])
+  @@index([storeId, verifiedAt])
+  @@index([sourceOrderId])
+  @@index([sourceOrderItemId])
   @@index([operatorId])
   @@index([beauticianId])
   @@index([deviceId])
