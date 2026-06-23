@@ -129,7 +129,7 @@ describe('operation profit risk pages', () => {
     );
   });
 
-  it('shows times-card liability page with independent card-only query', async () => {
+  it('shows prepaid liability high-risk reasons with card-only risk filtering', async () => {
     apiMocks.getPrepaidLiabilities.mockResolvedValue({
       items: [
         {
@@ -168,6 +168,7 @@ describe('operation profit risk pages', () => {
     expect(await screen.findByText('王女士')).toBeInTheDocument();
     expect(screen.getByText('次卡履约')).toBeInTheDocument();
     expect(screen.getByText('水光护理卡')).toBeInTheDocument();
+    expect(screen.getAllByText('高风险').length).toBeGreaterThan(0);
     expect(screen.getByText('临期未消耗')).toBeInTheDocument();
     expect(screen.getByText('高剩余权益')).toBeInTheDocument();
     expect(screen.getAllByText('剩余次数').length).toBeGreaterThan(0);
@@ -178,6 +179,18 @@ describe('operation profit risk pages', () => {
         expect.objectContaining({
           storeId: 6,
           riskOnly: true,
+          type: 'card',
+        }),
+      ),
+    );
+
+    fireEvent.click(screen.getByLabelText('只看有风险的次卡权益'));
+
+    await waitFor(() =>
+      expect(apiMocks.getPrepaidLiabilities).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          storeId: 6,
+          riskOnly: false,
           type: 'card',
         }),
       ),

@@ -172,7 +172,7 @@ export function ProductMarginAnalysis() {
       <section className="grid grid-cols-6 gap-2">
         <CompactMetricCard label="商品" value={String(total)} hint={`${rows.length} 个`} />
         <CompactMetricCard label="销量" value={String(summary.quantitySold)} />
-        <CompactMetricCard label="净收" value={compactMoney(summary.netSalesAmount)} />
+        <CompactMetricCard label="当前页商品毛利" value={compactMoney(summary.netSalesAmount)} />
         <CompactMetricCard label="成本" value={compactMoney(summary.productCost)} />
         <CompactMetricCard label="提成" value={compactMoney(summary.commissionCost)} />
         <CompactMetricCard label="毛利" value={compactMoney(summary.grossProfit)} hint={`${percent(marginRate)} / 缺口 ${summary.missingCount}`} />

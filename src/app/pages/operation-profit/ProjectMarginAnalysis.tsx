@@ -216,7 +216,7 @@ export function ProjectMarginAnalysis() {
         <CompactMetricCard label="收入" value={compactMoney(summary.serviceIncome)} />
         <CompactMetricCard label="耗材" value={compactMoney(summary.materialCost)} />
         <CompactMetricCard label="提成" value={compactMoney(summary.commissionCost)} />
-        <CompactMetricCard label="毛利" value={compactMoney(summary.contributionProfit)} hint={`缺口 ${summary.missingCount}`} />
+        <CompactMetricCard label="当前页贡献毛利" value={compactMoney(summary.contributionProfit)} hint={`缺口 ${summary.missingCount}`} />
       </section>
 
       {loading && !rows.length ? (
