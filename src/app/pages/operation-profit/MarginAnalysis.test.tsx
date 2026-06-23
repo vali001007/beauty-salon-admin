@@ -238,7 +238,7 @@ describe('margin analysis pages', () => {
     expect(screen.getByText('POM-001')).toBeInTheDocument();
     expect(screen.getByText('王女士')).toBeInTheDocument();
     expect(screen.getByText('水光护理 10 次卡')).toBeInTheDocument();
-    expect(screen.getByText('CO-001')).toBeInTheDocument();
+    expect(screen.getByText('#88')).toBeInTheDocument();
     expect(screen.getByText('¥60.00')).toBeInTheDocument();
     expect(screen.getByText('¥240.00')).toBeInTheDocument();
     expect(screen.getAllByText('¥40.00').length).toBeGreaterThan(0);

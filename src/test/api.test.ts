@@ -212,6 +212,7 @@ describe('API facades', () => {
     const realGetCustomerProfileSkinAnalytics = vi.fn(async () => ({ skinTypes: [] }));
     const realGetCustomerProfileBehaviorAnalytics = vi.fn(async () => ({ items: [] }));
     const realGetCustomerProfilePredictionAnalytics = vi.fn(async () => ({ items: [] }));
+    const realGetCustomerCardPortraits = vi.fn(async () => ({ items: [], data: [], total: 0 }));
 
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/customer', () => ({
@@ -234,6 +235,7 @@ describe('API facades', () => {
       realGetCustomerProfileSkinAnalytics,
       realGetCustomerProfileBehaviorAnalytics,
       realGetCustomerProfilePredictionAnalytics,
+      realGetCustomerCardPortraits,
       realGetCustomerSegmentCount,
     }));
     vi.resetModules();
@@ -243,9 +245,11 @@ describe('API facades', () => {
     await expect(api.getCustomerConsumptionRecords()).resolves.toEqual([{ id: 1, customerId: 1001 }]);
     await expect(api.getCustomerHealthProfiles()).resolves.toEqual([{ id: 2, customerId: 1001, skinType: 'dry' }]);
     await expect(api.getCustomerProfileAnalytics()).resolves.toEqual({ totalCustomers: 0, segmentStats: [] });
+    await expect(api.getCustomerCardPortraits()).resolves.toEqual({ items: [], data: [], total: 0 });
     expect(realGetCustomerConsumptionRecords).toHaveBeenCalledTimes(1);
     expect(realGetCustomerHealthProfiles).toHaveBeenCalledTimes(1);
     expect(realGetCustomerProfileAnalytics).toHaveBeenCalledTimes(1);
+    expect(realGetCustomerCardPortraits).toHaveBeenCalledTimes(1);
   });
 
   it('routes inventory transfer pagination to the real implementation', async () => {
