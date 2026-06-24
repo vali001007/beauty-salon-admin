@@ -1,0 +1,24 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /repo
+
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps
+
+COPY src ./src
+COPY packages/Ami-Aura-Lite-Kiosk ./packages/Ami-Aura-Lite-Kiosk
+
+RUN npm install --legacy-peer-deps --prefix packages/Ami-Aura-Lite-Kiosk
+RUN npm run build --prefix packages/Ami-Aura-Lite-Kiosk
+
+FROM node:20-alpine
+
+RUN npm install -g serve
+
+WORKDIR /app
+
+COPY --from=builder /repo/packages/Ami-Aura-Lite-Kiosk/dist ./dist
+
+EXPOSE 8080
+
+CMD ["sh", "-c", "serve dist -s -l ${PORT:-8080}"]
