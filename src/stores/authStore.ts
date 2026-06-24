@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AuthUser, LoginRequest } from '../types';
+import type { AuthUser, LoginRequest, LoginResponse } from '../types';
 import { login as authLogin, getUserInfo } from '../api/auth';
 import { normalizePermissions } from '@/config/permissions';
 
@@ -24,13 +24,22 @@ function normalizeAuthUser(user: AuthUser): AuthUser {
   };
 }
 
+function unwrapLoginResponse(response: LoginResponse | { data?: LoginResponse }): LoginResponse {
+  const record = response && typeof response === 'object' ? response : {};
+  const normalized = 'token' in record ? record : (record as { data?: LoginResponse }).data;
+  if (!normalized?.token || !normalized.user) {
+    throw new Error('登录返回缺少用户信息，请检查后端认证接口。');
+  }
+  return normalized;
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem('token'),
   user: null,
   isAuthenticated: !!localStorage.getItem('token'),
 
   login: async (req: LoginRequest) => {
-    const response = await authLogin(req);
+    const response = unwrapLoginResponse(await authLogin(req) as LoginResponse | { data?: LoginResponse });
     const user = normalizeAuthUser(response.user);
     localStorage.setItem('token', response.token);
     set({

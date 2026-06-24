@@ -217,6 +217,75 @@ function SystemNotice({ title, subtitle }: { title: string; subtitle: string }) 
   );
 }
 
+function AuraLoginPage({
+  error,
+  loading,
+  onLogin,
+}: {
+  error: string | null;
+  loading: boolean;
+  onLogin: (username: string, password: string) => Promise<void>;
+}) {
+  const [username, setUsername] = useState(import.meta.env.VITE_DEMO_USERNAME || "admin");
+  const [password, setPassword] = useState(import.meta.env.VITE_DEMO_PASSWORD || "");
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void onLogin(username.trim(), password);
+  };
+
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-[#F7F5F2] px-6 font-sans">
+      <form
+        onSubmit={handleSubmit}
+        className="grid w-full max-w-[420px] gap-5 rounded-[28px] border border-black/10 bg-white p-8 shadow-[0_18px_50px_rgba(31,27,45,0.12)]"
+      >
+        <div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7B5CFF] to-[#C9956C] text-lg font-semibold text-white">
+            A
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold text-[#1F1B2D]">Ami Aura Lite</h1>
+          <p className="mt-2 text-sm text-[#6F687A]">登录 Ami_Core 后进入门店智能终端。</p>
+        </div>
+
+        <label className="grid gap-2 text-sm font-medium text-[#1F1B2D]">
+          账号
+          <input
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoComplete="username"
+            className="h-12 rounded-2xl border border-black/10 bg-[#F7F5F2] px-4 text-base font-normal outline-none transition focus:border-[#C9956C] focus:bg-white"
+          />
+        </label>
+
+        <label className="grid gap-2 text-sm font-medium text-[#1F1B2D]">
+          密码
+          <input
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            type="password"
+            autoComplete="current-password"
+            className="h-12 rounded-2xl border border-black/10 bg-[#F7F5F2] px-4 text-base font-normal outline-none transition focus:border-[#C9956C] focus:bg-white"
+          />
+        </label>
+
+        {error ? (
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={loading || !username.trim() || !password}
+          className="flex h-12 items-center justify-center rounded-2xl bg-[#1F1B2D] text-sm font-semibold text-white transition hover:bg-[#302945] disabled:cursor-not-allowed disabled:bg-[#C8C2D1]"
+        >
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          登录终端
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function QueryStatusLine({ title }: { title?: string }) {
   if (!title || !/(已更新|上次更新|正在后台刷新|刷新失败)/.test(title)) return null;
   const isRefreshing = title.includes("正在后台刷新");
@@ -493,6 +562,7 @@ export default function AppContent() {
   const [isLocked, setIsLocked] = useState(false);
   const [session, setSession] = useState<SessionContext | null>(null);
   const [bootstrap, setBootstrap] = useState<AuraBootstrap | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
   const [currentRole, setCurrentRole] = useState<Role>("reception");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -683,7 +753,7 @@ export default function AppContent() {
 
   const handleSwitchAccount = async () => {
     await persistAndClearConversation();
-    const epoch = advanceConversationEpoch();
+    advanceConversationEpoch();
     useAuthStore.getState().logout();
     clearAuraStartupCache();
     clearTerminalQueryCache();
@@ -692,29 +762,10 @@ export default function AppContent() {
     setBootstrap(null);
     setMessages([]);
     setIsLocked(false);
-    setLoading(true);
+    setShowLogin(true);
+    setLoading(false);
     setSuppressBlockingLoading(false);
-    setLoadingText("正在重新接入 Ami_Core");
     setError(null);
-
-    try {
-      const nextBootstrap = await loadAuraBootstrap();
-      setActiveTerminalOperator(nextBootstrap.currentUser?.id ?? null, nextBootstrap.currentRole);
-      setSession(createSessionFromBootstrap(nextBootstrap));
-      setBootstrap(nextBootstrap);
-      setCurrentRole(nextBootstrap.currentRole);
-      await loadRoleHome(nextBootstrap.currentRole, { bootstrapForCache: nextBootstrap, epoch });
-      schedulePrefetch(nextBootstrap.currentRole, nextBootstrap.availableRoles);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "重新接入失败");
-      if (isConversationEpochActive(epoch)) {
-        setMessages([createMessage("error", { text: "Ami_Core 重新接入失败", source: "core" })]);
-      }
-    } finally {
-      if (isConversationEpochActive(epoch)) {
-        setLoading(false);
-      }
-    }
   };
 
   const handleAutomationSummary = async () => {
@@ -920,6 +971,39 @@ export default function AppContent() {
     }
   };
 
+  const handleLogin = async (username: string, password: string) => {
+    const epoch = advanceConversationEpoch();
+    setLoading(true);
+    setSuppressBlockingLoading(false);
+    setLoadingText("正在登录 Ami_Core");
+    setError(null);
+
+    try {
+      await useAuthStore.getState().login({ username, password });
+      clearAuraStartupCache();
+      clearTerminalQueryCache();
+      const nextBootstrap = await loadAuraBootstrap();
+      if (!isConversationEpochActive(epoch)) return;
+      setActiveTerminalOperator(nextBootstrap.currentUser?.id ?? null, nextBootstrap.currentRole);
+      setSession(createSessionFromBootstrap(nextBootstrap));
+      setBootstrap(nextBootstrap);
+      setCurrentRole(nextBootstrap.currentRole);
+      setMessages([]);
+      setShowLogin(false);
+      await loadRoleHome(nextBootstrap.currentRole, { bootstrapForCache: nextBootstrap, epoch });
+      if (isConversationEpochActive(epoch)) {
+        schedulePrefetch(nextBootstrap.currentRole, nextBootstrap.availableRoles);
+      }
+    } catch (err) {
+      if (!isConversationEpochActive(epoch)) return;
+      setError(err instanceof Error ? err.message : "登录失败，请检查账号和密码");
+    } finally {
+      if (isConversationEpochActive(epoch)) {
+        setLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     const cachedStartup = readAuraStartupCache();
@@ -927,10 +1011,19 @@ export default function AppContent() {
     if (cachedStartup) {
       setSession(createSessionFromBootstrap(cachedStartup.bootstrap));
       setBootstrap(cachedStartup.bootstrap);
+      setShowLogin(false);
       setCurrentRole(cachedStartup.currentRole);
       hydrateRoleHomeQueryCache(cachedStartup.currentRole, cachedStartup.homePayload);
       setMessages(createHomeMessages(cachedStartup.currentRole, cachedStartup.homePayload));
       setLoading(false);
+    }
+
+    if (!cachedStartup && !localStorage.getItem("token")) {
+      setShowLogin(true);
+      setLoading(false);
+      return () => {
+        mounted = false;
+      };
     }
 
     (async () => {
@@ -945,6 +1038,7 @@ export default function AppContent() {
       if (!mounted) return;
       setActiveTerminalOperator(nextBootstrap.currentUser?.id ?? null, nextBootstrap.currentRole);
       setSession(nextSession);
+        setShowLogin(false);
         setBootstrap(nextBootstrap);
         setCurrentRole(nextBootstrap.currentRole);
         await loadRoleHome(nextBootstrap.currentRole, {
@@ -957,6 +1051,7 @@ export default function AppContent() {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : "初始化失败");
         if (!cachedStartup) {
+          setShowLogin(true);
           setMessages([
             createMessage("error", { text: "Ami_Core 会话初始化失败", source: "core" }),
           ]);
@@ -1261,6 +1356,10 @@ export default function AppContent() {
 
   const handleBusinessQueryAction = (action: string) => handleStructuredAction(action, businessQueryActionToCommand);
   const handleAgentResultAction = (action: string) => handleStructuredAction(action, agentActionToCommand);
+
+  if (showLogin && !bootstrap) {
+    return <AuraLoginPage error={error} loading={loading} onLogin={handleLogin} />;
+  }
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#F7F5F2] font-sans">
