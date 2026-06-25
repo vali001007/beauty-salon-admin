@@ -1,9 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AuraAction } from '../../../../../src/types/aura';
 import type { Role, RoleDefinition } from '../types';
 import { resolveCommandIntent, shouldDisplayUserCommand } from './intentRouter';
 import { parseRuleIntent } from './ruleIntentParser';
 import { OFF_TOPIC_REPLY, isBusinessRelevant } from './relevanceGuard';
+
+// intentRouter 重写后 text/voice source 调用 resolveTerminalIntent（AI 意图解析）。
+// 测试环境 mock，让其返回 business.query，保持原有路由期望。
+vi.mock('@/api', () => ({
+  resolveTerminalIntent: vi.fn(async () => ({
+    action: 'business.query',
+    confidence: 0.9,
+    slots: {},
+    missingSlots: [],
+    reason: 'mocked for tests',
+  })),
+}));
 
 const allActions: AuraAction[] = [
   'manager.dashboard',

@@ -125,6 +125,19 @@ vi.mock('@/stores/storeStore', () => ({
   },
 }));
 
+// intentRouter 重写后 text/voice source 会调用 resolveTerminalIntent，
+// 测试环境需要 mock，否则发起真实 API 请求导致超时。
+// 返回 business.query，与这批测试的原始期望保持一致。
+vi.mock('@/api', () => ({
+  resolveTerminalIntent: vi.fn(async () => ({
+    action: 'business.query',
+    confidence: 0.9,
+    slots: {},
+    missingSlots: [],
+    reason: 'mocked for tests',
+  })),
+}));
+
 vi.mock('../services/auraCoreService', () => ({
   getBeauticianDashboard: state.beauticianDashboardLoader,
   getBeauticianCustomerList: state.beauticianCustomerListLoader,

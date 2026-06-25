@@ -1,55 +1,62 @@
 import type { AuraResolvedIntent, ResolveIntentOptions } from "./intentTypes";
-import { isBusinessRelevant } from "./relevanceGuard";
 import { parseQuickActionIntent, parseRuleIntent } from "./ruleIntentParser";
-import { buildSlots } from "./slotUtils";
+import { parseAiIntentFallback } from "./aiIntentParser";
+import type { ConversationContext } from "./conversationContext";
+import { resolvePronouns, buildContextSummary } from "./conversationContext";
 
-function buildTextInputIntent(options: ResolveIntentOptions, source: "text" | "voice"): AuraResolvedIntent {
-  const businessRelevant = isBusinessRelevant(options.command);
-  const canAskBusinessQuery = (options.definition.availableActions as string[]).includes("business.query");
-
-  if (businessRelevant && !canAskBusinessQuery) {
-    return {
-      name: "unknown.clarify",
-      role: options.role,
-      action: null,
-      source,
-      confidence: 1,
-      slots: buildSlots(options.command),
-      missingSlots: [],
-      riskLevel: "none",
-      requiresConfirmation: false,
-      showUserCommand: true,
-      loadingLabel: "正在理解问题",
-      deniedReason: `当前角色「${options.definition.title}」无权执行该操作。`,
-    };
-  }
-
-  return {
-    name: businessRelevant ? "business_query.ask" : "unknown.clarify",
-    role: options.role,
-    action: businessRelevant ? "business.query" : null,
-    source,
-    confidence: businessRelevant ? 1 : 0.3,
-    slots: buildSlots(options.command),
-    missingSlots: [],
-    riskLevel: "none",
-    requiresConfirmation: false,
-    showUserCommand: true,
-    loadingLabel: businessRelevant ? "正在查询 Ami_Core 运营数据" : "正在基于 Ami_Core 生成回答",
-  };
-}
-
-export async function resolveCommandIntent(options: ResolveIntentOptions): Promise<AuraResolvedIntent> {
+/**
+ * 意图解析路由（AI 优先策略）
+ *
+ * 路由优先级：
+ * 1. quick_action → parseQuickActionIntent（规则快捷路，直接映射，无需 AI）
+ * 2. 系统命令（锁屏/切角色）→ parseRuleIntent（高确定性规则）
+ * 3. text/voice → AI 意图解析（parseAiIntentFallback）+ 对话上下文注入
+ *    - 代词解析：把"她/他/这位"替换为活跃实体
+ *    - 上下文摘要：注入最近操作和活跃实体
+ * 4. system → parseRuleIntent
+ *
+ * 与旧版差异：旧版 text/voice 走 isBusinessRelevant 关键词判断，
+ * 新版一律走 AI 解析，AI 失败时才 fallback 到 business.query 通道。
+ */
+export async function resolveCommandIntent(
+  options: ResolveIntentOptions,
+  conversationContext?: ConversationContext,
+): Promise<AuraResolvedIntent> {
   const source = options.source ?? "text";
 
+  // 1. 快捷操作直接分发，不走 AI
   if (source === "quick_action") {
     return parseQuickActionIntent(options.command, options.role, options.definition);
   }
 
-  if (source === "text" || source === "voice") {
-    return buildTextInputIntent(options, source);
+  // 2. 系统命令（system source）走规则
+  if (source === "system") {
+    return parseRuleIntent(options.command, options.role, options.definition, source);
   }
 
+  // 3. text / voice → AI 优先解析
+  if (source === "text" || source === "voice") {
+    // 代词解析：把"她/他/这位顾客"替换为活跃实体
+    let resolvedCommand = options.command;
+    if (conversationContext) {
+      resolvedCommand = resolvePronouns(options.command, conversationContext);
+    }
+
+    // 上下文摘要注入（作为额外 hint 传给 AI 解析）
+    const contextHint = conversationContext ? buildContextSummary(conversationContext) : "";
+    const commandWithContext = contextHint
+      ? `${resolvedCommand}\n${contextHint}`
+      : resolvedCommand;
+
+    return parseAiIntentFallback({
+      command: commandWithContext,
+      role: options.role,
+      definition: options.definition,
+      source,
+    });
+  }
+
+  // 4. 其他 source 走规则兜底
   return parseRuleIntent(options.command, options.role, options.definition, source);
 }
 
@@ -77,3 +84,4 @@ export function shouldDisplayUserCommand(intent: AuraResolvedIntent) {
     (!intent.action || !fixedFlowActions.has(intent.action))
   );
 }
+
