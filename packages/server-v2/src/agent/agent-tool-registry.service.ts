@@ -364,6 +364,109 @@ export class AgentToolRegistryService {
       timeoutMs: 10_000,
       execute: (args, context) => this.diagnoseServiceQuality(args, context),
     });
+
+    // ─── 店长经营 Agent 专属工具 ─────────────────────────────────────────────
+
+    this.register({
+      name: 'manager.daily.briefing',
+      description: '生成店长今日经营简报：今日预约数、收入进度、库存预警数、高价值客户到店、待确认预约',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:dashboard:view'],
+      requiresApproval: false,
+      maxRows: 100,
+      timeoutMs: 12_000,
+      execute: (args, context) => this.getManagerDailyBriefing(args, context),
+    });
+
+    // ─── 前台接待 Agent 专属工具 ─────────────────────────────────────────────
+
+    this.register({
+      name: 'reception.customer.lookup',
+      description: '按姓名、手机号后四位或会员号查询客户基础信息和最近消费摘要，敏感字段自动脱敏',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['terminal:customer:view'],
+      requiresApproval: false,
+      maxRows: 10,
+      timeoutMs: 8_000,
+      execute: (args, context) => this.lookupCustomerForReception(args, context),
+    });
+
+    this.register({
+      name: 'reception.reservation.today',
+      description: '查询今日本店全部预约列表，含客户名、时间、项目、美容师和状态',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['core:store:reservations'],
+      requiresApproval: false,
+      maxRows: 100,
+      timeoutMs: 8_000,
+      execute: (args, context) => this.getTodayReservationsForReception(args, context),
+    });
+
+    this.register({
+      name: 'reception.card.benefit.summary',
+      description: '查询指定客户的次卡剩余次数、有效期、余额和可用权益，不执行核销',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['core:order:card-usage'],
+      requiresApproval: false,
+      maxRows: 20,
+      timeoutMs: 8_000,
+      execute: (args, context) => this.getCustomerCardBenefitSummary(args, context),
+    });
+
+    // ─── 营销增长 Agent 专属工具 ─────────────────────────────────────────────
+
+    this.register({
+      name: 'marketing.customer.segment.discover',
+      description: '发现可运营客群：沉睡客户、高价值未复购、新客未办卡、疗程快消耗完等，返回各群体人数和样例',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:view'],
+      requiresApproval: false,
+      maxRows: 500,
+      timeoutMs: 12_000,
+      execute: (args, context) => this.discoverCustomerSegments(args, context),
+    });
+
+    this.register({
+      name: 'promotion.offer.match',
+      description: '根据目标客群和活动目的，从权益库匹配最低必要权益（优惠券/折扣/赠品），并给出毛利保护提示',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:view'],
+      requiresApproval: false,
+      maxRows: 20,
+      timeoutMs: 8_000,
+      execute: (args, context) => this.matchPromotionOffer(args, context),
+    });
+
+    this.register({
+      name: 'marketing.copy.generate',
+      description: '基于目标客群、活动目的和权益，生成 2-3 条私域/短信/朋友圈触达话术变体',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:view'],
+      requiresApproval: false,
+      maxRows: 10,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.generateMarketingCopy(args, context),
+    });
+
+    this.register({
+      name: 'marketing.effect.diagnose',
+      description: '查询指定活动的效果漏斗：触达→打开→领取→预约→核销→收入，支持与同类历史活动对比',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:analytics'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange'],
+      maxRows: 1000,
+      timeoutMs: 12_000,
+      execute: (args, context) => this.diagnoseMarketingEffect(args, context),
+    });
   }
 
   list() {
