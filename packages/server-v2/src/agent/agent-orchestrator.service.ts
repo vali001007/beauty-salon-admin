@@ -14,6 +14,7 @@ import type {
   AgentSuggestedAction,
   AgentToolDefinition,
   AgentToolResult,
+  AuraResponseBlock,
 } from './agent.types.js';
 
 @Injectable()
@@ -396,6 +397,8 @@ export class AgentOrchestratorService {
     toolResults: AgentToolResult[],
     actions: AgentSuggestedAction[],
   ): AgentRunResult {
+    const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+    const followUpSuggestions = this.buildFollowUpSuggestions(actions, plan);
     return {
       runId: Number(run.id),
       runNo: String(run.runNo),
@@ -405,7 +408,124 @@ export class AgentOrchestratorService {
       toolResults,
       actions,
       evidence: this.evidenceService.merge(toolResults),
+      renderedBlocks,
+      followUpSuggestions,
     };
+  }
+
+  /**
+   * 根据工具执行结果自动构建 AuraResponseBlock[]。
+   * 规则：
+   * 1. answer 文字 → text block
+   * 2. 工具 summary → kpi_card（如包含数字指标）或 text
+   * 3. 工具 data.items（数组）→ table block
+   * 4. 工具 data.kpis（KPI 列表）→ kpi_card group
+   * 5. AgentEvidence → evidence_panel block
+   * 6. 需审批的动作 → confirm_action block
+   */
+  private buildRenderedBlocks(
+    answer: string,
+    toolResults: AgentToolResult[],
+    plan?: AgentPlan,
+  ): AuraResponseBlock[] {
+    const blocks: AuraResponseBlock[] = [];
+
+    // 主回答文字
+    if (answer) {
+      blocks.push({ kind: 'text', content: answer });
+    }
+
+    for (const result of toolResults) {
+      if (result.status !== 'success') continue;
+      const data = result.data as Record<string, unknown> | undefined;
+      if (!data) continue;
+
+      // KPI 指标数组 → kpi_card blocks
+      const kpis = Array.isArray(data.kpis) ? data.kpis as Array<{ label: string; value: string; delta?: string; deltaType?: string }> : null;
+      if (kpis && kpis.length > 0) {
+        for (const kpi of kpis) {
+          blocks.push({
+            kind: 'kpi_card',
+            label: kpi.label,
+            value: String(kpi.value),
+            delta: kpi.delta,
+            deltaType: kpi.deltaType as 'up' | 'down' | 'neutral' | undefined,
+          });
+        }
+      }
+
+      // items 数组 → table block
+      const items = Array.isArray(data.items) ? data.items as Array<Record<string, unknown>> : null;
+      if (items && items.length > 0) {
+        const columns = Object.keys(items[0] ?? {}).slice(0, 6);
+        const rows = items.slice(0, 20).map((item) =>
+          columns.map((col) => String(item[col] ?? '')),
+        );
+        if (columns.length > 0 && rows.length > 0) {
+          blocks.push({ kind: 'table', columns, rows });
+        }
+      }
+
+      // risks / alerts 数组 → alert blocks
+      const risks = Array.isArray(data.risks) ? data.risks as Array<{ title?: string; message?: string; severity?: string }> : null;
+      if (risks && risks.length > 0) {
+        for (const risk of risks.slice(0, 3)) {
+          const message = risk.title ?? risk.message ?? String(risk);
+          if (message) {
+            blocks.push({
+              kind: 'alert',
+              level: risk.severity === 'high' ? 'critical' : 'warning',
+              message,
+            });
+          }
+        }
+      }
+    }
+
+    // 审批待确认 → confirm_action
+    if (plan?.intentType === 'draft' && toolResults.length > 0) {
+      const draftResult = toolResults.find((r) => r.status === 'success');
+      if (draftResult) {
+        blocks.push({
+          kind: 'confirm_action',
+          title: `确认执行：${draftResult.title}`,
+          preview: draftResult.summary,
+          actionId: `approve:${plan.toolPlan[0]?.tool ?? 'draft'}`,
+          riskLevel: 'medium',
+        });
+      }
+    }
+
+    // Evidence 来源面板
+    const evidence = this.evidenceService.merge(toolResults);
+    if (evidence && evidence.source.length > 0) {
+      blocks.push({
+        kind: 'evidence_panel',
+        sources: evidence.source,
+        dateRange: evidence.dateRange,
+        metricDefinition: evidence.metricDefinition,
+        limitations: evidence.limitations,
+      });
+    }
+
+    return blocks;
+  }
+
+  /** 从 actions 和 plan 中提取 1-3 个高价值关联问题 */
+  private buildFollowUpSuggestions(
+    actions: AgentSuggestedAction[],
+    plan?: AgentPlan,
+  ): string[] {
+    const suggestions: string[] = [];
+
+    // 从 AgentSuggestedAction 中提取最多 3 个
+    for (const action of actions.slice(0, 3)) {
+      if (action.label && !suggestions.includes(action.label)) {
+        suggestions.push(action.label);
+      }
+    }
+
+    return suggestions.slice(0, 3);
   }
 
   private asObject(value: unknown): Record<string, unknown> | undefined {
