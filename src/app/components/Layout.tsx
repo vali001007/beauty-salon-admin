@@ -41,6 +41,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/dashboard',
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
+      { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
     ],
   },
   {

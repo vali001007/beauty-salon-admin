@@ -8,16 +8,19 @@ import type {
   AgentAppendMessageRequest,
   AgentCreateRunRequest,
   AgentEvalSummary,
+  AgentFeedbackRequest,
+  AgentPersonaSummary,
   AgentRunDetail,
   AgentRunListQuery,
   AgentRunRecord,
   AgentRunResult,
+  AgentRunResultV2,
   AgentToolCatalogItem,
 } from '@/types/agent';
 import type { PaginatedResponse } from '@/types/pagination';
 import { normalizePaginatedResponse } from './response';
 
-export async function createAgentRun(data: AgentCreateRunRequest): Promise<AgentRunResult> {
+export async function createAgentRun(data: AgentCreateRunRequest): Promise<AgentRunResultV2> {
   return apiClient.post('/agent/runs', data);
 }
 
@@ -25,11 +28,11 @@ export async function compileBusinessTask(data: AgentCompileBusinessTaskRequest)
   return apiClient.post('/agent/business-task/compile', data);
 }
 
-export async function getAgentRun(id: number): Promise<AgentRunResult> {
+export async function getAgentRun(id: number): Promise<AgentRunResultV2> {
   return apiClient.get(`/agent/runs/${id}`);
 }
 
-export async function appendAgentMessage(id: number, data: AgentAppendMessageRequest): Promise<AgentRunResult> {
+export async function appendAgentMessage(id: number, data: AgentAppendMessageRequest): Promise<AgentRunResultV2> {
   return apiClient.post(`/agent/runs/${id}/messages`, data);
 }
 
@@ -64,3 +67,24 @@ export async function approveAgentApproval(id: number, data: AgentApprovalDecisi
 export async function rejectAgentApproval(id: number, data: AgentApprovalDecisionRequest = {}): Promise<AgentRunResult> {
   return apiClient.post(`/agent/approvals/${id}/reject`, data);
 }
+
+// ─── Persona API ─────────────────────────────────────────────────────────────
+
+export async function getAgentPersonas(): Promise<AgentPersonaSummary[]> {
+  return apiClient.get('/agent/personas');
+}
+
+export async function getAgentPersonaByCode(code: string): Promise<AgentPersonaSummary> {
+  return apiClient.get(`/agent/personas/${code}`);
+}
+
+export async function getAllAgentPersonas(): Promise<AgentPersonaSummary[]> {
+  return apiClient.get('/agent/personas/all');
+}
+
+// ─── Feedback API ─────────────────────────────────────────────────────────────
+
+export async function submitAgentFeedback(runId: number, data: AgentFeedbackRequest): Promise<void> {
+  return apiClient.post(`/agent/runs/${runId}/feedback`, data);
+}
+

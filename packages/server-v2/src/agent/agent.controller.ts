@@ -9,6 +9,7 @@ import {
   resolveAuraAvailableRolesForUser,
 } from '../terminal/terminal-role-access.js';
 import { AgentOrchestratorService } from './agent-orchestrator.service.js';
+import { AgentPersonaService } from './agent-persona.service.js';
 import { BusinessTaskCompilerService } from './business-task/business-task-compiler.service.js';
 import { CompileBusinessTaskDto } from './dto/compile-business-task.dto.js';
 import { AppendAgentMessageDto, CreateAgentRunDto, DecideAgentApprovalDto } from './dto/create-agent-run.dto.js';
@@ -28,6 +29,7 @@ import { ResponseComposerService } from '../semantic-query/response-composer.ser
 export class AgentController {
   constructor(
     private readonly orchestrator: AgentOrchestratorService,
+    private readonly personaService: AgentPersonaService,
     private readonly businessTaskCompiler: BusinessTaskCompilerService,
     private readonly semanticSqlExecutor: SemanticSqlExecutorService,
     private readonly capabilityCandidateService: AgentCapabilityCandidateService,
@@ -36,6 +38,51 @@ export class AgentController {
     private readonly semanticQueryExecutor?: SemanticQueryExecutorService,
     private readonly responseComposer?: ResponseComposerService,
   ) {}
+
+  // ─── Persona Routes ──────────────────────────────────────────────────────
+
+  @Get('personas')
+  @ApiOperation({ summary: '获取当前角色可用的 Agent Persona 列表' })
+  async personas(@CurrentDevice() device: any) {
+    const role = (device?.role ?? 'manager') as string;
+    return this.personaService.listForRole(role);
+  }
+
+  @Get('personas/all')
+  @ApiOperation({ summary: '获取全部 Agent Persona（管理员视图）' })
+  allPersonas() {
+    return this.personaService.listAll();
+  }
+
+  @Get('personas/:code')
+  @ApiOperation({ summary: '获取指定 Agent Persona 的能力、工具和推荐问题' })
+  async personaByCode(@Param('code') code: string) {
+    const persona = await this.personaService.getByCode(code);
+    if (!persona) throw new ForbiddenException(`未找到 Agent Persona: ${code}`);
+    return persona;
+  }
+
+  // ─── Feedback ────────────────────────────────────────────────────────────
+
+  @Post('runs/:id/feedback')
+  @ApiOperation({ summary: '提交 Agent Run 的用户反馈和采纳记录' })
+  async submitFeedback(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
+    @CurrentDevice() device: any,
+  ) {
+    return this.prisma.agentFeedback.create({
+      data: {
+        runId: id,
+        userId: device?.userId ?? null,
+        storeId: device?.storeId ?? null,
+        rating: body.rating ?? null,
+        adopted: body.adopted ?? null,
+        comment: body.comment ?? null,
+        businessActionJson: body.businessActionJson ? (body.businessActionJson as object) : undefined,
+      },
+    });
+  }
 
   @Get('tools')
   @ApiOperation({ summary: '获取当前 Agent 工具目录' })

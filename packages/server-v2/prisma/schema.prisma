@@ -2653,6 +2653,8 @@ model AgentRun {
   role         String
   entrypoint   String    @default("api")
   agentCode    String
+  // 角色 Agent 代码，对应 AgentPersona.code（如 manager / marketing / reception）
+  personaCode  String?
   status       String
   userInput    String
   planJson     Json?
@@ -2670,6 +2672,7 @@ model AgentRun {
   @@index([deviceId])
   @@index([status])
   @@index([agentCode])
+  @@index([personaCode])
   @@map("agent_runs")
 }
 
@@ -2772,4 +2775,73 @@ model AgentEvalRun {
   @@index([runId])
   @@index([status])
   @@map("agent_eval_runs")
+}
+
+// ─── Agent Persona（六大角色 Agent 配置）────────────────────────────────────
+
+model AgentPersona {
+  id           Int      @id @default(autoincrement())
+  // 唯一代码，如 manager / marketing / reception / beautician / inventory / finance
+  code         String   @unique
+  name         String
+  description  String?
+  // 可使用该 Agent 的角色列表，JSON 数组如 ["manager","reception"]
+  targetRoles  Json
+  // 该 Persona 允许调用的工具组，JSON 数组如 ["customer.priority.rank","revenue.diagnose"]
+  toolGroups   Json
+  // 默认回复风格配置（简洁/标准/详细等），JSON 对象
+  defaultStyle Json?
+  // 风险策略：哪些操作需要确认/审批，JSON 对象
+  riskPolicy   Json?
+  // 推荐问题列表，JSON 字符串数组，用于冷启动引导
+  suggestedQuestions Json?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@map("agent_personas")
+}
+
+// ─── Agent Rendered Block（任务画布结构化输出持久化）─────────────────────────
+
+model AgentRenderedBlock {
+  id          Int      @id @default(autoincrement())
+  runId       Int
+  // 对应 AuraResponseBlock.kind
+  blockKind   String
+  // 可选标题，用于任务画布显示
+  title       String?
+  // Block 的完整 JSON payload（与 AuraResponseBlock 结构对齐）
+  payloadJson Json
+  // 卡片上的操作按钮列表，JSON 数组
+  actionsJson Json?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([runId, sortOrder])
+  @@index([blockKind])
+  @@map("agent_rendered_blocks")
+}
+
+// ─── Agent Feedback（用户反馈与采纳记录）────────────────────────────────────
+
+model AgentFeedback {
+  id               Int      @id @default(autoincrement())
+  runId            Int
+  userId           Int?
+  storeId          Int?
+  // 1-5 星评分
+  rating           Int?
+  // 用户是否采纳了 Agent 的建议
+  adopted          Boolean?
+  comment          String?
+  // 用户采纳后产生的业务动作，JSON 对象（如 { type: 'reservation', id: 123 }）
+  businessActionJson Json?
+  createdAt        DateTime @default(now())
+
+  @@index([runId])
+  @@index([userId])
+  @@index([storeId, createdAt])
+  @@map("agent_feedbacks")
 }

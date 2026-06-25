@@ -292,3 +292,59 @@ export interface AgentApprovalListQuery {
   pageSize?: number;
   status?: string;
 }
+
+// ─── Persona（六大角色 Agent 配置）──────────────────────────────────────────
+
+export type AgentPersonaCode =
+  | 'manager'
+  | 'marketing'
+  | 'reception'
+  | 'beautician'
+  | 'inventory'
+  | 'finance';
+
+export interface AgentPersonaSummary {
+  code: AgentPersonaCode;
+  name: string;
+  description: string;
+  targetRoles: string[];
+  toolGroups: string[];
+  suggestedQuestions: string[];
+}
+
+// ─── AuraResponseBlock（与后端 agent.types.ts 保持同步）──────────────────────
+
+export type AuraBlockAction = {
+  label: string;
+  actionId: string;
+  riskLevel: AgentRiskLevel;
+};
+
+export type AuraResponseBlock =
+  | { kind: 'text'; content: string }
+  | { kind: 'kpi_card'; label: string; value: string; delta?: string; deltaType?: 'up' | 'down' | 'neutral'; unit?: string; hint?: string }
+  | { kind: 'table'; columns: string[]; rows: string[][]; sortable?: boolean; caption?: string }
+  | { kind: 'chart'; chartType: 'line' | 'bar' | 'pie' | 'funnel'; title: string; data: unknown; xKey?: string; yKeys?: string[] }
+  | { kind: 'customer_card'; customerId: string; name: string; vipLevel?: string; lastVisit?: string; suggestion?: string; actions?: AuraBlockAction[] }
+  | { kind: 'confirm_action'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
+  | { kind: 'alert'; level: 'warning' | 'critical' | 'info'; message: string; actionId?: string }
+  | { kind: 'follow_up_chips'; suggestions: string[] }
+  | { kind: 'document_preview'; title: string; content: string; downloadable?: boolean }
+  | { kind: 'evidence_panel'; sources: string[]; dateRange?: string; metricDefinition: string; limitations?: string[] };
+
+// AgentRunResult 扩展版（含 renderedBlocks）
+export interface AgentRunResultV2 extends AgentRunResult {
+  renderedBlocks?: AuraResponseBlock[];
+  followUpSuggestions?: string[];
+  personaCode?: AgentPersonaCode;
+}
+
+// ─── Feedback ────────────────────────────────────────────────────────────────
+
+export interface AgentFeedbackRequest {
+  rating?: number;
+  adopted?: boolean;
+  comment?: string;
+  businessActionJson?: unknown;
+}
+

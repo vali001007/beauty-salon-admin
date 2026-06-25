@@ -1,4 +1,5 @@
 jest.mock('./agent-orchestrator.service.js', () => ({ AgentOrchestratorService: class AgentOrchestratorService {} }));
+jest.mock('./agent-persona.service.js', () => ({ AgentPersonaService: class AgentPersonaService {} }));
 jest.mock('./business-task/business-task-compiler.service.js', () => ({
   BusinessTaskCompilerService: class BusinessTaskCompilerService {},
 }));
@@ -44,7 +45,7 @@ describe('AgentController', () => {
         findFirst: jest.fn(),
       },
     };
-    controller = new AgentController(orchestrator, businessTaskCompiler, {} as any, {} as any, prisma as any, queryPlanner, semanticQueryExecutor, responseComposer);
+    controller = new AgentController(orchestrator, {} as any, businessTaskCompiler, {} as any, {} as any, prisma as any, queryPlanner, semanticQueryExecutor, responseComposer);
   });
 
   it('uses only roles available to the authenticated terminal account', async () => {

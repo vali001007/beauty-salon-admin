@@ -15,6 +15,7 @@ import { AgentEvidenceService } from './agent-evidence.service.js';
 import { AgentEvalService } from './agent-eval.service.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
 import { AgentOrchestratorService } from './agent-orchestrator.service.js';
+import { AgentPersonaService } from './agent-persona.service.js';
 import { AgentPlannerService } from './agent-planner.service.js';
 import { AgentPolicyService } from './agent-policy.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
@@ -54,6 +55,7 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
   providers: [
     AgentOrchestratorService,
     AgentCapabilityCandidateService,
+    AgentPersonaService,
     AgentWorkflowRuntimeService,
     AgentPlannerService,
     AgentPolicyService,
