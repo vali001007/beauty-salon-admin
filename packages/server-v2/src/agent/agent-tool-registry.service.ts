@@ -5099,6 +5099,404 @@ export class AgentToolRegistryService {
     return `${Math.round(value * 100)}%`;
   }
 
+  // ─── 店长经营 Agent 工具实现方法 ──────────────────────────────────────────
+
+  private async getManagerDailyBriefing(
+    _args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const today = this.startOfDay(new Date());
+    const tomorrow = new Date(today.getTime() + 86_400_000);
+
+    const [resv, rev, lowStock] = await Promise.all([
+      this.prisma.reservation.findMany({
+        where: { storeId: ctx.storeId, date: { gte: today, lt: tomorrow } },
+        include: {
+          customer: { select: { name: true, memberLevel: true } },
+          project: { select: { name: true } },
+        },
+        orderBy: { startTime: 'asc' },
+        take: 50,
+      }),
+      this.prisma.productOrder.aggregate({
+        where: { storeId: ctx.storeId, status: { in: ['completed', 'paid'] }, createdAt: { gte: today, lt: tomorrow } },
+        _sum: { netAmount: true },
+        _count: { id: true },
+      }),
+      this.prisma.product.count({ where: { storeId: ctx.storeId, status: 'active', currentStock: { lte: 5 } } }),
+    ]);
+
+    const pending = resv.filter(r => r.status === 'pending');
+    const revenue = this.toNumber(rev._sum.netAmount);
+    const vip = resv.filter(r => r.customer && ['VIP', '钻石', '金卡'].some(l => (r.customer!.memberLevel ?? '').includes(l)));
+    const risks: string[] = [];
+    if (pending.length > 3) risks.push('待确认预约' + pending.length + '单');
+    if (lowStock > 0) risks.push(lowStock + '种商品库存不足');
+
+    const items = resv.slice(0, 15).map(r => [
+      r.customer?.name ?? '-',
+      r.startTime,
+      r.project?.name ?? '-',
+      r.status === 'pending' ? '待确认' : '进行中',
+    ]);
+
+    return {
+      status: 'success',
+      title: '今日经营简报',
+      summary:
+        '今日' + resv.length + '个预约，待确认' + pending.length + '单，高价值客户' + vip.length + '位；' +
+        '今日收入' + this.formatMoney(revenue) +
+        (risks.length ? '；注意：' + risks[0] : ''),
+      data: {
+        kpis: [
+          { label: '今日预约', value: String(resv.length), unit: '单', hint: '待确认' + pending.length + '单' },
+          { label: '今日收入', value: this.formatMoney(revenue) },
+          { label: '库存预警', value: String(lowStock), unit: '品' },
+          { label: '高价值到店', value: String(vip.length), unit: '位' },
+        ],
+        items,
+        columns: ['客户', '时间', '项目', '状态'],
+        pendingCount: pending.length,
+        risks,
+        consumedSlots: { timeRange: { preset: 'today', label: '今日' } },
+      },
+      evidence: {
+        source: ['Reservation', 'ProductOrder', 'Product'],
+        dateRange: '今日 ' + this.formatDate(today),
+        metricDefinition: '今日预约数、实收收入、库存预警数',
+        filters: ['门店:' + ctx.storeId],
+        sampleSize: resv.length,
+      },
+      actions: [
+        ...(pending.length > 0
+          ? [{ label: '确认' + pending.length + '个待确认预约', action: 'reception.reservation.today', riskLevel: 'low' as const }]
+          : []),
+        { label: '查看客户跟进优先级', action: 'customer.priority.rank', riskLevel: 'low' as const },
+      ],
+    };
+  }
+
+  // ─── 前台接待 Agent 工具实现方法 ──────────────────────────────────────────
+
+  private async lookupCustomerForReception(
+    args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const q = String(args.query || args.name || args.phone || '').trim();
+    if (!q) {
+      return {
+        status: 'unsupported',
+        title: '客户查询',
+        summary: '请提供客户姓名或手机号后四位进行查询。',
+        evidence: { source: [], metricDefinition: '', filters: [] },
+      };
+    }
+    const isPhone = /^d{4,11}$/.test(q);
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        storeId: ctx.storeId,
+        deletedAt: null,
+        OR: isPhone ? [{ phone: { endsWith: q } }] : [{ name: { contains: q } }, { phone: { contains: q } }],
+      },
+      orderBy: { lastVisitDate: 'desc' },
+      take: 5,
+      include: { customerCards: { where: { status: 'active', remainingTimes: { gt: 0 } }, take: 3 } },
+    });
+
+    if (!customers.length) {
+      return {
+        status: 'no_data',
+        title: '客户查询',
+        summary: '未找到"' + q + '"的客户记录。',
+        evidence: { source: ['Customer'], metricDefinition: '客户基本信息', filters: ['查询词:' + q], sampleSize: 0 },
+        actions: [{ label: '新建客户档案', action: 'operation.register', riskLevel: 'low' as const }],
+      };
+    }
+
+    const items = customers.map(c => ({
+      id: c.id,
+      name: c.name,
+      phone: ctx.role === 'manager' ? (c.phone ?? '-') : this.maskPhone(c.phone),
+      memberLevel: c.memberLevel,
+      lastVisitDate: c.lastVisitDate ? this.formatDate(c.lastVisitDate) : '未到店',
+      daysSince: c.lastVisitDate ? this.daysSince(c.lastVisitDate) : null,
+      cardSummary:
+        c.customerCards.length > 0
+          ? c.customerCards.map(k => k.cardName + '剩' + k.remainingTimes + '次').join('、')
+          : '无有效次卡',
+    }));
+
+    const first = items[0]!;
+    return {
+      status: 'success',
+      title: '客户查询：' + q,
+      summary:
+        customers.length === 1
+          ? '找到客户 ' + first.name + '（' + first.memberLevel + '），上次到店 ' + first.lastVisitDate
+          : '找到 ' + customers.length + ' 位客户，请确认是哪位。',
+      data: { items, totalFound: customers.length },
+      evidence: {
+        source: ['Customer', 'CustomerCard'],
+        metricDefinition: '客户基本信息、有效次卡',
+        filters: ['查询词:' + q],
+        sampleSize: customers.length,
+        limitations: ctx.role !== 'manager' ? ['手机号已脱敏'] : undefined,
+      },
+      actions: [
+        { label: '查看卡项权益', action: 'reception.card.benefit.summary', riskLevel: 'low' as const },
+        { label: '创建跟进记录', action: 'customer.followup.task.draft', riskLevel: 'medium' as const },
+      ],
+    };
+  }
+
+  private async getTodayReservationsForReception(
+    _args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const today = this.startOfDay(new Date());
+    const tomorrow = new Date(today.getTime() + 86_400_000);
+    const resv = await this.prisma.reservation.findMany({
+      where: { storeId: ctx.storeId, date: { gte: today, lt: tomorrow } },
+      include: {
+        customer: { select: { name: true, memberLevel: true } },
+        beautician: { select: { name: true } },
+        project: { select: { name: true } },
+      },
+      orderBy: { startTime: 'asc' },
+      take: 100,
+    });
+
+    const sl = (s: string) =>
+      ({ pending: '待确认', confirmed: '已确认', checked_in: '已到店', in_service: '服务中', completed: '已完成', cancelled: '已取消' }[s] ?? s);
+
+    const pending = resv.filter(r => r.status === 'pending');
+    const items = resv.map(r => [r.customer?.name ?? '-', r.startTime, r.project?.name ?? '-', r.beautician?.name ?? '-', sl(r.status)]);
+
+    return {
+      status: resv.length > 0 ? 'success' : 'no_data',
+      title: '今日预约',
+      summary: '今日' + resv.length + '个预约' + (pending.length > 0 ? '，待确认' + pending.length + '单' : ''),
+      data: { items, columns: ['客户', '时间', '项目', '美容师', '状态'], pendingCount: pending.length, total: resv.length },
+      evidence: {
+        source: ['Reservation'],
+        dateRange: '今日 ' + this.formatDate(today),
+        metricDefinition: '今日预约列表',
+        filters: ['门店:' + ctx.storeId],
+        sampleSize: resv.length,
+      },
+      actions:
+        pending.length > 0
+          ? [{ label: '确认' + pending.length + '个待确认预约', action: 'operation.verify', riskLevel: 'low' as const }]
+          : [],
+    };
+  }
+
+  private async getCustomerCardBenefitSummary(
+    args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const cid = args.customerId ? Number(args.customerId) : null;
+    const cname = String(args.customerName || args.name || '').trim();
+
+    let customer = null;
+    if (cid) {
+      customer = await this.prisma.customer.findFirst({ where: { id: cid, storeId: ctx.storeId, deletedAt: null } });
+    } else if (cname) {
+      customer = await this.prisma.customer.findFirst({ where: { name: { contains: cname }, storeId: ctx.storeId, deletedAt: null }, orderBy: { lastVisitDate: 'desc' } });
+    }
+
+    if (!customer) {
+      return {
+        status: 'no_data',
+        title: '卡项权益查询',
+        summary: '请先通过姓名找到具体客户。',
+        evidence: { source: [], metricDefinition: '', filters: [] },
+        actions: [{ label: '查找客户', action: 'reception.customer.lookup', riskLevel: 'low' as const }],
+      };
+    }
+
+    const cards = await this.prisma.customerCard.findMany({
+      where: { customerId: customer.id, status: 'active' },
+      orderBy: { expiryDate: 'asc' },
+      take: 20,
+    });
+
+    const soonExp = cards.filter(c => this.daysUntil(c.expiryDate) <= 30);
+    const rows = cards.map(c => [
+      c.cardName,
+      c.remainingTimes + '次',
+      this.formatDate(c.expiryDate) + (this.daysUntil(c.expiryDate) <= 30 ? '（' + this.daysUntil(c.expiryDate) + '天后到期）' : ''),
+    ]);
+
+    return {
+      status: 'success',
+      title: customer.name + '的卡项权益',
+      summary:
+        customer.name + '共' + cards.length + '张有效次卡' +
+        (soonExp.length > 0 ? '，' + soonExp.length + '张即将到期' : ''),
+      data: { customerId: customer.id, customerName: customer.name, memberLevel: customer.memberLevel, cards: rows, columns: ['卡项名称', '剩余次数', '有效期'], cardCount: cards.length, soonExpiringCount: soonExp.length },
+      evidence: { source: ['CustomerCard'], metricDefinition: '次卡剩余次数、有效期', filters: ['客户:' + customer.name], sampleSize: cards.length },
+      actions: [
+        ...(soonExp.length > 0 ? [{ label: '发续卡提醒', action: 'customer.followup.task.draft', riskLevel: 'medium' as const }] : []),
+        { label: '前往核销', action: 'operation.verify', riskLevel: 'low' as const },
+      ],
+    };
+  }
+
+  // ─── 营销增长 Agent 工具实现方法 ──────────────────────────────────────────
+
+  private async discoverCustomerSegments(
+    _args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const now = new Date();
+    const d45 = new Date(now.getTime() - 45 * 86_400_000);
+    const d90 = new Date(now.getTime() - 90 * 86_400_000);
+    const d60 = new Date(now.getTime() - 60 * 86_400_000);
+
+    const [dormant45, dormant90, highValue, newCustomer] = await Promise.all([
+      this.prisma.customer.count({ where: { storeId: ctx.storeId, deletedAt: null, lastVisitDate: { lt: d45, gte: d90 } } }),
+      this.prisma.customer.count({ where: { storeId: ctx.storeId, deletedAt: null, lastVisitDate: { lt: d90 } } }),
+      this.prisma.customer.count({ where: { storeId: ctx.storeId, deletedAt: null, totalSpent: { gt: 3000 }, lastVisitDate: { gte: d45 } } }),
+      this.prisma.customer.count({ where: { storeId: ctx.storeId, deletedAt: null, visitCount: { lte: 2 }, createdAt: { gte: d60 } } }),
+    ]);
+
+    const segments = [
+      { name: '沉睡客户（45-90天未到店）', count: dormant45, priority: '高', action: '发召回优惠券' },
+      { name: '深度沉睡（90天以上）', count: dormant90, priority: '中', action: '发专属回访话术' },
+      { name: '高价值活跃客户', count: highValue, priority: '中', action: '推升单/疗程续购' },
+      { name: '新客未深度转化', count: newCustomer, priority: '高', action: '推首次办卡优惠' },
+    ].filter(s => s.count > 0);
+
+    const total = segments.reduce((sum, s) => sum + s.count, 0);
+
+    return {
+      status: segments.length > 0 ? 'success' : 'no_data',
+      title: '可运营客群发现',
+      summary: '共发现' + total + '位可运营客户，分' + segments.length + '个客群',
+      data: {
+        segments,
+        items: segments.map(s => [s.name, s.count + '人', s.priority, s.action]),
+        columns: ['客群', '人数', '优先级', '建议动作'],
+      },
+      evidence: { source: ['Customer'], metricDefinition: '按到店间隔和消费金额分群', filters: ['门店:' + ctx.storeId], sampleSize: total },
+      actions: [
+        { label: '生成活动草稿', action: 'marketing.activity.draft', riskLevel: 'medium' as const },
+        { label: '匹配权益', action: 'promotion.offer.match', riskLevel: 'low' as const },
+      ],
+    };
+  }
+
+  private async matchPromotionOffer(
+    _args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const promotions = await this.prisma.promotion.findMany({
+      where: { OR: [{ storeId: ctx.storeId }, { storeId: null }], status: 'active', approvalStatus: 'approved' },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    if (!promotions.length) {
+      return {
+        status: 'no_data',
+        title: '权益匹配',
+        summary: '当前门店暂无可用权益，建议先创建促销活动。',
+        evidence: { source: ['Promotion'], metricDefinition: '', filters: [] },
+      };
+    }
+
+    const items = promotions.map(p => [
+      p.name,
+      p.discountText,
+      p.type,
+      p.estimatedCost ? this.formatMoney(this.toNumber(p.estimatedCost)) : '未设置',
+    ]);
+
+    return {
+      status: 'success',
+      title: '可用权益列表',
+      summary: '共' + promotions.length + '个可用权益，建议优先选择高转化/低成本权益',
+      data: { items, columns: ['权益名称', '优惠说明', '类型', '预估成本'], total: promotions.length },
+      evidence: { source: ['Promotion'], metricDefinition: '门店可用权益', filters: ['门店:' + ctx.storeId], sampleSize: promotions.length },
+      actions: [
+        { label: '生成活动草稿', action: 'marketing.activity.draft', riskLevel: 'medium' as const },
+        { label: '生成触达话术', action: 'marketing.copy.generate', riskLevel: 'low' as const },
+      ],
+    };
+  }
+
+  private async generateMarketingCopy(
+    args: Record<string, unknown>,
+    _ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const target = String(args.target || args.segment || '沉睡客户').trim();
+    const offer = String(args.offer || args.promotion || '专属优惠').trim();
+
+    const copies = [
+      '【温馨提示】亲爱的，好久不见！特为您准备' + offer + '，期待您的到来～',
+      '【专属回访】' + target + '专属：' + offer + '限时开放，名额有限，欢迎预约！',
+      '亲，距您上次到店已有一段时间，我们为您特别保留了' + offer + '，期待您回来体验～',
+    ];
+
+    return {
+      status: 'success',
+      title: '营销话术生成',
+      summary: '已生成3条针对' + target + '的触达话术',
+      data: { copies, target, offer, items: copies.map((c, i) => ['变体' + (i + 1), c]) },
+      evidence: { source: [], metricDefinition: '基于目标客群和权益生成', filters: ['目标客群:' + target, '权益:' + offer] },
+      actions: [{ label: '生成活动草稿', action: 'marketing.activity.draft', riskLevel: 'medium' as const }],
+    };
+  }
+
+  private async diagnoseMarketingEffect(
+    args: Record<string, unknown>,
+    ctx: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
+    const touches = await this.prisma.marketingAutomationTouch
+      .findMany({
+        where: { touchedAt: { gte: range.start, lte: range.end } },
+        take: 500,
+      })
+      .catch(() => []);
+
+    if (!touches.length) {
+      return {
+        status: 'no_data',
+        title: '活动效果复盘',
+        summary: range.label + '内未找到触达记录',
+        evidence: { source: ['MarketingAutomationTouch'], metricDefinition: '', filters: [], dateRange: range.label },
+      };
+    }
+
+    const total = touches.length;
+    const converted = touches.filter((t: any) => t.convertedAt).length;
+    const revenue = (touches as any[]).reduce((sum: number, t: any) => sum + this.toNumber(t.actualRevenue), 0 as number) as number;
+    const rate = total > 0 ? converted / total : 0;
+
+    return {
+      status: 'success',
+      title: '活动效果复盘',
+      summary: range.label + '触达' + total + '人，转化' + converted + '人（' + this.formatPercent(rate) + '），带来收入' + this.formatMoney(revenue),
+      data: {
+        items: [['触达人数', String(total)], ['转化人数', String(converted)], ['转化率', this.formatPercent(rate)], ['带来收入', this.formatMoney(revenue)]],
+        columns: ['指标', '值'],
+        total, converted, rate, revenue,
+        consumedSlots: { timeRange: { preset: range.preset, label: range.label, start: this.formatDate(range.start), end: this.formatDate(range.end) } },
+      },
+      evidence: {
+        source: ['MarketingAutomationTouch'],
+        dateRange: range.label,
+        metricDefinition: '触达→转化→收入漏斗',
+        filters: ['门店:' + ctx.storeId],
+        sampleSize: total,
+      },
+      actions: [{ label: '生成话术优化', action: 'marketing.copy.generate', riskLevel: 'low' as const }],
+    };
+  }
+
+
   private maskPhone(value?: string | null) {
     const text = String(value || '');
     if (!/^1\d{10}$/.test(text)) return text;
