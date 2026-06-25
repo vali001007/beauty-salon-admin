@@ -331,6 +331,52 @@ export class OperationProfitService {
     return this.toNumber(result._sum.amount);
   }
 
+  private async getPerformanceStaffUsers(storeId?: number, legacyBeauticianId?: number) {
+    const storeFilter = storeId
+      ? {
+          OR: [
+            { stores: { some: { storeId } } },
+            { beauticianProfiles: { some: { storeId, status: 'active' } } },
+          ],
+        }
+      : {};
+    const legacyBeauticianFilter = legacyBeauticianId
+      ? {
+          beauticianProfiles: {
+            some: {
+              id: Number(legacyBeauticianId),
+              status: 'active',
+              ...(storeId ? { storeId } : {}),
+            },
+          },
+        }
+      : {};
+
+    return this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ['active', '启用'] },
+        ...storeFilter,
+        ...legacyBeauticianFilter,
+      },
+      include: {
+        stores: {
+          ...(storeId ? { where: { storeId } } : {}),
+          include: { store: { select: { id: true, name: true } } },
+        },
+        beauticianProfiles: {
+          where: {
+            status: 'active',
+            ...(storeId ? { storeId } : {}),
+            ...(legacyBeauticianId ? { id: Number(legacyBeauticianId) } : {}),
+          },
+          include: { store: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+  }
+
   private buildAlerts(params: {
     netMargin: number;
     operatingIncome: number;
@@ -1201,22 +1247,24 @@ export class OperationProfitService {
   async getBeauticianPerformance(query: QueryBeauticianPerformanceDto, headerStoreId?: string) {
     const storeId = this.asOptionalStoreId(query.storeId ?? headerStoreId);
     const range = this.parseDateRange(query.from, query.to);
-    const where: any = { status: 'active' };
-    if (storeId) where.storeId = storeId;
-    if (query.beauticianId) where.id = Number(query.beauticianId);
-    const [beauticians, orders, cardUsageRecords, cardUnitValueByName] = await Promise.all([
-      this.prisma.beautician.findMany({ where, include: { store: { select: { id: true, name: true } } }, orderBy: { id: 'asc' } }),
+    const [staffUsers, orders, cardUsageRecords, cardUnitValueByName] = await Promise.all([
+      this.getPerformanceStaffUsers(storeId, query.beauticianId ? Number(query.beauticianId) : undefined),
       this.getOrders(range, storeId),
       this.getCardUsageRecords(range, storeId),
       this.getCardUnitValueByName(),
     ]);
     const orderItems = orders.flatMap((order) => order.orderItems.map((item) => ({ ...item, customerId: order.customerId })));
-    const rows = await Promise.all(
-      beauticians.map(async (beautician) => {
-        const items = orderItems.filter((item) => Number(item.beauticianId) === beautician.id);
+    const rowsWithEmpty = await Promise.all(
+      staffUsers.map(async (staffUser) => {
+        const beauticianProfiles = staffUser.beauticianProfiles ?? [];
+        const beauticianIds = new Set(beauticianProfiles.map((profile) => Number(profile.id)).filter(Boolean));
+        const primaryBeautician = beauticianProfiles[0];
+        const primaryStore = primaryBeautician?.store ?? staffUser.stores?.[0]?.store;
+        const resolvedStoreId = primaryBeautician?.storeId ?? staffUser.stores?.[0]?.storeId ?? storeId;
+        const items = orderItems.filter((item) => item.beauticianId && beauticianIds.has(Number(item.beauticianId)));
         const serviceItems = items.filter((item) => this.isServiceItem(item.itemType));
         const cardSaleItems = items.filter((item) => this.isCardSaleItem(item.itemType));
-        const usageItems = cardUsageRecords.filter((record) => record.beauticianId === beautician.id);
+        const usageItems = cardUsageRecords.filter((record) => record.beauticianId && beauticianIds.has(Number(record.beauticianId)));
         const cardUsageIncome = usageItems.reduce(
           (sum, record) => sum + this.getCardUsageRecognizedAmount(record, cardUnitValueByName),
           0,
@@ -1234,18 +1282,20 @@ export class OperationProfitService {
           commissionOrderItemIds,
           storeId,
           {
-            staffUserId: beautician.userId,
-            beauticianId: beautician.id,
+            staffUserId: staffUser.id,
+            beauticianId: primaryBeautician?.id,
           },
           cardUsageRecordIds,
         );
         const contributionProfit = serviceIncome - commissionCost;
         const cardSalesAmount = cardSaleItems.reduce((sum, item) => sum + this.getItemNetAmount(item), 0);
         return {
-          beauticianId: beautician.id,
-          beauticianName: beautician.name,
-          storeId: beautician.storeId,
-          storeName: beautician.store?.name,
+          staffUserId: staffUser.id,
+          staffName: staffUser.name || staffUser.username,
+          beauticianId: primaryBeautician?.id ?? null,
+          beauticianName: staffUser.name || staffUser.username,
+          storeId: resolvedStoreId,
+          storeName: primaryStore?.name,
           serviceIncome: this.round(serviceIncome),
           orderServiceIncome: this.round(serviceItems.reduce((sum, item) => sum + this.getItemNetAmount(item), 0)),
           cardUsageIncome: this.round(cardUsageIncome),
@@ -1259,6 +1309,14 @@ export class OperationProfitService {
           missingCostReasons: commissionCost <= 0 && serviceIncome > 0 ? ['missing_commission'] : [],
         };
       }),
+    );
+    const rows = rowsWithEmpty.filter(
+      (row) =>
+        this.toNumber(row.serviceIncome) > 0 ||
+        this.toNumber(row.serviceCount) > 0 ||
+        this.toNumber(row.customerCount) > 0 ||
+        this.toNumber(row.cardSalesAmount) > 0 ||
+        this.toNumber(row.commissionCost) > 0,
     );
 
     return { items: rows, data: rows, total: rows.length, page: 1, pageSize: rows.length || 20 };

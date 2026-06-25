@@ -13,24 +13,95 @@ interface AuthState {
   setAuth: (token: string, user: AuthUser) => void;
 }
 
-function normalizeAuthUser(user: AuthUser): AuthUser {
-  const rawUser = user as AuthUser & { stores?: number[]; primaryRole?: string };
+type LoginResponseEnvelope = LoginResponse & {
+  accessToken?: string;
+  data?: LoginResponseEnvelope;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function toNumberArray(value: unknown): number[] {
+  return Array.isArray(value)
+    ? value
+        .map((item) => (typeof item === 'number' ? item : Number(item)))
+        .filter((item) => Number.isFinite(item))
+    : [];
+}
+
+function normalizeAuthUser(user: AuthUser | null | undefined): AuthUser {
+  if (!isRecord(user)) {
+    throw new Error('认证返回缺少用户信息，请重新登录。');
+  }
+  const rawUser = user as AuthUser & { stores?: unknown; primaryRole?: string; permissions?: unknown; deniedPermissions?: unknown; roles?: unknown };
+  const roles = toStringArray(rawUser.roles);
+  const fallbackRoles = rawUser.primaryRole ? [rawUser.primaryRole] : [];
+  const storeIds = toNumberArray(rawUser.storeIds).length ? toNumberArray(rawUser.storeIds) : toNumberArray(rawUser.stores);
   return {
-    ...user,
-    roles: user.roles ?? (rawUser.primaryRole ? [rawUser.primaryRole] : []),
-    permissions: normalizePermissions(user.permissions),
-    deniedPermissions: normalizePermissions(user.deniedPermissions ?? []),
-    storeIds: user.storeIds ?? rawUser.stores ?? [],
+    ...(user as AuthUser),
+    roles: roles.length ? roles : fallbackRoles,
+    permissions: normalizePermissions(toStringArray(rawUser.permissions)),
+    deniedPermissions: normalizePermissions(toStringArray(rawUser.deniedPermissions)),
+    storeIds,
   };
 }
 
-function unwrapLoginResponse(response: LoginResponse | { data?: LoginResponse }): LoginResponse {
-  const record = response && typeof response === 'object' ? response : {};
-  const normalized = 'token' in record ? record : (record as { data?: LoginResponse }).data;
-  if (!normalized?.token || !normalized.user) {
+function resetAuthState(set: (state: Partial<AuthState>) => void) {
+  localStorage.removeItem('token');
+  set({
+    token: null,
+    user: null,
+    isAuthenticated: false,
+  });
+}
+
+function unwrapLoginResponse(response: unknown): LoginResponse {
+  let current = response as LoginResponseEnvelope | undefined;
+  for (let depth = 0; depth < 3 && isRecord(current); depth += 1) {
+    const token = typeof current.token === 'string' ? current.token : current.accessToken;
+    if (token && current.user) {
+      return {
+        ...current,
+        token,
+        user: current.user,
+      };
+    }
+    current = current.data;
+  }
+
+  if (isRecord(response) && typeof response.message === 'string') {
+    throw new Error(response.message);
+  }
+
+  throw new Error('登录返回缺少用户信息，请检查后端认证接口。');
+}
+
+function unwrapUserInfo(response: unknown): AuthUser {
+  let current = response;
+  for (let depth = 0; depth < 3 && isRecord(current); depth += 1) {
+    if ('username' in current || 'id' in current) {
+      return normalizeAuthUser(current as unknown as AuthUser);
+    }
+    current = current.data as unknown;
+  }
+
+  if (isRecord(response) && typeof response.message === 'string') {
+    throw new Error(response.message);
+  }
+
+  throw new Error('认证返回缺少用户信息，请重新登录。');
+}
+
+function assertLoginResponse(response: LoginResponse): LoginResponse {
+  if (!response.token || !response.user) {
     throw new Error('登录返回缺少用户信息，请检查后端认证接口。');
   }
-  return normalized;
+  return response;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -39,7 +110,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: !!localStorage.getItem('token'),
 
   login: async (req: LoginRequest) => {
-    const response = unwrapLoginResponse(await authLogin(req) as LoginResponse | { data?: LoginResponse });
+    const response = assertLoginResponse(unwrapLoginResponse(await authLogin(req)));
     const user = normalizeAuthUser(response.user);
     localStorage.setItem('token', response.token);
     set({
@@ -50,22 +121,22 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('token');
-    set({
-      token: null,
-      user: null,
-      isAuthenticated: false,
-    });
+    resetAuthState(set);
   },
 
   loadUserInfo: async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const user = await getUserInfo();
-    set({
-      user: normalizeAuthUser(user),
-    });
+    try {
+      const user = unwrapUserInfo(await getUserInfo());
+      set({
+        user,
+      });
+    } catch (error) {
+      resetAuthState(set);
+      throw error;
+    }
   },
 
   setAuth: (token: string, user: AuthUser) => {

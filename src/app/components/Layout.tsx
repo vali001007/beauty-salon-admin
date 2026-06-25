@@ -122,7 +122,6 @@ export const MENU_ITEMS: MenuItem[] = [
     children: [
       { title: '日结报表', path: '/finance/daily-settlement', icon: ClipboardList, permission: 'core:finance:view', group: '结算与对账' },
       { title: '月度结算', path: '/finance/monthly-settlement', icon: WalletCards, permission: 'core:finance:view', group: '结算与对账' },
-      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:finance:view', group: '结算与对账' },
       { title: '数字员工账单', path: '/finance/ami-billing', icon: WalletCards, permission: 'core:finance:view', group: '结算与对账' },
       { title: '提成规则', path: '/finance/commission-rules', icon: Settings, permission: 'core:finance:manage', group: '提成与人效' },
       { title: '提成明细', path: '/finance/commission-records', icon: BarChart3, permission: 'core:finance:view', group: '提成与人效' },
@@ -172,6 +171,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '权限管理', path: '/system/permissions', icon: Lock, permission: 'core:system:permissions' },
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
+      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:finance:view' },
       { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
       { title: 'Agent 审计', path: '/system/agent-audit', icon: Sparkles, permission: 'core:system:view' },
     ],

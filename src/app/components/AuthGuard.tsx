@@ -11,15 +11,20 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
   const loadUserInfo = useAuthStore((state) => state.loadUserInfo);
+  const logout = useAuthStore((state) => state.logout);
   const location = useLocation();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (token && !user && !loading) {
       setLoading(true);
-      loadUserInfo().finally(() => setLoading(false));
+      loadUserInfo()
+        .catch(() => {
+          logout();
+        })
+        .finally(() => setLoading(false));
     }
-  }, [token, user, loadUserInfo, loading]);
+  }, [token, user, loadUserInfo, logout, loading]);
 
   const isLoginPage = location.pathname === '/login';
 

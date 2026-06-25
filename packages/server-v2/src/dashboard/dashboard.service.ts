@@ -1245,7 +1245,7 @@ export class DashboardService {
     return [
       this.action('stores', '门店管理', '/system/stores', 'Building2', 'core:system:stores', 'system'),
       this.action('roles', '角色权限', '/system/roles', 'Shield', 'core:system:roles', 'system'),
-      this.action('platformRevenue', '平台收入', '/finance/platform-revenue', 'BarChart3', 'core:finance:view', 'analytics'),
+      this.action('platformRevenue', '平台收入', '/finance/platform-revenue', 'BarChart3', 'core:finance:view', 'system'),
       this.action('devices', '终端设备', '/system/devices', 'Monitor', 'core:system:stores', 'system'),
     ];
   }

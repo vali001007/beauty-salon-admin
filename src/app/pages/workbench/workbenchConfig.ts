@@ -105,7 +105,7 @@ export const workbenchConfig: Record<AdminWorkbenchRole, WorkbenchRoleConfig> = 
     quickActions: [
       { key: 'stores', label: '门店管理', path: '/system/stores', icon: 'Building2', permission: 'core:system:stores', group: 'system' },
       { key: 'roles', label: '角色权限', path: '/system/roles', icon: 'Shield', permission: 'core:system:roles', group: 'system' },
-      { key: 'platformRevenue', label: '平台收入', path: '/finance/platform-revenue', icon: 'BarChart3', permission: 'core:finance:view', group: 'analytics' },
+      { key: 'platformRevenue', label: '平台收入', path: '/finance/platform-revenue', icon: 'BarChart3', permission: 'core:finance:view', group: 'system' },
       { key: 'devices', label: '终端设备', path: '/system/devices', icon: 'Monitor', permission: 'core:system:stores', group: 'system' },
     ],
     insight: {
