@@ -18,6 +18,10 @@ import { PreviewQueryPlanDto } from './dto/preview-query-plan.dto.js';
 import type { AgentFieldScopes, AgentRole } from './agent.types.js';
 import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executor.service.js';
 import { AgentCapabilityCandidateService } from './agent-capability-candidate.service.js';
+import { AgentAutomationService } from './agent-automation.service.js';
+import { AgentMemoryService } from './agent-memory.service.js';
+import { AgentObservabilityService } from './agent-observability.service.js';
+import { AgentSchemaReadinessService } from './agent-schema-readiness.service.js';
 import { QueryPlannerService } from '../semantic-query/query-planner.service.js';
 import { SemanticQueryExecutorService } from '../semantic-query/semantic-query-executor.service.js';
 import { ResponseComposerService } from '../semantic-query/response-composer.service.js';
@@ -34,6 +38,10 @@ export class AgentController {
     private readonly semanticSqlExecutor: SemanticSqlExecutorService,
     private readonly capabilityCandidateService: AgentCapabilityCandidateService,
     private readonly prisma: PrismaService,
+    private readonly memoryService: AgentMemoryService,
+    private readonly observabilityService: AgentObservabilityService,
+    private readonly automationService: AgentAutomationService,
+    private readonly schemaReadinessService: AgentSchemaReadinessService,
     private readonly queryPlanner?: QueryPlannerService,
     private readonly semanticQueryExecutor?: SemanticQueryExecutorService,
     private readonly responseComposer?: ResponseComposerService,
@@ -81,6 +89,319 @@ export class AgentController {
         comment: body.comment ?? null,
         businessActionJson: body.businessActionJson ? (body.businessActionJson as object) : undefined,
       },
+    });
+  }
+
+  // ─── Memory / Archive / Quality ──────────────────────────────────────────
+
+  @Get('memories')
+  @ApiOperation({ summary: '获取当前门店 Agent 记忆列表' })
+  listMemories(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('personaCode') personaCode?: string,
+    @Query('memoryType') memoryType?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.memoryService.listMemories({ storeId, personaCode, memoryType, limit });
+  }
+
+  @Post('memories')
+  @ApiOperation({ summary: '创建当前门店 Agent 记忆' })
+  createMemory(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body()
+    body: {
+      personaCode?: string;
+      memoryType?: string;
+      title: string;
+      content: string;
+      summary?: string;
+      importance?: number;
+      sourceRunId?: number;
+      sourceJson?: unknown;
+    },
+  ) {
+    return this.memoryService.createMemory({
+      storeId,
+      userId,
+      personaCode: body.personaCode,
+      memoryType: body.memoryType,
+      title: body.title,
+      content: body.content,
+      summary: body.summary,
+      importance: body.importance,
+      sourceRunId: body.sourceRunId,
+      sourceJson: body.sourceJson,
+    });
+  }
+
+  @Get('daily-archives')
+  @ApiOperation({ summary: '获取当前门店 Agent 每日归档列表' })
+  listDailyArchives(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('personaCode') personaCode?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.memoryService.listDailyArchives({ storeId, personaCode, page, pageSize });
+  }
+
+  @Post('daily-archives/generate')
+  @ApiOperation({ summary: '生成当前门店 Agent 每日归档' })
+  generateDailyArchive(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { personaCode?: string; date?: string },
+  ) {
+    return this.memoryService.generateDailyArchive({
+      storeId,
+      personaCode: body.personaCode,
+      date: body.date,
+      createdBy: userId,
+    });
+  }
+
+  @Get('quality-report')
+  @ApiOperation({ summary: '获取当前门店 Agent 运行质量报表' })
+  qualityReport(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('days') days?: string,
+    @Query('personaCode') personaCode?: string,
+  ) {
+    return this.observabilityService.getQualityReport({ storeId, days, personaCode });
+  }
+
+  @Get('schema-readiness')
+  @ApiOperation({ summary: '只读检查阶段 6/7 Agent 数据表迁移就绪状态' })
+  schemaReadiness() {
+    return this.schemaReadinessService.getStatus();
+  }
+
+  // ─── Automation Engine ───────────────────────────────────────────────────
+
+  @Get('automations/triggers')
+  @ApiOperation({ summary: '获取 Agent 自动化内置触发器模板' })
+  automationTriggers() {
+    return this.automationService.listTriggerTemplates();
+  }
+
+  @Get('automations')
+  @ApiOperation({ summary: '分页查询当前门店 Agent 自动化定义' })
+  listAutomations(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('personaCode') personaCode?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.automationService.listDefinitions({ storeId, personaCode, status, page, pageSize });
+  }
+
+  @Post('automations/drafts')
+  @ApiOperation({ summary: '生成 Agent 自动化草稿' })
+  createAutomationDraft(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body()
+    body: {
+      personaCode?: string;
+      goal?: string;
+      name?: string;
+      description?: string;
+      triggerType?: string;
+      triggerConfig?: unknown;
+      actionPlan?: unknown;
+      approvalPolicy?: unknown;
+      schedule?: unknown;
+      riskLevel?: string;
+      sourceRunId?: number;
+    },
+  ) {
+    return this.automationService.createDraft({
+      storeId,
+      userId,
+      personaCode: body.personaCode,
+      goal: body.goal,
+      name: body.name,
+      description: body.description,
+      triggerType: body.triggerType,
+      triggerConfig: body.triggerConfig,
+      actionPlan: body.actionPlan,
+      approvalPolicy: body.approvalPolicy,
+      schedule: body.schedule,
+      riskLevel: body.riskLevel,
+      sourceRunId: body.sourceRunId,
+    });
+  }
+
+  @Get('automations/runs')
+  @ApiOperation({ summary: '分页查询当前门店 Agent 自动化运行日志' })
+  listAutomationRuns(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('definitionId') definitionId?: string,
+    @Query('personaCode') personaCode?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.automationService.listRuns({ storeId, definitionId, personaCode, status, page, pageSize });
+  }
+
+  @Get('automations/effects')
+  @ApiOperation({ summary: '分页查询当前门店 Agent 自动化效果记录' })
+  listAutomationEffects(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('definitionId') definitionId?: string,
+    @Query('runId') runId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.automationService.listEffects({ storeId, definitionId, runId, status, page, pageSize });
+  }
+
+  @Post('automations/due/run')
+  @ApiOperation({ summary: '扫描并触发当前门店到期 Agent 自动化' })
+  runDueAutomations(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { now?: string; limit?: number; dryRun?: boolean },
+  ) {
+    return this.automationService.runDueAutomations({
+      storeId,
+      userId,
+      now: body.now,
+      limit: body.limit,
+      dryRun: body.dryRun,
+    });
+  }
+
+  @Post('automations/events/evaluate')
+  @ApiOperation({ summary: '按事件/阈值评估并触发 Agent 自动化' })
+  evaluateAutomationEvent(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { eventType: string; payload?: unknown; limit?: number; dryRun?: boolean },
+  ) {
+    return this.automationService.evaluateEvent({
+      storeId,
+      userId,
+      eventType: body.eventType,
+      payload: body.payload,
+      limit: body.limit,
+      dryRun: body.dryRun,
+    });
+  }
+
+  @Get('automations/pending-approvals')
+  @ApiOperation({ summary: '查询当前门店待确认的 Agent 自动化运行' })
+  listAutomationPendingApprovals(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('definitionId') definitionId?: string,
+    @Query('personaCode') personaCode?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.automationService.listPendingApprovals({ storeId, definitionId, personaCode, page, pageSize });
+  }
+
+  @Post('automations/runs/:id/approve')
+  @ApiOperation({ summary: '确认并恢复执行待审批 Agent 自动化运行' })
+  approveAutomationRun(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { comment?: string },
+  ) {
+    return this.automationService.decideRunApproval({
+      storeId,
+      userId,
+      runId: id,
+      decision: 'approve',
+      comment: body.comment,
+    });
+  }
+
+  @Post('automations/runs/:id/reject')
+  @ApiOperation({ summary: '拒绝待审批 Agent 自动化运行' })
+  rejectAutomationRun(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { comment?: string },
+  ) {
+    return this.automationService.decideRunApproval({
+      storeId,
+      userId,
+      runId: id,
+      decision: 'reject',
+      comment: body.comment,
+    });
+  }
+
+  @Post('automations/:id/recover')
+  @ApiOperation({ summary: '恢复失败 Agent 自动化或触发熔断暂停' })
+  recoverAutomation(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { maxFailures?: number },
+  ) {
+    return this.automationService.recoverDefinition({
+      storeId,
+      userId,
+      definitionId: id,
+      maxFailures: body.maxFailures,
+    });
+  }
+
+  @Post('automations/effects/attribute')
+  @ApiOperation({ summary: '记录 Agent 自动化效果归因' })
+  recordAutomationAttribution(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body()
+    body: {
+      definitionId?: number;
+      runId?: number;
+      effectType?: string;
+      objectType?: string;
+      objectId?: number;
+      customerId?: number;
+      metricKey?: string;
+      impact?: unknown;
+    },
+  ) {
+    return this.automationService.recordAttribution({
+      storeId,
+      userId,
+      definitionId: body.definitionId,
+      runId: body.runId,
+      effectType: body.effectType,
+      objectType: body.objectType,
+      objectId: body.objectId,
+      customerId: body.customerId,
+      metricKey: body.metricKey,
+      impact: body.impact,
+    });
+  }
+
+  @Post('automations/:id/run')
+  @ApiOperation({ summary: '手动触发一次 Agent 自动化' })
+  runAutomationOnce(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @Body() body: { mode?: string; dryRun?: boolean; input?: unknown },
+  ) {
+    return this.automationService.runOnce({
+      storeId,
+      userId,
+      definitionId: id,
+      mode: body.mode,
+      dryRun: body.dryRun,
+      input: body.input,
     });
   }
 

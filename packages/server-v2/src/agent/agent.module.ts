@@ -11,14 +11,18 @@ import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
 import { AgentController } from './agent.controller.js';
 import { AgentCapabilityCandidateService } from './agent-capability-candidate.service.js';
+import { AgentAutomationService } from './agent-automation.service.js';
 import { AgentEvidenceService } from './agent-evidence.service.js';
 import { AgentEvalService } from './agent-eval.service.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
+import { AgentMemoryService } from './agent-memory.service.js';
+import { AgentObservabilityService } from './agent-observability.service.js';
 import { AgentOrchestratorService } from './agent-orchestrator.service.js';
 import { AgentPersonaService } from './agent-persona.service.js';
 import { AgentPlannerService } from './agent-planner.service.js';
 import { AgentPolicyService } from './agent-policy.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
+import { AgentSchemaReadinessService } from './agent-schema-readiness.service.js';
 import { AgentToolRegistryService } from './agent-tool-registry.service.js';
 import { AgentWorkflowRuntimeService } from './agent-workflow-runtime.service.js';
 import { BusinessTaskCompilerService } from './business-task/business-task-compiler.service.js';
@@ -55,6 +59,7 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
   providers: [
     AgentOrchestratorService,
     AgentCapabilityCandidateService,
+    AgentAutomationService,
     AgentPersonaService,
     AgentWorkflowRuntimeService,
     AgentPlannerService,
@@ -62,8 +67,11 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     AgentToolRegistryService,
     AgentEvidenceService,
     AgentEvalService,
+    AgentMemoryService,
+    AgentObservabilityService,
     AgentFieldScopeSanitizerService,
     AgentResponseSafetyService,
+    AgentSchemaReadinessService,
     BusinessTaskCompilerService,
     BusinessTaskLlmCompilerService,
     BusinessTaskPreParserService,
@@ -73,6 +81,14 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     SemanticSqlExecutorService,
     DeviceAuthGuard,
   ],
-  exports: [AgentOrchestratorService, AgentToolRegistryService, AgentEvalService],
+  exports: [
+    AgentOrchestratorService,
+    AgentToolRegistryService,
+    AgentEvalService,
+    AgentMemoryService,
+    AgentObservabilityService,
+    AgentAutomationService,
+    AgentSchemaReadinessService,
+  ],
 })
 export class AgentModule {}

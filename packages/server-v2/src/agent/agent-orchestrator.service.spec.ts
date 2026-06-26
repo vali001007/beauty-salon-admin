@@ -107,6 +107,177 @@ describe('AgentOrchestratorService', () => {
     );
   });
 
+  it('renders marketing opportunity results as opportunity cards', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '发现适合做营销活动的商品、项目或客户机会',
+      toolPlan: [{ tool: 'marketing.opportunity.discover', args: { question: '有哪些商品适合做活动', targetType: 'product', dateRange: 'last_30_days', limit: 10 } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'marketing.opportunity.discover',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:product:view'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '商品活动机会',
+      summary: '优先推荐 玻尿酸修护套装 做会员权益，匹配分 82。',
+      data: {
+        items: [
+          {
+            productId: 301,
+            productName: '玻尿酸修护套装',
+            sku: 'SKU-301',
+            opportunityType: '会员权益',
+            fitScore: 82,
+            currentStock: 120,
+            safetyStock: 40,
+            salesQuantity: 36,
+            salesAmount: 12800,
+            customerCount: 21,
+            expiringStock: 18,
+            daysToExpiry: 23,
+            marginRateText: '38%',
+            reason: '库存高于安全库存 80；近 30 天销售 36；90 天内临期库存 18；毛利率约 38%',
+            suggestedCampaign: '会员专属活动',
+            suggestedChannels: ['miniapp', 'wechat', 'store'],
+            riskWarnings: ['毛利空间偏低，优惠力度需严格控制。'],
+          },
+        ],
+      },
+      evidence: {
+        source: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'],
+        metricDefinition: '商品活动机会评分。',
+        filters: ['storeId=当前门店'],
+        sampleSize: 3,
+      },
+      actions: [
+        { label: '生成活动草稿', action: 'agent:tool:marketing.activity.draft', riskLevel: 'medium' },
+        { label: '查看商品详情', action: 'product:301', riskLevel: 'low' },
+      ],
+    });
+
+    const result = await service.createRun({ message: '有哪些商品适合做活动', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'opportunity_card',
+          productName: '玻尿酸修护套装',
+          fitScore: 82,
+          suggestedCampaign: '会员专属活动',
+        }),
+        expect.objectContaining({ kind: 'evidence_panel' }),
+      ]),
+    );
+    expect(result.followUpSuggestions).toEqual(['生成活动草稿', '查看商品详情']);
+  });
+
+  it('renders marketing copy results as selectable copy variants', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '生成营销话术',
+      toolPlan: [{ tool: 'marketing.copy.generate', args: { target: '沉睡客户', offer: '护理券' } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'marketing.copy.generate',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '营销话术生成',
+      summary: '已生成3条针对沉睡客户的触达话术',
+      data: {
+        target: '沉睡客户',
+        offer: '护理券',
+        copies: ['话术A', '话术B', '话术C'],
+      },
+      evidence: { source: [], metricDefinition: '基于目标客群和权益生成', filters: [] },
+      actions: [{ label: '生成活动草稿', action: 'marketing.activity.draft', riskLevel: 'medium' }],
+    });
+
+    const result = await service.createRun({ message: '帮我写沉睡客户召回短信', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'copy_variants',
+          target: '沉睡客户',
+          offer: '护理券',
+          variants: expect.arrayContaining([
+            expect.objectContaining({ label: '变体1', content: '话术A' }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it('renders marketing effect diagnosis as a funnel chart', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '复盘营销效果',
+      toolPlan: [{ tool: 'marketing.effect.diagnose', args: { timeRange: 'last_30_days' } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'marketing.effect.diagnose',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '活动效果复盘',
+      summary: '近30天触达100人，转化12人。',
+      data: {
+        total: 100,
+        converted: 12,
+        revenue: 3600,
+        funnel: [
+          { name: '触达', value: 100, valueText: '100人', rateText: '100%' },
+          { name: '核销/转化', value: 12, valueText: '12人', rateText: '12%' },
+          { name: '收入贡献', value: 12, valueText: '¥3,600', rateText: '12%' },
+        ],
+      },
+      evidence: { source: ['MarketingAutomationTouch'], metricDefinition: '触达→转化→收入漏斗', filters: [] },
+      actions: [{ label: '生成话术优化', action: 'marketing.copy.generate', riskLevel: 'low' }],
+    });
+
+    const result = await service.createRun({ message: '复盘一下最近营销活动效果', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'chart',
+          chartType: 'funnel',
+          title: '营销效果漏斗',
+          data: expect.arrayContaining([
+            expect.objectContaining({ name: '触达', value: 100 }),
+            expect.objectContaining({ name: '收入贡献', valueText: '¥3,600' }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
   it('fails before tool execution when policy rejects required permissions', async () => {
     const plan = {
       intentType: 'analysis_and_recommendation',
@@ -187,6 +358,223 @@ describe('AgentOrchestratorService', () => {
       '近30天暂无低库存或临期商品。建议保持当前补货节奏。',
       { status: 'completed' },
     );
+  });
+
+  it('renders inventory consumption results as inventory item cards', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '分析库存消耗趋势',
+      toolPlan: [{ tool: 'inventory.consumption.trend', args: { question: '近30天耗材消耗趋势', timeRange: 'last_30_days', limit: 10 } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'inventory.consumption.trend',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '库存消耗趋势',
+      summary: '近30天消耗最高的是 修护面膜，累计消耗 30片，预计可用 6 天。',
+      data: {
+        items: [{
+          productName: '修护面膜',
+          sku: 'M601',
+          unit: '片',
+          currentStock: 6,
+          safetyStock: 10,
+          consumeQty: 30,
+          suggestedQty: 12,
+          projectedDaysLeft: 6,
+          riskLevel: 'high',
+          reason: '按近30天日均消耗 1片，当前库存预计可用 6 天。',
+        }],
+        consumedSlots: {
+          timeRange: { preset: 'last_30_days', label: '近30天', start: '2026-05-27', end: '2026-06-26' },
+          limit: 10,
+        },
+      },
+      evidence: { source: ['StockMovement', 'Product'], metricDefinition: '库存消耗趋势。', filters: ['当前门店'] },
+      actions: [{ label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' }],
+    });
+
+    const result = await service.createRun({ message: '近30天耗材消耗趋势', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'inventory_item_card',
+          title: '库存消耗趋势',
+          itemName: '修护面膜',
+          riskLevel: 'high',
+          statusLabel: '预计可用 6 天',
+        }),
+      ]),
+    );
+  });
+
+  it('renders supplier purchase links as supplier cards and validates the limit slot', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '查询供应商采购链接',
+      toolPlan: [{ tool: 'supplier.purchase.link', args: { question: '补水面膜供应商采购链接', limit: 10 } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'supplier.purchase.link',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:purchase'],
+      requiresApproval: false,
+      consumedSlots: ['limit'],
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '供应商采购链接',
+      summary: '已整理 1 个采购建议，优先处理 补水面膜：已绑定 1 个供应商，优先 华东耗材。',
+      data: {
+        items: [{
+          productName: '补水面膜',
+          supplierName: '华东耗材',
+          currentStock: 2,
+          safetyStock: 10,
+          suggestedQty: 8,
+          unit: '片',
+          supplyPriceText: '¥12',
+          leadDays: 3,
+          status: 'linked',
+          reason: '已绑定 1 个供应商，优先 华东耗材。',
+        }],
+        consumedSlots: { limit: 10 },
+      },
+      evidence: { source: ['Product', 'ProductSupplier', 'Supplier'], metricDefinition: '供应商采购链接。', filters: ['当前门店'] },
+      actions: [{ label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' }],
+    });
+
+    const result = await service.createRun({ message: '补水面膜供应商采购链接', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'supplier_purchase_card',
+          productName: '补水面膜',
+          supplierName: '华东耗材',
+          statusLabel: '已绑定供应商',
+        }),
+      ]),
+    );
+  });
+
+  it('renders finance report drafts as document preview blocks', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '生成财务报告草稿',
+      toolPlan: [{ tool: 'finance.report.draft', args: { question: '生成本月财务报告草稿', timeRange: 'this_month' } }],
+      confidence: 0.88,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'finance.report.draft',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange'],
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '财务报告草稿',
+      summary: '本月财务经营报告草稿已生成。',
+      data: {
+        document: {
+          title: '本月财务经营报告草稿',
+          content: '# 本月财务经营报告草稿\n\n## 收入概览\n收入稳定。',
+          downloadable: true,
+        },
+        consumedSlots: {
+          timeRange: { preset: 'this_month', label: '本月', start: '2026-06-01', end: '2026-07-01' },
+        },
+      },
+      evidence: { source: ['ProductOrder'], metricDefinition: '财务报告草稿。', filters: ['当前门店'] },
+      actions: [{ label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' }],
+    });
+
+    const result = await service.createRun({ message: '生成本月财务报告草稿', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'document_preview',
+          title: '本月财务经营报告草稿',
+          content: expect.stringContaining('## 收入概览'),
+          downloadable: true,
+        }),
+      ]),
+    );
+  });
+
+  it('masks sensitive finance text inside report document previews', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '生成财务报告草稿',
+      toolPlan: [{ tool: 'finance.report.draft', args: { question: '生成本月财务报告草稿', timeRange: 'this_month' } }],
+      confidence: 0.88,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'finance.report.draft',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange'],
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '财务报告草稿',
+      summary: '本月毛利 ¥900，提成 ¥120。',
+      data: {
+        document: {
+          title: '本月财务经营报告草稿',
+          content: '# 本月财务经营报告草稿\n\n毛利 ¥900，提成 ¥120，净收入 ¥1,200。',
+          downloadable: true,
+        },
+        consumedSlots: {
+          timeRange: { preset: 'this_month', label: '本月', start: '2026-06-01', end: '2026-07-01' },
+        },
+      },
+      evidence: { source: ['ProductOrder'], metricDefinition: '财务报告草稿。', filters: ['当前门店'] },
+      actions: [],
+    });
+
+    const result = await service.createRun({
+      message: '生成本月财务报告草稿',
+      actor: { ...actor, fieldScopes: { customerProfit: 'masked', staffCommission: 'hidden' } },
+    });
+    const documentBlock = (result.renderedBlocks ?? []).find((block: any) => block.kind === 'document_preview') as any;
+
+    expect(result.answer).toContain('毛利 已脱敏');
+    expect(result.answer).toContain('提成 已隐藏');
+    expect(documentBlock.content).toContain('毛利 已脱敏');
+    expect(documentBlock.content).toContain('提成 已隐藏');
+    expect(documentBlock.content).not.toContain('¥900');
+    expect(documentBlock.content).not.toContain('¥120');
   });
 
   it('normalizes user-visible internal enums and evidence text before returning Agent results', async () => {
@@ -539,7 +927,35 @@ describe('AgentOrchestratorService', () => {
     const plan = {
       intentType: 'draft',
       goal: '生成活动草稿',
-      toolPlan: [{ tool: 'marketing.activity.draft', args: { productIds: [301] } }],
+      toolPlan: [
+        {
+          tool: 'marketing.activity.draft',
+          args: {
+            productIds: [301],
+            context: {
+              previousRun: {
+                toolResults: [
+                  {
+                    data: {
+                      items: [
+                        {
+                          productName: '玻尿酸修护套装',
+                          fitScore: 82,
+                          customerCount: 126,
+                          salesAmount: 12800,
+                          currentStock: 38,
+                          suggestedCampaign: '会员专属活动',
+                          reason: '库存高于安全库存，近 30 天销量较好。',
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
       confidence: 0.82,
       clarificationNeeded: false,
     };
@@ -561,6 +977,26 @@ describe('AgentOrchestratorService', () => {
       riskLevel: 'medium',
       status: 'pending',
     });
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'activity_draft_card',
+          title: '玻尿酸修护套装会员专属活动',
+          offerSummary: '会员专属活动',
+          offerCostEstimate: expect.arrayContaining([
+            expect.objectContaining({ label: '权益成本估算' }),
+            expect.objectContaining({ label: '预计触达', value: '126人' }),
+          ]),
+          audienceDetails: expect.arrayContaining([
+            expect.objectContaining({ label: '玻尿酸修护套装', value: '126位相关客户' }),
+          ]),
+          actions: expect.arrayContaining([
+            expect.objectContaining({ actionId: 'approve:301' }),
+            expect.objectContaining({ actionId: 'reject:301' }),
+          ]),
+        }),
+      ]),
+    );
     expect(toolRegistry.execute).not.toHaveBeenCalled();
     expect(runtime.createApproval).toHaveBeenCalledWith(expect.objectContaining({ toolCallId: 201 }));
   });
@@ -602,24 +1038,69 @@ describe('AgentOrchestratorService', () => {
       status: 'success',
       title: '营销活动草稿',
       summary: '已创建营销活动草稿「补水精华会员专属满赠」。',
-      data: { activityId: 901, status: 'draft' },
+      data: {
+        activityId: 901,
+        title: '编辑后的沉睡客户召回活动',
+        status: 'draft',
+        targetAudience: '60 天未到店高价值客户',
+        offerSummary: '护理券',
+        copyPreview: '亲爱的会员，为您保留护理券。',
+        scheduleHint: '明天 10:00',
+        recommendedItems: [{ productName: '补水精华', fitScore: 88, reason: '适合沉睡客户召回。' }],
+      },
       evidence: {
         source: ['AgentApproval', 'MarketingActivity'],
         metricDefinition: '审批后创建草稿。',
         filters: ['status=draft'],
       },
-      actions: [{ label: '查看活动草稿', action: 'marketing:activity:901', riskLevel: 'low' }],
+      actions: [
+        { label: '查看活动草稿', action: 'marketing:activity:901', riskLevel: 'low' },
+        { label: '继续完善活动', action: 'marketing:activity:edit:901', riskLevel: 'medium' },
+      ],
     });
 
-    const result = await service.approve({ approvalId: 301, actor, comment: '确认生成草稿' });
+    const result = await service.approve({
+      approvalId: 301,
+      actor,
+      comment: '确认生成草稿',
+      args: {
+        title: '编辑后的沉睡客户召回活动',
+        targetAudience: '60 天未到店高价值客户',
+        offerSummary: '护理券',
+        copyPreview: '亲爱的会员，为您保留护理券。',
+        scheduleHint: '明天 10:00',
+      },
+    });
 
     expect(result.status).toBe('completed');
     expect(result.answer).toContain('已创建营销活动草稿');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'activity_draft_card',
+          editable: false,
+          title: '编辑后的沉睡客户召回活动',
+          targetAudience: '60 天未到店高价值客户',
+          offerSummary: '护理券',
+          actions: expect.arrayContaining([
+            expect.objectContaining({ actionId: 'marketing:activity:901' }),
+            expect.objectContaining({ actionId: 'marketing:activity:edit:901' }),
+          ]),
+        }),
+      ]),
+    );
     expect(runtime.updateApproval).toHaveBeenCalledWith(301, expect.objectContaining({ status: 'approved', approvedBy: 7 }));
     expect(runtime.updateToolCall).toHaveBeenCalledWith(201, expect.objectContaining({ status: 'success' }));
     expect(toolRegistry.execute).toHaveBeenCalledWith(
       'marketing.activity.draft',
-      expect.objectContaining({ context: { previousRun: { toolResults: [] } } }),
+      expect.objectContaining({
+        context: { previousRun: { toolResults: [] } },
+        title: '编辑后的沉睡客户召回活动',
+        targetAudience: '60 天未到店高价值客户',
+        offerSummary: '护理券',
+        copyPreview: '亲爱的会员，为您保留护理券。',
+        scheduleHint: '明天 10:00',
+      }),
       expect.objectContaining({ runId: 101, storeId: 1, userId: 7 }),
     );
   });

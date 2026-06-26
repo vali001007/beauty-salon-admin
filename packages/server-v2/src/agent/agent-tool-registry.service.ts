@@ -8,6 +8,7 @@ import { SmartSchedulingService } from '../scheduling/smart-scheduling.service.j
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import type {
   AgentEvidence,
+  AgentRiskLevel,
   AgentToolDefinition,
   AgentToolExecutionContext,
   AgentToolResult,
@@ -72,6 +73,19 @@ export class AgentToolRegistryService {
       maxRows: 2000,
       timeoutMs: 10_000,
       execute: (args, context) => this.diagnoseRevenue(args, context),
+    });
+
+    this.register({
+      name: 'finance.revenue.summary',
+      description: '汇总财务收入、实收、订单数、客单价和上一周期变化，面向店长经营看板问答',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange'],
+      maxRows: 2000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.summarizeFinanceRevenue(args, context),
     });
 
     this.register({
@@ -161,6 +175,58 @@ export class AgentToolRegistryService {
     });
 
     this.register({
+      name: 'inventory.consumption.trend',
+      description: '分析库存出库与服务耗材消耗趋势，识别高消耗品和异常消耗',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.diagnoseInventoryConsumptionTrend(args, context),
+    });
+
+    this.register({
+      name: 'inventory.project.bom.risk',
+      description: '结合项目 BOM、项目服务量和当前库存，诊断项目耗材保障风险',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.diagnoseProjectBomInventoryRisk(args, context),
+    });
+
+    this.register({
+      name: 'inventory.expiring.clearance.draft',
+      description: '根据临期批次和当前库存生成临期处理草稿建议，不自动调价或触达',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+      consumedSlots: ['limit'],
+      maxRows: 1000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.createExpiringInventoryClearanceDraft(args, context),
+    });
+
+    this.register({
+      name: 'supplier.purchase.link',
+      description: '查询库存商品的供应商采购链接、供货价、起订量和交期建议',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:purchase'],
+      requiresApproval: false,
+      consumedSlots: ['limit'],
+      maxRows: 1000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.linkSupplierPurchaseOptions(args, context),
+    });
+
+    this.register({
       name: 'service.record.draft',
       description: '根据待服务任务生成服务记录草稿建议，不自动提交正式服务记录',
       riskLevel: 'low',
@@ -170,6 +236,57 @@ export class AgentToolRegistryService {
       maxRows: 20,
       timeoutMs: 10_000,
       execute: (args, context) => this.createServiceRecordDraft(args, context),
+    });
+
+    this.register({
+      name: 'beautician.today.service.list',
+      description: '查询美容师今日服务客户、预约时间、项目和服务准备提醒',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: ['terminal:service:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 100,
+      timeoutMs: 8_000,
+      execute: (args, context) => this.getBeauticianTodayServiceList(args, context),
+    });
+
+    this.register({
+      name: 'beautician.customer.care.brief',
+      description: '生成美容师下一个客户护理准备摘要，包含客户标签、卡项、历史护理和注意事项',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: ['terminal:service:view'],
+      requiresApproval: false,
+      maxRows: 20,
+      timeoutMs: 8_000,
+      execute: (args, context) => this.getBeauticianCustomerCareBrief(args, context),
+    });
+
+    this.register({
+      name: 'beautician.performance.progress',
+      description: '查询美容师本月业绩、服务、提成和完成进度，仅展示本人或指定员工范围',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: [],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 2000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.getBeauticianPerformanceProgress(args, context),
+    });
+
+    this.register({
+      name: 'beautician.repurchase.opportunity',
+      description: '基于美容师近期服务客户、卡项剩余和到店周期，推荐复购、续卡或回访机会',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: ['terminal:customer:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 500,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.findBeauticianRepurchaseOpportunities(args, context),
     });
 
     this.register({
@@ -234,6 +351,71 @@ export class AgentToolRegistryService {
       maxRows: 3000,
       timeoutMs: 10_000,
       execute: (args, context) => this.diagnoseFinanceMargin(args, context),
+    });
+
+    this.register({
+      name: 'finance.profit.diagnose',
+      description: '诊断利润、毛利、耗材成本、提成成本变化原因，输出经营动作建议',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.diagnoseFinanceProfit(args, context),
+    });
+
+    this.register({
+      name: 'finance.margin.risk.rank',
+      description: '按项目/商品识别低毛利、亏损和成本占用风险排行，给出调价、停促或替换耗材建议',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.rankFinanceMarginRisk(args, context),
+    });
+
+    this.register({
+      name: 'finance.refund.discount.audit',
+      description: '审计退款、折扣、手工优惠和高退款率订单，输出财务风控清单',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.auditFinanceRefundDiscount(args, context),
+    });
+
+    this.register({
+      name: 'finance.beautician.performance.audit',
+      description: '审计美容师销售、提成、服务记录完整率和预约完成率，识别人效与提成异常',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange', 'limit'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.auditFinanceBeauticianPerformance(args, context),
+    });
+
+    this.register({
+      name: 'finance.report.draft',
+      description: '生成日报、周报、月报财务报告草稿，汇总收入、利润、退款折扣和员工绩效风险',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+      consumedSlots: ['timeRange'],
+      maxRows: 3000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.draftFinanceReport(args, context),
     });
 
     this.register({
@@ -589,7 +771,7 @@ export class AgentToolRegistryService {
     const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
     const scopedBeauticianId =
       context.role === 'beautician'
-        ? await this.resolveBeauticianId(context.storeId, context.userId, args)
+        ? await this.resolveBeauticianId(context, args)
         : Number(args.beauticianId) > 0
           ? Number(args.beauticianId)
           : undefined;
@@ -2400,6 +2582,38 @@ export class AgentToolRegistryService {
     };
   }
 
+  private async summarizeFinanceRevenue(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const result = await this.diagnoseRevenue(args, context);
+    const data = typeof result.data === 'object' && result.data !== null ? (result.data as Record<string, any>) : {};
+    const current = data.current ?? {};
+    const delta = data.delta ?? {};
+    return {
+      ...result,
+      title: '财务收入汇总',
+      summary:
+        result.status === 'no_data'
+          ? result.summary
+          : `收入汇总：${result.summary}`,
+      data: {
+        ...data,
+        reportType: 'finance_revenue_summary',
+        kpis: [
+          { label: '收入', value: String(current.revenueText ?? '-') },
+          { label: '订单数', value: String(current.orderCount ?? 0), delta: delta.orderCount !== undefined ? String(delta.orderCount) : undefined },
+          { label: '客单价', value: String(current.averageOrderValueText ?? '-') },
+          { label: '收入变化', value: String(delta.revenueText ?? '-'), delta: String(delta.revenueRateText ?? ''), deltaType: Number(delta.revenue) >= 0 ? 'up' : 'down' },
+        ],
+      },
+      actions: [
+        ...(result.actions ?? []),
+        { label: '查看财务日结', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
   private async rankProductSales(
     args: Record<string, unknown>,
     context: AgentToolExecutionContext,
@@ -2717,6 +2931,387 @@ export class AgentToolRegistryService {
     };
   }
 
+  private async diagnoseInventoryConsumptionTrend(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
+    const movements = await (this.prisma as any).stockMovement.findMany({
+      where: {
+        storeId: context.storeId,
+        occurredAt: { gte: range.start, lt: range.end },
+        quantity: { lt: 0 },
+      },
+      include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, costPrice: true } } },
+      orderBy: { occurredAt: 'desc' },
+      take: 3000,
+    });
+    const buckets = new Map<number, any>();
+    for (const movement of movements as any[]) {
+      const productId = Number(movement.productId);
+      if (!productId) continue;
+      const target =
+        buckets.get(productId) ??
+        {
+          productId,
+          productName: movement.product?.name ?? `商品${productId}`,
+          sku: movement.product?.sku,
+          unit: movement.product?.unit,
+          currentStock: this.toNumber(movement.product?.currentStock),
+          safetyStock: this.toNumber(movement.product?.safetyStock),
+          costPrice: this.toNumber(movement.product?.costPrice),
+          consumeQty: 0,
+          consumeCost: 0,
+          movementCount: 0,
+          serviceConsumeCount: 0,
+          saleOutCount: 0,
+          lastOccurredAt: movement.occurredAt,
+        };
+      const qty = Math.abs(this.toNumber(movement.quantity));
+      target.consumeQty += qty;
+      target.consumeCost += qty * target.costPrice;
+      target.movementCount += 1;
+      if (/service|consume|耗材/.test(String(movement.movementType || movement.sourceType || ''))) target.serviceConsumeCount += 1;
+      if (/sale|order|销售/.test(String(movement.movementType || movement.sourceType || ''))) target.saleOutCount += 1;
+      if (new Date(movement.occurredAt) > new Date(target.lastOccurredAt)) target.lastOccurredAt = movement.occurredAt;
+      buckets.set(productId, target);
+    }
+    const days = Math.max(1, Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS));
+    const items = Array.from(buckets.values())
+      .map((item) => {
+        const dailyConsumption = item.consumeQty / days;
+        const availableStock = Math.max(0, item.currentStock);
+        const projectedDaysLeft = dailyConsumption > 0 ? availableStock / dailyConsumption : null;
+        const suggestedQty = Math.max(0, item.safetyStock - item.currentStock);
+        const riskLevel =
+          item.currentStock <= 0
+            ? 'high'
+            : projectedDaysLeft !== null && projectedDaysLeft <= 7
+            ? 'high'
+            : projectedDaysLeft !== null && projectedDaysLeft <= 14
+              ? 'medium'
+              : item.currentStock <= item.safetyStock
+                ? 'medium'
+                : 'low';
+        return {
+          ...item,
+          consumeCostText: this.formatMoney(item.consumeCost),
+          dailyConsumption: Number(dailyConsumption.toFixed(2)),
+          projectedDaysLeft: projectedDaysLeft === null ? null : Number(projectedDaysLeft.toFixed(1)),
+          suggestedQty,
+          riskLevel,
+          reason:
+            item.currentStock < 0
+              ? `当前库存已为负数，按${range.label}日均消耗 ${this.formatQuantity(dailyConsumption, item.unit)}，建议至少补足 ${this.formatQuantity(suggestedQty, item.unit)} 到安全库存。`
+              : projectedDaysLeft !== null
+              ? `按${range.label}日均消耗 ${this.formatQuantity(dailyConsumption, item.unit)}，当前库存预计可用 ${Number(projectedDaysLeft.toFixed(1))} 天。`
+              : '当前周期有出库记录，但无法形成稳定日均预测。',
+        };
+      })
+      .sort((a, b) => b.consumeQty - a.consumeQty || b.consumeCost - a.consumeCost)
+      .slice(0, limit);
+    const evidence: AgentEvidence = {
+      source: ['StockMovement', 'Product'],
+      dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
+      metricDefinition: '库存消耗趋势 = 查询周期内负数库存流水，按商品聚合消耗数量、消耗成本、日均消耗和预计可用天数；只读分析，不改库存。',
+      filters: ['storeId=当前门店', 'StockMovement.quantity < 0', `limit=${limit}`],
+      sampleSize: (movements as any[]).length,
+      limitations: ['当前为规则型趋势分析，未叠加未来预约、在途采购和供应商交期。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '库存消耗趋势',
+        summary: `${range.label}没有库存出库或耗材消耗流水。`,
+        data: { items: [], requestedLimit: limit, consumedSlots: this.buildConsumedSlots(range, limit, {}) },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '库存消耗趋势',
+      summary: `${range.label}消耗最高的是 ${items[0].productName}，累计消耗 ${this.formatQuantity(items[0].consumeQty, items[0].unit)}，预计可用 ${items[0].projectedDaysLeft ?? '-'} 天。`,
+      data: { items, requestedLimit: limit, consumedSlots: this.buildConsumedSlots(range, limit, {}) },
+      evidence,
+      actions: [
+        { label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' },
+        { label: '查看库存风险', action: 'agent:tool:inventory.risk.rank', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async diagnoseProjectBomInventoryRisk(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
+    const projects = await (this.prisma as any).project.findMany({
+      where: { storeId: context.storeId, deletedAt: null, status: { not: 'deleted' } },
+      include: {
+        bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, costPrice: true } } } },
+      },
+      take: 1000,
+    });
+    const projectIds = (projects as any[]).map((project) => Number(project.id)).filter(Boolean);
+    const orderItems = projectIds.length
+      ? await (this.prisma as any).orderItem.findMany({
+          where: {
+            itemType: 'project',
+            itemId: { in: projectIds },
+            order: { storeId: context.storeId, status: { in: PAID_ORDER_STATUSES }, createdAt: { gte: range.start, lt: range.end } },
+          },
+          include: { order: { select: { id: true, createdAt: true, status: true } } },
+          take: 3000,
+        })
+      : [];
+    const serviceQtyByProject = new Map<number, number>();
+    for (const item of orderItems as any[]) {
+      const projectId = Number(item.itemId);
+      serviceQtyByProject.set(projectId, (serviceQtyByProject.get(projectId) ?? 0) + this.toNumber(item.quantity));
+    }
+    const days = Math.max(1, Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS));
+    const items = (projects as any[])
+      .map((project) => {
+        const serviceCount = serviceQtyByProject.get(Number(project.id)) ?? 0;
+        const bomItems = Array.isArray(project.bomItems) ? project.bomItems : [];
+        const bomRisks = bomItems.map((bom: any) => {
+          const product = bom.product ?? {};
+          const standardQty = this.toNumber(bom.standardQty);
+          const currentStock = this.toNumber(product.currentStock);
+          const safetyStock = this.toNumber(product.safetyStock);
+          const periodNeed = serviceCount * standardQty;
+          const projected14dNeed = Math.ceil((periodNeed / days) * 14);
+          const shortage = Math.max(0, projected14dNeed - currentStock);
+          const belowSafety = Math.max(0, safetyStock - currentStock);
+          const riskScore = Math.min(100, shortage * 12 + belowSafety * 8 + (standardQty > 0 ? 5 : 15));
+          return {
+            productId: product.id,
+            productName: product.name,
+            sku: product.sku,
+            unit: bom.unit ?? product.unit,
+            standardQty,
+            currentStock,
+            safetyStock,
+            periodNeed,
+            projected14dNeed,
+            shortage,
+            riskScore,
+            reason: shortage > 0 ? `按项目服务量预计 14 天缺口 ${this.formatQuantity(shortage, bom.unit ?? product.unit)}` : belowSafety > 0 ? `低于安全库存 ${this.formatQuantity(belowSafety, bom.unit ?? product.unit)}` : '耗材保障正常',
+          };
+        });
+        const missingBom = bomItems.length === 0;
+        const topRisk = bomRisks.sort((a: any, b: any) => b.riskScore - a.riskScore)[0];
+        const riskScore = missingBom ? 70 : Math.max(0, topRisk?.riskScore ?? 0);
+        return {
+          projectId: project.id,
+          projectName: project.name,
+          serviceCount,
+          bomItemCount: bomItems.length,
+          missingBom,
+          riskScore,
+          riskLevel: riskScore >= 65 ? 'high' : riskScore >= 35 ? 'medium' : 'low',
+          topRiskProductName: topRisk?.productName,
+          bomRisks: bomRisks.slice(0, 5),
+          reason: missingBom ? '项目未配置 BOM，无法预测耗材保障。' : topRisk?.reason ?? '项目耗材保障正常。',
+        };
+      })
+      .filter((item) => item.riskScore > 0 || item.serviceCount > 0)
+      .sort((a, b) => b.riskScore - a.riskScore || b.serviceCount - a.serviceCount)
+      .slice(0, limit);
+    const evidence: AgentEvidence = {
+      source: ['Project', 'ProjectBomItem', 'Product', 'ProductOrder', 'OrderItem'],
+      dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
+      metricDefinition: '项目 BOM 风险 = 项目服务次数 * BOM 标准用量，结合商品当前库存和安全库存推算 14 天耗材保障缺口。',
+      filters: ['storeId=当前门店', 'Project.deletedAt is null', 'OrderItem.itemType=project', `limit=${limit}`],
+      sampleSize: (projects as any[]).length + (orderItems as any[]).length,
+      limitations: ['当前按订单项目服务量估算，不含未来预约和手工调整耗材。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '项目耗材 BOM 风险',
+        summary: `${range.label}没有项目服务或 BOM 风险证据。`,
+        data: { items: [], requestedLimit: limit, consumedSlots: this.buildConsumedSlots(range, limit, {}) },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '项目耗材 BOM 风险',
+      summary: `项目耗材风险最高的是 ${items[0].projectName}：${items[0].reason}`,
+      data: { items, requestedLimit: limit, consumedSlots: this.buildConsumedSlots(range, limit, {}) },
+      evidence,
+      actions: [
+        { label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' },
+        { label: '查看项目 BOM', action: 'inventory:bom:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async createExpiringInventoryClearanceDraft(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const now = this.startOfDay(new Date());
+    const horizonDays = Math.min(Math.max(Number(args.horizonDays) || 90, 1), 180);
+    const end = new Date(now.getTime() + horizonDays * DAY_MS);
+    const batches = await (this.prisma as any).stockBatch.findMany({
+      where: { stock: { gt: 0 }, expiryDate: { gte: now, lte: end }, product: { storeId: context.storeId, deletedAt: null } },
+      include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, retailPrice: true, costPrice: true } } },
+      orderBy: { expiryDate: 'asc' },
+      take: 1000,
+    });
+    const items = (batches as any[])
+      .map((batch) => {
+        const product = batch.product ?? {};
+        const daysToExpiry = this.daysUntil(batch.expiryDate);
+        const stock = this.toNumber(batch.stock);
+        const retailPrice = this.toNumber(product.retailPrice);
+        const costPrice = this.toNumber(product.costPrice);
+        const suggestedDiscountRate = daysToExpiry <= 15 ? 0.75 : daysToExpiry <= 30 ? 0.85 : 0.9;
+        const suggestedPrice = retailPrice ? Math.round(retailPrice * suggestedDiscountRate * 100) / 100 : null;
+        const marginAfterDiscount = suggestedPrice !== null ? suggestedPrice - costPrice : null;
+        return {
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          batchId: batch.id,
+          batchNo: batch.batchNo,
+          stock,
+          unit: product.unit,
+          expiryDate: this.formatDate(new Date(batch.expiryDate)),
+          daysToExpiry,
+          retailPrice,
+          costPrice,
+          suggestedDiscountRate,
+          suggestedPrice,
+          suggestedPriceText: suggestedPrice !== null ? this.formatMoney(suggestedPrice) : null,
+          marginAfterDiscount,
+          riskLevel: daysToExpiry <= 15 ? 'high' : daysToExpiry <= 30 ? 'medium' : 'low',
+          suggestedAction: daysToExpiry <= 30 ? '顾问定向邀约或护理搭赠' : '加入低峰到店加项礼',
+        };
+      })
+      .sort((a, b) => a.daysToExpiry - b.daysToExpiry || b.stock - a.stock)
+      .slice(0, limit);
+    const evidence: AgentEvidence = {
+      source: ['StockBatch', 'Product'],
+      dateRange: `${this.formatDate(now)} 至 ${this.formatDate(end)}`,
+      metricDefinition: '临期处理草稿 = 未来窗口内仍有库存的临期批次 + 零售价/成本价，生成建议折扣和处理动作；不自动调价、不发布活动、不触达客户。',
+      filters: ['storeId=当前门店', 'StockBatch.stock > 0', `expiryDate<=${this.formatDate(end)}`, `limit=${limit}`],
+      sampleSize: (batches as any[]).length,
+      limitations: ['折扣建议为规则草稿，正式促销需结合毛利、客户名单和审批确认。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '临期库存处理草稿',
+        summary: `未来 ${horizonDays} 天没有需要处理的临期库存批次。`,
+        data: { items: [], requestedLimit: limit, horizonDays, consumedSlots: { limit } },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '临期库存处理草稿',
+      summary: `发现 ${items.length} 个临期处理建议，优先处理 ${items[0].productName}，${items[0].daysToExpiry} 天后到期。`,
+      data: { items, requestedLimit: limit, horizonDays, consumedSlots: { limit } },
+      evidence,
+      actions: [
+        { label: '生成营销活动草稿', action: 'agent:tool:marketing.activity.draft', riskLevel: 'medium' },
+        { label: '查看库存批次', action: 'inventory:expiry:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async linkSupplierPurchaseOptions(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const products = await (this.prisma as any).product.findMany({
+      where: { storeId: context.storeId, deletedAt: null },
+      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, supplier: true, minPurchaseQty: true, unit: true },
+      take: 1000,
+    });
+    const productIds = (products as any[]).map((product) => Number(product.id)).filter(Boolean);
+    const links = productIds.length
+      ? await (this.prisma as any).productSupplier.findMany({
+          where: { productId: { in: productIds }, supplier: { OR: [{ storeId: context.storeId }, { storeId: null }], deletedAt: null, status: 'active' } },
+          include: { supplier: { select: { id: true, name: true, category: true, status: true, paymentTerms: true, phone: true } } },
+          take: 2000,
+        })
+      : [];
+    const linkByProduct = new Map<number, any[]>();
+    for (const link of links as any[]) {
+      const productId = Number(link.productId);
+      const arr = linkByProduct.get(productId) ?? [];
+      arr.push(link);
+      linkByProduct.set(productId, arr);
+    }
+    const items = (products as any[])
+      .map((product) => {
+        const options = (linkByProduct.get(Number(product.id)) ?? []).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || this.toNumber(a.supplyPrice) - this.toNumber(b.supplyPrice));
+        const primary = options[0];
+        const suggestedQty = Math.max(this.toNumber(product.minPurchaseQty), Math.max(0, this.toNumber(product.safetyStock) - this.toNumber(product.currentStock)));
+        return {
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: this.toNumber(product.currentStock),
+          safetyStock: this.toNumber(product.safetyStock),
+          unit: product.unit,
+          suggestedQty,
+          supplierName: primary?.supplier?.name ?? product.supplier ?? '未绑定供应商',
+          supplierId: primary?.supplierId ?? null,
+          supplyPrice: primary ? this.toNumber(primary.supplyPrice) : null,
+          supplyPriceText: primary ? this.formatMoney(this.toNumber(primary.supplyPrice)) : null,
+          moq: primary?.moq ?? product.minPurchaseQty ?? null,
+          leadDays: primary?.leadDays ?? null,
+          paymentTerms: primary?.supplier?.paymentTerms ?? null,
+          optionCount: options.length,
+          status: primary ? 'linked' : 'missing_supplier_link',
+          reason: primary ? `已绑定 ${options.length} 个供应商，优先 ${primary.supplier?.name}。` : '未绑定结构化供应商，需先维护供应商或采购映射。',
+        };
+      })
+      .filter((item) => item.status === 'missing_supplier_link' || item.currentStock <= item.safetyStock || item.suggestedQty > 0)
+      .sort((a, b) => Number(a.status === 'missing_supplier_link') - Number(b.status === 'missing_supplier_link') || b.suggestedQty - a.suggestedQty)
+      .slice(0, limit);
+    const evidence: AgentEvidence = {
+      source: ['Product', 'ProductSupplier', 'Supplier'],
+      metricDefinition: '供应商采购链接 = 商品库存 + 商品供应商映射 + 供货价/起订量/交期；只返回采购建议，不创建采购单。',
+      filters: ['storeId=当前门店', 'Product.deletedAt is null', 'Supplier.status=active', `limit=${limit}`],
+      sampleSize: (products as any[]).length + (links as any[]).length,
+      limitations: ['未接入外部供应链实时价格和真实下单链接；正式采购仍需生成采购草稿并审批。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '供应商采购链接',
+        summary: '当前没有低库存或缺少供应商链接的商品。',
+        data: { items: [], requestedLimit: limit, consumedSlots: { limit } },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '供应商采购链接',
+      summary: `已整理 ${items.length} 个采购建议，优先处理 ${items[0].productName}：${items[0].reason}`,
+      data: { items, requestedLimit: limit, consumedSlots: { limit } },
+      evidence,
+      actions: [
+        { label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' },
+        { label: '维护供应商', action: 'inventory:supplier:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
   private async discoverMarketingOpportunity(
     args: Record<string, unknown>,
     context: AgentToolExecutionContext,
@@ -2894,13 +3489,20 @@ export class AgentToolRegistryService {
     const opportunityItems = this.extractOpportunityItems(args).slice(0, 5);
     const primary = opportunityItems[0];
     const productName = String(primary?.productName ?? primary?.name ?? '推荐商品');
-    const campaignName = String(primary?.suggestedCampaign ?? '会员专属活动');
-    const title = `${productName}${campaignName}`;
+    const campaignName = String(args.offerSummary ?? args.offer ?? primary?.suggestedCampaign ?? '会员专属活动').trim() || '会员专属活动';
+    const title = String(args.title ?? `${productName}${campaignName}`).trim() || `${productName}${campaignName}`;
+    const targetAudience = String(args.targetAudience ?? '由 Ami 经营 Agent 推荐，需运营人员在发布前确认人群和权益。').trim() || '由 Ami 经营 Agent 推荐，需运营人员在发布前确认人群和权益。';
+    const copyPreview = String(args.copyPreview ?? '').trim();
+    const scheduleHint = String(args.scheduleHint ?? '').trim();
     const activity = await this.marketingService.createActivity({
       title,
-      description: this.buildMarketingDraftDescription(opportunityItems, args),
+      description: [
+        this.buildMarketingDraftDescription(opportunityItems, args),
+        copyPreview ? `\n触达话术：${copyPreview}` : '',
+        scheduleHint ? `\n建议发送时间：${scheduleHint}` : '',
+      ].filter(Boolean).join(''),
       status: 'draft',
-      targetCustomers: '由 Ami 经营 Agent 推荐，需运营人员在发布前确认人群和权益。',
+      targetCustomers: targetAudience,
       discount: campaignName,
       sourceRecommendationId: `agent_run_${context.runId}`,
       sourceSignalsJson: {
@@ -2909,6 +3511,13 @@ export class AgentToolRegistryService {
         storeId: context.storeId,
         approvedBy: context.userId ?? null,
         question: args.question,
+        editedDraft: {
+          title,
+          targetAudience,
+          offerSummary: campaignName,
+          copyPreview,
+          scheduleHint,
+        },
       },
       recommendedItemsJson: opportunityItems,
       offerJson: {
@@ -2926,6 +3535,10 @@ export class AgentToolRegistryService {
         activityId: activity.id,
         title: activity.title,
         status: activity.status,
+        targetAudience,
+        offerSummary: campaignName,
+        copyPreview,
+        scheduleHint,
         recommendedItems: opportunityItems,
       },
       evidence: {
@@ -3086,7 +3699,7 @@ export class AgentToolRegistryService {
     const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 20);
     const start = this.startOfDay(new Date());
     const end = new Date(start.getTime() + DAY_MS);
-    const beauticianId = await this.resolveBeauticianId(context.storeId, context.userId, args);
+    const beauticianId = await this.resolveBeauticianId(context, args);
     const tasks = await (this.prisma as any).serviceTask.findMany({
       where: {
         storeId: context.storeId,
@@ -3148,6 +3761,531 @@ export class AgentToolRegistryService {
         { label: '查看我的预约', action: 'beautician.schedule', riskLevel: 'low' },
       ],
     };
+  }
+
+  private async getBeauticianTodayServiceList(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const start = this.startOfDay(new Date());
+    const end = new Date(start.getTime() + DAY_MS);
+    const beauticianId = await this.resolveBeauticianId(context, args);
+    const scopeLabel = context.role === 'beautician' ? '本人' : beauticianId ? '指定美容师' : '全店美容师';
+    const range = { start, end, label: '今日', preset: 'today' };
+
+    if (context.role === 'beautician' && !beauticianId) {
+      return this.buildBeauticianUnboundResult('今日服务客户', start, ['ServiceTask', 'Reservation'], {
+        range,
+        limit,
+        filters: { scope: '本人' },
+      });
+    }
+
+    const [tasks, reservations] = await Promise.all([
+      (this.prisma as any).serviceTask.findMany({
+        where: {
+          storeId: context.storeId,
+          appointmentTime: { gte: start, lt: end },
+          ...(beauticianId ? { beauticianId } : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true, memberLevel: true, tags: true, lastVisitDate: true } },
+          project: { select: { id: true, name: true, duration: true } },
+          beautician: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: [{ appointmentTime: 'asc' }],
+        take: 200,
+      }),
+      (this.prisma as any).reservation.findMany({
+        where: {
+          storeId: context.storeId,
+          date: { gte: start, lt: end },
+          status: { not: 'cancelled' },
+          ...(beauticianId ? { beauticianId } : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true, memberLevel: true, tags: true, lastVisitDate: true } },
+          project: { select: { id: true, name: true, duration: true } },
+          beautician: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+        take: 200,
+      }),
+    ]);
+
+    const items = [
+      ...(tasks as any[]).map((task) => ({
+        sourceType: 'service_task',
+        taskId: task.id,
+        reservationId: null,
+        customerId: task.customerId,
+        customerName: task.customer?.name ?? `客户${task.customerId}`,
+        memberLevel: task.customer?.memberLevel ?? '',
+        projectId: task.projectId,
+        projectName: task.project?.name ?? `项目${task.projectId}`,
+        beauticianId: task.beauticianId,
+        beauticianName: task.beautician?.name,
+        startTime: this.formatTime(new Date(task.appointmentTime)),
+        endTime: this.formatTime(new Date(new Date(task.appointmentTime).getTime() + this.toNumber(task.duration || task.project?.duration || 60) * 60_000)),
+        status: String(task.status || ''),
+        tags: task.customer?.tags ?? [],
+        lastVisitDays: this.daysSince(task.customer?.lastVisitDate),
+        prepSuggestion: this.buildServicePrepSuggestion(task.project?.name, task.customer?.tags),
+      })),
+      ...(reservations as any[]).map((reservation) => ({
+        sourceType: 'reservation',
+        taskId: null,
+        reservationId: reservation.id,
+        customerId: reservation.customerId,
+        customerName: reservation.customer?.name ?? `客户${reservation.customerId}`,
+        memberLevel: reservation.customer?.memberLevel ?? '',
+        projectId: reservation.projectId,
+        projectName: reservation.project?.name ?? `项目${reservation.projectId}`,
+        beauticianId: reservation.beauticianId,
+        beauticianName: reservation.beautician?.name,
+        startTime: reservation.startTime || this.formatTime(new Date(reservation.date)),
+        endTime: reservation.endTime || this.addMinutes(reservation.startTime || this.formatTime(new Date(reservation.date)), this.toNumber(reservation.project?.duration) || 60),
+        status: String(reservation.status || ''),
+        tags: reservation.customer?.tags ?? [],
+        lastVisitDays: this.daysSince(reservation.customer?.lastVisitDate),
+        prepSuggestion: this.buildServicePrepSuggestion(reservation.project?.name, reservation.customer?.tags),
+      })),
+    ]
+      .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)))
+      .slice(0, limit);
+
+    const evidence: AgentEvidence = {
+      source: ['ServiceTask', 'Reservation', 'Customer', 'Project'],
+      dateRange: this.formatDate(start),
+      metricDefinition: '今日服务客户 = 今日服务任务 + 未取消预约，按预约/服务时间排序；只读查询，不变更预约或服务记录。',
+      filters: ['当前门店', `scope=${scopeLabel}`, 'Reservation.status != cancelled', `limit=${limit}`],
+      sampleSize: (tasks as any[]).length + (reservations as any[]).length,
+      limitations: ['服务任务和预约可能存在同一客户同一项目重复展示，正式服务记录仍以服务任务为准。'],
+    };
+
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: context.role === 'beautician' ? '我今天的服务客户' : '今日美容师服务客户',
+        summary: `${scopeLabel}今日暂无服务任务或预约。`,
+        data: { items: [], scope: scopeLabel, consumedSlots: this.buildConsumedSlots(range, limit, { scope: scopeLabel }) },
+        evidence,
+        actions: [{ label: '查看我的预约', action: 'beautician.schedule', riskLevel: 'low' }],
+      };
+    }
+
+    const first = items[0];
+    return {
+      status: 'success',
+      title: context.role === 'beautician' ? '我今天的服务客户' : '今日美容师服务客户',
+      summary: `${scopeLabel}今日共 ${items.length} 条服务/预约记录，下一位客户是 ${first.customerName}，${first.startTime} 做 ${first.projectName}。`,
+      data: {
+        items,
+        kpis: {
+          serviceOrReservationCount: items.length,
+          taskCount: (tasks as any[]).length,
+          reservationCount: (reservations as any[]).length,
+        },
+        scope: scopeLabel,
+        consumedSlots: this.buildConsumedSlots(range, limit, { scope: scopeLabel }),
+      },
+      evidence,
+      actions: [
+        { label: '生成服务记录草稿', action: 'agent:tool:service.record.draft', riskLevel: 'low' },
+        { label: '查看下一个客户护理摘要', action: 'agent:tool:beautician.customer.care.brief', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async getBeauticianCustomerCareBrief(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const start = this.startOfDay(new Date());
+    const end = new Date(start.getTime() + DAY_MS);
+    const beauticianId = await this.resolveBeauticianId(context, args);
+    if (context.role === 'beautician' && !beauticianId) {
+      return this.buildBeauticianUnboundResult('客户护理摘要', start, ['Beautician']);
+    }
+
+    const explicitCustomerId = Number(args.customerId);
+    const tasks = await (this.prisma as any).serviceTask.findMany({
+      where: {
+        storeId: context.storeId,
+        appointmentTime: { gte: start, lt: end },
+        status: { in: ['pending', 'in_progress'] },
+        ...(beauticianId ? { beauticianId } : {}),
+        ...(Number.isFinite(explicitCustomerId) && explicitCustomerId > 0 ? { customerId: explicitCustomerId } : {}),
+      },
+      include: {
+        customer: { include: { healthProfile: true } },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true } } } },
+          },
+        },
+        beautician: { select: { id: true, name: true, status: true } },
+      },
+      orderBy: [{ appointmentTime: 'asc' }],
+      take: 5,
+    });
+    const task = (tasks as any[])[0];
+    const evidence: AgentEvidence = {
+      source: ['ServiceTask', 'Customer', 'CustomerHealthProfile', 'CustomerCard', 'CardUsageRecord', 'ProjectBomItem'],
+      dateRange: this.formatDate(start),
+      metricDefinition: '客户护理摘要 = 下一条待服务任务 + 客户基础档案/肤况档案 + 活跃卡项 + 近90天核销记录 + 项目BOM注意事项；只做护理准备建议。',
+      filters: ['当前门店', beauticianId ? '美容师本人或指定美容师' : '全店美容师', 'ServiceTask.status in pending/in_progress', 'appointmentTime=今日'],
+      sampleSize: (tasks as any[]).length,
+      limitations: ['护理建议不构成医疗诊断；涉及皮肤异常、过敏或不适时，应建议客户咨询专业医疗机构。'],
+    };
+    if (!task) {
+      return {
+        status: 'no_data',
+        title: '客户护理摘要',
+        summary: '今日没有找到待服务客户，暂无法生成护理准备摘要。',
+        data: { items: [] },
+        evidence,
+        actions: [{ label: '查看今日服务', action: 'agent:tool:beautician.today.service.list', riskLevel: 'low' }],
+      };
+    }
+
+    const [cards, usages] = await Promise.all([
+      (this.prisma as any).customerCard.findMany({
+        where: { customerId: task.customerId, status: 'active' },
+        select: { id: true, cardName: true, totalTimes: true, remainingTimes: true, expiryDate: true, status: true },
+        orderBy: { expiryDate: 'asc' },
+        take: 10,
+      }),
+      (this.prisma as any).cardUsageRecord.findMany({
+        where: { customerId: task.customerId, verifiedAt: { gte: new Date(start.getTime() - 90 * DAY_MS), lt: end } },
+        select: { id: true, cardName: true, projectName: true, times: true, remainingTimes: true, verifiedAt: true },
+        orderBy: { verifiedAt: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    const customer = task.customer ?? {};
+    const health = customer.healthProfile ?? {};
+    const activeCards = (cards as any[]).map((card) => ({
+      cardId: card.id,
+      cardName: card.cardName,
+      remainingTimes: card.remainingTimes,
+      expiryDate: this.formatDate(new Date(card.expiryDate)),
+      daysToExpire: this.daysUntil(card.expiryDate),
+      risk: this.daysUntil(card.expiryDate) <= 30 || this.toNumber(card.remainingTimes) <= 2 ? '需要提醒' : '正常',
+    }));
+    const recentUsages = (usages as any[]).map((usage) => ({
+      usageId: usage.id,
+      cardName: usage.cardName,
+      projectName: usage.projectName,
+      times: usage.times,
+      remainingTimes: usage.remainingTimes,
+      verifiedAt: this.formatDate(new Date(usage.verifiedAt)),
+    }));
+    const carePoints = [
+      health.skinType ? `肤质：${health.skinType}` : '',
+      health.mainProblems ? `主要关注：${health.mainProblems}` : '',
+      customer.hasAllergy ? `过敏史：${customer.hasAllergy}` : '',
+      customer.hasSurgery ? `术后/医美史：${customer.hasSurgery}` : '',
+      Array.isArray(customer.tags) && customer.tags.length ? `标签：${customer.tags.join('、')}` : '',
+      activeCards.some((card) => card.risk === '需要提醒') ? '有卡项临期或剩余次数较少，可在服务后做温和续卡提醒。' : '',
+    ].filter(Boolean);
+    const bomItems = Array.isArray(task.project?.bomItems) ? task.project.bomItems : [];
+    return {
+      status: 'success',
+      title: '客户护理摘要',
+      summary: `${task.customer?.name ?? '客户'} ${this.formatTime(new Date(task.appointmentTime))} 做 ${task.project?.name ?? '护理项目'}；重点关注 ${carePoints[0] ?? '到店状态和本次反馈'}。`,
+      data: {
+        customer: {
+          customerId: task.customerId,
+          customerName: customer.name,
+          memberLevel: customer.memberLevel,
+          visitCount: this.toNumber(customer.visitCount),
+          lastVisitDate: customer.lastVisitDate ? this.formatDate(new Date(customer.lastVisitDate)) : null,
+        },
+        service: {
+          taskId: task.id,
+          taskNo: task.taskNo,
+          projectId: task.projectId,
+          projectName: task.project?.name,
+          appointmentTime: task.appointmentTime,
+          beauticianName: task.beautician?.name,
+        },
+        carePoints,
+        activeCards,
+        recentUsages,
+        bomItems: bomItems.map((item: any) => ({
+          productId: item.productId,
+          productName: item.product?.name,
+          standardQty: this.toNumber(item.standardQty),
+          unit: item.unit ?? item.product?.unit,
+        })),
+        recommendedSteps: [
+          '服务前确认客户今日肤感、作息、近期是否有过敏或不适。',
+          '服务中按项目标准流程记录实际耗材，异常反馈写入服务记录。',
+          '服务后根据卡项剩余和护理周期，给出下一次到店建议。',
+        ],
+      },
+      evidence: { ...evidence, sampleSize: (tasks as any[]).length + (cards as any[]).length + (usages as any[]).length },
+      actions: [
+        { label: '生成服务记录草稿', action: 'agent:tool:service.record.draft', riskLevel: 'low' },
+        { label: '查看复购机会', action: 'agent:tool:beautician.repurchase.opportunity', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async getBeauticianPerformanceProgress(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const result = await this.rankStaffPerformance({ ...args, timeRange: args.timeRange ?? 'this_month', limit: 1 }, context);
+    const targetAmount = Number(args.targetAmount);
+    const item = Array.isArray((result.data as any)?.items) ? (result.data as any).items[0] : null;
+    if (result.status !== 'success' || !item) {
+      return { ...result, title: context.role === 'beautician' ? '我的业绩进度' : '美容师业绩进度' };
+    }
+    const gap = Number.isFinite(targetAmount) && targetAmount > 0 ? Math.max(0, targetAmount - this.toNumber(item.salesAmount)) : null;
+    return {
+      ...result,
+      title: context.role === 'beautician' ? '我的业绩进度' : '美容师业绩进度',
+      summary:
+        gap !== null
+          ? `${item.beauticianName ?? '当前美容师'}本月销售额 ${item.salesAmountText}，目标 ${this.formatMoney(targetAmount)}，还差 ${this.formatMoney(gap)}；服务 ${this.formatQuantity(item.serviceCount, '次')}，提成 ${item.commissionAmountText}。`
+          : `${item.beauticianName ?? '当前美容师'}本月销售额 ${item.salesAmountText}，服务 ${this.formatQuantity(item.serviceCount, '次')}，提成 ${item.commissionAmountText}，表现分 ${item.performanceScore}。`,
+      data: {
+        ...(result.data as Record<string, unknown>),
+        progress: {
+          targetAmount: Number.isFinite(targetAmount) && targetAmount > 0 ? targetAmount : null,
+          targetAmountText: Number.isFinite(targetAmount) && targetAmount > 0 ? this.formatMoney(targetAmount) : null,
+          gapAmount: gap,
+          gapAmountText: gap !== null ? this.formatMoney(gap) : null,
+          completionRate: Number.isFinite(targetAmount) && targetAmount > 0 ? this.toNumber(item.salesAmount) / targetAmount : null,
+          completionRateText: Number.isFinite(targetAmount) && targetAmount > 0 ? this.formatPercent(this.toNumber(item.salesAmount) / targetAmount) : null,
+        },
+      },
+      actions: [
+        { label: '查看服务记录', action: 'beautician.record', riskLevel: 'low' },
+        { label: '查看复购机会', action: 'agent:tool:beautician.repurchase.opportunity', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async findBeauticianRepurchaseOpportunities(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 30);
+    const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
+    const lookbackStart = new Date(range.start.getTime() - 90 * DAY_MS);
+    const beauticianId = await this.resolveBeauticianId(context, args);
+    const scopeLabel = context.role === 'beautician' ? '本人服务客户' : beauticianId ? '指定美容师服务客户' : '全店服务客户';
+    if (context.role === 'beautician' && !beauticianId) {
+      return this.buildBeauticianUnboundResult('复购续卡机会', range.start, ['Beautician'], {
+        range,
+        limit,
+        filters: { scope: '本人服务客户' },
+      });
+    }
+
+    const [tasks, usages] = await Promise.all([
+      (this.prisma as any).serviceTask.findMany({
+        where: {
+          storeId: context.storeId,
+          appointmentTime: { gte: lookbackStart, lt: range.end },
+          ...(beauticianId ? { beauticianId } : {}),
+          status: { in: ['completed', 'done'] },
+        },
+        include: {
+          customer: { select: { id: true, name: true, memberLevel: true, totalSpent: true, visitCount: true, lastVisitDate: true, tags: true } },
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { appointmentTime: 'desc' },
+        take: 1000,
+      }),
+      (this.prisma as any).cardUsageRecord.findMany({
+        where: {
+          storeId: context.storeId,
+          verifiedAt: { gte: lookbackStart, lt: range.end },
+          ...(beauticianId ? { beauticianId } : {}),
+        },
+        select: { id: true, customerId: true, customerName: true, cardName: true, projectName: true, times: true, remainingTimes: true, verifiedAt: true },
+        orderBy: { verifiedAt: 'desc' },
+        take: 1000,
+      }),
+    ]);
+    const customerIds = Array.from(
+      new Set([
+        ...(tasks as any[]).map((task) => Number(task.customerId)).filter(Boolean),
+        ...(usages as any[]).map((usage) => Number(usage.customerId)).filter(Boolean),
+      ]),
+    );
+    const cards = customerIds.length
+      ? await (this.prisma as any).customerCard.findMany({
+          where: { customerId: { in: customerIds }, status: 'active' },
+          select: { id: true, customerId: true, cardName: true, totalTimes: true, remainingTimes: true, expiryDate: true, status: true },
+          orderBy: { expiryDate: 'asc' },
+          take: 2000,
+        })
+      : [];
+
+    const bucket = new Map<number, any>();
+    const ensure = (customerId: number, seed?: any) => {
+      const existing = bucket.get(customerId);
+      if (existing) return existing;
+      const next = {
+        customerId,
+        customerName: seed?.customer?.name ?? seed?.customerName ?? `客户${customerId}`,
+        memberLevel: seed?.customer?.memberLevel ?? '',
+        totalSpent: this.toNumber(seed?.customer?.totalSpent),
+        visitCount: this.toNumber(seed?.customer?.visitCount),
+        lastVisitDate: seed?.customer?.lastVisitDate ?? null,
+        tags: seed?.customer?.tags ?? [],
+        lastServiceAt: null as Date | null,
+        lastProjectName: '',
+        serviceCount: 0,
+        usageTimes: 0,
+        cardNames: new Set<string>(),
+        minRemainingTimes: 999,
+        nearestExpiryDays: 999,
+      };
+      bucket.set(customerId, next);
+      return next;
+    };
+    for (const task of tasks as any[]) {
+      const target = ensure(Number(task.customerId), task);
+      target.serviceCount += 1;
+      target.lastProjectName = target.lastProjectName || task.project?.name || '';
+      const time = task.completedAt ? new Date(task.completedAt) : new Date(task.appointmentTime);
+      if (!target.lastServiceAt || time > target.lastServiceAt) target.lastServiceAt = time;
+    }
+    for (const usage of usages as any[]) {
+      const target = ensure(Number(usage.customerId), usage);
+      target.usageTimes += this.toNumber(usage.times);
+      target.lastProjectName = target.lastProjectName || usage.projectName || '';
+      if (usage.cardName) target.cardNames.add(String(usage.cardName));
+      const time = new Date(usage.verifiedAt);
+      if (!target.lastServiceAt || time > target.lastServiceAt) target.lastServiceAt = time;
+      target.minRemainingTimes = Math.min(target.minRemainingTimes, this.toNumber(usage.remainingTimes));
+    }
+    for (const card of cards as any[]) {
+      const target = ensure(Number(card.customerId), { customerName: `客户${card.customerId}` });
+      target.cardNames.add(String(card.cardName || '卡项'));
+      target.minRemainingTimes = Math.min(target.minRemainingTimes, this.toNumber(card.remainingTimes));
+      target.nearestExpiryDays = Math.min(target.nearestExpiryDays, this.daysUntil(card.expiryDate));
+    }
+
+    const items = Array.from(bucket.values())
+      .map((item) => {
+        const lastServiceDays = this.daysSince(item.lastServiceAt);
+        const lowTimes = item.minRemainingTimes <= 2;
+        const expiring = item.nearestExpiryDays <= 30;
+        const dueForCare = lastServiceDays !== null && lastServiceDays >= 21;
+        const score =
+          (lowTimes ? 35 : 0) +
+          (expiring ? 30 : 0) +
+          (dueForCare ? 25 : 0) +
+          Math.min(20, item.serviceCount * 4) +
+          Math.min(20, item.totalSpent / 1000);
+        const reasonParts = [
+          lowTimes ? `卡项剩余 ${item.minRemainingTimes} 次` : '',
+          expiring ? `卡项 ${item.nearestExpiryDays} 天内到期` : '',
+          dueForCare ? `距上次护理 ${lastServiceDays} 天` : '',
+          item.lastProjectName ? `最近项目：${item.lastProjectName}` : '',
+        ].filter(Boolean);
+        return {
+          customerId: item.customerId,
+          customerName: item.customerName,
+          memberLevel: item.memberLevel,
+          totalSpent: item.totalSpent,
+          totalSpentText: this.formatMoney(item.totalSpent),
+          visitCount: item.visitCount,
+          lastServiceDays,
+          lastProjectName: item.lastProjectName,
+          serviceCount: item.serviceCount,
+          usageTimes: item.usageTimes,
+          cardNames: Array.from(item.cardNames),
+          minRemainingTimes: item.minRemainingTimes === 999 ? null : item.minRemainingTimes,
+          nearestExpiryDays: item.nearestExpiryDays === 999 ? null : item.nearestExpiryDays,
+          opportunityScore: Math.round(score),
+          opportunityType: lowTimes || expiring ? '续卡/卡项提醒' : dueForCare ? '护理复购' : '关系维护',
+          reason: reasonParts.join('；') || '近期有服务记录，可做轻量回访。',
+          suggestedAction: lowTimes || expiring ? '服务后做卡项续费提醒' : '预约下一次护理周期',
+        };
+      })
+      .filter((item) => item.opportunityScore > 0)
+      .sort((a, b) => b.opportunityScore - a.opportunityScore || (b.totalSpent as number) - (a.totalSpent as number))
+      .slice(0, limit);
+
+    const evidence: AgentEvidence = {
+      source: ['ServiceTask', 'CardUsageRecord', 'CustomerCard', 'Customer'],
+      dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
+      metricDefinition: '复购续卡机会 = 美容师近期服务客户 + 次卡核销/剩余次数 + 卡项到期 + 护理周期，生成只读建议，不自动创建任务或触达客户。',
+      filters: ['当前门店', `scope=${scopeLabel}`, `lookbackStart=${this.formatDate(lookbackStart)}`, `limit=${limit}`],
+      sampleSize: (tasks as any[]).length + (usages as any[]).length + (cards as any[]).length,
+      limitations: ['复购建议仅用于服务后沟通，不自动创建跟进任务、不发送营销消息。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '复购续卡机会',
+        summary: `${scopeLabel}近期没有可识别的复购或续卡机会。`,
+        data: { items: [], requestedLimit: limit, scope: scopeLabel },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '复购续卡机会',
+      summary: `${scopeLabel}识别到 ${items.length} 个复购/续卡机会，优先跟进 ${items[0].customerName}：${items[0].reason}。`,
+      data: { items, requestedLimit: limit, scope: scopeLabel },
+      evidence,
+      actions: [
+        { label: '生成跟进任务草稿', action: 'agent:tool:customer.followup.task.draft', riskLevel: 'medium' },
+        { label: '查看今日服务', action: 'agent:tool:beautician.today.service.list', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private buildBeauticianUnboundResult(
+    title: string,
+    date: Date,
+    source: string[],
+    slotContext?: { range: AgentDateRange; limit: number; filters?: Record<string, unknown> },
+  ): AgentToolResult {
+    return {
+      status: 'no_data',
+      title,
+      summary: '当前账号未绑定美容师档案，无法查询本人服务数据。',
+      data: {
+        items: [],
+        scope: '本人',
+        ...(slotContext
+          ? { consumedSlots: this.buildConsumedSlots(slotContext.range, slotContext.limit, slotContext.filters ?? {}) }
+          : {}),
+      },
+      evidence: {
+        source,
+        dateRange: this.formatDate(date),
+        metricDefinition: `${title}仅允许美容师查看本人数据；账号未绑定美容师档案时不查询全店数据。`,
+        filters: ['当前账号为美容师角色', '未找到与当前账号绑定的美容师档案'],
+        sampleSize: 0,
+        limitations: ['请先在员工档案中绑定当前登录账号，或由店长账号查询。'],
+      },
+      actions: [],
+    };
+  }
+
+  private buildServicePrepSuggestion(projectName?: string, tags?: unknown) {
+    const text = `${projectName ?? ''} ${Array.isArray(tags) ? tags.join(' ') : String(tags ?? '')}`;
+    if (/敏感|修护|屏障/.test(text)) return '先确认近期泛红、刺痛和过敏情况，项目强度以舒缓修护为主。';
+    if (/补水|保湿|水光/.test(text)) return '重点确认干燥、脱皮和居家补水情况，服务后提醒保湿与防晒。';
+    if (/清洁|毛孔|小气泡/.test(text)) return '重点确认近期刷酸/清洁频次，避免同日叠加强刺激项目。';
+    return '服务前确认今日肤感、睡眠和近期不适，服务后记录客户反馈与下次护理建议。';
   }
 
   private async previewSchedulingOptimization(
@@ -4030,6 +5168,395 @@ export class AgentToolRegistryService {
     };
   }
 
+  private async diagnoseFinanceProfit(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const result = await this.diagnoseFinanceMargin(args, context);
+    const data = typeof result.data === 'object' && result.data !== null ? (result.data as Record<string, any>) : {};
+    const current = data.current ?? {};
+    return {
+      ...result,
+      title: result.status === 'no_data' ? '利润诊断' : '利润与毛利诊断',
+      summary:
+        result.status === 'no_data'
+          ? result.summary
+          : `利润诊断：${result.summary}`,
+      data: {
+        ...data,
+        reportType: 'finance_profit_diagnosis',
+        kpis: [
+          { label: '净收入', value: String(current.netRevenueText ?? '-') },
+          { label: '毛利', value: String(current.grossProfitText ?? '-') },
+          { label: '毛利率', value: String(current.grossMarginRateText ?? '-') },
+          { label: '提成成本', value: String(current.commissionTotalText ?? '-') },
+        ],
+      },
+      actions: [
+        ...(result.actions ?? []),
+        { label: '查看低毛利风险', action: 'agent:tool:finance.margin.risk.rank', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async rankFinanceMarginRisk(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const result = await this.diagnoseFinanceMargin(args, context);
+    const data = typeof result.data === 'object' && result.data !== null ? (result.data as Record<string, any>) : {};
+    const lowMarginItems = Array.isArray(data.lowMarginItems) ? data.lowMarginItems : [];
+    const topCostItems = Array.isArray(data.topCostItems) ? data.topCostItems : [];
+    const limit = Math.min(Math.max(Number(args.limit) || Number(data.requestedLimit) || 10, 1), 50);
+    const riskItems = lowMarginItems.slice(0, limit).map((item: any, index: number) => {
+      const marginRate = Number(item.marginRate) || 0;
+      const riskLevel: AgentRiskLevel = marginRate < 0.2 ? 'high' : marginRate < 0.35 ? 'medium' : 'low';
+      const action =
+        riskLevel === 'high'
+          ? '暂停大额优惠，复核定价和耗材用量。'
+          : '控制优惠力度，优先检查耗材成本或套餐分摊。';
+      return {
+        rank: index + 1,
+        riskLevel,
+        itemType: item.itemType,
+        itemId: item.itemId,
+        itemName: item.itemName,
+        revenue: item.revenue,
+        revenueText: item.revenueText,
+        materialCost: item.materialCost,
+        materialCostText: item.materialCostText,
+        grossProfit: item.grossProfit,
+        grossProfitText: item.grossProfitText,
+        marginRate,
+        marginRateText: item.marginRateText,
+        orderCount: item.orderCount,
+        recommendedAction: action,
+      };
+    });
+
+    if (result.status === 'no_data') {
+      return {
+        ...result,
+        title: '毛利风险排行',
+        data: {
+          ...data,
+          reportType: 'finance_margin_risk_rank',
+          items: [],
+          riskItems: [],
+          requestedLimit: limit,
+        },
+      };
+    }
+
+    const summary = riskItems.length
+      ? `毛利风险排行：风险最高的是 ${riskItems[0].itemName}，毛利率 ${riskItems[0].marginRateText}。共发现 ${riskItems.length} 个低毛利项目/商品，建议先处理高风险项。`
+      : `毛利风险排行：当前周期暂未发现毛利率低于 45% 的项目/商品。成本占用最高的是 ${topCostItems[0]?.itemName ?? '暂无明显项目'}。`;
+
+    return {
+      status: 'success',
+      title: '毛利风险排行',
+      summary,
+      data: {
+        ...data,
+        reportType: 'finance_margin_risk_rank',
+        items: riskItems,
+        riskItems,
+        requestedLimit: limit,
+      },
+      evidence: result.evidence,
+      actions: [
+        { label: '查看订单明细', action: 'orders:open', riskLevel: 'low' },
+        { label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async auditFinanceRefundDiscount(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
+    const [refundResult, discountOrders] = await Promise.all([
+      this.diagnoseRefunds({ ...args, timeRange: range.preset, limit }, context),
+      (this.prisma as any).productOrder.findMany({
+        where: {
+          storeId: context.storeId,
+          status: { notIn: ['cancelled', 'canceled', '已取消'] },
+          createdAt: { gte: range.start, lt: range.end },
+          OR: [
+            { totalDiscountAmount: { gt: 0 } },
+            { itemDiscountAmount: { gt: 0 } },
+            { orderDiscountAmount: { gt: 0 } },
+            { discountSource: { not: 'none' } },
+          ],
+        },
+        select: {
+          id: true,
+          orderNo: true,
+          customerName: true,
+          totalAmount: true,
+          listAmount: true,
+          itemDiscountAmount: true,
+          orderDiscountAmount: true,
+          totalDiscountAmount: true,
+          netAmount: true,
+          discountSource: true,
+          allocationMethod: true,
+          promotionId: true,
+          couponId: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 3000,
+      }),
+    ]);
+    const refundData = typeof refundResult.data === 'object' && refundResult.data !== null ? (refundResult.data as Record<string, any>) : {};
+    const refundItems = Array.isArray(refundData.items) ? refundData.items : [];
+    const refundKpis = refundData.kpis ?? {};
+    const discountItems = (discountOrders as any[])
+      .map((order) => {
+        const listAmount = this.toNumber(order.listAmount || order.netAmount || order.totalAmount);
+        const netAmount = this.toNumber(order.netAmount || order.totalAmount);
+        const explicitDiscount = this.toNumber(order.totalDiscountAmount || order.itemDiscountAmount || order.orderDiscountAmount);
+        const inferredDiscount = Math.max(0, listAmount - netAmount);
+        const discountAmount = explicitDiscount > 0 ? explicitDiscount : inferredDiscount;
+        const discountRate = listAmount > 0 ? discountAmount / listAmount : 0;
+        const source = String(order.discountSource || 'none');
+        const riskLevel: AgentRiskLevel = discountRate >= 0.4 || /manual|custom|手工|manual_adjust/.test(source)
+          ? 'high'
+          : discountRate >= 0.25
+            ? 'medium'
+            : 'low';
+        return {
+          orderId: order.id,
+          orderNo: order.orderNo,
+          customerName: order.customerName,
+          orderAmount: netAmount,
+          orderAmountText: this.formatMoney(netAmount),
+          listAmount,
+          listAmountText: this.formatMoney(listAmount),
+          discountAmount,
+          discountAmountText: this.formatMoney(discountAmount),
+          discountRate,
+          discountRateText: this.formatPercent(discountRate),
+          discountSource: source,
+          allocationMethod: order.allocationMethod,
+          promotionId: order.promotionId,
+          couponId: order.couponId,
+          riskLevel,
+          reason: riskLevel === 'high' ? '折扣率较高或存在手工优惠，需要复核授权和毛利影响。' : '存在优惠折扣，建议核对活动来源和审批记录。',
+        };
+      })
+      .filter((item) => item.discountAmount > 0 || item.discountSource !== 'none')
+      .sort((a, b) => b.discountRate - a.discountRate || b.discountAmount - a.discountAmount)
+      .slice(0, limit);
+    const highRiskDiscountCount = discountItems.filter((item) => item.riskLevel === 'high').length;
+    const highRefundItems = refundItems
+      .filter((item: any) => Number(item.refundOrderRate) >= 0.3 || Number(item.amount) >= 1000)
+      .slice(0, limit);
+    const items = [
+      ...discountItems.map((item) => ({ auditType: 'discount', ...item })),
+      ...highRefundItems.map((item: any) => ({
+        auditType: 'refund',
+        riskLevel: Number(item.refundOrderRate) >= 0.5 || Number(item.amount) >= 2000 ? 'high' : 'medium',
+        refundNo: item.refundNo,
+        orderNo: item.orderNo,
+        customerName: item.customerName,
+        amount: item.amount,
+        amountText: item.amountText,
+        refundOrderRate: item.refundOrderRate,
+        refundOrderRateText: item.refundOrderRateText,
+        reason: item.reason || '退款比例偏高，建议复核退款原因和服务记录。',
+      })),
+    ].slice(0, limit);
+    const evidence: AgentEvidence = {
+      source: ['ProductOrder', 'RefundRecord'],
+      dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
+      metricDefinition: '退款折扣审计 = 查询周期内订单折扣金额/折扣率、折扣来源、退款金额和退款占订单比例；只读识别风险，不发起退款、不调整订单。',
+      filters: ['storeId=当前门店', 'ProductOrder.createdAt=查询周期', 'RefundRecord.refundedAt=查询周期', `limit=${limit}`],
+      sampleSize: (discountOrders as any[]).length + refundItems.length,
+      limitations: ['折扣授权链路按订单折扣来源推断，正式追责需结合收银日志、审批记录和门店制度。'],
+    };
+    const refundAmountText = String(refundKpis.refundAmountText ?? this.formatMoney(0));
+    const discountAmount = discountItems.reduce((sum, item) => sum + item.discountAmount, 0);
+    return {
+      status: items.length ? 'success' : 'no_data',
+      title: '退款折扣审计',
+      summary: items.length
+        ? `${range.label}发现 ${items.length} 条退款/折扣风控线索，折扣合计 ${this.formatMoney(discountAmount)}，退款 ${refundAmountText}；高风险折扣 ${highRiskDiscountCount} 条。`
+        : `${range.label}暂未发现高折扣或高退款风险线索。`,
+      data: {
+        reportType: 'finance_refund_discount_audit',
+        kpis: [
+          { label: '风险线索', value: String(items.length) },
+          { label: '折扣合计', value: this.formatMoney(discountAmount) },
+          { label: '退款金额', value: refundAmountText },
+          { label: '高风险折扣', value: String(highRiskDiscountCount) },
+        ],
+        items,
+        discountItems,
+        refundItems: highRefundItems,
+        requestedLimit: limit,
+        consumedSlots: this.buildConsumedSlots(range, limit, {}),
+      },
+      evidence,
+      actions: [
+        { label: '查看订单明细', action: 'orders:open', riskLevel: 'low' },
+        { label: '查看退款订单', action: 'orders:refunds:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async auditFinanceBeauticianPerformance(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const result = await this.rankStaffPerformance({ ...args, limit, timeRange: args.timeRange ?? 'last_30_days' }, context);
+    const data = typeof result.data === 'object' && result.data !== null ? (result.data as Record<string, any>) : {};
+    const staffItems = Array.isArray(data.items) ? data.items : [];
+    const riskItems = staffItems
+      .map((item: any) => {
+        const salesAmount = Number(item.salesAmount) || 0;
+        const commissionAmount = Number(item.commissionAmount) || 0;
+        const commissionRate = salesAmount > 0 ? commissionAmount / salesAmount : 0;
+        const serviceRecordCompletionRate = Number(item.serviceRecordCompletionRate) || 0;
+        const completionRate = Number(item.completionRate) || 0;
+        const reasons: string[] = [];
+        if (commissionRate > 0.35) reasons.push(`提成占销售额 ${this.formatPercent(commissionRate)}，偏高`);
+        if (serviceRecordCompletionRate < 0.7) reasons.push(`服务记录完整率 ${this.formatPercent(serviceRecordCompletionRate)}，偏低`);
+        if (completionRate < 0.7 && Number(item.reservationCount) > 0) reasons.push(`预约完成率 ${this.formatPercent(completionRate)}，偏低`);
+        if (Number(item.performanceScore) < 50 && commissionAmount > 0) reasons.push('表现分偏低但存在提成发放，需要复核规则适用');
+        const riskLevel: AgentRiskLevel = commissionRate > 0.45 || serviceRecordCompletionRate < 0.5 ? 'high' : reasons.length ? 'medium' : 'low';
+        return {
+          ...item,
+          commissionRate,
+          commissionRateText: this.formatPercent(commissionRate),
+          riskLevel,
+          auditReasons: reasons,
+          recommendedAction: reasons.length ? '复核提成规则、服务记录和预约完成记录，必要时调整下期绩效沟通。' : '暂无明显财务审计异常。',
+        };
+      })
+      .filter((item: any) => item.riskLevel !== 'low')
+      .slice(0, limit);
+    const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
+    return {
+      status: result.status === 'no_data' ? 'no_data' : 'success',
+      title: '美容师绩效审计',
+      summary: result.status === 'no_data'
+        ? result.summary
+        : riskItems.length
+          ? `${range.label}发现 ${riskItems.length} 位美容师存在提成、服务记录或预约完成率审计风险，最高风险为 ${riskItems[0].beauticianName}。`
+          : `${range.label}暂未发现明显美容师绩效财务审计风险。`,
+      data: {
+        ...data,
+        reportType: 'finance_beautician_performance_audit',
+        items: riskItems,
+        riskItems,
+        staffItems,
+        kpis: [
+          { label: '审计员工', value: String(staffItems.length) },
+          { label: '风险员工', value: String(riskItems.length) },
+          { label: '提成合计', value: String(data.kpis?.commissionAmountText ?? '-') },
+          { label: '销售合计', value: String(data.kpis?.salesAmountText ?? '-') },
+        ],
+        requestedLimit: limit,
+        consumedSlots: this.buildConsumedSlots(range, limit, {}),
+      },
+      evidence: result.evidence,
+      actions: [
+        { label: '查看员工管理', action: 'beauticians:open', riskLevel: 'low' },
+        { label: '查看提成记录', action: 'finance:commission:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
+  private async draftFinanceReport(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const [revenue, profit, refundAudit, staffAudit] = await Promise.all([
+      this.summarizeFinanceRevenue({ ...args, timeRange: range.preset }, context),
+      this.diagnoseFinanceProfit({ ...args, timeRange: range.preset, limit: 5 }, context),
+      this.auditFinanceRefundDiscount({ ...args, timeRange: range.preset, limit: 5 }, context),
+      this.auditFinanceBeauticianPerformance({ ...args, timeRange: range.preset, limit: 5 }, context),
+    ]);
+    const reportTitle = `${range.label}财务经营报告草稿`;
+    const riskCount = [
+      ...(((refundAudit.data as any)?.items ?? []) as any[]),
+      ...(((staffAudit.data as any)?.items ?? []) as any[]),
+    ].filter((item: any) => item.riskLevel === 'high' || item.riskLevel === 'medium').length;
+    const content = [
+      `# ${reportTitle}`,
+      '',
+      `数据范围：${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
+      '',
+      '## 1. 收入概览',
+      revenue.summary,
+      '',
+      '## 2. 利润与毛利',
+      profit.summary,
+      '',
+      '## 3. 退款与折扣风险',
+      refundAudit.summary,
+      '',
+      '## 4. 美容师绩效风险',
+      staffAudit.summary,
+      '',
+      '## 5. 建议动作',
+      riskCount > 0
+        ? `优先复核 ${riskCount} 条中高风险线索，按订单折扣、退款原因、提成规则和服务记录完整性逐项确认。`
+        : '当前未发现明显中高风险线索，建议继续关注收入趋势、毛利率和员工服务记录完整性。',
+      '',
+      '说明：本报告为 Agent 草稿，不自动生成正式财务报表，不替代财务复核和门店审批。',
+    ].join('\n');
+    const sources = Array.from(new Set([
+      ...(revenue.evidence?.source ?? []),
+      ...(profit.evidence?.source ?? []),
+      ...(refundAudit.evidence?.source ?? []),
+      ...(staffAudit.evidence?.source ?? []),
+    ]));
+    return {
+      status: 'success',
+      title: '财务报告草稿',
+      summary: `${reportTitle}已生成，包含收入、利润毛利、退款折扣和美容师绩效风险四部分；发现 ${riskCount} 条需复核线索。`,
+      data: {
+        reportType: 'finance_report_draft',
+        document: {
+          title: reportTitle,
+          content,
+          downloadable: true,
+        },
+        sections: [
+          { title: '收入概览', summary: revenue.summary },
+          { title: '利润与毛利', summary: profit.summary },
+          { title: '退款与折扣风险', summary: refundAudit.summary },
+          { title: '美容师绩效风险', summary: staffAudit.summary },
+        ],
+        kpis: [
+          { label: '报告章节', value: '4' },
+          { label: '风险线索', value: String(riskCount) },
+          { label: '报告状态', value: '草稿' },
+        ],
+        consumedSlots: this.buildConsumedSlots(range, 0, {}),
+      },
+      evidence: {
+        source: sources,
+        dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
+        metricDefinition: '财务报告草稿 = 收入汇总 + 利润毛利诊断 + 退款折扣审计 + 美容师绩效审计的只读汇总。',
+        filters: ['storeId=当前门店', `timeRange=${range.label}`],
+        limitations: ['报告为 Agent 草稿，不自动入账、不生成正式结算单、不替代人工财务复核。'],
+      },
+      actions: [
+        { label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+        { label: '查看退款订单', action: 'orders:refunds:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
   private async resolveFollowUpCandidates(storeId: number, args: Record<string, unknown>, limit: number) {
     const latestRun = await (this.prisma as any).predictionRun
       .findFirst({
@@ -4775,12 +6302,12 @@ export class AgentToolRegistryService {
     };
   }
 
-  private async resolveBeauticianId(storeId: number, userId: number | undefined, args: Record<string, unknown>) {
+  private async resolveBeauticianId(context: AgentToolExecutionContext, args: Record<string, unknown>) {
     const explicitId = Number(args.beauticianId);
-    if (Number.isFinite(explicitId) && explicitId > 0) return explicitId;
-    if (!userId) return undefined;
+    if (context.role !== 'beautician' && Number.isFinite(explicitId) && explicitId > 0) return explicitId;
+    if (!context.userId) return undefined;
     const beautician = await (this.prisma as any).beautician.findFirst({
-      where: { storeId, userId },
+      where: { storeId: context.storeId, userId: context.userId },
       select: { id: true },
     });
     return beautician?.id ? Number(beautician.id) : undefined;
@@ -5471,9 +6998,23 @@ export class AgentToolRegistryService {
     }
 
     const total = touches.length;
+    const responded = touches.filter((t: any) =>
+      t.convertedAt || /opened|open|respond|reply|clicked|click|预约|到店|核销|converted|成交|转化/i.test(String(t.status || '')),
+    ).length;
+    const booked = touches.filter((t: any) =>
+      /appointment|book|reserved|reservation|预约|到店/i.test(String(t.status || '')) ||
+      /appointment|book|reserved|reservation|预约|到店/i.test(String(t.conversionType || '')),
+    ).length;
     const converted = touches.filter((t: any) => t.convertedAt).length;
     const revenue = (touches as any[]).reduce((sum: number, t: any) => sum + this.toNumber(t.actualRevenue), 0 as number) as number;
     const rate = total > 0 ? converted / total : 0;
+    const funnel = [
+      { name: '触达', value: total, valueText: String(total) + '人', rateText: '100%' },
+      { name: '响应', value: responded, valueText: String(responded) + '人', rateText: this.formatPercent(total > 0 ? responded / total : 0) },
+      { name: '预约', value: booked, valueText: String(booked) + '人', rateText: this.formatPercent(total > 0 ? booked / total : 0) },
+      { name: '核销/转化', value: converted, valueText: String(converted) + '人', rateText: this.formatPercent(rate) },
+      { name: '收入贡献', value: converted, valueText: this.formatMoney(revenue), rateText: this.formatPercent(rate) },
+    ];
 
     return {
       status: 'success',
@@ -5482,7 +7023,7 @@ export class AgentToolRegistryService {
       data: {
         items: [['触达人数', String(total)], ['转化人数', String(converted)], ['转化率', this.formatPercent(rate)], ['带来收入', this.formatMoney(revenue)]],
         columns: ['指标', '值'],
-        total, converted, rate, revenue,
+        total, responded, booked, converted, rate, revenue, funnel,
         consumedSlots: { timeRange: { preset: range.preset, label: range.label, start: this.formatDate(range.start), end: this.formatDate(range.end) } },
       },
       evidence: {
@@ -5491,6 +7032,7 @@ export class AgentToolRegistryService {
         metricDefinition: '触达→转化→收入漏斗',
         filters: ['门店:' + ctx.storeId],
         sampleSize: total,
+        limitations: ['响应和预约阶段基于触达状态、转化类型和已转化记录推断；若渠道未回传打开/预约状态，该阶段会低估。'],
       },
       actions: [{ label: '生成话术优化', action: 'marketing.copy.generate', riskLevel: 'low' as const }],
     };

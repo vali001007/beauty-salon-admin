@@ -83,4 +83,49 @@ describe('AgentResponseSafetyService', () => {
     expect(sanitized.evidence?.filters).toEqual(['美容师本人范围', '当前账号', '当前登录美容师', '当前终端']);
     expect(service.inspectToolResultDisplay(sanitized).passed).toBe(true);
   });
+
+  it('removes medicalized and exaggerated efficacy claims from beautician-facing advice', () => {
+    const sanitized = service.sanitizeToolResult({
+      status: 'success',
+      title: '客户护理摘要',
+      summary: '本次护理可以治疗痤疮，保证治愈过敏，并诊断为皮炎。',
+      data: {
+        recommendedSteps: [
+          '疗程后一定改善红血丝。',
+          '建议根治痘痘方案。',
+        ],
+      },
+      evidence: {
+        source: ['ServiceTask', 'Customer'],
+        metricDefinition: '护理准备建议，不构成医疗诊断。',
+        filters: ['当前门店'],
+        limitations: ['护理建议不构成医疗诊断；涉及皮肤异常、过敏或不适时，应建议客户咨询专业医疗机构。'],
+      },
+      actions: [],
+    });
+
+    const serialized = JSON.stringify(sanitized);
+    expect(serialized).not.toContain('治疗痤疮');
+    expect(serialized).not.toContain('保证治愈');
+    expect(serialized).not.toContain('诊断为皮炎');
+    expect(serialized).not.toContain('一定改善');
+    expect(serialized).not.toContain('根治痘痘');
+    expect(sanitized.summary).toContain('非医疗护理建议');
+    expect(service.inspectToolResultDisplay(sanitized).passed).toBe(true);
+  });
+
+  it('reports unsafe medicalized claims before sanitization', () => {
+    const inspected = service.inspectTextEntries({
+      summary: '建议治疗痤疮，保证治愈过敏，并诊断为皮炎。',
+    });
+
+    expect(inspected.passed).toBe(false);
+    expect(inspected.violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ matched: '治疗痤疮' }),
+        expect.objectContaining({ matched: '保证治愈' }),
+        expect.objectContaining({ matched: '诊断为皮炎' }),
+      ]),
+    );
+  });
 });

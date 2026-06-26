@@ -135,6 +135,87 @@ export type AuraResponseBlock =
       actions?: AuraBlockAction[];
     }
   | {
+      kind: 'opportunity_card';
+      title: string;
+      summary: string;
+      opportunityType: string;
+      fitScore: number;
+      productName: string;
+      sku?: string;
+      currentStock?: number;
+      safetyStock?: number;
+      salesQuantity?: number;
+      salesAmount?: number;
+      customerCount?: number;
+      expiringStock?: number;
+      daysToExpiry?: number | null;
+      marginRateText?: string;
+      reason: string;
+      suggestedCampaign?: string;
+      suggestedChannels?: string[];
+      riskWarnings?: string[];
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'copy_variants';
+      title: string;
+      target: string;
+      offer: string;
+      variants: Array<{
+        label: string;
+        content: string;
+        tone?: string;
+      }>;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'activity_draft_card';
+      title: string;
+      targetAudience: string;
+      offerSummary: string;
+      copyPreview: string;
+      scheduleHint?: string;
+      impactSummary?: string;
+      offerCostEstimate?: Array<{
+        label: string;
+        value: string;
+        tone?: 'default' | 'warning' | 'critical' | 'success';
+      }>;
+      audienceDetails?: Array<{
+        label: string;
+        value: string;
+        description?: string;
+      }>;
+      editable?: boolean;
+      recommendedItems?: Array<{
+        name: string;
+        reason?: string;
+        fitScore?: number;
+      }>;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'inventory_item_card';
+      title: string;
+      itemName: string;
+      subtitle?: string;
+      riskLevel?: AgentRiskLevel;
+      statusLabel?: string;
+      metrics: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'critical' | 'success' }>;
+      reason?: string;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'supplier_purchase_card';
+      title: string;
+      productName: string;
+      supplierName: string;
+      statusLabel?: string;
+      metrics: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'critical' | 'success' }>;
+      reason?: string;
+      actions?: AuraBlockAction[];
+    }
+  | {
       kind: 'confirm_action';
       title: string;
       preview: string;

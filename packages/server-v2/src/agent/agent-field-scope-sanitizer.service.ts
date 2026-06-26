@@ -103,10 +103,29 @@ export class AgentFieldScopeSanitizerService {
         if (scopedValue !== undefined) output[key] = scopedValue;
         continue;
       }
+      if (typeof raw === 'string' && this.shouldApplyTextScope(key)) {
+        output[key] = this.applyFieldScopesToText(raw, fieldScopes);
+        continue;
+      }
       const nested = this.applyFieldScopesToValue(raw, fieldScopes);
       if (nested !== undefined) output[key] = nested;
     }
     return output;
+  }
+
+  private shouldApplyTextScope(key: string) {
+    const normalizedKey = key.toLowerCase();
+    return [
+      'content',
+      'summary',
+      'reason',
+      'recommendedaction',
+      'impactsummary',
+      'preview',
+      'description',
+      'analysis',
+      'suggestion',
+    ].includes(normalizedKey);
   }
 
   private applySingleFieldScope(key: string, value: unknown, fieldScopes: AgentFieldScopes): unknown {

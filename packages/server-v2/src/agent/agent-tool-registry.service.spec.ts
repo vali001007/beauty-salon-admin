@@ -12,12 +12,14 @@ describe('AgentToolRegistryService', () => {
   beforeEach(() => {
     prisma = {
       product: { findMany: jest.fn() },
+      productSupplier: { findMany: jest.fn() },
       project: { findMany: jest.fn() },
       orderItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
       commissionRecord: { findMany: jest.fn() },
       dailySettlement: { findMany: jest.fn() },
       stockBatch: { findMany: jest.fn() },
+      stockMovement: { findMany: jest.fn() },
       predictionRun: { findFirst: jest.fn() },
       customerPredictionSnapshot: { findMany: jest.fn() },
       customer: { findMany: jest.fn() },
@@ -78,18 +80,32 @@ describe('AgentToolRegistryService', () => {
         'business.query.ask',
         'customer.priority.rank',
         'revenue.diagnose',
+        'finance.revenue.summary',
         'product.sales.rank',
         'inventory.risk.rank',
         'marketing.opportunity.discover',
         'marketing.activity.draft',
         'customer.followup.task.draft',
         'inventory.replenishment.draft',
+        'inventory.consumption.trend',
+        'inventory.project.bom.risk',
+        'inventory.expiring.clearance.draft',
+        'supplier.purchase.link',
         'service.record.draft',
+        'beautician.today.service.list',
+        'beautician.customer.care.brief',
+        'beautician.performance.progress',
+        'beautician.repurchase.opportunity',
         'scheduling.optimization.preview',
         'schedule.diagnose',
         'project.diagnose',
         'card.diagnose',
         'finance.margin.diagnose',
+        'finance.profit.diagnose',
+        'finance.margin.risk.rank',
+        'finance.refund.discount.audit',
+        'finance.beautician.performance.audit',
+        'finance.report.draft',
         'staff.performance.rank',
         'supply_chain.diagnose',
         'marketing.conversion.diagnose',
@@ -108,6 +124,8 @@ describe('AgentToolRegistryService', () => {
       'filters.customerSegment',
     ]);
     expect(service.list().find((tool) => tool.name === 'revenue.diagnose')?.consumedSlots).toEqual(['timeRange']);
+    expect(service.list().find((tool) => tool.name === 'finance.revenue.summary')?.consumedSlots).toEqual(['timeRange']);
+    expect(service.list().find((tool) => tool.name === 'finance.report.draft')?.consumedSlots).toEqual(['timeRange']);
     expect(service.list().find((tool) => tool.name === 'product.sales.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
     expect(service.list().find((tool) => tool.name === 'inventory.risk.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
     expect(service.list().find((tool) => tool.name === 'staff.performance.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
@@ -1114,6 +1132,150 @@ describe('AgentToolRegistryService', () => {
     expect(result.evidence?.sampleSize).toBe(1);
   });
 
+  it('diagnoses inventory consumption trend from negative stock movements without changing stock', async () => {
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        productId: 301,
+        movementType: 'service_consume',
+        quantity: -6,
+        occurredAt: new Date(),
+        product: { id: 301, name: '补水面膜', sku: 'P301', unit: '片', currentStock: -3, safetyStock: 8, costPrice: 20 },
+      },
+      {
+        id: 2,
+        productId: 301,
+        movementType: 'sale_out',
+        quantity: -2,
+        occurredAt: new Date(),
+        product: { id: 301, name: '补水面膜', sku: 'P301', unit: '片', currentStock: -3, safetyStock: 8, costPrice: 20 },
+      },
+    ]);
+
+    const result = await service.execute(
+      'inventory.consumption.trend',
+      { question: '近30天哪些耗材消耗最快', limit: 10, timeRange: 'last_30_days' },
+      { runId: 307, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('库存消耗趋势');
+    expect((result.data as any).items[0]).toMatchObject({
+      productName: '补水面膜',
+      consumeQty: 8,
+      consumeCost: 160,
+      movementCount: 2,
+      currentStock: -3,
+      suggestedQty: 11,
+      projectedDaysLeft: 0,
+      riskLevel: 'high',
+    });
+    expect((result.data as any).items[0].reason).toContain('当前库存已为负数');
+    expect(result.summary).toContain('预计可用 0 天');
+    expect(result.evidence?.source).toEqual(['StockMovement', 'Product']);
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('diagnoses project BOM inventory risk from service volume and stock', async () => {
+    prisma.project.findMany.mockResolvedValue([
+      {
+        id: 401,
+        name: '深层补水护理',
+        bomItems: [
+          {
+            standardQty: 2,
+            unit: '片',
+            product: { id: 601, name: '补水面膜', sku: 'M601', unit: '片', currentStock: 5, safetyStock: 8, costPrice: 20 },
+          },
+        ],
+      },
+    ]);
+    prisma.orderItem.findMany.mockResolvedValue([
+      { itemType: 'project', itemId: 401, quantity: 30, subtotal: 9000, order: { id: 101, status: 'completed', createdAt: new Date() } },
+    ]);
+
+    const result = await service.execute(
+      'inventory.project.bom.risk',
+      { question: '项目耗材 BOM 风险怎么样', limit: 10 },
+      { runId: 308, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('项目耗材 BOM 风险');
+    expect((result.data as any).items[0]).toMatchObject({
+      projectName: '深层补水护理',
+      serviceCount: 30,
+      riskLevel: 'high',
+      topRiskProductName: '补水面膜',
+    });
+    expect((result.data as any).items[0].bomRisks[0]).toMatchObject({
+      productName: '补水面膜',
+      shortage: expect.any(Number),
+    });
+  });
+
+  it('creates expiring inventory clearance draft without publishing campaigns or changing prices', async () => {
+    prisma.stockBatch.findMany.mockResolvedValue([
+      {
+        id: 701,
+        batchNo: 'B001',
+        stock: 20,
+        expiryDate: new Date(Date.now() + 12 * 86_400_000),
+        product: { id: 301, name: '玻尿酸精华', sku: 'P301', unit: '瓶', currentStock: 30, safetyStock: 8, retailPrice: 199, costPrice: 80 },
+      },
+    ]);
+
+    const result = await service.execute(
+      'inventory.expiring.clearance.draft',
+      { question: '临期库存怎么处理，生成草稿建议', limit: 10 },
+      { runId: 309, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('临期库存处理草稿');
+    expect((result.data as any).items[0]).toMatchObject({
+      productName: '玻尿酸精华',
+      riskLevel: 'high',
+      suggestedAction: '顾问定向邀约或护理搭赠',
+    });
+    expect(result.evidence?.limitations?.[0]).toContain('正式促销需结合毛利');
+    expect(marketingService.createActivity).not.toHaveBeenCalled();
+  });
+
+  it('links supplier purchase options without creating purchase orders', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      { id: 301, name: '补水面膜', sku: 'P301', currentStock: 2, safetyStock: 10, supplier: '旧供应商', minPurchaseQty: 5, unit: '片' },
+    ]);
+    prisma.productSupplier.findMany.mockResolvedValue([
+      {
+        productId: 301,
+        supplierId: 601,
+        supplyPrice: 12,
+        moq: 10,
+        leadDays: 3,
+        isPrimary: true,
+        supplier: { id: 601, name: '华东耗材', category: '耗材', status: 'active', paymentTerms: '月结', phone: '13800000000' },
+      },
+    ]);
+
+    const result = await service.execute(
+      'supplier.purchase.link',
+      { question: '低库存商品从哪个供应商采购，供货价和交期是多少', limit: 10 },
+      { runId: 310, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('供应商采购链接');
+    expect((result.data as any).items[0]).toMatchObject({
+      productName: '补水面膜',
+      supplierName: '华东耗材',
+      supplyPrice: 12,
+      leadDays: 3,
+      status: 'linked',
+    });
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
   it('diagnoses project service growth and material margin with evidence', async () => {
     prisma.orderItem.findMany.mockResolvedValue([
       {
@@ -1447,6 +1609,227 @@ describe('AgentToolRegistryService', () => {
     expect(result.actions?.[1]).toMatchObject({ action: 'finance:daily-settlement:open', riskLevel: 'low' });
   });
 
+  it('summarizes finance revenue with a finance-facing tool name', async () => {
+    prisma.productOrder.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 1201,
+          totalAmount: 600,
+          status: 'completed',
+          createdAt: new Date(),
+          orderItems: [{ id: 2201, itemType: 'project', itemId: 401, name: '补水护理', quantity: 1, subtotal: 600 }],
+          paymentRecords: [{ amount: 600, method: 'wechat', status: 'paid' }],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.execute(
+      'finance.revenue.summary',
+      { question: '本月收入汇总', timeRange: 'this_month' },
+      { runId: 316, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('财务收入汇总');
+    expect(result.summary).toContain('收入汇总');
+    expect((result.data as any).reportType).toBe('finance_revenue_summary');
+    expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'finance:daily-settlement:open' })]));
+  });
+
+  it('diagnoses finance profit through the stage 5 profit tool', async () => {
+    prisma.productOrder.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 1301,
+          totalAmount: 1000,
+          status: 'completed',
+          createdAt: new Date(),
+          paymentRecords: [{ amount: 1000, method: 'wechat', status: 'paid' }],
+          refundRecords: [],
+          orderItems: [{ id: 2301, itemType: 'product', itemId: 301, name: '修护精华', quantity: 1, subtotal: 1000 }],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.product.findMany.mockResolvedValue([{ id: 301, name: '修护精华', unit: '瓶', costPrice: 800 }]);
+    prisma.project.findMany.mockResolvedValue([]);
+    prisma.commissionRecord.findMany.mockResolvedValue([{ id: 2, type: 'product', amount: 80, sourceAmount: 1000, status: 'pending' }]);
+    prisma.dailySettlement.findMany.mockResolvedValue([]);
+
+    const result = await service.execute(
+      'finance.profit.diagnose',
+      { question: '本月利润为什么下降', limit: 10, timeRange: 'this_month' },
+      { runId: 317, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('利润与毛利诊断');
+    expect(result.summary).toContain('利润诊断');
+    expect((result.data as any).reportType).toBe('finance_profit_diagnosis');
+    expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'agent:tool:finance.margin.risk.rank' })]));
+  });
+
+  it('ranks finance margin risks with recommended actions', async () => {
+    prisma.productOrder.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 1401,
+          totalAmount: 1000,
+          status: 'completed',
+          createdAt: new Date(),
+          paymentRecords: [{ amount: 1000, method: 'wechat', status: 'paid' }],
+          refundRecords: [],
+          orderItems: [
+            { id: 2401, itemType: 'product', itemId: 301, name: '高成本精华', quantity: 1, subtotal: 1000 },
+          ],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.product.findMany.mockResolvedValue([{ id: 301, name: '高成本精华', unit: '瓶', costPrice: 900 }]);
+    prisma.project.findMany.mockResolvedValue([]);
+    prisma.commissionRecord.findMany.mockResolvedValue([]);
+    prisma.dailySettlement.findMany.mockResolvedValue([]);
+
+    const result = await service.execute(
+      'finance.margin.risk.rank',
+      { question: '哪些商品毛利风险最高', limit: 5, timeRange: 'last_30_days' },
+      { runId: 318, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('毛利风险排行');
+    expect((result.data as any).reportType).toBe('finance_margin_risk_rank');
+    expect((result.data as any).items[0]).toMatchObject({
+      itemName: '高成本精华',
+      riskLevel: 'high',
+      recommendedAction: expect.stringContaining('复核定价'),
+    });
+  });
+
+  it('audits refund and discount risks without changing orders', async () => {
+    prisma.refundRecord.findMany.mockResolvedValue([
+      {
+        id: 501,
+        refundNo: 'RF001',
+        orderId: 1401,
+        amount: 1200,
+        reason: '客户不满意',
+        status: 'refunded',
+        refundedAt: new Date(),
+        order: { id: 1401, orderNo: 'PO1401', customerName: '张敏', totalAmount: 2000, status: 'completed', createdAt: new Date() },
+      },
+    ]);
+    prisma.productOrder.findMany
+      .mockResolvedValueOnce([{ id: 1401, totalAmount: 2000 }])
+      .mockResolvedValueOnce([
+        {
+          id: 1402,
+          orderNo: 'PO1402',
+          customerName: '李娜',
+          totalAmount: 600,
+          listAmount: 1200,
+          itemDiscountAmount: 0,
+          orderDiscountAmount: 600,
+          totalDiscountAmount: 600,
+          netAmount: 600,
+          discountSource: 'manual',
+          allocationMethod: 'order',
+          promotionId: null,
+          couponId: null,
+          status: 'completed',
+          createdAt: new Date(),
+        },
+      ]);
+
+    const result = await service.execute(
+      'finance.refund.discount.audit',
+      { question: '退款折扣审计', timeRange: 'this_month', limit: 5 },
+      { runId: 319, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('退款折扣审计');
+    expect((result.data as any).reportType).toBe('finance_refund_discount_audit');
+    expect((result.data as any).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ auditType: 'discount', orderNo: 'PO1402', riskLevel: 'high' }),
+        expect.objectContaining({ auditType: 'refund', refundNo: 'RF001' }),
+      ]),
+    );
+    expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'orders:refunds:open' })]));
+  });
+
+  it('audits beautician performance finance risks from staff performance data', async () => {
+    prisma.beautician.findMany.mockResolvedValue([{ id: 701, name: '王芳', status: 'active', level: { name: '高级美容师' } }]);
+    prisma.orderItem.findMany.mockResolvedValue([
+      { id: 1, beauticianId: 701, itemType: 'project', quantity: 1, subtotal: 1000, orderId: 1, order: { id: 1, customerId: 801 } },
+    ]);
+    prisma.commissionRecord.findMany.mockResolvedValue([{ id: 1, beauticianId: 701, amount: 500, status: 'pending', type: 'project', sourceAmount: 1000 }]);
+    prisma.reservation.findMany.mockResolvedValue([{ id: 1, beauticianId: 701, customerId: 801, status: 'cancelled', date: new Date() }]);
+    prisma.serviceTask.findMany.mockResolvedValue([{ id: 1, beauticianId: 701, customerId: 801, status: 'completed', completedAt: new Date(), remark: '', consumptionItems: [] }]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+
+    const result = await service.execute(
+      'finance.beautician.performance.audit',
+      { question: '美容师提成绩效审计', timeRange: 'last_30_days', limit: 5 },
+      { runId: 320, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('美容师绩效审计');
+    expect((result.data as any).reportType).toBe('finance_beautician_performance_audit');
+    expect((result.data as any).items[0]).toMatchObject({
+      beauticianName: '王芳',
+      riskLevel: 'high',
+      recommendedAction: expect.stringContaining('复核提成规则'),
+    });
+  });
+
+  it('drafts a finance report document from finance sub-results', async () => {
+    jest.spyOn(service as any, 'summarizeFinanceRevenue').mockResolvedValue({
+      status: 'success',
+      title: '财务收入汇总',
+      summary: '本月收入 ¥10,000。',
+      evidence: { source: ['ProductOrder'], filters: [], metricDefinition: '收入。' },
+      data: { consumedSlots: { timeRange: { preset: 'this_month' } } },
+    });
+    jest.spyOn(service as any, 'diagnoseFinanceProfit').mockResolvedValue({
+      status: 'success',
+      title: '利润与毛利诊断',
+      summary: '本月毛利 ¥6,000。',
+      evidence: { source: ['CommissionRecord'], filters: [], metricDefinition: '利润。' },
+      data: { consumedSlots: { timeRange: { preset: 'this_month' } } },
+    });
+    jest.spyOn(service as any, 'auditFinanceRefundDiscount').mockResolvedValue({
+      status: 'success',
+      title: '退款折扣审计',
+      summary: '发现 1 条退款折扣风险。',
+      evidence: { source: ['RefundRecord'], filters: [], metricDefinition: '退款。' },
+      data: { items: [{ riskLevel: 'high' }], consumedSlots: { timeRange: { preset: 'this_month' } } },
+    });
+    jest.spyOn(service as any, 'auditFinanceBeauticianPerformance').mockResolvedValue({
+      status: 'success',
+      title: '美容师绩效审计',
+      summary: '发现 1 条绩效风险。',
+      evidence: { source: ['Beautician'], filters: [], metricDefinition: '绩效。' },
+      data: { items: [{ riskLevel: 'medium' }], consumedSlots: { timeRange: { preset: 'this_month' } } },
+    });
+
+    const result = await service.execute(
+      'finance.report.draft',
+      { question: '生成本月财务报告草稿', timeRange: 'this_month' },
+      { runId: 321, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('财务报告草稿');
+    expect((result.data as any).reportType).toBe('finance_report_draft');
+    expect((result.data as any).document).toMatchObject({
+      title: expect.stringContaining('财务经营报告草稿'),
+      content: expect.stringContaining('## 3. 退款与折扣风险'),
+    });
+    expect((result.data as any).consumedSlots.timeRange.preset).toBe('this_month');
+  });
+
   it('returns no_data for finance margin when there are no valid orders', async () => {
     prisma.productOrder.findMany.mockResolvedValue([]);
     prisma.product.findMany.mockResolvedValue([]);
@@ -1525,6 +1908,11 @@ describe('AgentToolRegistryService', () => {
       'marketing.activity.draft',
       {
         question: '帮我生成活动草稿',
+        title: '编辑后的沉睡客户召回活动',
+        targetAudience: '60 天未到店高价值客户',
+        offerSummary: '护理券',
+        copyPreview: '亲爱的会员，为您保留护理券。',
+        scheduleHint: '明天 10:00',
         context: {
           previousRun: {
             toolResults: [
@@ -1553,10 +1941,20 @@ describe('AgentToolRegistryService', () => {
     expect(result.actions?.[0]).toMatchObject({ action: 'marketing:activity:901', riskLevel: 'low' });
     expect(marketingService.createActivity).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: '补水精华会员专属满赠',
+        title: '编辑后的沉睡客户召回活动',
         status: 'draft',
+        targetCustomers: '60 天未到店高价值客户',
+        discount: '护理券',
+        description: expect.stringContaining('亲爱的会员，为您保留护理券。'),
         sourceRecommendationId: 'agent_run_101',
         recommendedItemsJson: [expect.objectContaining({ productId: 301, productName: '补水精华' })],
+        sourceSignalsJson: expect.objectContaining({
+          editedDraft: expect.objectContaining({
+            title: '编辑后的沉睡客户召回活动',
+            targetAudience: '60 天未到店高价值客户',
+            offerSummary: '护理券',
+          }),
+        }),
       }),
     );
   });
@@ -1693,6 +2091,245 @@ describe('AgentToolRegistryService', () => {
       consumptionItems: [expect.objectContaining({ productName: '修护面膜', actualQty: 1 })],
     });
     expect(result.summary).toContain('需美容师确认后再提交正式服务记录');
+  });
+
+  it('lists today service customers scoped to the current beautician', async () => {
+    prisma.beautician.findFirst.mockResolvedValue({ id: 21 });
+    prisma.serviceTask.findMany.mockResolvedValue([
+      {
+        id: 501,
+        taskNo: 'T501',
+        customerId: 301,
+        projectId: 401,
+        beauticianId: 21,
+        appointmentTime: new Date('2026-06-26T10:00:00+08:00'),
+        duration: 60,
+        status: 'pending',
+        customer: { id: 301, name: '王女士', memberLevel: '金卡', tags: ['敏感肌'], lastVisitDate: new Date('2026-06-01') },
+        beautician: { id: 21, name: '沈晴', status: 'active' },
+        project: { id: 401, name: '敏感修护护理', duration: 60 },
+      },
+    ]);
+    prisma.reservation.findMany.mockResolvedValue([
+      {
+        id: 701,
+        customerId: 302,
+        projectId: 402,
+        beauticianId: 21,
+        date: new Date('2026-06-26T14:00:00+08:00'),
+        startTime: '14:00',
+        endTime: '15:00',
+        status: 'pending',
+        customer: { id: 302, name: '李女士', memberLevel: '银卡', tags: ['补水'], lastVisitDate: new Date('2026-06-12') },
+        beautician: { id: 21, name: '沈晴', status: 'active' },
+        project: { id: 402, name: '补水护理', duration: 60 },
+      },
+    ]);
+
+    const result = await service.execute(
+      'beautician.today.service.list',
+      { question: '我今天有哪些客户', limit: 10 },
+      { runId: 204, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('我今天的服务客户');
+    expect((result.data as any).items).toHaveLength(2);
+    expect((result.data as any).items[0]).toMatchObject({
+      customerName: '王女士',
+      projectName: '敏感修护护理',
+      sourceType: 'service_task',
+    });
+    expect(prisma.serviceTask.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ beauticianId: 21 }) }));
+    expect(result.evidence?.limitations?.[0]).toContain('正式服务记录仍以服务任务为准');
+  });
+
+  it('does not let a beautician override scope with another beautician id', async () => {
+    prisma.beautician.findFirst.mockResolvedValue({ id: 21 });
+    prisma.serviceTask.findMany.mockResolvedValue([]);
+    prisma.reservation.findMany.mockResolvedValue([]);
+
+    const result = await service.execute(
+      'beautician.today.service.list',
+      { question: '查看 99 号美容师今天客户', beauticianId: 99, limit: 10 },
+      { runId: 208, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('no_data');
+    expect(prisma.beautician.findFirst).toHaveBeenCalledWith({
+      where: { storeId: 1, userId: 31 },
+      select: { id: true },
+    });
+    expect(prisma.serviceTask.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ beauticianId: 21 }) }));
+    expect(prisma.reservation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ beauticianId: 21 }) }));
+    expect(JSON.stringify(prisma.serviceTask.findMany.mock.calls[0][0])).not.toContain('99');
+  });
+
+  it('blocks unbound beautician accounts from falling back to all-store service data', async () => {
+    prisma.beautician.findFirst.mockResolvedValue(null);
+
+    const result = await service.execute(
+      'beautician.today.service.list',
+      { question: '我今天有哪些客户', limit: 10 },
+      { runId: 209, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('no_data');
+    expect(result.summary).toContain('当前账号未绑定美容师档案');
+    expect((result.data as any).consumedSlots).toMatchObject({
+      timeRange: { preset: 'today', label: '今日' },
+      limit: 10,
+      filters: { scope: '本人' },
+    });
+    expect(prisma.serviceTask.findMany).not.toHaveBeenCalled();
+    expect(prisma.reservation.findMany).not.toHaveBeenCalled();
+  });
+
+  it('builds the next customer care brief without making medical claims or submitting records', async () => {
+    prisma.beautician.findFirst.mockResolvedValue({ id: 21 });
+    prisma.serviceTask.findMany.mockResolvedValue([
+      {
+        id: 502,
+        taskNo: 'T502',
+        customerId: 301,
+        projectId: 401,
+        beauticianId: 21,
+        appointmentTime: new Date('2026-06-26T10:00:00+08:00'),
+        status: 'pending',
+        customer: {
+          id: 301,
+          name: '王女士',
+          memberLevel: '金卡',
+          visitCount: 6,
+          lastVisitDate: new Date('2026-06-01'),
+          tags: ['敏感肌'],
+          hasAllergy: '酒精过敏',
+          hasSurgery: '',
+          healthProfile: { skinType: '敏感肌', mainProblems: '屏障偏弱' },
+        },
+        beautician: { id: 21, name: '沈晴', status: 'active' },
+        project: {
+          id: 401,
+          name: '敏感修护护理',
+          duration: 60,
+          bomItems: [{ productId: 601, standardQty: 1, unit: '片', product: { id: 601, name: '修护面膜', sku: 'M601', unit: '片' } }],
+        },
+      },
+    ]);
+    prisma.customerCard.findMany.mockResolvedValue([
+      { id: 801, cardName: '修护次卡', totalTimes: 10, remainingTimes: 1, expiryDate: new Date(Date.now() + 10 * 86_400_000), status: 'active' },
+    ]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([
+      { id: 901, cardName: '修护次卡', projectName: '敏感修护护理', times: 1, remainingTimes: 1, verifiedAt: new Date('2026-06-10') },
+    ]);
+
+    const result = await service.execute(
+      'beautician.customer.care.brief',
+      { question: '下一个客户要注意什么' },
+      { runId: 205, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('客户护理摘要');
+    expect((result.data as any).customer).toMatchObject({ customerName: '王女士', memberLevel: '金卡' });
+    expect((result.data as any).activeCards[0]).toMatchObject({ cardName: '修护次卡', risk: '需要提醒' });
+    expect(result.evidence?.limitations?.[0]).toContain('不构成医疗诊断');
+    expect((result.actions ?? []).map((action) => action.action)).toContain('agent:tool:service.record.draft');
+  });
+
+  it('returns beautician monthly performance progress with target gap', async () => {
+    prisma.beautician.findFirst.mockResolvedValue({ id: 21 });
+    prisma.beautician.findMany.mockResolvedValue([{ id: 21, name: '沈晴', status: 'active', userId: 31, level: { name: '高级美容师' } }]);
+    prisma.orderItem.findMany.mockResolvedValue([
+      {
+        orderId: 101,
+        itemType: 'project',
+        itemId: 401,
+        name: '补水护理',
+        beauticianId: 21,
+        quantity: 3,
+        subtotal: 3600,
+        order: { id: 101, customerId: 501, createdAt: new Date(), status: 'completed' },
+      },
+    ]);
+    prisma.commissionRecord.findMany.mockResolvedValue([{ id: 1, beauticianId: 21, amount: 360, sourceAmount: 3600, type: 'project', status: 'confirmed', createdAt: new Date() }]);
+    prisma.reservation.findMany.mockResolvedValue([{ id: 1, beauticianId: 21, customerId: 501, status: 'completed', date: new Date() }]);
+    prisma.serviceTask.findMany.mockResolvedValue([{ id: 1, beauticianId: 21, customerId: 501, status: 'completed', completedAt: new Date(), remark: '已完成', consumptionItems: [{ productId: 1 }] }]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([{ id: 1, beauticianId: 21, customerId: 501, times: 1, verifiedAt: new Date() }]);
+
+    const result = await service.execute(
+      'beautician.performance.progress',
+      { question: '我本月目标5000还差多少', targetAmount: 5000 },
+      { runId: 206, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('我的业绩进度');
+    expect(result.summary).toContain('还差');
+    expect((result.data as any).progress).toMatchObject({
+      targetAmount: 5000,
+      gapAmount: 1400,
+    });
+    expect(prisma.orderItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ beauticianId: 21 }) }));
+  });
+
+  it('finds beautician repurchase opportunities without creating follow-up tasks', async () => {
+    prisma.beautician.findFirst.mockResolvedValue({ id: 21 });
+    prisma.serviceTask.findMany.mockResolvedValue([
+      {
+        id: 601,
+        customerId: 301,
+        projectId: 401,
+        beauticianId: 21,
+        appointmentTime: new Date(Date.now() - 28 * 86_400_000),
+        completedAt: new Date(Date.now() - 28 * 86_400_000),
+        status: 'completed',
+        customer: { id: 301, name: '王女士', memberLevel: '金卡', totalSpent: 8000, visitCount: 8, lastVisitDate: new Date(Date.now() - 28 * 86_400_000), tags: ['补水'] },
+        project: { id: 401, name: '补水护理' },
+      },
+    ]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([
+      { id: 701, customerId: 301, customerName: '王女士', cardName: '补水次卡', projectName: '补水护理', times: 1, remainingTimes: 1, verifiedAt: new Date(Date.now() - 28 * 86_400_000) },
+    ]);
+    prisma.customerCard.findMany.mockResolvedValue([
+      { id: 801, customerId: 301, cardName: '补水次卡', totalTimes: 10, remainingTimes: 1, expiryDate: new Date(Date.now() + 15 * 86_400_000), status: 'active' },
+    ]);
+
+    const result = await service.execute(
+      'beautician.repurchase.opportunity',
+      { question: '我的客户哪些适合复购或续卡', limit: 10 },
+      { runId: 207, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('复购续卡机会');
+    expect((result.data as any).items[0]).toMatchObject({
+      customerName: '王女士',
+      opportunityType: '续卡/卡项提醒',
+      suggestedAction: '服务后做卡项续费提醒',
+    });
+    expect(terminalService.batchCreateFollowUpTasks).not.toHaveBeenCalled();
+    expect(result.evidence?.limitations?.[0]).toContain('不自动创建跟进任务');
+  });
+
+  it('blocks unbound beautician repurchase queries while preserving consumed slots', async () => {
+    prisma.beautician.findFirst.mockResolvedValue(null);
+
+    const result = await service.execute(
+      'beautician.repurchase.opportunity',
+      { question: '我的客户哪些适合复购或续卡', limit: 10 },
+      { runId: 210, storeId: 1, userId: 31, role: 'beautician' },
+    );
+
+    expect(result.status).toBe('no_data');
+    expect(result.summary).toContain('当前账号未绑定美容师档案');
+    expect((result.data as any).consumedSlots).toMatchObject({
+      timeRange: { preset: 'last_30_days', label: '近30天' },
+      limit: 10,
+      filters: { scope: '本人服务客户' },
+    });
+    expect(prisma.serviceTask.findMany).not.toHaveBeenCalled();
+    expect(prisma.cardUsageRecord.findMany).not.toHaveBeenCalled();
   });
 
   it('diagnoses reservation and schedule utilization without publishing schedules', async () => {

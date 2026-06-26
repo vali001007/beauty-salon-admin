@@ -9,6 +9,10 @@ jest.mock('../semantic-sql/semantic-sql-executor.service.js', () => ({
 jest.mock('./agent-capability-candidate.service.js', () => ({
   AgentCapabilityCandidateService: class AgentCapabilityCandidateService {},
 }));
+jest.mock('./agent-automation.service.js', () => ({ AgentAutomationService: class AgentAutomationService {} }));
+jest.mock('./agent-memory.service.js', () => ({ AgentMemoryService: class AgentMemoryService {} }));
+jest.mock('./agent-observability.service.js', () => ({ AgentObservabilityService: class AgentObservabilityService {} }));
+jest.mock('./agent-schema-readiness.service.js', () => ({ AgentSchemaReadinessService: class AgentSchemaReadinessService {} }));
 
 import { AgentController } from './agent.controller.js';
 
@@ -18,6 +22,10 @@ describe('AgentController', () => {
   let queryPlanner: jest.Mocked<any>;
   let semanticQueryExecutor: jest.Mocked<any>;
   let responseComposer: jest.Mocked<any>;
+  let memoryService: jest.Mocked<any>;
+  let observabilityService: jest.Mocked<any>;
+  let automationService: jest.Mocked<any>;
+  let schemaReadinessService: jest.Mocked<any>;
   let prisma: jest.Mocked<any>;
   let controller: AgentController;
 
@@ -40,12 +48,181 @@ describe('AgentController', () => {
     responseComposer = {
       compose: jest.fn(),
     };
+    memoryService = {
+      listMemories: jest.fn(),
+      createMemory: jest.fn(),
+      listDailyArchives: jest.fn(),
+      generateDailyArchive: jest.fn(),
+    };
+    observabilityService = {
+      getQualityReport: jest.fn(),
+    };
+    automationService = {
+      listTriggerTemplates: jest.fn(),
+      listDefinitions: jest.fn(),
+      createDraft: jest.fn(),
+      listRuns: jest.fn(),
+      listEffects: jest.fn(),
+      runOnce: jest.fn(),
+      runDueAutomations: jest.fn(),
+      evaluateEvent: jest.fn(),
+      listPendingApprovals: jest.fn(),
+      decideRunApproval: jest.fn(),
+      recoverDefinition: jest.fn(),
+      recordAttribution: jest.fn(),
+    };
+    schemaReadinessService = {
+      getStatus: jest.fn(),
+    };
     prisma = {
       user: {
         findFirst: jest.fn(),
       },
     };
-    controller = new AgentController(orchestrator, {} as any, businessTaskCompiler, {} as any, {} as any, prisma as any, queryPlanner, semanticQueryExecutor, responseComposer);
+    controller = new AgentController(
+      orchestrator,
+      {} as any,
+      businessTaskCompiler,
+      {} as any,
+      {} as any,
+      prisma as any,
+      memoryService,
+      observabilityService,
+      automationService,
+      schemaReadinessService,
+      queryPlanner,
+      semanticQueryExecutor,
+      responseComposer,
+    );
+  });
+
+  it('returns Agent schema readiness status without mutating business data', async () => {
+    schemaReadinessService.getStatus.mockResolvedValue({
+      ready: false,
+      missingTables: ['agent_daily_archives'],
+    });
+
+    const result = await controller.schemaReadiness();
+
+    expect(result).toEqual({ ready: false, missingTables: ['agent_daily_archives'] });
+    expect(schemaReadinessService.getStatus).toHaveBeenCalledWith();
+  });
+
+  it('creates an Agent automation draft for the current store', async () => {
+    automationService.createDraft.mockResolvedValue({ id: 7, status: 'draft' });
+
+    const result = await controller.createAutomationDraft(6, 2, {
+      personaCode: 'marketing',
+      goal: '沉睡客户自动召回',
+      sourceRunId: 88,
+    });
+
+    expect(result).toEqual({ id: 7, status: 'draft' });
+    expect(automationService.createDraft).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 2,
+      personaCode: 'marketing',
+      goal: '沉睡客户自动召回',
+      name: undefined,
+      description: undefined,
+      triggerType: undefined,
+      triggerConfig: undefined,
+      actionPlan: undefined,
+      approvalPolicy: undefined,
+      schedule: undefined,
+      riskLevel: undefined,
+      sourceRunId: 88,
+    });
+  });
+
+  it('manually runs an Agent automation in current store context', async () => {
+    automationService.runOnce.mockResolvedValue({ run: { id: 31 }, approvalRequired: true });
+
+    const result = await controller.runAutomationOnce(7, 6, 2, { dryRun: true });
+
+    expect(result).toEqual({ run: { id: 31 }, approvalRequired: true });
+    expect(automationService.runOnce).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 2,
+      definitionId: 7,
+      mode: undefined,
+      dryRun: true,
+      input: undefined,
+    });
+  });
+
+  it('runs due Agent automations in current store context', async () => {
+    automationService.runDueAutomations.mockResolvedValue({ triggeredCount: 1 });
+
+    const result = await controller.runDueAutomations(6, 2, { now: '2026-06-26T09:00:00Z', limit: 3 });
+
+    expect(result).toEqual({ triggeredCount: 1 });
+    expect(automationService.runDueAutomations).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 2,
+      now: '2026-06-26T09:00:00Z',
+      limit: 3,
+      dryRun: undefined,
+    });
+  });
+
+  it('evaluates Agent automation events in current store context', async () => {
+    automationService.evaluateEvent.mockResolvedValue({ matchedCount: 1 });
+
+    const result = await controller.evaluateAutomationEvent(6, 2, {
+      eventType: 'metric_threshold',
+      payload: { metricKey: 'refund_amount', value: 1200 },
+    });
+
+    expect(result).toEqual({ matchedCount: 1 });
+    expect(automationService.evaluateEvent).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 2,
+      eventType: 'metric_threshold',
+      payload: { metricKey: 'refund_amount', value: 1200 },
+      limit: undefined,
+      dryRun: undefined,
+    });
+  });
+
+  it('approves a pending Agent automation run in current store context', async () => {
+    automationService.decideRunApproval.mockResolvedValue({ approved: true });
+
+    const result = await controller.approveAutomationRun(77, 6, 2, { comment: '确认执行' });
+
+    expect(result).toEqual({ approved: true });
+    expect(automationService.decideRunApproval).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 2,
+      runId: 77,
+      decision: 'approve',
+      comment: '确认执行',
+    });
+  });
+
+  it('records Agent automation attribution in current store context', async () => {
+    automationService.recordAttribution.mockResolvedValue({ id: 91 });
+
+    const result = await controller.recordAutomationAttribution(6, 2, {
+      definitionId: 7,
+      runId: 77,
+      metricKey: 'attributed_revenue',
+      impact: { revenue: 399 },
+    });
+
+    expect(result).toEqual({ id: 91 });
+    expect(automationService.recordAttribution).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 2,
+      definitionId: 7,
+      runId: 77,
+      effectType: undefined,
+      objectType: undefined,
+      objectId: undefined,
+      customerId: undefined,
+      metricKey: 'attributed_revenue',
+      impact: { revenue: 399 },
+    });
   });
 
   it('uses only roles available to the authenticated terminal account', async () => {
