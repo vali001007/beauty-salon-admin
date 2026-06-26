@@ -73,7 +73,7 @@ export function BeauticianPerformance() {
         .sort((a, b) => b.contributionProfit - a.contributionProfit)
         .slice(0, 8)
         .map((row) => ({
-          name: row.beauticianName,
+          name: row.staffName || row.beauticianName || '未命名员工',
           serviceIncome: row.serviceIncome,
           contributionProfit: row.contributionProfit,
         })),
@@ -84,7 +84,7 @@ export function BeauticianPerformance() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="员工人效"
-        description="按美容师聚合服务收入、服务次数、客户数、办卡金额、提成成本和贡献毛利。"
+        description="按系统员工聚合服务收入、服务次数、客户数、办卡金额、提成成本和贡献毛利；人员来源与系统管理-用户管理一致。"
         actions={
           <Button variant="outline" className="gap-2" onClick={() => void loadData()} disabled={loading}>
             <RefreshCcw className="h-4 w-4" />
@@ -107,7 +107,7 @@ export function BeauticianPerformance() {
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="mb-4">
           <div className="text-sm font-medium">员工贡献对比</div>
-          <div className="mt-1 text-sm text-muted-foreground">按贡献毛利排序展示前 8 位美容师。</div>
+          <div className="mt-1 text-sm text-muted-foreground">按贡献毛利排序展示前 8 位员工。</div>
         </div>
         <div className="h-72">
           {chartRows.length ? (
@@ -139,7 +139,7 @@ export function BeauticianPerformance() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>美容师</TableHead>
+              <TableHead>员工</TableHead>
               <TableHead className="text-right">服务收入</TableHead>
               <TableHead className="text-right">服务次数</TableHead>
               <TableHead className="text-right">客户数</TableHead>
@@ -152,10 +152,10 @@ export function BeauticianPerformance() {
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.beauticianId}>
+              <TableRow key={row.staffUserId ?? row.beauticianId}>
                 <TableCell>
-                  <div className="font-medium">{row.beauticianName}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{row.storeName || `门店 ${row.storeId}`}</div>
+                  <div className="font-medium">{row.staffName || row.beauticianName || '未命名员工'}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{row.storeName || (row.storeId ? `门店 ${row.storeId}` : '未绑定门店')}</div>
                 </TableCell>
                 <TableCell className="text-right">{money(row.serviceIncome)}</TableCell>
                 <TableCell className="text-right">{row.serviceCount}</TableCell>

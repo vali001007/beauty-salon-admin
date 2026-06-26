@@ -57,6 +57,7 @@ export const createCardUsage: (data: {
   projectName: string;
   consumedTimes: number;
   operatorId?: number;
+  beauticianId?: number;
 }) => Promise<any> = realCreateCardUsage;
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';

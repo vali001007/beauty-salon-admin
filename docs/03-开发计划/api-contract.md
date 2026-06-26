@@ -31,6 +31,19 @@
 
 ## 当前已收口接口
 
+### 终端与管理端共享业务服务
+
+终端和管理端保留不同鉴权入口：终端继续走设备鉴权与 `/terminal/*` 路由，管理端继续走 JWT、权限码与后台路由。业务事实不能按入口分叉，以下高频动作必须收敛到同一后端 service：
+
+| 业务动作 | 终端入口 | 管理端入口 | 权威 service | 统一副作用 |
+| --- | --- | --- | --- | --- |
+| 次卡核销 | `POST /terminal/cards/consume` | `POST /cards/verify-usage`、`POST /cards/usage` | `CardsService.verifyCardUsage` | 卡剩余次数、核销记录、履约收入、BOM 耗材、服务提成 |
+| 新建客户 | `POST /terminal/customers/quick-create` | `POST /customers` | `CustomersService.create` | 客户主表、健康档案、客户画像基础数据 |
+| 会员充值 | `POST /terminal/recharge-orders` | `POST /orders/member-cards/:id/recharge` | `OrdersService.createRechargeOrder` / `createMemberCardRecharge` | 充值订单、余额账户、余额流水、支付记录、提成、日结 |
+| 收银写单 | `POST /terminal/cashier/checkout` | `POST /orders/product`、`POST /orders/project` | `OrdersService.createProductOrder` | 商品/项目订单、明细、支付、余额消费、库存、BOM、提成、日结 |
+
+新增或调整这些业务时，应先改权威 service，再由终端和管理端入口补齐各自上下文字段，例如 `storeId`、`deviceId`、`operatorId`、`source` 和权限校验。
+
 ### 认证
 
 | Method | Path | 说明 |

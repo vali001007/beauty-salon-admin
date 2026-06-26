@@ -74,6 +74,7 @@ export function CardVerificationFlowCard({
   const [step, setStep] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<SelectedCustomer | null>(null);
   const [selectedProject, setSelectedProject] = useState<SelectedProject | null>(null);
+  const [selectedBeauticianId, setSelectedBeauticianId] = useState("");
   const [detailCustomer, setDetailCustomer] = useState<CardVerificationCustomer | null>(null);
   const [pendingCustomerId, setPendingCustomerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,6 +82,7 @@ export function CardVerificationFlowCard({
   const selectedCards = safeArray(selectedCustomer?.cards);
 
   const customers = useMemo(() => safeArray(data.customers), [data.customers]);
+  const beauticians = useMemo(() => safeArray(data.beauticians).filter((item) => item.status === "在职"), [data.beauticians]);
 
   const chooseCustomer = async (customer: CardVerificationCustomer) => {
     setLoading(true);
@@ -91,6 +93,7 @@ export function CardVerificationFlowCard({
       const detail = await onLoadCustomerCards(customer.id);
       setSelectedCustomer(detail);
       setSelectedProject(null);
+      setSelectedBeauticianId("");
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "客户卡项加载失败");
@@ -113,11 +116,17 @@ export function CardVerificationFlowCard({
       remainingTimes: card.remainingTimes,
       expiryDate: card.expiryDate,
     });
+    setSelectedBeauticianId("");
     setStep(3);
   };
 
   const confirm = async () => {
     if (!selectedCustomer || !selectedProject) return;
+    const beauticianId = Number(selectedBeauticianId);
+    if (!beauticianId) {
+      setError(beauticians.length ? "请选择服务人员，用于本次核销提成归属" : "当前没有可选服务人员，请先维护美容师档案后再核销");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -127,6 +136,7 @@ export function CardVerificationFlowCard({
         projectId: selectedProject.id,
         projectName: selectedProject.name,
         times: selectedProject.times,
+        beauticianId,
       });
       setStep(4);
     } catch (err) {
@@ -257,6 +267,30 @@ export function CardVerificationFlowCard({
               </div>
             ))}
           </div>
+          <div className="rounded-2xl border border-black/5 bg-white p-4">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-[#6F6678]">
+                服务人员 <span className="text-rose-500">*</span>
+              </span>
+              <select
+                value={selectedBeauticianId}
+                onChange={(event) => {
+                  setSelectedBeauticianId(event.target.value);
+                  setError(null);
+                }}
+                disabled={!beauticians.length || loading}
+                className="h-12 rounded-xl border border-black/10 bg-white px-4 text-sm text-[#1F1B2D] outline-none focus:border-[#C9956C] focus:ring-2 focus:ring-[#C9956C]/20 disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-[#9B92A3]"
+              >
+                <option value="">{beauticians.length ? "请选择服务人员" : "暂无可选服务人员"}</option>
+                {beauticians.map((beautician) => (
+                  <option key={beautician.id} value={beautician.id}>
+                    {beautician.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-[#9B92A3]">本次核销会按所选服务人员生成项目提成归属。</span>
+            </label>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={() => setStep(2)} className="h-12 rounded-xl border border-black/10 bg-white text-sm font-medium text-[#1F1B2D]">
               返回修改
@@ -264,7 +298,7 @@ export function CardVerificationFlowCard({
             <button
               type="button"
               onClick={confirm}
-              disabled={loading}
+              disabled={loading || !beauticians.length}
               className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1F1B2D] text-sm font-medium text-white transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

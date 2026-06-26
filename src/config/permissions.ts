@@ -22,6 +22,15 @@ export const PERMISSION_CATALOG: Permission[] = [
     legacyCodes: ['dashboard:view'],
   },
   {
+    code: 'core:agent:view',
+    name: '访问 AI 智能体',
+    type: 'menu',
+    module: '工作台',
+    platform: 'core',
+    description: '访问洞悉美业·AI 智能体工作台',
+    legacyCodes: [],
+  },
+  {
     code: 'core:customer:view',
     name: '查看客户',
     type: 'operation',
@@ -822,6 +831,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   super_admin: ['*'],
   store_manager: [
     'core:dashboard:view',
+    'core:agent:view',
     'core:customer:view',
     'core:customer:create',
     'core:customer:update',

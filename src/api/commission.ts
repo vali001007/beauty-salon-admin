@@ -5,7 +5,9 @@ export {
   realConfirmCommissionSettlement as confirmCommissionSettlement,
   realConfirmDailySettlement as confirmDailySettlement,
   realCreateCommissionRule as createCommissionRule,
+  realCreateCommissionRuleAssignment as createCommissionRuleAssignment,
   realDeleteCommissionRule as deleteCommissionRule,
+  realDeleteCommissionRuleAssignment as deleteCommissionRuleAssignment,
   realExportCommissionSettlements as exportCommissionSettlements,
   realGenerateAmiMonthlyBill as generateAmiMonthlyBill,
   realGenerateDailySettlement as generateDailySettlement,
@@ -17,6 +19,7 @@ export {
   realGetCurrentCashierShift as getCurrentCashierShift,
   realGetDailySettlements as getDailySettlements,
   realGetCommissionRecords as getCommissionRecords,
+  realGetCommissionRuleAssignments as getCommissionRuleAssignments,
   realGetCommissionRules as getCommissionRules,
   realGetCommissionSettlements as getCommissionSettlements,
   realGetCommissionSummary as getCommissionSummary,
@@ -25,6 +28,7 @@ export {
   realOpenCashierShift as openCashierShift,
   realCloseCashierShift as closeCashierShift,
   realUpdateCommissionRule as updateCommissionRule,
+  realUpdateCommissionRuleAssignment as updateCommissionRuleAssignment,
   realUpdateCommissionRecord as updateCommissionRecord,
 } from './real/commission';
 export type {
@@ -37,6 +41,7 @@ export type {
   CommissionRecord,
   CommissionRecordStatus,
   CommissionRule,
+  CommissionRuleAssignment,
   CommissionSettlement,
   CommissionSettlementStatus,
   CommissionStatus,

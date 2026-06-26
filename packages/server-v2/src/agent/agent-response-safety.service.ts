@@ -13,6 +13,9 @@ type InspectResult = {
 };
 
 const INTERNAL_DISPLAY_PATTERNS: RegExp[] = [
+  /(?:保证|一定|100%|彻底)(?:治愈|根治|祛除|见效|改善)/,
+  /(?:治疗|治愈|根治)(?:痘痘|痤疮|皮炎|湿疹|过敏|红血丝|斑|色斑|皱纹|毛囊炎)/,
+  /诊断(?:为|是)?(?:痤疮|皮炎|湿疹|过敏|毛囊炎)/,
   /\b(recommended|opportunity|urgent)\b/i,
   /\b(today|yesterday|tomorrow|this_week|last_week|next_week|this_month|last_month|next_month|last_7_days|last_30_days|recent_30_days|previous_30_days)\b/i,
   /\b(timeRange|limit|scope|storeId|customerSegment|runId|toolPlan|capabilityId|targetType|role|operatorId|userId|deviceId|beauticianId|mode|objective)\s*=/i,
@@ -26,6 +29,9 @@ const INTERNAL_DISPLAY_PATTERNS: RegExp[] = [
 ];
 
 const DISPLAY_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/(?:保证|一定|100%|彻底)(?:治愈|根治|祛除|见效|改善)/g, '建议先做护理观察'],
+  [/(?:治疗|治愈|根治)(痘痘|痤疮|皮炎|湿疹|过敏|红血丝|斑|色斑|皱纹|毛囊炎)/g, '针对$1做非医疗护理建议'],
+  [/诊断(?:为|是)?(痤疮|皮炎|湿疹|过敏|毛囊炎)/g, '观察到$1相关不适表现'],
   [/\brecommended\b/gi, '建议优先跟进'],
   [/\bopportunity\b/gi, '可培育机会'],
   [/\burgent\b/gi, '需立即跟进'],

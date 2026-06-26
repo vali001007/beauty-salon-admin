@@ -292,3 +292,333 @@ export interface AgentApprovalListQuery {
   pageSize?: number;
   status?: string;
 }
+
+// ─── Persona（六大角色 Agent 配置）──────────────────────────────────────────
+
+export type AgentPersonaCode =
+  | 'manager'
+  | 'marketing'
+  | 'reception'
+  | 'beautician'
+  | 'inventory'
+  | 'finance';
+
+export interface AgentPersonaSummary {
+  code: AgentPersonaCode;
+  name: string;
+  description: string;
+  targetRoles: string[];
+  toolGroups: string[];
+  suggestedQuestions: string[];
+}
+
+// ─── AuraResponseBlock（与后端 agent.types.ts 保持同步）──────────────────────
+
+export type AuraBlockAction = {
+  label: string;
+  actionId: string;
+  riskLevel: AgentRiskLevel;
+};
+
+export type AuraResponseBlock =
+  | { kind: 'text'; content: string }
+  | { kind: 'kpi_card'; label: string; value: string; delta?: string; deltaType?: 'up' | 'down' | 'neutral'; unit?: string; hint?: string }
+  | { kind: 'table'; columns: string[]; rows: string[][]; sortable?: boolean; caption?: string }
+  | { kind: 'chart'; chartType: 'line' | 'bar' | 'pie' | 'funnel'; title: string; data: unknown; xKey?: string; yKeys?: string[] }
+  | { kind: 'customer_card'; customerId: string; name: string; vipLevel?: string; lastVisit?: string; suggestion?: string; actions?: AuraBlockAction[] }
+  | {
+      kind: 'opportunity_card';
+      title: string;
+      summary: string;
+      opportunityType: string;
+      fitScore: number;
+      productName: string;
+      sku?: string;
+      currentStock?: number;
+      safetyStock?: number;
+      salesQuantity?: number;
+      salesAmount?: number;
+      customerCount?: number;
+      expiringStock?: number;
+      daysToExpiry?: number | null;
+      marginRateText?: string;
+      reason: string;
+      suggestedCampaign?: string;
+      suggestedChannels?: string[];
+      riskWarnings?: string[];
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'copy_variants';
+      title: string;
+      target: string;
+      offer: string;
+      variants: Array<{
+        label: string;
+        content: string;
+        tone?: string;
+      }>;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'activity_draft_card';
+      title: string;
+      targetAudience: string;
+      offerSummary: string;
+      copyPreview: string;
+      scheduleHint?: string;
+      impactSummary?: string;
+      offerCostEstimate?: Array<{
+        label: string;
+        value: string;
+        tone?: 'default' | 'warning' | 'critical' | 'success';
+      }>;
+      audienceDetails?: Array<{
+        label: string;
+        value: string;
+        description?: string;
+      }>;
+      editable?: boolean;
+      recommendedItems?: Array<{
+        name: string;
+        reason?: string;
+        fitScore?: number;
+      }>;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'inventory_item_card';
+      title: string;
+      itemName: string;
+      subtitle?: string;
+      riskLevel?: AgentRiskLevel;
+      statusLabel?: string;
+      metrics: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'critical' | 'success' }>;
+      reason?: string;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'supplier_purchase_card';
+      title: string;
+      productName: string;
+      supplierName: string;
+      statusLabel?: string;
+      metrics: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'critical' | 'success' }>;
+      reason?: string;
+      actions?: AuraBlockAction[];
+    }
+  | { kind: 'confirm_action'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
+  | { kind: 'alert'; level: 'warning' | 'critical' | 'info'; message: string; actionId?: string }
+  | { kind: 'follow_up_chips'; suggestions: string[] }
+  | { kind: 'document_preview'; title: string; content: string; downloadable?: boolean }
+  | { kind: 'evidence_panel'; sources: string[]; dateRange?: string; metricDefinition: string; limitations?: string[] };
+
+// AgentRunResult 扩展版（含 renderedBlocks）
+export interface AgentRunResultV2 extends AgentRunResult {
+  renderedBlocks?: AuraResponseBlock[];
+  followUpSuggestions?: string[];
+  personaCode?: AgentPersonaCode;
+}
+
+// ─── Feedback ────────────────────────────────────────────────────────────────
+
+export interface AgentFeedbackRequest {
+  rating?: number;
+  adopted?: boolean;
+  comment?: string;
+  businessActionJson?: unknown;
+}
+
+export interface AgentMemoryItem {
+  id: number;
+  storeId: number;
+  userId?: number | null;
+  personaCode?: AgentPersonaCode | string | null;
+  memoryType: string;
+  title: string;
+  content: string;
+  summary?: string | null;
+  importance: number;
+  sourceRunId?: number | null;
+  status: string;
+  lastUsedAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AgentDailyArchiveItem {
+  id: number;
+  storeId: number;
+  archiveDate: string;
+  personaCode?: AgentPersonaCode | string | null;
+  title: string;
+  summary: string;
+  metricsJson?: unknown;
+  highlightsJson?: unknown;
+  risksJson?: unknown;
+  actionsJson?: unknown;
+  sourceRunIds?: unknown;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AgentQualityReport {
+  range: {
+    days: number;
+    startDate: string;
+    endDate: string;
+  };
+  kpis: {
+    runCount: number;
+    completed: number;
+    failed: number;
+    successRate: number;
+    feedbackCount: number;
+    adopted: number;
+    rejected: number;
+    adoptionRate: number;
+    avgRating?: number | null;
+    avgLatencyMs?: number | null;
+    evalRunCount?: number;
+    evalPassed?: number;
+    evalPassRate?: number | null;
+  };
+  personaBreakdown: Array<{
+    name: string;
+    runCount: number;
+    completed: number;
+    failed: number;
+    successRate: number;
+  }>;
+  toolBreakdown: Array<{
+    toolName: string;
+    callCount: number;
+    failed: number;
+    failureRate: number;
+    avgLatencyMs?: number | null;
+  }>;
+  recentNegativeFeedback: Array<{
+    runId: number;
+    rating?: number | null;
+    adopted?: boolean | null;
+    comment?: string | null;
+    createdAt: string;
+  }>;
+  recommendations: string[];
+}
+
+export interface AgentSchemaReadinessGroup {
+  code: 'memory_archive' | 'automation_engine' | string;
+  name: string;
+  migration: string;
+  requiredTables: string[];
+  ready: boolean;
+  migrationApplied: boolean;
+  missingTables: string[];
+}
+
+export interface AgentSchemaReadiness {
+  ready: boolean;
+  checkedAt: string;
+  groups: AgentSchemaReadinessGroup[];
+  missingTables: string[];
+  missingMigrations: string[];
+}
+
+export interface AgentAutomationTriggerTemplate {
+  code: string;
+  name: string;
+  domain: string;
+  riskLevel: AgentRiskLevel;
+  defaultConfig: Record<string, unknown>;
+  defaultActionPlan: Record<string, unknown>;
+  approvalPolicy: Record<string, unknown>;
+}
+
+export interface AgentAutomationDefinitionItem {
+  id: number;
+  storeId: number;
+  personaCode?: AgentPersonaCode | string | null;
+  name: string;
+  description?: string | null;
+  triggerType: string;
+  triggerConfigJson: unknown;
+  actionPlanJson: unknown;
+  approvalPolicyJson?: unknown;
+  scheduleJson?: unknown;
+  riskLevel: AgentRiskLevel | string;
+  status: string;
+  sourceRunId?: number | null;
+  createdBy?: number | null;
+  lastTriggeredAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AgentAutomationRunItem {
+  id: number;
+  definitionId?: number | null;
+  storeId: number;
+  personaCode?: AgentPersonaCode | string | null;
+  triggerType: string;
+  mode: string;
+  status: string;
+  triggeredBy?: number | null;
+  inputJson?: unknown;
+  outputJson?: unknown;
+  errorMessage?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+}
+
+export interface AgentAutomationEffectItem {
+  id: number;
+  definitionId?: number | null;
+  runId?: number | null;
+  storeId: number;
+  effectType: string;
+  objectType?: string | null;
+  objectId?: number | null;
+  customerId?: number | null;
+  metricKey?: string | null;
+  impactJson?: unknown;
+  status: string;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface AgentAutomationDraftRequest {
+  personaCode?: string;
+  goal?: string;
+  name?: string;
+  description?: string;
+  triggerType?: string;
+  triggerConfig?: unknown;
+  actionPlan?: unknown;
+  approvalPolicy?: unknown;
+  schedule?: unknown;
+  riskLevel?: AgentRiskLevel | string;
+  sourceRunId?: number;
+}
+
+export interface AgentAutomationRunResult {
+  run: AgentAutomationRunItem;
+  effect: AgentAutomationEffectItem;
+  definition: AgentAutomationDefinitionItem;
+  approvalRequired: boolean;
+}
+
+export interface AgentAutomationDueRunResult {
+  checkedCount: number;
+  triggeredCount: number;
+  skippedCount: number;
+  results: AgentAutomationRunResult[];
+}
+
+export interface AgentAutomationEventEvaluateResult {
+  eventType: string;
+  checkedCount: number;
+  matchedCount: number;
+  results: AgentAutomationRunResult[];
+}

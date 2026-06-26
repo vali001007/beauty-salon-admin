@@ -36,6 +36,14 @@ describe('AgentEvalService', () => {
       requiresApproval: false,
     },
     {
+      name: 'finance.revenue.summary',
+      description: '汇总财务收入',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+    },
+    {
       name: 'product.sales.rank',
       description: '查询商品销量排行',
       riskLevel: 'low',
@@ -58,6 +66,70 @@ describe('AgentEvalService', () => {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:marketing:create'],
       requiresApproval: true,
+    },
+    {
+      name: 'manager.daily.briefing',
+      description: '生成门店今日经营简报',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:dashboard:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'reception.customer.lookup',
+      description: '查询前台客户资料',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['terminal:customer:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'reception.reservation.today',
+      description: '查询今日预约与待确认预约',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['core:store:reservations'],
+      requiresApproval: false,
+    },
+    {
+      name: 'reception.card.benefit.summary',
+      description: '查询客户卡项与权益概况',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['core:order:card-usage'],
+      requiresApproval: false,
+    },
+    {
+      name: 'marketing.customer.segment.discover',
+      description: '发现适合营销召回的客户分群',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'promotion.offer.match',
+      description: '匹配适合的营销权益与优惠方案',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'marketing.copy.generate',
+      description: '生成营销文案与触达话术',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'marketing.effect.diagnose',
+      description: '诊断营销活动效果',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:marketing:analytics'],
+      requiresApproval: false,
     },
     {
       name: 'customer.followup.task.draft',
@@ -84,11 +156,75 @@ describe('AgentEvalService', () => {
       requiresApproval: false,
     },
     {
+      name: 'inventory.consumption.trend',
+      description: '分析库存消耗趋势',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'inventory.project.bom.risk',
+      description: '诊断项目耗材 BOM 风险',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'inventory.expiring.clearance.draft',
+      description: '生成临期库存处理草稿',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'supplier.purchase.link',
+      description: '查询供应商采购链接',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:purchase'],
+      requiresApproval: false,
+    },
+    {
       name: 'service.record.draft',
       description: '生成服务记录草稿',
       riskLevel: 'low',
       allowedRoles: ['beautician', 'manager'],
       requiredPermissions: ['terminal:service:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'beautician.today.service.list',
+      description: '查询美容师今日服务客户',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: ['terminal:service:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'beautician.customer.care.brief',
+      description: '生成美容师客户护理摘要',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: ['terminal:service:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'beautician.performance.progress',
+      description: '查询美容师本月业绩进度',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: [],
+      requiresApproval: false,
+    },
+    {
+      name: 'beautician.repurchase.opportunity',
+      description: '推荐美容师复购续卡机会',
+      riskLevel: 'low',
+      allowedRoles: ['beautician', 'manager'],
+      requiredPermissions: ['terminal:customer:view'],
       requiresApproval: false,
     },
     {
@@ -126,6 +262,46 @@ describe('AgentEvalService', () => {
     {
       name: 'finance.margin.diagnose',
       description: '诊断财务毛利',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'finance.profit.diagnose',
+      description: '诊断利润变化',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'finance.margin.risk.rank',
+      description: '查询毛利风险排行',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'finance.refund.discount.audit',
+      description: '审计退款折扣风险',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'finance.beautician.performance.audit',
+      description: '审计美容师绩效风险',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:order:view'],
+      requiresApproval: false,
+    },
+    {
+      name: 'finance.report.draft',
+      description: '生成财务报告草稿',
       riskLevel: 'low',
       allowedRoles: ['manager'],
       requiredPermissions: ['core:order:view'],
@@ -267,6 +443,19 @@ describe('AgentEvalService', () => {
         }),
       ]),
     );
+    const personaCoreCounts = DEFAULT_AGENT_EVAL_CASES.reduce<Record<string, number>>((acc, item) => {
+      const match = item.scenario.match(/^Persona核心问题：(.+)$/);
+      if (match?.[1]) acc[match[1]] = (acc[match[1]] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(personaCoreCounts).toMatchObject({
+      店长经营: 5,
+      营销增长: 5,
+      美容师服务: 5,
+      库存采购: 5,
+      财务风控: 5,
+    });
+    expect(personaCoreCounts['前台接待客户查询'] + personaCoreCounts['前台接待预约'] + personaCoreCounts['前台接待卡项权益']).toBeGreaterThanOrEqual(5);
   });
 
   it('passes the default P0 planner and safety regression cases', async () => {
@@ -337,7 +526,7 @@ describe('AgentEvalService', () => {
           customerCost: 'hidden',
           customerProfit: 'hidden',
         },
-        expectedTool: 'staff.performance.rank',
+        expectedTool: 'beautician.performance.progress',
         expectedIntentType: 'analysis_and_recommendation',
         expectedRiskLevel: 'low',
         expectedClarification: false,
@@ -348,7 +537,7 @@ describe('AgentEvalService', () => {
 
     expect(result.failed).toBe(0);
     expect(result.results[0].actual).toMatchObject({
-      firstTool: 'staff.performance.rank',
+      firstTool: 'beautician.performance.progress',
       fieldScopeProtected: true,
       protectedFieldScopes: ['customerCost', 'customerProfit', 'staffCommission'],
     });

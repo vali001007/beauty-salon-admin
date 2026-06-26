@@ -3624,6 +3624,9 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
   } catch (err) {
     console.warn('Ami Aura Lite 轻量核销上下文加载失败，降级到本地快照', err);
   }
+  const contextBeauticians = filterByStoreName(asList<Beautician>(context?.beauticians), context?.storeName).filter(
+    isSelectableBeautician,
+  );
   try {
     const customerContext = await getTerminalCustomerSelectContext({ scene: 'verification', limit: 50 });
     const contextCustomers = asList<TerminalContextCustomer>(customerContext.items).map(toCardVerificationCustomerFromContext);
@@ -3636,6 +3639,7 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
           ? format(new Date(customerContext.generatedAt), 'yyyy-MM-dd HH:mm')
           : format(new Date(), 'yyyy-MM-dd HH:mm'),
         customers: contextCustomers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
+        beauticians: contextBeauticians,
       };
     }
   } catch (err) {
@@ -3657,6 +3661,7 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
           ? format(new Date(context.generatedAt), 'yyyy-MM-dd HH:mm')
           : format(new Date(), 'yyyy-MM-dd HH:mm'),
         customers: contextCustomers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
+        beauticians: contextBeauticians,
       };
     }
     throw err;
@@ -3716,6 +3721,7 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
       ? format(new Date(context.generatedAt), 'yyyy-MM-dd HH:mm')
       : format(new Date(), 'yyyy-MM-dd HH:mm'),
     customers: customers.sort((a, b) => Number(b.isAppointedToday) - Number(a.isAppointedToday)),
+    beauticians: filterByStoreName(snapshot.beauticians, snapshot.store?.name).filter(isSelectableBeautician),
   };
 }
 
@@ -3859,7 +3865,7 @@ function resolveCardVerificationBeauticianId(
 
 export async function confirmCardVerification(input: CardVerificationConfirmInput): Promise<OperationResultData> {
   const [{ bootstrap }, snapshot] = await Promise.all([getAuraBootstrapSession(), loadCoreSnapshot()]);
-  const beauticianId = resolveCardVerificationBeauticianId(snapshot, { customerId: input.customerId }, bootstrap);
+  const beauticianId = input.beauticianId ?? resolveCardVerificationBeauticianId(snapshot, { customerId: input.customerId }, bootstrap);
   const record = await verifyTerminalCardUsage({
     customerCardId: input.customerCardId,
     projectId: input.projectId,
@@ -4004,28 +4010,32 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
   const subtotal = toMoney(sum(items, (item) => item.subtotal));
   const discountAmount = Math.min(subtotal, Math.max(0, input.discountAmount || 0));
   const paidAmount = toMoney(Math.max(0, subtotal - discountAmount));
-  const order = await createTerminalCashierOrder({
-    customerId: customer.id,
-    customerName: customer.name,
-    customerPhone: customer.phone,
-    items,
-    discountAmount,
-    discountMode: input.discountMode,
-    discountRate: input.discountRate,
-    packagePrice: input.packagePrice,
-    allocationMethod: input.allocationMethod,
-    discountSource: input.discountSource,
-    paymentMethod: input.paymentMethod,
-    remark:
-      discountAmount > 0 ? `Ami Aura Lite 收银优惠 ￥${discountAmount.toLocaleString()}` : 'Ami Aura Lite 收银开单',
-  });
+  const order = await runWithAuraAuthRepair(() =>
+    createTerminalCashierOrder({
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      items,
+      discountAmount,
+      discountMode: input.discountMode,
+      discountRate: input.discountRate,
+      packagePrice: input.packagePrice,
+      allocationMethod: input.allocationMethod,
+      discountSource: input.discountSource,
+      paymentMethod: input.paymentMethod,
+      remark:
+        discountAmount > 0 ? `Ami Aura Lite 收银优惠 ￥${discountAmount.toLocaleString()}` : 'Ami Aura Lite 收银开单',
+    }),
+  );
   const paid =
     order.status === 'completed' || order.status === 'paid'
       ? order
-      : await completeTerminalPayment(order.id, {
-          paymentMethod: input.paymentMethod,
-          paidAmount,
-        });
+      : await runWithAuraAuthRepair(() =>
+          completeTerminalPayment(order.id, {
+            paymentMethod: input.paymentMethod,
+            paidAmount,
+          }),
+        );
   invalidateCashierCaches();
 
   return {

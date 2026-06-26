@@ -277,11 +277,15 @@ export interface PrepaidLiabilitySummary {
 }
 
 export interface BeauticianPerformanceRow {
-  beauticianId: number;
-  beauticianName: string;
-  storeId: number;
+  staffUserId: number;
+  staffName: string;
+  beauticianId?: number | null;
+  beauticianName?: string | null;
+  storeId?: number | null;
   storeName?: string;
   serviceIncome: number;
+  orderServiceIncome?: number;
+  cardUsageIncome?: number;
   serviceCount: number;
   customerCount: number;
   avgTicket: number;

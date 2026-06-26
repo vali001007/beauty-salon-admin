@@ -134,7 +134,7 @@ src/api/mode.ts            # 固定 real，VITE_API_MODE 不再控制运行时
 
 NestJS 11 + Prisma 7 + PostgreSQL（Supabase），JWT 认证（access 15m + refresh 7d），Swagger 文档 `/docs`，端口 8080，CSRF 中间件全局生效。
 
-**模块清单**（`app.module.ts`）：`Auth`、`Users`、`Roles`、`Stores`、`Customers`、`Products`、`Orders`、`Cards`、`Beauticians`、`Projects`、`Inventory`、`Scheduling`、`Reservations`、`Marketing`、`MarketingPages`、`Ai`、`Terminal`、`Dashboard`、`Bom`、`Health`。
+**模块清单**（`app.module.ts`）：`Auth`、`Users`、`Roles`、`Stores`、`Customers`、`Products`、`Orders`、`Cards`、`Beauticians`、`Projects`、`Inventory`、`Scheduling`、`Reservations`、`Marketing`、`MarketingPages`、`Ai`、`Terminal`、`Dashboard`、`Bom`、`Health`、`OperationProfit`（含 `OperationCosts` 子控制器）、`Agent`（含 `business-task` 编译器和 `capabilities` 注册表）、`SemanticQuery`、`SemanticSql`。
 
 **Prisma 7 注意事项**：
 - `schema.prisma` 的 datasource 只有 `provider`，不含 `url`
@@ -172,6 +172,39 @@ AppContent.tsx          # 顶层容器：会话状态、消息列表、意图调
 
 **业务场景**（`MessageType`）：`dashboard`（角色仪表盘）、`cardVerification`（次卡核销）、`cashier`（收银）、`cardOpening`（开卡）、`registration`（建档）、`recharge`（充值）、`automation`（营销自动化草稿）、`automationSummary`（今日执行摘要）、`ai`（AI 问答）。
 
+### 经营利润模块（`src/app/pages/operation-profit/`）
+
+当前已实现页面（均有对应后端接口）：
+
+| 页面文件 | 路由 | 权限码 |
+|---|---|---|
+| `OperationProfitOverview.tsx` | `/operation-profit/overview` | `core:operation-profit:view` |
+| `ProductMarginAnalysis.tsx` | `/operation-profit/product-margins` | `core:product-margin:view` |
+| `ProjectMarginAnalysis.tsx` | `/operation-profit/project-margins` | `core:project-margin:view` |
+| `PrepaidLiabilityAnalysis.tsx` | `/operation-profit/prepaid-liabilities` | `core:prepaid-liability:view` |
+| `BeauticianPerformance.tsx` | `/operation-profit/beautician-performance` | `core:beautician-performance:view` |
+| `OperationCostSettings.tsx` | `/operation-profit/costs` | `core:operation-cost:view` |
+
+**次卡履约**（路由 `/operation-profit/card-liabilities`）菜单已上线，页面实现尚缺。
+
+**共享工具函数** 在 `utils.tsx`（`money`, `compactMoney`, `missingReasonLabels`, `DateRangeFilters`, `LoadingBlock`, `EmptyBlock`, `StatusBadge`, `PageHeader` 等）。
+
+后端对应：`packages/server-v2/src/operation-profit/`，包含 `OperationProfitService`（1300+ 行）和 `OperationCostsService`，API 前端入口 `src/api/real/operationProfit.ts`。
+
+### Agent 模块（`packages/server-v2/src/agent/`）
+
+六大角色 Agent 基础框架已搭建，包含：
+- `AgentOrchestratorService` - 多步骤任务编排
+- `AgentPlannerService` - 任务规划
+- `AgentPolicyService` - 策略执行
+- `BusinessTaskCompilerService` + `BusinessTaskLlmCompilerService` - 业务任务编译
+- `AgentCapabilityCandidateService` - 能力候选匹配
+- `AgentFieldScopeSanitizerService` - 字段权限过滤
+- `AgentResponseSafetyService` - 响应安全检查
+- `AgentEvalService` + `agent-eval.cases.ts` - 能力评测
+
+终端应用（`packages/Ami-Aura-Lite-Kiosk`）已具备登录页，处于 `codex/amiagent` 分支。
+
 ## 关键约定
 
 - 所有路由集中在 `src/app/routes.tsx`，不要分散到其他文件。
@@ -201,6 +234,10 @@ AppContent.tsx          # 顶层容器：会话状态、消息列表、意图调
 - `docs/terminal-api.md`
 - `docs/marketing-trigger-rules-requirements.md`
 - `docs/03-开发计划/production-plan.md`
+- `docs/02-产品设计/Ami_Agent_新一代美业门店运营智能体产品需求文档.md`（Agent 六角色产品需求）
+- `docs/02-产品设计/Ami_Agent_六大角色Agent详细开发计划.md`（Agent 开发计划）
+- `docs/02-产品设计/财务管理-经营利润主要数据来源断点详细改造方案.md`（经营利润数据改造）
+- `docs/02-产品设计/财务管理-提成规则统一配置改造方案.md`（提成规则改造）
 
 ## 部署
 

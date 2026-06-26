@@ -79,6 +79,11 @@ import {
 import { resolveCommandIntent, shouldDisplayUserCommand } from "./intent/intentRouter";
 import type { AuraCommandSource } from "./intent/intentTypes";
 import {
+  createConversationContext,
+  updateConversationContext,
+  type ConversationContext,
+} from "./intent/conversationContext";
+import {
   getTerminalTodayKey,
   isCacheableMicroAppAction,
   prefetchTerminalMicroApps,
@@ -574,6 +579,10 @@ export default function AppContent() {
   const [switchingUser, setSwitchingUser] = useState(false);
   const [loadingText, setLoadingText] = useState("正在接入 Ami_Core");
   const [error, setError] = useState<string | null>(null);
+  // 对话上下文：保存最近 6 轮对话和活跃实体，用于 AI 意图解析的代词解析和上下文继承
+  const [conversationContext, setConversationContext] = useState<ConversationContext>(() =>
+    createConversationContext("reception", undefined),
+  );
 
   const roleDefinition = useMemo(() => getRoleDefinition(currentRole), [currentRole]);
   const availableRoles = bootstrap?.availableRoles ?? [currentRole];
@@ -1106,6 +1115,7 @@ export default function AppContent() {
       setBootstrap(nextBootstrap);
       setCurrentRole(nextRole);
       setLatestAutomationDraft(null);
+      setConversationContext(createConversationContext(nextRole, nextBootstrap.currentStore?.id));
       setShowConversationHistory(false);
       setMessages([]);
       await loadRoleHome(nextRole, { bootstrapForCache: nextBootstrap, epoch });
@@ -1173,8 +1183,19 @@ export default function AppContent() {
   const handleCommand = async (command: string, source: AuraCommandSource = "text") => {
     const epoch = getConversationEpoch();
 
-    const intent = await resolveCommandIntent({ command, role: currentRole, definition: roleDefinition, source });
+    const intent = await resolveCommandIntent(
+      { command, role: currentRole, definition: roleDefinition, source },
+      conversationContext,
+    );
     if (!isConversationEpochActive(epoch)) return;
+
+    // 每轮对话后更新上下文（action 名和用户输入，响应文本后续可补充）
+    setConversationContext((prev) =>
+      updateConversationContext(prev, {
+        userInput: command,
+        resolvedAction: intent.action,
+      }),
+    );
     const userCommandMessage = shouldDisplayUserCommand(intent)
       ? createMessage("query", { text: command }, "用户指令")
       : null;

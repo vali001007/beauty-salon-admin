@@ -12,6 +12,7 @@ describe('OperationProfitService', () => {
     customerBalanceTransaction: { aggregate: jest.fn() },
     project: { findMany: jest.fn(), count: jest.fn() },
     customerCard: { findMany: jest.fn() },
+    user: { findMany: jest.fn() },
     beautician: { findMany: jest.fn() },
   });
   const mockProjectMarginProjects = (prisma: ReturnType<typeof createPrisma>, projects: any[], allProjectIds = projects.map((project) => ({ id: project.id }))) => {
@@ -803,14 +804,23 @@ describe('OperationProfitService', () => {
 
   it('deducts beautician performance commissions by period order item id and staff user id first', async () => {
     const prisma = createPrisma();
-    prisma.beautician.findMany.mockResolvedValue([
+    prisma.user.findMany.mockResolvedValue([
       {
-        id: 601,
-        userId: 701,
+        id: 701,
         name: '王美容师',
-        storeId: 1,
+        username: 'wang_beautician',
         status: 'active',
-        store: { id: 1, name: 'Ami 门店' },
+        stores: [{ storeId: 1, store: { id: 1, name: 'Ami 门店' } }],
+        beauticianProfiles: [
+          {
+            id: 601,
+            userId: 701,
+            name: '历史王美容师',
+            storeId: 1,
+            status: 'active',
+            store: { id: 1, name: 'Ami 门店' },
+          },
+        ],
       },
     ]);
     prisma.productOrder.findMany.mockResolvedValue([
@@ -821,7 +831,10 @@ describe('OperationProfitService', () => {
         totalAmount: 1000,
         status: 'completed',
         createdAt: new Date('2026-06-15T10:00:00.000Z'),
-        orderItems: [{ id: 81, itemType: 'project', itemId: 101, beauticianId: 601, quantity: 2, subtotal: 1000 }],
+        orderItems: [
+          { id: 81, itemType: 'project', itemId: 101, beauticianId: 601, quantity: 2, subtotal: 1000 },
+          { id: 82, itemType: 'project', itemId: 102, beauticianId: 999, quantity: 1, subtotal: 500 },
+        ],
         paymentRecords: [],
         refundRecords: [],
       },
@@ -845,7 +858,11 @@ describe('OperationProfitService', () => {
     );
     expect(aggregateWhere).not.toHaveProperty('beauticianId');
     expect(aggregateWhere).not.toHaveProperty('createdAt');
+    expect(prisma.beautician.findMany).not.toHaveBeenCalled();
+    expect(result.total).toBe(1);
     expect(result.items[0]).toMatchObject({
+      staffUserId: 701,
+      staffName: '王美容师',
       beauticianId: 601,
       beauticianName: '王美容师',
       serviceIncome: 1000,

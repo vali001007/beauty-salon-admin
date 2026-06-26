@@ -155,12 +155,36 @@ describe('TerminalService automation', () => {
     (service as any).refreshDailySettlementForOrder = jest.fn();
     (service as any).invalidateCardDashboardCache = jest.fn();
     (service as any).invalidateCashierDashboardCache = jest.fn();
+    const ordersServiceCreateCardOrder = jest.fn().mockResolvedValue({
+      id: 601,
+      orderId: 701,
+      orderNo: 'CO701',
+      customerId: 10,
+      customerName: '罗雅婷',
+      customerPhone: '13565060344',
+      cardId: 51,
+      cardName: '抗衰管理 6 次卡',
+      operatorId: operatorUser?.id,
+      operatorName: operatorUser?.name ?? operatorUser?.username ?? '',
+      storeId: 1,
+      storeName: 'Ami 全量演示门店',
+      amount: 3280,
+      discountAmount: 400,
+      giftProjects: [],
+      totalTimes: 6,
+      remainingTimes: 6,
+      status: 'active',
+      purchaseTime: new Date('2026-06-26T10:00:00.000Z'),
+      expireTime: new Date('2027-06-26T10:00:00.000Z'),
+      paymentMethod: '微信',
+    });
+    (service as any).ordersService = { createCardOrder: ordersServiceCreateCardOrder };
 
-    return { customerCardCreate };
+    return { customerCardCreate, ordersServiceCreateCardOrder };
   }
 
   it('uses selected sales user for terminal card orders', async () => {
-    const { customerCardCreate } = mockTerminalCardOrderDeps({
+    const { ordersServiceCreateCardOrder } = mockTerminalCardOrderDeps({
       id: 22,
       name: '周顾问',
       username: 'zhou',
@@ -182,17 +206,12 @@ describe('TerminalService automation', () => {
       9,
     );
 
-    expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ id: 22, status: 'active' }),
-    }));
-    expect(customerCardCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ operatorId: 22 }),
-    });
+    expect(ordersServiceCreateCardOrder).toHaveBeenCalledWith(1, expect.objectContaining({ operatorId: 22, source: 'terminal' }), 9);
     expect(result).toEqual(expect.objectContaining({ operatorId: 22, operatorName: '周顾问' }));
   });
 
   it('uses current terminal user for terminal card orders when sales user is not selected', async () => {
-    const { customerCardCreate } = mockTerminalCardOrderDeps({
+    const { ordersServiceCreateCardOrder } = mockTerminalCardOrderDeps({
       id: 9,
       name: '许收银',
       username: 'xu',
@@ -213,13 +232,135 @@ describe('TerminalService automation', () => {
       9,
     );
 
-    expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ id: 9, status: 'active' }),
-    }));
-    expect(customerCardCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ operatorId: 9 }),
-    });
+    expect(ordersServiceCreateCardOrder).toHaveBeenCalledWith(1, expect.objectContaining({ operatorId: 9, source: 'terminal' }), 9);
     expect(result).toEqual(expect.objectContaining({ operatorId: 9, operatorName: '许收银' }));
+  });
+
+  it('calculates terminal card sale commission from the selected sales user without beautician', async () => {
+    const commissionRecord = { id: 9001, type: 'card_sale', staffUserId: 22 };
+    commissionService.calculateOrderCommissions.mockResolvedValueOnce([commissionRecord]);
+
+    const records = await (service as any).calculateTerminalCommissions({
+      storeId: 1,
+      orderId: 701,
+      salesUserId: 22,
+      items: [{ itemType: 'card', itemId: 51, subtotal: 3280, orderItemId: 801 }],
+    });
+
+    expect(commissionService.calculateOrderCommissions).toHaveBeenCalledWith({
+      storeId: 1,
+      orderId: 701,
+      staffUserId: 22,
+      items: [{ itemType: 'card', itemId: 51, subtotal: 3280, orderItemId: 801 }],
+    });
+    expect(prisma.beautician.findFirst).not.toHaveBeenCalled();
+    expect(records).toEqual([commissionRecord]);
+  });
+
+  it('delegates terminal quick customer creation to CustomersService', async () => {
+    const create = jest.fn().mockResolvedValue({
+      id: 301,
+      storeId: 1,
+      name: '李女士',
+      phone: '13800138000',
+      source: 'terminal',
+    });
+    (service as any).customersService = { create };
+    prisma.customer.create = jest.fn();
+
+    const result = await service.quickCreateCustomer(1, {
+      name: '李女士',
+      phone: '13800138000',
+      gender: '女',
+      birthday: '1992-05-20',
+      memberLevel: '银卡会员',
+      skinCondition: '干性敏感，重点补水修护',
+      tags: ['敏感肌', '高意向'],
+      remark: '终端登记',
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      storeId: 1,
+      name: '李女士',
+      phone: '13800138000',
+      gender: '女',
+      birthday: '1992-05-20',
+      memberLevel: '银卡会员',
+      skinCondition: '干性敏感，重点补水修护',
+      tags: ['敏感肌', '高意向'],
+      remark: '终端登记',
+      source: 'terminal',
+    });
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, [
+      'role',
+      'manager',
+      'customer-growth',
+      'cashier-context',
+      'card-verification-context',
+    ]);
+    expect(result).toEqual(expect.objectContaining({ id: 301, source: 'terminal' }));
+  });
+
+  it('delegates terminal recharge orders to OrdersService', async () => {
+    const createdAt = new Date('2026-06-26T10:00:00.000Z');
+    const createRechargeOrder = jest.fn().mockResolvedValue({
+      orderId: 701,
+      orderNo: 'MR701',
+      cashBalance: 1500,
+      giftBalance: 150,
+      balanceTransactionId: 901,
+      orderCreatedAt: createdAt,
+    });
+    (service as any).ordersService = { createRechargeOrder };
+    prisma.store.findUnique.mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' });
+    prisma.customer.findUnique = jest.fn().mockResolvedValue({
+      id: 10,
+      name: '李女士',
+      phone: '13800138000',
+    });
+    prisma.$transaction = jest.fn();
+
+    const result = await service.createRechargeOrder(1, {
+      customerId: 10,
+      customerName: '李女士',
+      customerPhone: '13800138000',
+      amount: 500,
+      discountAmount: 50,
+      giftProjects: ['补水护理'],
+      paymentMethod: 'wechat',
+      transactionNo: 'WX001',
+      beauticianId: 2,
+      remark: '终端充值',
+    });
+
+    expect(createRechargeOrder).toHaveBeenCalledWith({
+      storeId: 1,
+      customerId: 10,
+      customerName: '李女士',
+      amount: 500,
+      giftAmount: 50,
+      giftProjects: ['补水护理'],
+      paymentMethod: 'wechat',
+      transactionNo: 'WX001',
+      remark: '终端充值',
+      beauticianId: 2,
+      source: 'terminal',
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'customer-growth', 'cashier-context']);
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 701,
+        orderNo: 'MR701',
+        customerId: 10,
+        cashBalance: 1500,
+        giftBalance: 150,
+        balanceTransactionId: 901,
+        paymentMethod: 'wechat',
+        createdAt: createdAt.toISOString(),
+      }),
+    );
   });
 
   it('returns the six P0 terminal automation templates', () => {
@@ -1327,6 +1468,27 @@ describe('TerminalService automation', () => {
       findFirst: jest.fn().mockResolvedValue({ id: 2, levelId: 3 }),
       findMany: jest.fn().mockResolvedValue([{ id: 2, levelId: 3, userId: 22 }]),
     };
+    const createProductOrder = jest.fn().mockResolvedValue({
+      id: 501,
+      orderNo: 'PO501',
+      checkoutGroupNo: 'PO501',
+      orderKind: 'project',
+      customerId: 10,
+      customerName: 'Customer A',
+      storeId: 1,
+      totalAmount: 200,
+      listAmount: 200,
+      netAmount: 200,
+      itemDiscountAmount: 0,
+      orderDiscountAmount: 0,
+      totalDiscountAmount: 0,
+      discountSource: 'none',
+      allocationMethod: 'none',
+      discountPayload: { discountMode: 'none' },
+      createdAt: new Date('2026-06-08T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-08T10:01:00.000Z'),
+    });
+    (service as any).ordersService = { createProductOrder };
 
     const result = await service.checkout(
       1,
@@ -1343,41 +1505,16 @@ describe('TerminalService automation', () => {
 
     expect(result).toEqual(expect.objectContaining({ id: 501, orderNo: 'PO501', storeId: 1, totalAmount: 200 }));
     expect(prisma.customer.findUnique).not.toHaveBeenCalled();
-    expect(prisma.orderItem.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          orderId: 501,
-          itemType: 'project',
-          itemId: 101,
-          name: 'Hydration',
-          quantity: 1,
-          unitPrice: 200,
-          subtotal: 200,
-          beauticianId: 2,
-        }),
-      ],
-    });
-    expect(prisma.projectBomItem.findMany).toHaveBeenCalledWith({
-      where: { projectId: { in: [101] } },
-      select: { projectId: true, productId: true, standardQty: true, unit: true },
-    });
-    expect(prisma.product.update).toHaveBeenCalledWith({
-      where: { id: 301 },
-      data: { currentStock: { decrement: 2 } },
-    });
-    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        storeId: 1,
-        productId: 301,
-        movementType: 'service_consume',
-        quantity: -2,
-        beforeStock: 10,
-        afterStock: 8,
-        sourceType: 'project_order',
-        sourceId: 501,
-        sourceNo: 'PO501',
-      }),
-    });
+    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
+      orderKind: 'project',
+      customerId: 10,
+      storeId: 1,
+      payMethod: 'wechat',
+      source: 'terminal',
+      status: 'completed',
+      preAllocatedDiscount: true,
+      items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
+    }));
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(prisma.cashierShift.findFirst).toHaveBeenCalledWith({
       where: { storeId: 1, deviceId: 99, status: 'open' },
@@ -1394,15 +1531,7 @@ describe('TerminalService automation', () => {
       workMinutes: 2,
       metadata: { paymentMethod: 'wechat', itemCount: 1 },
     });
-    expect(commissionService.calculateOrderCommissions).toHaveBeenCalledWith({
-      storeId: 1,
-      orderId: 501,
-      staffUserId: 22,
-      beauticianId: 2,
-      levelId: 3,
-      isDesignated: false,
-      items: [{ itemType: 'project', itemId: 101, beauticianId: 2, subtotal: 200, orderItemId: 701 }],
-    });
+    expect(commissionService.calculateOrderCommissions).not.toHaveBeenCalled();
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'customer-growth', 'cashier-context']);
   });
 
@@ -1464,6 +1593,27 @@ describe('TerminalService automation', () => {
     prisma.beautician = {
       findFirst: jest.fn().mockResolvedValue({ id: 2, levelId: 3 }),
     };
+    const createProductOrder = jest.fn().mockResolvedValue({
+      id: 502,
+      orderNo: 'PO502',
+      checkoutGroupNo: 'PO502',
+      orderKind: 'product',
+      customerId: 10,
+      customerName: 'Customer A',
+      storeId: 1,
+      totalAmount: 120,
+      listAmount: 120,
+      netAmount: 120,
+      itemDiscountAmount: 0,
+      orderDiscountAmount: 0,
+      totalDiscountAmount: 0,
+      discountSource: 'none',
+      allocationMethod: 'none',
+      discountPayload: { discountMode: 'none' },
+      createdAt: new Date('2026-06-08T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-08T10:01:00.000Z'),
+    });
+    (service as any).ordersService = { createProductOrder };
 
     await service.checkout(
       1,
@@ -1478,44 +1628,17 @@ describe('TerminalService automation', () => {
       99,
     );
 
-    expect(prisma.product.findMany).toHaveBeenLastCalledWith({
-      where: { id: { in: [301] }, storeId: 1, deletedAt: null },
-      select: { id: true, costPrice: true },
-    });
-    expect(prisma.orderItem.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          orderId: 502,
-          itemType: 'product',
-          itemId: 301,
-          payload: expect.objectContaining({
-            costPrice: 18,
-            productCostPrice: 18,
-            costAmount: 54,
-            productCostAmount: 54,
-            costSource: 'product_master',
-            costCapturedAt: expect.any(String),
-          }),
-        }),
-      ],
-    });
-    expect(prisma.product.update).toHaveBeenCalledWith({
-      where: { id: 301 },
-      data: { currentStock: { decrement: 3 } },
-    });
-    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        storeId: 1,
-        productId: 301,
-        movementType: 'sale_out',
-        quantity: -3,
-        beforeStock: 10,
-        afterStock: 7,
-        sourceType: 'product_order',
-        sourceId: 502,
-        sourceNo: 'PO502',
-      }),
-    });
+    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
+      orderKind: 'product',
+      customerId: 10,
+      storeId: 1,
+      payMethod: 'wechat',
+      source: 'terminal',
+      preAllocatedDiscount: true,
+      items: [expect.objectContaining({ itemType: 'product', itemId: 301, quantity: 3 })],
+    }));
+    expect(prisma.product.update).not.toHaveBeenCalled();
+    expect(prisma.stockMovement.create).not.toHaveBeenCalled();
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
   });
 
@@ -1582,6 +1705,27 @@ describe('TerminalService automation', () => {
         .mockResolvedValueOnce([{ id: 2, name: '沈晴' }])
         .mockResolvedValueOnce([{ id: 2, levelId: 3, userId: 22 }]),
     };
+    const createProductOrder = jest.fn().mockResolvedValue({
+      id: 503,
+      orderNo: 'PO503',
+      checkoutGroupNo: 'PO503',
+      orderKind: 'project',
+      customerId: 10,
+      customerName: 'Customer A',
+      storeId: 1,
+      totalAmount: 200,
+      listAmount: 200,
+      netAmount: 200,
+      itemDiscountAmount: 0,
+      orderDiscountAmount: 0,
+      totalDiscountAmount: 0,
+      discountSource: 'none',
+      allocationMethod: 'none',
+      discountPayload: { discountMode: 'none' },
+      createdAt: new Date('2026-06-08T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-08T10:01:00.000Z'),
+    });
+    (service as any).ordersService = { createProductOrder };
 
     await service.checkout(
       1,
@@ -1613,73 +1757,31 @@ describe('TerminalService automation', () => {
       },
       select: { id: true, name: true },
     });
-    expect(prisma.productOrder.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          items: [
-            expect.objectContaining({
-              beauticianId: 2,
-            }),
-          ],
-        }),
-      }),
-    );
-    expect(prisma.orderItem.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          orderId: 503,
-          beauticianId: 2,
-        }),
-      ],
-    });
-    expect(commissionService.calculateOrderCommissions).toHaveBeenCalledWith(
-      expect.objectContaining({
-        items: [expect.objectContaining({ beauticianId: 2, orderItemId: 703 })],
-      }),
-    );
+    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
+      preAllocatedDiscount: true,
+      items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
+    }));
+    expect(commissionService.calculateOrderCommissions).not.toHaveBeenCalled();
   });
 
-  it('deducts project BOM stock after terminal card verification', async () => {
-    prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
-    prisma.customerCard = {
-      findUnique: jest.fn().mockResolvedValue({
-        id: 66,
-        customerId: 10,
-        cardName: '补水护理 10 次卡',
-        totalTimes: 10,
-        remainingTimes: 5,
-        expiryDate: new Date('2026-12-31T00:00:00.000Z'),
-        status: 'active',
-        card: { totalTimes: 10, price: 2680, projects: [{ projectId: 101, projectName: '深层补水护理' }] },
-        customer: { id: 10, name: '林若溪', storeId: 1 },
-      }),
-      update: jest.fn().mockResolvedValue({ id: 66, remainingTimes: 4 }),
-    };
-    prisma.project = {
-      findUnique: jest.fn().mockResolvedValue({ id: 101, name: '深层补水护理' }),
-    };
+  it('delegates terminal card verification to CardsService', async () => {
+    const verifyCardUsage = jest.fn().mockResolvedValue({
+      id: 66,
+      storeId: 1,
+      customerId: 10,
+      customerName: '林若溪',
+      cardName: '补水护理 10 次卡',
+      projectName: '深层补水护理',
+      times: 1,
+      remainingTimes: 5,
+      beauticianId: 999,
+      verifiedAt: new Date('2026-06-08T10:00:00.000Z'),
+      recognizedAmount: 68,
+    });
+    (service as any).cardsService = { verifyCardUsage };
+    prisma.customerCard.update = jest.fn();
     prisma.cardUsageRecord = {
-      create: jest.fn().mockResolvedValue({
-        id: 88,
-        customerId: 10,
-        customerName: '林若溪',
-        cardName: '补水护理 10 次卡',
-        projectName: '深层补水护理',
-        times: 1,
-        remainingTimes: 4,
-        verifiedAt: new Date('2026-06-08T10:00:00.000Z'),
-      }),
-    };
-    prisma.projectBomItem = {
-      findMany: jest.fn().mockResolvedValue([{ productId: 301, standardQty: 2 }]),
-    };
-    prisma.stockMovement = {
-      findFirst: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: 901 }),
-    };
-    prisma.product = {
-      findFirst: jest.fn().mockResolvedValue({ id: 301, storeId: 1, currentStock: 10, unit: '支' }),
-      update: jest.fn().mockResolvedValue({ id: 301 }),
+      create: jest.fn(),
     };
 
     const result = await service.consumeCard(
@@ -1694,46 +1796,28 @@ describe('TerminalService automation', () => {
       99,
     );
 
-    expect(result).toEqual(expect.objectContaining({ id: 88, remainingTimes: 4, projectName: '深层补水护理' }));
-    expect(prisma.customerCard.update).toHaveBeenCalledWith({
-      where: { id: 66 },
-      data: { remainingTimes: 4 },
+    expect(verifyCardUsage).toHaveBeenCalledWith({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      times: 1,
+      operatorId: 21,
+      beauticianId: 999,
+      deviceId: 99,
     });
-    expect(prisma.beautician.findFirst).toHaveBeenCalledWith({
-      where: { id: 999, storeId: 1, status: 'active' },
-      select: { id: true, levelId: true, userId: true },
-    });
-    expect(prisma.cardUsageRecord.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        customerId: 10,
-        cardName: '补水护理 10 次卡',
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 66,
+        remainingTimes: 5,
         projectName: '深层补水护理',
-        operatorId: 21,
-        beauticianId: undefined,
+        beauticianId: 999,
         deviceId: 99,
+        recognizedAmount: 68,
       }),
-    });
-    expect(prisma.projectBomItem.findMany).toHaveBeenCalledWith({
-      where: { projectId: 101 },
-      select: { productId: true, standardQty: true },
-    });
-    expect(prisma.product.update).toHaveBeenCalledWith({
-      where: { id: 301 },
-      data: { currentStock: { decrement: 2 } },
-    });
-    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        storeId: 1,
-        productId: 301,
-        movementType: 'service_consume',
-        quantity: -2,
-        beforeStock: 10,
-        afterStock: 8,
-        sourceType: 'card_usage',
-        sourceId: 88,
-        sourceNo: '补水护理 10 次卡',
-      }),
-    });
+    );
+    expect(prisma.customerCard.update).not.toHaveBeenCalled();
+    expect(prisma.cardUsageRecord.create).not.toHaveBeenCalled();
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'customer-growth', 'card-verification-context']);
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
   });
 

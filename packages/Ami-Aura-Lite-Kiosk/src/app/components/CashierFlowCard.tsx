@@ -4,6 +4,7 @@ import type { CashierConfirmInput, CashierCustomer, CashierFlowData, CashierOrde
 import type { TerminalCashierShift } from "@/types/terminal";
 import { cn } from "./ui/utils";
 import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
+import { canUseMemberBalanceDeduct, getMemberBalanceDeductLabel } from "./memberBalanceDeduct";
 
 type CatalogItem = CashierFlowData["catalog"][number];
 type CartItem = {
@@ -20,6 +21,11 @@ type CartItem = {
 };
 
 type CompletedCartItem = CartItem & CashierOrderItemInput;
+type CashierSelectableCustomer = CashierCustomer & {
+  cashBalance?: number;
+  giftBalance?: number;
+  totalBalance?: number;
+};
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -78,7 +84,7 @@ export function CashierFlowCard({
   loadShiftStatus?: () => Promise<TerminalCashierShift | null>;
 }) {
   const [step, setStep] = useState(1);
-  const [selectedCustomer, setSelectedCustomer] = useState<CashierCustomer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CashierSelectableCustomer | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discountMode, setDiscountMode] = useState<NonNullable<CashierConfirmInput["discountMode"]>>("none");
   const [discountAmount, setDiscountAmount] = useState("");
@@ -115,8 +121,8 @@ export function CashierFlowCard({
           ? Math.max(0, subtotal - Math.min(subtotal, Math.max(0, Number(packagePrice) || 0)))
           : 0;
   const receivable = Math.max(0, subtotal - discount);
-  const canUseMemberCardDeduct = Boolean(selectedCustomer?.memberCardDeductEnabled);
-  const memberCardDeductLabel = selectedCustomer?.memberCardDeductLabel ?? "该客户暂无可划扣会员卡";
+  const canUseMemberCardDeduct = canUseMemberBalanceDeduct(selectedCustomer, receivable);
+  const memberCardDeductLabel = getMemberBalanceDeductLabel(selectedCustomer, receivable);
   const requireOpenShift = Boolean(loadShiftStatus);
   const isShiftOpen = !requireOpenShift || shift?.status === "open";
   const shiftHint = shiftLoading ? "正在确认当前收银班次..." : "当前未开班，请先在前台工作台开班后再收银。";

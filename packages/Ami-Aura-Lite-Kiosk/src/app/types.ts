@@ -219,6 +219,7 @@ export interface CardVerificationFlowData {
   source: string;
   generatedAt: string;
   customers: CardVerificationCustomer[];
+  beauticians: Beautician[];
 }
 
 export interface CardVerificationConfirmInput {
@@ -227,6 +228,7 @@ export interface CardVerificationConfirmInput {
   projectId: number;
   projectName: string;
   times: number;
+  beauticianId?: number;
 }
 
 export interface CashierCustomer {
@@ -293,6 +295,8 @@ export type TerminalOrderPaymentMethod = Exclude<
   '次卡抵扣' | '会员余额' | 'customer_card' | 'member_balance'
 >;
 
+export type CardOpeningPaymentMethod = Exclude<TerminalPaymentMethod, '次卡抵扣' | 'customer_card'>;
+
 export interface CashierConfirmInput {
   customerId: number;
   customerName?: string;
@@ -313,9 +317,92 @@ export interface CustomerSelectItem {
   phone: string;
   memberLevel: string;
   tags: string[];
+  cashBalance?: number;
+  giftBalance?: number;
+  totalBalance?: number;
+  memberCardDeductEnabled?: boolean;
+  memberCardDeductBalance?: number;
+  memberCardDeductLabel?: string;
   isAppointedToday: boolean;
   appointmentTime?: string;
 }
+
+// ─── AuraResponseBlock 结构化输出协议 ────────────────────────────────────────
+// 与 packages/server-v2/src/agent/agent.types.ts 保持同步
+// 前端 BlockRenderer 按 kind 分发渲染，实现 AI 内容与 UI 解耦
+
+export type AuraBlockAction = {
+  label: string;
+  actionId: string;
+  riskLevel: 'low' | 'medium' | 'high';
+};
+
+export type AuraResponseBlock =
+  | { kind: 'text'; content: string }
+  | {
+      kind: 'kpi_card';
+      label: string;
+      value: string;
+      delta?: string;
+      deltaType?: 'up' | 'down' | 'neutral';
+      unit?: string;
+      hint?: string;
+    }
+  | {
+      kind: 'table';
+      columns: string[];
+      rows: string[][];
+      sortable?: boolean;
+      caption?: string;
+    }
+  | {
+      kind: 'chart';
+      chartType: 'line' | 'bar' | 'pie' | 'funnel';
+      title: string;
+      data: unknown;
+      xKey?: string;
+      yKeys?: string[];
+    }
+  | {
+      kind: 'customer_card';
+      customerId: string;
+      name: string;
+      vipLevel?: string;
+      lastVisit?: string;
+      suggestion?: string;
+      actions?: AuraBlockAction[];
+    }
+  | {
+      kind: 'confirm_action';
+      title: string;
+      preview: string;
+      actionId: string;
+      riskLevel: 'low' | 'medium' | 'high';
+      impactSummary?: string;
+    }
+  | {
+      kind: 'alert';
+      level: 'warning' | 'critical' | 'info';
+      message: string;
+      actionId?: string;
+    }
+  | {
+      kind: 'follow_up_chips';
+      suggestions: string[];
+    }
+  | {
+      kind: 'document_preview';
+      title: string;
+      content: string;
+      downloadable?: boolean;
+    }
+  | {
+      kind: 'evidence_panel';
+      sources: string[];
+      dateRange?: string;
+      metricDefinition: string;
+      limitations?: string[];
+    };
 
 export interface CardOpenOption {
   id: number;
@@ -343,7 +430,7 @@ export interface CardOpeningConfirmInput {
   cardId: number;
   discountAmount: number;
   giftProjects: string[];
-  paymentMethod: TerminalOrderPaymentMethod;
+  paymentMethod: CardOpeningPaymentMethod;
   operatorId?: number;
 }
 

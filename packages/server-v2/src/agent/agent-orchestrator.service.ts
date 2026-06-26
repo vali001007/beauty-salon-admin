@@ -14,6 +14,7 @@ import type {
   AgentSuggestedAction,
   AgentToolDefinition,
   AgentToolResult,
+  AuraResponseBlock,
 } from './agent.types.js';
 
 @Injectable()
@@ -252,12 +253,15 @@ export class AgentOrchestratorService {
           });
           await this.runtime.updateToolCall(toolCall.id, { approvalId: approval.id, status: 'waiting_approval' });
           const answer = `工具「${tool.name}」需要人工确认后执行。`;
+          const renderedBlocks = this.buildPendingApprovalBlocks(tool.name, item.args, Number(approval.id), answer);
           await this.runtime.addMessage(runId, 'assistant', answer, { status: 'waiting_approval', approvalId: approval.id });
           const updated = await this.runtime.setRunStatus(runId, 'waiting_approval', {
-            resultJson: this.toJson({ answer, plan, toolResults, approval }),
+            resultJson: this.toJson({ answer, plan, toolResults, approval, renderedBlocks }),
           });
+          const runResult = this.buildRunResult(updated, plan, answer, toolResults, actions);
           return {
-            ...this.buildRunResult(updated, plan, answer, toolResults, actions),
+            ...runResult,
+            renderedBlocks: renderedBlocks.length ? renderedBlocks : runResult.renderedBlocks,
             approval: {
               id: approval.id,
               toolName: tool.name,
@@ -373,6 +377,8 @@ export class AgentOrchestratorService {
   private getDefaultTimeRangePreset(toolName: string) {
     if (toolName === 'customer.priority.rank') return 'today';
     if (toolName === 'revenue.diagnose') return 'today';
+    if (toolName === 'finance.revenue.summary') return 'today';
+    if (toolName === 'finance.report.draft') return 'this_month';
     if (toolName === 'schedule.diagnose') return 'today';
     return 'last_30_days';
   }
@@ -396,6 +402,8 @@ export class AgentOrchestratorService {
     toolResults: AgentToolResult[],
     actions: AgentSuggestedAction[],
   ): AgentRunResult {
+    const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+    const followUpSuggestions = this.buildFollowUpSuggestions(actions, plan);
     return {
       runId: Number(run.id),
       runNo: String(run.runNo),
@@ -405,7 +413,532 @@ export class AgentOrchestratorService {
       toolResults,
       actions,
       evidence: this.evidenceService.merge(toolResults),
+      renderedBlocks,
+      followUpSuggestions,
     };
+  }
+
+  /**
+   * 根据工具执行结果自动构建 AuraResponseBlock[]。
+   * 规则：
+   * 1. answer 文字 → text block
+   * 2. 工具 summary → kpi_card（如包含数字指标）或 text
+   * 3. 工具 data.items（数组）→ table block
+   * 4. 工具 data.kpis（KPI 列表）→ kpi_card group
+   * 5. AgentEvidence → evidence_panel block
+   * 6. 需审批的动作 → confirm_action block
+   */
+  private buildRenderedBlocks(
+    answer: string,
+    toolResults: AgentToolResult[],
+    plan?: AgentPlan,
+  ): AuraResponseBlock[] {
+    const blocks: AuraResponseBlock[] = [];
+
+    // 主回答文字
+    if (answer) {
+      blocks.push({ kind: 'text', content: answer });
+    }
+
+    for (const result of toolResults) {
+      if (result.status !== 'success') continue;
+      const data = result.data as Record<string, unknown> | undefined;
+      if (!data) continue;
+
+      if (result.title === '商品活动机会' && Array.isArray(data.items) && data.items.length > 0) {
+        const top = data.items[0] as Record<string, unknown>;
+        blocks.push({
+          kind: 'opportunity_card',
+          title: result.title,
+          summary: result.summary,
+          opportunityType: String(top.opportunityType ?? '机会'),
+          fitScore: Number(top.fitScore) || 0,
+          productName: String(top.productName ?? top.name ?? '推荐商品'),
+          sku: top.sku ? String(top.sku) : undefined,
+          currentStock: top.currentStock !== undefined ? Number(top.currentStock) : undefined,
+          safetyStock: top.safetyStock !== undefined ? Number(top.safetyStock) : undefined,
+          salesQuantity: top.salesQuantity !== undefined ? Number(top.salesQuantity) : undefined,
+          salesAmount: top.salesAmount !== undefined ? Number(top.salesAmount) : undefined,
+          customerCount: top.customerCount !== undefined ? Number(top.customerCount) : undefined,
+          expiringStock: top.expiringStock !== undefined ? Number(top.expiringStock) : undefined,
+          daysToExpiry: top.daysToExpiry === null || top.daysToExpiry === undefined ? null : Number(top.daysToExpiry),
+          marginRateText: top.marginRateText ? String(top.marginRateText) : undefined,
+          reason: String(top.reason ?? result.summary ?? ''),
+          suggestedCampaign: top.suggestedCampaign ? String(top.suggestedCampaign) : undefined,
+          suggestedChannels: Array.isArray(top.suggestedChannels) ? top.suggestedChannels.map((item) => String(item)).slice(0, 3) : undefined,
+          riskWarnings: Array.isArray(top.riskWarnings) ? top.riskWarnings.map((item) => String(item)).slice(0, 3) : undefined,
+          actions: (result.actions ?? []).slice(0, 3).map((action) => ({
+            label: action.label,
+            actionId: action.action,
+            riskLevel: action.riskLevel,
+          })),
+        });
+      }
+
+      if (result.title === '营销话术生成' && Array.isArray(data.copies)) {
+        const copies = data.copies.map((copy, index) => ({
+          label: `变体${index + 1}`,
+          content: String(copy),
+          tone: index === 0 ? '温和提醒' : index === 1 ? '活动邀约' : '专属回访',
+        })).slice(0, 3);
+        if (copies.length > 0) {
+          blocks.push({
+            kind: 'copy_variants',
+            title: result.title,
+            target: String(data.target ?? '目标客群'),
+            offer: String(data.offer ?? '专属权益'),
+            variants: copies,
+            actions: (result.actions ?? []).slice(0, 2).map((action) => ({
+              label: action.label,
+              actionId: action.action,
+              riskLevel: action.riskLevel,
+            })),
+          });
+        }
+      }
+
+      if (result.title === '营销活动草稿' && data.activityId) {
+        blocks.push({
+          kind: 'activity_draft_card',
+          title: String(data.title ?? result.title),
+          targetAudience: String(data.targetAudience ?? '待运营在活动管理页确认'),
+          offerSummary: String(data.offerSummary ?? '待运营确认权益'),
+          copyPreview: String(data.copyPreview ?? result.summary),
+          scheduleHint: String(data.scheduleHint ?? '已保存为草稿，发布前请确认发送时间'),
+          impactSummary: '草稿已保存，不会自动发布或触达客户；请进入活动管理继续完善。',
+          editable: false,
+          recommendedItems: Array.isArray(data.recommendedItems)
+            ? (data.recommendedItems as Array<Record<string, unknown>>).slice(0, 3).map((item) => ({
+              name: String(item.productName ?? item.name ?? '推荐商品'),
+              reason: item.reason ? String(item.reason) : undefined,
+              fitScore: item.fitScore !== undefined ? Number(item.fitScore) : undefined,
+            }))
+            : undefined,
+          actions: (result.actions ?? []).slice(0, 3).map((action) => ({
+            label: action.label,
+            actionId: action.action,
+            riskLevel: action.riskLevel,
+          })),
+        });
+      }
+
+      if (result.title === '活动效果复盘') {
+        const funnel = Array.isArray(data.funnel)
+          ? data.funnel
+          : this.buildMarketingEffectFunnel(data);
+        if (funnel.length > 0) {
+          blocks.push({
+            kind: 'chart',
+            chartType: 'funnel',
+            title: '营销效果漏斗',
+            data: funnel,
+            xKey: 'name',
+            yKeys: ['value'],
+          });
+        }
+      }
+
+      const inventoryCard = this.buildInventoryItemCard(result, data);
+      if (inventoryCard) {
+        blocks.push(inventoryCard);
+      }
+
+      const supplierCard = this.buildSupplierPurchaseCard(result, data);
+      if (supplierCard) {
+        blocks.push(supplierCard);
+      }
+
+      const document = this.asObject(data.document);
+      if (document?.title && document?.content) {
+        blocks.push({
+          kind: 'document_preview',
+          title: String(document.title),
+          content: String(document.content),
+          downloadable: Boolean(document.downloadable),
+        });
+      }
+
+      // KPI 指标数组 → kpi_card blocks
+      const kpis = Array.isArray(data.kpis) ? data.kpis as Array<{ label: string; value: string; delta?: string; deltaType?: string }> : null;
+      if (kpis && kpis.length > 0) {
+        for (const kpi of kpis) {
+          blocks.push({
+            kind: 'kpi_card',
+            label: kpi.label,
+            value: String(kpi.value),
+            delta: kpi.delta,
+            deltaType: kpi.deltaType as 'up' | 'down' | 'neutral' | undefined,
+          });
+        }
+      }
+
+      // items 数组 → table block
+      const shouldSkipGenericItems = result.title === '营销话术生成' || result.title === '活动效果复盘';
+      const items = !shouldSkipGenericItems && Array.isArray(data.items) ? data.items as Array<Record<string, unknown>> : null;
+      if (items && items.length > 0) {
+        const columns = Object.keys(items[0] ?? {}).slice(0, 6);
+        const rows = items.slice(0, 20).map((item) =>
+          columns.map((col) => String(item[col] ?? '')),
+        );
+        if (columns.length > 0 && rows.length > 0) {
+          blocks.push({ kind: 'table', columns, rows });
+        }
+      }
+
+      // risks / alerts 数组 → alert blocks
+      const risks = Array.isArray(data.risks) ? data.risks as Array<{ title?: string; message?: string; severity?: string }> : null;
+      if (risks && risks.length > 0) {
+        for (const risk of risks.slice(0, 3)) {
+          const message = risk.title ?? risk.message ?? String(risk);
+          if (message) {
+            blocks.push({
+              kind: 'alert',
+              level: risk.severity === 'high' ? 'critical' : 'warning',
+              message,
+            });
+          }
+        }
+      }
+    }
+
+    // 审批待确认 → confirm_action
+    if (plan?.intentType === 'draft' && toolResults.length > 0) {
+      const draftResult = toolResults.find((r) => r.status === 'success');
+      if (draftResult) {
+        blocks.push({
+          kind: 'confirm_action',
+          title: `确认执行：${draftResult.title}`,
+          preview: draftResult.summary,
+          actionId: `approve:${plan.toolPlan[0]?.tool ?? 'draft'}`,
+          riskLevel: 'medium',
+        });
+      }
+    }
+
+    // Evidence 来源面板
+    const evidence = this.evidenceService.merge(toolResults);
+    if (evidence && evidence.source.length > 0) {
+      blocks.push({
+        kind: 'evidence_panel',
+        sources: evidence.source,
+        dateRange: evidence.dateRange,
+        metricDefinition: evidence.metricDefinition,
+        limitations: evidence.limitations,
+      });
+    }
+
+    return blocks;
+  }
+
+  private buildPendingApprovalBlocks(
+    toolName: string,
+    args: Record<string, unknown>,
+    approvalId: number,
+    answer: string,
+  ): AuraResponseBlock[] {
+    if (toolName !== 'marketing.activity.draft') {
+      return [{ kind: 'text', content: answer }];
+    }
+    const items = this.collectOpportunityItems(args).slice(0, 3);
+    const primary = items[0];
+    const productName = String(primary?.productName ?? primary?.name ?? '推荐商品');
+    const campaignName = String(primary?.suggestedCampaign ?? '会员专属活动');
+    const title = `${productName}${campaignName}`;
+    const riskWarnings = items.flatMap((item) => Array.isArray(item.riskWarnings) ? item.riskWarnings.map(String) : []).slice(0, 2);
+    const copyPreview = `亲爱的会员，${productName}正在做${campaignName}，适合近期补水修护需求。名额有限，到店前可先预约顾问为您确认适用权益。`;
+    const offerCostEstimate = this.buildActivityDraftCostEstimate(items, campaignName);
+    const audienceDetails = this.buildActivityDraftAudienceDetails(items);
+
+    return [
+      {
+        kind: 'activity_draft_card',
+        title,
+        targetAudience: items.length ? '近期购买/适合该商品的会员客户' : '待运营确认目标客群',
+        offerSummary: campaignName,
+        copyPreview,
+        scheduleHint: '建议审批通过后先保存草稿，再由运营确认发送时间',
+        impactSummary: riskWarnings.length
+          ? `需关注：${riskWarnings.join('；')}`
+          : '审批通过后仅创建 draft 状态活动，不自动发布、不自动触达客户。',
+        offerCostEstimate,
+        audienceDetails,
+        editable: true,
+        recommendedItems: items.map((item) => ({
+          name: String(item.productName ?? item.name ?? '推荐商品'),
+          reason: item.reason ? String(item.reason) : undefined,
+          fitScore: item.fitScore !== undefined ? Number(item.fitScore) : undefined,
+        })),
+        actions: [
+          { label: '确认创建草稿', actionId: `approve:${approvalId}`, riskLevel: 'medium' },
+          { label: '暂不创建', actionId: `reject:${approvalId}`, riskLevel: 'low' },
+        ],
+      },
+    ];
+  }
+
+  private buildActivityDraftCostEstimate(items: Array<Record<string, unknown>>, offerSummary: string) {
+    const totalCustomerCount = items.reduce((sum, item) => sum + this.safeNumber(item.customerCount), 0);
+    const totalSalesAmount = items.reduce((sum, item) => sum + this.safeNumber(item.salesAmount), 0);
+    const averageFitScore = items.length
+      ? Math.round(items.reduce((sum, item) => sum + this.safeNumber(item.fitScore), 0) / items.length)
+      : 0;
+    const estimatedTouchCount = totalCustomerCount > 0 ? Math.min(totalCustomerCount, 300) : 50;
+    const discountRate = /折|满减|优惠|券|立减/.test(offerSummary) ? 0.12 : /赠|礼包|买赠/.test(offerSummary) ? 0.08 : 0.06;
+    const estimatedBudget = Math.max(0, Math.round((totalSalesAmount || estimatedTouchCount * 180) * discountRate));
+
+    return [
+      {
+        label: '预计触达',
+        value: `${estimatedTouchCount}人`,
+        tone: estimatedTouchCount > 200 ? 'warning' as const : 'default' as const,
+      },
+      {
+        label: '权益成本估算',
+        value: estimatedBudget > 0 ? `约 ¥${estimatedBudget.toLocaleString('zh-CN')}` : '待确认',
+        tone: estimatedBudget > 3000 ? 'warning' as const : 'success' as const,
+      },
+      {
+        label: '平均匹配分',
+        value: averageFitScore > 0 ? `${averageFitScore}` : '待评估',
+        tone: averageFitScore >= 80 ? 'success' as const : 'default' as const,
+      },
+    ];
+  }
+
+  private buildActivityDraftAudienceDetails(items: Array<Record<string, unknown>>) {
+    if (!items.length) {
+      return [
+        {
+          label: '目标客群',
+          value: '待运营确认',
+          description: '审批后只保存草稿，发布前需在营销活动页确认具体客群。',
+        },
+      ];
+    }
+    return items.slice(0, 5).map((item, index) => {
+      const name = String(item.productName ?? item.name ?? `推荐对象${index + 1}`);
+      const customerCount = this.safeNumber(item.customerCount);
+      const salesQuantity = this.safeNumber(item.salesQuantity);
+      const currentStock = this.safeNumber(item.currentStock);
+      const reason = item.reason ? String(item.reason) : undefined;
+      return {
+        label: name,
+        value: customerCount > 0 ? `${customerCount}位相关客户` : salesQuantity > 0 ? `近30天销量 ${salesQuantity}` : '建议运营复核',
+        description: [
+          currentStock > 0 ? `库存 ${currentStock}` : '',
+          reason,
+        ].filter(Boolean).join(' · ') || '基于营销机会推荐生成，发布前需确认真实客群。',
+      };
+    });
+  }
+
+  private safeNumber(value: unknown) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : 0;
+  }
+
+  private collectOpportunityItems(value: unknown): Array<Record<string, unknown>> {
+    const found: Array<Record<string, unknown>> = [];
+    const visit = (node: unknown) => {
+      if (!node || found.length >= 10) return;
+      if (Array.isArray(node)) {
+        for (const item of node) visit(item);
+        return;
+      }
+      if (typeof node !== 'object') return;
+      const object = node as Record<string, unknown>;
+      if (
+        (object.productName || object.name) &&
+        (object.fitScore !== undefined || object.opportunityType || object.suggestedCampaign)
+      ) {
+        found.push(object);
+      }
+      for (const child of Object.values(object)) visit(child);
+    };
+    visit(value);
+    return found;
+  }
+
+  private buildMarketingEffectFunnel(data: Record<string, unknown>): Array<Record<string, unknown>> {
+    const total = Number(data.total) || 0;
+    const converted = Number(data.converted) || 0;
+    const revenue = Number(data.revenue) || 0;
+    if (total <= 0) return [];
+    return [
+      { name: '触达', value: total, valueText: `${total}人`, rateText: '100%' },
+      { name: '核销/转化', value: converted, valueText: `${converted}人`, rateText: this.formatRate(converted, total) },
+      { name: '收入贡献', value: converted, valueText: this.formatCurrency(revenue), rateText: this.formatRate(converted, total) },
+    ];
+  }
+
+  private buildInventoryItemCard(result: AgentToolResult, data: Record<string, unknown>): AuraResponseBlock | null {
+    if (
+      ![
+        '库存风险排行',
+        '库存消耗趋势',
+        '项目耗材 BOM 风险',
+        '临期库存处理草稿',
+        '补货采购草稿',
+      ].includes(result.title)
+    ) {
+      return null;
+    }
+    const items = Array.isArray(data.items) ? data.items as Array<Record<string, unknown>> : [];
+    const top = items[0];
+    if (!top) return null;
+
+    const actions = (result.actions ?? []).slice(0, 3).map((action) => ({
+      label: action.label,
+      actionId: action.action,
+      riskLevel: action.riskLevel,
+    }));
+
+    if (result.title === '项目耗材 BOM 风险') {
+      return {
+        kind: 'inventory_item_card',
+        title: result.title,
+        itemName: String(top.projectName ?? '项目耗材风险'),
+        subtitle: top.topRiskProductName ? `重点耗材：${String(top.topRiskProductName)}` : undefined,
+        riskLevel: this.normalizeRiskLevel(top.riskLevel),
+        statusLabel: this.riskLabel(top.riskLevel),
+        metrics: [
+          { label: '服务次数', value: String(top.serviceCount ?? 0) },
+          { label: 'BOM 数', value: String(top.bomItemCount ?? 0) },
+          { label: '风险分', value: String(top.riskScore ?? 0), tone: this.riskTone(top.riskLevel) },
+          { label: '缺口', value: this.firstBomShortageText(top), tone: this.riskTone(top.riskLevel) },
+        ],
+        reason: String(top.reason ?? result.summary),
+        actions,
+      };
+    }
+
+    if (result.title === '临期库存处理草稿') {
+      return {
+        kind: 'inventory_item_card',
+        title: result.title,
+        itemName: String(top.productName ?? '临期商品'),
+        subtitle: top.batchNo ? `批次：${String(top.batchNo)}` : undefined,
+        riskLevel: this.normalizeRiskLevel(top.riskLevel),
+        statusLabel: top.daysToExpiry !== undefined ? `${String(top.daysToExpiry)} 天后到期` : this.riskLabel(top.riskLevel),
+        metrics: [
+          { label: '库存', value: this.withUnit(top.stock, top.unit) },
+          { label: '建议价', value: String(top.suggestedPriceText ?? '-') },
+          { label: '折扣', value: this.formatDiscount(top.suggestedDiscountRate) },
+          { label: '到期日', value: String(top.expiryDate ?? '-') },
+        ],
+        reason: String(top.suggestedAction ?? result.summary),
+        actions,
+      };
+    }
+
+    return {
+      kind: 'inventory_item_card',
+      title: result.title,
+      itemName: String(top.productName ?? top.name ?? '库存商品'),
+      subtitle: top.sku ? `SKU ${String(top.sku)}` : undefined,
+      riskLevel: this.normalizeRiskLevel(top.riskLevel),
+      statusLabel: top.projectedDaysLeft !== undefined && top.projectedDaysLeft !== null
+        ? `预计可用 ${String(top.projectedDaysLeft)} 天`
+        : this.riskLabel(top.riskLevel),
+      metrics: [
+        { label: '当前库存', value: this.withUnit(top.currentStock, top.unit) },
+        { label: '安全库存', value: this.withUnit(top.safetyStock, top.unit) },
+        { label: '累计消耗', value: this.withUnit(top.consumeQty ?? top.quantity, top.unit) },
+        { label: '建议量', value: this.withUnit(top.suggestedQty ?? top.quantity, top.unit), tone: 'warning' },
+      ],
+      reason: String(top.reason ?? result.summary),
+      actions,
+    };
+  }
+
+  private buildSupplierPurchaseCard(result: AgentToolResult, data: Record<string, unknown>): AuraResponseBlock | null {
+    if (result.title !== '供应商采购链接') return null;
+    const items = Array.isArray(data.items) ? data.items as Array<Record<string, unknown>> : [];
+    const top = items[0];
+    if (!top) return null;
+    return {
+      kind: 'supplier_purchase_card',
+      title: result.title,
+      productName: String(top.productName ?? '采购商品'),
+      supplierName: String(top.supplierName ?? '未绑定供应商'),
+      statusLabel: top.status === 'missing_supplier_link' ? '需维护供应商' : '已绑定供应商',
+      metrics: [
+        { label: '当前库存', value: this.withUnit(top.currentStock, top.unit) },
+        { label: '建议采购', value: this.withUnit(top.suggestedQty, top.unit), tone: 'warning' },
+        { label: '供货价', value: String(top.supplyPriceText ?? '-') },
+        { label: '交期', value: top.leadDays !== undefined && top.leadDays !== null ? `${String(top.leadDays)} 天` : '-' },
+      ],
+      reason: String(top.reason ?? result.summary),
+      actions: (result.actions ?? []).slice(0, 3).map((action) => ({
+        label: action.label,
+        actionId: action.action,
+        riskLevel: action.riskLevel,
+      })),
+    };
+  }
+
+  private normalizeRiskLevel(value: unknown): 'low' | 'medium' | 'high' | undefined {
+    if (value === 'high' || value === '高') return 'high';
+    if (value === 'medium' || value === '中') return 'medium';
+    if (value === 'low' || value === '低') return 'low';
+    return undefined;
+  }
+
+  private riskLabel(value: unknown): string | undefined {
+    if (value === 'high' || value === '高') return '高风险';
+    if (value === 'medium' || value === '中') return '中风险';
+    if (value === 'low' || value === '低') return '低风险';
+    return undefined;
+  }
+
+  private riskTone(value: unknown): 'default' | 'warning' | 'critical' | 'success' {
+    if (value === 'high' || value === '高') return 'critical';
+    if (value === 'medium' || value === '中') return 'warning';
+    if (value === 'low' || value === '低') return 'success';
+    return 'default';
+  }
+
+  private withUnit(value: unknown, unit: unknown): string {
+    if (value === undefined || value === null || value === '') return '-';
+    return `${String(value)}${unit ? String(unit) : ''}`;
+  }
+
+  private formatDiscount(value: unknown): string {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return '-';
+    return `${Math.round(num * 100) / 10}折`;
+  }
+
+  private firstBomShortageText(item: Record<string, unknown>): string {
+    const risks = Array.isArray(item.bomRisks) ? item.bomRisks as Array<Record<string, unknown>> : [];
+    const shortage = Number(risks[0]?.shortage ?? 0);
+    return this.withUnit(shortage, risks[0]?.unit);
+  }
+
+  private formatRate(value: number, total: number): string {
+    if (!total) return '0%';
+    return `${Math.round((value / total) * 1000) / 10}%`;
+  }
+
+  private formatCurrency(value: number): string {
+    return `¥${Math.round(value).toLocaleString('zh-CN')}`;
+  }
+
+  /** 从 actions 和 plan 中提取 1-3 个高价值关联问题 */
+  private buildFollowUpSuggestions(
+    actions: AgentSuggestedAction[],
+    plan?: AgentPlan,
+  ): string[] {
+    const suggestions: string[] = [];
+
+    // 从 AgentSuggestedAction 中提取最多 3 个
+    for (const action of actions.slice(0, 3)) {
+      if (action.label && !suggestions.includes(action.label)) {
+        suggestions.push(action.label);
+      }
+    }
+
+    return suggestions.slice(0, 3);
   }
 
   private asObject(value: unknown): Record<string, unknown> | undefined {

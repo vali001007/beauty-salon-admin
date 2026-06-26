@@ -34,18 +34,20 @@ type ApiPurchaseOrder = Partial<Omit<PurchaseOrder, 'items' | 'totalAmount'>> & 
 };
 
 function normalizeStockItem(item: ApiStockItem): StockItem {
-  const currentStock = Number(item.currentStock ?? 0);
-  const safetyStock = Number(item.safetyStock ?? 0);
+  const currentStock = Math.max(0, Number(item.currentStock ?? 0));
+  const reserved = Math.max(0, Number(item.reserved ?? 0));
+  const availableStock = Math.max(0, Number(item.availableStock ?? currentStock - reserved));
+  const safetyStock = Math.max(0, Number(item.safetyStock ?? 0));
   const status = item.status ?? '正常';
   return {
     id: Number(item.id),
     productName: item.productName ?? item.name ?? '',
     sku: item.sku ?? '',
     currentStock,
-    reserved: Number(item.reserved ?? 0),
-    availableStock: Number(item.availableStock ?? currentStock),
+    reserved,
+    availableStock,
     safetyStock,
-    maxStock: Number(item.maxStock ?? Math.max(safetyStock * 5, currentStock)),
+    maxStock: Math.max(0, Number(item.maxStock ?? Math.max(safetyStock * 5, currentStock))),
     status,
     lastInboundDate: item.lastInboundDate ?? '',
     storeName: item.storeName ?? '',

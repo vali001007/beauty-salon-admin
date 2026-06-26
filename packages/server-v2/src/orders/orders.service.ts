@@ -22,6 +22,17 @@ export class OrdersService {
     return Number(value);
   }
 
+  private toNonNegativeStock(value: unknown): number {
+    const stock = this.toNumber(value);
+    return Number.isFinite(stock) ? Math.max(0, stock) : 0;
+  }
+
+  private buildInventoryShortageRemark(baseRemark: string | undefined, requestedQty: number, appliedQty: number) {
+    if (appliedQty >= requestedQty) return baseRemark;
+    const shortageRemark = `库存不足：本次申请 ${requestedQty}，实际扣减 ${appliedQty}，不足 ${requestedQty - appliedQty}`;
+    return [baseRemark, shortageRemark].filter(Boolean).join('；');
+  }
+
   private round(value: number, precision = 2): number {
     const factor = 10 ** precision;
     return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
@@ -119,6 +130,8 @@ export class OrdersService {
         支付宝: 'alipay',
         银行卡: 'card',
         会员卡划扣: 'member_balance',
+        会员余额: 'member_balance',
+        储值余额: 'member_balance',
         次卡抵扣: 'customer_card',
         cash: 'cash',
         wechat: 'wechat',
@@ -177,6 +190,38 @@ export class OrdersService {
       packageId: data.packageId,
       authorizedBy: data.authorizedBy,
       reason: data.discountReason ?? data.reason,
+    };
+  }
+
+  private buildPreAllocatedDiscountResult(data: any, items: any[]) {
+    const listAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0));
+    const itemDiscountAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.itemDiscountAmount), 0));
+    const orderDiscountAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.orderAllocatedDiscountAmount), 0));
+    const totalDiscountAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.totalDiscountAmount), 0));
+    const netAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.netAmount ?? item.subtotal), 0));
+    return {
+      order: {
+        listAmount,
+        itemDiscountAmount,
+        orderDiscountAmount,
+        totalDiscountAmount,
+        netAmount,
+        discountSource: data.discountSource ?? (orderDiscountAmount > 0 ? 'order' : 'none'),
+        allocationMethod: data.allocationMethod ?? (orderDiscountAmount > 0 ? 'manual' : 'none'),
+        promotionId: data.promotionId,
+        couponId: data.couponId,
+        packageId: data.packageId,
+        discountPayload: {
+          discountMode: data.discountMode ?? (orderDiscountAmount > 0 ? 'manual' : 'none'),
+          discountAmount: orderDiscountAmount,
+          discountRate: this.toNumber(data.discountRate),
+          packagePrice: this.toNumber(data.packagePrice),
+          authorizedBy: data.authorizedBy,
+          reason: data.discountReason ?? data.reason,
+          preAllocated: true,
+        },
+      },
+      items,
     };
   }
 
@@ -313,12 +358,22 @@ export class OrdersService {
     });
     if (!product) return;
 
-    const beforeStock = this.toNumber(product.currentStock);
-    const afterStock = beforeStock - params.quantity;
+    const beforeStock = this.toNonNegativeStock(product.currentStock);
+    const appliedQty = Math.min(beforeStock, params.quantity);
+    const afterStock = beforeStock - appliedQty;
+    if (appliedQty <= 0) {
+      if (this.toNumber(product.currentStock) < 0) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: { currentStock: 0 },
+        });
+      }
+      return;
+    }
 
     await tx.product.update({
       where: { id: product.id },
-      data: { currentStock: { decrement: params.quantity } },
+      data: { currentStock: afterStock },
     });
 
     await tx.stockMovement.create({
@@ -327,14 +382,18 @@ export class OrdersService {
         productId: product.id,
         movementNo: this.createStockMovementNo('SM'),
         movementType: 'service_consume',
-        quantity: -params.quantity,
+        quantity: -appliedQty,
         beforeStock,
         afterStock,
         unit: product.unit,
         sourceType: 'project_order',
         sourceId: params.order.id,
         sourceNo: params.order.orderNo,
-        remark: params.remark ?? (params.projectName ? `项目订单自动扣耗材：${params.projectName}` : '项目订单自动扣耗材'),
+        remark: this.buildInventoryShortageRemark(
+          params.remark ?? (params.projectName ? `项目订单自动扣耗材：${params.projectName}` : '项目订单自动扣耗材'),
+          params.quantity,
+          appliedQty,
+        ),
       },
     });
   }
@@ -355,12 +414,22 @@ export class OrdersService {
     });
     if (!product) return;
 
-    const beforeStock = this.toNumber(product.currentStock);
-    const afterStock = beforeStock - params.quantity;
+    const beforeStock = this.toNonNegativeStock(product.currentStock);
+    const appliedQty = Math.min(beforeStock, params.quantity);
+    const afterStock = beforeStock - appliedQty;
+    if (appliedQty <= 0) {
+      if (this.toNumber(product.currentStock) < 0) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: { currentStock: 0 },
+        });
+      }
+      return;
+    }
 
     await tx.product.update({
       where: { id: product.id },
-      data: { currentStock: { decrement: params.quantity } },
+      data: { currentStock: afterStock },
     });
 
     await tx.stockMovement.create({
@@ -369,14 +438,14 @@ export class OrdersService {
         productId: product.id,
         movementNo: this.createStockMovementNo('SM'),
         movementType: 'sale_out',
-        quantity: -params.quantity,
+        quantity: -appliedQty,
         beforeStock,
         afterStock,
         unit: product.unit,
         sourceType: 'product_order',
         sourceId: params.order.id,
         sourceNo: params.order.orderNo,
-        remark: params.remark ?? '商品订单自动扣库存',
+        remark: this.buildInventoryShortageRemark(params.remark ?? '商品订单自动扣库存', params.quantity, appliedQty),
       },
     });
   }
@@ -553,7 +622,8 @@ export class OrdersService {
 
   private async refreshDailySettlementForOrder(order: any, source: string) {
     const storeId = this.toNumber(order?.storeId);
-    if (!storeId || !['completed', 'paid'].includes(String(order?.status))) return;
+    if (!storeId || !['completed', 'paid', 'refunded'].includes(String(order?.status))) return;
+    if (typeof this.commissionService?.generateDailySettlement !== 'function') return;
     try {
       await this.commissionService.generateDailySettlement(storeId, order.createdAt ?? new Date());
     } catch (error) {
@@ -568,15 +638,38 @@ export class OrdersService {
     try {
       if (typeof tx.orderItem?.findMany !== 'function') return;
       const orderItems = await tx.orderItem.findMany({ where: { orderId: order.id } });
+      const records: any[] = [];
+      const salesUserId = this.toNumber(data.operatorId) || undefined;
+      const cardSaleItems = salesUserId ? orderItems.filter((item: any) => item.itemType === 'card') : [];
+      if (salesUserId && cardSaleItems.length) {
+        const itemRecords = await this.commissionService.calculateOrderCommissions(
+          {
+            storeId,
+            orderId: order.id,
+            staffUserId: salesUserId,
+            items: cardSaleItems.map((item: any) => ({
+              itemType: item.itemType,
+              itemId: item.itemId,
+              categoryId: undefined,
+              subtotal: this.toNumber(item.netAmount ?? item.subtotal),
+              orderItemId: item.id,
+            })),
+          },
+          tx,
+        );
+        records.push(...itemRecords);
+      }
+
+      const beauticianCommissionItems = orderItems.filter((item: any) => !(salesUserId && item.itemType === 'card'));
       const fallbackBeauticianId = this.toNumber(data.beauticianId) || undefined;
       const beauticianIds = [
         ...new Set(
-          orderItems
+          beauticianCommissionItems
             .map((item: any) => this.toNumber(item.beauticianId) || fallbackBeauticianId)
             .filter((item: number | undefined): item is number => Boolean(item)),
         ),
       ];
-      if (!beauticianIds.length) return;
+      if (!beauticianIds.length) return records;
 
       const select = { id: true, levelId: true, userId: true };
       const beauticians =
@@ -593,7 +686,7 @@ export class OrdersService {
         beauticians.map((beautician: any) => [beautician.id, beautician]),
       );
 
-      for (const item of orderItems) {
+      for (const item of beauticianCommissionItems) {
         const itemBeauticianId = this.toNumber(item.beauticianId) || fallbackBeauticianId;
         if (!itemBeauticianId) continue;
         const beautician = beauticianById.get(itemBeauticianId);
@@ -1293,9 +1386,11 @@ export class OrdersService {
   }
 
   async createProductOrder(data: any) {
-    const orderNo = `PO${Date.now()}`;
+    const orderNo = data.orderNo ?? `PO${Date.now()}`;
     const normalizedInputItems = this.normalizeOrderItems(Array.isArray(data.items) ? data.items : []);
-    const allocation = this.discountAllocationService.allocate(this.buildDiscountAllocationInput(data, normalizedInputItems));
+    const allocation = data.preAllocatedDiscount
+      ? this.buildPreAllocatedDiscountResult(data, normalizedInputItems)
+      : this.discountAllocationService.allocate(this.buildDiscountAllocationInput(data, normalizedInputItems));
     const items = allocation.items;
     const totalAmount = allocation.order.netAmount;
     const status = this.normalizeOrderStatus(data.status);
@@ -1407,8 +1502,10 @@ export class OrdersService {
           marketingAttributions: true,
         },
       }).then((createdOrder) => this.serializeProductOrder(createdOrder));
-    });
-    await this.refreshDailySettlementForOrder(createdOrder, 'admin_order');
+    }, { timeout: 20000 });
+    if (!data.skipDailySettlementRefresh) {
+      await this.refreshDailySettlementForOrder(createdOrder, data.dailySettlementSource ?? 'admin_order');
+    }
     return createdOrder;
   }
 
@@ -1514,7 +1611,7 @@ export class OrdersService {
     const amount = typeof reasonOrDto === 'object' ? this.toNumber(reasonOrDto.amount ?? refundableAmount) : refundableAmount;
     if (amount > refundableAmount) throw new BadRequestException('退款金额不能大于订单实收金额');
 
-    return this.prisma.$transaction(async (tx) => {
+    const refundedOrder = await this.prisma.$transaction(async (tx) => {
       await tx.refundRecord.create({
         data: {
           orderId: id,
@@ -1545,6 +1642,8 @@ export class OrdersService {
         include: { orderItems: { include: this.orderItemInclude }, paymentRecords: true, refundRecords: true, marketingAttributions: true },
       });
     });
+    await this.refreshDailySettlementForOrder(refundedOrder, 'admin_order_refund');
+    return refundedOrder;
   }
 
   private createBalanceTransactionNo() {
@@ -1743,11 +1842,21 @@ export class OrdersService {
     );
   }
 
+  async createRechargeOrder(data: any, operatorId?: number) {
+    return this.createMemberCardRecharge(
+      {
+        ...data,
+        operatorId: data.operatorId ?? operatorId,
+      },
+      'recharge',
+    );
+  }
+
   private async createMemberCardRecharge(data: any, type: 'open' | 'recharge') {
     const customerId = this.toNumber(data.customerId);
     const storeId = this.toNumber(data.storeId);
     const rechargeAmount = this.toNumber(data.rechargeAmount ?? data.amount);
-    const giftAmount = this.toNumber(data.giftAmount);
+    const giftAmount = this.toNumber(data.giftAmount ?? data.discountAmount);
     const giftProjects = Array.isArray(data.giftProjects)
       ? data.giftProjects.map((project: unknown) => String(project).trim()).filter(Boolean)
       : [];
@@ -1825,6 +1934,21 @@ export class OrdersService {
         },
       });
 
+      if (typeof tx.consumptionRecord?.create === 'function') {
+        await tx.consumptionRecord.create({
+          data: {
+            customerId,
+            consumeType: type === 'open' ? '会员开卡' : '充值',
+            consumeContent: `${type === 'open' ? '会员开卡' : '充值'} ${rechargeAmount}，赠送 ${giftAmount}${
+              giftProjects.length ? `，赠送项目：${giftProjects.join('、')}` : ''
+            }`,
+            payMethod: this.normalizePaymentMethod(data.paymentMethod),
+            amount: rechargeAmount,
+            campaign: data.remark,
+          },
+        });
+      }
+
       await tx.paymentRecord.create({
         data: {
           orderId: order.id,
@@ -1855,7 +1979,7 @@ export class OrdersService {
         },
       });
 
-      await tx.customerBalanceTransaction.create({
+      const balanceTransaction = await tx.customerBalanceTransaction.create({
         data: {
           accountId: account.id,
           customerId,
@@ -1877,11 +2001,12 @@ export class OrdersService {
 
       await this.applyMarketingAttribution(tx, order, rechargeAmount);
       await this.applyMarketingPageAttribution(tx, order, rechargeAmount);
-      return updatedAccount;
-    });
+      await this.calculateOrderCommissionIfNeeded(tx, order, data);
+      return { account: updatedAccount, order, balanceTransaction };
+    }, { timeout: 20000 });
 
     const account = await this.prisma.customerBalanceAccount.findUnique({
-      where: { id: result.id },
+      where: { id: result.account.id },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         store: { select: { id: true, name: true } },
@@ -1894,7 +2019,16 @@ export class OrdersService {
         },
       },
     });
-    return this.serializeMemberCardAccount(account);
+    await this.refreshDailySettlementForOrder(result.order, type === 'open' ? 'admin_member_card_open' : 'member_card_recharge');
+    return {
+      ...this.serializeMemberCardAccount(account),
+      orderId: result.order.id,
+      orderNo: result.order.orderNo,
+      orderCreatedAt: result.order.createdAt,
+      balanceTransactionId: result.balanceTransaction.id,
+      cashBalance: this.toNumber(account?.cashBalance),
+      paymentMethod: this.normalizePaymentMethod(data.paymentMethod),
+    };
   }
 
   async giftMemberCard(id: number, data: any, operatorId?: number) {
@@ -2030,9 +2164,14 @@ export class OrdersService {
     if (!store) throw new BadRequestException('门店不存在');
     if (!card) throw new NotFoundException('次卡不存在');
 
-    const amount = Math.max(0, this.toNumber(data.amount ?? data.actualPrice ?? data.cardPrice ?? card.price));
-    const discount = Math.max(0, this.toNumber(card.price) - amount);
+    const originalAmount = this.toNumber(card.price);
+    const explicitDiscount = data.discountAmount === undefined ? undefined : Math.min(originalAmount, Math.max(0, this.toNumber(data.discountAmount)));
+    const amount = Math.max(0, this.toNumber(data.amount ?? data.actualPrice ?? (explicitDiscount !== undefined ? originalAmount - explicitDiscount : undefined) ?? data.cardPrice ?? card.price));
+    const discount = explicitDiscount ?? Math.max(0, originalAmount - amount);
     const totalTimes = this.toNumber(data.totalTimes ?? card.totalTimes) || this.toNumber(card.totalTimes);
+    const giftProjects = Array.isArray(data.giftProjects)
+      ? data.giftProjects.map((project: unknown) => String(project).trim()).filter(Boolean)
+      : [];
     const expiryDate = data.expiryDate ?? data.expireTime
       ? new Date(data.expiryDate ?? data.expireTime)
       : new Date(Date.now() + this.resolveCardValidDays(card) * 24 * 60 * 60 * 1000);
@@ -2075,11 +2214,11 @@ export class OrdersService {
           netAmount: amount,
           discountSource: discount > 0 ? 'item' : 'none',
           allocationMethod: discount > 0 ? 'direct' : 'none',
-          discountPayload: { cardPrice: this.toNumber(card.price), actualAmount: amount },
+          discountPayload: { cardPrice: originalAmount, actualAmount: amount, giftProjects },
           status: 'completed',
           payMethod,
           source: data.source ?? 'admin',
-          items: [{ itemType: 'card', itemId: card.id, quantity: 1, unitPrice: amount }],
+          items: [{ itemType: 'card', itemId: card.id, quantity: 1, unitPrice: amount, discountAmount: discount, giftProjects }],
           remark: data.remark ?? `次卡开卡：${card.name}`,
         },
       });
@@ -2101,11 +2240,11 @@ export class OrdersService {
           netAmount: amount,
           discountSource: discount > 0 ? 'item' : 'none',
           allocationMethod: discount > 0 ? 'direct' : 'none',
-          discountPayload: { cardPrice: this.toNumber(card.price), actualAmount: amount },
+          discountPayload: { cardPrice: originalAmount, actualAmount: amount, giftProjects },
           isGift: false,
           eligibleForOrderDiscount: true,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
-          payload: { cardName: card.name, totalTimes, expiryDate: expiryDate.toISOString() },
+          payload: { cardName: card.name, totalTimes, expiryDate: expiryDate.toISOString(), giftProjects },
         },
       });
 
@@ -2128,6 +2267,9 @@ export class OrdersService {
           paidAt: new Date(),
         },
       });
+      if (payMethod === 'member_balance' && amount > 0) {
+        await this.deductMemberBalanceForOrder(tx, order, amount, data.remark);
+      }
 
       await tx.customer.update({
         where: { id: customerId },
@@ -2159,6 +2301,8 @@ export class OrdersService {
       storeId,
       storeName: store.name,
       amount,
+      discountAmount: discount,
+      giftProjects,
       totalTimes,
       remainingTimes: result.customerCard.remainingTimes,
       status: result.customerCard.status,

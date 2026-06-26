@@ -24,20 +24,11 @@ import {
   getIndustryServiceTemplateBom,
   getIndustryServiceTemplates,
 } from '@/api/industry';
-import {
-  createCommissionRule,
-  deleteCommissionRule,
-  getCommissionRules,
-  updateCommissionRule,
-  type CommissionRule,
-} from '@/api/commission';
 import { createProject, setProjectBom, updateProject } from '@/api/project';
 import { getProjectTypes, type ProjectType } from '@/api/projectType';
 import { getProducts } from '@/api/product';
-import { getUsers } from '@/api/user';
 import { toast } from 'sonner';
 import type { IndustryProjectBomTemplate, IndustryServiceTemplate, Product, Project } from '@/types';
-import type { SystemUser } from '@/types/user';
 import '../../styles/tiptap.css';
 
 interface AddProjectDialogProps {
@@ -46,9 +37,7 @@ interface AddProjectDialogProps {
   initialProject?: Project | null;
 }
 
-type DialogStep = 'basic' | 'bom' | 'commission';
-type CommissionCalcBase = 'total' | 'service_fee' | 'profit';
-type CommissionDraftStatus = 'active' | 'disabled';
+type DialogStep = 'basic' | 'bom';
 type IndustryProductMappingMode = 'auto' | 'manual';
 
 type BomDraftItem = {
@@ -59,20 +48,6 @@ type BomDraftItem = {
   standardQty: number;
   unit: string;
   unitCost: number;
-};
-
-type CommissionDraftRule = {
-  rowId: string;
-  ruleId?: number;
-  sourceRuleId?: number;
-  sourceRuleName?: string;
-  userIds: number[];
-  name: string;
-  rate: number;
-  fixedAmount: number | '';
-  calcBase: CommissionCalcBase;
-  priority: number;
-  status: CommissionDraftStatus;
 };
 
 function createInitialFormData(project?: Project | null) {
@@ -114,110 +89,8 @@ function formatIndustryDuration(template?: IndustryServiceTemplate) {
   return `${min ?? max} 分钟`;
 }
 
-function formatPercent(value?: number) {
-  return `${Math.round(Number(value ?? 0) * 10000) / 100}%`;
-}
-
 function getBomItemCost(item: BomDraftItem) {
   return Number(item.unitCost || 0) * Number(item.standardQty || 0);
-}
-
-function createDraftRowId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createBlankCommissionDraft(projectName?: string): CommissionDraftRule {
-  return {
-    rowId: createDraftRowId(),
-    userIds: [],
-    name: projectName ? `${projectName} 提成` : '项目提成',
-    rate: 0.08,
-    fixedAmount: '',
-    calcBase: 'total',
-    priority: 100,
-    status: 'active',
-  };
-}
-
-function createCommissionDraftFromRule(rule: CommissionRule, projectName?: string): CommissionDraftRule {
-  return {
-    rowId: createDraftRowId(),
-    sourceRuleId: rule.id,
-    sourceRuleName: rule.name,
-    userIds: rule.userId ? [Number(rule.userId)] : [],
-    name: projectName ? `${projectName} - ${rule.name}` : rule.name,
-    rate: Number(rule.rate ?? 0),
-    fixedAmount: rule.fixedAmount === undefined || rule.fixedAmount === null ? '' : Number(rule.fixedAmount),
-    calcBase: (rule.calcBase as CommissionCalcBase) || 'total',
-    priority: Math.max(Number(rule.priority ?? 0), 100),
-    status: 'active',
-  };
-}
-
-function createCommissionDraftRules(project: Project | null | undefined, rules: CommissionRule[]): CommissionDraftRule[] {
-  if (!project?.id) return [];
-  return rules
-    .filter(
-      (rule) =>
-        rule.type === 'project' &&
-        rule.targetType === 'specific' &&
-        Number(rule.targetId) === Number(project.id) &&
-        rule.status !== 'archived',
-    )
-    .map((rule) => ({
-      rowId: `rule-${rule.id}`,
-      ruleId: rule.id,
-      sourceRuleId: rule.id,
-      sourceRuleName: rule.name,
-      userIds: rule.userId ? [Number(rule.userId)] : [],
-      name: rule.name,
-      rate: Number(rule.rate ?? 0),
-      fixedAmount: rule.fixedAmount === undefined || rule.fixedAmount === null ? '' : Number(rule.fixedAmount),
-      calcBase: (rule.calcBase as CommissionCalcBase) || 'total',
-      priority: Number(rule.priority ?? 0),
-      status: rule.status === 'disabled' ? 'disabled' : 'active',
-    }));
-}
-
-function getCommissionUserName(rule: CommissionRule) {
-  return rule.user?.name || rule.user?.username || `员工 ${rule.userId ?? '-'}`;
-}
-
-function getStaffUserName(user: SystemUser) {
-  return user.name || user.username || `员工 ${user.id}`;
-}
-
-function getSelectedStaffNames(userIds: number[], users: SystemUser[]) {
-  if (userIds.length === 0) return '请选择员工';
-  const nameMap = new Map(users.map((user) => [Number(user.id), getStaffUserName(user)]));
-  return userIds.map((id) => nameMap.get(Number(id)) ?? `员工 ${id}`).join('、');
-}
-
-function getDraftSourceLabel(draft: CommissionDraftRule) {
-  if (draft.ruleId) return '项目例外';
-  if (draft.sourceRuleId) return '规则库引用';
-  return '项目例外';
-}
-
-function getRuleTargetLabel(rule: CommissionRule, projectTypes: ProjectType[]) {
-  if (rule.targetType === 'all') return '全部项目';
-  if (rule.targetType === 'category') {
-    const typeName = projectTypes.find((type) => Number(type.id) === Number(rule.targetId))?.name;
-    return typeName ? `项目类型：${typeName}` : `项目类型 #${rule.targetId ?? '-'}`;
-  }
-  return `指定项目 #${rule.targetId ?? '-'}`;
-}
-
-function isRuleAppliedByDefault(rule: CommissionRule, projectId?: number, projectTypeId?: number) {
-  if (rule.type !== 'project' || rule.status !== 'active') return false;
-  if (rule.targetType === 'all') return true;
-  if (rule.targetType === 'category') {
-    return Boolean(projectTypeId && Number(rule.targetId) === Number(projectTypeId));
-  }
-  if (rule.targetType === 'specific') {
-    return Boolean(projectId && Number(rule.targetId) === Number(projectId));
-  }
-  return false;
 }
 
 function createBomDraftItems(project?: Project | null, products: Product[] = []): BomDraftItem[] {
@@ -239,8 +112,6 @@ function createBomDraftItems(project?: Project | null, products: Product[] = [])
 export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDialogProps) {
   const [projectTypeList, setProjectTypeList] = useState<ProjectType[]>([]);
   const [productList, setProductList] = useState<Product[]>([]);
-  const [staffUsers, setStaffUsers] = useState<SystemUser[]>([]);
-  const [projectCommissionRules, setProjectCommissionRules] = useState<CommissionRule[]>([]);
   const [industryTemplates, setIndustryTemplates] = useState<IndustryServiceTemplate[]>([]);
   const [selectedIndustryTemplateId, setSelectedIndustryTemplateId] = useState('');
   const [selectedIndustryBomTemplate, setSelectedIndustryBomTemplate] = useState<IndustryProjectBomTemplate | null>(null);
@@ -249,13 +120,9 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
   const [productsLoading, setProductsLoading] = useState(false);
   const [industryTemplatesLoading, setIndustryTemplatesLoading] = useState(false);
   const [industryBomLoading, setIndustryBomLoading] = useState(false);
-  const [commissionLoading, setCommissionLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState<DialogStep>('basic');
   const [formData, setFormData] = useState(createInitialFormData);
   const [bomItems, setBomItems] = useState<BomDraftItem[]>([]);
-  const [commissionDrafts, setCommissionDrafts] = useState<CommissionDraftRule[]>([]);
-  const [removedCommissionRuleIds, setRemovedCommissionRuleIds] = useState<number[]>([]);
-  const [selectedCommissionRuleId, setSelectedCommissionRuleId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isAdoptingIndustryTemplate, setIsAdoptingIndustryTemplate] = useState(false);
@@ -265,9 +132,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
       setCurrentStep('basic');
       setFormData(createInitialFormData(initialProject));
       setBomItems(createBomDraftItems(initialProject));
-      setCommissionDrafts([]);
-      setRemovedCommissionRuleIds([]);
-      setSelectedCommissionRuleId('');
       setSelectedIndustryTemplateId('');
       setSelectedIndustryBomTemplate(null);
       setIndustryProductMappingMode('auto');
@@ -292,19 +156,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
         })
         .catch(() => toast.error('商品列表加载失败，BOM 商品暂不可选'))
         .finally(() => setProductsLoading(false));
-      setCommissionLoading(true);
-      Promise.all([
-        getCommissionRules({ page: 1, pageSize: 500, type: 'project' }),
-        getUsers(),
-      ])
-        .then(([rulePage, users]) => {
-          const rules = rulePage.items;
-          setProjectCommissionRules(rules);
-          setStaffUsers(users.filter((user) => user.status === '启用'));
-          setCommissionDrafts(createCommissionDraftRules(initialProject, rules));
-        })
-        .catch(() => toast.error('提成规则或员工列表加载失败，适用提成暂不可维护'))
-        .finally(() => setCommissionLoading(false));
     }
   }, [initialProject, open]);
 
@@ -442,70 +293,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
     setBomItems((prev) => prev.map((item) => (item.rowId === rowId ? { ...item, unit } : item)));
   };
 
-  const handleAddCommissionDraft = () => {
-    setCommissionDrafts((prev) => [...prev, createBlankCommissionDraft(formData.name.trim())]);
-  };
-
-  const handleAddConfiguredCommissionRule = (rule?: CommissionRule) => {
-    const selectedRule =
-      rule ?? projectCommissionRules.find((item) => Number(item.id) === Number(selectedCommissionRuleId));
-    if (!selectedRule) {
-      toast.error('请选择要关联的提成规则');
-      return;
-    }
-    if (commissionDrafts.some((draft) => Number(draft.sourceRuleId) === Number(selectedRule.id))) {
-      toast.error('该规则已添加为项目专属规则');
-      return;
-    }
-    setCommissionDrafts((prev) => [...prev, createCommissionDraftFromRule(selectedRule, formData.name.trim())]);
-    setSelectedCommissionRuleId('');
-  };
-
-  const handleRemoveCommissionDraft = (rowId: string) => {
-    const draft = commissionDrafts.find((item) => item.rowId === rowId);
-    if (draft?.ruleId) {
-      setRemovedCommissionRuleIds((prev) => (prev.includes(draft.ruleId!) ? prev : [...prev, draft.ruleId!]));
-    }
-    setCommissionDrafts((prev) => prev.filter((item) => item.rowId !== rowId));
-  };
-
-  const updateCommissionDraft = <K extends keyof CommissionDraftRule>(
-    rowId: string,
-    field: K,
-    value: CommissionDraftRule[K],
-  ) => {
-    setCommissionDrafts((prev) => prev.map((item) => (item.rowId === rowId ? { ...item, [field]: value } : item)));
-  };
-
-  const toggleCommissionDraftUser = (rowId: string, userId: number) => {
-    setCommissionDrafts((prev) =>
-      prev.map((item) => {
-        if (item.rowId !== rowId) return item;
-        const existed = item.userIds.includes(userId);
-        return {
-          ...item,
-          userIds: existed ? item.userIds.filter((id) => id !== userId) : [...item.userIds, userId],
-        };
-      }),
-    );
-  };
-
   const bomTotalCost = bomItems.reduce((total, item) => total + getBomItemCost(item), 0);
-  const selectedProjectTypeId = projectTypeList.find((type) => type.name === formData.type)?.id;
-  const enabledProjectCommissionRules = projectCommissionRules.filter(
-    (rule) => rule.type === 'project' && rule.status === 'active',
-  );
-  const recommendedCommissionRules = enabledProjectCommissionRules.filter(
-    (rule) =>
-      isRuleAppliedByDefault(rule, initialProject?.id, selectedProjectTypeId) &&
-      !(rule.targetType === 'specific' && Number(rule.targetId) === Number(initialProject?.id)),
-  );
-  const availableConfiguredCommissionRules = enabledProjectCommissionRules.filter(
-    (rule) =>
-      !(rule.targetType === 'specific' && Number(rule.targetId) === Number(initialProject?.id)) &&
-      !commissionDrafts.some((draft) => Number(draft.sourceRuleId) === Number(rule.id)),
-  );
-  const commissionDetailCount = commissionDrafts.length;
   const selectedIndustryTemplate = industryTemplates.find(
     (template) => String(template.id) === selectedIndustryTemplateId,
   );
@@ -540,21 +328,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
     return true;
   };
 
-  const validateCommissionInfo = () => {
-    for (const draft of commissionDrafts) {
-      if (draft.userIds.length === 0) {
-        toast.error('适用提成中存在未选择员工的项目例外，请补充或删除');
-        return false;
-      }
-      const fixedAmount = draft.fixedAmount === '' ? undefined : Number(draft.fixedAmount);
-      if ((fixedAmount === undefined || fixedAmount <= 0) && Number(draft.rate || 0) <= 0) {
-        toast.error('提成比例需大于 0，或填写固定提成金额');
-        return false;
-      }
-    }
-    return true;
-  };
-
   const handleIndustryProductMappingChange = (productTemplateId: number, productId: string) => {
     setIndustryProductMappings((prev) => ({
       ...prev,
@@ -569,7 +342,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
 
   const handleNextFromBom = () => {
     if (!validateBasicInfo() || !validateBomInfo()) return;
-    setCurrentStep('commission');
+    void handleSubmit();
   };
 
   const handleStepClick = (step: DialogStep) => {
@@ -580,10 +353,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
     if (!validateBasicInfo()) return;
     if (step === 'bom') {
       setCurrentStep('bom');
-      return;
     }
-    if (!validateBomInfo()) return;
-    setCurrentStep('commission');
   };
 
   const handlePrimaryAction = () => {
@@ -595,34 +365,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
       handleNextFromBom();
       return;
     }
-    void handleSubmit();
-  };
-
-  const persistCommissionRules = async (project: Project) => {
-    for (const ruleId of removedCommissionRuleIds) {
-      await deleteCommissionRule(ruleId);
-    }
-    for (const draft of commissionDrafts) {
-      for (const [index, userId] of draft.userIds.entries()) {
-        const payload: Partial<CommissionRule> = {
-          name: draft.name.trim() || `${project.name} 提成`,
-          type: 'project',
-          targetType: 'specific',
-          targetId: project.id,
-          userId,
-          rate: Number(draft.rate || 0),
-          fixedAmount: draft.fixedAmount === '' ? undefined : Number(draft.fixedAmount),
-          calcBase: draft.calcBase,
-          priority: Math.max(Number(draft.priority || 0), 100),
-          status: 'active',
-        };
-        if (draft.ruleId && index === 0) {
-          await updateCommissionRule(draft.ruleId, payload);
-        } else {
-          await createCommissionRule(payload);
-        }
-      }
-    }
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -630,7 +372,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
     if (!validateBasicInfo()) {
       return;
     }
-    if (!validateBomInfo() || !validateCommissionInfo()) {
+    if (!validateBomInfo()) {
       return;
     }
     const validBomItems = bomItems.filter((item) => item.productId);
@@ -660,8 +402,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
           unit: item.unit || '件',
         })),
       );
-      await persistCommissionRules(project);
-      toast.success(initialProject ? '项目、BOM 与适用提成更新成功' : '项目、BOM 与适用提成创建成功');
+      toast.success(initialProject ? '项目与 BOM 更新成功' : '项目与 BOM 创建成功');
       onClose();
     } catch (err: any) {
       toast.error(err?.message || (initialProject ? '更新项目失败' : '创建项目失败'));
@@ -763,11 +504,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                 handleNextStep();
                 return;
               }
-              if (currentStep === 'bom') {
-                handleNextFromBom();
-                return;
-              }
-              void handleSubmit();
+              handleNextFromBom();
             }}
             className="space-y-6"
           >
@@ -796,19 +533,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                   2
                 </span>
                 BOM 配置
-              </button>
-              <div className="h-px flex-1 bg-gray-200" />
-              <button
-                type="button"
-                onClick={() => handleStepClick('commission')}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  currentStep === 'commission' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:bg-white'
-                }`}
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600">
-                  3
-                </span>
-                适用提成
               </button>
             </div>
             {currentStep === 'basic' && (
@@ -1449,240 +1173,6 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                 )}
               </div>
             )}
-
-            {currentStep === 'commission' && (
-              <div className="space-y-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-800">适用提成</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      财务管理-提成规则是统一规则库；当前项目只维护需要覆盖通用规则的项目例外，避免两边重复配置。
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddCommissionDraft}
-                    disabled={commissionLoading || staffUsers.length === 0}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                    新增项目例外
-                  </button>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="text-xs text-gray-500">规则库推荐</div>
-                    <div className="mt-1 text-lg font-semibold text-gray-900">{recommendedCommissionRules.length}</div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="text-xs text-gray-500">当前项目例外</div>
-                    <div className="mt-1 text-lg font-semibold text-gray-900">{commissionDrafts.length}</div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="text-xs text-gray-500">可引用规则</div>
-                    <div className="mt-1 text-lg font-semibold text-gray-900">{availableConfiguredCommissionRules.length}</div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                    <label className="flex-1 space-y-1 text-sm">
-                      <span className="font-medium text-gray-700">从规则库引用</span>
-                      <select
-                        value={selectedCommissionRuleId}
-                        onChange={(event) => setSelectedCommissionRuleId(event.target.value)}
-                        disabled={commissionLoading || availableConfiguredCommissionRules.length === 0}
-                        className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="">请选择财务规则库中的项目规则</option>
-                        {availableConfiguredCommissionRules.map((rule) => (
-                          <option key={rule.id} value={rule.id}>
-                            {rule.name} / {getRuleTargetLabel(rule, projectTypeList)} / {getCommissionUserName(rule)} /{' '}
-                            {rule.fixedAmount ? formatCurrency(Number(rule.fixedAmount)) : formatPercent(rule.rate)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleAddConfiguredCommissionRule()}
-                        disabled={!selectedCommissionRuleId}
-                        className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Plus className="h-4 w-4" />
-                        引用
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {commissionLoading && (
-                  <div className="flex items-center justify-center rounded-lg border border-gray-200 py-8 text-sm text-gray-500">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-500" />
-                    正在加载适用提成...
-                  </div>
-                )}
-
-                {!commissionLoading && staffUsers.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                    暂无可选员工。规则库推荐仍会展示；如需创建项目例外，请先在系统管理-用户管理中维护门店员工。
-                  </div>
-                )}
-
-                {!commissionLoading && recommendedCommissionRules.length > 0 && (
-                  <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-800">规则库推荐</h4>
-                      <span className="text-xs text-gray-500">来自【财务管理-提成规则】，添加后作为当前项目例外生效</span>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {recommendedCommissionRules.map((rule) => {
-                        const added = commissionDrafts.some((draft) => Number(draft.sourceRuleId) === Number(rule.id));
-                        return (
-                          <div key={rule.id} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate font-medium text-gray-800">{rule.name}</div>
-                                <div className="mt-1 text-xs text-gray-500">
-                                  {getRuleTargetLabel(rule, projectTypeList)} · {getCommissionUserName(rule)} ·{' '}
-                                  {rule.fixedAmount ? formatCurrency(Number(rule.fixedAmount)) : formatPercent(rule.rate)}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleAddConfiguredCommissionRule(rule)}
-                                disabled={added || staffUsers.length === 0}
-                                className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400"
-                              >
-                                {added ? '已添加' : '添加'}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {!commissionLoading && commissionDetailCount === 0 && (
-                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                    当前项目默认沿用财务规则库；如该项目有特殊提成，再从规则库引用或新增项目例外。
-                  </div>
-                )}
-
-                {!commissionLoading && commissionDetailCount > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-800">当前项目例外规则</h4>
-                      <span className="text-xs text-gray-500">项目例外优先生效；完整规则仍在财务管理维护</span>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-gray-200">
-                      <table className="w-full min-w-[980px] text-sm">
-                        <thead className="bg-gray-50 text-left text-gray-600">
-                          <tr>
-                            <th className="w-28 px-4 py-3 font-medium">来源</th>
-                            <th className="w-36 px-4 py-3 font-medium">适用范围</th>
-                            <th className="w-64 px-4 py-3 font-medium">适用员工</th>
-                            <th className="px-4 py-3 font-medium">规则名称</th>
-                            <th className="w-28 px-4 py-3 font-medium">比例</th>
-                            <th className="w-28 px-4 py-3 font-medium">固定金额</th>
-                            <th className="w-16 px-4 py-3 text-right font-medium">操作</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {commissionDrafts.map((draft) => (
-                            <tr key={draft.rowId} className="bg-white">
-                              <td className="px-4 py-3">
-                                <div className="text-xs font-medium text-blue-700">{getDraftSourceLabel(draft)}</div>
-                                {draft.sourceRuleName && (
-                                  <div className="mt-1 max-w-[120px] truncate text-xs text-gray-400">
-                                    源自：{draft.sourceRuleName}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-600">指定项目</td>
-                              <td className="px-4 py-3">
-                                <div className="rounded-lg border border-gray-300 bg-white p-2">
-                                  <div
-                                    className="mb-2 truncate text-xs text-gray-500"
-                                    title={getSelectedStaffNames(draft.userIds, staffUsers)}
-                                  >
-                                    已选 {draft.userIds.length} 人：{getSelectedStaffNames(draft.userIds, staffUsers)}
-                                  </div>
-                                  <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
-                                    {staffUsers.map((user) => {
-                                      const userId = Number(user.id);
-                                      return (
-                                        <label key={user.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-blue-50">
-                                          <input
-                                            type="checkbox"
-                                            checked={draft.userIds.includes(userId)}
-                                            onChange={() => toggleCommissionDraftUser(draft.rowId, userId)}
-                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                          />
-                                          <span className="truncate text-sm text-gray-700">{getStaffUserName(user)}</span>
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  value={draft.name}
-                                  onChange={(event) => updateCommissionDraft(draft.rowId, 'name', event.target.value)}
-                                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.001"
-                                  value={draft.rate}
-                                  onChange={(event) => updateCommissionDraft(draft.rowId, 'rate', Math.max(0, Number(event.target.value) || 0))}
-                                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="按比例"
-                                  value={draft.fixedAmount}
-                                  onChange={(event) =>
-                                    updateCommissionDraft(
-                                      draft.rowId,
-                                      'fixedAmount',
-                                      event.target.value === '' ? '' : Math.max(0, Number(event.target.value) || 0),
-                                    )
-                                  }
-                                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveCommissionDraft(draft.rowId)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
-                                  aria-label="删除提成规则"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            )}
           </form>
         </div>
 
@@ -1697,7 +1187,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
           {currentStep !== 'basic' && (
             <button
               type="button"
-              onClick={() => setCurrentStep(currentStep === 'commission' ? 'bom' : 'basic')}
+              onClick={() => setCurrentStep('basic')}
               className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
             >
               上一步
@@ -1709,7 +1199,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSubmittingForm && <Loader2 className="w-4 h-4 animate-spin" />}
-            {currentStep === 'commission' ? '确定' : '下一步'}
+            {currentStep === 'basic' ? '下一步' : '确定'}
           </button>
         </div>
       </div>

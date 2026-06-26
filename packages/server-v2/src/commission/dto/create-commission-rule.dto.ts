@@ -3,7 +3,7 @@ import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const COMMISSION_TYPES = ['project', 'product', 'card_sale', 'recharge', 'new_customer'] as const;
-export const COMMISSION_TARGET_TYPES = ['all', 'category', 'specific'] as const;
+export const COMMISSION_TARGET_TYPES = ['all', 'specific'] as const;
 export const COMMISSION_CALC_BASES = ['total', 'service_fee', 'profit'] as const;
 export const COMMISSION_STATUSES = ['active', 'disabled', 'archived'] as const;
 
@@ -18,28 +18,29 @@ export class CreateCommissionRuleDto {
   @IsIn(COMMISSION_TYPES)
   type: string;
 
-  @ApiPropertyOptional({ enum: COMMISSION_TARGET_TYPES, default: 'all' })
+  @ApiPropertyOptional({ enum: COMMISSION_TARGET_TYPES, default: 'all', description: '历史兼容字段。新规则库不再直接维护适用对象。' })
   @IsOptional()
   @IsString()
   @IsIn(COMMISSION_TARGET_TYPES)
   targetType?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: '历史兼容字段。新规则库不再直接维护适用对象。' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   targetId?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: '历史兼容字段。阶段 1 不使用员工等级。' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   levelId?: number;
 
-  @ApiProperty({ description: '适用员工，必须来自系统管理-用户管理' })
+  @ApiPropertyOptional({ description: '历史兼容字段。新规则库不再直接维护适用员工。' })
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  userId!: number;
+  userId?: number;
 
   @ApiProperty({ description: '比例。0.08 表示 8%' })
   @Type(() => Number)
@@ -91,4 +92,45 @@ export class CreateCommissionRuleDto {
   @IsString()
   @IsIn(COMMISSION_STATUSES)
   status?: string;
+}
+
+export class CreateCommissionRuleAssignmentDto {
+  @ApiProperty({ description: '关联规则 ID' })
+  @Type(() => Number)
+  @IsInt()
+  ruleId!: number;
+
+  @ApiProperty({ enum: COMMISSION_TYPES })
+  @IsString()
+  @IsIn(COMMISSION_TYPES)
+  type!: string;
+
+  @ApiPropertyOptional({ enum: COMMISSION_TARGET_TYPES, default: 'all' })
+  @IsOptional()
+  @IsString()
+  @IsIn(COMMISSION_TARGET_TYPES)
+  targetType?: string;
+
+  @ApiPropertyOptional({ description: '项目、商品或卡项 ID。充值和新客为空。' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  targetId?: number;
+
+  @ApiProperty({ description: '适用员工 ID' })
+  @Type(() => Number)
+  @IsInt()
+  userId!: number;
+
+  @ApiPropertyOptional({ enum: COMMISSION_STATUSES, default: 'active' })
+  @IsOptional()
+  @IsString()
+  @IsIn(COMMISSION_STATUSES)
+  status?: string;
+
+  @ApiPropertyOptional({ description: '配置备注' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  remark?: string;
 }

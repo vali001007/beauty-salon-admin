@@ -73,6 +73,7 @@ model Store {
   printJobs                PrintJob[]
   aiAuditLogs              AiAuditLog[]
   commissionRules          CommissionRule[]
+  commissionRuleAssignments CommissionRuleAssignment[]
   commissionRecords        CommissionRecord[]
   commissionSettlements    CommissionSettlement[]
   cashierShifts            CashierShift[]
@@ -131,6 +132,7 @@ model User {
   completedFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpCompletedBy")
   createdOperatingCosts  OperatingCost[]        @relation("OperatingCostCreatedBy")
   commissionRules        CommissionRule[]        @relation("CommissionRuleUser")
+  commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
   commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
   commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
@@ -1175,11 +1177,36 @@ model CommissionRule {
   store   Store              @relation(fields: [storeId], references: [id])
   level   BeauticianLevel?   @relation(fields: [levelId], references: [id])
   user    User?              @relation("CommissionRuleUser", fields: [userId], references: [id], onDelete: SetNull)
+  assignments CommissionRuleAssignment[]
   records CommissionRecord[]
 
   @@index([storeId, type, status])
   @@index([levelId])
   @@index([userId])
+}
+
+model CommissionRuleAssignment {
+  id         Int      @id @default(autoincrement())
+  storeId    Int
+  ruleId     Int
+  type       String
+  targetType String   @default("all")
+  targetId   Int?
+  userId     Int
+  status     String   @default("active")
+  remark     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  store   Store          @relation(fields: [storeId], references: [id])
+  rule    CommissionRule @relation(fields: [ruleId], references: [id])
+  user    User           @relation("CommissionRuleAssignmentUser", fields: [userId], references: [id])
+  records CommissionRecord[]
+
+  @@index([storeId, type, status])
+  @@index([ruleId])
+  @@index([userId])
+  @@index([targetType, targetId])
 }
 
 model CommissionRecord {
@@ -1193,6 +1220,7 @@ model CommissionRecord {
   sourceId     Int?
   cardUsageRecordId Int?
   ruleId       Int?
+  assignmentId Int?
   type         String
   sourceAmount Decimal
   rate         Decimal
@@ -1211,6 +1239,7 @@ model CommissionRecord {
   orderItem  OrderItem?      @relation(fields: [orderItemId], references: [id])
   cardUsageRecord CardUsageRecord? @relation(fields: [cardUsageRecordId], references: [id], onDelete: SetNull)
   rule       CommissionRule? @relation(fields: [ruleId], references: [id])
+  assignment CommissionRuleAssignment? @relation(fields: [assignmentId], references: [id])
 
   @@index([beauticianId, settleMonth])
   @@index([staffUserId, settleMonth])
@@ -1220,6 +1249,7 @@ model CommissionRecord {
   @@index([sourceType, sourceId])
   @@index([cardUsageRecordId])
   @@index([ruleId])
+  @@index([assignmentId])
 }
 
 model CommissionSettlement {
@@ -2653,6 +2683,8 @@ model AgentRun {
   role         String
   entrypoint   String    @default("api")
   agentCode    String
+  // 角色 Agent 代码，对应 AgentPersona.code（如 manager / marketing / reception）
+  personaCode  String?
   status       String
   userInput    String
   planJson     Json?
@@ -2670,6 +2702,7 @@ model AgentRun {
   @@index([deviceId])
   @@index([status])
   @@index([agentCode])
+  @@index([personaCode])
   @@map("agent_runs")
 }
 
@@ -2772,4 +2805,200 @@ model AgentEvalRun {
   @@index([runId])
   @@index([status])
   @@map("agent_eval_runs")
+}
+
+// ─── Agent Persona（六大角色 Agent 配置）────────────────────────────────────
+
+model AgentPersona {
+  id           Int      @id @default(autoincrement())
+  // 唯一代码，如 manager / marketing / reception / beautician / inventory / finance
+  code         String   @unique
+  name         String
+  description  String?
+  // 可使用该 Agent 的角色列表，JSON 数组如 ["manager","reception"]
+  targetRoles  Json
+  // 该 Persona 允许调用的工具组，JSON 数组如 ["customer.priority.rank","revenue.diagnose"]
+  toolGroups   Json
+  // 默认回复风格配置（简洁/标准/详细等），JSON 对象
+  defaultStyle Json?
+  // 风险策略：哪些操作需要确认/审批，JSON 对象
+  riskPolicy   Json?
+  // 推荐问题列表，JSON 字符串数组，用于冷启动引导
+  suggestedQuestions Json?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@map("agent_personas")
+}
+
+// ─── Agent Rendered Block（任务画布结构化输出持久化）─────────────────────────
+
+model AgentRenderedBlock {
+  id          Int      @id @default(autoincrement())
+  runId       Int
+  // 对应 AuraResponseBlock.kind
+  blockKind   String
+  // 可选标题，用于任务画布显示
+  title       String?
+  // Block 的完整 JSON payload（与 AuraResponseBlock 结构对齐）
+  payloadJson Json
+  // 卡片上的操作按钮列表，JSON 数组
+  actionsJson Json?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([runId, sortOrder])
+  @@index([blockKind])
+  @@map("agent_rendered_blocks")
+}
+
+// ─── Agent Feedback（用户反馈与采纳记录）────────────────────────────────────
+
+model AgentFeedback {
+  id               Int      @id @default(autoincrement())
+  runId            Int
+  userId           Int?
+  storeId          Int?
+  // 1-5 星评分
+  rating           Int?
+  // 用户是否采纳了 Agent 的建议
+  adopted          Boolean?
+  comment          String?
+  // 用户采纳后产生的业务动作，JSON 对象（如 { type: 'reservation', id: 123 }）
+  businessActionJson Json?
+  createdAt        DateTime @default(now())
+
+  @@index([runId])
+  @@index([userId])
+  @@index([storeId, createdAt])
+  @@map("agent_feedbacks")
+}
+
+// ─── Agent Memory（门店级跨会话记忆）────────────────────────────────────────
+
+model AgentMemory {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  userId       Int?
+  personaCode  String?
+  memoryType   String
+  title        String
+  content      String
+  summary      String?
+  importance   Int      @default(1)
+  sourceRunId  Int?
+  sourceJson   Json?
+  status       String   @default("active")
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId, personaCode, status])
+  @@index([storeId, memoryType, status])
+  @@index([userId])
+  @@index([sourceRunId])
+  @@map("agent_memories")
+}
+
+// ─── Agent Daily Archive（每日经营归档）─────────────────────────────────────
+
+model AgentDailyArchive {
+  id             Int      @id @default(autoincrement())
+  storeId        Int
+  archiveDate    DateTime
+  personaCode    String?
+  title          String
+  summary        String
+  metricsJson    Json?
+  highlightsJson Json?
+  risksJson      Json?
+  actionsJson    Json?
+  sourceRunIds   Json?
+  status         String   @default("generated")
+  createdBy      Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([storeId, archiveDate, personaCode])
+  @@index([storeId, archiveDate])
+  @@index([personaCode])
+  @@index([status])
+  @@map("agent_daily_archives")
+}
+
+// ─── Agent Automation（Agent 自动化执行引擎）─────────────────────────────────
+
+model AgentAutomationDefinition {
+  id                 Int       @id @default(autoincrement())
+  storeId            Int
+  personaCode        String?
+  name               String
+  description        String?
+  triggerType        String
+  triggerConfigJson  Json
+  actionPlanJson     Json
+  approvalPolicyJson Json?
+  scheduleJson       Json?
+  riskLevel          String    @default("medium")
+  status             String    @default("draft")
+  sourceRunId        Int?
+  createdBy          Int?
+  lastTriggeredAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([storeId, status])
+  @@index([storeId, personaCode, status])
+  @@index([triggerType])
+  @@index([riskLevel])
+  @@index([sourceRunId])
+  @@map("agent_automation_definitions")
+}
+
+model AgentAutomationRun {
+  id            Int       @id @default(autoincrement())
+  definitionId  Int?
+  storeId       Int
+  personaCode   String?
+  triggerType   String
+  mode          String    @default("manual")
+  status        String
+  triggeredBy   Int?
+  inputJson     Json?
+  outputJson    Json?
+  errorMessage  String?
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([definitionId, startedAt])
+  @@index([storeId, startedAt])
+  @@index([storeId, status])
+  @@index([triggerType])
+  @@map("agent_automation_runs")
+}
+
+model AgentAutomationEffect {
+  id            Int      @id @default(autoincrement())
+  definitionId  Int?
+  runId         Int?
+  storeId       Int
+  effectType    String
+  objectType    String?
+  objectId      Int?
+  customerId    Int?
+  metricKey     String?
+  impactJson    Json?
+  status        String   @default("pending")
+  occurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([definitionId])
+  @@index([runId])
+  @@index([storeId, occurredAt])
+  @@index([effectType])
+  @@index([customerId])
+  @@index([status])
+  @@map("agent_automation_effects")
 }

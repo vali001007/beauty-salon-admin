@@ -53,6 +53,7 @@ const StoreSettings = lazyWithRetry(() => import('./pages/system/StoreSettings')
 const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManagement').then(m => ({ default: m.DeviceManagement })), 'DeviceManagement');
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
 const AgentAuditPage = lazyWithRetry(() => import('./pages/system/AgentAuditPage').then(m => ({ default: m.AgentAuditPage })), 'AgentAuditPage');
+const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
 const CommissionRules = lazyWithRetry(() => import('./pages/finance/CommissionRules').then(m => ({ default: m.CommissionRules })), 'CommissionRules');
 const CommissionRecords = lazyWithRetry(() => import('./pages/finance/CommissionRecords').then(m => ({ default: m.CommissionRecords })), 'CommissionRecords');
 const MonthlySettlement = lazyWithRetry(() => import('./pages/finance/MonthlySettlement').then(m => ({ default: m.MonthlySettlement })), 'MonthlySettlement');
@@ -233,6 +234,9 @@ export const router = createBrowserRouter([
       { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
       { path: 'system/agent-audit', element: withGuard('core:system:view', AgentAuditPage) },
+
+      // AI 智能体工作台
+      { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },
 
       // Fallback
       { path: '*', Component: () => <Placeholder title="404: 页面未找到" /> },
