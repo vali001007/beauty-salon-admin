@@ -84,4 +84,3 @@ export function shouldDisplayUserCommand(intent: AuraResolvedIntent) {
     (!intent.action || !fixedFlowActions.has(intent.action))
   );
 }
-

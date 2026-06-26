@@ -257,4 +257,3 @@ export async function recordAgentAutomationAttribution(data: {
 }): Promise<AgentAutomationEffectItem> {
   return apiClient.post('/agent/automations/effects/attribute', data, agentLongTaskConfig);
 }
-

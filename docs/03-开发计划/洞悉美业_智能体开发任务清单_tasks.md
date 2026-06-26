@@ -1,7 +1,7 @@
 # 洞悉美业·智能体开发任务清单 tasks
 
-版本：v2.0  
-日期：2026-06-26  
+版本：v2.0
+日期：2026-06-26
 适用范围：洞悉美业·新一代门店运营智能体、Ami_Aura 智能终端升级、管理端 `/ami-agent` 工作台、`packages/server-v2/src/agent` 后端 Agent Runtime。
 
 ---
@@ -733,4 +733,3 @@
 - 2026-06-26：严格写入 E2E 证据：阶段 6 创建记忆 `id=1`、生成每日归档 `id=1/status=generated`；阶段 7 创建自动化草稿 `id=1/status=draft`，手动运行进入审批，审批通过 `approved=true`，审批拒绝 `approved=false`，恢复状态 `retry_scheduled`，归因记录 `id=6`。
 
 后续每完成一个阶段，建议在本节追加日期和验证命令结果。
-

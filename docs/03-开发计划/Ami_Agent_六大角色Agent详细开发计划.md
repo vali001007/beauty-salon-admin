@@ -1,8 +1,8 @@
 # Ami_Agent 六大角色 Agent 详细开发计划
 
-更新时间：2026-06-25  
-关联 PRD：`docs/02-产品设计/Ami_Agent_新一代美业门店运营智能体产品需求文档.md`  
-关联对标：`docs/02-产品设计/Ami_Agent_主流Agent对标与美业应用借鉴分析.md`  
+更新时间：2026-06-25
+关联 PRD：`docs/02-产品设计/Ami_Agent_新一代美业门店运营智能体产品需求文档.md`
+关联对标：`docs/02-产品设计/Ami_Agent_主流Agent对标与美业应用借鉴分析.md`
 适用范围：Ami_Core 管理端、`packages/server-v2`、新 Ami_Agent 前端入口、新 Agent Runtime、新工具注册中心、新自动化执行引擎、权限审批审计体系。
 
 ---
