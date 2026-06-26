@@ -1,4 +1,5 @@
 import type { Card } from '@/types/card';
+import type { TerminalCardOrderCreateRequest } from '@/types/terminal';
 import type { CardFormData } from '@/schemas/card';
 import apiClient from '../client';
 import { extractArray, normalizePaginatedResponse } from './response';
@@ -53,18 +54,12 @@ type ApiCardOrder = {
   storeName?: string;
 };
 
-export type CreateCardOrderPayload = {
-  cardId: number;
+export type CreateCardOrderPayload = TerminalCardOrderCreateRequest & {
   userId?: number;
-  customerId?: number;
-  operatorId?: number;
   userName?: string;
-  customerName?: string;
   storeId?: number;
   storeName?: string;
-  cardName?: string;
-  actualPrice: number;
-  totalTimes?: number;
+  actualPrice?: number;
   remainingTimes?: number;
   expireTime?: string;
   expiryDate?: string;
@@ -332,6 +327,7 @@ export async function realCreateCardUsage(data: {
   projectName: string;
   consumedTimes: number;
   operatorId?: number;
+  beauticianId?: number;
 }): Promise<any> {
   return apiClient.post('/cards/usage', data);
 }

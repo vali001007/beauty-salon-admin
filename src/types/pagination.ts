@@ -8,6 +8,13 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   pageSize: number;
+  /**
+   * Some Agent endpoints can return an empty page before the latest database
+   * migrations are applied. Keep this explicit so the UI can distinguish
+   * "no data yet" from "schema not ready".
+   */
+  migrationPending?: boolean;
+  reason?: string;
 }
 
 export interface PaginationParams {

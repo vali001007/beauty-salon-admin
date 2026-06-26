@@ -55,7 +55,7 @@ export async function mockCreateCardOrder(data: CreateCardOrderPayload): Promise
   };
 }
 
-export async function mockCreateCardUsage(data: { cardOrderId: string; projectName: string; consumedTimes: number }): Promise<any> {
+export async function mockCreateCardUsage(data: { cardOrderId: string; projectName: string; consumedTimes: number; beauticianId?: number }): Promise<any> {
   return {
     id: Date.now(),
     cardName: '未知卡',
@@ -64,6 +64,7 @@ export async function mockCreateCardUsage(data: { cardOrderId: string; projectNa
     projectName: data.projectName,
     usedTimes: data.consumedTimes,
     consumedTimes: data.consumedTimes,
+    beauticianId: data.beauticianId,
     usageTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
     operationPermission: '系统',
     orderTime: new Date().toISOString().replace('T', ' ').slice(0, 19),

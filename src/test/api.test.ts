@@ -245,7 +245,7 @@ describe('API facades', () => {
     await expect(api.getCustomerConsumptionRecords()).resolves.toEqual([{ id: 1, customerId: 1001 }]);
     await expect(api.getCustomerHealthProfiles()).resolves.toEqual([{ id: 2, customerId: 1001, skinType: 'dry' }]);
     await expect(api.getCustomerProfileAnalytics()).resolves.toEqual({ totalCustomers: 0, segmentStats: [] });
-    await expect(api.getCustomerCardPortraits()).resolves.toEqual({ items: [], data: [], total: 0 });
+    await expect(api.getCustomerCardPortraits({ page: 1, pageSize: 20 })).resolves.toEqual({ items: [], data: [], total: 0 });
     expect(realGetCustomerConsumptionRecords).toHaveBeenCalledTimes(1);
     expect(realGetCustomerHealthProfiles).toHaveBeenCalledTimes(1);
     expect(realGetCustomerProfileAnalytics).toHaveBeenCalledTimes(1);

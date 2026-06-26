@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Eye, Users, Calendar, TrendingUp, Smartphone } from 'lucide-react';
+import { useSearchParams } from 'react-router';
 import { CreateActivityDialog } from '../components/CreateActivityDialog';
 import { ActivityMiniPage, type ActivityPageData } from '../components/ActivityMiniPage';
 import {
@@ -71,6 +72,8 @@ function getMarketingPageUrl(page: MarketingPage) {
 }
 
 export function MarketingStrategy() {
+  const [searchParams] = useSearchParams();
+  const focusedActivityId = Number(searchParams.get('focusActivityId') || 0);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [activityStatusFilter, setActivityStatusFilter] = useState('进行中');
   const [activities, setActivities] = useState<MarketingActivity[]>([]);
@@ -110,6 +113,12 @@ export function MarketingStrategy() {
   useEffect(() => {
     loadActivities();
   }, [loadActivities]);
+
+  useEffect(() => {
+    if (!focusedActivityId || activities.length === 0) return;
+    const focused = activities.find((activity) => activity.id === focusedActivityId);
+    if (focused) setActivityStatusFilter(focused.status);
+  }, [activities, focusedActivityId]);
 
   const filteredActivities = activities.filter(a => a.status === activityStatusFilter);
 
@@ -154,6 +163,12 @@ export function MarketingStrategy() {
         </button>
       </div>
 
+      {focusedActivityId > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          已从 Agent 草稿定位到活动 ID {focusedActivityId}。请在下方高亮卡片中继续核对客群、权益、活动页和投放配置。
+        </div>
+      )}
+
       {/* 状态筛选标签 */}
       <div className="flex items-center gap-2">
         {(['进行中', '即将开始', '已结束', '草稿'] as const).map((status) => {
@@ -181,8 +196,9 @@ export function MarketingStrategy() {
           const effect = activityEffectsByActivityId[activity.id];
           const viewCount = effect?.exposureCount ?? 0;
           const isPagePublished = page?.status === 'published';
+          const focused = activity.id === focusedActivityId;
           return (
-          <div key={activity.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+          <div key={activity.id} className={`rounded-lg overflow-hidden transition-shadow ${focused ? 'border-2 border-blue-500 shadow-md shadow-blue-100' : 'border border-gray-200 hover:shadow-md'}`}>
             <div className="relative h-48" style={{ backgroundColor: activity.posterBg || '#6366f1' }}>
               {(activity.posterImage || activity.image) ? (
                 <img src={activity.posterImage || activity.image} alt="" className="w-full h-full object-cover opacity-40" />

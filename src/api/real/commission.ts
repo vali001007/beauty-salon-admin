@@ -121,6 +121,26 @@ export interface CommissionRule {
   minThreshold?: number;
   status: CommissionStatus;
   priority: number;
+  assignments?: Array<{ id: number; status: CommissionStatus }>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CommissionRuleAssignment {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  ruleId: number;
+  rule?: CommissionRule;
+  ruleName?: string;
+  type: CommissionType;
+  targetType: CommissionTargetType;
+  targetId?: number;
+  userId: number;
+  user?: { id: number; name: string; username?: string };
+  userName?: string;
+  status: CommissionStatus;
+  remark?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -136,7 +156,10 @@ export interface CommissionRecord {
   orderId?: number;
   orderNo?: string;
   orderItem?: { id: number; name?: string; itemType?: string };
+  cardUsageRecord?: { id: number; cardName?: string; projectName?: string };
   ruleName?: string;
+  assignmentId?: number;
+  assignmentName?: string;
   type: CommissionType;
   sourceAmount: number;
   rate: number;
@@ -267,6 +290,23 @@ export async function realUpdateCommissionRule(id: number, data: Partial<Commiss
 
 export async function realDeleteCommissionRule(id: number) {
   return apiClient.delete(`/commission/rules/${id}`);
+}
+
+export async function realGetCommissionRuleAssignments(params: PaginationParams & Record<string, unknown>) {
+  const response = await apiClient.get('/commission/rule-assignments', { params });
+  return normalizePaginated<CommissionRuleAssignment>(response);
+}
+
+export async function realCreateCommissionRuleAssignment(data: Partial<CommissionRuleAssignment>) {
+  return apiClient.post('/commission/rule-assignments', data);
+}
+
+export async function realUpdateCommissionRuleAssignment(id: number, data: Partial<CommissionRuleAssignment>) {
+  return apiClient.put(`/commission/rule-assignments/${id}`, data);
+}
+
+export async function realDeleteCommissionRuleAssignment(id: number) {
+  return apiClient.delete(`/commission/rule-assignments/${id}`);
 }
 
 export async function realBatchCreateCommissionRules(template = 'beauty_standard') {

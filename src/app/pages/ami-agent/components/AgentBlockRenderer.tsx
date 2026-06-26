@@ -22,13 +22,22 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Copy,
+  RefreshCw,
+  CheckCircle2,
+  PackageCheck,
+  Truck,
 } from 'lucide-react';
 import type { AuraResponseBlock } from '@/types/agent';
+
+type AgentActionPayload = {
+  args?: Record<string, unknown>;
+};
 
 interface AgentBlockRendererProps {
   blocks: AuraResponseBlock[];
   onCommand?: (command: string) => void;
-  onAction?: (actionId: string) => void;
+  onAction?: (actionId: string, payload?: AgentActionPayload) => void;
 }
 
 /**
@@ -66,7 +75,7 @@ function SingleBlock({
 }: {
   block: AuraResponseBlock;
   onCommand?: (s: string) => void;
-  onAction?: (id: string) => void;
+  onAction?: (id: string, payload?: AgentActionPayload) => void;
 }) {
   switch (block.kind) {
     case 'text':
@@ -90,6 +99,66 @@ function SingleBlock({
           )}
         </div>
       );
+    case 'opportunity_card':
+      return (
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs text-muted-foreground">{block.title}</div>
+              <div className="mt-0.5 text-sm font-medium text-foreground">{block.productName}</div>
+            </div>
+            <div className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+              匹配分 {block.fitScore}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span>{block.opportunityType}</span>
+            {block.sku && <span>SKU {block.sku}</span>}
+            {block.marginRateText && <span>毛利 {block.marginRateText}</span>}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-foreground">
+            {block.currentStock !== undefined && <MetricChip label="当前库存" value={String(block.currentStock)} />}
+            {block.salesQuantity !== undefined && <MetricChip label="近30天销量" value={String(block.salesQuantity)} />}
+            {block.customerCount !== undefined && <MetricChip label="触达客户" value={String(block.customerCount)} />}
+            {block.daysToExpiry !== undefined && block.daysToExpiry !== null && <MetricChip label="临期天数" value={String(block.daysToExpiry)} />}
+          </div>
+          <div className="mt-2 rounded bg-muted px-2 py-1.5 text-xs text-foreground">{block.reason}</div>
+          {block.suggestedCampaign && (
+            <div className="mt-2 text-xs text-muted-foreground">建议活动：{block.suggestedCampaign}</div>
+          )}
+          {block.riskWarnings && block.riskWarnings.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {block.riskWarnings.slice(0, 3).map((warning, index) => (
+                <div key={index} className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                  {warning}
+                </div>
+              ))}
+            </div>
+          )}
+          {block.actions && block.actions.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {block.actions.slice(0, 3).map((action) => (
+                <button
+                  key={action.actionId}
+                  type="button"
+                  onClick={() => onAction?.(action.actionId)}
+                  className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-muted transition-colors"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    case 'activity_draft_card':
+      return <ActivityDraftCard block={block} onAction={onAction} />;
+    case 'copy_variants':
+      return <CopyVariantsBlock block={block} onCommand={onCommand} />;
+    case 'inventory_item_card':
+      return <InventoryItemCard block={block} onAction={onAction} />;
+    case 'supplier_purchase_card':
+      return <SupplierPurchaseCard block={block} onAction={onAction} />;
     case 'confirm_action':
       return (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -146,6 +215,346 @@ function SingleBlock({
   }
 }
 
+// ─── Marketing Blocks ────────────────────────────────────────────────────────
+
+type CopyVariantsBlockData = Extract<AuraResponseBlock, { kind: 'copy_variants' }>;
+type ActivityDraftBlockData = Extract<AuraResponseBlock, { kind: 'activity_draft_card' }>;
+type InventoryItemBlockData = Extract<AuraResponseBlock, { kind: 'inventory_item_card' }>;
+type SupplierPurchaseBlockData = Extract<AuraResponseBlock, { kind: 'supplier_purchase_card' }>;
+
+function CopyVariantsBlock({
+  block,
+  onCommand,
+}: {
+  block: CopyVariantsBlockData;
+  onCommand?: (command: string) => void;
+}) {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const handleCopy = async (content: string, index: number) => {
+    await navigator.clipboard?.writeText(content);
+    setCopiedIndex(index);
+    window.setTimeout(() => setCopiedIndex(null), 1600);
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs text-muted-foreground">{block.title}</div>
+          <div className="mt-0.5 text-sm font-medium text-foreground">{block.target}</div>
+        </div>
+        <div className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{block.offer}</div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {block.variants.slice(0, 3).map((variant, index) => (
+          <div key={`${variant.label}-${index}`} className="rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <div className="text-xs font-medium text-foreground">
+                {variant.label}
+                {variant.tone && <span className="ml-2 font-normal text-muted-foreground">{variant.tone}</span>}
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCopy(variant.content, index)}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-muted"
+              >
+                {copiedIndex === index ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                {copiedIndex === index ? '已复制' : '复制'}
+              </button>
+            </div>
+            <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">{variant.content}</p>
+            <button
+              type="button"
+              onClick={() => onCommand?.(`基于这条话术继续优化：${variant.content}`)}
+              className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className="h-3 w-3" />
+              继续优化
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ActivityDraftCard({
+  block,
+  onAction,
+}: {
+  block: ActivityDraftBlockData;
+  onAction?: (actionId: string, payload?: AgentActionPayload) => void;
+}) {
+  const [draft, setDraft] = useState({
+    title: block.title,
+    targetAudience: block.targetAudience,
+    offerSummary: block.offerSummary,
+    scheduleHint: block.scheduleHint ?? '建议审批通过后先保存草稿，再由运营确认发送时间',
+    copyPreview: block.copyPreview,
+  });
+  const editable = block.editable !== false;
+  const [showAudienceDetails, setShowAudienceDetails] = useState(false);
+
+  const updateDraft = (key: keyof typeof draft, value: string) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const approvePayload = {
+    args: {
+      title: draft.title,
+      targetAudience: draft.targetAudience,
+      offerSummary: draft.offerSummary,
+      copyPreview: draft.copyPreview,
+      scheduleHint: draft.scheduleHint,
+    },
+  };
+
+  return (
+    <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+      <div className="text-xs text-violet-700">营销活动草稿</div>
+      {editable ? (
+        <div className="mt-2 grid gap-2">
+          <DraftInput label="活动标题" value={draft.title} onChange={(value) => updateDraft('title', value)} />
+          <DraftInput label="目标客群" value={draft.targetAudience} onChange={(value) => updateDraft('targetAudience', value)} />
+          <DraftInput label="推荐权益" value={draft.offerSummary} onChange={(value) => updateDraft('offerSummary', value)} />
+          <DraftInput label="发送时间" value={draft.scheduleHint} onChange={(value) => updateDraft('scheduleHint', value)} />
+          <DraftTextArea label="触达话术" value={draft.copyPreview} onChange={(value) => updateDraft('copyPreview', value)} />
+        </div>
+      ) : (
+        <>
+          <div className="mt-0.5 text-sm font-medium text-foreground">{draft.title}</div>
+          <div className="mt-2 grid gap-2 text-xs text-foreground">
+            <MetricChip label="目标客群" value={draft.targetAudience} />
+            <MetricChip label="推荐权益" value={draft.offerSummary} />
+            {draft.scheduleHint && <MetricChip label="建议时间" value={draft.scheduleHint} />}
+          </div>
+          <div className="mt-2 rounded border border-violet-100 bg-white/70 px-2 py-1.5 text-xs text-foreground">
+            {draft.copyPreview}
+          </div>
+        </>
+      )}
+      {block.recommendedItems && block.recommendedItems.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {block.recommendedItems.slice(0, 3).map((item) => (
+            <div key={item.name} className="rounded bg-white/70 px-2 py-1.5 text-xs text-foreground">
+              <span className="font-medium">{item.name}</span>
+              {item.fitScore !== undefined && <span className="ml-2 text-violet-700">匹配分 {item.fitScore}</span>}
+              {item.reason && <div className="mt-0.5 text-muted-foreground">{item.reason}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {block.impactSummary && (
+        <div className="mt-2 text-xs text-muted-foreground">{block.impactSummary}</div>
+      )}
+      {block.offerCostEstimate && block.offerCostEstimate.length > 0 && (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {block.offerCostEstimate.slice(0, 3).map((item) => (
+            <div key={`${item.label}-${item.value}`} className={`rounded border px-2 py-1.5 ${draftMetricClass(item.tone)}`}>
+              <div className="text-[10px] opacity-75">{item.label}</div>
+              <div className="mt-0.5 text-xs font-medium">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {block.audienceDetails && block.audienceDetails.length > 0 && (
+        <div className="mt-2 rounded border border-violet-100 bg-white/70">
+          <button
+            type="button"
+            onClick={() => setShowAudienceDetails((value) => !value)}
+            className="flex w-full items-center justify-between px-2 py-1.5 text-xs text-foreground hover:bg-violet-50/70"
+          >
+            <span>客群明细 · {block.audienceDetails.length} 项</span>
+            {showAudienceDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showAudienceDetails && (
+            <div className="border-t border-violet-100 px-2 py-1.5">
+              {block.audienceDetails.slice(0, 5).map((item) => (
+                <div key={`${item.label}-${item.value}`} className="py-1 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-foreground">{item.label}</span>
+                    <span className="text-violet-700">{item.value}</span>
+                  </div>
+                  {item.description && <div className="mt-0.5 text-muted-foreground">{item.description}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {block.actions && block.actions.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {block.actions.map((action) => (
+            <button
+              key={action.actionId}
+              type="button"
+              onClick={() => onAction?.(action.actionId, action.actionId.startsWith('approve:') ? approvePayload : undefined)}
+              className={
+                action.riskLevel === 'medium'
+                  ? 'rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background hover:opacity-80'
+                  : 'rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-muted transition-colors'
+              }
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function draftMetricClass(tone?: 'default' | 'warning' | 'critical' | 'success') {
+  if (tone === 'warning') return 'border-amber-200 bg-amber-50 text-amber-800';
+  if (tone === 'critical') return 'border-red-200 bg-red-50 text-red-700';
+  if (tone === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  return 'border-violet-100 bg-white/70 text-foreground';
+}
+
+function DraftInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="grid gap-1">
+      <span className="text-[10px] text-violet-700">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-8 rounded border border-violet-100 bg-white/80 px-2 text-xs text-foreground outline-none focus:border-violet-300"
+      />
+    </label>
+  );
+}
+
+function DraftTextArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="grid gap-1">
+      <span className="text-[10px] text-violet-700">{label}</span>
+      <textarea
+        value={value}
+        rows={3}
+        onChange={(event) => onChange(event.target.value)}
+        className="min-h-[76px] resize-y rounded border border-violet-100 bg-white/80 px-2 py-1.5 text-xs leading-relaxed text-foreground outline-none focus:border-violet-300"
+      />
+    </label>
+  );
+}
+
+// ─── Inventory Blocks ────────────────────────────────────────────────────────
+
+function InventoryItemCard({
+  block,
+  onAction,
+}: {
+  block: InventoryItemBlockData;
+  onAction?: (id: string) => void;
+}) {
+  return (
+    <div className={`rounded-lg border bg-card p-3 ${riskBorderClass(block.riskLevel)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+            <PackageCheck className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">{block.title}</div>
+            <div className="mt-0.5 truncate text-sm font-medium text-foreground">{block.itemName}</div>
+            {block.subtitle && <div className="mt-0.5 truncate text-xs text-muted-foreground">{block.subtitle}</div>}
+          </div>
+        </div>
+        {block.statusLabel && (
+          <span className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${riskPillClass(block.riskLevel)}`}>
+            {block.statusLabel}
+          </span>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {block.metrics.slice(0, 4).map((metric) => (
+          <MetricChip key={`${metric.label}-${metric.value}`} label={metric.label} value={metric.value} />
+        ))}
+      </div>
+      {block.reason && <div className="mt-3 rounded bg-muted px-2 py-1.5 text-xs leading-relaxed text-foreground">{block.reason}</div>}
+      {block.actions && block.actions.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {block.actions.slice(0, 3).map((action) => (
+            <button
+              key={action.actionId}
+              type="button"
+              onClick={() => onAction?.(action.actionId)}
+              className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-muted transition-colors"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupplierPurchaseCard({
+  block,
+  onAction,
+}: {
+  block: SupplierPurchaseBlockData;
+  onAction?: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+            <Truck className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">{block.title}</div>
+            <div className="mt-0.5 truncate text-sm font-medium text-foreground">{block.productName}</div>
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">{block.supplierName}</div>
+          </div>
+        </div>
+        {block.statusLabel && (
+          <span className="flex-shrink-0 rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
+            {block.statusLabel}
+          </span>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {block.metrics.slice(0, 4).map((metric) => (
+          <MetricChip key={`${metric.label}-${metric.value}`} label={metric.label} value={metric.value} />
+        ))}
+      </div>
+      {block.reason && <div className="mt-3 rounded bg-muted px-2 py-1.5 text-xs leading-relaxed text-foreground">{block.reason}</div>}
+      {block.actions && block.actions.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {block.actions.slice(0, 3).map((action) => (
+            <button
+              key={action.actionId}
+              type="button"
+              onClick={() => onAction?.(action.actionId)}
+              className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-muted transition-colors"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function riskBorderClass(level?: 'low' | 'medium' | 'high') {
+  if (level === 'high') return 'border-rose-200';
+  if (level === 'medium') return 'border-amber-200';
+  if (level === 'low') return 'border-emerald-200';
+  return 'border-border';
+}
+
+function riskPillClass(level?: 'low' | 'medium' | 'high') {
+  if (level === 'high') return 'bg-rose-50 text-rose-700';
+  if (level === 'medium') return 'bg-amber-50 text-amber-700';
+  if (level === 'low') return 'bg-emerald-50 text-emerald-700';
+  return 'bg-muted text-muted-foreground';
+}
+
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -181,6 +590,15 @@ function KpiCard({
         </div>
       )}
       {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
+
+function MetricChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded bg-muted px-2 py-1.5">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium text-foreground">{value}</div>
     </div>
   );
 }
@@ -231,6 +649,9 @@ function ChartBlock({
   yKeys?: string[];
 }) {
   const dataArr = Array.isArray(data) ? data : [];
+  if (chartType === 'funnel') {
+    return <FunnelChartBlock title={title} data={dataArr} valueKey={yKeys[0] ?? 'value'} />;
+  }
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="mb-2 text-xs font-medium text-muted-foreground">{title}</div>
@@ -260,6 +681,50 @@ function ChartBlock({
           </LineChart>
         )}
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+function FunnelChartBlock({
+  title,
+  data,
+  valueKey,
+}: {
+  title: string;
+  data: unknown[];
+  valueKey: string;
+}) {
+  const rows = data
+    .map((item) => (typeof item === 'object' && item ? item as Record<string, unknown> : null))
+    .filter((item): item is Record<string, unknown> => Boolean(item));
+  const max = Math.max(...rows.map((item) => Number(item[valueKey]) || 0), 1);
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="mb-3 text-xs font-medium text-muted-foreground">{title}</div>
+      <div className="space-y-2">
+        {rows.map((item, index) => {
+          const value = Number(item[valueKey]) || 0;
+          const width = Math.max(8, Math.round((value / max) * 100));
+          const name = String(item.name ?? item.label ?? `阶段${index + 1}`);
+          const valueText = String(item.valueText ?? value);
+          const rateText = item.rateText ? String(item.rateText) : '';
+          return (
+            <div key={`${name}-${index}`} className="grid grid-cols-[72px_1fr_70px] items-center gap-2 text-xs">
+              <div className="truncate text-muted-foreground">{name}</div>
+              <div className="h-7 rounded bg-muted">
+                <div
+                  className="flex h-7 items-center rounded bg-[#7B5CFF] px-2 text-[11px] font-medium text-white transition-all"
+                  style={{ width: `${width}%` }}
+                >
+                  {valueText}
+                </div>
+              </div>
+              <div className="text-right text-muted-foreground">{rateText}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

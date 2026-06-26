@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { BarChart3, Search, Plus, RotateCcw, X, Minus, Loader2 } from 'lucide-react';
 import { Input, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import {
@@ -13,12 +13,14 @@ import {
 } from '@/api/card';
 import { getCustomers } from '@/api/customer';
 import { getUsers } from '@/api/user';
+import { getBeauticians } from '@/api/beautician';
+import { getProjects } from '@/api/project';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import { useAuthStore } from '@/stores/authStore';
 import { hasPermission } from '@/config/permissions';
 import type { Card } from '@/types/card';
-import type { Customer, Store } from '@/types';
+import type { Beautician, Customer, Project, Store } from '@/types';
 import type { SystemUser } from '@/types/user';
 import type { CardOrderProfitDetail } from '@/api/real/card';
 import { toast } from 'sonner';
@@ -68,6 +70,10 @@ interface ProjectItem {
   remainCount: number;
   remark: string;
 }
+
+type CardOrderPaymentMethod = '微信' | '支付宝' | '银行卡' | '现金';
+
+const CARD_ORDER_PAYMENT_METHODS: CardOrderPaymentMethod[] = ['微信', '支付宝', '银行卡', '现金'];
 
 function toProjectItems(card?: Card): ProjectItem[] {
   return (card?.projects ?? []).map((project, index) => {
@@ -155,6 +161,7 @@ export function CardOrderManagement() {
   const [cards, setCards] = useState<Card[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [salesUsers, setSalesUsers] = useState<SystemUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [salesUsersLoading, setSalesUsersLoading] = useState(false);
@@ -176,29 +183,32 @@ export function CardOrderManagement() {
   const [formData, setFormData] = useState({
     cardId: '',
     cardPrice: 0,
-    discount: 100,
-    discountPrice: 0,
+    discountAmount: 0,
     customerId: '',
     operatorId: '',
     userName: '',
     storeId: '',
     startTime: '',
     expireTime: '',
-    paymentMethod: 'full' as 'full' | 'installment',
+    giftProjects: [] as string[],
+    paymentMethod: '微信' as CardOrderPaymentMethod,
   });
   const [projectItems, setProjectItems] = useState<ProjectItem[]>([]);
-  const [additionalItems, setAdditionalItems] = useState<ProjectItem[]>([]);
-  const [nextAdditionalId, setNextAdditionalId] = useState(1);
-
-  // 赠送项目-添加预设项目下拉
-  const [showPresetPicker, setShowPresetPicker] = useState(false);
-  const [presetPickerPos, setPresetPickerPos] = useState({ top: 0, left: 0 });
-  const presetBtnRef = useRef<HTMLDivElement>(null);
   const selectedCard = useMemo(
     () => cards.find(card => String(card.id) === formData.cardId),
     [cards, formData.cardId],
   );
-  const selectedCardProjectItems = useMemo(() => toProjectItems(selectedCard), [selectedCard]);
+  const availableGiftProjects = useMemo(() => {
+    const names = projects
+      .filter((project) => project.status !== false)
+      .map((project) => project.name)
+      .filter(Boolean);
+    return Array.from(new Set(names));
+  }, [projects]);
+  const receivableAmount = useMemo(
+    () => Math.max(0, Number((formData.cardPrice - formData.discountAmount).toFixed(2))),
+    [formData.cardPrice, formData.discountAmount],
+  );
   const availableStores = useMemo(
     () => stores.filter(store => store.status !== 'inactive' && store.status !== 'disabled'),
     [stores],
@@ -244,7 +254,7 @@ export function CardOrderManagement() {
         setCards(items);
         setFormData((prev) =>
           prev.cardId && !items.some((card) => String(card.id) === prev.cardId)
-            ? { ...prev, cardId: '', cardPrice: 0, discountPrice: 0, expireTime: '' }
+            ? { ...prev, cardId: '', cardPrice: 0, discountAmount: 0, expireTime: '', giftProjects: [] }
             : prev,
         );
       })
@@ -258,7 +268,7 @@ export function CardOrderManagement() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [currentStoreId, formData.storeId, isDialogOpen]);
 
   useEffect(() => {
     if (!stores.length) {
@@ -311,6 +321,25 @@ export function CardOrderManagement() {
   }, []);
 
   useEffect(() => {
+    if (!isDialogOpen) return;
+    let mounted = true;
+    getProjects()
+      .then((items) => {
+        if (mounted) setProjects(items);
+      })
+      .catch(() => {
+        if (mounted) {
+          setProjects([]);
+          toast.error('赠送项目加载失败，请稍后重试');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isDialogOpen]);
+
+  useEffect(() => {
     if (!formData.operatorId) return;
     if (!selectableSalesUsers.some((user) => String(user.id) === formData.operatorId)) {
       setFormData((prev) => ({ ...prev, operatorId: '' }));
@@ -322,16 +351,21 @@ export function CardOrderManagement() {
   const [consumeOrder, setConsumeOrder] = useState<CardOrder | null>(null);
   const [consumeProject, setConsumeProject] = useState('');
   const [consumeCount, setConsumeCount] = useState(1);
+  const [consumeBeauticianId, setConsumeBeauticianId] = useState('');
+  const [consumeBeauticians, setConsumeBeauticians] = useState<Beautician[]>([]);
+  const [consumeBeauticiansLoading, setConsumeBeauticiansLoading] = useState(false);
   const [consumeSubmitting, setConsumeSubmitting] = useState(false);
 
   const consumeProjects = consumeOrder?.cardProjects ?? [];
   const selectedConsumeProject = consumeProjects.find(project => project.projectName === consumeProject);
+  const selectedConsumeBeautician = consumeBeauticians.find((beautician) => String(beautician.id) === consumeBeauticianId);
 
   const handleOpenConsumeDialog = (order: CardOrder) => {
     const availableProjects = order.cardProjects?.filter(project => project.remainCount > 0) ?? [];
     setConsumeOrder(order);
     setConsumeProject(availableProjects[0]?.projectName ?? order.cardProjects?.[0]?.projectName ?? '');
     setConsumeCount(1);
+    setConsumeBeauticianId('');
     setIsConsumeDialogOpen(true);
   };
 
@@ -340,7 +374,30 @@ export function CardOrderManagement() {
     setConsumeOrder(null);
     setConsumeProject('');
     setConsumeCount(1);
+    setConsumeBeauticianId('');
   };
+
+  useEffect(() => {
+    if (!isConsumeDialogOpen) return;
+    let mounted = true;
+    setConsumeBeauticiansLoading(true);
+    getBeauticians({ storeName: consumeOrder?.storeName })
+      .then((items) => {
+        if (!mounted) return;
+        setConsumeBeauticians(items.filter((item) => item.status === '在职'));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setConsumeBeauticians([]);
+        toast.error('服务人员加载失败，请稍后重试');
+      })
+      .finally(() => {
+        if (mounted) setConsumeBeauticiansLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [consumeOrder?.storeName, isConsumeDialogOpen]);
 
   const handleConsumeSubmit = async () => {
     if (!consumeOrder) return;
@@ -350,6 +407,10 @@ export function CardOrderManagement() {
     }
     if (consumeCount > selectedConsumeProject.remainCount) {
       toast.error('消费次数不能超过该项目剩余次数');
+      return;
+    }
+    if (!selectedConsumeBeautician) {
+      toast.error(consumeBeauticians.length ? '请选择服务人员，用于本次核销提成归属' : '当前没有可选服务人员，请先维护美容师档案后再核销');
       return;
     }
 
@@ -362,6 +423,7 @@ export function CardOrderManagement() {
         cardName: consumeOrder.cardName,
         projectName: consumeProject,
         consumedTimes: consumeCount,
+        beauticianId: selectedConsumeBeautician.id,
       });
       toast.success('次卡核销成功');
       handleCloseConsumeDialog();
@@ -492,25 +554,22 @@ export function CardOrderManagement() {
     setFormData({
       cardId: '',
       cardPrice: 0,
-      discount: 100,
-      discountPrice: 0,
+      discountAmount: 0,
       customerId: '',
       operatorId: '',
       userName: '',
       storeId: currentStoreId ? String(currentStoreId) : '',
       startTime,
       expireTime: '',
-      paymentMethod: 'full',
+      giftProjects: [],
+      paymentMethod: '微信',
     });
     setProjectItems([]);
-    setAdditionalItems([]);
-    setNextAdditionalId(1);
     setIsDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
-    setShowPresetPicker(false);
   };
 
   const handleSubmit = async () => {
@@ -548,7 +607,12 @@ export function CardOrderManagement() {
         storeId: selectedStore.id,
         storeName: selectedStore.name,
         cardName: selectedCard?.name ?? '',
-        actualPrice: Number(formData.discountPrice || formData.cardPrice || 0),
+        amount: receivableAmount,
+        actualPrice: receivableAmount,
+        discountAmount: formData.discountAmount,
+        giftProjects: formData.giftProjects,
+        paymentMethod: formData.paymentMethod,
+        remark: formData.giftProjects.length ? `赠送项目：${formData.giftProjects.join('、')}` : 'Ami Core 管理端办卡',
         totalTimes,
         remainingTimes: totalTimes,
         expireTime: formData.expireTime,
@@ -567,29 +631,17 @@ export function CardOrderManagement() {
   const handleCardChange = (cardId: string) => {
     const card = cards.find(item => String(item.id) === cardId);
     const price = card?.price ?? 0;
-    const discountPrice = Number((price * formData.discount / 100).toFixed(2));
     const expireTime = card ? getExpireTime(formData.startTime, card.validDays) : '';
     setFormData(prev => ({
       ...prev,
       cardId,
       cardPrice: price,
-      discountPrice,
+      discountAmount: 0,
       expireTime,
       storeId: card?.storeId ? String(card.storeId) : prev.storeId,
+      giftProjects: [],
     }));
     setProjectItems(toProjectItems(card));
-    setAdditionalItems([]);
-    setNextAdditionalId(1);
-    setShowPresetPicker(false);
-  };
-
-  const handleAddAdditional = () => {
-    setAdditionalItems(prev => [...prev, { id: nextAdditionalId, name: '', totalCount: 0, usedCount: 0, remainCount: 0, remark: '' }]);
-    setNextAdditionalId(prev => prev + 1);
-  };
-
-  const handleRemoveAdditional = (id: number) => {
-    setAdditionalItems(prev => prev.filter(item => item.id !== id));
   };
 
   return (
@@ -748,7 +800,7 @@ export function CardOrderManagement() {
           <div className="bg-white rounded-lg w-[900px] max-h-[90vh] overflow-y-auto">
             {/* Dialog Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-lg font-medium">新增次卡订单</h2>
+              <h2 className="text-lg font-medium">次卡开卡</h2>
               <button
                 onClick={handleCloseDialog}
                 className="text-gray-400 hover:text-gray-600"
@@ -785,43 +837,30 @@ export function CardOrderManagement() {
                 </div>
               </div>
 
-              {/* Row 1.5: Discount & Discount Price */}
+              {/* Row 1.5: Discount & Receivable */}
               <div className="grid grid-cols-2 gap-6">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">优惠折扣</label>
-                  <div className="flex items-center gap-2 flex-1">
-                    <Input
-                      type="number"
-                      step="1"
-                      min="0"
-                      max="100"
-                      className="w-24 h-9 text-center"
-                      value={formData.discount}
-                      onChange={(e) => {
-                        const disc = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-                        const price = parseFloat((formData.cardPrice * disc / 100).toFixed(2));
-                        setFormData({ ...formData, discount: disc, discountPrice: price });
-                      }}
-                    />
-                    <span className="text-sm text-gray-500">%</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">优惠价格</label>
+                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">优惠金额</label>
                   <div className="flex items-center gap-2 flex-1">
                     <span className="text-sm text-gray-500">¥</span>
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
+                      max={formData.cardPrice}
                       className="w-32 h-9 text-center"
-                      value={formData.discountPrice.toFixed(2)}
+                      value={formData.discountAmount.toFixed(2)}
                       onChange={(e) => {
-                        const price = Math.max(0, parseFloat(e.target.value) || 0);
-                        const disc = formData.cardPrice > 0 ? parseFloat((price / formData.cardPrice * 100).toFixed(2)) : 0;
-                        setFormData({ ...formData, discountPrice: price, discount: Math.min(100, disc) });
+                        const discountAmount = Math.min(formData.cardPrice, Math.max(0, parseFloat(e.target.value) || 0));
+                        setFormData({ ...formData, discountAmount });
                       }}
                     />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">实收金额</label>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(receivableAmount)}</span>
                     <span className="text-xs text-gray-400">（客户实付价格）</span>
                   </div>
                 </div>
@@ -831,7 +870,7 @@ export function CardOrderManagement() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="flex items-center gap-2">
                   <span className="text-red-500">*</span>
-                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">用户名称</label>
+                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">客户</label>
                   <select
                     className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={formData.customerId}
@@ -911,30 +950,22 @@ export function CardOrderManagement() {
               <div className="border border-gray-200 rounded-lg p-6">
                 <h3 className="text-sm font-medium text-gray-800 mb-4">付款信息</h3>
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">付款方式</label>
-                  <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value="full"
-                        checked={formData.paymentMethod === 'full'}
-                        onChange={() => setFormData({ ...formData, paymentMethod: 'full' })}
-                        className="w-4 h-4 text-blue-500 border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className={`text-sm ${formData.paymentMethod === 'full' ? 'text-blue-500' : 'text-gray-600'}`}>全款</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value="installment"
-                        checked={formData.paymentMethod === 'installment'}
-                        onChange={() => setFormData({ ...formData, paymentMethod: 'installment' })}
-                        className="w-4 h-4 text-blue-500 border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className={`text-sm ${formData.paymentMethod === 'installment' ? 'text-blue-500' : 'text-gray-600'}`}>分期</span>
-                    </label>
+                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">支付方式</label>
+                  <div className="grid flex-1 grid-cols-4 gap-2">
+                    {CARD_ORDER_PAYMENT_METHODS.map((method) => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, paymentMethod: method })}
+                        className={`h-9 rounded-md border text-sm ${
+                          formData.paymentMethod === method
+                            ? 'border-blue-500 bg-blue-50 text-blue-600'
+                            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {method}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -984,139 +1015,61 @@ export function CardOrderManagement() {
               {/* Additional Projects Section */}
               <div className="border border-gray-200 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-sm font-medium text-gray-800">赠送项目</h3>
-                    <div className="relative" ref={presetBtnRef}>
-                      <Button
-                        className="gap-1 bg-[#4096ff] hover:bg-[#69b1ff] rounded-full px-5"
-                        size="sm"
-                        onClick={() => {
-                          if (!formData.cardId) return;
-                          const rect = presetBtnRef.current?.getBoundingClientRect();
-                          if (rect) {
-                            setPresetPickerPos({ top: rect.bottom + 4, left: rect.left });
-                          }
-                          setShowPresetPicker(prev => !prev);
-                        }}
-                        disabled={!formData.cardId}
-                      >
-                        添加项目
-                      </Button>
-                      {showPresetPicker && formData.cardId && (
-                        <>
-                          <div className="fixed inset-0 z-[60]" onClick={() => setShowPresetPicker(false)} />
-                          <div
-                            className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[70] min-w-[200px] py-1"
-                            style={{ top: presetPickerPos.top, left: presetPickerPos.left }}
-                          >
-                            {selectedCardProjectItems.map((preset) => {
-                              const alreadyAdded = additionalItems.some(a => a.name === preset.name);
-                              return (
-                                <button
-                                  key={preset.name}
-                                  className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${alreadyAdded ? 'text-gray-400' : 'text-gray-700'}`}
-                                  disabled={alreadyAdded}
-                                  onClick={() => {
-                                    setAdditionalItems(prev => [...prev, {
-                                      id: nextAdditionalId,
-                                      name: preset.name,
-                                      totalCount: preset.totalCount,
-                                      usedCount: 0,
-                                      remainCount: preset.totalCount,
-                                      remark: '',
-                                    }]);
-                                    setNextAdditionalId(prev => prev + 1);
-                                    setShowPresetPicker(false);
-                                  }}
-                                >
-                                  <span>{preset.name}</span>
-                                  {alreadyAdded && <span className="text-xs text-gray-400">已添加</span>}
-                                </button>
-                            );
-                            })}
-                            {selectedCardProjectItems.length === 0 && (
-                              <div className="px-4 py-3 text-sm text-gray-400 text-center">暂无预设项目</div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <h3 className="text-sm font-medium text-gray-800">赠送项目</h3>
                   <Button
-                    className="gap-1 bg-[#30c213] hover:bg-[#52d639] rounded-full px-5"
+                    className="gap-1 bg-[#2D1B69] hover:bg-[#3b2684] rounded-full px-5"
                     size="sm"
-                    onClick={handleAddAdditional}
+                    onClick={() => setFormData((prev) => ({ ...prev, giftProjects: [...prev.giftProjects, ''] }))}
+                    disabled={!availableGiftProjects.length}
                   >
-                    自定义项目
+                    添加明细
                   </Button>
                 </div>
                 <div className="border border-gray-200 rounded-md overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-600">项目名称</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-600">总次数</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-600">备注</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-600">操作</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-gray-600">项目</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-gray-600">操作</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {additionalItems.length === 0 ? (
+                      {formData.giftProjects.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="text-center py-8 text-gray-400">暂无数据</td>
+                          <td colSpan={2} className="text-center py-8 text-gray-400">
+                            {availableGiftProjects.length ? '暂无赠送明细' : '管理端暂无已启用项目'}
+                          </td>
                         </tr>
                       ) : (
-                        additionalItems.map((item) => (
-                          <tr key={item.id} className="border-b border-gray-200 last:border-b-0">
-                            <td className="px-4 py-2">
-                              <Input
-                                className="w-full h-8"
-                                placeholder="请输入项目名称"
-                                value={item.name}
+                        formData.giftProjects.map((projectName, index) => (
+                          <tr key={`${index}-${projectName}`} className="border-b border-gray-200 last:border-b-0">
+                            <td className="px-4 py-2.5">
+                              <select
+                                className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={projectName}
                                 onChange={(e) => {
-                                  setAdditionalItems(prev => prev.map(p => p.id === item.id ? { ...p, name: e.target.value } : p));
+                                  const next = [...formData.giftProjects];
+                                  next[index] = e.target.value;
+                                  setFormData({ ...formData, giftProjects: Array.from(new Set(next.filter(Boolean))) });
                                 }}
-                              />
+                              >
+                                <option value="">请选择赠送项目</option>
+                                {availableGiftProjects
+                                  .filter((project) => project === projectName || !formData.giftProjects.includes(project))
+                                  .map((project) => (
+                                    <option key={project} value={project}>{project}</option>
+                                  ))}
+                              </select>
                             </td>
-                            <td className="px-4 py-2">
-                              <Input
-                                type="number"
-                                className="w-20 h-8"
-                                value={item.totalCount}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value) || 0;
-                                  setAdditionalItems(prev => prev.map(p => p.id === item.id ? { ...p, totalCount: val, remainCount: val - p.usedCount } : p));
-                                }}
-                              />
-                            </td>
-                            <td className="px-4 py-2">
-                              <Input
-                                type="number"
-                                className="w-20 h-8"
-                                value={item.usedCount}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value) || 0;
-                                  setAdditionalItems(prev => prev.map(p => p.id === item.id ? { ...p, usedCount: val, remainCount: p.totalCount - val } : p));
-                                }}
-                              />
-                            </td>
-                            <td className="px-4 py-2">
-                              <span className="text-sm text-gray-600">{item.totalCount - item.usedCount}</span>
-                            </td>
-                            <td className="px-4 py-2">
-                              <Input
-                                className="w-full h-8"
-                                placeholder="请输入备注"
-                                value={item.remark}
-                                onChange={(e) => {
-                                  setAdditionalItems(prev => prev.map(p => p.id === item.id ? { ...p, remark: e.target.value } : p));
-                                }}
-                              />
-                            </td>
-                            <td className="px-4 py-2">
+                            <td className="px-4 py-2.5 text-right">
                               <button
                                 className="text-red-500 hover:text-red-600 text-sm"
-                                onClick={() => handleRemoveAdditional(item.id)}
+                                onClick={() => {
+                                  setFormData({
+                                    ...formData,
+                                    giftProjects: formData.giftProjects.filter((_, targetIndex) => targetIndex !== index),
+                                  });
+                                }}
                               >
                                 删除
                               </button>
@@ -1615,6 +1568,30 @@ export function CardOrderManagement() {
                 )}
               </div>
 
+              {/* 服务人员 */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-0.5 min-w-[80px] justify-end">
+                  <span className="text-red-500 text-sm">*</span>
+                  <label className="text-sm text-gray-800 font-medium">服务人员</label>
+                </div>
+                <select
+                  className="flex-1 h-10 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                  value={consumeBeauticianId}
+                  onChange={(event) => setConsumeBeauticianId(event.target.value)}
+                  disabled={consumeBeauticiansLoading || consumeBeauticians.length === 0}
+                >
+                  <option value="">
+                    {consumeBeauticiansLoading ? '服务人员加载中...' : consumeBeauticians.length ? '请选择服务人员' : '暂无可选服务人员'}
+                  </option>
+                  {consumeBeauticians.map((beautician) => (
+                    <option key={beautician.id} value={String(beautician.id)}>
+                      {beautician.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ml-[92px] text-xs text-gray-500">本次核销将按所选服务人员计算项目提成。</div>
+
               {/* 操作顾问 */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-0.5 min-w-[80px] justify-end">
@@ -1623,7 +1600,7 @@ export function CardOrderManagement() {
                 </div>
                 <Input
                   className="flex-1 h-10 bg-gray-50 text-gray-500"
-                  value="超级管理员"
+                  value={currentUser?.name || currentUser?.username || '当前登录用户'}
                   disabled
                   readOnly
                 />
@@ -1638,7 +1615,12 @@ export function CardOrderManagement() {
               <Button
                 className="bg-[#1890ff] hover:bg-[#40a9ff]"
                 onClick={handleConsumeSubmit}
-                disabled={consumeSubmitting || !selectedConsumeProject || consumeCount > (selectedConsumeProject?.remainCount ?? 0)}
+                disabled={
+                  consumeSubmitting ||
+                  !selectedConsumeProject ||
+                  !selectedConsumeBeautician ||
+                  consumeCount > (selectedConsumeProject?.remainCount ?? 0)
+                }
               >
                 {consumeSubmitting ? '提交中...' : '确 定'}
               </Button>

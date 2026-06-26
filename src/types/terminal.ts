@@ -515,6 +515,7 @@ export interface TerminalCashierContext extends TerminalCatalogSync {
 
 export interface TerminalCardVerificationContext {
   customers: TerminalContextCustomer[];
+  beauticians?: Beautician[];
   storeName: string;
   generatedAt: string;
 }
@@ -829,7 +830,7 @@ export interface TerminalCardOrderCreateRequest {
   totalTimes: number;
   discountAmount?: number;
   giftProjects?: string[];
-  paymentMethod?: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | 'cash' | 'wechat' | 'alipay' | 'card';
+  paymentMethod?: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u4f1a\u5458\u4f59\u989d' | 'cash' | 'wechat' | 'alipay' | 'card' | 'member_balance';
   transactionNo?: string;
   remark?: string;
 }
