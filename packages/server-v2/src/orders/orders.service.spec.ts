@@ -121,10 +121,22 @@ describe('OrdersService card order sales user', () => {
     const productOrderCreate = jest.fn().mockResolvedValue({
       id: 701,
       orderNo: 'CO701',
+      storeId: 1,
+      customerId: 12,
     });
     const orderItemCreate = jest.fn().mockResolvedValue({
       id: 901,
     });
+    const paymentRecordCreate = jest.fn();
+    const customerBalanceAccountFindUnique = jest.fn().mockResolvedValue({
+      id: 301,
+      customerId: 12,
+      storeId: 1,
+      cashBalance: 3000,
+      giftBalance: 500,
+    });
+    const customerBalanceAccountUpdate = jest.fn();
+    const customerBalanceTransactionCreate = jest.fn();
     const tx = {
       customerCard: {
         create: customerCardCreate,
@@ -137,7 +149,14 @@ describe('OrdersService card order sales user', () => {
         create: orderItemCreate,
       },
       paymentRecord: {
-        create: jest.fn(),
+        create: paymentRecordCreate,
+      },
+      customerBalanceAccount: {
+        findUnique: customerBalanceAccountFindUnique,
+        update: customerBalanceAccountUpdate,
+      },
+      customerBalanceTransaction: {
+        create: customerBalanceTransactionCreate,
       },
       customer: {
         update: jest.fn(),
@@ -169,7 +188,17 @@ describe('OrdersService card order sales user', () => {
     (service as any).applyMarketingPageAttribution = jest.fn();
     (service as any).calculateOrderCommissionIfNeeded = jest.fn();
     (service as any).refreshDailySettlementForOrder = jest.fn();
-    return { service, prisma, customerCardCreate };
+    return {
+      service,
+      prisma,
+      customerCardCreate,
+      productOrderCreate,
+      orderItemCreate,
+      paymentRecordCreate,
+      customerBalanceAccountFindUnique,
+      customerBalanceAccountUpdate,
+      customerBalanceTransactionCreate,
+    };
   }
 
   it('uses selected sales user for admin card orders', async () => {
@@ -199,6 +228,11 @@ describe('OrdersService card order sales user', () => {
     expect(customerCardCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ operatorId: 22 }),
     });
+    expect((service as any).calculateOrderCommissionIfNeeded).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: 701 }),
+      expect.objectContaining({ operatorId: 22 }),
+    );
     expect(result).toEqual(expect.objectContaining({ operatorId: 22, operatorName: '周顾问' }));
   });
 
@@ -220,6 +254,357 @@ describe('OrdersService card order sales user', () => {
     expect(customerCardCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ operatorId: undefined }),
     });
+  });
+
+  it('accepts terminal-style payload for admin card orders', async () => {
+    const { service, customerCardCreate, productOrderCreate, orderItemCreate, paymentRecordCreate } = createService(null);
+
+    await service.createCardOrder(
+      1,
+      {
+        cardId: 51,
+        customerId: 12,
+        customerName: '罗雅婷',
+        cardName: '抗衰管理 6 次卡',
+        amount: 3280,
+        discountAmount: 400,
+        totalTimes: 6,
+        paymentMethod: '微信',
+        giftProjects: ['紧致抗衰护理'],
+        remark: '赠送项目：紧致抗衰护理',
+        expireTime: '2027-06-20T10:00',
+      },
+      9,
+    );
+
+    expect(customerCardCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        paidAmount: 3280,
+        discountAmount: 400,
+        pricingSnapshot: expect.objectContaining({
+          paidAmount: 3280,
+          discountAmount: 400,
+        }),
+      }),
+    });
+    expect(productOrderCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        totalAmount: 3280,
+        listAmount: 3680,
+        totalDiscountAmount: 400,
+        payMethod: 'wechat',
+        discountPayload: expect.objectContaining({ giftProjects: ['紧致抗衰护理'] }),
+        items: [expect.objectContaining({ discountAmount: 400, giftProjects: ['紧致抗衰护理'] })],
+        remark: '赠送项目：紧致抗衰护理',
+      }),
+    });
+    expect(orderItemCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        subtotal: 3280,
+        discount: 400,
+        payload: expect.objectContaining({ giftProjects: ['紧致抗衰护理'] }),
+      }),
+    });
+    expect(paymentRecordCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        method: 'wechat',
+        amount: 3280,
+      }),
+    });
+  });
+
+  it('deducts member balance when card order is paid by member balance', async () => {
+    const {
+      service,
+      paymentRecordCreate,
+      customerBalanceAccountFindUnique,
+      customerBalanceAccountUpdate,
+      customerBalanceTransactionCreate,
+    } = createService(null);
+
+    await service.createCardOrder(
+      1,
+      {
+        cardId: 51,
+        customerId: 12,
+        amount: 3280,
+        totalTimes: 6,
+        paymentMethod: '会员余额',
+        remark: '会员卡余额开卡',
+      },
+      9,
+    );
+
+    expect(paymentRecordCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        method: 'member_balance',
+        amount: 3280,
+      }),
+    });
+    expect(customerBalanceAccountFindUnique).toHaveBeenCalledWith({
+      where: { customerId_storeId: { customerId: 12, storeId: 1 } },
+    });
+    expect(customerBalanceAccountUpdate).toHaveBeenCalledWith({
+      where: { id: 301 },
+      data: { cashBalance: 220, giftBalance: 0, status: 'active' },
+    });
+    expect(customerBalanceTransactionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 12,
+        storeId: 1,
+        orderId: 701,
+        type: 'deduct',
+        amount: 2780,
+        giftAmount: 500,
+        cashBalanceBefore: 3000,
+        cashBalanceAfter: 220,
+        giftBalanceBefore: 500,
+        giftBalanceAfter: 0,
+        paymentMethod: 'member_balance',
+        remark: '会员卡余额开卡',
+      }),
+    });
+  });
+
+  it('calculates admin card sale commission from the selected sales user', async () => {
+    const calculateOrderCommissions = jest.fn().mockResolvedValue([{ id: 9101, type: 'card_sale' }]);
+    const service = new OrdersService({} as PrismaService, { calculateOrderCommissions } as any);
+    const tx: any = {
+      orderItem: {
+        findMany: jest.fn().mockResolvedValue([{ id: 901, itemType: 'card', itemId: 51, subtotal: 3280 }]),
+      },
+      beautician: {
+        findMany: jest.fn(),
+      },
+    };
+
+    await (service as any).calculateOrderCommissionIfNeeded(
+      tx,
+      { id: 701, storeId: 1, status: 'completed' },
+      { operatorId: 22 },
+    );
+
+    expect(calculateOrderCommissions).toHaveBeenCalledWith(
+      {
+        storeId: 1,
+        orderId: 701,
+        staffUserId: 22,
+        items: [{ itemType: 'card', itemId: 51, categoryId: undefined, subtotal: 3280, orderItemId: 901 }],
+      },
+      tx,
+    );
+    expect(tx.beautician.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrdersService member card recharge', () => {
+  it('creates recharge order side effects through the shared recharge flow', async () => {
+    const createdAt = new Date('2026-06-26T10:00:00.000Z');
+    const productOrderCreate = jest.fn().mockResolvedValue({
+      id: 701,
+      orderNo: 'MR701',
+      storeId: 1,
+      status: 'completed',
+      createdAt,
+    });
+    const orderItemCreate = jest.fn().mockResolvedValue({ id: 801 });
+    const consumptionRecordCreate = jest.fn();
+    const paymentRecordCreate = jest.fn();
+    const balanceTransactionCreate = jest.fn().mockResolvedValue({ id: 901, createdAt });
+    const tx = {
+      customerBalanceAccount: {
+        upsert: jest.fn().mockResolvedValue({ id: 301, cashBalance: 1000, giftBalance: 100 }),
+        update: jest.fn().mockResolvedValue({ id: 301, cashBalance: 1500, giftBalance: 150 }),
+      },
+      productOrder: {
+        create: productOrderCreate,
+      },
+      orderItem: {
+        create: orderItemCreate,
+      },
+      consumptionRecord: {
+        create: consumptionRecordCreate,
+      },
+      paymentRecord: {
+        create: paymentRecordCreate,
+      },
+      customer: {
+        update: jest.fn(),
+      },
+      customerBalanceTransaction: {
+        create: balanceTransactionCreate,
+      },
+    };
+    const prisma: any = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, name: '李女士', phone: '13800138000' }),
+      },
+      store: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' }),
+      },
+      customerBalanceAccount: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 301,
+          customerId: 10,
+          storeId: 1,
+          cashBalance: 1500,
+          giftBalance: 150,
+          customer: { id: 10, name: '李女士', phone: '13800138000' },
+          store: { id: 1, name: 'Ami 全量演示门店' },
+          transactions: [
+            {
+              id: 901,
+              type: 'recharge',
+              amount: 500,
+              giftAmount: 50,
+              transactionNo: 'BAL901',
+              order: { id: 701, orderNo: 'MR701' },
+              createdAt,
+            },
+          ],
+        }),
+      },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const service = new OrdersService(prisma as PrismaService, {} as any);
+    (service as any).applyMarketingAttribution = jest.fn();
+    (service as any).applyMarketingPageAttribution = jest.fn();
+    (service as any).calculateOrderCommissionIfNeeded = jest.fn();
+    (service as any).refreshDailySettlementForOrder = jest.fn();
+
+    const result = await service.createRechargeOrder({
+      customerId: 10,
+      storeId: 1,
+      amount: 500,
+      discountAmount: 50,
+      giftProjects: ['补水护理'],
+      paymentMethod: 'wechat',
+      transactionNo: 'WX001',
+      beauticianId: 2,
+      source: 'terminal',
+      remark: '终端充值',
+    });
+
+    expect(productOrderCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderKind: 'member_card_recharge',
+        customerId: 10,
+        storeId: 1,
+        totalAmount: 500,
+        source: 'terminal',
+        discountPayload: { giftAmount: 50, giftProjects: ['补水护理'] },
+      }),
+    });
+    expect(orderItemCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId: 701,
+        itemType: 'recharge',
+        unitPrice: 500,
+        beauticianId: 2,
+        payload: { giftAmount: 50, giftProjects: ['补水护理'], remark: '终端充值' },
+      }),
+    });
+    expect(consumptionRecordCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 10,
+        consumeType: '充值',
+        consumeContent: '充值 500，赠送 50，赠送项目：补水护理',
+        payMethod: 'wechat',
+        amount: 500,
+      }),
+    });
+    expect(balanceTransactionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 10,
+        storeId: 1,
+        orderId: 701,
+        type: 'recharge',
+        amount: 500,
+        giftAmount: 50,
+        paymentMethod: 'wechat',
+      }),
+    });
+    expect((service as any).calculateOrderCommissionIfNeeded).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ id: 701 }),
+      expect.objectContaining({ beauticianId: 2 }),
+    );
+    expect((service as any).refreshDailySettlementForOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 701 }),
+      'member_card_recharge',
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 301,
+        orderId: 701,
+        orderNo: 'MR701',
+        balanceTransactionId: 901,
+        cashBalance: 1500,
+        giftBalance: 150,
+        paymentMethod: 'wechat',
+      }),
+    );
+  });
+});
+
+describe('OrdersService refunds', () => {
+  it('refreshes daily settlement after a successful product order refund', async () => {
+    const createdAt = new Date('2026-06-23T05:00:00.000Z');
+    const order = {
+      id: 501,
+      orderNo: 'PO501',
+      customerId: 12,
+      customerName: '罗雅婷',
+      storeId: 1,
+      totalAmount: 680,
+      netAmount: 680,
+      status: 'completed',
+      payMethod: 'wechat',
+      createdAt,
+      orderItems: [{ id: 9001, itemType: 'product', itemId: 88, name: '修护精华', quantity: 1, unitPrice: 680, subtotal: 680, netAmount: 680 }],
+      paymentRecords: [{ method: 'wechat', paidAt: createdAt }],
+      refundRecords: [],
+      marketingAttributions: [],
+      recommendationEvents: [],
+    };
+    const refundedOrder = {
+      ...order,
+      status: 'refunded',
+      refundRecords: [{ amount: 680, status: 'success', refundedAt: new Date('2026-06-23T06:00:00.000Z') }],
+    };
+    const tx = {
+      refundRecord: { create: jest.fn() },
+      productOrder: {
+        update: jest.fn().mockResolvedValue(refundedOrder),
+        findUnique: jest.fn().mockResolvedValue(refundedOrder),
+      },
+      customer: { update: jest.fn() },
+    };
+    const prisma: any = {
+      productOrder: { findUnique: jest.fn().mockResolvedValue(order) },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const commissionService = {
+      reverseOrderCommissions: jest.fn(),
+      generateDailySettlement: jest.fn(),
+    };
+    const service = new OrdersService(prisma as PrismaService, commissionService as any);
+    jest.spyOn(service as any, 'reverseMarketingAttribution').mockResolvedValue(undefined);
+
+    const result = await service.refundOrder(501, { reason: '顾客退款', amount: 680 });
+
+    expect(tx.refundRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId: 501,
+        amount: 680,
+        reason: '顾客退款',
+        status: 'success',
+        refundedAt: expect.any(Date),
+      }),
+    });
+    expect(commissionService.reverseOrderCommissions).toHaveBeenCalledWith(501, 680, tx);
+    expect(commissionService.generateDailySettlement).toHaveBeenCalledWith(1, createdAt);
+    expect(result).toEqual(expect.objectContaining({ id: 501, status: 'refunded' }));
   });
 });
 
@@ -322,7 +707,7 @@ describe('OrdersService project order inventory consumption', () => {
     });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: 301 },
-      data: { currentStock: { decrement: 4 } },
+      data: { currentStock: 6 },
     });
     expect(tx.stockMovement.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -397,7 +782,7 @@ describe('OrdersService project order inventory consumption', () => {
     });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: 301 },
-      data: { currentStock: { decrement: 3 } },
+      data: { currentStock: 7 },
     });
     expect(tx.stockMovement.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -409,6 +794,96 @@ describe('OrdersService project order inventory consumption', () => {
         afterStock: 7,
         sourceType: 'product_order',
         sourceId: 501,
+      }),
+    });
+  });
+
+  it('preserves pre-allocated terminal discounts without reallocating them', async () => {
+    tx.productOrder.findUnique.mockResolvedValueOnce({
+      id: 501,
+      orderNo: 'PO-501',
+      customerName: '散客',
+      storeId: 1,
+      totalAmount: 90,
+      listAmount: 100,
+      itemDiscountAmount: 0,
+      orderDiscountAmount: 10,
+      totalDiscountAmount: 10,
+      netAmount: 90,
+      status: 'paid',
+      payMethod: 'wechat',
+      orderItems: [
+        {
+          id: 701,
+          orderId: 501,
+          itemType: 'product',
+          itemId: 301,
+          name: '补水精华',
+          quantity: 1,
+          unitPrice: 100,
+          listAmount: 100,
+          subtotal: 90,
+          itemDiscountAmount: 0,
+          orderAllocatedDiscountAmount: 10,
+          totalDiscountAmount: 10,
+          netAmount: 90,
+        },
+      ],
+      paymentRecords: [],
+      refundRecords: [],
+      marketingAttributions: [],
+    });
+
+    await service.createProductOrder({
+      customerName: '散客',
+      storeId: 1,
+      status: '已付款',
+      paymentMethod: '微信',
+      preAllocatedDiscount: true,
+      items: [
+        {
+          productId: 301,
+          productName: '补水精华',
+          quantity: 1,
+          unitPrice: 100,
+          listAmount: 100,
+          subtotal: 90,
+          itemDiscountAmount: 0,
+          orderAllocatedDiscountAmount: 10,
+          totalDiscountAmount: 10,
+          netAmount: 90,
+        },
+      ],
+    });
+
+    expect(tx.productOrder.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        listAmount: 100,
+        itemDiscountAmount: 0,
+        orderDiscountAmount: 10,
+        totalDiscountAmount: 10,
+        netAmount: 90,
+        discountPayload: expect.objectContaining({ preAllocated: true }),
+      }),
+    });
+    expect(tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          orderId: 501,
+          itemType: 'product',
+          itemId: 301,
+          listAmount: 100,
+          subtotal: 90,
+          itemDiscountAmount: 0,
+          orderAllocatedDiscountAmount: 10,
+          totalDiscountAmount: 10,
+          netAmount: 90,
+        }),
+      ],
+    });
+    expect(tx.paymentRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        amount: 90,
       }),
     });
   });

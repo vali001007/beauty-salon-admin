@@ -20,6 +20,15 @@ describe('CommissionService', () => {
       commissionRule: {
         create: jest.fn(),
         count: jest.fn(),
+        findFirst: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+      },
+      commissionRuleAssignment: {
+        create: jest.fn(),
+        count: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
@@ -76,11 +85,15 @@ describe('CommissionService', () => {
     jest.useRealTimers();
   });
 
-  it('matches specific rule before category and all when priority is equal', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([
-      { id: 1, targetType: 'all', rate: 0.05, calcBase: 'total', priority: 1 },
-      { id: 2, targetType: 'category', targetId: 7, rate: 0.08, calcBase: 'total', priority: 1 },
-      { id: 3, targetType: 'specific', targetId: 99, rate: 0.1, calcBase: 'total', priority: 1 },
+  it('matches exact object and employee rule only', async () => {
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
+      {
+        id: 30,
+        targetType: 'specific',
+        targetId: 99,
+        userId: 21,
+        rule: { id: 3, rate: 0.1, calcBase: 'total', priority: 0 },
+      },
     ]);
     prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({
       id: 10,
@@ -90,6 +103,7 @@ describe('CommissionService', () => {
       store: { id: data.storeId, name: '静安店' },
       order: { id: data.orderId, orderNo: 'PO1' },
       rule: { id: data.ruleId, name: '指定项目' },
+      assignment: { id: data.assignmentId, rule: { id: data.ruleId, name: '指定项目' } },
     }));
 
     const record = await service.calculateCommission({
@@ -103,24 +117,61 @@ describe('CommissionService', () => {
       sourceAmount: 1000,
     });
 
+    expect(prisma.commissionRuleAssignment.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 1,
+        type: 'project',
+        status: 'active',
+        userId: 21,
+        targetType: 'specific',
+        targetId: 99,
+        rule: { status: 'active' },
+      },
+      include: { rule: true },
+    });
     expect(prisma.commissionRecord.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ ruleId: 3, amount: 100, rate: 0.1 }),
+        data: expect.objectContaining({ ruleId: 3, assignmentId: 30, amount: 100, rate: 0.1 }),
       }),
     );
     expect(record?.amount).toBe(100);
   });
 
+  it('rejects duplicate active rules for the same object and employee', async () => {
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
+      { id: 1, targetType: 'specific', targetId: 99, userId: 21, rule: { id: 1, rate: 0.05, calcBase: 'total' } },
+      { id: 2, targetType: 'specific', targetId: 99, userId: 21, rule: { id: 2, rate: 0.08, calcBase: 'total' } },
+    ]);
+
+    await expect(
+      service.calculateCommission({
+        storeId: 1,
+        staffUserId: 21,
+        beauticianId: 2,
+        orderId: 3,
+        type: 'project',
+        itemId: 99,
+        sourceAmount: 1000,
+      }),
+    ).rejects.toThrow('同一对象与员工组合存在多条启用提成配置');
+    expect(prisma.commissionRecord.create).not.toHaveBeenCalled();
+  });
+
   it('applies designated beautician bonus', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
       {
-        id: 4,
-        targetType: 'all',
-        rate: 0.1,
-        calcBase: 'total',
-        priority: 1,
-        isDesignated: true,
-        designatedBonus: 0.2,
+        id: 40,
+        targetType: 'specific',
+        targetId: 99,
+        userId: 21,
+        rule: {
+          id: 4,
+          rate: 0.1,
+          calcBase: 'total',
+          priority: 0,
+          isDesignated: true,
+          designatedBonus: 0.2,
+        },
       },
     ]);
     prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: 11, ...data }));
@@ -130,6 +181,7 @@ describe('CommissionService', () => {
       staffUserId: 21,
       beauticianId: 2,
       type: 'project',
+      itemId: 99,
       sourceAmount: 1000,
       isDesignated: true,
     });
@@ -142,7 +194,9 @@ describe('CommissionService', () => {
   });
 
   it('uses service fee as commission base when rule calcBase is service_fee', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([{ id: 6, targetType: 'all', rate: 0.1, calcBase: 'service_fee', priority: 1 }]);
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
+      { id: 60, targetType: 'specific', targetId: 99, userId: 21, rule: { id: 6, rate: 0.1, calcBase: 'service_fee', priority: 0 } },
+    ]);
     prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: 12, ...data }));
 
     const record = await service.calculateCommission({
@@ -150,6 +204,7 @@ describe('CommissionService', () => {
       staffUserId: 21,
       beauticianId: 2,
       type: 'project',
+      itemId: 99,
       sourceAmount: 1000,
       serviceFee: 320,
     });
@@ -164,7 +219,9 @@ describe('CommissionService', () => {
   });
 
   it('uses profit base and fixed amount when configured on a rule', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([{ id: 7, targetType: 'all', rate: 0.2, fixedAmount: 88, calcBase: 'profit', priority: 1 }]);
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
+      { id: 70, targetType: 'specific', targetId: 88, userId: 21, rule: { id: 7, rate: 0.2, fixedAmount: 88, calcBase: 'profit', priority: 0 } },
+    ]);
     prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: 13, ...data }));
 
     const record = await service.calculateCommission({
@@ -172,6 +229,7 @@ describe('CommissionService', () => {
       staffUserId: 21,
       beauticianId: 2,
       type: 'product',
+      itemId: 88,
       sourceAmount: 1000,
       profit: 400,
     });
@@ -184,100 +242,18 @@ describe('CommissionService', () => {
     expect(record?.amount).toBe(88);
   });
 
-  it('resolves project and product categories when matching category rules', async () => {
-    prisma.project.findUnique.mockResolvedValue({ typeId: 12 });
-    prisma.product.findUnique.mockResolvedValue({ categoryId: 34 });
-    prisma.commissionRule.findMany
-      .mockResolvedValueOnce([{ id: 21, targetType: 'category', targetId: 12, rate: 0.08, calcBase: 'total', priority: 1 }])
-      .mockResolvedValueOnce([{ id: 22, targetType: 'category', targetId: 34, rate: 0.05, calcBase: 'total', priority: 1 }]);
-    prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: data.ruleId, ...data }));
-
-    const projectRecord = await service.calculateCommission({
-      storeId: 1,
-      staffUserId: 21,
-      beauticianId: 2,
-      type: 'project',
-      itemId: 99,
-      sourceAmount: 1000,
-    });
-    const productRecord = await service.calculateCommission({
-      storeId: 1,
-      staffUserId: 21,
-      beauticianId: 2,
-      type: 'product',
-      itemId: 88,
-      sourceAmount: 1000,
-    });
-
-    expect(prisma.project.findUnique).toHaveBeenCalledWith({ where: { id: 99 }, select: { typeId: true } });
-    expect(prisma.product.findUnique).toHaveBeenCalledWith({ where: { id: 88 }, select: { categoryId: true } });
-    expect(projectRecord).toEqual(expect.objectContaining({ ruleId: 21, amount: 80 }));
-    expect(productRecord).toEqual(expect.objectContaining({ ruleId: 22, amount: 50 }));
-  });
-
-  it('prefers level-specific rule over generic rule when priority and target type are equal', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([
-      { id: 8, targetType: 'all', levelId: null, rate: 0.05, calcBase: 'total', priority: 1 },
-      { id: 9, targetType: 'all', levelId: 3, rate: 0.12, calcBase: 'total', priority: 1 },
-    ]);
-    prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: 14, ...data }));
-
+  it('returns null for object-scoped rule types without an item id', async () => {
     const record = await service.calculateCommission({
       storeId: 1,
       staffUserId: 21,
       beauticianId: 2,
-      levelId: 3,
       type: 'project',
       sourceAmount: 1000,
     });
 
-    expect(prisma.commissionRule.findMany).toHaveBeenCalledWith({
-      where: {
-        storeId: 1,
-        type: 'project',
-        status: 'active',
-        AND: [{ OR: [{ userId: null }, { userId: 21 }] }, { OR: [{ levelId: null }, { levelId: 3 }] }],
-      },
-    });
-    expect(prisma.commissionRecord.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ ruleId: 9, amount: 120, rate: 0.12 }),
-      }),
-    );
-    expect(record?.amount).toBe(120);
-  });
-
-  it('prefers employee-specific rule over level and generic rules when priority is equal', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([
-      { id: 31, targetType: 'all', levelId: null, userId: null, rate: 0.05, calcBase: 'total', priority: 1 },
-      { id: 32, targetType: 'all', levelId: 3, userId: null, rate: 0.12, calcBase: 'total', priority: 1 },
-      { id: 33, targetType: 'all', levelId: null, userId: 21, rate: 0.15, calcBase: 'total', priority: 1 },
-    ]);
-    prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: 33, ...data }));
-
-    const record = await service.calculateCommission({
-      storeId: 1,
-      staffUserId: 21,
-      beauticianId: 2,
-      levelId: 3,
-      type: 'project',
-      sourceAmount: 1000,
-    });
-
-    expect(prisma.commissionRule.findMany).toHaveBeenCalledWith({
-      where: {
-        storeId: 1,
-        type: 'project',
-        status: 'active',
-        AND: [{ OR: [{ userId: null }, { userId: 21 }] }, { OR: [{ levelId: null }, { levelId: 3 }] }],
-      },
-    });
-    expect(prisma.commissionRecord.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ ruleId: 33, amount: 150, rate: 0.15 }),
-      }),
-    );
-    expect(record?.amount).toBe(150);
+    expect(record).toBeNull();
+    expect(prisma.project.findUnique).not.toHaveBeenCalled();
+    expect(prisma.commissionRuleAssignment.findMany).not.toHaveBeenCalled();
   });
 
   it('returns null for invalid commission input without querying rules', async () => {
@@ -298,12 +274,20 @@ describe('CommissionService', () => {
 
     expect(zeroAmountRecord).toBeNull();
     expect(missingBeauticianRecord).toBeNull();
-    expect(prisma.commissionRule.findMany).not.toHaveBeenCalled();
+    expect(prisma.commissionRuleAssignment.findMany).not.toHaveBeenCalled();
     expect(prisma.commissionRecord.create).not.toHaveBeenCalled();
   });
 
   it('calculates order commissions for supported item types and skips unsupported items', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([{ id: 10, targetType: 'all', rate: 0.1, calcBase: 'total', priority: 1 }]);
+    prisma.commissionRuleAssignment.findMany.mockImplementation(async ({ where }: any) => {
+      if (where.type === 'card_sale') {
+        return [{ id: 100, targetType: 'specific', targetId: 66, userId: 21, rule: { id: 10, rate: 0.1, calcBase: 'total', priority: 0 } }];
+      }
+      if (where.type === 'recharge') {
+        return [{ id: 101, targetType: 'all', targetId: null, userId: 21, rule: { id: 11, rate: 0.1, calcBase: 'total', priority: 0 } }];
+      }
+      return [];
+    });
     prisma.commissionRecord.create.mockImplementation(async ({ data }: any) => ({ id: data.orderItemId, ...data }));
 
     const records = await service.calculateOrderCommissions({
@@ -312,7 +296,7 @@ describe('CommissionService', () => {
       staffUserId: 21,
       beauticianId: 2,
       items: [
-        { itemType: 'card', subtotal: 500, orderItemId: 1 },
+        { itemType: 'card', itemId: 66, subtotal: 500, orderItemId: 1 },
         { itemType: 'recharge', subtotal: 1000, orderItemId: 2 },
         { itemType: 'service_package', subtotal: 300, orderItemId: 3 },
       ],
@@ -330,7 +314,7 @@ describe('CommissionService', () => {
   });
 
   it('returns null when no active rule matches', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([]);
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([]);
 
     const record = await service.calculateCommission({
       storeId: 1,
@@ -345,8 +329,8 @@ describe('CommissionService', () => {
   });
 
   it('filters out records under minThreshold', async () => {
-    prisma.commissionRule.findMany.mockResolvedValue([
-      { id: 5, targetType: 'all', rate: 0.01, calcBase: 'total', minThreshold: 20, priority: 1 },
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
+      { id: 50, targetType: 'specific', targetId: 88, userId: 21, rule: { id: 5, rate: 0.01, calcBase: 'total', minThreshold: 20, priority: 0 } },
     ]);
 
     const record = await service.calculateCommission({
@@ -354,6 +338,7 @@ describe('CommissionService', () => {
       staffUserId: 21,
       beauticianId: 2,
       type: 'product',
+      itemId: 88,
       sourceAmount: 1000,
     });
 
@@ -374,16 +359,17 @@ describe('CommissionService', () => {
     });
   });
 
-  it('lists, creates, updates, archives and rejects unassigned template commission rules', async () => {
+  it('lists, creates, updates and archives commission rule algorithms without binding objects or employees', async () => {
     prisma.commissionRule.findMany.mockResolvedValue([
       {
         id: 1,
         storeId: 3,
         name: '项目规则',
         type: 'project',
-        targetType: 'specific',
-        targetId: 99,
-        levelId: 2,
+        targetType: 'all',
+        targetId: null,
+        levelId: null,
+        userId: null,
         rate: '0.12',
         fixedAmount: null,
         designatedBonus: '0.2',
@@ -391,7 +377,9 @@ describe('CommissionService', () => {
         status: 'active',
         priority: 9,
         store: { id: 3, name: '静安店' },
-        level: { id: 2, name: '高级' },
+        level: null,
+        user: null,
+        assignments: [{ id: 80, status: 'active' }],
       },
     ]);
     prisma.commissionRule.count.mockResolvedValue(1);
@@ -401,76 +389,184 @@ describe('CommissionService', () => {
       pageSize: '5',
       storeId: '3',
       type: 'project',
-      levelId: '2',
       status: 'active',
       keyword: '项目',
     });
 
     expect(prisma.commissionRule.findMany).toHaveBeenCalledWith({
-      where: { storeId: 3, type: 'project', status: 'active', levelId: 2, name: { contains: '项目', mode: 'insensitive' } },
+      where: { storeId: 3, type: 'project', status: 'active', name: { contains: '项目', mode: 'insensitive' } },
       include: {
         store: { select: { id: true, name: true } },
         level: true,
         user: { select: { id: true, name: true, username: true } },
+        assignments: { where: { status: { not: 'archived' } }, select: { id: true, status: true } },
       },
       skip: 5,
       take: 5,
-      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
     });
-    expect(page.items[0]).toEqual(expect.objectContaining({ id: 1, rate: 0.12, designatedBonus: 0.2, minThreshold: 5 }));
+    expect(page.items[0]).toEqual(expect.objectContaining({ id: 1, rate: 0.12, designatedBonus: 0.2, minThreshold: 5, assignments: [{ id: 80, status: 'active' }] }));
 
-    prisma.beauticianLevel.findUnique.mockResolvedValue({ id: 2 });
-    prisma.user.findFirst.mockResolvedValue({ id: 21 });
-    prisma.project.findFirst.mockResolvedValue({ id: 99 });
-    prisma.product.findFirst.mockResolvedValue({ id: 88 });
-    prisma.card.findUnique.mockResolvedValue({ id: 66 });
+    prisma.store.findMany.mockResolvedValue([{ id: 3 }]);
     prisma.commissionRule.create.mockImplementation(async ({ data }: any) => ({
       id: 100 + prisma.commissionRule.create.mock.calls.length,
       ...data,
       store: { id: data.storeId, name: '静安店' },
-      level: data.levelId ? { id: data.levelId, name: '高级' } : null,
+      level: null,
+      user: null,
+      assignments: [],
     }));
     prisma.commissionRule.update.mockImplementation(async ({ data }: any) => ({
       id: 9,
       storeId: 3,
       name: data.name ?? '已更新',
       type: data.type ?? 'product',
-      targetType: data.targetType ?? 'specific',
-      targetId: data.targetId ?? 88,
+      targetType: data.targetType ?? 'all',
+      targetId: data.targetId ?? null,
       levelId: data.levelId,
+      userId: data.userId ?? null,
       rate: data.rate ?? 0.07,
       status: data.status ?? 'active',
       priority: data.priority ?? 1,
       store: { id: 3, name: '静安店' },
       level: null,
+      user: null,
+      assignments: [],
     }));
 
     const created = await service.createRule('3', {
-      name: '指定项目',
+      name: '项目算法',
+      type: 'project',
+      rate: 0.12,
+    });
+    expect(prisma.beauticianLevel.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(prisma.project.findFirst).not.toHaveBeenCalled();
+    expect(prisma.commissionRule.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+        storeId: 3,
+          type: 'project',
+          targetType: 'all',
+          targetId: null,
+          userId: null,
+          rate: 0.12,
+        }),
+      }),
+    );
+    expect(created).toEqual(expect.objectContaining({ name: '项目算法', rate: 0.12, targetType: 'all', userId: null }));
+
+    prisma.commissionRule.findUnique
+      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '旧规则', type: 'project', targetType: 'all', rate: 0.08, userId: null })
+      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '已更新', type: 'product', targetType: 'all', targetId: null, rate: 0.07, userId: null });
+
+    const updated = await service.updateRule(9, { name: '商品算法', type: 'product', rate: 0.07 });
+    const archived = await service.deleteRule(9);
+
+    expect(prisma.product.findFirst).not.toHaveBeenCalled();
+    expect(updated).toEqual(expect.objectContaining({ name: '商品算法', type: 'product' }));
+    expect(archived.status).toBe('archived');
+  });
+
+  it('lists, creates, updates and archives commission rule assignments', async () => {
+    prisma.commissionRuleAssignment.findMany.mockResolvedValue([
+      {
+        id: 80,
+        storeId: 3,
+        ruleId: 1,
+        type: 'project',
+        targetType: 'specific',
+        targetId: 99,
+        userId: 21,
+        status: 'active',
+        remark: '指定项目员工',
+        store: { id: 3, name: '静安店' },
+        rule: { id: 1, name: '项目算法', type: 'project', rate: '0.08', calcBase: 'total', status: 'active' },
+        user: { id: 21, name: '唐伊', username: 'tangyi' },
+      },
+    ]);
+    prisma.commissionRuleAssignment.count.mockResolvedValue(1);
+
+    const page = await service.getAssignments({
+      page: '1',
+      pageSize: '10',
+      storeId: '3',
+      type: 'project',
+      status: 'active',
+      keyword: '项目',
+    });
+
+    expect(prisma.commissionRuleAssignment.findMany).toHaveBeenCalledWith({
+      where: { storeId: 3, type: 'project', status: 'active', rule: { name: { contains: '项目', mode: 'insensitive' } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        rule: true,
+        user: { select: { id: true, name: true, username: true } },
+      },
+      skip: 0,
+      take: 10,
+      orderBy: [{ type: 'asc' }, { targetId: 'asc' }, { userId: 'asc' }, { createdAt: 'desc' }],
+    });
+    expect(page.items[0]).toEqual(expect.objectContaining({ id: 80, ruleName: '项目算法', userName: '唐伊' }));
+
+    prisma.commissionRule.findUnique.mockResolvedValue({ id: 1, storeId: 3, name: '项目算法', type: 'project', status: 'active' });
+    prisma.user.findFirst.mockResolvedValue({ id: 21 });
+    prisma.project.findFirst.mockResolvedValue({ id: 99 });
+    prisma.commissionRuleAssignment.findFirst.mockResolvedValue(null);
+    prisma.commissionRuleAssignment.create.mockImplementation(async ({ data }: any) => ({
+      id: 81,
+      ...data,
+      store: { id: data.storeId, name: '静安店' },
+      rule: { id: data.ruleId, name: '项目算法', type: data.type, rate: 0.08, calcBase: 'total' },
+      user: { id: data.userId, name: '唐伊', username: 'tangyi' },
+    }));
+    prisma.commissionRuleAssignment.findUnique.mockResolvedValue({
+      id: 81,
+      storeId: 3,
+      ruleId: 1,
       type: 'project',
       targetType: 'specific',
       targetId: 99,
-      levelId: 2,
       userId: 21,
-      rate: 0.12,
+      status: 'active',
     });
-    expect(prisma.beauticianLevel.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
+    prisma.commissionRuleAssignment.update.mockImplementation(async ({ data }: any) => ({
+      id: 81,
+      storeId: 3,
+      ruleId: data.ruleId ?? 1,
+      type: data.type ?? 'project',
+      targetType: data.targetType ?? 'specific',
+      targetId: data.targetId ?? 99,
+      userId: data.userId ?? 21,
+      status: data.status ?? 'active',
+      remark: data.remark,
+      store: { id: 3, name: '静安店' },
+      rule: { id: data.ruleId ?? 1, name: '项目算法', type: data.type ?? 'project', rate: 0.08, calcBase: 'total' },
+      user: { id: data.userId ?? 21, name: '唐伊', username: 'tangyi' },
+    }));
+
+    const created = await service.createAssignment('3', {
+      ruleId: 1,
+      type: 'project',
+      targetType: 'specific',
+      targetId: 99,
+      userId: 21,
+      status: 'active',
+    });
+    const updated = await service.updateAssignment(81, { remark: '改为门店主理人' });
+    const archived = await service.deleteAssignment(81);
+
     expect(prisma.user.findFirst).toHaveBeenCalledWith({
       where: { id: 21, status: 'active', deletedAt: null, stores: { some: { storeId: 3 } } },
     });
     expect(prisma.project.findFirst).toHaveBeenCalledWith({ where: { id: 99, storeId: 3 } });
-    expect(created).toEqual(expect.objectContaining({ name: '指定项目', rate: 0.12 }));
-
-    prisma.commissionRule.findUnique
-      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '旧规则', type: 'project', targetType: 'all', rate: 0.08, userId: 21 })
-      .mockResolvedValueOnce({ id: 9, storeId: 3, name: '已更新', type: 'product', targetType: 'specific', targetId: 88, rate: 0.07, userId: 21 });
-
-    const updated = await service.updateRule(9, { name: '商品指定', type: 'product', targetType: 'specific', targetId: 88, rate: 0.07 });
-    const archived = await service.deleteRule(9);
-    await expect(service.batchCreateFromTemplate(3, 'vip')).rejects.toThrow('提成规则必须绑定到具体员工');
-
-    expect(prisma.product.findFirst).toHaveBeenCalledWith({ where: { id: 88, storeId: 3 } });
-    expect(updated).toEqual(expect.objectContaining({ name: '商品指定', type: 'product' }));
+    expect(prisma.commissionRuleAssignment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 3, type: 'project', status: 'active', userId: 21, targetType: 'specific', targetId: 99 }),
+      }),
+    );
+    expect(created).toEqual(expect.objectContaining({ id: 81, ruleName: '项目算法', userName: '唐伊' }));
+    expect(updated).toEqual(expect.objectContaining({ id: 81, remark: '改为门店主理人' }));
     expect(archived.status).toBe('archived');
   });
 
@@ -496,6 +592,7 @@ describe('CommissionService', () => {
         order: { id: 9, orderNo: 'PO-9', customerName: 'Customer A' },
         orderItem: { id: 11, name: 'Hydration', itemType: 'project', itemId: 101 },
         rule: { id: 13, name: 'Project rule' },
+        assignment: { id: 70, rule: { id: 13, name: 'Project rule' } },
       },
     ]);
     prisma.commissionRecord.count.mockResolvedValue(1);
@@ -518,7 +615,9 @@ describe('CommissionService', () => {
         store: { select: { id: true, name: true } },
         order: { select: { id: true, orderNo: true, customerName: true } },
         orderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
+        cardUsageRecord: { select: { id: true, cardName: true, projectName: true } },
         rule: { select: { id: true, name: true } },
+        assignment: { include: { rule: { select: { id: true, name: true } } } },
       },
       skip: 10,
       take: 10,
@@ -547,6 +646,39 @@ describe('CommissionService', () => {
         ],
       }),
     );
+  });
+
+  it('serializes card usage commission records with card and project display fields', async () => {
+    prisma.commissionRecord.findMany.mockResolvedValue([
+      {
+        id: 8,
+        storeId: 3,
+        staffUserId: 21,
+        beauticianId: 5,
+        type: 'project',
+        sourceType: 'card_usage',
+        sourceId: 88,
+        cardUsageRecordId: 88,
+        sourceAmount: '68',
+        rate: '0.08',
+        amount: '5.44',
+        status: 'confirmed',
+        staffUser: { id: 21, name: '唐伊', username: 'tangyi' },
+        beautician: { id: 5, name: '唐伊' },
+        store: { id: 3, name: 'Store A' },
+        cardUsageRecord: { id: 88, cardName: '抗衰管理 6 次卡', projectName: '紧致抗衰护理' },
+      },
+    ]);
+    prisma.commissionRecord.count.mockResolvedValue(1);
+
+    const result = await service.getRecords({ storeId: '3', type: 'project', settleMonth: '2026-06' });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      orderNo: '抗衰管理 6 次卡',
+      orderItem: { id: 88, name: '紧致抗衰护理', itemType: 'card_usage' },
+      staffUserName: '唐伊',
+      beauticianName: '唐伊',
+    }));
   });
 
   it('summarizes commission records by staff user and status for the selected month', async () => {
@@ -1220,8 +1352,9 @@ describe('CommissionService', () => {
   });
 
   it('generates daily settlement with net revenue, payment split, costs and commissions', async () => {
-    const settleDate = new Date(2026, 5, 8);
-    const dayEnd = new Date(2026, 5, 9);
+    const settleDate = new Date('2026-06-08T00:00:00.000Z');
+    const dayStart = new Date('2026-06-07T16:00:00.000Z');
+    const dayEnd = new Date('2026-06-08T16:00:00.000Z');
 
     prisma.productOrder.findMany.mockResolvedValue([
       {
@@ -1233,7 +1366,6 @@ describe('CommissionService', () => {
           { method: 'cash', amount: 300 },
           { method: 'wechat', amount: 700 },
         ],
-        refundRecords: [{ amount: 50 }],
         orderItems: [
           { itemType: 'product', itemId: 501, quantity: 2 },
           { itemType: 'project', itemId: 601, quantity: 1 },
@@ -1245,7 +1377,6 @@ describe('CommissionService', () => {
         totalAmount: 500,
         payMethod: 'alipay',
         paymentRecords: [],
-        refundRecords: [],
         orderItems: [{ itemType: 'recharge', itemId: null, quantity: 1 }],
       },
       {
@@ -1254,10 +1385,10 @@ describe('CommissionService', () => {
         totalAmount: 200,
         payMethod: 'member_balance',
         paymentRecords: [{ method: 'member_balance', amount: 200 }],
-        refundRecords: [],
         orderItems: [],
       },
     ]);
+    prisma.refundRecord.findMany.mockResolvedValue([{ amount: 50 }]);
     prisma.product.findUnique.mockResolvedValue({ costPrice: 15 });
     prisma.projectBomItem.findMany.mockResolvedValue([
       { standardQty: 2, product: { costPrice: 20 } },
@@ -1275,19 +1406,28 @@ describe('CommissionService', () => {
     expect(prisma.productOrder.findMany).toHaveBeenCalledWith({
       where: {
         storeId: 3,
-        createdAt: { gte: settleDate, lt: dayEnd },
-        status: { in: ['completed', 'paid'] },
+        createdAt: { gte: dayStart, lt: dayEnd },
+        OR: [
+          { status: { in: ['completed', 'paid', 'refunded'] } },
+          { paymentRecords: { some: { status: 'success' } } },
+        ],
       },
       include: {
         orderItems: true,
         paymentRecords: { where: { status: 'success' } },
-        refundRecords: { where: { status: 'success' } },
+      },
+    });
+    expect(prisma.refundRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        status: { in: ['success', 'completed', 'refunded'] },
+        refundedAt: { gte: dayStart, lt: dayEnd },
+        order: { storeId: 3 },
       },
     });
     expect(prisma.commissionRecord.findMany).toHaveBeenCalledWith({
       where: {
         storeId: 3,
-        createdAt: { gte: settleDate, lt: dayEnd },
+        createdAt: { gte: dayStart, lt: dayEnd },
         status: { not: 'cancelled' },
       },
     });
@@ -1315,6 +1455,7 @@ describe('CommissionService', () => {
             wechat: 700,
             alipay: 500,
             member_balance: 200,
+            refund: 50,
             total: 1700,
           }),
         }),
@@ -1327,8 +1468,58 @@ describe('CommissionService', () => {
         grossProfit: 1460,
         grossMargin: 88.48,
         commissionTotal: 100,
+        settleDate: '2026-06-08',
       }),
     );
+  });
+
+  it('lists daily settlements by business date and hides legacy duplicate date rows', async () => {
+    const canonical = {
+      id: 20,
+      storeId: 3,
+      settleDate: new Date('2026-06-23T00:00:00.000Z'),
+      totalRevenue: 1200,
+      cashRevenue: 0,
+      wechatRevenue: 1200,
+      alipayRevenue: 0,
+      cardRevenue: 0,
+      balanceRevenue: 0,
+      rechargeIncome: 0,
+      refundAmount: 0,
+      avgTransaction: 1200,
+      materialCost: 100,
+      grossProfit: 1100,
+      grossMargin: 91.67,
+      commissionTotal: 0,
+      status: 'draft',
+      updatedAt: new Date('2026-06-23T03:00:00.000Z'),
+      store: { id: 3, name: 'Store' },
+    };
+    const legacy = {
+      ...canonical,
+      id: 19,
+      settleDate: new Date('2026-06-22T16:00:00.000Z'),
+      totalRevenue: 900,
+      status: 'confirmed',
+      updatedAt: new Date('2026-06-23T04:00:00.000Z'),
+    };
+    prisma.dailySettlement.findMany.mockResolvedValue([canonical, legacy]);
+
+    const result = await service.getDailySettlements({ page: 1, pageSize: 20, storeId: 3, dateFrom: '2026-06-23', dateTo: '2026-06-23' });
+
+    expect(prisma.dailySettlement.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 3,
+        settleDate: {
+          gte: new Date('2026-06-22T16:00:00.000Z'),
+          lt: new Date('2026-06-23T16:00:00.000Z'),
+        },
+      },
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: { settleDate: 'desc' },
+    });
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({ id: 20, settleDate: '2026-06-23', totalRevenue: 1200 }));
   });
 
   it('generates yesterday daily settlements for all active stores and keeps partial failures', async () => {
@@ -1352,15 +1543,15 @@ describe('CommissionService', () => {
       select: { id: true, name: true },
       orderBy: { id: 'asc' },
     });
-    expect(service.generateDailySettlement).toHaveBeenNthCalledWith(1, 1, new Date(2026, 5, 8));
-    expect(service.generateDailySettlement).toHaveBeenNthCalledWith(2, 2, new Date(2026, 5, 8));
+    expect(service.generateDailySettlement).toHaveBeenNthCalledWith(1, 1, '2026-06-08');
+    expect(service.generateDailySettlement).toHaveBeenNthCalledWith(2, 2, '2026-06-08');
     expect(result).toEqual({
       items: [{ id: 10, storeId: 1, totalRevenue: 100 }],
       data: [{ id: 10, storeId: 1, totalRevenue: 100 }],
       total: 1,
       failed: 1,
       errors: [{ storeId: 2, storeName: 'Store B', message: 'settlement failed' }],
-      settleDate: new Date(2026, 5, 8),
+      settleDate: '2026-06-08',
     });
   });
 

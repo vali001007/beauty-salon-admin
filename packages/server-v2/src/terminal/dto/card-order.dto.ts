@@ -20,7 +20,7 @@ export class CreateCardOrderDto {
   @IsInt()
   cardId: number;
 
-  @ApiPropertyOptional({ description: '美容师ID，用于办卡提成归属' })
+  @ApiPropertyOptional({ description: '服务美容师 ID；开卡销售提成优先使用 operatorId' })
   @IsOptional()
   @IsInt()
   beauticianId?: number;

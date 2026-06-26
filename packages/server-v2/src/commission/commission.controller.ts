@@ -7,8 +7,9 @@ import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 import { CurrentDevice } from '../terminal/decorators/current-device.decorator.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
 import { CommissionService } from './commission.service.js';
-import { CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
+import { CreateCommissionRuleAssignmentDto, CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
 import { UpdateCommissionRuleDto } from './dto/update-commission-rule.dto.js';
+import { UpdateCommissionRuleAssignmentDto } from './dto/update-commission-rule-assignment.dto.js';
 import {
   BatchConfirmCommissionRecordsDto,
   BeauticianCommissionSummaryDto,
@@ -21,6 +22,7 @@ import {
   QueryAmiPerformanceDto,
   QueryCashierShiftDto,
   QueryCommissionRecordsDto,
+  QueryCommissionRuleAssignmentsDto,
   QueryCommissionRulesDto,
   QueryCommissionSettlementsDto,
   QueryDailySettlementDto,
@@ -79,6 +81,34 @@ export class CommissionController {
   @ApiOperation({ summary: '提成规则模板导入已停用，规则需绑定具体员工' })
   batchCreateRules(@Body('template') template?: string, @Headers('x-store-id') storeHeader?: string) {
     return this.commissionService.batchCreateFromTemplate(storeHeader, template);
+  }
+
+  @Get('rule-assignments')
+  @Permissions('core:finance:manage')
+  @ApiOperation({ summary: '提成规则配置列表' })
+  getRuleAssignments(@Query() query: QueryCommissionRuleAssignmentsDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.commissionService.getAssignments({ ...query, storeId: this.storeIdFrom(query.storeId, storeHeader) });
+  }
+
+  @Post('rule-assignments')
+  @Permissions('core:finance:manage')
+  @ApiOperation({ summary: '创建提成规则配置' })
+  createRuleAssignment(@Body() dto: CreateCommissionRuleAssignmentDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.commissionService.createAssignment(storeHeader, dto);
+  }
+
+  @Put('rule-assignments/:id')
+  @Permissions('core:finance:manage')
+  @ApiOperation({ summary: '更新提成规则配置' })
+  updateRuleAssignment(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCommissionRuleAssignmentDto) {
+    return this.commissionService.updateAssignment(id, dto);
+  }
+
+  @Delete('rule-assignments/:id')
+  @Permissions('core:finance:manage')
+  @ApiOperation({ summary: '归档提成规则配置' })
+  deleteRuleAssignment(@Param('id', ParseIntPipe) id: number) {
+    return this.commissionService.deleteAssignment(id);
   }
 
   @Get('records/paginated')

@@ -14,6 +14,16 @@ export class CardsService {
     return Number(value);
   }
 
+  private toNonNegativeStock(value: unknown): number {
+    const stock = this.toNumber(value);
+    return Number.isFinite(stock) ? Math.max(0, stock) : 0;
+  }
+
+  private buildInventoryShortageRemark(baseRemark: string, requestedQty: number, appliedQty: number) {
+    if (appliedQty >= requestedQty) return baseRemark;
+    return `${baseRemark}；库存不足：本次申请 ${requestedQty}，实际扣减 ${appliedQty}，不足 ${requestedQty - appliedQty}`;
+  }
+
   private createStockMovementNo(prefix = 'SM') {
     return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   }
@@ -178,11 +188,21 @@ export class CardsService {
       });
       if (!product) continue;
 
-      const beforeStock = this.toNumber(product.currentStock);
-      const afterStock = beforeStock - quantity;
+      const beforeStock = this.toNonNegativeStock(product.currentStock);
+      const appliedQty = Math.min(beforeStock, quantity);
+      const afterStock = beforeStock - appliedQty;
+      if (appliedQty <= 0) {
+        if (this.toNumber(product.currentStock) < 0) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: { currentStock: 0 },
+          });
+        }
+        continue;
+      }
       await tx.product.update({
         where: { id: product.id },
-        data: { currentStock: { decrement: quantity } },
+        data: { currentStock: afterStock },
       });
       await tx.stockMovement.create({
         data: {
@@ -190,14 +210,14 @@ export class CardsService {
           productId: product.id,
           movementNo: this.createStockMovementNo('SM'),
           movementType: 'service_consume',
-          quantity: -quantity,
+          quantity: -appliedQty,
           beforeStock,
           afterStock,
           unit: product.unit,
           sourceType: 'card_usage',
           sourceId: params.recordId,
           sourceNo: params.cardName,
-          remark: `次卡核销自动扣耗材：${project.name}`,
+          remark: this.buildInventoryShortageRemark(`次卡核销自动扣耗材：${project.name}`, quantity, appliedQty),
         },
       });
     }
@@ -305,7 +325,8 @@ export class CardsService {
     customerCardId?: string | number;
     customerId?: number;
     cardName?: string;
-    projectName: string;
+    projectId?: string | number;
+    projectName?: string;
     times?: number;
     consumedTimes?: number;
     operatorId?: number;
@@ -314,7 +335,9 @@ export class CardsService {
   }) {
     const customerCardId = Number(data.customerCardId ?? data.cardOrderId ?? 0);
     const times = Number(data.times ?? data.consumedTimes ?? 1);
-    if (!data.projectName) throw new BadRequestException('请选择消费项目');
+    const requestedProjectId = this.toOptionalPositiveNumber(data.projectId);
+    const requestedProjectName = String(data.projectName ?? '').trim();
+    if (!requestedProjectId && !requestedProjectName) throw new BadRequestException('请选择消费项目');
     if (!Number.isFinite(times) || times <= 0) throw new BadRequestException('核销次数必须大于 0');
 
     return this.prisma.$transaction(async (tx) => {
@@ -328,25 +351,44 @@ export class CardsService {
         },
       });
       if (!customerCard) throw new NotFoundException('未找到有效次卡');
+      if (data.customerId && customerCard.customerId !== Number(data.customerId)) {
+        throw new BadRequestException('卡项不属于该客户');
+      }
+      if (customerCard.expiryDate < new Date()) {
+        throw new BadRequestException('次卡已过期');
+      }
       if (customerCard.remainingTimes < times) {
         throw new BadRequestException('次卡剩余次数不足');
       }
 
+      const requestedProject = requestedProjectId
+        ? await tx.project.findFirst({
+            where: { id: requestedProjectId, storeId: customerCard.customer.storeId, deletedAt: null },
+            select: { id: true, name: true },
+          })
+        : null;
+      const normalizedRequestedProjectName = requestedProjectName || String(requestedProject?.name ?? '').trim();
       const projects = Array.isArray(customerCard.card?.projects) ? customerCard.card.projects : [];
       const matchedProject = projects.find((project: any) => {
         const projectName = String(project.projectName ?? project.name ?? '').trim();
-        return projectName === data.projectName;
+        const projectId = this.toNumber(project.projectId ?? project.id);
+        return (
+          (requestedProjectId && projectId === requestedProjectId) ||
+          (normalizedRequestedProjectName && projectName === normalizedRequestedProjectName)
+        );
       });
       if (!matchedProject) {
         throw new BadRequestException('消费项目不属于当前次卡，请选择本卡配置的项目');
       }
+      const matchedProjectName = String((matchedProject as any).projectName ?? (matchedProject as any).name ?? normalizedRequestedProjectName).trim();
+      if (!matchedProjectName) throw new BadRequestException('消费项目配置缺少项目名称');
 
       const projectTotalTimes = Number((matchedProject as any).timesPerCard ?? (matchedProject as any).totalCount ?? customerCard.totalTimes ?? 0);
       const usedProjectTimes = await tx.cardUsageRecord.aggregate({
         where: {
           customerId: customerCard.customerId,
           cardName: customerCard.cardName,
-          projectName: data.projectName,
+          projectName: matchedProjectName,
           verifiedAt: {
             gte: customerCard.createdAt,
             lte: customerCard.expiryDate,
@@ -363,8 +405,21 @@ export class CardsService {
         where: { id: customerCard.id },
         data: { remainingTimes: customerCard.remainingTimes - times },
       });
-      const matchedProjectId = this.toNumber((matchedProject as any).projectId ?? (matchedProject as any).id) || undefined;
+      const matchedProjectId =
+        requestedProjectId ?? (this.toNumber((matchedProject as any).projectId ?? (matchedProject as any).id) || undefined);
       const cardId = this.toNumber(customerCard.cardId) || this.toNumber(customerCard.card?.id) || undefined;
+      const resolvedProject = await tx.project.findFirst({
+        where: {
+          storeId: customerCard.customer.storeId,
+          deletedAt: null,
+          OR: [
+            ...(matchedProjectId ? [{ id: matchedProjectId }] : []),
+            { name: matchedProjectName },
+          ],
+        },
+        select: { id: true, name: true },
+      });
+      const resolvedProjectId = resolvedProject?.id ?? matchedProjectId;
       const recognizedUnitValue = this.resolveRecognizedUnitValue(customerCard);
       const recognizedAmount = this.roundCurrency(recognizedUnitValue * times);
       const pricingSnapshot =
@@ -381,12 +436,12 @@ export class CardsService {
         data: {
           customerCardId: customerCard.id,
           cardId,
-          projectId: matchedProjectId,
+          projectId: resolvedProjectId,
           storeId: customerCard.customer.storeId,
           customerId: customerCard.customerId,
           customerName: customerCard.customer?.name ?? '',
           cardName: customerCard.cardName,
-          projectName: data.projectName,
+          projectName: resolvedProject?.name ?? matchedProjectName,
           times,
           remainingTimes: updatedCard.remainingTimes,
           recognizedUnitValue,
@@ -402,8 +457,8 @@ export class CardsService {
 
       await this.consumeProjectBomForCardUsage(tx, {
         storeId: customerCard.customer.storeId,
-        projectName: data.projectName,
-        projectId: matchedProjectId,
+        projectName: matchedProjectName,
+        projectId: resolvedProjectId,
         times,
         recordId: record.id,
         cardName: customerCard.cardName,
@@ -421,7 +476,7 @@ export class CardsService {
               staffUserId: beautician.userId,
               beauticianId: beautician.id,
               type: 'project',
-              itemId: matchedProjectId,
+              itemId: resolvedProjectId,
               sourceAmount: recognizedAmount,
               levelId: beautician.levelId ?? undefined,
               isDesignated: false,
@@ -436,6 +491,6 @@ export class CardsService {
       }
 
       return record;
-    });
+    }, { timeout: 20000 });
   }
 }

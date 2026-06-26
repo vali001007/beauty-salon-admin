@@ -2,8 +2,9 @@
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
+import { CreateCommissionRuleAssignmentDto, CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
 import { UpdateCommissionRuleDto } from './dto/update-commission-rule.dto.js';
+import { UpdateCommissionRuleAssignmentDto } from './dto/update-commission-rule-assignment.dto.js';
 
 type PrismaLike = PrismaService | any;
 
@@ -11,6 +12,13 @@ type CommissionRuleReferenceInput = Pick<CreateCommissionRuleDto, 'type' | 'targ
   targetId?: number | null;
   levelId?: number | null;
   userId?: number | null;
+};
+
+type CommissionRuleAssignmentReferenceInput = Pick<CreateCommissionRuleAssignmentDto, 'type' | 'targetType'> & {
+  ruleId?: number | null;
+  targetId?: number | null;
+  userId?: number | null;
+  status?: string;
 };
 
 export type CalculateCommissionParams = {
@@ -66,13 +74,9 @@ export type RecordAmiContributionParams = {
   metadata?: Record<string, unknown>;
 };
 
-const TARGET_TYPE_WEIGHT: Record<string, number> = {
-  specific: 3,
-  category: 2,
-  all: 1,
-};
-
 const DEFAULT_AMI_BASE_FEE = 699;
+const BUSINESS_TIMEZONE_OFFSET_MINUTES = 8 * 60;
+const BUSINESS_DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class CommissionService {
@@ -162,8 +166,22 @@ export class CommissionService {
     };
   }
 
+  private serializeAssignment(assignment: any) {
+    if (!assignment) return assignment;
+    return {
+      ...assignment,
+      rule: assignment.rule ? this.serializeRule(assignment.rule) : assignment.rule,
+      ruleName: assignment.rule?.name,
+      userName: assignment.user?.name ?? assignment.user?.username,
+      storeName: assignment.store?.name,
+    };
+  }
+
   private serializeRecord(record: any) {
     if (!record) return record;
+    const cardUsageItem = record.cardUsageRecord
+      ? { id: record.cardUsageRecord.id, name: record.cardUsageRecord.projectName, itemType: 'card_usage' }
+      : undefined;
     return {
       ...record,
       sourceAmount: this.toNumber(record.sourceAmount),
@@ -172,8 +190,10 @@ export class CommissionService {
       staffUserName: record.staffUser?.name ?? record.beautician?.name,
       beauticianName: record.beautician?.name,
       storeName: record.store?.name,
-      orderNo: record.order?.orderNo,
+      orderNo: record.order?.orderNo ?? record.cardUsageRecord?.cardName,
+      orderItem: record.orderItem ?? cardUsageItem,
       ruleName: record.rule?.name,
+      assignmentName: record.assignment?.rule?.name ?? record.rule?.name,
     };
   }
 
@@ -225,6 +245,7 @@ export class CommissionService {
     if (!settlement) return settlement;
     return {
       ...settlement,
+      settleDate: this.normalizeBusinessDateText(settlement.settleDate),
       totalRevenue: this.toNumber(settlement.totalRevenue),
       cashRevenue: this.toNumber(settlement.cashRevenue),
       wechatRevenue: this.toNumber(settlement.wechatRevenue),
@@ -269,10 +290,34 @@ export class CommissionService {
     };
   }
 
-  private normalizeDay(dateInput: string | Date) {
+  private normalizeBusinessDateText(dateInput: string | Date) {
+    if (typeof dateInput === 'string') {
+      const dateText = dateInput.trim().match(/^(\d{4})-(\d{2})-(\d{2})/)?.[0];
+      if (dateText) return dateText;
+    }
     const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
     if (Number.isNaN(date.getTime())) throw new BadRequestException('日期格式不正确');
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const businessDate = new Date(date.getTime() + BUSINESS_TIMEZONE_OFFSET_MINUTES * 60 * 1000);
+    return `${businessDate.getUTCFullYear()}-${String(businessDate.getUTCMonth() + 1).padStart(2, '0')}-${String(businessDate.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  private getBusinessDayRange(dateInput: string | Date) {
+    const dateText = this.normalizeBusinessDateText(dateInput);
+    const [year, month, day] = dateText.split('-').map(Number);
+    if (!year || !month || !day) throw new BadRequestException('日期格式不正确');
+    const canonicalUtcStart = Date.UTC(year, month - 1, day);
+    const start = new Date(canonicalUtcStart - BUSINESS_TIMEZONE_OFFSET_MINUTES * 60 * 1000);
+    const end = new Date(start.getTime() + BUSINESS_DAY_MS);
+    return {
+      dateText,
+      start,
+      end,
+      settleDate: new Date(canonicalUtcStart),
+    };
+  }
+
+  private normalizeDay(dateInput: string | Date) {
+    return this.getBusinessDayRange(dateInput).start;
   }
 
   private addDays(date: Date, days: number) {
@@ -282,7 +327,15 @@ export class CommissionService {
   }
 
   private getYesterday(date = new Date()) {
-    return this.addDays(this.normalizeDay(date), -1);
+    const todayStart = this.getBusinessDayRange(date).start;
+    return this.normalizeBusinessDateText(new Date(todayStart.getTime() - 1));
+  }
+
+  private isCanonicalSettlementDate(settlement: any) {
+    if (!settlement?.settleDate) return false;
+    const settleDate = settlement.settleDate instanceof Date ? settlement.settleDate : new Date(settlement.settleDate);
+    if (Number.isNaN(settleDate.getTime())) return false;
+    return settleDate.toISOString().slice(0, 10) === this.normalizeBusinessDateText(settleDate);
   }
 
   private normalizePaymentMethod(method?: string | null) {
@@ -726,8 +779,6 @@ export class CommissionService {
     pageSize?: number | string;
     storeId?: number | string;
     type?: string;
-    levelId?: number | string;
-    userId?: number | string;
     status?: string;
     keyword?: string;
   }) {
@@ -738,17 +789,20 @@ export class CommissionService {
     if (storeId > 0) where.storeId = storeId;
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
-    if (this.toNumber(query.levelId) > 0) where.levelId = this.toNumber(query.levelId);
-    if (this.toNumber(query.userId) > 0) where.userId = this.toNumber(query.userId);
     if (query.keyword) where.name = { contains: query.keyword, mode: 'insensitive' };
 
     const [items, total] = await Promise.all([
       this.prisma.commissionRule.findMany({
         where,
-        include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
+        include: {
+          store: { select: { id: true, name: true } },
+          level: true,
+          user: { select: { id: true, name: true, username: true } },
+          assignments: { where: { status: { not: 'archived' } }, select: { id: true, status: true } },
+        },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
       }),
       this.prisma.commissionRule.count({ where }),
     ]);
@@ -759,17 +813,28 @@ export class CommissionService {
   async getRuleById(id: number) {
     const rule = await this.prisma.commissionRule.findUnique({
       where: { id },
-      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        level: true,
+        user: { select: { id: true, name: true, username: true } },
+        assignments: { where: { status: { not: 'archived' } }, select: { id: true, status: true } },
+      },
     });
     if (!rule) throw new NotFoundException('提成规则不存在');
     return this.serializeRule(rule);
   }
 
-  private async validateRuleReferences(storeId: number, dto: CommissionRuleReferenceInput) {
-    if (dto.levelId) {
-      const level = await this.prisma.beauticianLevel.findUnique({ where: { id: Number(dto.levelId) } });
-      if (!level) throw new BadRequestException('员工等级不存在');
-    }
+  private async validateRuleAlgorithmReferences(storeId: number, dto: Pick<CreateCommissionRuleDto, 'type'>) {
+    if (!dto.type) throw new BadRequestException('缺少提成规则类型');
+    const store = await this.prisma.store.findMany({ where: { id: storeId }, take: 1 });
+    if (!store.length) throw new BadRequestException('门店不存在');
+  }
+
+  private async validateAssignmentReferences(storeId: number, dto: CommissionRuleAssignmentReferenceInput) {
+    if (!dto.ruleId) throw new BadRequestException('请选择提成规则');
+    const rule = await this.prisma.commissionRule.findUnique({ where: { id: Number(dto.ruleId) } });
+    if (!rule || rule.storeId !== storeId || rule.status === 'archived') throw new BadRequestException('提成规则不存在或已归档');
+    if (rule.type !== dto.type) throw new BadRequestException('规则配置类型必须与规则库类型一致');
 
     if (dto.userId) {
       const user = await this.prisma.user.findFirst({
@@ -799,19 +864,52 @@ export class CommissionService {
     }
   }
 
+  private normalizeAssignmentScope(dto: CommissionRuleAssignmentReferenceInput) {
+    const normalized = { ...dto } as CommissionRuleAssignmentReferenceInput;
+    if (['project', 'product', 'card_sale'].includes(String(normalized.type))) {
+      normalized.targetType = 'specific';
+      if (!normalized.targetId) {
+        const label = normalized.type === 'project' ? '项目' : normalized.type === 'product' ? '商品' : '卡项';
+        throw new BadRequestException(`${label}提成规则必须指定适用对象`);
+      }
+    } else {
+      normalized.targetType = 'all';
+      normalized.targetId = null;
+    }
+    return normalized;
+  }
+
+  private async assertNoActiveAssignmentConflict(storeId: number, dto: CommissionRuleAssignmentReferenceInput, excludeId?: number) {
+    if ((dto.status ?? 'active') !== 'active') return;
+    const userId = Number(dto.userId);
+    if (!Number.isFinite(userId) || userId <= 0) return;
+    const conflict = await this.prisma.commissionRuleAssignment.findFirst({
+      where: {
+        storeId,
+        type: dto.type,
+        status: 'active',
+        userId,
+        targetType: dto.targetType,
+        targetId: dto.targetId ?? null,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      include: { rule: { select: { id: true, name: true } } },
+    } as any);
+    if (conflict) throw new BadRequestException(`同一对象与员工组合已存在启用提成配置：${(conflict as any).rule?.name ?? conflict.id}`);
+  }
+
   async createRule(storeIdInput: number | string | undefined, dto: CreateCommissionRuleDto) {
     const storeId = this.asStoreId(storeIdInput);
-    if (!dto.userId) throw new BadRequestException('提成规则必须绑定到具体员工');
-    await this.validateRuleReferences(storeId, dto);
+    await this.validateRuleAlgorithmReferences(storeId, dto);
     const rule = await this.prisma.commissionRule.create({
       data: {
         storeId,
         name: dto.name,
         type: dto.type,
-        targetType: dto.targetType ?? 'all',
-        targetId: dto.targetId,
-        levelId: dto.levelId,
-        userId: dto.userId,
+        targetType: 'all',
+        targetId: null,
+        levelId: null,
+        userId: null,
         rate: dto.rate,
         fixedAmount: dto.fixedAmount,
         calcBase: dto.calcBase ?? 'total',
@@ -819,9 +917,14 @@ export class CommissionService {
         designatedBonus: dto.designatedBonus,
         minThreshold: dto.minThreshold,
         status: dto.status ?? 'active',
-        priority: dto.priority ?? 0,
+        priority: 0,
       },
-      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        level: true,
+        user: { select: { id: true, name: true, username: true } },
+        assignments: { where: { status: { not: 'archived' } }, select: { id: true, status: true } },
+      },
     });
     return this.serializeRule(rule);
   }
@@ -829,18 +932,16 @@ export class CommissionService {
   async updateRule(id: number, dto: UpdateCommissionRuleDto) {
     const current = await this.prisma.commissionRule.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('提成规则不存在');
-    const nextRule = { ...current, ...dto };
-    if (!nextRule.userId) throw new BadRequestException('提成规则必须绑定到具体员工');
-    await this.validateRuleReferences(current.storeId, nextRule);
+    await this.validateRuleAlgorithmReferences(current.storeId, { type: dto.type ?? current.type });
     const rule = await this.prisma.commissionRule.update({
       where: { id },
       data: {
         name: dto.name,
         type: dto.type,
-        targetType: dto.targetType,
-        targetId: dto.targetId,
-        levelId: dto.levelId,
-        userId: dto.userId,
+        targetType: 'all',
+        targetId: null,
+        levelId: null,
+        userId: null,
         rate: dto.rate,
         fixedAmount: dto.fixedAmount,
         calcBase: dto.calcBase,
@@ -848,9 +949,14 @@ export class CommissionService {
         designatedBonus: dto.designatedBonus,
         minThreshold: dto.minThreshold,
         status: dto.status,
-        priority: dto.priority,
+        priority: 0,
       },
-      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        level: true,
+        user: { select: { id: true, name: true, username: true } },
+        assignments: { where: { status: { not: 'archived' } }, select: { id: true, status: true } },
+      },
     });
     return this.serializeRule(rule);
   }
@@ -860,9 +966,122 @@ export class CommissionService {
     const rule = await this.prisma.commissionRule.update({
       where: { id },
       data: { status: 'archived' },
-      include: { store: { select: { id: true, name: true } }, level: true, user: { select: { id: true, name: true, username: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        level: true,
+        user: { select: { id: true, name: true, username: true } },
+        assignments: { where: { status: { not: 'archived' } }, select: { id: true, status: true } },
+      },
     });
     return this.serializeRule(rule);
+  }
+
+  async getAssignments(query: {
+    page?: number | string;
+    pageSize?: number | string;
+    storeId?: number | string;
+    ruleId?: number | string;
+    type?: string;
+    targetId?: number | string;
+    userId?: number | string;
+    status?: string;
+    keyword?: string;
+  }) {
+    const page = Math.max(1, this.toNumber(query.page) || 1);
+    const pageSize = Math.max(1, this.toNumber(query.pageSize) || 20);
+    const where: any = {};
+    const storeId = this.toNumber(query.storeId);
+    if (storeId > 0) where.storeId = storeId;
+    if (this.toNumber(query.ruleId) > 0) where.ruleId = this.toNumber(query.ruleId);
+    if (query.type) where.type = query.type;
+    if (this.toNumber(query.targetId) > 0) where.targetId = this.toNumber(query.targetId);
+    if (this.toNumber(query.userId) > 0) where.userId = this.toNumber(query.userId);
+    if (query.status) where.status = query.status;
+    if (query.keyword) where.rule = { name: { contains: query.keyword, mode: 'insensitive' } };
+
+    const [items, total] = await Promise.all([
+      this.prisma.commissionRuleAssignment.findMany({
+        where,
+        include: {
+          store: { select: { id: true, name: true } },
+          rule: true,
+          user: { select: { id: true, name: true, username: true } },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: [{ type: 'asc' }, { targetId: 'asc' }, { userId: 'asc' }, { createdAt: 'desc' }],
+      }),
+      this.prisma.commissionRuleAssignment.count({ where }),
+    ]);
+    const normalizedItems = items.map((item: any) => this.serializeAssignment(item));
+    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
+  }
+
+  async createAssignment(storeIdInput: number | string | undefined, dto: CreateCommissionRuleAssignmentDto) {
+    const storeId = this.asStoreId(storeIdInput);
+    const normalized = this.normalizeAssignmentScope(dto);
+    await this.validateAssignmentReferences(storeId, normalized);
+    await this.assertNoActiveAssignmentConflict(storeId, { ...normalized, status: dto.status ?? 'active' });
+    const assignment = await this.prisma.commissionRuleAssignment.create({
+      data: {
+        storeId,
+        ruleId: Number(dto.ruleId),
+        type: normalized.type,
+        targetType: normalized.targetType ?? 'all',
+        targetId: normalized.targetId ?? null,
+        userId: Number(dto.userId),
+        status: dto.status ?? 'active',
+        remark: dto.remark,
+      },
+      include: {
+        store: { select: { id: true, name: true } },
+        rule: true,
+        user: { select: { id: true, name: true, username: true } },
+      },
+    });
+    return this.serializeAssignment(assignment);
+  }
+
+  async updateAssignment(id: number, dto: UpdateCommissionRuleAssignmentDto) {
+    const current = await this.prisma.commissionRuleAssignment.findUnique({ where: { id } });
+    if (!current) throw new NotFoundException('提成规则配置不存在');
+    const next = { ...current, ...dto };
+    const normalized = this.normalizeAssignmentScope(next);
+    await this.validateAssignmentReferences(current.storeId, normalized);
+    await this.assertNoActiveAssignmentConflict(current.storeId, { ...normalized, status: next.status ?? 'active' }, id);
+    const assignment = await this.prisma.commissionRuleAssignment.update({
+      where: { id },
+      data: {
+        ruleId: dto.ruleId,
+        type: normalized.type,
+        targetType: normalized.targetType,
+        targetId: normalized.targetId ?? null,
+        userId: dto.userId,
+        status: dto.status,
+        remark: dto.remark,
+      },
+      include: {
+        store: { select: { id: true, name: true } },
+        rule: true,
+        user: { select: { id: true, name: true, username: true } },
+      },
+    });
+    return this.serializeAssignment(assignment);
+  }
+
+  async deleteAssignment(id: number) {
+    const current = await this.prisma.commissionRuleAssignment.findUnique({ where: { id } });
+    if (!current) throw new NotFoundException('提成规则配置不存在');
+    const assignment = await this.prisma.commissionRuleAssignment.update({
+      where: { id },
+      data: { status: 'archived' },
+      include: {
+        store: { select: { id: true, name: true } },
+        rule: true,
+        user: { select: { id: true, name: true, username: true } },
+      },
+    });
+    return this.serializeAssignment(assignment);
   }
 
   async batchCreateFromTemplate(storeIdInput: number | string | undefined, template = 'beauty_standard') {
@@ -883,42 +1102,27 @@ export class CommissionService {
     return undefined;
   }
 
-  private selectRule(rules: any[], params: CalculateCommissionParams, categoryId?: number) {
-    const matched = rules.filter((rule) => {
-      if (rule.targetType === 'all') return true;
-      if (rule.targetType === 'category') return Boolean(categoryId && this.toNumber(rule.targetId) === categoryId);
-      if (rule.targetType === 'specific') return Boolean(params.itemId && this.toNumber(rule.targetId) === params.itemId);
-      return false;
-    });
-
-    return matched.sort((a, b) => {
-      const priorityDiff = this.toNumber(b.priority) - this.toNumber(a.priority);
-      if (priorityDiff !== 0) return priorityDiff;
-      const userDiff = (b.userId ? 1 : 0) - (a.userId ? 1 : 0);
-      if (userDiff !== 0) return userDiff;
-      const levelDiff = (b.levelId ? 1 : 0) - (a.levelId ? 1 : 0);
-      if (levelDiff !== 0) return levelDiff;
-      return (TARGET_TYPE_WEIGHT[b.targetType] ?? 0) - (TARGET_TYPE_WEIGHT[a.targetType] ?? 0);
-    })[0];
-  }
-
   async calculateCommission(params: CalculateCommissionParams, client: PrismaLike = this.prisma) {
     if (!params.storeId || !params.staffUserId || params.sourceAmount <= 0) return null;
-    const categoryId = await this.resolveCategory(params, client);
-    const ruleWhere: any = {
+    const objectScoped = ['project', 'product', 'card_sale'].includes(params.type);
+    if (objectScoped && !params.itemId) return null;
+    const assignmentWhere: any = {
       storeId: params.storeId,
       type: params.type,
       status: 'active',
+      userId: params.staffUserId,
+      targetType: objectScoped ? 'specific' : 'all',
+      targetId: objectScoped ? params.itemId : null,
+      rule: { status: 'active' },
     };
-    const ruleUserId = params.staffUserId;
-    const userScope = ruleUserId ? [{ userId: null }, { userId: ruleUserId }] : [{ userId: null }];
-    const levelScope = params.levelId ? [{ levelId: null }, { levelId: params.levelId }] : [{ levelId: null }];
-    ruleWhere.AND = [{ OR: userScope }, { OR: levelScope }];
-    const rules = await client.commissionRule.findMany({
-      where: ruleWhere,
+    const assignments = await client.commissionRuleAssignment.findMany({
+      where: assignmentWhere,
+      include: { rule: true },
     });
 
-    const rule = this.selectRule(rules, params, categoryId);
+    if (assignments.length > 1) throw new BadRequestException('同一对象与员工组合存在多条启用提成配置，请先处理配置冲突');
+    const assignment = assignments[0];
+    const rule = assignment?.rule;
     if (!rule) return null;
 
     const base =
@@ -950,6 +1154,7 @@ export class CommissionService {
         sourceId: params.sourceId,
         cardUsageRecordId: params.cardUsageRecordId,
         ruleId: rule.id,
+        assignmentId: assignment.id,
         type: params.type,
         sourceAmount: base,
         rate,
@@ -965,6 +1170,7 @@ export class CommissionService {
         store: { select: { id: true, name: true } },
         order: { select: { id: true, orderNo: true } },
         rule: { select: { id: true, name: true } },
+        assignment: { include: { rule: { select: { id: true, name: true } } } },
       },
     });
     return this.serializeRecord(record);
@@ -1043,7 +1249,9 @@ export class CommissionService {
           store: { select: { id: true, name: true } },
           order: { select: { id: true, orderNo: true, customerName: true } },
           orderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
+          cardUsageRecord: { select: { id: true, cardName: true, projectName: true } },
           rule: { select: { id: true, name: true } },
+          assignment: { include: { rule: { select: { id: true, name: true } } } },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -1562,55 +1770,64 @@ export class CommissionService {
 
   async generateDailySettlement(storeIdInput: number | string | undefined, dateInput: string | Date) {
     const storeId = this.asStoreId(storeIdInput);
-    const settleDate = this.normalizeDay(dateInput);
-    const dayEnd = this.addDays(settleDate, 1);
+    const { start: dayStart, end: dayEnd, settleDate } = this.getBusinessDayRange(dateInput);
 
-    const orders = await this.prisma.productOrder.findMany({
-      where: {
-        storeId,
-        createdAt: { gte: settleDate, lt: dayEnd },
-        status: { in: ['completed', 'paid'] },
-      },
-      include: {
-        orderItems: true,
-        paymentRecords: { where: { status: 'success' } },
-        refundRecords: { where: { status: 'success' } },
-      },
-    });
+    const [orders, refunds] = await Promise.all([
+      this.prisma.productOrder.findMany({
+        where: {
+          storeId,
+          createdAt: { gte: dayStart, lt: dayEnd },
+          OR: [
+            { status: { in: ['completed', 'paid', 'refunded'] } },
+            { paymentRecords: { some: { status: 'success' } } },
+          ],
+        },
+        include: {
+          orderItems: true,
+          paymentRecords: { where: { status: 'success' } },
+        },
+      }),
+      this.prisma.refundRecord.findMany({
+        where: {
+          status: { in: ['success', 'completed', 'refunded'] },
+          refundedAt: { gte: dayStart, lt: dayEnd },
+          order: { storeId },
+        },
+      }),
+    ]);
 
     const paymentSummary = this.emptyPaymentSummary();
-    let totalRevenue = 0;
-    let refundAmount = 0;
+    let grossRevenue = 0;
     let rechargeIncome = 0;
     const customers = new Set<number>();
     const allOrderItems: any[] = [];
     for (const order of orders) {
       const paid = order.paymentRecords.reduce((sum: number, payment: any) => sum + this.toNumber(payment.amount), 0);
       const orderAmount = paid > 0 ? paid : this.toNumber(order.totalAmount);
-      totalRevenue += orderAmount;
+      grossRevenue += orderAmount;
       if (order.customerId) customers.add(order.customerId);
       if (order.paymentRecords.length) {
         for (const payment of order.paymentRecords) this.addPayment(paymentSummary, payment.method, payment.amount);
       } else {
         this.addPayment(paymentSummary, order.payMethod, orderAmount);
       }
-      const orderRefund = order.refundRecords.reduce((sum: number, refund: any) => sum + this.toNumber(refund.amount), 0);
-      refundAmount += orderRefund;
       allOrderItems.push(...order.orderItems);
       const hasRecharge = order.orderItems.some((item: any) => item.itemType === 'recharge');
       if (hasRecharge) rechargeIncome += orderAmount;
     }
+    const refundAmount = refunds.reduce((sum: number, refund: any) => sum + this.toNumber(refund.amount), 0);
+    paymentSummary.refund = refundAmount;
 
     const materialCost = await this.calculateMaterialCost(allOrderItems);
     const commissionRecords = await this.prisma.commissionRecord.findMany({
       where: {
         storeId,
-        createdAt: { gte: settleDate, lt: dayEnd },
+        createdAt: { gte: dayStart, lt: dayEnd },
         status: { not: 'cancelled' },
       },
     });
     const commissionTotal = commissionRecords.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
-    const netRevenue = Math.max(0, totalRevenue - refundAmount);
+    const netRevenue = Math.round((grossRevenue - refundAmount) * 100) / 100;
     const grossProfit = Math.round((netRevenue - materialCost - commissionTotal) * 100) / 100;
     const grossMargin = netRevenue > 0 ? Math.round((grossProfit / netRevenue) * 10000) / 100 : 0;
     const avgTransaction = orders.length > 0 ? Math.round((netRevenue / orders.length) * 100) / 100 : 0;
@@ -1661,7 +1878,7 @@ export class CommissionService {
   }
 
   async generateDailySettlementsForAllStores(dateInput: string | Date = this.getYesterday()) {
-    const settleDate = this.normalizeDay(dateInput);
+    const settleDate = this.normalizeBusinessDateText(dateInput);
     const stores = await this.prisma.store.findMany({
       where: { deletedAt: null, status: 'active' },
       select: { id: true, name: true },
@@ -1704,22 +1921,37 @@ export class CommissionService {
     if (query.status) where.status = query.status;
     if (query.dateFrom || query.dateTo) {
       where.settleDate = {};
-      if (query.dateFrom) where.settleDate.gte = this.normalizeDay(query.dateFrom);
-      if (query.dateTo) where.settleDate.lt = this.addDays(this.normalizeDay(query.dateTo), 1);
+      if (query.dateFrom) where.settleDate.gte = this.getBusinessDayRange(query.dateFrom).start;
+      if (query.dateTo) where.settleDate.lt = this.getBusinessDayRange(query.dateTo).end;
     }
 
-    const [items, total] = await Promise.all([
-      this.db().dailySettlement.findMany({
-        where,
-        include: { store: { select: { id: true, name: true } } },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: { settleDate: 'desc' },
-      }),
-      this.db().dailySettlement.count({ where }),
-    ]);
-    const normalizedItems = items.map((item: any) => this.serializeDailySettlement(item));
-    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
+    const rawItems = await this.db().dailySettlement.findMany({
+      where,
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: { settleDate: 'desc' },
+    });
+    const deduped = new Map<string, any>();
+    for (const item of rawItems) {
+      const key = `${item.storeId}:${this.normalizeBusinessDateText(item.settleDate)}`;
+      const current = deduped.get(key);
+      if (!current) {
+        deduped.set(key, item);
+        continue;
+      }
+      const itemScore = (this.isCanonicalSettlementDate(item) ? 4 : 0) + (item.status === 'confirmed' ? 2 : 0);
+      const currentScore = (this.isCanonicalSettlementDate(current) ? 4 : 0) + (current.status === 'confirmed' ? 2 : 0);
+      if (
+        itemScore > currentScore ||
+        (itemScore === currentScore && new Date(item.updatedAt ?? item.settleDate).getTime() > new Date(current.updatedAt ?? current.settleDate).getTime())
+      ) {
+        deduped.set(key, item);
+      }
+    }
+    const allItems = Array.from(deduped.values())
+      .sort((a, b) => this.normalizeBusinessDateText(b.settleDate).localeCompare(this.normalizeBusinessDateText(a.settleDate)))
+      .map((item: any) => this.serializeDailySettlement(item));
+    const normalizedItems = allItems.slice((page - 1) * pageSize, page * pageSize);
+    return { items: normalizedItems, data: normalizedItems, total: allItems.length, page, pageSize };
   }
 
   async confirmDailySettlement(id: number, confirmedBy?: number) {

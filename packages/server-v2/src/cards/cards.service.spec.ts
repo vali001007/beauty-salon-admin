@@ -4,8 +4,12 @@ describe('CardsService inventory consumption', () => {
   let service: CardsService;
   let prisma: any;
   let tx: any;
+  let commissionService: { calculateCommission: jest.Mock };
 
   beforeEach(() => {
+    commissionService = {
+      calculateCommission: jest.fn(),
+    };
     tx = {
       customerCard: {
         findFirst: jest.fn().mockResolvedValue({
@@ -23,7 +27,7 @@ describe('CardsService inventory consumption', () => {
           sourceOrderId: 501,
           sourceOrderItemId: 601,
           customer: { name: '林若溪', storeId: 1 },
-          card: { id: 11, price: 680, totalTimes: 10, projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }] },
+          card: { id: 11, price: 680, totalTimes: 10, projects: [{ projectName: '深层补水护理', timesPerCard: 10 }] },
         }),
         update: jest.fn().mockResolvedValue({ id: 66, remainingTimes: 4 }),
       },
@@ -59,7 +63,7 @@ describe('CardsService inventory consumption', () => {
     prisma = {
       $transaction: jest.fn((callback: any) => callback(tx)),
     };
-    service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+    service = new CardsService(prisma, commissionService as any);
   });
 
   it('deducts project BOM stock after card usage verification', async () => {
@@ -80,7 +84,7 @@ describe('CardsService inventory consumption', () => {
     });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: 301 },
-      data: { currentStock: { decrement: 2 } },
+      data: { currentStock: 8 },
     });
     expect(tx.stockMovement.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -111,6 +115,128 @@ describe('CardsService inventory consumption', () => {
         sourceOrderItemId: 601,
       }),
     });
+  });
+
+  it('accepts projectId from terminal card usage verification', async () => {
+    tx.customerCard.findFirst.mockResolvedValue({
+      id: 66,
+      customerId: 10,
+      cardName: '补水护理 10 次卡',
+      totalTimes: 10,
+      remainingTimes: 5,
+      expiryDate: new Date('2026-12-31T00:00:00.000Z'),
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      paidAmount: 680,
+      discountAmount: 0,
+      giftTimes: 0,
+      recognizedUnitValue: 68,
+      sourceOrderId: 501,
+      sourceOrderItemId: 601,
+      customer: { name: '林若溪', storeId: 1 },
+      card: {
+        id: 11,
+        price: 680,
+        totalTimes: 10,
+        projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }],
+      },
+    });
+
+    await service.verifyCardUsage({
+      customerCardId: 66,
+      projectId: 101,
+      consumedTimes: 1,
+      operatorId: 7,
+      deviceId: 99,
+    });
+
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        storeId: 1,
+        deletedAt: null,
+        OR: [{ id: 101 }, { name: '深层补水护理' }],
+      },
+      select: { id: true, name: true },
+    });
+    expect(tx.cardUsageRecord.aggregate).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        customerId: 10,
+        cardName: '补水护理 10 次卡',
+        projectName: '深层补水护理',
+      }),
+      _sum: { times: true },
+    });
+    expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        operatorId: 7,
+        deviceId: 99,
+        projectId: 101,
+        projectName: '深层补水护理',
+        recognizedAmount: 68,
+      }),
+    });
+  });
+
+  it('matches terminal projectId to legacy card project names', async () => {
+    await service.verifyCardUsage({
+      customerCardId: 66,
+      projectId: 101,
+      consumedTimes: 1,
+      operatorId: 7,
+      deviceId: 99,
+    });
+
+    expect(tx.project.findFirst).toHaveBeenNthCalledWith(1, {
+      where: { id: 101, storeId: 1, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        operatorId: 7,
+        deviceId: 99,
+        projectId: 101,
+        projectName: '深层补水护理',
+        recognizedAmount: 68,
+      }),
+    });
+  });
+
+  it('resolves card usage project by name before calculating beautician commission', async () => {
+    tx.beautician.findFirst.mockResolvedValue({ id: 2, levelId: 3, userId: 21 });
+
+    await service.verifyCardUsage({
+      customerCardId: 66,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      beauticianId: 2,
+    });
+
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        storeId: 1,
+        deletedAt: null,
+        OR: [{ name: '深层补水护理' }],
+      },
+      select: { id: true, name: true },
+    });
+    expect(tx.beautician.findFirst).toHaveBeenCalledWith({
+      where: { id: 2, storeId: 1, status: 'active' },
+      select: { id: true, levelId: true, userId: true },
+    });
+    expect(commissionService.calculateCommission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storeId: 1,
+        staffUserId: 21,
+        beauticianId: 2,
+        type: 'project',
+        itemId: 101,
+        sourceAmount: 68,
+        sourceType: 'card_usage',
+        sourceId: 88,
+        cardUsageRecordId: 88,
+      }),
+      tx,
+    );
   });
 });
 

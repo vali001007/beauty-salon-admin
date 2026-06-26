@@ -16,6 +16,7 @@ describe('InventoryService terminal dashboard cache', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
         findMany: jest.fn(),
+        count: jest.fn(),
         fields: { safetyStock: 'safetyStock' },
       },
       stockBatch: {
@@ -49,6 +50,32 @@ describe('InventoryService terminal dashboard cache', () => {
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(2, ['role', 'manager', 'inventory-alerts']);
   });
 
+  it('returns non-negative stock values for historical negative products', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 10,
+        name: '院装洁面乳',
+        sku: 'SKU-10',
+        unit: '瓶',
+        currentStock: -164,
+        safetyStock: 0,
+        status: 'active',
+      },
+    ]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.getStock(1);
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        currentStock: 0,
+        availableStock: 0,
+        safetyStock: 0,
+        status: '缺货',
+      }),
+    );
+  });
+
   it('invalidates source and target store inventory alerts after completed transfer applies stock', async () => {
     prisma.transferOrder.create.mockResolvedValue({
       id: 88,
@@ -79,8 +106,66 @@ describe('InventoryService terminal dashboard cache', () => {
       items: [{ productId: 10, quantity: 3 }],
     });
 
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { currentStock: 5 },
+    });
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: { id: 20 },
+      data: { currentStock: 4 },
+    });
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(2, ['role', 'manager', 'inventory-alerts']);
+  });
+
+  it('caps completed transfer stock at zero when requested quantity exceeds stock', async () => {
+    prisma.transferOrder.create.mockResolvedValue({
+      id: 90,
+      orderNo: 'TRF90',
+      fromStoreId: 1,
+      toStoreId: 2,
+    });
+    prisma.product.findFirst
+      .mockResolvedValueOnce({
+        id: 10,
+        sku: 'SKU-10',
+        storeId: 1,
+        currentStock: 2,
+        unit: '瓶',
+      })
+      .mockResolvedValueOnce({
+        id: 20,
+        sku: 'SKU-10',
+        storeId: 2,
+        currentStock: 1,
+        unit: '瓶',
+      });
+
+    await service.createTransfer({
+      fromStoreId: 1,
+      toStoreId: 2,
+      status: 'completed',
+      items: [{ productId: 10, quantity: 5 }],
+      remark: '调拨测试',
+    });
+
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { currentStock: 0 },
+    });
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: { id: 20 },
+      data: { currentStock: 3 },
+    });
+    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        movementType: 'transfer_out',
+        quantity: -2,
+        beforeStock: 2,
+        afterStock: 0,
+        remark: '调拨测试；库存不足：本次申请 5，实际扣减 2，不足 3',
+      }),
+    });
   });
 
   it('does not invalidate inventory alerts when transfer is only a pending document', async () => {

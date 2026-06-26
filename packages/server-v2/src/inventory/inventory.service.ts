@@ -23,13 +23,18 @@ export class InventoryService {
     return Number(value);
   }
 
+  private toNonNegativeStock(value: unknown): number {
+    const stock = this.toNumber(value);
+    return Number.isFinite(stock) ? Math.max(0, stock) : 0;
+  }
+
   private createMovementNo(prefix = 'SM') {
     return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   }
 
   private getStockStatus(item: { currentStock?: unknown; safetyStock?: unknown }) {
-    const currentStock = this.toNumber(item.currentStock);
-    const safetyStock = this.toNumber(item.safetyStock);
+    const currentStock = this.toNonNegativeStock(item.currentStock);
+    const safetyStock = this.toNonNegativeStock(item.safetyStock);
     if (currentStock <= 0) return '缺货';
     if (safetyStock > 0 && currentStock < safetyStock) return '低库存';
     if (safetyStock > 0 && currentStock > safetyStock * 4) return '积压';
@@ -37,10 +42,25 @@ export class InventoryService {
   }
 
   private mapStockItem(item: any) {
+    const currentStock = this.toNonNegativeStock(item.currentStock);
+    const reserved = this.toNonNegativeStock(item.reserved);
+    const availableStock = this.toNonNegativeStock(item.availableStock ?? currentStock - reserved);
+    const safetyStock = this.toNonNegativeStock(item.safetyStock);
     return {
       ...item,
+      currentStock,
+      reserved,
+      availableStock,
+      safetyStock,
+      maxStock: this.toNonNegativeStock(item.maxStock ?? Math.max(safetyStock * 5, currentStock)),
       status: this.getStockStatus(item),
     };
+  }
+
+  private buildShortageRemark(baseRemark: string | undefined, requestedQty: number, appliedQty: number) {
+    if (appliedQty >= requestedQty) return baseRemark;
+    const shortageRemark = `库存不足：本次申请 ${requestedQty}，实际扣减 ${appliedQty}，不足 ${requestedQty - appliedQty}`;
+    return [baseRemark, shortageRemark].filter(Boolean).join('；');
   }
 
   async getStock(storeId?: number, page = 1, pageSize = 20) {
@@ -92,7 +112,7 @@ export class InventoryService {
       if (!product) throw new NotFoundException('Product not found');
 
       const quantity = this.toNumber(data.stock);
-      const beforeStock = this.toNumber(product.currentStock);
+      const beforeStock = this.toNonNegativeStock(product.currentStock);
       const afterStock = beforeStock + quantity;
 
       const batch = await tx.stockBatch.create({
@@ -107,7 +127,7 @@ export class InventoryService {
 
       await tx.product.update({
         where: { id: Number(data.productId) },
-        data: { currentStock: { increment: quantity } },
+        data: { currentStock: afterStock },
       });
 
       await tx.stockMovement.create({
@@ -272,11 +292,21 @@ export class InventoryService {
         });
         if (!fromProduct) continue;
 
-        const fromBefore = this.toNumber(fromProduct.currentStock);
-        const fromAfter = fromBefore - quantity;
+        const fromBefore = this.toNonNegativeStock(fromProduct.currentStock);
+        const appliedQty = Math.min(fromBefore, quantity);
+        const fromAfter = fromBefore - appliedQty;
+        if (appliedQty <= 0) {
+          if (this.toNumber(fromProduct.currentStock) < 0) {
+            await tx.product.update({
+              where: { id: fromProduct.id },
+              data: { currentStock: 0 },
+            });
+          }
+          continue;
+        }
         await tx.product.update({
           where: { id: fromProduct.id },
-          data: { currentStock: { decrement: quantity } },
+          data: { currentStock: fromAfter },
         });
         await tx.stockMovement.create({
           data: {
@@ -284,14 +314,14 @@ export class InventoryService {
             productId: fromProduct.id,
             movementNo: this.createMovementNo('TO'),
             movementType: 'transfer_out',
-            quantity: -quantity,
+            quantity: -appliedQty,
             beforeStock: fromBefore,
             afterStock: fromAfter,
             unit: fromProduct.unit,
             sourceType: 'transfer_order',
             sourceId: order.id,
             sourceNo: order.orderNo,
-            remark: data.remark,
+            remark: this.buildShortageRemark(data.remark, quantity, appliedQty),
           },
         });
         affectedStoreIds.add(order.fromStoreId);
@@ -301,11 +331,11 @@ export class InventoryService {
         });
         if (!toProduct) continue;
 
-        const toBefore = this.toNumber(toProduct.currentStock);
-        const toAfter = toBefore + quantity;
+        const toBefore = this.toNonNegativeStock(toProduct.currentStock);
+        const toAfter = toBefore + appliedQty;
         await tx.product.update({
           where: { id: toProduct.id },
-          data: { currentStock: { increment: quantity } },
+          data: { currentStock: toAfter },
         });
         await tx.stockMovement.create({
           data: {
@@ -313,14 +343,14 @@ export class InventoryService {
             productId: toProduct.id,
             movementNo: this.createMovementNo('TI'),
             movementType: 'transfer_in',
-            quantity,
+            quantity: appliedQty,
             beforeStock: toBefore,
             afterStock: toAfter,
             unit: toProduct.unit,
             sourceType: 'transfer_order',
             sourceId: order.id,
             sourceNo: order.orderNo,
-            remark: data.remark,
+            remark: this.buildShortageRemark(data.remark, quantity, appliedQty),
           },
         });
         affectedStoreIds.add(order.toStoreId);
@@ -392,8 +422,8 @@ export class InventoryService {
         const platformMapping = mappingByProduct.get(product.id);
         const platformSku = platformMapping?.supplySku;
         const platformQuote = platformSku?.quotes?.[0];
-        const currentStock = Number(product.currentStock ?? 0);
-        const safetyStock = Number(product.safetyStock ?? 0);
+        const currentStock = this.toNonNegativeStock(product.currentStock);
+        const safetyStock = this.toNonNegativeStock(product.safetyStock);
         const inTransit = inTransitByProduct.get(product.id) ?? 0;
         const baseSuggestedQty = Math.max(0, safetyStock * 2 - currentStock - inTransit);
         const moq = platformQuote?.moq ?? primarySupplier?.moq ?? product.minPurchaseQty ?? null;
