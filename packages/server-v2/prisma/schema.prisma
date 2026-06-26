@@ -73,6 +73,7 @@ model Store {
   printJobs                PrintJob[]
   aiAuditLogs              AiAuditLog[]
   commissionRules          CommissionRule[]
+  commissionRuleAssignments CommissionRuleAssignment[]
   commissionRecords        CommissionRecord[]
   commissionSettlements    CommissionSettlement[]
   cashierShifts            CashierShift[]
@@ -131,6 +132,7 @@ model User {
   completedFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpCompletedBy")
   createdOperatingCosts  OperatingCost[]        @relation("OperatingCostCreatedBy")
   commissionRules        CommissionRule[]        @relation("CommissionRuleUser")
+  commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
   commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
   commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
@@ -1175,11 +1177,36 @@ model CommissionRule {
   store   Store              @relation(fields: [storeId], references: [id])
   level   BeauticianLevel?   @relation(fields: [levelId], references: [id])
   user    User?              @relation("CommissionRuleUser", fields: [userId], references: [id], onDelete: SetNull)
+  assignments CommissionRuleAssignment[]
   records CommissionRecord[]
 
   @@index([storeId, type, status])
   @@index([levelId])
   @@index([userId])
+}
+
+model CommissionRuleAssignment {
+  id         Int      @id @default(autoincrement())
+  storeId    Int
+  ruleId     Int
+  type       String
+  targetType String   @default("all")
+  targetId   Int?
+  userId     Int
+  status     String   @default("active")
+  remark     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  store   Store          @relation(fields: [storeId], references: [id])
+  rule    CommissionRule @relation(fields: [ruleId], references: [id])
+  user    User           @relation("CommissionRuleAssignmentUser", fields: [userId], references: [id])
+  records CommissionRecord[]
+
+  @@index([storeId, type, status])
+  @@index([ruleId])
+  @@index([userId])
+  @@index([targetType, targetId])
 }
 
 model CommissionRecord {
@@ -1193,6 +1220,7 @@ model CommissionRecord {
   sourceId     Int?
   cardUsageRecordId Int?
   ruleId       Int?
+  assignmentId Int?
   type         String
   sourceAmount Decimal
   rate         Decimal
@@ -1211,6 +1239,7 @@ model CommissionRecord {
   orderItem  OrderItem?      @relation(fields: [orderItemId], references: [id])
   cardUsageRecord CardUsageRecord? @relation(fields: [cardUsageRecordId], references: [id], onDelete: SetNull)
   rule       CommissionRule? @relation(fields: [ruleId], references: [id])
+  assignment CommissionRuleAssignment? @relation(fields: [assignmentId], references: [id])
 
   @@index([beauticianId, settleMonth])
   @@index([staffUserId, settleMonth])
@@ -1220,6 +1249,7 @@ model CommissionRecord {
   @@index([sourceType, sourceId])
   @@index([cardUsageRecordId])
   @@index([ruleId])
+  @@index([assignmentId])
 }
 
 model CommissionSettlement {
@@ -2844,4 +2874,131 @@ model AgentFeedback {
   @@index([userId])
   @@index([storeId, createdAt])
   @@map("agent_feedbacks")
+}
+
+// ─── Agent Memory（门店级跨会话记忆）────────────────────────────────────────
+
+model AgentMemory {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  userId       Int?
+  personaCode  String?
+  memoryType   String
+  title        String
+  content      String
+  summary      String?
+  importance   Int      @default(1)
+  sourceRunId  Int?
+  sourceJson   Json?
+  status       String   @default("active")
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId, personaCode, status])
+  @@index([storeId, memoryType, status])
+  @@index([userId])
+  @@index([sourceRunId])
+  @@map("agent_memories")
+}
+
+// ─── Agent Daily Archive（每日经营归档）─────────────────────────────────────
+
+model AgentDailyArchive {
+  id             Int      @id @default(autoincrement())
+  storeId        Int
+  archiveDate    DateTime
+  personaCode    String?
+  title          String
+  summary        String
+  metricsJson    Json?
+  highlightsJson Json?
+  risksJson      Json?
+  actionsJson    Json?
+  sourceRunIds   Json?
+  status         String   @default("generated")
+  createdBy      Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([storeId, archiveDate, personaCode])
+  @@index([storeId, archiveDate])
+  @@index([personaCode])
+  @@index([status])
+  @@map("agent_daily_archives")
+}
+
+// ─── Agent Automation（Agent 自动化执行引擎）─────────────────────────────────
+
+model AgentAutomationDefinition {
+  id                 Int       @id @default(autoincrement())
+  storeId            Int
+  personaCode        String?
+  name               String
+  description        String?
+  triggerType        String
+  triggerConfigJson  Json
+  actionPlanJson     Json
+  approvalPolicyJson Json?
+  scheduleJson       Json?
+  riskLevel          String    @default("medium")
+  status             String    @default("draft")
+  sourceRunId        Int?
+  createdBy          Int?
+  lastTriggeredAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([storeId, status])
+  @@index([storeId, personaCode, status])
+  @@index([triggerType])
+  @@index([riskLevel])
+  @@index([sourceRunId])
+  @@map("agent_automation_definitions")
+}
+
+model AgentAutomationRun {
+  id            Int       @id @default(autoincrement())
+  definitionId  Int?
+  storeId       Int
+  personaCode   String?
+  triggerType   String
+  mode          String    @default("manual")
+  status        String
+  triggeredBy   Int?
+  inputJson     Json?
+  outputJson    Json?
+  errorMessage  String?
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([definitionId, startedAt])
+  @@index([storeId, startedAt])
+  @@index([storeId, status])
+  @@index([triggerType])
+  @@map("agent_automation_runs")
+}
+
+model AgentAutomationEffect {
+  id            Int      @id @default(autoincrement())
+  definitionId  Int?
+  runId         Int?
+  storeId       Int
+  effectType    String
+  objectType    String?
+  objectId      Int?
+  customerId    Int?
+  metricKey     String?
+  impactJson    Json?
+  status        String   @default("pending")
+  occurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([definitionId])
+  @@index([runId])
+  @@index([storeId, occurredAt])
+  @@index([effectType])
+  @@index([customerId])
+  @@index([status])
+  @@map("agent_automation_effects")
 }
