@@ -219,6 +219,7 @@ export interface CardVerificationFlowData {
   source: string;
   generatedAt: string;
   customers: CardVerificationCustomer[];
+  beauticians: Beautician[];
 }
 
 export interface CardVerificationConfirmInput {
@@ -227,6 +228,7 @@ export interface CardVerificationConfirmInput {
   projectId: number;
   projectName: string;
   times: number;
+  beauticianId?: number;
 }
 
 export interface CashierCustomer {
@@ -293,6 +295,8 @@ export type TerminalOrderPaymentMethod = Exclude<
   '次卡抵扣' | '会员余额' | 'customer_card' | 'member_balance'
 >;
 
+export type CardOpeningPaymentMethod = Exclude<TerminalPaymentMethod, '次卡抵扣' | 'customer_card'>;
+
 export interface CashierConfirmInput {
   customerId: number;
   customerName?: string;
@@ -313,6 +317,12 @@ export interface CustomerSelectItem {
   phone: string;
   memberLevel: string;
   tags: string[];
+  cashBalance?: number;
+  giftBalance?: number;
+  totalBalance?: number;
+  memberCardDeductEnabled?: boolean;
+  memberCardDeductBalance?: number;
+  memberCardDeductLabel?: string;
   isAppointedToday: boolean;
   appointmentTime?: string;
 }
@@ -420,7 +430,7 @@ export interface CardOpeningConfirmInput {
   cardId: number;
   discountAmount: number;
   giftProjects: string[];
-  paymentMethod: TerminalOrderPaymentMethod;
+  paymentMethod: CardOpeningPaymentMethod;
   operatorId?: number;
 }
 

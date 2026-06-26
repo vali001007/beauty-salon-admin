@@ -94,6 +94,19 @@ const mocks = vi.hoisted(() => {
     getTerminalCardVerificationContext: vi.fn(async (): Promise<any> => ({ customers: [], storeName: store.name, generatedAt: "2026-06-11T09:00:00.000Z" })),
     getTerminalCustomerCards: vi.fn(async (): Promise<any[]> => []),
     getTerminalCustomerSummary: vi.fn(async (): Promise<any> => null),
+    createTerminalCashierOrder: vi.fn(async (): Promise<any> => ({
+      id: 1,
+      orderNo: "POAUTH001",
+      checkoutGroupNo: "POAUTH001",
+      status: "completed",
+      storeName: store.name,
+      items: [{ name: "小气泡清洁护理", quantity: 1, unitPrice: 398, subtotal: 398, netAmount: 398 }],
+      totalAmount: 398,
+      netAmount: 398,
+      listAmount: 398,
+      totalDiscountAmount: 0,
+      createdAt: "2026-06-26T10:00:00.000Z",
+    })),
     getUserInfo: vi.fn(async () => user),
   };
 
@@ -144,7 +157,7 @@ vi.mock("@/api", () => {
     checkInTerminalReservation: unusedApi,
     completeTerminalPayment: unusedApi,
     createTerminalCardOrder: unusedApi,
-    createTerminalCashierOrder: unusedApi,
+    createTerminalCashierOrder: mocks.api.createTerminalCashierOrder,
     createTerminalPrintJob: unusedApi,
     createTerminalRechargeOrder: unusedApi,
     createTerminalReservation: unusedApi,
@@ -203,6 +216,19 @@ async function resetMockState() {
   mocks.api.getTerminalCardVerificationContext.mockResolvedValue({ customers: [], storeName: mocks.store.name, generatedAt: "2026-06-11T09:00:00.000Z" });
   mocks.api.getTerminalCustomerCards.mockResolvedValue([]);
   mocks.api.getTerminalCustomerSummary.mockResolvedValue(null);
+  mocks.api.createTerminalCashierOrder.mockResolvedValue({
+    id: 1,
+    orderNo: "POAUTH001",
+    checkoutGroupNo: "POAUTH001",
+    status: "completed",
+    storeName: mocks.store.name,
+    items: [{ name: "小气泡清洁护理", quantity: 1, unitPrice: 398, subtotal: 398, netAmount: 398 }],
+    totalAmount: 398,
+    netAmount: 398,
+    listAmount: 398,
+    totalDiscountAmount: 0,
+    createdAt: "2026-06-26T10:00:00.000Z",
+  });
   mocks.api.getUserInfo.mockResolvedValue(mocks.user);
   const auraService = await getService();
   auraService.clearAuraStartupCache();
@@ -342,6 +368,46 @@ describe("auraCoreService auth repair", () => {
     expect(mocks.api.askBusinessQuery).toHaveBeenCalledTimes(2);
     expect(mocks.api.askBusinessQuery).toHaveBeenNthCalledWith(1, expect.objectContaining({ operatorId: null }));
     expect(mocks.api.askBusinessQuery).toHaveBeenNthCalledWith(2, expect.objectContaining({ operatorId: null }));
+    expect(window.localStorage.getItem("token")).toBe("fresh-token");
+  });
+
+  it("repairs auth and retries cashier payment once when the terminal token is missing", async () => {
+    window.localStorage.removeItem("token");
+    mocks.authState.token = null;
+    mocks.authState.user = null;
+    mocks.authState.isAuthenticated = false;
+    const authError = Object.assign(new Error("缺少设备认证令牌"), {
+      payload: { status: 401, message: "缺少设备认证令牌" },
+    });
+    mocks.api.createTerminalCashierOrder
+      .mockRejectedValueOnce(authError)
+      .mockResolvedValueOnce({
+        id: 2,
+        orderNo: "POAUTH002",
+        checkoutGroupNo: "POAUTH002",
+        status: "completed",
+        storeName: mocks.store.name,
+        items: [{ name: "小气泡清洁护理", quantity: 1, unitPrice: 398, subtotal: 398, netAmount: 398 }],
+        totalAmount: 398,
+        netAmount: 398,
+        listAmount: 398,
+        totalDiscountAmount: 0,
+        createdAt: "2026-06-26T10:00:00.000Z",
+      });
+
+    const auraService = await getService();
+    const result = await auraService.confirmCashierPayment({
+      customerId: 1,
+      customerName: "林晓曼",
+      customerPhone: "13766425293",
+      items: [{ itemType: "project", itemId: 1, name: "小气泡清洁护理", quantity: 1, unitPrice: 398 }],
+      discountAmount: 0,
+      paymentMethod: "微信",
+    });
+
+    expect(result).toMatchObject({ title: "收银完成", status: "success" });
+    expect(mocks.authState.login).toHaveBeenCalledTimes(2);
+    expect(mocks.api.createTerminalCashierOrder).toHaveBeenCalledTimes(2);
     expect(window.localStorage.getItem("token")).toBe("fresh-token");
   });
 

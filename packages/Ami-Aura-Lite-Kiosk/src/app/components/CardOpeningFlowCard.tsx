@@ -4,12 +4,24 @@ import type { CardOpeningConfirmInput, CardOpeningFlowData, CardOpenOption, Cust
 import { cn } from "./ui/utils";
 import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
 import { GiftProjectDetails } from "./GiftProjectDetails";
+import { canUseMemberBalanceDeduct, getMemberBalanceDeductLabel } from "./memberBalanceDeduct";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-const PAYMENT_METHODS: CardOpeningConfirmInput["paymentMethod"][] = ["微信", "支付宝", "银行卡", "现金"];
+const MEMBER_CARD_PAYMENT_METHOD = "会员余额";
+const PAYMENT_METHODS: Array<{
+  value: CardOpeningConfirmInput["paymentMethod"];
+  label: string;
+  requiresMemberCard?: boolean;
+}> = [
+  { value: "微信", label: "微信" },
+  { value: "支付宝", label: "支付宝" },
+  { value: "银行卡", label: "银行卡" },
+  { value: "现金", label: "现金" },
+  { value: MEMBER_CARD_PAYMENT_METHOD, label: "会员卡划扣", requiresMemberCard: true },
+];
 
 export function CardOpeningFlowCard({
   data,
@@ -43,6 +55,8 @@ export function CardOpeningFlowCard({
   const discount = Math.min(selectedCard?.price ?? 0, Math.max(0, Number(discountAmount) || 0));
   const receivable = Math.max(0, (selectedCard?.price ?? 0) - discount);
   const includedProjects = safeArray(selectedCard?.projects);
+  const canUseMemberCardDeduct = canUseMemberBalanceDeduct(selectedCustomer, receivable);
+  const memberCardDeductLabel = getMemberBalanceDeductLabel(selectedCustomer, receivable);
 
   useEffect(() => {
     if (selectedCard && !cards.some((card) => card.id === selectedCard.id)) {
@@ -63,6 +77,12 @@ export function CardOpeningFlowCard({
       setSelectedOperatorId("");
     }
   }, [salesUsers, selectedOperatorId]);
+
+  useEffect(() => {
+    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canUseMemberCardDeduct) {
+      setPaymentMethod("微信");
+    }
+  }, [canUseMemberCardDeduct, paymentMethod]);
 
   const selectCard = (cardId: string) => {
     const nextCard = cards.find((card) => String(card.id) === cardId) ?? null;
@@ -204,12 +224,33 @@ export function CardOpeningFlowCard({
               ))}
             </select>
           </label>
-          <div className="grid grid-cols-4 gap-2">
-            {PAYMENT_METHODS.map((method) => (
-              <button key={method} type="button" onClick={() => setPaymentMethod(method)} className={cn("h-12 rounded-xl border text-sm font-medium", paymentMethod === method ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white")}>
-                {method}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {PAYMENT_METHODS.map((method) => {
+              const disabled = method.requiresMemberCard && !canUseMemberCardDeduct;
+              return (
+                <button
+                  key={method.value}
+                  type="button"
+                  onClick={() => {
+                    if (!disabled) setPaymentMethod(method.value);
+                  }}
+                  disabled={disabled}
+                  title={method.requiresMemberCard ? memberCardDeductLabel : method.label}
+                  className={cn(
+                    "min-h-12 rounded-xl border px-2 py-2 text-sm font-medium leading-tight",
+                    paymentMethod === method.value ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white text-[#1F1B2D]",
+                    disabled && "cursor-not-allowed border-black/5 bg-black/[0.03] text-[#9B92A3]",
+                  )}
+                >
+                  <span>{method.label}</span>
+                  {method.requiresMemberCard ? (
+                    <span className="mt-0.5 block text-[10px] font-normal opacity-70">
+                      {canUseMemberCardDeduct ? memberCardDeductLabel : memberCardDeductLabel.includes("余额不足") ? memberCardDeductLabel : "无卡置灰"}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={() => setStep(1)} className="h-12 rounded-xl border border-black/10 bg-white text-sm font-medium">返回修改</button>
