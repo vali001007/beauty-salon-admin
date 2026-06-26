@@ -1282,8 +1282,8 @@ describe('CommissionService', () => {
   });
 
   it('queries cashier shift history with pagination, device and date filters', async () => {
-    const dateFrom = new Date(2026, 5, 1);
-    const dateToExclusive = new Date(2026, 5, 9);
+    const dateFrom = new Date('2026-05-31T16:00:00.000Z');
+    const dateToExclusive = new Date('2026-06-08T16:00:00.000Z');
     const where = {
       storeId: 3,
       deviceId: 11,

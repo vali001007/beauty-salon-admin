@@ -78,7 +78,7 @@ export function AmiAgentWorkspace() {
   const [insightLoading, setInsightLoading] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<React.ElementRef<'textarea'>>(null);
 
   // 加载 Persona 列表
   useEffect(() => {
@@ -199,7 +199,7 @@ export function AmiAgentWorkspace() {
     [sending, activeRunId, activePersona, user, appendMessage, updateLastAgentMessage],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<React.ElementRef<'textarea'>>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void sendMessage(input);
