@@ -27,7 +27,7 @@ This document covers the terminal-facing API surface for Ami Aura Lite. The Core
 | GET | `/terminal/dashboard/stats` | Store dashboard stats |
 | GET | `/terminal/dashboard/role` | Role dashboard payload |
 | GET | `/terminal/customers/search` | Search customers |
-| POST | `/terminal/customers/quick-create` | Quick customer creation |
+| POST | `/terminal/customers/quick-create` | Quick customer creation through `CustomersService.create` |
 | GET | `/terminal/customers/{id}/summary` | Customer summary |
 | GET | `/terminal/customers/{id}/cards` | Customer cards |
 | GET | `/terminal/customers/{id}/recommendations` | Recommendations for customer |
@@ -48,11 +48,11 @@ This document covers the terminal-facing API surface for Ami Aura Lite. The Core
 | PATCH | `/terminal/reservations/{id}/check-in` | Mark customer arrived |
 | PATCH | `/terminal/reservations/{id}/cancel` | Cancel reservation with optional reason |
 | POST | `/terminal/cards/verify` | Card usage preview |
-| POST | `/terminal/cards/consume` | Card usage verify |
-| POST | `/terminal/cashier/checkout` | Create cashier order, order items, payment record, consumption record, and product sale stock movements |
+| POST | `/terminal/cards/consume` | Card usage verify through `CardsService.verifyCardUsage` |
+| POST | `/terminal/cashier/checkout` | Create cashier order through `OrdersService.createProductOrder`; terminal keeps shift guard and split-order response |
 | POST | `/terminal/cashier-orders/{id}/complete-payment` | Complete payment and write payment record |
 | POST | `/terminal/card-orders` | Create card order, customer card, order item, payment record, and attribution |
-| POST | `/terminal/recharge-orders` | Create recharge order, order item, payment record, consumption record, and attribution |
+| POST | `/terminal/recharge-orders` | Create recharge order through `OrdersService.createRechargeOrder` |
 | POST | `/terminal/print-jobs` | Create persisted print job |
 | GET | `/terminal/print-jobs/{id}` | Get persisted print job |
 | GET | `/terminal/card-usage-records/paginated` | Card usage history |
@@ -71,7 +71,8 @@ This document covers the terminal-facing API surface for Ami Aura Lite. The Core
 
 - Terminal mock data should reuse the same customer, project, card, BOM, and inventory sources as Core.
 - Service completion should accept `consumptionItems` inline to avoid dual-write mismatch between terminal and Core.
-- Cashier, card order, recharge, recommendation feedback, promotion, and print job flows now write structured backend tables instead of relying only on JSON snapshots or temporary objects.
+- Cashier, card usage, recharge, quick customer creation, recommendation feedback, promotion, and print job flows now write structured backend tables instead of relying only on JSON snapshots or temporary objects.
+- Terminal and management endpoints keep separate authentication, but shared business facts are written by the same Core services: `CardsService.verifyCardUsage`, `CustomersService.create`, `OrdersService.createRechargeOrder`, and `OrdersService.createProductOrder`.
 - Product sales and service consumption create `StockMovement` rows so inventory can be audited by source type and source id.
 - Marketing attribution uses the latest valid automation touch in the attribution window and links the touch to the resulting order revenue.
 - The terminal API is intentionally shaped so it can later move behind a separate terminal service without changing the client contract.
