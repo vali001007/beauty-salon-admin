@@ -35,6 +35,7 @@ export interface BusinessQueryEvidence {
   dateRange?: string;
   compareRange?: string;
   source: string[];
+  sourceTables?: string[];
   filters: string[];
   metricDefinition: string;
   sampleSize?: number;

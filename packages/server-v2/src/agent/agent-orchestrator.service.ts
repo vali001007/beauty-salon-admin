@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AnswerContractValidatorService } from './answer-contract/index.js';
 import { AgentEvidenceService } from './agent-evidence.service.js';
 import { AgentEvalService } from './agent-eval.service.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
@@ -14,6 +15,8 @@ import type {
   AgentSuggestedAction,
   AgentToolDefinition,
   AgentToolResult,
+  AgentPhaseOutput,
+  AuraBlockAction,
   AuraResponseBlock,
 } from './agent.types.js';
 
@@ -28,6 +31,8 @@ export class AgentOrchestratorService {
     private readonly evalService: AgentEvalService,
     private readonly fieldScopeSanitizer: AgentFieldScopeSanitizerService,
     private readonly responseSafety: AgentResponseSafetyService,
+    @Optional()
+    private readonly answerContractValidator?: AnswerContractValidatorService,
   ) {}
 
   async createRun(input: { message: string; actor: AgentActor; context?: Record<string, unknown> }): Promise<AgentRunResult> {
@@ -45,9 +50,12 @@ export class AgentOrchestratorService {
     const run = await this.runtime.getRun(input.runId);
     if (!run) throw new Error('AgentRun not found');
     await this.runtime.addMessage(input.runId, 'user', input.message, { entrypoint: input.actor.entrypoint });
+    const previousResult = this.asObject(run.resultJson);
+    const previousFocus = this.asObject(previousResult?.conversationFocus);
     const mergedContext = {
       ...(this.asObject(run.contextJson)),
-      ...(this.asObject(run.resultJson) ? { previousResult: this.asObject(run.resultJson) } : {}),
+      ...(previousFocus ? { conversationFocus: previousFocus } : {}),
+      ...(previousResult ? { previousResult } : {}),
       ...(input.context ?? {}),
     };
     return this.processRun({ run, message: input.message, actor: input.actor, context: mergedContext });
@@ -81,8 +89,16 @@ export class AgentOrchestratorService {
     return this.toolRegistry.list();
   }
 
-  async runDefaultEvals() {
-    return this.evalService.runDefaultCases();
+  async runDefaultEvals(options?: { persistFailures?: boolean }) {
+    return this.evalService.runDefaultCases(undefined, { persistFailures: options?.persistFailures, source: 'agent_evals_default' });
+  }
+
+  async runP0Evals(options?: { persistFailures?: boolean }) {
+    return this.evalService.runP0Cases({ persistFailures: options?.persistFailures, source: 'agent_evals_p0' });
+  }
+
+  async runSkillEvals(skillId?: string, options?: { persistFailures?: boolean }) {
+    return this.evalService.runSkillCases(skillId, { persistFailures: options?.persistFailures, source: 'agent_evals_skills' });
   }
 
   async approve(input: {
@@ -119,6 +135,7 @@ export class AgentOrchestratorService {
     await this.runtime.setRunStatus(Number(run.id), 'running_tool');
 
     try {
+      const toolStartedAt = new Date();
       const startedAt = Date.now();
       const result = await this.toolRegistry.execute(tool.name, args, {
         runId: Number(run.id),
@@ -140,22 +157,61 @@ export class AgentOrchestratorService {
         resultJson: this.toJson(safeResult),
         latencyMs: Date.now() - startedAt,
       });
+      const toolLatencyMs = Date.now() - startedAt;
       await this.runtime.recordStep({
         runId: Number(run.id),
         stepType: 'tool',
         name: tool.name,
         status: safeResult.status,
         inputJson: args,
-        outputJson: safeResult,
+        outputJson: this.buildToolStepOutput(safeResult, toolLatencyMs),
+        startedAt: toolStartedAt,
         endedAt: new Date(),
       });
       await this.runtime.addMessage(Number(run.id), 'assistant', answer, {
         status: 'completed',
         approvalId: input.approvalId,
       });
+      const renderingStartedAt = new Date();
+      const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+      const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
+      const responseMode = this.resolveResponseMode(plan, renderedBlocks);
+      const phaseOutputs = this.buildPhaseOutputs(plan, answer, toolResults, actions, renderedBlocks);
+      const conversationFocus = this.buildConversationFocus(Number(run.id), plan, toolResults, renderedBlocks);
+      const renderingEndedAt = new Date();
+      await this.runtime.recordStep({
+        runId: Number(run.id),
+        stepType: 'rendering',
+        name: 'agent.response.render',
+        status: 'success',
+        inputJson: { toolResultCount: toolResults.length, actionCount: actions.length },
+        outputJson: {
+          blockCount: renderedBlocks.length,
+          answerContract,
+          responseMode,
+          phaseOutputs,
+          conversationFocus,
+          traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
+        },
+        startedAt: renderingStartedAt,
+        endedAt: renderingEndedAt,
+      });
       const updated = await this.runtime.setRunStatus(Number(run.id), 'completed', {
         evidenceJson: this.toJson(evidence),
-        resultJson: this.toJson({ answer, plan, toolResults, actions, evidence, approval }),
+        resultJson: this.toJson({
+          answer,
+          plan,
+          toolResults,
+          actions,
+          evidence,
+          approval,
+          renderedBlocks,
+          answerContract,
+          responseMode,
+          phaseOutputs,
+          conversationFocus,
+          traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
+        }),
       });
       return this.buildRunResult(updated, plan, answer, toolResults, actions);
     } catch (error) {
@@ -207,7 +263,9 @@ export class AgentOrchestratorService {
     const runId = Number(input.run.id);
     try {
       await this.runtime.setRunStatus(runId, 'planning');
+      const planningStartedAt = new Date();
       const plan = await this.planner.plan({ message: input.message, actor: input.actor, context: input.context });
+      const planningEndedAt = new Date();
       await this.runtime.persistPlan(runId, plan);
       await this.runtime.recordStep({
         runId,
@@ -215,8 +273,13 @@ export class AgentOrchestratorService {
         name: 'agent.planner',
         status: 'success',
         inputJson: { message: input.message, role: input.actor.role, context: input.context },
-        outputJson: plan,
-        endedAt: new Date(),
+        outputJson: {
+          ...plan,
+          performance: { includes: ['business_task_compile', 'tool_planning'] },
+          traceSummary: this.buildTraceSummary(plan),
+        },
+        startedAt: planningStartedAt,
+        endedAt: planningEndedAt,
       });
 
       if (plan.clarificationNeeded || !plan.toolPlan.length) {
@@ -231,6 +294,9 @@ export class AgentOrchestratorService {
       await this.runtime.setRunStatus(runId, 'validating');
       const toolResults: AgentToolResult[] = [];
       const actions: AgentSuggestedAction[] = [];
+      if (plan.executionPath === 'deep' && plan.progressNotice) {
+        await this.runtime.addMessage(runId, 'assistant', plan.progressNotice, { status: 'analyzing', executionPath: 'deep' });
+      }
 
       for (const item of plan.toolPlan) {
         const tool = this.toolRegistry.get(item.tool);
@@ -249,14 +315,15 @@ export class AgentOrchestratorService {
             runId,
             toolCallId: toolCall.id,
             requestedBy: input.actor.userId,
-            beforeJson: { tool: tool.name, args: item.args, riskLevel: tool.riskLevel },
+            beforeJson: { tool: tool.name, args: item.args, riskLevel: tool.riskLevel, reason: policy.reason },
           });
           await this.runtime.updateToolCall(toolCall.id, { approvalId: approval.id, status: 'waiting_approval' });
-          const answer = `工具「${tool.name}」需要人工确认后执行。`;
+          const answer = policy.reason;
           const renderedBlocks = this.buildPendingApprovalBlocks(tool.name, item.args, Number(approval.id), answer);
+          const conversationFocus = this.buildConversationFocus(runId, plan, toolResults, renderedBlocks);
           await this.runtime.addMessage(runId, 'assistant', answer, { status: 'waiting_approval', approvalId: approval.id });
           const updated = await this.runtime.setRunStatus(runId, 'waiting_approval', {
-            resultJson: this.toJson({ answer, plan, toolResults, approval, renderedBlocks }),
+            resultJson: this.toJson({ answer, plan, toolResults, approval, approvalReason: policy.reason, renderedBlocks, conversationFocus }),
           });
           const runResult = this.buildRunResult(updated, plan, answer, toolResults, actions);
           return {
@@ -267,11 +334,13 @@ export class AgentOrchestratorService {
               toolName: tool.name,
               riskLevel: tool.riskLevel,
               status: approval.status,
+              reason: policy.reason,
             },
           };
         }
 
         await this.runtime.setRunStatus(runId, 'running_tool');
+        const toolStartedAt = new Date();
         const startedAt = Date.now();
         const result = await this.toolRegistry.execute(tool.name, item.args, {
           runId,
@@ -289,24 +358,63 @@ export class AgentOrchestratorService {
           resultJson: this.toJson(safeResult),
           latencyMs: Date.now() - startedAt,
         });
+        const toolLatencyMs = Date.now() - startedAt;
         await this.runtime.recordStep({
           runId,
           stepType: 'tool',
           name: tool.name,
           status: safeResult.status,
           inputJson: item.args,
-          outputJson: safeResult,
+          outputJson: this.buildToolStepOutput(safeResult, toolLatencyMs),
+          startedAt: toolStartedAt,
           endedAt: new Date(),
         });
       }
 
       await this.runtime.setRunStatus(runId, 'composing');
+      const renderingStartedAt = new Date();
       const evidence = this.evidenceService.merge(toolResults);
       const answer = this.composeAnswer(plan, toolResults);
-      await this.runtime.addMessage(runId, 'assistant', answer, { status: 'completed' });
+      const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+      const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
+      const responseMode = this.resolveResponseMode(plan, renderedBlocks);
+      const phaseOutputs = this.buildPhaseOutputs(plan, answer, toolResults, actions, renderedBlocks);
+      const conversationFocus = this.buildConversationFocus(runId, plan, toolResults, renderedBlocks);
+      const renderingEndedAt = new Date();
+      await this.runtime.recordStep({
+        runId,
+        stepType: 'rendering',
+        name: 'agent.response.render',
+        status: 'success',
+        inputJson: { toolResultCount: toolResults.length, actionCount: actions.length },
+        outputJson: {
+          blockCount: renderedBlocks.length,
+          answerContract,
+          executionPath: plan.executionPath,
+          responseMode,
+          phaseOutputs,
+          conversationFocus,
+          traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
+        },
+        startedAt: renderingStartedAt,
+        endedAt: renderingEndedAt,
+      });
+      await this.runtime.addMessage(runId, 'assistant', answer, this.buildCompletionMessageMeta(plan, responseMode));
       const updated = await this.runtime.setRunStatus(runId, 'completed', {
         evidenceJson: this.toJson(evidence),
-        resultJson: this.toJson({ answer, plan, toolResults, actions, evidence }),
+        resultJson: this.toJson({
+          answer,
+          plan,
+          toolResults,
+          actions,
+          evidence,
+          renderedBlocks,
+          answerContract,
+          responseMode,
+          conversationFocus,
+          phaseOutputs,
+          traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
+        }),
       });
       return this.buildRunResult(updated, plan, answer, toolResults, actions);
     } catch (error) {
@@ -321,6 +429,270 @@ export class AgentOrchestratorService {
     if (!results.length) return plan.clarificationQuestion ?? '没有执行任何工具。';
     if (results.length === 1) return results[0].summary;
     return results.map((result, index) => `${index + 1}. ${result.summary}`).join('\n');
+  }
+
+  private resolveResponseMode(plan: AgentPlan | undefined, renderedBlocks: AuraResponseBlock[]): AgentRunResult['responseMode'] {
+    if (!plan) return undefined;
+    const hasStructuredBlocks = renderedBlocks.some((block) => block.kind !== 'text');
+    return plan.executionPath === 'fast' && hasStructuredBlocks ? 'structured_blocks' : 'composed_answer';
+  }
+
+  private buildCompletionMessageMeta(plan: AgentPlan, responseMode: AgentRunResult['responseMode']) {
+    if (plan.executionPath === 'fast' && responseMode === 'structured_blocks') {
+      return { status: 'completed', executionPath: 'fast', responseMode };
+    }
+    return { status: 'completed' };
+  }
+
+  private buildTraceSummary(
+    plan: AgentPlan | undefined,
+    answerContract?: AgentRunResult['answerContract'],
+    responseMode?: AgentRunResult['responseMode'],
+    renderedBlocks: AuraResponseBlock[] = [],
+  ) {
+    const businessTask = this.asObject(plan?.businessTask);
+    const contract = this.asObject(answerContract?.contract);
+    const fallbackReason = this.buildFallbackReason(plan, responseMode, renderedBlocks);
+    return {
+      skillId: plan?.skillPlan?.skillId,
+      capabilityId: plan?.skillPlan?.capabilityId ?? plan?.capabilityPlan?.capabilityId,
+      executionPath: plan?.executionPath,
+      responseMode,
+      fallbackReason,
+      businessTask: businessTask
+        ? {
+            domain: businessTask.domain,
+            taskType: businessTask.taskType,
+            outputIntent: businessTask.outputIntent,
+            metrics: businessTask.metrics,
+            timeRange: businessTask.timeRange,
+            confidence: businessTask.confidence,
+          }
+        : undefined,
+      answerContract: answerContract
+        ? {
+            valid: answerContract.valid,
+            missingKinds: answerContract.missingKinds,
+            warnings: answerContract.warnings,
+            source: contract?.source,
+          }
+        : undefined,
+    };
+  }
+
+  private buildFallbackReason(
+    plan: AgentPlan | undefined,
+    responseMode: AgentRunResult['responseMode'],
+    renderedBlocks: AuraResponseBlock[],
+  ) {
+    if (!plan || plan.executionPath !== 'fast') return undefined;
+    if (responseMode === 'structured_blocks') return undefined;
+    const hasOnlyTextBlocks = renderedBlocks.every((block) => block.kind === 'text');
+    return hasOnlyTextBlocks ? 'fast_path_no_structured_blocks_use_composed_answer' : 'fast_path_contract_not_structured';
+  }
+
+  private buildPhaseOutputs(
+    plan: AgentPlan | undefined,
+    answer: string,
+    toolResults: AgentToolResult[],
+    actions: AgentSuggestedAction[],
+    renderedBlocks: AuraResponseBlock[],
+  ): AgentPhaseOutput[] | undefined {
+    if (plan?.executionPath !== 'deep') return undefined;
+    const successfulResults = toolResults.filter((result) => result.status === 'success');
+    const coreSummary = answer || successfulResults[0]?.summary || plan.goal;
+    const detailSummary = successfulResults.length
+      ? successfulResults.map((result, index) => `${index + 1}. ${result.title}：${result.summary}`).join('\n')
+      : '暂无可用明细。';
+    const recommendationActions = actions.filter((action) => action.riskLevel === 'low' || action.riskLevel === 'medium');
+    const draftActions = actions.filter((action) => action.riskLevel === 'medium' || action.riskLevel === 'high');
+    const blockKinds = [...new Set(renderedBlocks.map((block) => block.kind))];
+    const phases: AgentPhaseOutput[] = [
+      {
+        phase: 'core_conclusion',
+        title: '核心结论',
+        summary: coreSummary,
+        blockKinds,
+      },
+      {
+        phase: 'details',
+        title: '数据明细',
+        summary: detailSummary,
+        blockKinds: blockKinds.filter((kind) => kind !== 'text'),
+      },
+    ];
+
+    if (recommendationActions.length) {
+      phases.push({
+        phase: 'recommendations',
+        title: '建议动作',
+        summary: recommendationActions.map((action) => action.label).join('；'),
+        actionLabels: recommendationActions.map((action) => action.label),
+      });
+    } else if (successfulResults.length > 1) {
+      phases.push({
+        phase: 'recommendations',
+        title: '建议动作',
+        summary: '已完成多维诊断，可继续追问具体项目、客户或员工明细。',
+      });
+    }
+
+    if (draftActions.length) {
+      phases.push({
+        phase: 'action_draft',
+        title: '操作草稿',
+        summary: draftActions.map((action) => `${action.label}（${action.riskLevel}）`).join('；'),
+        actionLabels: draftActions.map((action) => action.label),
+      });
+    }
+
+    return phases;
+  }
+
+  private buildConversationFocus(
+    runId: number,
+    plan: AgentPlan | undefined,
+    toolResults: AgentToolResult[],
+    renderedBlocks: AuraResponseBlock[],
+  ) {
+    const timeRange = this.extractFocusTimeRange(plan, toolResults);
+    const currentItems = this.extractFocusItems(toolResults, renderedBlocks).slice(0, 5);
+    const currentCustomer = currentItems.find((item) => item.customerId || item.customerName || item.name || item.phoneMasked);
+    const currentActivity = this.extractFocusActivity(toolResults, renderedBlocks);
+
+    if (!timeRange && !currentCustomer && !currentActivity && currentItems.length === 0) return undefined;
+
+    return {
+      sourceRunId: runId,
+      ...(timeRange ? { timeRange } : {}),
+      ...(currentCustomer ? { currentCustomer } : {}),
+      ...(currentActivity ? { currentActivity } : {}),
+      ...(currentItems.length ? { currentItems } : {}),
+    };
+  }
+
+  private extractFocusTimeRange(plan: AgentPlan | undefined, toolResults: AgentToolResult[]) {
+    const businessTask = this.asObject(plan?.businessTask);
+    const taskTimeRange = this.asObject(businessTask?.timeRange);
+    if (taskTimeRange) return taskTimeRange;
+
+    for (const result of toolResults) {
+      const data = this.asObject(result.data);
+      const queryPlan = this.asObject(data?.queryPlan) ?? this.asObject(this.asObject(data?.raw)?.queryPlan);
+      const filters = this.asObject(queryPlan?.filters);
+      const dateRange = this.asObject(filters?.dateRange);
+      if (dateRange) return dateRange;
+      if (result.evidence?.dateRange) return { label: result.evidence.dateRange };
+    }
+    return undefined;
+  }
+
+  private extractFocusItems(toolResults: AgentToolResult[], renderedBlocks: AuraResponseBlock[]) {
+    const items: Array<Record<string, unknown>> = [];
+
+    for (const result of toolResults) {
+      const data = this.asObject(result.data);
+      const raw = this.asObject(data?.raw);
+      const card = this.asObject(data?.card) ?? this.asObject(raw?.card);
+      const directItems = Array.isArray(data?.items) ? data.items : Array.isArray(card?.items) ? card.items : Array.isArray(raw?.items) ? raw.items : [];
+      for (const item of directItems) {
+        const normalized = this.normalizeFocusItem(item);
+        if (normalized) items.push(normalized);
+      }
+    }
+
+    if (items.length) return items;
+
+    const table = renderedBlocks.find((block) => block.kind === 'table') as Extract<AuraResponseBlock, { kind: 'table' }> | undefined;
+    if (!table) return items;
+    return table.rows.slice(0, 5).map((row) => {
+      const item: Record<string, unknown> = {};
+      table.columns.forEach((column, index) => {
+        item[column] = row[index];
+      });
+      return item;
+    });
+  }
+
+  private normalizeFocusItem(value: unknown): Record<string, unknown> | undefined {
+    const item = this.asObject(value);
+    if (!item) return undefined;
+    const customer = this.asObject(item.customer);
+    return {
+      ...(item.customerId !== undefined ? { customerId: item.customerId } : customer?.id !== undefined ? { customerId: customer.id } : {}),
+      ...(item.customerName !== undefined
+        ? { customerName: item.customerName }
+        : item.name !== undefined
+          ? { customerName: item.name }
+          : customer?.name !== undefined
+            ? { customerName: customer.name }
+            : {}),
+      ...(item.phoneMasked !== undefined
+        ? { phoneMasked: item.phoneMasked }
+        : item.phone !== undefined
+          ? { phoneMasked: item.phone }
+          : customer?.phone !== undefined
+            ? { phoneMasked: customer.phone }
+            : {}),
+      ...item,
+    };
+  }
+
+  private extractFocusActivity(toolResults: AgentToolResult[], renderedBlocks: AuraResponseBlock[]) {
+    for (const result of toolResults) {
+      const data = this.asObject(result.data);
+      const activity = this.normalizeFocusActivity({
+        ...(data ?? {}),
+        sourceTitle: result.title,
+        sourceSummary: result.summary,
+      });
+      if (activity) return activity;
+    }
+
+    const activityBlock = renderedBlocks.find((block) => block.kind === 'activity_draft_card') as
+      | Extract<AuraResponseBlock, { kind: 'activity_draft_card' }>
+      | undefined;
+    if (!activityBlock) return undefined;
+
+    const activityId = this.extractActivityIdFromActions(activityBlock.actions);
+    return this.normalizeFocusActivity({
+      activityId,
+      title: activityBlock.title,
+      targetAudience: activityBlock.targetAudience,
+      offerSummary: activityBlock.offerSummary,
+      copyPreview: activityBlock.copyPreview,
+      scheduleHint: activityBlock.scheduleHint,
+      sourceTitle: '活动草稿卡',
+    });
+  }
+
+  private normalizeFocusActivity(value: Record<string, unknown>) {
+    const title = value.title ?? value.activityTitle;
+    const activityId = value.activityId ?? value.id;
+    const hasActivitySignal =
+      value.sourceTitle === '营销活动草稿' ||
+      value.sourceTitle === '活动草稿卡' ||
+      activityId !== undefined ||
+      title !== undefined;
+    if (!hasActivitySignal || (activityId === undefined && title === undefined)) return undefined;
+
+    return {
+      ...(activityId !== undefined ? { activityId } : {}),
+      ...(title !== undefined ? { activityTitle: title } : {}),
+      ...(value.status !== undefined ? { status: value.status } : {}),
+      ...(value.targetAudience !== undefined ? { targetAudience: value.targetAudience } : {}),
+      ...(value.offerSummary !== undefined ? { offerSummary: value.offerSummary } : {}),
+      ...(value.copyPreview !== undefined ? { copyPreview: value.copyPreview } : {}),
+      ...(value.scheduleHint !== undefined ? { scheduleHint: value.scheduleHint } : {}),
+    };
+  }
+
+  private extractActivityIdFromActions(actions?: AuraBlockAction[]) {
+    for (const action of actions ?? []) {
+      const match = String(action.actionId ?? '').match(/marketing:activity:(?:edit:)?(\d+)/);
+      if (match) return Number(match[1]);
+    }
+    return undefined;
   }
 
   private assertConsumedSlots(tool: AgentToolDefinition, args: Record<string, unknown>, result: AgentToolResult, actor: AgentActor) {
@@ -395,6 +767,72 @@ export class AgentOrchestratorService {
     return this.fieldScopeSanitizer.sanitize(displaySafeResult, actor.fieldScopes);
   }
 
+  private buildToolStepOutput(result: AgentToolResult, latencyMs: number) {
+    return {
+      ...result,
+      observability: this.buildToolObservability(result, latencyMs),
+    };
+  }
+
+  private buildToolObservability(result: AgentToolResult, latencyMs: number) {
+    const data = this.asObject(result.data);
+    const raw = this.asObject(data?.raw);
+    const card = this.asObject(data?.card) ?? this.asObject(raw?.card);
+    const queryPlan = this.asObject(data?.queryPlan) ?? this.asObject(raw?.queryPlan);
+    const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(raw?.rows) ? raw.rows : [];
+    const items = Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(card?.items)
+        ? card.items
+        : Array.isArray(raw?.items)
+          ? raw.items
+          : [];
+    const kpis = Array.isArray(data?.kpis) ? data.kpis : Array.isArray(card?.kpis) ? card.kpis : Array.isArray(raw?.kpis) ? raw.kpis : [];
+    const sampleSize = Number(result.evidence?.sampleSize);
+    const dataVolume = {
+      itemCount: items.length,
+      rowCount: rows.length,
+      kpiCount: kpis.length,
+      sampleSize: Number.isFinite(sampleSize) ? sampleSize : undefined,
+    };
+    return {
+      latencyMs,
+      slowQuery: latencyMs >= 2000,
+      queryPlan: queryPlan ?? undefined,
+      dataVolume,
+      performanceHints: this.buildPerformanceHints(queryPlan, latencyMs, dataVolume),
+    };
+  }
+
+  private buildPerformanceHints(
+    queryPlan: Record<string, unknown> | undefined,
+    latencyMs: number,
+    dataVolume: { itemCount: number; rowCount: number; kpiCount: number; sampleSize?: number },
+  ) {
+    const capabilityId = String(queryPlan?.capabilityId ?? queryPlan?.capability ?? queryPlan?.templateId ?? '');
+    const highFrequencyCapabilities = new Set([
+      'order_customer_consumption_list',
+      'order_revenue',
+      'reservation_today',
+      'reservation_schedule_diagnosis',
+      'inventory_alert',
+      'inventory_risk_ranking',
+      'staff_performance_ranking',
+    ]);
+    const isHighFrequency = highFrequencyCapabilities.has(capabilityId);
+    const largeResult = (dataVolume.sampleSize ?? 0) >= 100 || dataVolume.itemCount >= 50 || dataVolume.rowCount >= 50;
+    if (!isHighFrequency && latencyMs < 1500 && !largeResult) return undefined;
+    return {
+      cacheCandidate: isHighFrequency || latencyMs >= 1500,
+      preaggregationCandidate: largeResult || latencyMs >= 2000,
+      reason: isHighFrequency
+        ? '高频门店问数，建议按门店和时间范围设置短 TTL 缓存。'
+        : latencyMs >= 2000
+          ? '单次查询耗时较高，建议评估预聚合或索引。'
+          : '结果集较大，建议评估分页、缓存或预聚合。',
+    };
+  }
+
   private buildRunResult(
     run: any,
     plan: AgentPlan | undefined,
@@ -404,6 +842,9 @@ export class AgentOrchestratorService {
   ): AgentRunResult {
     const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
     const followUpSuggestions = this.buildFollowUpSuggestions(actions, plan);
+    const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
+    const responseMode = plan ? this.resolveResponseMode(plan, renderedBlocks) : undefined;
+    const phaseOutputs = this.buildPhaseOutputs(plan, answer, toolResults, actions, renderedBlocks);
     return {
       runId: Number(run.id),
       runNo: String(run.runNo),
@@ -413,9 +854,26 @@ export class AgentOrchestratorService {
       toolResults,
       actions,
       evidence: this.evidenceService.merge(toolResults),
+      responseMode,
       renderedBlocks,
+      phaseOutputs,
+      answerContract,
       followUpSuggestions,
     };
+  }
+
+  private validateAnswerContract(
+    plan: AgentPlan | undefined,
+    answer: string,
+    toolResults: AgentToolResult[],
+    renderedBlocks: AuraResponseBlock[],
+  ) {
+    return this.answerContractValidator?.validate({
+      plan,
+      answer,
+      toolResults,
+      renderedBlocks,
+    });
   }
 
   /**
@@ -559,7 +1017,12 @@ export class AgentOrchestratorService {
       }
 
       // KPI 指标数组 → kpi_card blocks
-      const kpis = Array.isArray(data.kpis) ? data.kpis as Array<{ label: string; value: string; delta?: string; deltaType?: string }> : null;
+      const businessQueryCard = this.asObject(data.card);
+      const kpis = Array.isArray(data.kpis)
+        ? data.kpis as Array<{ label: string; value: string; delta?: string; deltaType?: string }>
+        : Array.isArray(businessQueryCard?.kpis)
+          ? businessQueryCard.kpis as Array<{ label: string; value: string; delta?: string; deltaType?: string }>
+          : null;
       if (kpis && kpis.length > 0) {
         for (const kpi of kpis) {
           blocks.push({
@@ -574,7 +1037,11 @@ export class AgentOrchestratorService {
 
       // items 数组 → table block
       const shouldSkipGenericItems = result.title === '营销话术生成' || result.title === '活动效果复盘';
-      const items = !shouldSkipGenericItems && Array.isArray(data.items) ? data.items as Array<Record<string, unknown>> : null;
+      const items = !shouldSkipGenericItems && Array.isArray(data.items)
+        ? data.items as Array<Record<string, unknown>>
+        : !shouldSkipGenericItems && Array.isArray(businessQueryCard?.items)
+          ? businessQueryCard.items as Array<Record<string, unknown>>
+          : null;
       if (items && items.length > 0) {
         const columns = Object.keys(items[0] ?? {}).slice(0, 6);
         const rows = items.slice(0, 20).map((item) =>
@@ -617,10 +1084,11 @@ export class AgentOrchestratorService {
 
     // Evidence 来源面板
     const evidence = this.evidenceService.merge(toolResults);
-    if (evidence && evidence.source.length > 0) {
+    const evidenceSources = evidence?.sourceTables?.length ? evidence.sourceTables : evidence?.source;
+    if (evidence && evidenceSources && evidenceSources.length > 0) {
       blocks.push({
         kind: 'evidence_panel',
-        sources: evidence.source,
+        sources: evidenceSources,
         dateRange: evidence.dateRange,
         metricDefinition: evidence.metricDefinition,
         limitations: evidence.limitations,
@@ -641,25 +1109,31 @@ export class AgentOrchestratorService {
     }
     const items = this.collectOpportunityItems(args).slice(0, 3);
     const primary = items[0];
-    const productName = String(primary?.productName ?? primary?.name ?? '推荐商品');
-    const campaignName = String(primary?.suggestedCampaign ?? '会员专属活动');
-    const title = `${productName}${campaignName}`;
+    const productName = String(primary?.productName ?? primary?.name ?? args.title ?? '推荐商品');
+    const campaignName = String(args.offerSummary ?? args.offer ?? primary?.suggestedCampaign ?? '会员专属活动');
+    const title = String(args.title ?? `${productName}${campaignName}`);
     const riskWarnings = items.flatMap((item) => Array.isArray(item.riskWarnings) ? item.riskWarnings.map(String) : []).slice(0, 2);
-    const copyPreview = `亲爱的会员，${productName}正在做${campaignName}，适合近期补水修护需求。名额有限，到店前可先预约顾问为您确认适用权益。`;
+    const copyPreview = String(
+      args.copyPreview ??
+        `亲爱的会员，${productName}正在做${campaignName}，适合近期补水修护需求。名额有限，到店前可先预约顾问为您确认适用权益。`,
+    );
     const offerCostEstimate = this.buildActivityDraftCostEstimate(items, campaignName);
     const audienceDetails = this.buildActivityDraftAudienceDetails(items);
+    const targetAudience = String(args.targetAudience ?? (items.length ? '近期购买/适合该商品的会员客户' : '待运营确认目标客群'));
+    const scheduleHint = String(args.scheduleHint ?? '建议审批通过后先保存草稿，再由运营确认发送时间');
+    const impactSummary = riskWarnings.length
+      ? `需关注：${riskWarnings.join('；')}`
+      : '审批通过后仅创建 draft 状态活动，不自动发布、不自动触达客户。';
 
     return [
       {
         kind: 'activity_draft_card',
         title,
-        targetAudience: items.length ? '近期购买/适合该商品的会员客户' : '待运营确认目标客群',
+        targetAudience,
         offerSummary: campaignName,
         copyPreview,
-        scheduleHint: '建议审批通过后先保存草稿，再由运营确认发送时间',
-        impactSummary: riskWarnings.length
-          ? `需关注：${riskWarnings.join('；')}`
-          : '审批通过后仅创建 draft 状态活动，不自动发布、不自动触达客户。',
+        scheduleHint,
+        impactSummary,
         offerCostEstimate,
         audienceDetails,
         editable: true,
@@ -672,6 +1146,14 @@ export class AgentOrchestratorService {
           { label: '确认创建草稿', actionId: `approve:${approvalId}`, riskLevel: 'medium' },
           { label: '暂不创建', actionId: `reject:${approvalId}`, riskLevel: 'low' },
         ],
+      },
+      {
+        kind: 'confirm_action',
+        title: `确认创建活动草稿：${title}`,
+        preview: `${targetAudience}；${campaignName}；${impactSummary}`,
+        actionId: `approve:${approvalId}`,
+        riskLevel: 'medium',
+        impactSummary: '确认后只创建 draft 状态营销活动，不会自动发布或触达客户。',
       },
     ];
   }

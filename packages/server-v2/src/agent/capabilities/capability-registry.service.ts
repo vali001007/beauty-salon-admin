@@ -59,6 +59,27 @@ export class CapabilityRegistryService {
       ],
     },
     {
+      id: 'order_customer_consumption_list',
+      name: '消费客户清单',
+      domain: 'order',
+      supportedTaskTypes: ['query', 'ranking'],
+      requiredMetrics: ['paid_amount', 'order_count'],
+      allowedRoles: ['manager', 'reception'],
+      description: '按有效订单查询指定时间范围内发生消费/成交/流水的客户清单，返回客户、金额、订单数和最近消费时间。',
+      toolPlanFactory: (task) => [
+        {
+          tool: 'business.query.ask',
+          args: {
+            question: task.objective,
+            businessTask: task,
+            limit: Math.min(Math.max(Number(task.limit) || 20, 1), 100),
+            timeRange: task.timeRange?.preset ?? 'yesterday',
+            filters: task.filters,
+          },
+        },
+      ],
+    },
+    {
       id: 'product_sales_ranking',
       name: '商品销量排行',
       domain: 'product',

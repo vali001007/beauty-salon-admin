@@ -8,6 +8,7 @@ export type SemanticQueryStatus = 'success' | 'no_data' | 'unsupported' | 'rejec
 export type SemanticQueryPlan = {
   queryId: string;
   capabilityId: string;
+  templateId?: string;
   taskId: string;
   originalQuestion: string;
   role: AgentRole;
@@ -35,6 +36,7 @@ export type SemanticQueryPlanInput = {
 
 export type SemanticQueryEvidence = {
   source: string[];
+  sourceTables?: string[];
   dateRange?: string;
   metricDefinition: string;
   filters: string[];

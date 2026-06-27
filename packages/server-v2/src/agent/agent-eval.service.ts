@@ -4,7 +4,9 @@ import { AgentPlannerService } from './agent-planner.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
 import { AgentToolRegistryService } from './agent-tool-registry.service.js';
 import type { AgentToolResult } from './agent.types.js';
-import { DEFAULT_AGENT_EVAL_CASES, type AgentEvalCaseDefinition } from './agent-eval.cases.js';
+import { DEFAULT_AGENT_EVAL_CASES, P0_AGENT_EVAL_CASES, type AgentEvalCaseDefinition } from './agent-eval.cases.js';
+import { AgentSkillsRegistryService } from './skills/index.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 export type AgentEvalCaseResult = {
   id: string;
@@ -15,6 +17,11 @@ export type AgentEvalCaseResult = {
   errors: string[];
 };
 
+export type AgentEvalRunOptions = {
+  persistFailures?: boolean;
+  source?: string;
+};
+
 @Injectable()
 export class AgentEvalService {
   constructor(
@@ -22,9 +29,11 @@ export class AgentEvalService {
     private readonly toolRegistry: AgentToolRegistryService,
     private readonly fieldScopeSanitizer: AgentFieldScopeSanitizerService,
     private readonly responseSafety: AgentResponseSafetyService,
+    private readonly skillRegistry?: AgentSkillsRegistryService,
+    private readonly prisma?: PrismaService,
   ) {}
 
-  async runDefaultCases(cases: AgentEvalCaseDefinition[] = DEFAULT_AGENT_EVAL_CASES) {
+  async runDefaultCases(cases: AgentEvalCaseDefinition[] = DEFAULT_AGENT_EVAL_CASES, options: AgentEvalRunOptions = {}) {
     const results: AgentEvalCaseResult[] = [];
     for (const testCase of cases) {
       const plan = await this.planner.plan({
@@ -40,9 +49,12 @@ export class AgentEvalService {
         ? this.inspectRuntimeToolResult(firstTool, testCase)
         : { checked: false, passed: true, violations: [] as string[] };
       const actual = {
+        input: testCase.input,
+        role: testCase.role,
         intentType: plan.intentType,
         clarificationNeeded: plan.clarificationNeeded,
         firstTool,
+        plannedTools: plan.toolPlan.map((item) => item.tool),
         riskLevel: tool?.riskLevel,
         targetType: plan.toolPlan[0]?.args?.targetType,
         capabilityId: plan.capabilityPlan?.capabilityId,
@@ -55,11 +67,13 @@ export class AgentEvalService {
         responseSafetyViolations: responseSafetyInspection.violations.map((item) => `${item.path}:${item.matched}`),
         runtimeResponseSafe: runtimeResponseSafetyInspection.checked ? runtimeResponseSafetyInspection.passed : undefined,
         runtimeResponseSafetyViolations: runtimeResponseSafetyInspection.violations,
+        runtimeOutputKinds: runtimeResponseSafetyInspection.checked ? runtimeResponseSafetyInspection.outputKinds : undefined,
       };
       const expected = {
         intentType: testCase.expectedIntentType,
         clarificationNeeded: testCase.expectedClarification,
         firstTool: testCase.expectedTool,
+        plannedTools: testCase.expectedPlannedTools,
         riskLevel: testCase.expectedRiskLevel,
         targetType: testCase.expectedTargetType,
         capabilityId: testCase.expectedCapabilityId,
@@ -70,6 +84,7 @@ export class AgentEvalService {
         protectedFieldScopes: testCase.expectedProtectedFieldScopes,
         responseSafe: testCase.expectedResponseSafe ?? true,
         runtimeResponseSafe: firstTool ? (testCase.expectedRuntimeResponseSafe ?? true) : undefined,
+        runtimeOutputKinds: testCase.expectedOutputKinds,
       };
       const errors = this.collectErrors(expected, actual);
       if (firstTool && actual.roleToolAllowed === false) {
@@ -97,12 +112,123 @@ export class AgentEvalService {
         errors,
       });
     }
+    const failedResults = results.filter((item) => !item.passed);
+    const savedFailureSamples = options.persistFailures
+      ? await this.persistFailedSamples(failedResults, options.source ?? 'agent_eval')
+      : 0;
     return {
       total: results.length,
       passed: results.filter((item) => item.passed).length,
-      failed: results.filter((item) => !item.passed).length,
+      failed: failedResults.length,
       results,
+      failureSamples: failedResults.map((item) => ({
+        id: item.id,
+        scenario: item.scenario,
+        input: String((item.expected as any).input ?? ''),
+        expected: item.expected,
+        actual: item.actual,
+        errors: item.errors,
+      })),
+      savedFailureSamples,
     };
+  }
+
+  async runP0Cases(options: AgentEvalRunOptions = {}) {
+    return this.runDefaultCases(P0_AGENT_EVAL_CASES, options);
+  }
+
+  async runSkillCases(skillId?: string, options: AgentEvalRunOptions = {}) {
+    const skills = (this.skillRegistry?.list() ?? []).filter((skill) => (skillId ? skill.id === skillId : skill.evalCases.length > 0));
+    const cases = skills.flatMap((skill) =>
+      skill.evalCases.map<AgentEvalCaseDefinition>((testCase) => ({
+        id: `${skill.id}:${testCase.id}`,
+        scenario: `Skill评测：${skill.name}`,
+        input: testCase.input,
+        role: testCase.role ?? skill.riskPolicy.allowedRoles[0],
+        expectedTool: testCase.expectedTool,
+        expectedCapabilityId: testCase.expectedCapabilityId ?? skill.capabilityId,
+        expectedOutputKinds: testCase.expectedOutputKinds,
+        expectedClarification: false,
+      })),
+    );
+    const summary = await this.runDefaultCases(cases, options);
+    const bySkill = skills.map((skill) => {
+      const skillResults = summary.results.filter((result) => result.id.startsWith(`${skill.id}:`));
+      return {
+        skillId: skill.id,
+        name: skill.name,
+        total: skillResults.length,
+        passed: skillResults.filter((result) => result.passed).length,
+        failed: skillResults.filter((result) => !result.passed).length,
+        toolAccuracy: this.rate(skillResults, (result) => this.isExpectedValueMatched(result.expected.firstTool, result.actual.firstTool)),
+        capabilityAccuracy: this.rate(skillResults, (result) => this.isExpectedValueMatched(result.expected.capabilityId, result.actual.capabilityId)),
+        outputContractAccuracy: this.rate(skillResults, (result) => {
+          const expectedKinds = result.expected.runtimeOutputKinds;
+          if (!Array.isArray(expectedKinds) || expectedKinds.length === 0) return true;
+          const actualKinds = Array.isArray(result.actual.runtimeOutputKinds) ? result.actual.runtimeOutputKinds : [];
+          return expectedKinds.every((kind) => actualKinds.includes(kind));
+        }),
+      };
+    });
+    return {
+      ...summary,
+      skillId: skillId ?? null,
+      bySkill,
+      metrics: {
+        skillCount: bySkill.length,
+        toolAccuracy: this.weightedRate(bySkill, 'toolAccuracy'),
+        capabilityAccuracy: this.weightedRate(bySkill, 'capabilityAccuracy'),
+        outputContractAccuracy: this.weightedRate(bySkill, 'outputContractAccuracy'),
+      },
+    };
+  }
+
+  private rate(results: AgentEvalCaseResult[], predicate: (result: AgentEvalCaseResult) => boolean) {
+    if (!results.length) return 1;
+    return Number((results.filter(predicate).length / results.length).toFixed(4));
+  }
+
+  private weightedRate(items: Array<{ total: number } & Record<string, unknown>>, key: string) {
+    const total = items.reduce((sum, item) => sum + item.total, 0);
+    if (!total) return 1;
+    const weighted = items.reduce((sum, item) => sum + item.total * Number(item[key] ?? 0), 0);
+    return Number((weighted / total).toFixed(4));
+  }
+
+  private async persistFailedSamples(results: AgentEvalCaseResult[], source: string) {
+    if (!results.length) return 0;
+    const delegate = (this.prisma as any)?.agentEvalCase;
+    if (!delegate?.createMany) return 0;
+    const payload = results.map((result) => ({
+      scenario: `regression:${result.scenario}`,
+      input: this.extractOriginalInput(result),
+      role: this.extractOriginalRole(result),
+      expectedTool: typeof result.expected.firstTool === 'string' ? result.expected.firstTool : null,
+      expectedOutcome: this.toJsonObject({
+        source,
+        originalCaseId: result.id,
+        expected: result.expected,
+        actual: result.actual,
+        errors: result.errors,
+      }),
+      status: 'draft',
+    }));
+    const created = await delegate.createMany({ data: payload });
+    return Number(created?.count ?? payload.length);
+  }
+
+  private extractOriginalInput(result: AgentEvalCaseResult) {
+    const actualInput = (result.actual as any).input;
+    return typeof actualInput === 'string' && actualInput ? actualInput : result.id;
+  }
+
+  private extractOriginalRole(result: AgentEvalCaseResult) {
+    const role = (result.actual as any).role;
+    return typeof role === 'string' && role ? role : 'manager';
+  }
+
+  private toJsonObject(value: Record<string, unknown>) {
+    return JSON.parse(JSON.stringify(value));
   }
 
   private getBusinessTaskDomain(value: unknown) {
@@ -115,6 +241,14 @@ export class AgentEvalService {
     const errors: string[] = [];
     for (const [key, expectedValue] of Object.entries(expected)) {
       if (expectedValue === undefined) continue;
+      if (key === 'runtimeOutputKinds' && Array.isArray(expectedValue)) {
+        const actualKinds = Array.isArray(actual[key]) ? actual[key] : [];
+        const missingKinds = expectedValue.filter((kind) => !actualKinds.includes(kind));
+        if (missingKinds.length) {
+          errors.push(`${key}: missing ${missingKinds.join(', ')}, got ${actualKinds.join(', ')}`);
+        }
+        continue;
+      }
       if (!this.isExpectedValueMatched(expectedValue, actual[key])) {
         errors.push(`${key}: expected ${String(expectedValue)}, got ${String(actual[key])}`);
       }
@@ -150,7 +284,28 @@ export class AgentEvalService {
       checked: true,
       passed: inspection.passed,
       violations: inspection.violations.map((item) => `${item.path}:${item.matched}`),
+      outputKinds: this.inferRuntimeOutputKinds(scopedResult),
     };
+  }
+
+  private inferRuntimeOutputKinds(result: AgentToolResult) {
+    const data = this.asObject(result.data);
+    const card = this.asObject(data?.card);
+    const items = Array.isArray(data?.items) ? data.items : Array.isArray(card?.items) ? card.items : [];
+    const kpis = Array.isArray(data?.kpis) ? data.kpis : Array.isArray(card?.kpis) ? card.kpis : [];
+    const hasKpiObject = Boolean(data?.current) || Boolean(data?.summary) || Boolean(card?.current) || Boolean(card?.summary);
+    const kinds = new Set<string>();
+    if (result.summary || result.title) kinds.add('text');
+    if (kpis.length > 0 || hasKpiObject) kinds.add('kpi');
+    if (items.length > 0) kinds.add('table');
+    if (data?.chart || data?.trend || card?.chart || card?.trend) kinds.add('chart');
+    if (result.actions?.length) kinds.add('action_card');
+    if (result.evidence) kinds.add('evidence');
+    return ['text', 'kpi', 'table', 'chart', 'action_card', 'clarify', 'evidence'].filter((kind) => kinds.has(kind));
+  }
+
+  private asObject(value: unknown): Record<string, unknown> | null {
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
   }
 
   private buildRuntimeToolResultFixture(toolName: string, testCase: AgentEvalCaseDefinition): AgentToolResult | undefined {
@@ -190,21 +345,42 @@ export class AgentEvalService {
       'business.query.ask': {
         status: 'success',
         title: '经营问数',
-        summary: '通过 business-query:product_sales_trend 查询 product_sales_growth。',
-        data: {
-          card: {
-            items: [
-              {
-                productName: '氨基酸洁面乳',
-                priority: 'recommended',
-                salesAmount: 256,
-                growthRateText: '+100%',
+        summary: '通过 business-query 查询经营数据。',
+        data:
+          testCase.expectedCapabilityId === 'order_revenue_analysis'
+            ? {
+                card: {
+                  type: 'orderRevenueAnalysis',
+                  title: '订单收入分析',
+                  summary: '今天收入 ¥12,800，订单 32 笔，客单价 ¥400。',
+                  kpis: [
+                    { label: '收入', value: '¥12,800' },
+                    { label: '订单数', value: '32' },
+                    { label: '客单价', value: '¥400' },
+                  ],
+                  items: [{ payMethod: 'wechat', orderCount: 18, salesAmount: 7200 }],
+                },
+              }
+            : {
+                card: {
+                  items: [
+                    {
+                      productName: '氨基酸洁面乳',
+                      priority: 'recommended',
+                      salesAmount: 256,
+                      growthRateText: '+100%',
+                    },
+                  ],
+                },
               },
-            ],
-          },
-        },
-        evidence: commonEvidence(['ProductOrder', 'OrderItem', 'Product'], 'product_sales_growth 按订单明细商品销量对比。'),
-        actions: [{ label: '查看 business-query:product_sales_trend', action: 'business-query:product_sales_trend', riskLevel: 'low' }],
+        evidence:
+          testCase.expectedCapabilityId === 'order_revenue_analysis'
+            ? commonEvidence(['ProductOrder', 'PaymentRecord', 'RefundRecord'], '收入 = 有效订单实收汇总；客单价 = 收入 / 订单数。')
+            : commonEvidence(['ProductOrder', 'OrderItem', 'Product'], 'product_sales_growth 按订单明细商品销量对比。'),
+        actions:
+          testCase.expectedCapabilityId === 'order_revenue_analysis'
+            ? [{ label: '查看订单明细', action: 'business-query:order_revenue_analysis', riskLevel: 'low' }]
+            : [{ label: '查看 business-query:product_sales_trend', action: 'business-query:product_sales_trend', riskLevel: 'low' }],
       },
       'revenue.diagnose': {
         status: 'success',

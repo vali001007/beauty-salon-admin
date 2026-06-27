@@ -79,6 +79,19 @@ export class AgentController {
     @Body() body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
     @CurrentDevice() device: any,
   ) {
+    const run = await this.prisma.agentRun.findFirst({
+      where: { id, ...(device?.storeId ? { storeId: Number(device.storeId) } : {}) },
+      select: {
+        id: true,
+        storeId: true,
+        userId: true,
+        userInput: true,
+        planJson: true,
+        resultJson: true,
+        errorMessage: true,
+      },
+    });
+    const feedbackSnapshot = this.buildFeedbackSnapshot(run, body);
     return this.prisma.agentFeedback.create({
       data: {
         runId: id,
@@ -87,7 +100,7 @@ export class AgentController {
         rating: body.rating ?? null,
         adopted: body.adopted ?? null,
         comment: body.comment ?? null,
-        businessActionJson: body.businessActionJson ? (body.businessActionJson as object) : undefined,
+        businessActionJson: feedbackSnapshot,
       },
     });
   }
@@ -413,8 +426,46 @@ export class AgentController {
 
   @Get('evals/default')
   @ApiOperation({ summary: '运行默认 Agent 评测集' })
-  runDefaultEvals() {
-    return this.orchestrator.runDefaultEvals();
+  runDefaultEvals(@Query('persistFailures') persistFailures?: string) {
+    return this.orchestrator.runDefaultEvals({ persistFailures: persistFailures === 'true' });
+  }
+
+  @Get('evals/p0')
+  @ApiOperation({ summary: '运行洞悉美业 P0 高频问答评测集' })
+  runP0Evals(@Query('persistFailures') persistFailures?: string) {
+    return this.orchestrator.runP0Evals({ persistFailures: persistFailures === 'true' });
+  }
+
+  @Get('evals/skills')
+  @ApiOperation({ summary: '按 Skill 运行 Agent 评测集，并输出工具、能力和输出契约正确率' })
+  runSkillEvals(@Query('skillId') skillId?: string, @Query('persistFailures') persistFailures?: string) {
+    return this.orchestrator.runSkillEvals(skillId, { persistFailures: persistFailures === 'true' });
+  }
+
+  @Get('feedback/failures')
+  @ApiOperation({ summary: '查看无用/低分反馈归因，按 Skill 聚合失败样本' })
+  feedbackFailures(
+    @CurrentDevice('storeId') storeId: number,
+    @Query('days') days?: string,
+    @Query('personaCode') personaCode?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.observabilityService.getFeedbackFailureReport({ storeId, days, personaCode, limit });
+  }
+
+  @Post('feedback/failures/eval-cases')
+  @ApiOperation({ summary: '把负反馈样本加入 Eval 草稿池' })
+  importFeedbackFailuresToEvalCases(
+    @CurrentDevice('storeId') storeId: number,
+    @Body() body: { days?: number | string; personaCode?: string; limit?: number | string; dryRun?: boolean } = {},
+  ) {
+    return this.observabilityService.importFeedbackFailuresToEvalCases({
+      storeId,
+      days: body.days,
+      personaCode: body.personaCode,
+      limit: body.limit,
+      dryRun: body.dryRun,
+    });
   }
 
   @Get('capability-candidates')
@@ -474,6 +525,7 @@ export class AgentController {
     return {
       businessTask: compiled.task,
       capabilityPlan: compiled.capabilityMatches[0] ?? null,
+      skillPlan: compiled.skillMatches?.[0] ?? null,
       semanticSqlCandidate: compiled.semanticSqlCandidate,
       queryPlan: planned?.plan ?? null,
       rejectedReason: planned?.rejectedReason,
@@ -502,6 +554,7 @@ export class AgentController {
         status: 'rejected',
         summary: planned?.rejectedReason ?? '统一查询中枢尚未接入执行器。',
         businessTask: compiled.task,
+        skillPlan: compiled.skillMatches?.[0] ?? null,
         queryPlan: null,
       };
     }
@@ -510,6 +563,7 @@ export class AgentController {
       result,
       composed: this.responseComposer?.compose(result),
       queryPlan: planned.plan,
+      skillPlan: compiled.skillMatches?.[0] ?? null,
       warnings: [...compiled.validation.warnings, ...planned.warnings],
     };
   }
@@ -694,6 +748,50 @@ export class AgentController {
         fieldScopes: actorContext.fieldScopes,
       },
     });
+  }
+
+  private buildFeedbackSnapshot(
+    run: {
+      userInput?: string | null;
+      planJson?: unknown;
+      resultJson?: unknown;
+      errorMessage?: string | null;
+    } | null,
+    body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
+  ) {
+    const plan = this.asObject(run?.planJson);
+    const result = this.asObject(run?.resultJson);
+    const traceSummary = this.asObject(result?.traceSummary);
+    const skillPlan = this.asObject(plan?.skillPlan) ?? this.asObject(result?.skillPlan);
+    const capabilityPlan = this.asObject(plan?.capabilityPlan) ?? this.asObject(result?.capabilityPlan);
+    const toolPlan = Array.isArray(plan?.toolPlan) ? plan.toolPlan : Array.isArray(result?.toolPlan) ? result.toolPlan : [];
+    const toolResults = Array.isArray(result?.toolResults) ? result.toolResults : [];
+    const toolNames = [
+      ...toolPlan.map((item) => String(this.asObject(item)?.tool ?? '')).filter(Boolean),
+      ...toolResults.map((item) => String(this.asObject(item)?.title ?? '')).filter(Boolean),
+    ];
+    const userProvided = this.asObject(body.businessActionJson);
+    return this.toJsonObject({
+      ...(userProvided ? { userProvided } : {}),
+      snapshot: {
+        question: run?.userInput ?? '',
+        answer: String(result?.answer ?? run?.errorMessage ?? ''),
+        skillId: String(traceSummary?.skillId ?? skillPlan?.skillId ?? ''),
+        capabilityId: String(traceSummary?.capabilityId ?? skillPlan?.capabilityId ?? capabilityPlan?.capabilityId ?? ''),
+        toolNames: [...new Set(toolNames)].slice(0, 8),
+        responseMode: result?.responseMode,
+        answerContract: result?.answerContract,
+        feedbackReason: body.comment ?? (body.adopted === false ? '用户标记无用' : body.adopted === true ? '用户标记有用' : undefined),
+      },
+    });
+  }
+
+  private asObject(value: unknown): Record<string, any> | null {
+    return typeof value === 'object' && value !== null ? (value as Record<string, any>) : null;
+  }
+
+  private toJsonObject(value: Record<string, unknown>) {
+    return JSON.parse(JSON.stringify(value));
   }
 
   private async resolveActorContext(input: {

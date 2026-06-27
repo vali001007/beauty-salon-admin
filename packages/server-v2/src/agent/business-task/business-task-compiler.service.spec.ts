@@ -4,6 +4,7 @@ import { SemanticSqlDecisionService } from '../../semantic-sql/semantic-sql-deci
 import { BusinessTaskCompilerService } from './business-task-compiler.service.js';
 import { BusinessTaskLlmCompilerService } from './business-task-llm-compiler.service.js';
 import { BusinessTaskPreParserService } from './business-task-preparser.service.js';
+import { AgentSkillsRegistryService } from '../skills/index.js';
 
 describe('BusinessTaskCompilerService', () => {
   const service = new BusinessTaskCompilerService(
@@ -11,6 +12,8 @@ describe('BusinessTaskCompilerService', () => {
     new CapabilityRegistryService(),
     new SemanticMetricRegistryService(),
     new SemanticSqlDecisionService(),
+    undefined,
+    new AgentSkillsRegistryService(),
   );
   const serviceWithLlmDraft = new BusinessTaskCompilerService(
     new BusinessTaskPreParserService(),
@@ -18,6 +21,7 @@ describe('BusinessTaskCompilerService', () => {
     new SemanticMetricRegistryService(),
     new SemanticSqlDecisionService(),
     new BusinessTaskLlmCompilerService({ get: jest.fn((_key: string, fallback: unknown) => fallback) } as any),
+    new AgentSkillsRegistryService(),
   );
 
   it('compiles customer priority questions into a capability plan', async () => {
@@ -53,6 +57,57 @@ describe('BusinessTaskCompilerService', () => {
     });
   });
 
+  it('compiles revenue KPI questions into the revenue order analysis skill', async () => {
+    const result = await service.compile({ message: '今天营收多少', role: 'manager' });
+
+    expect(result.validation.valid).toBe(true);
+    expect(result.task).toMatchObject({
+      domain: 'business',
+      taskType: 'query',
+      metrics: ['revenue'],
+      timeRange: { preset: 'today', label: '今天' },
+      outputIntent: 'show_kpi',
+    });
+    expect(result.capabilityMatches[0]).toMatchObject({
+      capabilityId: 'order_revenue_analysis',
+      toolPlan: [{ tool: 'business.query.ask', args: expect.objectContaining({ question: '今天营收多少', timeRange: 'today' }) }],
+    });
+    expect(result.skillMatches[0]).toMatchObject({
+      skillId: 'revenue.order.analysis',
+      capabilityId: 'order_revenue_analysis',
+      outputContract: expect.objectContaining({ requiredKinds: ['kpi', 'evidence'] }),
+    });
+  });
+
+  it('compiles weekly customer consumption list questions into the order list capability', async () => {
+    const result = await service.compile({ message: '上周流水客户名单', role: 'manager' });
+
+    expect(result.validation.valid).toBe(true);
+    expect(result.task).toMatchObject({
+      domain: 'order',
+      taskType: 'query',
+      event: 'paid_order',
+      outputIntent: 'show_table',
+      timeRange: { preset: 'last_week', label: '上周' },
+      requiredFields: expect.arrayContaining(['customerName', 'paidAmount', 'orderCount']),
+    });
+    expect(result.task.metrics).toEqual(expect.arrayContaining(['paid_amount', 'order_count']));
+    expect(result.capabilityMatches[0]).toMatchObject({
+      capabilityId: 'order_customer_consumption_list',
+      toolPlan: [
+        {
+          tool: 'business.query.ask',
+          args: expect.objectContaining({ question: '上周流水客户名单', timeRange: 'last_week' }),
+        },
+      ],
+    });
+    expect(result.skillMatches[0]).toMatchObject({
+      skillId: 'order.customer.consumption.list',
+      capabilityId: 'order_customer_consumption_list',
+      outputContract: expect.objectContaining({ requiredKinds: ['table', 'evidence'] }),
+    });
+  });
+
   it('compiles product sales growth questions into a dedicated product sales ranking capability', async () => {
     const result = await service.compile({ message: '近30天销量增长最快的10个商品', role: 'manager' });
 
@@ -84,9 +139,10 @@ describe('BusinessTaskCompilerService', () => {
       metrics: ['stock_risk_score'],
     });
     expect(result.capabilityMatches[0]).toMatchObject({
-      capabilityId: 'inventory_risk_ranking',
+      capabilityId: 'inventory_supply_risk',
       toolPlan: [{ tool: 'inventory.risk.rank', args: expect.objectContaining({ question: '哪些商品库存不足' }) }],
     });
+    expect(result.capabilityMatches[0].reason).toContain('库存供应风险诊断');
     expect(result.semanticSqlCandidate).toMatchObject({
       allowed: false,
       fallbackCapability: 'inventory_risk_ranking',
@@ -106,6 +162,7 @@ describe('BusinessTaskCompilerService', () => {
       capabilityId: 'reservation_schedule_diagnosis',
       toolPlan: [{ tool: 'schedule.diagnose', args: expect.objectContaining({ question: '今天哪些美容师空闲' }) }],
     });
+    expect(result.capabilityMatches[0].reason).toContain('预约排班容量诊断');
     expect(result.semanticSqlCandidate).toMatchObject({
       allowed: false,
       fallbackCapability: 'reservation_schedule_diagnosis',
@@ -126,6 +183,7 @@ describe('BusinessTaskCompilerService', () => {
       capabilityId: 'staff_performance_ranking',
       toolPlan: [{ tool: 'staff.performance.rank', args: expect.objectContaining({ question: '近期表现较好的员工' }) }],
     });
+    expect(result.capabilityMatches[0].reason).toContain('员工绩效管理');
   });
 
   it('compiles beautician self performance questions into the same scoped staff capability', async () => {
@@ -142,6 +200,7 @@ describe('BusinessTaskCompilerService', () => {
       capabilityId: 'staff_performance_ranking',
       toolPlan: [{ tool: 'staff.performance.rank', args: expect.objectContaining({ question: '我的表现怎么样' }) }],
     });
+    expect(result.capabilityMatches[0].reason).toContain('员工绩效管理');
   });
 
   it('compiles newly covered domains into dedicated capabilities', async () => {
@@ -252,6 +311,7 @@ describe('BusinessTaskCompilerService', () => {
     expect(result.validation.valid).toBe(false);
     expect(result.capabilityMatches).toEqual([]);
     expect(result.validation.clarificationQuestion).toContain('业务领域');
+    expect((result.validation.clarificationQuestion?.match(/[？?]/g) ?? []).length).toBeLessThanOrEqual(1);
   });
 
   it('uses a validated LLM structured draft only to fill missing slots', async () => {
@@ -285,7 +345,7 @@ describe('BusinessTaskCompilerService', () => {
     expect(result.capabilityMatches[0]).toMatchObject({ capabilityId: 'product_sales_ranking' });
   });
 
-  it('does not let an LLM draft override deterministic domain, time range or limit', async () => {
+  it('uses LLM semantic slots while preserving deterministic time and limit slots', async () => {
     const result = await serviceWithLlmDraft.compile({
       message: '今天最值得跟进的10个客户',
       role: 'manager',
@@ -303,21 +363,44 @@ describe('BusinessTaskCompilerService', () => {
     });
 
     expect(result.task).toMatchObject({
-      domain: 'customer',
-      taskType: 'recommendation',
+      domain: 'product',
+      taskType: 'ranking',
       timeRange: { preset: 'today', label: '今天' },
       limit: 10,
     });
-    expect(result.task.metrics).toEqual(['follow_up_priority_score']);
+    expect(result.task.metrics).toEqual(['product_sales_growth']);
     expect(result.validation.warnings).toEqual(
       expect.arrayContaining([
-        'llm_domain_ignored_by_deterministic_slot',
-        'llm_taskType_ignored_by_deterministic_slot',
+        'preparser_domain_used_as_slot_enhancer',
+        'preparser_taskType_used_as_slot_enhancer',
         'llm_limit_ignored_by_deterministic_slot',
         'llm_timeRange_ignored_by_deterministic_slot',
       ]),
     );
-    expect(result.capabilityMatches[0]).toMatchObject({ capabilityId: 'customer_priority_recommendation' });
+    expect(result.capabilityMatches[0]).toMatchObject({ capabilityId: 'product_sales_ranking' });
+  });
+
+  it('does not let an LLM draft downgrade deterministic high-risk workflow slots', async () => {
+    const result = await serviceWithLlmDraft.compile({
+      message: '直接群发优惠券给所有客户',
+      role: 'manager',
+      context: {
+        llmTaskCompilerEnabled: true,
+        llmBusinessTaskDraft: {
+          domain: 'promotion',
+          taskType: 'query',
+          metrics: ['promotion_claim_rate'],
+          confidence: 0.9,
+        },
+      },
+    });
+
+    expect(result.task.taskType).toBe('workflow');
+    expect(result.task.requiresApproval).toBe(true);
+    expect(result.task.riskLevel).toBe('medium');
+    expect(result.validation.warnings).toEqual(
+      expect.arrayContaining(['llm_taskType_ignored_by_high_risk_workflow_slot']),
+    );
   });
 
   it('ignores context LLM drafts when the compiler preview is not enabled', async () => {
@@ -338,5 +421,36 @@ describe('BusinessTaskCompilerService', () => {
     expect(result.llmDraft).toMatchObject({ used: false, status: 'disabled' });
     expect(result.validation.valid).toBe(false);
     expect(result.capabilityMatches).toEqual([]);
+  });
+
+  it('falls back to deterministic PreParser when AI structured draft retries stay invalid', async () => {
+    const aiService = {
+      chat: jest
+        .fn()
+        .mockResolvedValueOnce({ text: JSON.stringify({ domain: 'sql', query: 'drop table users' }) })
+        .mockResolvedValueOnce({ text: JSON.stringify({ domain: 'sql', taskType: 'delete' }) }),
+    } as any;
+    const compiler = new BusinessTaskCompilerService(
+      new BusinessTaskPreParserService(),
+      new CapabilityRegistryService(),
+      new SemanticMetricRegistryService(),
+      new SemanticSqlDecisionService(),
+      new BusinessTaskLlmCompilerService({ get: jest.fn(() => 'true') } as any, aiService),
+      new AgentSkillsRegistryService(),
+    );
+
+    const result = await compiler.compile({ message: '昨天有哪些消费的客户，列出清单', role: 'manager' });
+
+    expect(aiService.chat).toHaveBeenCalledTimes(2);
+    expect(result.llmDraft).toMatchObject({ used: true, status: 'invalid', source: 'ai_gateway' });
+    expect(result.validation.valid).toBe(true);
+    expect(result.task).toMatchObject({
+      domain: 'order',
+      taskType: 'query',
+      event: 'paid_order',
+      outputIntent: 'show_table',
+      timeRange: { preset: 'yesterday', label: '昨天' },
+    });
+    expect(result.capabilityMatches[0]).toMatchObject({ capabilityId: 'order_customer_consumption_list' });
   });
 });

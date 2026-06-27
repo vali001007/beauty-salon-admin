@@ -1,7 +1,7 @@
 # 洞悉美业·智能体开发任务清单 tasks
 
-版本：v2.0
-日期：2026-06-26
+版本：v2.1
+日期：2026-06-27
 适用范围：洞悉美业·新一代门店运营智能体、Ami_Aura 智能终端升级、管理端 `/ami-agent` 工作台、`packages/server-v2/src/agent` 后端 Agent Runtime。
 
 ---
@@ -67,6 +67,17 @@
 - [x] 已完成：阶段 6 记忆归档运行态 E2E 断言增强，写路径会创建并读回记忆、生成并读回每日归档，并校验质量报表 KPI 字段。
 - [x] 已完成：阶段 6/7 两条数据库迁移已应用到目标库，Prisma Client 已重新生成，后端已重建并重启到新 `dist/main.js`。
 - [x] 已完成：阶段 6/7 迁移后严格验收通过，`agent:post-migration-verify -- --include-write --yes` 已覆盖 schema、runtime、API 读路径和真实写路径。
+- [x] 已完成：洞悉美业 Agent v2 阶段 0 复核，`agent-eval.service.spec.ts` 默认 Eval 和 50 条 P0 高频问答基线均为 0 失败；营收 KPI 问数已从旧 `revenue.diagnose` 收敛到 `business.query.ask + order_revenue_analysis`。
+- [x] 已完成：洞悉美业 Agent v2 首个 P1 Skill `revenue.order.analysis`，真实接口 runId=116 可返回营收/实收/订单数/客单价/退款/净额 KPI、支付方式表和 Evidence 口径说明。
+- [x] 已完成：洞悉美业 Agent v2 P0 Skill `customer.lifecycle.insight`，真实接口 runId=119 可返回客户优先级、回访原因、建议动作和 Evidence 口径说明，接口约 1807ms 返回，无 Internal Server Error。
+- [x] 已完成：洞悉美业 Agent v2 P1 Skill `finance.profit.risk`，真实接口 runId=121 可返回利润诊断结论、原因表、KPI 和 Evidence；当真实数据不支持“利润下降”时会明确纠偏，并给出成本、提成和低毛利拖累线索。
+- [x] 已完成：洞悉美业 Agent v2 P1 Skill `marketing.growth.execution` 召回活动草稿入口，真实接口 runId=123 返回活动草稿卡和确认卡，状态为 `waiting_approval`，不会自动发布或触达客户。
+- [x] 已完成：洞悉美业 Agent v2 阶段 5 Fast Path / Deep Path 增强，Deep Path 已输出 `phaseOutputs` 支持核心结论、数据明细、建议动作、操作草稿分阶段展示；Fast Path 已记录结构化直返/组合回答降级原因；工具观测已输出高频查询缓存和预聚合建议。定向验证：`agent-orchestrator.service.spec.ts`、`agent-planner.service.spec.ts`、`agent-tool-registry.service.spec.ts`、`business-query.service.spec.ts` 共 4 个测试套件、153 条用例通过。
+- [x] 已完成：洞悉美业 Agent v2 阶段 6 富输出与前端体验增强，`/ami-agent` 已支持 Deep Path 阶段面板，通用 block 渲染顺序已规范为结论/风险/KPI/数据/证据/动作/追问；前端组件测试 `AgentBlockRenderer.test.tsx` 5/5 通过。
+- [x] 已完成：洞悉美业 Agent v2 阶段 7 P1 Skills 收口，6 个 P1 Skill 均具备业务定义、示例问法、需要字段、工具计划、输出契约、权限/风险策略和 eval cases；新增完成 `reservation.capacity.schedule`、`inventory.supply.risk`、`staff.performance.management`，并通过默认 Eval 与 P0 高频基线回归。
+- [x] 已完成：洞悉美业 Agent v2 阶段 7 P2 Skills 收口，新增 `card.member.asset`、`service.quality.record`、`automation.event.trigger`、`store.comparison.benchmark`、`terminal.health.ops`；每个 Skill 均接入已有工具、输出契约和 eval cases。验证：`agent-eval.service.spec.ts`、`agent-skills.registry.spec.ts`、`business-task-compiler.service.spec.ts`、`agent-planner.service.spec.ts` 共 4 个测试套件、87 条用例通过，后端构建通过。
+- [x] 已完成：洞悉美业 Agent v2 阶段 8 Skill Eval Harness 初版，新增按 Skill 运行评测的 Service/API/本地脚本，输出工具正确率、能力命中率和输出契约正确率；`npm.cmd run agent:eval:skills` 已通过。
+- [x] 已完成：洞悉美业 Agent v2 阶段 8 人工反馈闭环初版，用户反馈会固化问题、答案、Skill、Capability、工具和原因；支持查看负反馈最多的 Skill，并可将负反馈样本导入 `AgentEvalCase` 草稿池。
 
 ### 0.0.1 当前完成/未完成状态
 
@@ -586,6 +597,13 @@
 - 2026-06-26：`agent-eval` 定向单测通过 5/5，默认 Agent eval 矩阵 383 个用例全绿；已拆分财务毛利诊断、利润诊断、毛利风险排行三类问法。
 - 2026-06-26：`agent-orchestrator` 定向单测通过 18/18，用于确认新财务工具不会被槽位验收拦截，并可进入结构化 Block 构建链路。
 - 2026-06-26：`packages/server-v2 npm.cmd run build` 通过。
+- 2026-06-27：新增 `finance.profit.risk` Skill 注册和运行态 trace 标识，`finance.profit.diagnose` 输出趋势判定、诊断原因表、KPI 和 Evidence；真实接口 runId=121 验收“为什么利润下降”通过，Answer Contract valid。
+- 2026-06-27：新增 `marketing.growth.execution` Skill 注册和召回活动草稿入口，`marketing.activity.draft` 等待审批时返回 `activity_draft_card` + `confirm_action`；真实接口 runId=123 验收“帮我生成召回活动”通过，未创建发布态活动、未触达客户。
+- 2026-06-27：按“从阶段 0 开始”重新复跑洞悉美业 Agent v2 基线，`npm.cmd --prefix packages/server-v2 test -- agent-eval.service.spec.ts agent-skills.registry.spec.ts business-task-compiler.service.spec.ts agent-planner.service.spec.ts answer-contract-validator.service.spec.ts --runInBand` 通过，5 个测试套件、87 条用例全部通过；`npm.cmd --prefix packages/server-v2 run build` 通过。
+- 2026-06-27：阶段 1 消费客户清单与回复契约复验通过，`business-query.service.spec.ts`、`semantic-query-executor.service.spec.ts`、`agent-planner.service.spec.ts`、`agent-orchestrator.service.spec.ts`、`answer-contract-validator.service.spec.ts`、`agent-eval.service.spec.ts` 共 6 个测试套件、123 条用例通过；`AgentBlockRenderer.test.tsx` 5 条前端渲染用例通过；`packages/server-v2` 后端构建和管理端 Vite 构建均通过；真实接口 runId=125 返回 7 位消费客户、35 笔有效订单、表格和 Evidence，Answer Contract valid，接口约 1691ms。
+- 2026-06-27：阶段 2 Skills Registry 复验通过，`npm.cmd --prefix packages/server-v2 test -- agent-skills.registry.spec.ts business-task-compiler.service.spec.ts agent-planner.service.spec.ts agent-orchestrator.service.spec.ts --runInBand` 通过，4 个测试套件、99 条用例全部通过；覆盖 Skill 注册、角色权限边界、Compiler Skill-first、Planner/Orchestrator 计划记录。
+- 2026-06-27：阶段 3 Semantic Task Compiler 复验并补齐营销活动跨轮指代，活动草稿卡和审批后活动草稿会沉淀 `conversationFocus.currentActivity`，后续“这个活动/上次那个活动”可恢复 `activityId/activityTitle`；`npm.cmd --prefix packages/server-v2 test -- business-task-preparser.service.spec.ts business-task-llm-compiler.service.spec.ts business-task-compiler.service.spec.ts agent-planner.service.spec.ts agent-policy.service.spec.ts agent-orchestrator.service.spec.ts --runInBand` 通过，6 个测试套件、116 条用例全部通过；真实接口 runId=126 高风险群发被 `clarify` 拦截，runId=127 活动草稿追问“这个活动转化效果怎么样”命中 `marketing.effect.diagnose` 并携带活动标题。
+- 2026-06-27：阶段 4 Query Planner 与 Evidence 复验并补齐 P1 查询型 capability 模板映射，QueryPlanner 命中模板后会过滤非模板指标并补齐模板默认指标；`npm.cmd --prefix packages/server-v2 test -- query-template-registry.service.spec.ts query-planner.service.spec.ts query-safety-guard.service.spec.ts semantic-query-executor.service.spec.ts business-query.service.spec.ts agent-policy.service.spec.ts agent-orchestrator.service.spec.ts --runInBand` 通过，7 个测试套件、86 条用例全部通过；真实接口验证预约排班生成 `reservation_schedule` QueryPlan、营收执行返回标准 Evidence、前台毛利查询被拒绝且不生成 QueryPlan。
 - 2026-06-26：阶段 5 财务审计与报告草稿工具完成，新增 `finance.refund.discount.audit`、`finance.beautician.performance.audit`、`finance.report.draft`；旧 `order.refund.diagnose`、`staff.performance.rank` 保留兼容。
 - 2026-06-26：`agent-planner` 定向单测通过 39/39，用于确认退款折扣审计、绩效审计、财务报告草稿自然语言稳定命中，且不抢占纯退款异常诊断。
 - 2026-06-26：`agent-tool-registry` 定向单测通过 52/52，用于确认 T5.4-T5.6 三个新工具可执行、只读、带证据，报告草稿不写库。

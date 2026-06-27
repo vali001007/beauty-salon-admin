@@ -59,6 +59,8 @@
     "business-interface:verify": "ts-node --esm prisma/business-interface-convergence-verify.ts",
     "business-interface:samples": "ts-node --esm prisma/business-interface-convergence-samples.ts",
     "agent:completion-audit": "ts-node --esm prisma/agent-completion-audit.ts",
+    "agent:eval": "jest agent-eval.service.spec.ts --runInBand",
+    "agent:eval:skills": "jest agent-eval.service.spec.ts --runInBand --testNamePattern=\"runs eval cases by Skill|runs eval cases for a single Skill\"",
     "agent:e2e-coverage:audit": "ts-node --esm prisma/agent-e2e-coverage-audit.ts",
     "agent:migration-audit": "ts-node --esm prisma/agent-migration-audit.ts",
     "agent:post-migration-verify": "ts-node --esm prisma/agent-post-migration-verify.ts",

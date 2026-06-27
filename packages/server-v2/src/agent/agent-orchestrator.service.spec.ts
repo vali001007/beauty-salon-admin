@@ -1,4 +1,5 @@
 import { AgentEvidenceService } from './agent-evidence.service.js';
+import { AnswerContractValidatorService } from './answer-contract/index.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
 import { AgentOrchestratorService } from './agent-orchestrator.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
@@ -45,6 +46,7 @@ describe('AgentOrchestratorService', () => {
     };
     evalService = {
       runDefaultCases: jest.fn(),
+      runP0Cases: jest.fn(),
     };
     service = new AgentOrchestratorService(
       runtime,
@@ -55,6 +57,7 @@ describe('AgentOrchestratorService', () => {
       evalService,
       new AgentFieldScopeSanitizerService(),
       new AgentResponseSafetyService(),
+      new AnswerContractValidatorService(),
     );
   });
 
@@ -63,6 +66,13 @@ describe('AgentOrchestratorService', () => {
 
     await expect(service.runDefaultEvals()).resolves.toEqual({ total: 1, passed: 1, failed: 0, results: [] });
     expect(evalService.runDefaultCases).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes P0 eval results for high-frequency business QA baseline', async () => {
+    evalService.runP0Cases.mockResolvedValue({ total: 8, passed: 8, failed: 0, results: [] });
+
+    await expect(service.runP0Evals()).resolves.toEqual({ total: 8, passed: 8, failed: 0, results: [] });
+    expect(evalService.runP0Cases).toHaveBeenCalledTimes(1);
   });
 
   it('executes low-risk tools and completes the run with evidence', async () => {
@@ -104,6 +114,352 @@ describe('AgentOrchestratorService', () => {
       'business.query.ask',
       { question: '今天收入怎么样' },
       expect.objectContaining({ storeId: 1, userId: 7, role: 'manager' }),
+    );
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'planner',
+        name: 'agent.planner',
+        startedAt: expect.any(Date),
+        endedAt: expect.any(Date),
+      }),
+    );
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'tool',
+        name: 'business.query.ask',
+        startedAt: expect.any(Date),
+        endedAt: expect.any(Date),
+      }),
+    );
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'rendering',
+        name: 'agent.response.render',
+        startedAt: expect.any(Date),
+        endedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it('executes deep-path multi-tool plans and composes numbered summaries', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '诊断利润下降',
+      executionPath: 'deep',
+      toolPlan: [
+        { tool: 'finance.revenue.summary', args: { question: '本月利润为什么下降', timeRange: 'this_month' } },
+        { tool: 'finance.profit.diagnose', args: { question: '本月利润为什么下降', timeRange: 'this_month', limit: 10 } },
+        { tool: 'finance.refund.discount.audit', args: { question: '本月利润为什么下降', timeRange: 'this_month', limit: 10 } },
+        { tool: 'finance.beautician.performance.audit', args: { question: '本月利润为什么下降', timeRange: 'this_month', limit: 10 } },
+      ],
+      confidence: 0.87,
+      clarificationNeeded: false,
+      capabilityPlan: { capabilityId: 'finance_profit_diagnosis', reason: '多维利润诊断。' },
+      progressNotice: '正在分析本月的收入、利润成本、退款折扣和员工绩效风险。',
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockImplementation((name: string) => ({
+      name,
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    }));
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low', reason: '低风险只读工具可直接执行。' });
+    toolRegistry.execute.mockImplementation(async (name: string) => ({
+      status: 'success',
+      title: name,
+      summary: `${name} 已完成`,
+      evidence: {
+        source: [name],
+        metricDefinition: `${name} 口径`,
+        filters: ['storeId=当前门店'],
+        sampleSize: 1,
+      },
+      actions: [],
+    }));
+
+    const result = await service.createRun({ message: '本月利润为什么下降', actor });
+
+    expect(result.status).toBe('completed');
+    expect(runtime.addMessage).toHaveBeenCalledWith(
+      101,
+      'assistant',
+      '正在分析本月的收入、利润成本、退款折扣和员工绩效风险。',
+      { status: 'analyzing', executionPath: 'deep' },
+    );
+    expect(toolRegistry.execute).toHaveBeenCalledTimes(4);
+    expect(toolRegistry.execute.mock.calls.map((call: unknown[]) => call[0])).toEqual([
+      'finance.revenue.summary',
+      'finance.profit.diagnose',
+      'finance.refund.discount.audit',
+      'finance.beautician.performance.audit',
+    ]);
+    expect(result.answer).toContain('1. finance.revenue.summary 已完成');
+    expect(result.answer).toContain('4. finance.beautician.performance.audit 已完成');
+    expect(result.phaseOutputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ phase: 'core_conclusion', title: '核心结论' }),
+        expect.objectContaining({ phase: 'details', title: '数据明细' }),
+        expect.objectContaining({ phase: 'recommendations', title: '建议动作' }),
+      ]),
+    );
+    expect(result.evidence?.source).toEqual([
+      'finance.revenue.summary',
+      'finance.profit.diagnose',
+      'finance.refund.discount.audit',
+      'finance.beautician.performance.audit',
+    ]);
+    const toolSteps = runtime.recordStep.mock.calls
+      .map((call: unknown[]) => call[0] as { stepType?: string })
+      .filter((step: { stepType?: string }) => step.stepType === 'tool');
+    expect(toolSteps).toHaveLength(4);
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'rendering',
+        outputJson: expect.objectContaining({
+          phaseOutputs: expect.arrayContaining([
+            expect.objectContaining({ phase: 'core_conclusion' }),
+            expect.objectContaining({ phase: 'details' }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('renders BusinessQuery card kpis and items as KPI cards and a table', async () => {
+    const plan = {
+      intentType: 'query',
+      goal: '查询消费客户清单',
+      toolPlan: [{ tool: 'business.query.ask', args: { question: '昨天有哪些消费的客户，列出清单' } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+      executionPath: 'fast',
+      businessTask: {
+        domain: 'order',
+        taskType: 'list',
+        outputIntent: 'show_table',
+        metrics: ['paid_amount', 'order_count'],
+        timeRange: { preset: 'yesterday', label: '昨天' },
+        confidence: 0.9,
+      },
+      capabilityPlan: { capabilityId: 'order_customer_consumption_list', reason: '命中消费客户清单能力。' },
+      skillPlan: {
+        skillId: 'order.customer.consumption.list',
+        capabilityId: 'order_customer_consumption_list',
+        confidence: 0.9,
+        reason: '命中消费客户清单 Skill。',
+        outputContract: {
+          requiredKinds: ['table', 'evidence'],
+          evidenceRequired: true,
+        },
+      },
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'business.query.ask',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '消费客户清单',
+      summary: '昨天共有 2 位消费客户，3 笔有效订单，消费合计 ¥1,980。',
+      data: {
+        card: {
+          type: 'orderCustomerConsumptionList',
+          title: '消费客户清单',
+          summary: '昨天共有 2 位消费客户，3 笔有效订单，消费合计 ¥1,980。',
+          kpis: [
+            { label: '消费客户', value: '2' },
+            { label: '有效订单', value: '3' },
+          ],
+          items: [
+            {
+              customerName: '马美琳',
+              phoneMasked: '138****1234',
+              memberLevel: 'VIP2',
+              paidAmountText: '¥1,500',
+              orderCount: 2,
+              lastOrderTimeText: '2026-06-26 15:20',
+            },
+          ],
+        },
+        queryPlan: {
+          requestId: 'bq_test',
+          domain: 'order',
+          capability: 'order_customer_consumption_list',
+          filters: { storeId: 1, dateRange: { type: 'yesterday' } },
+          limit: 20,
+        },
+      },
+      evidence: {
+        source: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+        metricDefinition: '消费客户清单按有效订单聚合。',
+        filters: ['storeId=当前门店'],
+        sampleSize: 3,
+      },
+      actions: [{ label: '查看订单明细', action: 'orders:open', riskLevel: 'low' }],
+    });
+
+    const result = await service.createRun({ message: '昨天有哪些消费的客户，列出清单', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.responseMode).toBe('structured_blocks');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi_card', label: '消费客户', value: '2' }),
+        expect.objectContaining({
+          kind: 'table',
+          columns: expect.arrayContaining(['customerName', 'paidAmountText', 'orderCount']),
+          rows: [expect.arrayContaining(['马美琳', '¥1,500', '2'])],
+        }),
+        expect.objectContaining({ kind: 'evidence_panel' }),
+      ]),
+    );
+    expect(result.answerContract).toMatchObject({
+      valid: true,
+      contract: expect.objectContaining({ source: 'skill', requiredKinds: ['table', 'evidence'] }),
+      missingKinds: [],
+    });
+    expect(runtime.setRunStatus).toHaveBeenCalledWith(
+      101,
+      'completed',
+      expect.objectContaining({
+        resultJson: expect.objectContaining({
+          answerContract: expect.objectContaining({ valid: true }),
+          responseMode: 'structured_blocks',
+          conversationFocus: expect.objectContaining({
+            sourceRunId: 101,
+            timeRange: expect.objectContaining({ preset: 'yesterday', label: '昨天' }),
+            currentCustomer: expect.objectContaining({
+              customerName: '马美琳',
+              phoneMasked: '138****1234',
+              paidAmountText: '¥1,500',
+            }),
+            currentItems: expect.arrayContaining([
+              expect.objectContaining({ customerName: '马美琳' }),
+            ]),
+          }),
+          traceSummary: expect.objectContaining({
+            skillId: 'order.customer.consumption.list',
+            capabilityId: 'order_customer_consumption_list',
+            executionPath: 'fast',
+            responseMode: 'structured_blocks',
+            businessTask: expect.objectContaining({
+              domain: 'order',
+              taskType: 'list',
+              outputIntent: 'show_table',
+            }),
+            answerContract: expect.objectContaining({
+              valid: true,
+              source: 'skill',
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'planner',
+        outputJson: expect.objectContaining({
+          traceSummary: expect.objectContaining({
+            skillId: 'order.customer.consumption.list',
+            businessTask: expect.objectContaining({ domain: 'order', taskType: 'list' }),
+          }),
+        }),
+      }),
+    );
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'rendering',
+        outputJson: expect.objectContaining({
+          traceSummary: expect.objectContaining({
+            skillId: 'order.customer.consumption.list',
+            answerContract: expect.objectContaining({ valid: true, source: 'skill' }),
+          }),
+        }),
+      }),
+    );
+    expect(runtime.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepType: 'tool',
+        name: 'business.query.ask',
+        outputJson: expect.objectContaining({
+          observability: expect.objectContaining({
+            queryPlan: expect.objectContaining({
+              capability: 'order_customer_consumption_list',
+              limit: 20,
+            }),
+            dataVolume: expect.objectContaining({
+              itemCount: 1,
+              sampleSize: 3,
+            }),
+            slowQuery: false,
+            performanceHints: expect.objectContaining({
+              cacheCandidate: true,
+              preaggregationCandidate: false,
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(runtime.addMessage).toHaveBeenCalledWith(
+      101,
+      'assistant',
+      '昨天共有 2 位消费客户，3 笔有效订单，消费合计 ¥1,980。',
+      { status: 'completed', executionPath: 'fast', responseMode: 'structured_blocks' },
+    );
+  });
+
+  it('injects the previous conversation focus when appending a follow-up message', async () => {
+    runtime.getRun.mockResolvedValue({
+      id: 101,
+      runNo: 'ar_test',
+      status: 'completed',
+      contextJson: { locale: 'zh-CN' },
+      resultJson: {
+        conversationFocus: {
+          sourceRunId: 101,
+          timeRange: { preset: 'yesterday', label: '昨天' },
+          currentCustomer: {
+            customerId: 501,
+            customerName: '马美琳',
+            phoneMasked: '138****1234',
+          },
+        },
+      },
+    });
+    const plan = {
+      intentType: 'query',
+      goal: '查询当前客户权益',
+      toolPlan: [],
+      confidence: 0.72,
+      clarificationNeeded: true,
+      clarificationQuestion: '请确认要查看该客户的卡项还是优惠券权益？',
+    };
+    planner.plan.mockResolvedValue(plan);
+
+    const result = await service.appendMessage({ runId: 101, message: '这个客户还有什么卡和权益？', actor });
+
+    expect(result.status).toBe('completed');
+    expect(planner.plan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '这个客户还有什么卡和权益？',
+        context: expect.objectContaining({
+          locale: 'zh-CN',
+          conversationFocus: expect.objectContaining({
+            currentCustomer: expect.objectContaining({ customerName: '马美琳' }),
+            timeRange: expect.objectContaining({ preset: 'yesterday' }),
+          }),
+          previousResult: expect.objectContaining({
+            conversationFocus: expect.objectContaining({
+              currentCustomer: expect.objectContaining({ customerId: 501 }),
+            }),
+          }),
+        }),
+      }),
     );
   });
 
@@ -153,6 +509,7 @@ describe('AgentOrchestratorService', () => {
       },
       evidence: {
         source: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'],
+        sourceTables: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'],
         metricDefinition: '商品活动机会评分。',
         filters: ['storeId=当前门店'],
         sampleSize: 3,
@@ -174,7 +531,7 @@ describe('AgentOrchestratorService', () => {
           fitScore: 82,
           suggestedCampaign: '会员专属活动',
         }),
-        expect.objectContaining({ kind: 'evidence_panel' }),
+        expect.objectContaining({ kind: 'evidence_panel', sources: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'] }),
       ]),
     );
     expect(result.followUpSuggestions).toEqual(['生成活动草稿', '查看商品详情']);
@@ -966,7 +1323,12 @@ describe('AgentOrchestratorService', () => {
       allowedRoles: ['manager'],
       requiresApproval: true,
     });
-    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: true, riskLevel: 'medium' });
+    policy.validateToolAccess.mockReturnValue({
+      allowed: true,
+      requiresApproval: true,
+      riskLevel: 'medium',
+      reason: '工具「marketing.activity.draft」为中风险能力，可能生成草稿、任务或业务动作，执行前需要人工确认。',
+    });
 
     const result = await service.createRun({ message: '帮我生成活动草稿', actor, context: { productId: 301 } });
 
@@ -976,7 +1338,9 @@ describe('AgentOrchestratorService', () => {
       toolName: 'marketing.activity.draft',
       riskLevel: 'medium',
       status: 'pending',
+      reason: '工具「marketing.activity.draft」为中风险能力，可能生成草稿、任务或业务动作，执行前需要人工确认。',
     });
+    expect(result.answer).toContain('中风险能力');
     expect(result.renderedBlocks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -995,10 +1359,38 @@ describe('AgentOrchestratorService', () => {
             expect.objectContaining({ actionId: 'reject:301' }),
           ]),
         }),
+        expect.objectContaining({
+          kind: 'confirm_action',
+          title: '确认创建活动草稿：玻尿酸修护套装会员专属活动',
+          actionId: 'approve:301',
+          impactSummary: expect.stringContaining('不会自动发布或触达客户'),
+        }),
       ]),
     );
     expect(toolRegistry.execute).not.toHaveBeenCalled();
-    expect(runtime.createApproval).toHaveBeenCalledWith(expect.objectContaining({ toolCallId: 201 }));
+    expect(runtime.createApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCallId: 201,
+        beforeJson: expect.objectContaining({
+          reason: '工具「marketing.activity.draft」为中风险能力，可能生成草稿、任务或业务动作，执行前需要人工确认。',
+        }),
+      }),
+    );
+    expect(runtime.setRunStatus).toHaveBeenCalledWith(
+      101,
+      'waiting_approval',
+      expect.objectContaining({
+        resultJson: expect.objectContaining({
+          conversationFocus: expect.objectContaining({
+            currentActivity: expect.objectContaining({
+              activityTitle: '玻尿酸修护套装会员专属活动',
+              targetAudience: '近期购买/适合该商品的会员客户',
+              offerSummary: '会员专属活动',
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it('executes the pending tool after approval and completes the run', async () => {
@@ -1091,6 +1483,21 @@ describe('AgentOrchestratorService', () => {
     );
     expect(runtime.updateApproval).toHaveBeenCalledWith(301, expect.objectContaining({ status: 'approved', approvedBy: 7 }));
     expect(runtime.updateToolCall).toHaveBeenCalledWith(201, expect.objectContaining({ status: 'success' }));
+    expect(runtime.setRunStatus).toHaveBeenCalledWith(
+      101,
+      'completed',
+      expect.objectContaining({
+        resultJson: expect.objectContaining({
+          conversationFocus: expect.objectContaining({
+            currentActivity: expect.objectContaining({
+              activityId: 901,
+              activityTitle: '编辑后的沉睡客户召回活动',
+              status: 'draft',
+            }),
+          }),
+        }),
+      }),
+    );
     expect(toolRegistry.execute).toHaveBeenCalledWith(
       'marketing.activity.draft',
       expect.objectContaining({

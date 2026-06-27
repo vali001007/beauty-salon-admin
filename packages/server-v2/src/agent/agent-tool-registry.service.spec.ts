@@ -1664,7 +1664,20 @@ describe('AgentToolRegistryService', () => {
     expect(result.status).toBe('success');
     expect(result.title).toBe('利润与毛利诊断');
     expect(result.summary).toContain('利润诊断');
+    expect(result.summary).toContain('当前数据不支持“利润下降”这个判断');
     expect((result.data as any).reportType).toBe('finance_profit_diagnosis');
+    expect((result.data as any).diagnosis).toMatchObject({
+      trend: 'increased',
+      askedDecline: true,
+    });
+    expect((result.data as any).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          driver: '低毛利项目/商品拖累',
+          suggestedAction: expect.stringContaining('控制折扣力度'),
+        }),
+      ]),
+    );
     expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'agent:tool:finance.margin.risk.rank' })]));
   });
 

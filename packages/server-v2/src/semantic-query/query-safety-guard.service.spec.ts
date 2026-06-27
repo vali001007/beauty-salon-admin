@@ -37,6 +37,11 @@ describe('QuerySafetyGuardService', () => {
     expect(guard.validate(basePlan({ metrics: [{ key: 'raw_metric', aggregation: 'sum' }] })).rejectedReason).toContain('暂不支持指标');
   });
 
+  it('rejects missing or invalid store scope', () => {
+    expect(guard.validate(basePlan({ storeScope: { storeIds: [], scopeType: 'current_store' } })).rejectedReason).toContain('缺少门店范围');
+    expect(guard.validate(basePlan({ storeScope: { storeIds: [0], scopeType: 'current_store' } })).rejectedReason).toContain('缺少门店范围');
+  });
+
   it('blocks broad beautician query unless it has self scope', () => {
     expect(guard.validate(basePlan({ role: 'beautician' })).rejectedReason).toContain('本人');
     expect(guard.validate(basePlan({ role: 'beautician', filters: { storeId: 1, scope: 'self', beauticianId: 8 } })).allowed).toBe(true);

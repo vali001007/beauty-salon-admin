@@ -10,6 +10,7 @@ import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
 import { AgentController } from './agent.controller.js';
+import { AnswerContractValidatorService } from './answer-contract/index.js';
 import { AgentCapabilityCandidateService } from './agent-capability-candidate.service.js';
 import { AgentAutomationService } from './agent-automation.service.js';
 import { AgentEvidenceService } from './agent-evidence.service.js';
@@ -29,6 +30,7 @@ import { BusinessTaskCompilerService } from './business-task/business-task-compi
 import { BusinessTaskLlmCompilerService } from './business-task/business-task-llm-compiler.service.js';
 import { BusinessTaskPreParserService } from './business-task/business-task-preparser.service.js';
 import { CapabilityRegistryService } from './capabilities/capability-registry.service.js';
+import { AgentSkillsRegistryService } from './skills/index.js';
 import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
 import { SemanticDataModule } from '../semantic-data/semantic-data.module.js';
 import { SemanticQueryModule } from '../semantic-query/semantic-query.module.js';
@@ -72,10 +74,12 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     AgentFieldScopeSanitizerService,
     AgentResponseSafetyService,
     AgentSchemaReadinessService,
+    AnswerContractValidatorService,
     BusinessTaskCompilerService,
     BusinessTaskLlmCompilerService,
     BusinessTaskPreParserService,
     CapabilityRegistryService,
+    AgentSkillsRegistryService,
     SemanticMetricRegistryService,
     SemanticSqlDecisionService,
     SemanticSqlExecutorService,

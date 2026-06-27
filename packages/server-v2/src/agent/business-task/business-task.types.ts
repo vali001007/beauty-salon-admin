@@ -37,10 +37,30 @@ export type BusinessTaskDomain =
 
 export type BusinessTaskOutputMode = 'summary' | 'ranked_list' | 'table' | 'card' | 'draft' | 'workflow';
 
+export type BusinessTaskEvent =
+  | 'paid_order'
+  | 'reservation_created'
+  | 'service_completed'
+  | 'inventory_low_stock'
+  | 'card_expiring'
+  | 'marketing_conversion'
+  | 'refund_created'
+  | 'unknown';
+
+export type BusinessTaskOutputIntent =
+  | 'answer_text'
+  | 'show_kpi'
+  | 'show_table'
+  | 'show_chart'
+  | 'confirm_action'
+  | 'ask_clarification'
+  | 'draft_document';
+
 export type BusinessTimeRange = {
   preset:
     | 'today'
     | 'yesterday'
+    | 'last_week'
     | 'this_week'
     | 'next_week'
     | 'this_month'
@@ -71,10 +91,14 @@ export type BusinessTask = {
   entities: BusinessEntityRef[];
   metrics: string[];
   filters: Record<string, unknown>;
+  event?: BusinessTaskEvent;
   timeRange?: BusinessTimeRange;
   sort?: BusinessSort[];
   limit?: number;
   outputMode: BusinessTaskOutputMode;
+  outputIntent?: BusinessTaskOutputIntent;
+  requiredFields?: string[];
+  ambiguities?: string[];
   riskLevel: AgentRiskLevel;
   requiresApproval: boolean;
   missingSlots: string[];
