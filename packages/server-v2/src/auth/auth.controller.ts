@@ -10,6 +10,18 @@ import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 
+function getCookieSameSite(): 'strict' | 'lax' | 'none' {
+  const configured = process.env.COOKIE_SAME_SITE?.toLowerCase();
+  if (configured === 'strict' || configured === 'lax' || configured === 'none') {
+    return configured;
+  }
+  return process.env.NODE_ENV === 'production' ? 'none' : 'strict';
+}
+
+function getCookieSecure(): boolean {
+  return process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : process.env.NODE_ENV === 'production';
+}
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -23,15 +35,15 @@ export class AuthController {
     const result = await this.authService.login(dto);
     res.cookie('access_token', result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 15 * 60 * 1000, // 15 min
       path: '/',
     });
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/api/auth/refresh',
     });
@@ -45,15 +57,15 @@ export class AuthController {
     const result = await this.authService.register(dto);
     res.cookie('access_token', result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/auth/refresh',
     });
@@ -68,15 +80,15 @@ export class AuthController {
     const result = await this.authService.refreshToken(dto.refreshToken);
     res.cookie('access_token', result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/auth/refresh',
     });
@@ -102,8 +114,8 @@ export class AuthController {
     const token = randomUUID();
     res.cookie('csrf_token', token, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: getCookieSecure(),
+      sameSite: getCookieSameSite(),
       maxAge: 24 * 60 * 60 * 1000,
     });
     return { csrfToken: token };

@@ -11,6 +11,7 @@ export interface ApiErrorPayload {
 // --- Retry configuration ---
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
+let csrfTokenCache = '';
 
 interface RetryConfig extends InternalAxiosRequestConfig {
   _retryCount?: number;
@@ -24,7 +25,7 @@ function generateRequestId(): string {
 
 function getCsrfToken(): string {
   const match = document.cookie.match(/csrf_token=([^;]+)/);
-  return match ? match[1] : '';
+  return match ? decodeURIComponent(match[1]) : csrfTokenCache;
 }
 
 function isRetryable(error: AxiosError): boolean {
@@ -67,7 +68,8 @@ const apiClient = axios.create({
 async function refreshCsrfToken(): Promise<void> {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
   const normalizedBase = baseURL.replace(/\/$/, '');
-  await axios.get(`${normalizedBase}/auth/csrf-token`, { withCredentials: true });
+  const response = await axios.get<{ csrfToken?: string }>(`${normalizedBase}/auth/csrf-token`, { withCredentials: true });
+  csrfTokenCache = response.data?.csrfToken || getCsrfToken();
 }
 
 // Request interceptor — attach auth token, store ID, request ID, and CSRF token
