@@ -1,32 +1,22 @@
 import { defineConfig } from 'vite'
 import path from 'path'
-import fs from 'fs'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
-const rootDir = path.resolve(__dirname, '../..')
-const vendorSrc = path.resolve(__dirname, 'vendor-src')
-const localSrc = path.resolve(rootDir, 'src')
-const allowVendorFallback = process.env.ALLOW_VENDOR_SRC_FALLBACK === 'true'
-
-if (!fs.existsSync(localSrc) && !allowVendorFallback) {
-  throw new Error('Root src is required. vendor-src fallback is deprecated. Set ALLOW_VENDOR_SRC_FALLBACK=true only for legacy build diagnostics.')
-}
-
-const mainSrc = fs.existsSync(localSrc) ? localSrc : vendorSrc
+const appSrc = path.resolve(__dirname, './src')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@app': path.resolve(__dirname, './src'),
-      '@': mainSrc,
+      '@app': appSrc,
+      '@': appSrc,
     },
   },
   server: {
     port: 5174,
     fs: {
-      allow: [rootDir],
+      allow: [__dirname],
     },
     proxy: {
       '/api': {
