@@ -5,6 +5,8 @@ describe('API Client', () => {
   let requestInterceptorFn: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig;
   let responseSuccessFn: (response: AxiosResponse) => unknown;
   let responseErrorFn: (error: AxiosError) => Promise<unknown>;
+  let mockApiClient: ReturnType<typeof vi.fn>;
+  let axiosGetMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     // Set up localStorage mock
@@ -41,7 +43,10 @@ describe('API Client', () => {
       error: (error: AxiosError) => Promise<unknown>;
     }> = [];
 
-    const mockInstance = {
+    mockApiClient = vi.fn().mockResolvedValue({ ok: true });
+    axiosGetMock = vi.fn().mockResolvedValue({ data: { csrfToken: 'fresh-csrf-token-456' } });
+
+    const mockInstance = Object.assign(mockApiClient, {
       interceptors: {
         request: {
           use: (fn: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig) => {
@@ -56,12 +61,13 @@ describe('API Client', () => {
       },
       get: vi.fn().mockResolvedValue(undefined),
       defaults: { headers: { common: {} } },
-    };
+    });
 
     vi.doMock('axios', () => ({
       default: {
         ...axios,
         create: vi.fn(() => mockInstance),
+        get: axiosGetMock,
         AxiosHeaders: axios.AxiosHeaders,
       },
       __esModule: true,
@@ -240,6 +246,24 @@ describe('API Client', () => {
         expect(err.payload.status).toBe(422);
         expect(err.payload.details).toEqual({ field: 'name' });
       }
+    });
+
+    it('refreshes CSRF token from response body and retries once', async () => {
+      const { default: axios } = await import('axios');
+      document.cookie = '';
+
+      const headers = new axios.AxiosHeaders();
+      const error = {
+        response: { status: 403, data: { message: 'CSRF token 验证失败' } },
+        config: { method: 'post', headers },
+        message: 'Forbidden',
+      } as unknown as AxiosError;
+
+      await expect(responseErrorFn(error)).resolves.toEqual({ ok: true });
+
+      expect(axiosGetMock).toHaveBeenCalledWith('/api/auth/csrf-token', { withCredentials: true });
+      expect(headers['X-CSRF-Token']).toBe('fresh-csrf-token-456');
+      expect(mockApiClient).toHaveBeenCalledWith(expect.objectContaining({ headers }));
     });
   });
 });
