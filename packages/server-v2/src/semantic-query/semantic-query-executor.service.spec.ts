@@ -62,9 +62,117 @@ describe('SemanticQueryExecutorService', () => {
     expect(result.rows[0]).toHaveProperty('date');
     expect(result.auditEvidence).toMatchObject({
       source: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
+      sourceTables: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
       sampleSize: 2,
     });
     expect(result.userEvidence?.dataSummary).toBe('基于 2 条业务记录统计');
+  });
+
+  it('executes order revenue KPI summary with payment method rows and refund evidence', async () => {
+    const paidAt = new Date('2026-06-27T10:00:00.000Z');
+    prisma.productOrder.findMany.mockResolvedValue([
+      { id: 1, totalAmount: 600, customerId: 101, createdAt: paidAt, payMethod: 'wechat' },
+      { id: 2, totalAmount: 400, customerId: 102, createdAt: paidAt, payMethod: 'alipay' },
+    ]);
+    prisma.paymentRecord.findMany.mockResolvedValue([
+      { id: 11, orderId: 1, amount: 600, paidAt, status: 'paid', method: 'wechat' },
+      { id: 12, orderId: 2, amount: 400, paidAt, status: 'paid', method: 'alipay' },
+    ]);
+    prisma.refundRecord.findMany.mockResolvedValue([
+      { id: 21, orderId: 1, amount: 100, refundedAt: paidAt, status: 'refunded', order: { payMethod: 'wechat' } },
+    ]);
+
+    const result = await service.execute(
+      basePlan({
+        capabilityId: 'order_revenue_analysis',
+        templateId: 'order_revenue',
+        originalQuestion: '今天营收多少',
+        metrics: [
+          { key: 'revenue', aggregation: 'sum' },
+          { key: 'order_count', aggregation: 'count' },
+          { key: 'average_order_value', aggregation: 'avg' },
+        ],
+        dimensions: ['payMethod'],
+        timeRange: { preset: 'today', label: '今天' },
+        outputShape: 'summary',
+      }),
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('收银收入');
+    expect(result.summary).toContain('实收 ¥1,000');
+    expect(result.summary).toContain('退款 ¥100');
+    expect(result.summary).toContain('净额 ¥900');
+    expect(result.kpis).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '营收', value: '¥1,000' }),
+        expect.objectContaining({ label: '实收', value: '¥1,000' }),
+        expect.objectContaining({ label: '退款', value: '¥100' }),
+        expect.objectContaining({ label: '净额', value: '¥900' }),
+      ]),
+    );
+    expect(result.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ payMethod: 'wechat', revenue: 600, paidAmount: 600, refundAmount: 100, netAmount: 500, orderCount: 1 }),
+        expect.objectContaining({ payMethod: 'alipay', revenue: 400, paidAmount: 400, refundAmount: 0, netAmount: 400, orderCount: 1 }),
+      ]),
+    );
+    expect(result.auditEvidence.metricDefinition).toContain('净额 = 实收 - 退款');
+    expect(result.auditEvidence).toMatchObject({
+      source: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
+      sampleSize: 5,
+    });
+  });
+
+  it('executes order customer consumption list with table rows and standardized evidence', async () => {
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        id: 11,
+        orderNo: 'SO-11',
+        customerId: 501,
+        customerName: '马美琳',
+        totalAmount: 980,
+        netAmount: 960,
+        payMethod: 'wechat',
+        status: 'completed',
+        createdAt: new Date(),
+        customer: { id: 501, name: '马美琳', phone: '18800003187', memberLevel: 'VIP' },
+        orderItems: [{ name: '深层补水护理', itemType: 'project', quantity: 1, subtotal: 980 }],
+        paymentRecords: [{ amount: 960, status: 'paid', method: 'wechat', paidAt: new Date() }],
+      },
+    ]);
+
+    const result = await service.execute(
+      basePlan({
+        capabilityId: 'order_customer_consumption_list',
+        templateId: 'order_customer_consumption_list',
+        originalQuestion: '昨天有哪些消费客户，列出清单',
+        metrics: [
+          { key: 'paid_amount', aggregation: 'sum' },
+          { key: 'order_count', aggregation: 'count' },
+        ],
+        dimensions: ['customerId', 'customerName'],
+        timeRange: { preset: 'yesterday', label: '昨天' },
+        outputShape: 'table',
+      }),
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('消费客户清单');
+    expect(result.rows[0]).toMatchObject({
+      customerName: '马美琳',
+      phoneMasked: '188****3187',
+      paidAmount: 960,
+      orderCount: 1,
+      itemsSummary: '深层补水护理',
+    });
+    expect(result.auditEvidence).toMatchObject({
+      source: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+      sourceTables: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+      filters: expect.arrayContaining(['storeId=当前门店', 'status not in cancelled/refunded']),
+      metricDefinition: expect.stringContaining('消费客户清单'),
+      sampleSize: 1,
+    });
   });
 
   it('executes product ranking without free SQL', async () => {

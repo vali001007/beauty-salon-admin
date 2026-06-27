@@ -82,6 +82,36 @@ describe('BusinessTaskPreParserService', () => {
     expect(result.task.metrics).toContain('revenue');
   });
 
+  it('recognizes consumption customer list questions as order tasks before generic customer growth', () => {
+    const result = service.parse('昨天有哪些消费的客户，列出清单');
+
+    expect(result.task.domain).toBe('order');
+    expect(result.task.taskType).toBe('query');
+    expect(result.task.timeRange?.preset).toBe('yesterday');
+    expect(result.task.metrics).toEqual(expect.arrayContaining(['paid_amount', 'order_count']));
+    expect(result.task.outputMode).toBe('card');
+    expect(result.task).toMatchObject({
+      event: 'paid_order',
+      outputIntent: 'show_table',
+      requiredFields: expect.arrayContaining(['customerName', 'paidAmount', 'orderCount', 'lastOrderTime']),
+    });
+  });
+
+  it('recognizes weekly流水客户名单 as an order customer consumption list query', () => {
+    const result = service.parse('上周流水客户名单');
+
+    expect(result.task.domain).toBe('order');
+    expect(result.task.taskType).toBe('query');
+    expect(result.task.timeRange?.preset).toBe('last_week');
+    expect(result.task.metrics).toEqual(expect.arrayContaining(['paid_amount', 'order_count']));
+    expect(result.task.outputMode).toBe('card');
+    expect(result.task).toMatchObject({
+      event: 'paid_order',
+      outputIntent: 'show_table',
+      requiredFields: expect.arrayContaining(['customerName', 'itemsSummary']),
+    });
+  });
+
   it('recognizes schedule availability questions as queries', () => {
     const result = service.parse('今天哪些美容师空闲');
 
@@ -118,6 +148,93 @@ describe('BusinessTaskPreParserService', () => {
     expect(terminal.task.metrics).toContain('terminal_failure_rate');
     expect(serviceQuality.task).toMatchObject({ domain: 'serviceQuality', taskType: 'query' });
     expect(serviceQuality.task.metrics).toContain('service_completion_rate');
+  });
+
+  it('applies conversation focus for customer pronoun follow-up questions', () => {
+    const result = service.parse({
+      message: '这个客户还有什么卡和权益？',
+      role: 'manager',
+      context: {
+        conversationFocus: {
+          sourceRunId: 112,
+          timeRange: { preset: 'yesterday', label: '昨天' },
+          currentCustomer: {
+            customerId: 501,
+            customerName: '马美琳',
+            phoneMasked: '138****1234',
+            paidAmountText: '¥1,500',
+          },
+        },
+      },
+    });
+
+    expect(result.task.filters).toMatchObject({
+      customerId: 501,
+      customerName: '马美琳',
+      phoneMasked: '138****1234',
+    });
+    expect(result.task.entities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'customer', value: '马美琳', confidence: 0.86 }),
+      ]),
+    );
+    expect(result.task.timeRange).toMatchObject({ preset: 'yesterday', label: '昨天' });
+    expect(result.warnings).toEqual(expect.arrayContaining(['已使用上一轮当前关注客户补齐查询条件', '已沿用上一轮时间范围']));
+  });
+
+  it('recovers the previous focused customer from previousResult context', () => {
+    const result = service.parse({
+      message: '她的消费明细继续列一下',
+      role: 'reception',
+      context: {
+        previousResult: {
+          conversationFocus: {
+            currentCustomer: {
+              customerId: 502,
+              customerName: '林晓雯',
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.task.filters).toMatchObject({ customerId: 502, customerName: '林晓雯' });
+    expect(result.task.entities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'customer', value: '林晓雯' }),
+      ]),
+    );
+    expect(result.task.outputIntent).toBe('show_table');
+  });
+
+  it('applies conversation focus for marketing activity follow-up questions', () => {
+    const result = service.parse({
+      message: '这个活动转化效果怎么样？',
+      role: 'manager',
+      context: {
+        conversationFocus: {
+          sourceRunId: 125,
+          currentActivity: {
+            activityId: 901,
+            activityTitle: '编辑后的沉睡客户召回活动',
+            status: 'draft',
+          },
+        },
+      },
+    });
+
+    expect(result.task.domain).toBe('marketing');
+    expect(result.task.filters).toMatchObject({
+      activityId: 901,
+      activityTitle: '编辑后的沉睡客户召回活动',
+      activityStatus: 'draft',
+    });
+    expect(result.task.entities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'marketing', value: '编辑后的沉睡客户召回活动', confidence: 0.86 }),
+      ]),
+    );
+    expect(result.warnings).toEqual(expect.arrayContaining(['已使用上一轮当前关注活动补齐查询条件']));
   });
 
   it('marks draft or workflow requests as requiring approval', () => {

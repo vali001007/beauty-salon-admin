@@ -110,6 +110,18 @@ export const BUSINESS_QUERY_CAPABILITIES: BusinessQueryCapability[] = [
     implemented: true,
   },
   {
+    id: 'order_customer_consumption_list',
+    domain: 'order',
+    name: '消费客户清单',
+    description: '查询指定时间范围内发生有效消费/成交/流水的客户清单、消费金额、订单数和最近消费时间',
+    allowedRoles: ['manager', 'reception'],
+    defaultParams: { dateRange: 'yesterday', limit: 20 },
+    resultLimit: 20,
+    riskLevel: 'low',
+    cardType: 'orderCustomerConsumptionList',
+    implemented: true,
+  },
+  {
     id: 'project_service_trend',
     domain: 'project',
     name: '项目服务趋势',

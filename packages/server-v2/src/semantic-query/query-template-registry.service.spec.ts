@@ -14,6 +14,29 @@ describe('QueryTemplateRegistryService', () => {
     expect(registry.findByMetric('campaign_conversion_rate')?.id).toBe('marketing_conversion');
   });
 
+  it('maps P0 skill capabilities to dedicated templates without stealing generic metrics', () => {
+    expect(registry.findByCapability('order_revenue_analysis')).toMatchObject({
+      id: 'order_revenue',
+      defaultDimensions: ['payMethod'],
+    });
+    expect(registry.findByCapability('order_customer_consumption_list')).toMatchObject({
+      id: 'order_customer_consumption_list',
+      defaultDimensions: ['customerId', 'customerName'],
+      defaultLimit: 20,
+    });
+    expect(registry.findByMetric('paid_amount')?.id).toBe('order_revenue');
+  });
+
+  it('maps P1 query capabilities to controlled templates', () => {
+    expect(registry.findByCapability('product_sales_ranking')?.id).toBe('product_sales');
+    expect(registry.findByCapability('project_business_diagnosis')?.id).toBe('project_service');
+    expect(registry.findByCapability('customer_priority_recommendation')?.id).toBe('customer_follow_up');
+    expect(registry.findByCapability('inventory_risk_ranking')?.id).toBe('inventory_risk');
+    expect(registry.findByCapability('reservation_schedule_diagnosis')?.id).toBe('reservation_schedule');
+    expect(registry.findByCapability('staff_performance_ranking')?.id).toBe('staff_performance');
+    expect(registry.findByCapability('marketing_conversion_diagnosis')?.id).toBe('marketing_conversion');
+  });
+
   it('does not claim unsupported metrics', () => {
     expect(registry.supportsMetric('raw_sql_metric')).toBe(false);
     expect(registry.findForMetrics(['raw_sql_metric'])).toBeUndefined();

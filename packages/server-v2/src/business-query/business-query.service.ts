@@ -5,7 +5,7 @@ import type { BusinessTask } from '../agent/business-task/business-task.types.js
 import { QueryPlannerService } from '../semantic-query/query-planner.service.js';
 import { SemanticQueryExecutorService } from '../semantic-query/semantic-query-executor.service.js';
 import type { SemanticQueryResult } from '../semantic-query/query-plan.types.js';
-import { formatBusinessDate } from '../common/utils/business-time.js';
+import { formatBusinessDate, formatBusinessDateTime } from '../common/utils/business-time.js';
 import { BUSINESS_QUERY_CAPABILITIES, getBusinessQueryCapability } from './business-query.capabilities.js';
 import type {
   BusinessQueryCapabilityId,
@@ -114,6 +114,9 @@ export class BusinessQueryService {
             case 'schedule_utilization':
               response = await this.queryScheduleUtilization(queryPlan);
               break;
+            case 'order_customer_consumption_list':
+              response = await this.queryOrderCustomerConsumptionList(queryPlan);
+              break;
             case 'order_revenue_analysis':
               response = await this.queryOrderRevenue(queryPlan);
               break;
@@ -220,7 +223,7 @@ export class BusinessQueryService {
     role: BusinessQueryRole,
   ): BusinessQueryPlan {
     const capability = this.capabilityFromBusinessTask(task);
-    const domain = this.businessQueryDomainFromTaskDomain(task.domain);
+    const domain = capability === 'order_customer_consumption_list' ? 'order' : this.businessQueryDomainFromTaskDomain(task.domain);
     const dateRange =
       task.timeRange?.preset === 'custom' && task.timeRange.startDate && task.timeRange.endDate
         ? {
@@ -251,6 +254,8 @@ export class BusinessQueryService {
   }
 
   private capabilityFromBusinessTask(task: BusinessTask): BusinessQueryCapabilityId {
+    const text = this.normalize(task.objective);
+    if (this.isOrderCustomerConsumptionListRequest(text)) return 'order_customer_consumption_list';
     const metrics = new Set(task.metrics);
     if (metrics.has('follow_up_priority_score') || metrics.has('churn_risk_score') || metrics.has('repurchase_opportunity_score')) return 'customer_growth_opportunity';
     if (metrics.has('product_sales_quantity') || metrics.has('product_sales_amount') || metrics.has('product_sales_growth')) return 'product_sales_trend';
@@ -263,7 +268,7 @@ export class BusinessQueryService {
     if (metrics.has('member_balance')) return 'member_balance_analysis';
     if (metrics.has('campaign_conversion_rate')) return 'marketing_conversion';
     if (metrics.has('paid_amount') || metrics.has('revenue') || metrics.has('net_revenue') || metrics.has('order_count') || metrics.has('average_order_value')) return 'order_revenue_analysis';
-    return this.legacyDetectCapability(this.normalize(task.objective), this.businessQueryDomainFromTaskDomain(task.domain));
+    return this.legacyDetectCapability(text, this.businessQueryDomainFromTaskDomain(task.domain));
   }
 
   private businessQueryDomainFromTaskDomain(domain: BusinessTask['domain']): BusinessQueryDomain {
@@ -360,7 +365,17 @@ export class BusinessQueryService {
       .replace(/\s+/g, '');
   }
 
+  private isOrderCustomerConsumptionListRequest(text: string) {
+    if (/小程序|ami glow|客户端|会员端|渠道|来源|投放|引流|退款|退费|售后|门店|多店|分店/.test(text)) return false;
+    const hasConsumptionSignal = /消费|成交|订单|流水|付款|支付|购买|买过|买单|收银/.test(text);
+    const hasListSignal = /名单|清单|明细|列出|列一下|有哪些|哪些|哪几位|哪几个|谁/.test(text);
+    const hasCustomerObject = /客户|会员|顾客/.test(text);
+    const hasCompoundObject = /消费客户|成交会员|成交客户|流水客户|消费会员|购买客户|购买会员/.test(text);
+    return hasConsumptionSignal && (hasCompoundObject || (hasCustomerObject && hasListSignal));
+  }
+
   private legacyDetectDomain(text: string): BusinessQueryDomain {
+    if (this.isOrderCustomerConsumptionListRequest(text)) return 'order';
     const hasProduct = /商品|产品|sku|零售品|销量|销售量|热销|卖得好|卖的好/.test(text);
     const hasInventory = /库存|低库存|缺货|补货|临期|过期|批次|周转/.test(text);
     if (hasInventory) return 'inventory';
@@ -385,6 +400,7 @@ export class BusinessQueryService {
   }
 
   private legacyDetectCapability(text: string, domain: BusinessQueryDomain): BusinessQueryCapabilityId {
+    if (this.isOrderCustomerConsumptionListRequest(text)) return 'order_customer_consumption_list';
     if (domain === 'automation') return 'automation_execution_summary';
     if (domain === 'inventory' && /补货|采购|够不够|够吗|机会|建议/.test(text)) return 'product_replenishment_opportunity';
     if (domain === 'inventory') return 'inventory_alert';
@@ -447,6 +463,11 @@ export class BusinessQueryService {
       return { type: 'next_30_days', start: today.toISOString(), end: end.toISOString() };
     }
     if (/本月/.test(text)) return { type: 'month_to_date', start: this.startOfMonth(now).toISOString(), end: now.toISOString() };
+    if (/上周|上星期/.test(text)) {
+      const thisWeekStart = this.startOfWeek(now);
+      const start = new Date(thisWeekStart.getTime() - 7 * DAY_MS);
+      return { type: 'last_week', start: start.toISOString(), end: thisWeekStart.toISOString() };
+    }
     if (/昨天/.test(text)) {
       const start = new Date(today.getTime() - DAY_MS);
       return { type: 'yesterday', start: start.toISOString(), end: today.toISOString() };
@@ -478,6 +499,7 @@ export class BusinessQueryService {
       inventory_alert: ['currentStock', 'safetyStock'],
       reservation_today: ['reservationCount', 'arrivedCount', 'pendingCount'],
       schedule_utilization: ['slotCount', 'occupiedSlotCount', 'utilizationRate'],
+      order_customer_consumption_list: ['paidAmount', 'orderCount', 'customerCount'],
       order_revenue_analysis: ['salesAmount', 'orderCount', 'averageOrderValue'],
       card_expiry_risk: ['remainingTimes', 'daysToExpire'],
       card_usage_analysis: ['usageTimes', 'customerCount', 'beauticianCount'],
@@ -507,6 +529,7 @@ export class BusinessQueryService {
       inventory_alert: ['productId', 'productName'],
       reservation_today: ['reservationId', 'customerName', 'projectName'],
       schedule_utilization: ['beauticianId', 'beauticianName'],
+      order_customer_consumption_list: ['customerId', 'customerName'],
       order_revenue_analysis: ['payMethod'],
       card_expiry_risk: ['customerCardId', 'customerName', 'cardName'],
       card_usage_analysis: ['cardName', 'projectName'],
@@ -1839,6 +1862,161 @@ export class BusinessQueryService {
     };
   }
 
+  private async queryOrderCustomerConsumptionList(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const storeId = Number(queryPlan.filters.storeId);
+    const range = queryPlan.filters.dateRange as Record<string, string>;
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId,
+        status: { notIn: CANCELLED_ORDER_STATUSES },
+        createdAt: { gte: start, lt: end },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        customerId: true,
+        customerName: true,
+        totalAmount: true,
+        netAmount: true,
+        payMethod: true,
+        status: true,
+        createdAt: true,
+        customer: { select: { id: true, name: true, phone: true, memberLevel: true } },
+        orderItems: { select: { name: true, itemType: true, quantity: true, subtotal: true } },
+        paymentRecords: { select: { amount: true, status: true, method: true, paidAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+
+    const customers = new Map<
+      string,
+      {
+        customerId: number | null;
+        customerName: string;
+        phoneMasked: string;
+        memberLevel: string;
+        paidAmount: number;
+        paidAmountText: string;
+        orderCount: number;
+        lastOrderTime: Date;
+        lastOrderTimeText: string;
+        orderNos: string[];
+        payMethods: Set<string>;
+        itemNames: Map<string, number>;
+      }
+    >();
+
+    for (const order of orders as any[]) {
+      const paidAmount = this.getOrderPaidAmount(order);
+      if (paidAmount <= 0) continue;
+      const customerId = Number(order.customerId) || null;
+      const customerName = String(order.customer?.name || order.customerName || (customerId ? `客户${customerId}` : '散客'));
+      const key = customerId ? `customer:${customerId}` : `guest:${customerName}`;
+      const existing = customers.get(key);
+      const lastOrderTime = new Date(order.createdAt);
+      const target =
+        existing ??
+        {
+          customerId,
+          customerName,
+          phoneMasked: this.maskPhone(order.customer?.phone),
+          memberLevel: order.customer?.memberLevel ?? '',
+          paidAmount: 0,
+          paidAmountText: '',
+          orderCount: 0,
+          lastOrderTime,
+          lastOrderTimeText: '',
+          orderNos: [] as string[],
+          payMethods: new Set<string>(),
+          itemNames: new Map<string, number>(),
+        };
+      target.paidAmount += paidAmount;
+      target.orderCount += 1;
+      if (lastOrderTime.getTime() > target.lastOrderTime.getTime()) target.lastOrderTime = lastOrderTime;
+      if (order.orderNo) target.orderNos.push(String(order.orderNo));
+      if (order.payMethod) target.payMethods.add(String(order.payMethod));
+      for (const payment of order.paymentRecords ?? []) {
+        if (payment.method) target.payMethods.add(String(payment.method));
+      }
+      for (const item of order.orderItems ?? []) {
+        const name = String(item.name || '').trim();
+        if (!name) continue;
+        target.itemNames.set(name, (target.itemNames.get(name) ?? 0) + this.toNumber(item.quantity || 1));
+      }
+      customers.set(key, target);
+    }
+
+    const items = Array.from(customers.values())
+      .map((item) => {
+        const itemSummary = Array.from(item.itemNames.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([name, quantity]) => `${name}${quantity > 1 ? ` x${quantity}` : ''}`)
+          .join('、');
+        return {
+          customerName: item.customerName,
+          phoneMasked: item.phoneMasked,
+          memberLevel: item.memberLevel || '未标注',
+          paidAmountText: this.formatMoney(item.paidAmount),
+          orderCount: item.orderCount,
+          lastOrderTimeText: formatBusinessDateTime(item.lastOrderTime),
+          itemsSummary: itemSummary || '未记录明细',
+          payMethods: Array.from(item.payMethods).join('、') || '未知',
+          customerId: item.customerId,
+          paidAmount: Math.round(item.paidAmount * 100) / 100,
+          lastOrderTime: item.lastOrderTime.toISOString(),
+          orderNos: item.orderNos.slice(0, 5),
+          suggestion: item.paidAmount >= 1000 ? '高消费客户，建议结合服务记录做复购承接。' : '建议完成消费后回访与满意度确认。',
+        };
+      })
+      .sort((a, b) => b.paidAmount - a.paidAmount || b.orderCount - a.orderCount)
+      .slice(0, queryPlan.limit);
+
+    const totalAmount = items.reduce((total, item) => total + Number(item.paidAmount), 0);
+    const totalOrders = items.reduce((total, item) => total + Number(item.orderCount), 0);
+    const evidence = this.buildEvidence({
+      source: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+      metricDefinition: '消费客户清单 = 查询周期内未取消/未退款订单，按客户聚合有效支付金额；金额优先取支付记录合计，其次取订单 netAmount，再次取 totalAmount。',
+      dateRange: this.formatRange(start, end),
+      filters: ['storeId=当前门店', 'status not in cancelled/refunded', 'createdAt=查询周期', `limit=${queryPlan.limit}`],
+      sampleSize: orders.length,
+      limitations: ['散客或缺失 customerId 的订单按客户姓名聚合；退款中的部分退款订单暂按订单当前有效金额展示。'],
+    });
+
+    if (!items.length) {
+      return this.noData(queryPlan, evidence, `${range.type === 'yesterday' ? '昨天' : '当前时间范围'}暂无有效消费客户。`);
+    }
+
+    const answer = `${this.formatRange(start, end)}共有 ${items.length} 位消费客户，${totalOrders} 笔有效订单，消费合计 ${this.formatMoney(totalAmount)}。`;
+    return {
+      requestId: queryPlan.requestId,
+      status: 'success',
+      domain: queryPlan.domain,
+      capability: queryPlan.capability,
+      queryPlan,
+      card: {
+        type: 'orderCustomerConsumptionList',
+        title: '消费客户清单',
+        summary: answer,
+        items,
+        kpis: [
+          { label: '消费客户', value: `${items.length}` },
+          { label: '有效订单', value: `${totalOrders}` },
+          { label: '消费合计', value: this.formatMoney(totalAmount) },
+        ],
+      },
+      answer,
+      evidence,
+      actions: [
+        { label: '查看订单明细', action: 'orders:open', riskLevel: 'low' },
+        { label: '生成复购跟进草稿', action: 'customer.followup.task.draft', riskLevel: 'medium' },
+      ],
+    };
+  }
+
   private async queryCardExpiryRisk(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
     const range = queryPlan.filters.dateRange as Record<string, string>;
     const start = new Date(range.start);
@@ -2721,7 +2899,8 @@ export class BusinessQueryService {
 
   private mapBusinessQueryCapabilityToUnifiedCapability(capability: BusinessQueryCapabilityId) {
     const map: Partial<Record<BusinessQueryCapabilityId, string>> = {
-      order_revenue_analysis: 'revenue_diagnosis',
+      order_customer_consumption_list: 'order_customer_consumption_list',
+      order_revenue_analysis: 'order_revenue_analysis',
       product_sales_trend: 'product_sales_ranking',
       inventory_alert: 'inventory_risk_ranking',
       member_balance_analysis: 'card_member_business_diagnosis',
@@ -2776,7 +2955,8 @@ export class BusinessQueryService {
       evidence: {
         dateRange: result.userEvidence?.dateRange,
         source: result.auditEvidence.source,
-        filters: ['当前门店', ...(result.userEvidence?.dataSummary ? [result.userEvidence.dataSummary] : [])],
+        sourceTables: result.auditEvidence.sourceTables ?? result.auditEvidence.source,
+        filters: result.auditEvidence.filters,
         metricDefinition: result.auditEvidence.metricDefinition,
         sampleSize: result.auditEvidence.sampleSize,
         limitations: result.auditEvidence.limitations,
@@ -2835,12 +3015,16 @@ export class BusinessQueryService {
   }
 
   private buildEvidence(input: BusinessQueryEvidence): BusinessQueryEvidence {
-    return input;
+    return {
+      ...input,
+      sourceTables: input.sourceTables?.length ? input.sourceTables : input.source,
+    };
   }
 
   private emptyEvidence(reason: string): BusinessQueryEvidence {
     return {
       source: [],
+      sourceTables: [],
       filters: [],
       metricDefinition: reason,
       limitations: [reason],
@@ -2855,6 +3039,24 @@ export class BusinessQueryService {
 
   private startOfMonth(date: Date) {
     return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  private startOfWeek(date: Date) {
+    const next = this.startOfDay(date);
+    const day = next.getDay() || 7;
+    next.setDate(next.getDate() - day + 1);
+    return next;
+  }
+
+  private getOrderPaidAmount(order: Record<string, unknown>) {
+    const paymentRecords = Array.isArray(order.paymentRecords) ? order.paymentRecords as Array<Record<string, unknown>> : [];
+    const paidByRecords = paymentRecords
+      .filter((payment) => !/cancel|failed|void|取消|失败/.test(String(payment.status || '').toLowerCase()))
+      .reduce((total, payment) => total + this.toNumber(payment.amount), 0);
+    if (paidByRecords > 0) return paidByRecords;
+    const netAmount = this.toNumber(order.netAmount);
+    if (netAmount > 0) return netAmount;
+    return this.toNumber(order.totalAmount);
   }
 
   private classifyTerminalConversationFailure(conversation: Record<string, unknown>) {

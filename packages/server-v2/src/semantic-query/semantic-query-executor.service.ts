@@ -20,7 +20,13 @@ export class SemanticQueryExecutorService {
 
   async execute(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
     const metricKeys = plan.metrics.map((metric) => metric.key);
-    const template = this.queryTemplateRegistry?.findForMetrics(metricKeys);
+    const template =
+      (plan.templateId ? this.queryTemplateRegistry?.findById(plan.templateId) : undefined) ??
+      this.queryTemplateRegistry?.findByCapability(plan.capabilityId) ??
+      this.queryTemplateRegistry?.findForMetrics(metricKeys);
+    if (template?.id === 'order_customer_consumption_list' || plan.capabilityId === 'order_customer_consumption_list') {
+      return this.queryOrderCustomerConsumptionList(plan);
+    }
     if (template?.id === 'order_revenue' || metricKeys.some((key) => ['paid_amount', 'revenue', 'order_count', 'average_order_value', 'net_revenue'].includes(key))) {
       return this.queryOrderRevenue(plan);
     }
@@ -39,6 +45,141 @@ export class SemanticQueryExecutorService {
     return this.rejected(plan, '当前查询指标尚未接入统一查询执行器。');
   }
 
+  private async queryOrderCustomerConsumptionList(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
+    const range = this.resolveDateRange(plan.timeRange);
+    const storeId = plan.storeScope.storeIds[0];
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId,
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消', '已退款'] },
+        createdAt: { gte: range.start, lt: range.end },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        customerId: true,
+        customerName: true,
+        totalAmount: true,
+        netAmount: true,
+        payMethod: true,
+        status: true,
+        createdAt: true,
+        customer: { select: { id: true, name: true, phone: true, memberLevel: true } },
+        orderItems: { select: { name: true, itemType: true, quantity: true, subtotal: true } },
+        paymentRecords: { select: { amount: true, status: true, method: true, paidAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+
+    const customers = new Map<
+      string,
+      {
+        customerId: number | null;
+        customerName: string;
+        phoneMasked: string;
+        memberLevel: string;
+        paidAmount: number;
+        orderCount: number;
+        lastOrderTime: Date;
+        orderNos: string[];
+        payMethods: Set<string>;
+        itemNames: Map<string, number>;
+      }
+    >();
+
+    for (const order of orders as any[]) {
+      const paidAmount = this.getOrderPaidAmount(order);
+      if (paidAmount <= 0) continue;
+      const customerId = Number(order.customerId) || null;
+      const customerName = String(order.customer?.name || order.customerName || (customerId ? `客户${customerId}` : '散客'));
+      const key = customerId ? `customer:${customerId}` : `guest:${customerName}`;
+      const existing = customers.get(key);
+      const lastOrderTime = new Date(order.createdAt);
+      const target =
+        existing ??
+        {
+          customerId,
+          customerName,
+          phoneMasked: this.maskPhone(order.customer?.phone),
+          memberLevel: order.customer?.memberLevel ?? '',
+          paidAmount: 0,
+          orderCount: 0,
+          lastOrderTime,
+          orderNos: [] as string[],
+          payMethods: new Set<string>(),
+          itemNames: new Map<string, number>(),
+        };
+      target.paidAmount += paidAmount;
+      target.orderCount += 1;
+      if (lastOrderTime.getTime() > target.lastOrderTime.getTime()) target.lastOrderTime = lastOrderTime;
+      if (order.orderNo) target.orderNos.push(String(order.orderNo));
+      if (order.payMethod) target.payMethods.add(String(order.payMethod));
+      for (const payment of order.paymentRecords ?? []) {
+        if (payment.method) target.payMethods.add(String(payment.method));
+      }
+      for (const item of order.orderItems ?? []) {
+        const name = String(item.name || '').trim();
+        if (!name) continue;
+        target.itemNames.set(name, (target.itemNames.get(name) ?? 0) + (this.toNumber(item.quantity) || 1));
+      }
+      customers.set(key, target);
+    }
+
+    const rows = Array.from(customers.values())
+      .map((item) => {
+        const itemsSummary = Array.from(item.itemNames.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([name, quantity]) => `${name}${quantity > 1 ? ` x${quantity}` : ''}`)
+          .join('、');
+        return {
+          customerId: item.customerId,
+          customerName: item.customerName,
+          phoneMasked: item.phoneMasked,
+          memberLevel: item.memberLevel || '未标注',
+          paidAmount: Math.round(item.paidAmount * 100) / 100,
+          paidAmountText: this.formatMoney(item.paidAmount),
+          orderCount: item.orderCount,
+          lastOrderTime: item.lastOrderTime.toISOString(),
+          lastOrderDate: this.formatDate(item.lastOrderTime),
+          itemsSummary: itemsSummary || '未记录明细',
+          payMethods: Array.from(item.payMethods).join('、') || '未知',
+          orderNos: item.orderNos.slice(0, 5),
+          suggestion: item.paidAmount >= 1000 ? '高消费客户，建议结合服务记录做复购承接。' : '建议完成消费后回访与满意度确认。',
+        };
+      })
+      .sort((a, b) => b.paidAmount - a.paidAmount || b.orderCount - a.orderCount)
+      .slice(0, plan.limit);
+
+    const totalAmount = rows.reduce((sum, row) => sum + this.toNumber(row.paidAmount), 0);
+    const totalOrders = rows.reduce((sum, row) => sum + this.toNumber(row.orderCount), 0);
+    const evidence = this.evidence(plan, {
+      source: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+      dateRange: this.formatRange(range),
+      metricDefinition: '消费客户清单 = 查询周期内未取消/未退款订单，按客户聚合有效支付金额；金额优先取支付记录合计，其次取订单 netAmount，再次取 totalAmount。',
+      filters: ['storeId=当前门店', 'status not in cancelled/refunded', 'createdAt=查询周期', `limit=${plan.limit}`],
+      sampleSize: (orders as any[]).length,
+      limitations: ['散客或缺失 customerId 的订单按客户姓名聚合；退款中的部分退款订单暂按订单当前有效金额展示。'],
+    });
+    if (!rows.length) return this.noData(plan, `${range.label}暂无有效消费客户。`, evidence);
+    return this.success(plan, {
+      title: '消费客户清单',
+      summary: `${range.label}共有 ${rows.length} 位消费客户，${totalOrders} 笔有效订单，消费合计 ${this.formatMoney(totalAmount)}。`,
+      rows,
+      evidence,
+      kpis: [
+        { label: '消费客户', value: `${rows.length}` },
+        { label: '有效订单', value: `${totalOrders}` },
+        { label: '消费合计', value: this.formatMoney(totalAmount) },
+      ],
+      actions: [
+        { label: '查看订单明细', action: 'orders:open', riskLevel: 'low' },
+        { label: '生成复购跟进草稿', action: 'customer.followup.task.draft', riskLevel: 'medium' },
+      ],
+    });
+  }
+
   private async queryOrderRevenue(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
     const range = this.resolveDateRange(plan.timeRange);
     const storeId = plan.storeScope.storeIds[0];
@@ -50,12 +191,12 @@ export class SemanticQueryExecutorService {
       }),
       (this.prisma as any).paymentRecord.findMany({
         where: { order: { storeId }, status: { in: ['paid', 'completed', 'success', '已支付', '已完成'] }, paidAt: { gte: range.start, lt: range.end } },
-        select: { id: true, method: true, amount: true, paidAt: true, status: true },
+        select: { id: true, orderId: true, method: true, amount: true, paidAt: true, status: true },
         take: 5000,
       }),
       (this.prisma as any).refundRecord.findMany({
         where: { order: { storeId }, status: { in: ['refunded', 'success', 'completed', '已退款', '已完成'] }, refundedAt: { gte: range.start, lt: range.end } },
-        select: { id: true, amount: true, refundedAt: true, status: true },
+        select: { id: true, orderId: true, amount: true, refundedAt: true, status: true, order: { select: { payMethod: true } } },
         take: 5000,
       }),
     ]);
@@ -65,24 +206,30 @@ export class SemanticQueryExecutorService {
     const evidence = this.evidence(plan, {
       source: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
       dateRange: this.formatRange(range),
-      metricDefinition: '收入/实收 = 有效订单与支付成功记录在指定周期内的聚合；退款用于净额口径。',
+      metricDefinition: '营收 = 有效订单收入；实收 = 支付成功流水；退款 = 已完成退款流水；净额 = 实收 - 退款；客单价 = 实收 / 有效订单数。',
       filters: ['当前门店', '订单状态为已支付或已完成', '支付/退款时间在查询周期内'],
       sampleSize: (orders as any[]).length + (payments as any[]).length + (refunds as any[]).length,
     });
     if (!rows.length) return this.noData(plan, '当前周期没有可统计的收银或收入数据。', evidence);
     const totalPaid = rows.reduce((sum, row) => sum + this.toNumber(row.paidAmount), 0);
+    const totalRevenue = rows.reduce((sum, row) => sum + this.toNumber(row.revenue), 0);
+    const totalRefund = rows.reduce((sum, row) => sum + this.toNumber(row.refundAmount), 0);
+    const totalNet = totalPaid - totalRefund;
     const totalOrders = rows.reduce((sum, row) => sum + this.toNumber(row.orderCount), 0);
     return this.success(plan, {
       title: plan.outputShape === 'trend' ? '收银趋势' : '收银收入',
       summary: plan.outputShape === 'trend'
         ? `${range.label}共 ${rows.length} 天有收银记录，实收合计 ${this.formatMoney(totalPaid)}。`
-        : `${range.label}实收 ${this.formatMoney(totalPaid)}，订单 ${totalOrders} 笔。`,
+        : `${range.label}实收 ${this.formatMoney(totalPaid)}，退款 ${this.formatMoney(totalRefund)}，净额 ${this.formatMoney(totalNet)}，订单 ${totalOrders} 笔。`,
       rows,
       evidence,
       kpis: [
+        { label: '营收', value: this.formatMoney(totalRevenue), hint: '有效订单收入汇总' },
         { label: '实收', value: this.formatMoney(totalPaid) },
         { label: '订单数', value: `${totalOrders}` },
         { label: '客单价', value: totalOrders ? this.formatMoney(totalPaid / totalOrders) : '¥0' },
+        { label: '退款', value: this.formatMoney(totalRefund), hint: '已完成退款流水' },
+        { label: '净额', value: this.formatMoney(totalNet), hint: '实收扣减退款' },
       ],
       actions: [{ label: '查看订单明细', action: 'orders:open', riskLevel: 'low' }],
     });
@@ -130,17 +277,51 @@ export class SemanticQueryExecutorService {
     const paidAmount = payments.reduce((sum, payment) => sum + this.toNumber(payment.amount), 0) || revenue;
     const refundAmount = refunds.reduce((sum, refund) => sum + this.toNumber(refund.amount), 0);
     if (!orders.length && !payments.length) return [];
-    return [
-      {
-        revenue,
-        paidAmount,
-        refundAmount,
-        netAmount: paidAmount - refundAmount,
-        orderCount: orders.length,
-        customerCount: new Set(orders.map((order) => Number(order.customerId)).filter(Boolean)).size,
-        averageOrderValue: orders.length ? paidAmount / orders.length : 0,
-      },
-    ];
+    const buckets = new Map<
+      string,
+      { payMethod: string; revenue: number; paidAmount: number; refundAmount: number; orderCount: number; paymentCount: number; customerIds: Set<number> }
+    >();
+    const ensureBucket = (method: unknown) => {
+      const key = String(method || '未知');
+      const existing = buckets.get(key);
+      if (existing) return existing;
+      const created = { payMethod: key, revenue: 0, paidAmount: 0, refundAmount: 0, orderCount: 0, paymentCount: 0, customerIds: new Set<number>() };
+      buckets.set(key, created);
+      return created;
+    };
+    for (const order of orders) {
+      const bucket = ensureBucket(order.payMethod);
+      bucket.revenue += this.toNumber(order.totalAmount);
+      bucket.orderCount += 1;
+      if (order.customerId) bucket.customerIds.add(Number(order.customerId));
+    }
+    for (const payment of payments) {
+      const bucket = ensureBucket(payment.method);
+      bucket.paidAmount += this.toNumber(payment.amount);
+      bucket.paymentCount += 1;
+    }
+    for (const refund of refunds) {
+      const bucket = ensureBucket(refund.order?.payMethod);
+      bucket.refundAmount += this.toNumber(refund.amount);
+    }
+    const hasPayments = payments.length > 0;
+    return Array.from(buckets.values())
+      .map((bucket) => {
+        const effectivePaidAmount = hasPayments ? bucket.paidAmount : bucket.revenue;
+        const netAmount = effectivePaidAmount - bucket.refundAmount;
+        return {
+          payMethod: bucket.payMethod,
+          revenue: Math.round(bucket.revenue * 100) / 100,
+          paidAmount: Math.round(effectivePaidAmount * 100) / 100,
+          refundAmount: Math.round(bucket.refundAmount * 100) / 100,
+          netAmount: Math.round(netAmount * 100) / 100,
+          orderCount: bucket.orderCount,
+          paymentCount: bucket.paymentCount,
+          customerCount: bucket.customerIds.size,
+          averageOrderValue: bucket.orderCount ? effectivePaidAmount / bucket.orderCount : 0,
+        };
+      })
+      .sort((a, b) => b.paidAmount - a.paidAmount || b.orderCount - a.orderCount);
   }
 
   private async queryProductSales(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
@@ -793,6 +974,7 @@ export class SemanticQueryExecutorService {
   private evidence(plan: SemanticQueryPlan, input: Omit<SemanticQueryEvidence, 'auditId' | 'sqlFingerprint'>): SemanticQueryEvidence {
     return {
       ...input,
+      sourceTables: input.sourceTables?.length ? input.sourceTables : input.source,
       auditId: `sq_${plan.queryId}`,
       sqlFingerprint: this.createFingerprint(plan),
     };
@@ -863,6 +1045,17 @@ export class SemanticQueryExecutorService {
     const text = String(value || '');
     if (!/^1\d{10}$/.test(text)) return text;
     return `${text.slice(0, 3)}****${text.slice(7)}`;
+  }
+
+  private getOrderPaidAmount(order: Record<string, unknown>) {
+    const paymentRecords = Array.isArray(order.paymentRecords) ? (order.paymentRecords as Array<Record<string, unknown>>) : [];
+    const paidByRecords = paymentRecords
+      .filter((payment) => !/cancel|failed|void|取消|失败/.test(String(payment.status || '').toLowerCase()))
+      .reduce((total, payment) => total + this.toNumber(payment.amount), 0);
+    if (paidByRecords > 0) return paidByRecords;
+    const netAmount = this.toNumber(order.netAmount);
+    if (netAmount > 0) return netAmount;
+    return this.toNumber(order.totalAmount);
   }
 
   private toNumber(value: unknown) {

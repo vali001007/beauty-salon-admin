@@ -25,7 +25,9 @@ export class QuerySafetyGuardService {
 
   validate(plan: SemanticQueryPlan): QuerySafetyDecision {
     const warnings: string[] = [];
-    if (!plan.storeScope.storeIds.length) return this.reject('缺少门店范围，已阻止查询。', warnings);
+    if (!plan.storeScope.storeIds.length || plan.storeScope.storeIds.some((storeId) => !Number.isFinite(storeId) || storeId <= 0)) {
+      return this.reject('缺少门店范围，已阻止查询。', warnings);
+    }
     if (!plan.metrics.length) return this.reject('缺少查询指标，已阻止查询。', warnings);
     if (plan.limit < 1 || plan.limit > 100) return this.reject('查询返回数量超出系统限制。', warnings);
     if (!this.dimensionRegistry.allKnown(plan.dimensions)) return this.reject('包含暂不支持的查询维度。', warnings);

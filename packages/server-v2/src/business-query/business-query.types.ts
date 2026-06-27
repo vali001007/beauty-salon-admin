@@ -32,6 +32,7 @@ export type BusinessQueryCapabilityId =
   | 'inventory_alert'
   | 'reservation_today'
   | 'schedule_utilization'
+  | 'order_customer_consumption_list'
   | 'order_revenue_analysis'
   | 'card_expiry_risk'
   | 'card_usage_analysis'
@@ -74,6 +75,7 @@ export interface BusinessQueryEvidence {
   dateRange?: string;
   compareRange?: string;
   source: string[];
+  sourceTables?: string[];
   filters: string[];
   metricDefinition: string;
   sampleSize?: number;

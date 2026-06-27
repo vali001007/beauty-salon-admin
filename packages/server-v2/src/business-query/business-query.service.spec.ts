@@ -111,8 +111,9 @@ describe('BusinessQueryService', () => {
         userEvidence: { dataSummary: '基于 1 条业务记录统计' },
         auditEvidence: {
           source: ['ProductOrder', 'OrderItem', 'Product'],
+          sourceTables: ['ProductOrder', 'OrderItem', 'Product'],
           metricDefinition: '商品销量测试口径',
-          filters: ['当前门店'],
+          filters: ['storeId=当前门店', '订单状态为已支付或已完成'],
           sampleSize: 1,
         },
       }),
@@ -153,6 +154,13 @@ describe('BusinessQueryService', () => {
         items: [{ productId: 301, productName: '补水精华', quantity: 10 }],
       },
     });
+    expect(result.evidence).toMatchObject({
+      source: ['ProductOrder', 'OrderItem', 'Product'],
+      sourceTables: ['ProductOrder', 'OrderItem', 'Product'],
+      filters: ['storeId=当前门店', '订单状态为已支付或已完成'],
+      metricDefinition: '商品销量测试口径',
+      sampleSize: 1,
+    });
   });
 
   it('recognizes core operating domains before executing governed queries', () => {
@@ -163,6 +171,8 @@ describe('BusinessQueryService', () => {
       ['今天排班占用率怎么样', 'schedule', 'schedule_utilization'],
       ['今日预约情况', 'reservation', 'reservation_today'],
       ['今天订单收入多少', 'order', 'order_revenue_analysis'],
+      ['昨天有哪些消费的客户，列出清单', 'order', 'order_customer_consumption_list'],
+      ['昨日成交会员有哪些', 'order', 'order_customer_consumption_list'],
       ['即将到期次卡', 'card', 'card_expiry_risk'],
       ['会员卡余额沉淀资金', 'memberCard', 'member_balance_analysis'],
       ['今日实收和费用', 'finance', 'finance_cashflow_summary'],
@@ -184,6 +194,175 @@ describe('BusinessQueryService', () => {
       expect(plan.capability).toBe(capability);
       expect(plan.needClarification).toBe(false);
     }
+  });
+
+  it('returns a governed customer consumption list from valid orders', async () => {
+    const createdAt = new Date('2026-06-26T10:30:00.000Z');
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        id: 1001,
+        orderNo: 'PO1001',
+        customerId: 101,
+        customerName: '马美琳',
+        totalAmount: 1280,
+        netAmount: 1180,
+        payMethod: 'wechat',
+        status: 'completed',
+        createdAt,
+        customer: { id: 101, name: '马美琳', phone: '13800001234', memberLevel: 'VIP2' },
+        orderItems: [
+          { name: '深层补水护理', itemType: 'project', quantity: 1, subtotal: 680 },
+          { name: '修护精华', itemType: 'product', quantity: 2, subtotal: 600 },
+        ],
+        paymentRecords: [{ amount: 1200, status: 'paid', method: 'wechat', paidAt: createdAt }],
+      },
+      {
+        id: 1002,
+        orderNo: 'PO1002',
+        customerId: 101,
+        customerName: '马美琳',
+        totalAmount: 300,
+        netAmount: 300,
+        payMethod: 'stored_value',
+        status: 'completed',
+        createdAt: new Date('2026-06-26T15:20:00.000Z'),
+        customer: { id: 101, name: '马美琳', phone: '13800001234', memberLevel: 'VIP2' },
+        orderItems: [{ name: '补水面膜', itemType: 'product', quantity: 1, subtotal: 300 }],
+        paymentRecords: [],
+      },
+      {
+        id: 1003,
+        orderNo: 'PO1003',
+        customerId: 102,
+        customerName: '李若溪',
+        totalAmount: 480,
+        netAmount: 480,
+        payMethod: 'alipay',
+        status: 'completed',
+        createdAt: new Date('2026-06-26T11:00:00.000Z'),
+        customer: { id: 102, name: '李若溪', phone: '13900005678', memberLevel: '银卡' },
+        orderItems: [{ name: '肩颈护理', itemType: 'project', quantity: 1, subtotal: 480 }],
+        paymentRecords: [{ amount: 480, status: 'paid', method: 'alipay', paidAt: createdAt }],
+      },
+    ]);
+
+    const result = await service.ask({ question: '昨天有哪些消费的客户，列出清单', storeId: 6, role: 'manager' });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result).toMatchObject({
+      domain: 'order',
+      capability: 'order_customer_consumption_list',
+      card: {
+        type: 'orderCustomerConsumptionList',
+        title: '消费客户清单',
+      },
+    });
+    expect(prisma.productOrder.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 6,
+          status: { notIn: expect.arrayContaining(['cancelled', 'refunded']) },
+        }),
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+      }),
+    );
+    expect(result.card?.kpis).toEqual(
+      expect.arrayContaining([
+        { label: '消费客户', value: '2' },
+        { label: '有效订单', value: '3' },
+        { label: '消费合计', value: '¥1,980' },
+      ]),
+    );
+    expect(result.card?.items[0]).toMatchObject({
+      customerName: '马美琳',
+      phoneMasked: '138****1234',
+      memberLevel: 'VIP2',
+      paidAmountText: '¥1,500',
+      orderCount: 2,
+      itemsSummary: expect.stringContaining('深层补水护理'),
+    });
+    expect(result.evidence.source).toEqual(expect.arrayContaining(['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer']));
+    expect(result.answer).toContain('2 位消费客户');
+  });
+
+  it('keeps order customer consumption list on the semantic query path instead of falling back to revenue templates', async () => {
+    const queryPlanner = {
+      plan: jest.fn().mockReturnValue({
+        plan: { capabilityId: 'order_customer_consumption_list' },
+        warnings: [],
+      }),
+    };
+    const semanticQueryExecutor = {
+      execute: jest.fn().mockResolvedValue({
+        status: 'success',
+        title: '消费客户清单',
+        summary: '昨天共有 1 位消费客户，2 笔有效订单，消费合计 ¥1,500。',
+        rows: [
+          {
+            customerName: '马美琳',
+            phoneMasked: '138****1234',
+            paidAmountText: '¥1,500',
+            orderCount: 2,
+            itemsSummary: '深层补水护理',
+          },
+        ],
+        kpis: [
+          { label: '消费客户', value: '1' },
+          { label: '有效订单', value: '2' },
+        ],
+        auditEvidence: {
+          source: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+          sourceTables: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
+          filters: ['storeId=当前门店'],
+          metricDefinition: '消费客户清单按客户聚合有效订单。',
+          sampleSize: 2,
+        },
+        userEvidence: { dateRange: '昨天' },
+        actions: [{ label: '查看订单明细', action: 'orders:open', riskLevel: 'low' }],
+      }),
+    };
+    const preParser = {
+      parse: jest.fn().mockReturnValue({
+        task: {
+          taskType: 'query',
+          domain: 'order',
+          objective: '昨天有哪些消费的客户，列出清单',
+          entities: [{ type: 'order', value: 'order', confidence: 0.72 }],
+          metrics: ['paid_amount', 'order_count'],
+          filters: {},
+          timeRange: { preset: 'yesterday', label: '昨天' },
+          outputMode: 'card',
+          outputIntent: 'show_table',
+          riskLevel: 'low',
+          requiresApproval: false,
+          missingSlots: [],
+          confidence: 0.95,
+        },
+      }),
+    };
+    const semanticService = new BusinessQueryService(prisma, queryPlanner as any, semanticQueryExecutor as any, preParser as any);
+
+    const result = await semanticService.ask({ question: '昨天有哪些消费的客户，列出清单', storeId: 6, role: 'manager', operatorId: 1 });
+
+    expect(queryPlanner.plan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilityId: 'order_customer_consumption_list',
+      }),
+    );
+    expect(semanticQueryExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({ capabilityId: 'order_customer_consumption_list' }));
+    expect(result).toMatchObject({
+      status: 'success',
+      domain: 'order',
+      capability: 'order_customer_consumption_list',
+      answer: expect.stringContaining('消费客户'),
+      card: {
+        type: 'orderCustomerConsumptionList',
+        title: '消费客户清单',
+        items: [expect.objectContaining({ customerName: '马美琳', paidAmountText: '¥1,500' })],
+      },
+    });
+    expect(result.card?.items[0]).not.toHaveProperty('date');
   });
 
   it('aggregates staff performance from governed staff-linked records', async () => {

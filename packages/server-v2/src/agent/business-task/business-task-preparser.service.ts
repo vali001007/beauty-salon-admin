@@ -3,6 +3,8 @@ import type {
   BusinessEntityRef,
   BusinessTask,
   BusinessTaskDomain,
+  BusinessTaskEvent,
+  BusinessTaskOutputIntent,
   BusinessTaskPreparseResult,
   BusinessTaskType,
   BusinessTimeRange,
@@ -28,6 +30,7 @@ export class BusinessTaskPreParserService {
   parse(input: { message: string; role?: AgentRole; context?: Record<string, unknown> } | string): BusinessTaskPreparseResult {
     const message = typeof input === 'string' ? input : input.message;
     const role = typeof input === 'string' ? undefined : input.role;
+    const context = typeof input === 'string' ? undefined : input.context;
     const text = this.normalize(message);
     const limit = this.extractLimit(text);
     const timeRange = this.extractTimeRange(text);
@@ -35,6 +38,7 @@ export class BusinessTaskPreParserService {
     const taskType = this.detectTaskType(text);
     const metrics = this.detectMetrics(text, domain, taskType);
     const entities = this.extractEntities(text, domain);
+    const event = this.detectEvent(text, domain);
     const requiresApproval = taskType === 'draft' || taskType === 'workflow';
     const outputMode = requiresApproval
       ? taskType === 'workflow'
@@ -50,6 +54,7 @@ export class BusinessTaskPreParserService {
     if (domain === 'unknown') missingSlots.push('domain');
     if (taskType === 'clarify') missingSlots.push('taskType');
     if ((taskType === 'ranking' || taskType === 'recommendation') && !limit) missingSlots.push('limit');
+    const outputIntent = this.detectOutputIntent(text, taskType, outputMode);
 
     const task: BusinessTask = {
       taskType,
@@ -58,27 +63,32 @@ export class BusinessTaskPreParserService {
       entities,
       metrics,
       filters: this.detectFilters(text),
+      event,
       timeRange,
       sort: this.detectSort(text, metrics),
       limit,
       outputMode,
+      outputIntent,
+      requiredFields: this.requiredFieldsForTask(text, domain, event, outputIntent),
+      ambiguities: this.detectAmbiguities(domain, taskType, missingSlots),
       riskLevel: requiresApproval ? 'medium' : 'low',
       requiresApproval,
       missingSlots,
       confidence: this.scoreConfidence({ domain, taskType, limit, timeRange, metrics }),
       actorRole: role,
     };
+    const contextWarnings = this.applyConversationContext(task, text, context);
 
     return {
       task,
       deterministicSlots: {
-        domainMatched: domain !== 'unknown',
+        domainMatched: task.domain !== 'unknown',
         taskTypeMatched: taskType !== 'clarify',
         limitMatched: Boolean(limit),
-        timeRangeMatched: Boolean(timeRange),
+        timeRangeMatched: Boolean(task.timeRange),
         metricMatched: metrics.length > 0,
       },
-      warnings: this.buildWarnings(task),
+      warnings: [...this.buildWarnings(task), ...contextWarnings],
     };
   }
 
@@ -118,6 +128,7 @@ export class BusinessTaskPreParserService {
   private extractTimeRange(text: string): BusinessTimeRange | undefined {
     if (/今天|今日|today/.test(text)) return { preset: 'today', label: '今天' };
     if (/昨天|昨日/.test(text)) return { preset: 'yesterday', label: '昨天' };
+    if (/上周|上星期/.test(text)) return { preset: 'last_week', label: '上周' };
     if (/本周|这周|本星期|这星期/.test(text)) return { preset: 'this_week', label: '本周' };
     if (/下周|下星期/.test(text)) return { preset: 'next_week', label: '下周' };
     if (/本月|这个月|当月/.test(text)) return { preset: 'this_month', label: '本月' };
@@ -133,6 +144,7 @@ export class BusinessTaskPreParserService {
   }
 
   private detectDomain(text: string): BusinessTaskDomain {
+    if (this.isOrderCustomerConsumptionListRequest(text)) return 'order';
     const hasStaffSubject = /员工|店员|顾问|美容师|人员/.test(text);
     const hasStaffPerformanceIntent = /表现|业绩|绩效|提成|服务质量|服务好|服务满意|服务次数|成交|销售|优秀|较好|最好|最多|最少|排行|排名|完成|贡献/.test(text);
     if (/我的.*(表现|业绩|绩效|提成|服务质量|服务|成交|销售|完成|贡献|复购)|我.*(表现|业绩|绩效|提成|服务质量|服务|成交|销售|完成|贡献|复购)/.test(text)) return 'staff';
@@ -153,11 +165,11 @@ export class BusinessTaskPreParserService {
     if (/次卡|卡项|疗程卡|核销|剩余次数|到期卡/.test(text)) return 'card';
     if (/财务|现金流|毛利|成本|利润|盈利|亏损|净收入|实收|净额/.test(text)) return 'finance';
     if (/库存|补货|临期|缺货|耗材|批次|周转/.test(text)) return 'inventory';
+    if (/预约|爽约|改约/.test(text) || (/到店/.test(text) && /今天|今日|本日|昨天|昨日|明天|明日/.test(text))) return 'reservation';
     if (/客户|顾客|会员|老客|新客|沉睡|流失|高价值|复购|回访|邀约|唤醒/.test(text)) return 'customer';
     if (/商品|产品|品项|sku/.test(text)) return 'product';
     if (/项目|护理|服务|疗程/.test(text)) return 'project';
-    if (/收入|营收|营业额|流水|业绩/.test(text)) return 'business';
-    if (/预约|到店|爽约|改约/.test(text)) return 'reservation';
+    if (/收入|营收|营业额|流水|业绩|收了多少钱|收款多少/.test(text)) return 'business';
     if (/排班|班表|人手|请假|忙碌|美容师/.test(text)) return 'schedule';
     if (/订单|收银|开单|流水|消费|成交|客单价|支付方式/.test(text)) return 'order';
     if (/营销|活动|触达|转化|推广|推广页|线索/.test(text)) return 'marketing';
@@ -177,8 +189,59 @@ export class BusinessTaskPreParserService {
     if (/排行|排名|前\d+|top\d+|最多|最少|最高|最低|最快|最慢|最好|最差|较好|优秀|表现好|做得好|业绩好|服务好|成交高|销售高|销量好|销售好|卖得好|卖的好/.test(text)) return 'ranking';
     if (/可能|预计|预测|风险|预警|下周|未来/.test(text)) return 'forecast';
     if (/最值得|优先|重点|建议|适合|可以推|机会|推荐|怎么做|跟进|回访|邀约|唤醒/.test(text)) return 'recommendation';
-    if (/查|查询|看|看看|分析|统计|多少|怎么样|情况|趋势|增长|不足|到期|空闲|忙碌|请假|占用率|缺口|时段|哪些|哪个|哪家|哪位|谁|效果|使用率|触达率|完成率|转化率|领取率|核销率|绑定率|退款率|毛利率|业绩|提成|表现|对比|问题|分类|质量|满意|链路|访问|浏览|活跃|成交|转化|领取|高吗|低吗|完成好/.test(text)) return 'query';
+    if (/查|查询|看|看看|分析|统计|多少|怎么样|情况|趋势|增长|不足|到期|空闲|忙碌|请假|占用率|缺口|时段|名单|清单|明细|列出|列一下|哪些|哪个|哪家|哪位|谁|效果|使用率|触达率|完成率|转化率|领取率|核销率|绑定率|退款率|毛利率|业绩|提成|表现|对比|问题|分类|质量|满意|链路|访问|浏览|活跃|成交|转化|领取|高吗|低吗|完成好/.test(text)) return 'query';
     return 'clarify';
+  }
+
+  private detectEvent(text: string, domain: BusinessTaskDomain): BusinessTaskEvent {
+    if (domain === 'order' && this.isOrderCustomerConsumptionListRequest(text)) return 'paid_order';
+    if (domain === 'order' && /消费|成交|订单|流水|付款|支付|购买|买单|收银/.test(text)) return 'paid_order';
+    if (domain === 'reservation' || domain === 'schedule') return 'reservation_created';
+    if (domain === 'serviceQuality' || /服务记录|护理完成|服务完成/.test(text)) return 'service_completed';
+    if (domain === 'inventory' && /库存|补货|缺货|不足|预警/.test(text)) return 'inventory_low_stock';
+    if (domain === 'card' && /到期|过期|剩余|余次|次数/.test(text)) return 'card_expiring';
+    if ((domain === 'marketing' || domain === 'promotion' || domain === 'automation') && /转化|效果|成交|归因/.test(text)) return 'marketing_conversion';
+    if (domain === 'afterSales' || /退款|退费|退单/.test(text)) return 'refund_created';
+    return 'unknown';
+  }
+
+  private detectOutputIntent(
+    text: string,
+    taskType: BusinessTaskType,
+    outputMode: BusinessTask['outputMode'],
+  ): BusinessTaskOutputIntent {
+    if (taskType === 'clarify') return 'ask_clarification';
+    if (taskType === 'workflow') return 'confirm_action';
+    if (taskType === 'draft') return 'draft_document';
+    if (/名单|清单|明细|列出|列一下|排行|排名|哪些|哪几位|哪几个|谁/.test(text) || outputMode === 'ranked_list' || outputMode === 'table') {
+      return 'show_table';
+    }
+    if (/趋势|走势|变化|曲线|图/.test(text)) return 'show_chart';
+    if (/多少|汇总|概览|总览|统计|营收|收入|营业额|客单价|订单数/.test(text)) return 'show_kpi';
+    return 'answer_text';
+  }
+
+  private requiredFieldsForTask(
+    text: string,
+    domain: BusinessTaskDomain,
+    event: BusinessTaskEvent,
+    outputIntent: BusinessTaskOutputIntent,
+  ) {
+    if (domain === 'order' && event === 'paid_order' && outputIntent === 'show_table') {
+      return ['customerName', 'phoneMasked', 'paidAmount', 'orderCount', 'lastOrderTime', 'itemsSummary'];
+    }
+    if (domain === 'customer' && /回访|跟进|优先|重点/.test(text)) {
+      return ['customerName', 'priorityScore', 'reason', 'suggestedAction'];
+    }
+    if (outputIntent === 'show_kpi') return ['metricLabel', 'metricValue', 'dateRange', 'metricDefinition'];
+    return [];
+  }
+
+  private detectAmbiguities(domain: BusinessTaskDomain, taskType: BusinessTaskType, missingSlots: string[]) {
+    const ambiguities = [...missingSlots];
+    if (domain === 'unknown') ambiguities.push('business_domain');
+    if (taskType === 'clarify') ambiguities.push('business_intent');
+    return Array.from(new Set(ambiguities));
   }
 
   private detectMetrics(text: string, domain: BusinessTaskDomain, taskType: BusinessTaskType) {
@@ -233,6 +296,10 @@ export class BusinessTaskPreParserService {
     if ((domain === 'order' || domain === 'afterSales') && /退款|退费|售后|退单/.test(text)) {
       metrics.add('refund_amount');
       metrics.add('refund_rate');
+    }
+    if (domain === 'order' && this.isOrderCustomerConsumptionListRequest(text)) {
+      metrics.add('paid_amount');
+      metrics.add('order_count');
     }
     if (domain === 'order' && /支付方式|微信|支付宝|现金|储值/.test(text)) metrics.add('payment_method_ratio');
     if (domain === 'supplyChain' && /交期|到货|供货|周期|慢/.test(text)) metrics.add('supplier_delivery_cycle');
@@ -327,5 +394,108 @@ export class BusinessTaskPreParserService {
     if (task.taskType === 'clarify') warnings.push('未识别明确任务类型');
     if (task.missingSlots.includes('limit')) warnings.push('推荐或排行任务未明确数量，执行层需使用默认 limit');
     return warnings;
+  }
+
+  private applyConversationContext(task: BusinessTask, text: string, context?: Record<string, unknown>) {
+    const warnings: string[] = [];
+    const focus = this.extractConversationFocus(context);
+    const focusCustomer = this.asObject(focus?.currentCustomer);
+    const focusActivity = this.asObject(focus?.currentActivity);
+
+    if (this.hasCustomerReference(text) && focusCustomer) {
+      const customerId = focusCustomer.customerId;
+      const customerName = focusCustomer.customerName ?? focusCustomer.name;
+      const phoneMasked = focusCustomer.phoneMasked ?? focusCustomer.phone;
+      if (task.domain === 'unknown') task.domain = 'customer';
+      task.entities = [
+        ...task.entities.filter((entity) => !(entity.type === 'customer' && entity.value === String(customerName ?? customerId))),
+        {
+          type: 'customer',
+          value: String(customerName ?? customerId ?? '当前关注客户'),
+          confidence: 0.86,
+        },
+      ];
+      task.filters = {
+        ...task.filters,
+        ...(customerId !== undefined ? { customerId } : {}),
+        ...(customerName !== undefined ? { customerName } : {}),
+        ...(phoneMasked !== undefined ? { phoneMasked } : {}),
+      };
+      task.missingSlots = task.missingSlots.filter((slot) => slot !== 'domain');
+      warnings.push('已使用上一轮当前关注客户补齐查询条件');
+    }
+
+    if (this.hasActivityReference(text) && focusActivity) {
+      const activityId = focusActivity.activityId;
+      const activityTitle = focusActivity.activityTitle ?? focusActivity.title;
+      if (task.domain === 'unknown') task.domain = 'marketing';
+      task.entities = [
+        ...task.entities.filter((entity) => !(entity.type === 'marketing' && entity.value === String(activityTitle ?? activityId))),
+        {
+          type: 'marketing',
+          value: String(activityTitle ?? activityId ?? '当前关注活动'),
+          confidence: 0.86,
+        },
+      ];
+      task.filters = {
+        ...task.filters,
+        ...(activityId !== undefined ? { activityId } : {}),
+        ...(activityTitle !== undefined ? { activityTitle } : {}),
+        ...(focusActivity.status !== undefined ? { activityStatus: focusActivity.status } : {}),
+      };
+      task.missingSlots = task.missingSlots.filter((slot) => slot !== 'domain');
+      warnings.push('已使用上一轮当前关注活动补齐查询条件');
+    }
+
+    if (!task.timeRange) {
+      const timeRange = this.asObject(focus?.timeRange);
+      if (timeRange?.preset || timeRange?.label) {
+        task.timeRange = timeRange as BusinessTimeRange;
+        warnings.push('已沿用上一轮时间范围');
+      }
+    }
+
+    task.ambiguities = this.detectAmbiguities(task.domain, task.taskType, task.missingSlots);
+    task.confidence = Math.max(
+      task.confidence,
+      this.scoreConfidence({
+        domain: task.domain,
+        taskType: task.taskType,
+        limit: task.limit,
+        timeRange: task.timeRange,
+        metrics: task.metrics,
+      }),
+    );
+
+    return warnings;
+  }
+
+  private hasCustomerReference(text: string) {
+    return /她|他|ta|这个客户|这位客户|该客户|这个会员|这位会员|该会员|上一个客户|刚才那个客户|上面那个客户|上一个会员|刚才那个会员/.test(text);
+  }
+
+  private hasActivityReference(text: string) {
+    return /这个活动|该活动|这场活动|上次那个活动|上一个活动|刚才那个活动|上面那个活动|这个草稿|该草稿|上次那个草稿/.test(text);
+  }
+
+  private extractConversationFocus(context?: Record<string, unknown>) {
+    const direct = this.asObject(context?.conversationFocus);
+    if (direct) return direct;
+    const previousResult = this.asObject(context?.previousResult);
+    return this.asObject(previousResult?.conversationFocus);
+  }
+
+  private asObject(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    return value as Record<string, unknown>;
+  }
+
+  private isOrderCustomerConsumptionListRequest(text: string) {
+    if (/小程序|ami glow|客户端|会员端|渠道|来源|投放|引流|退款|退费|售后|门店|多店|分店/.test(text)) return false;
+    const hasConsumptionSignal = /消费|成交|订单|流水|付款|支付|购买|买过|买单|收银/.test(text);
+    const hasListSignal = /名单|清单|明细|列出|列一下|有哪些|哪些|哪几位|哪几个|谁/.test(text);
+    const hasCustomerObject = /客户|会员|顾客/.test(text);
+    const hasCompoundObject = /消费客户|成交会员|成交客户|流水客户|消费会员|购买客户|购买会员/.test(text);
+    return hasConsumptionSignal && (hasCompoundObject || (hasCustomerObject && hasListSignal));
   }
 }

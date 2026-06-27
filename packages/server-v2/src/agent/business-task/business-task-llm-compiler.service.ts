@@ -6,6 +6,8 @@ import type {
   BusinessSort,
   BusinessTask,
   BusinessTaskDomain,
+  BusinessTaskEvent,
+  BusinessTaskOutputIntent,
   BusinessTaskOutputMode,
   BusinessTaskType,
   BusinessTimeRange,
@@ -48,9 +50,29 @@ const TASK_TYPES: BusinessTaskType[] = [
   'clarify',
 ];
 const OUTPUT_MODES: BusinessTaskOutputMode[] = ['summary', 'ranked_list', 'table', 'card', 'draft', 'workflow'];
+const EVENTS: BusinessTaskEvent[] = [
+  'paid_order',
+  'reservation_created',
+  'service_completed',
+  'inventory_low_stock',
+  'card_expiring',
+  'marketing_conversion',
+  'refund_created',
+  'unknown',
+];
+const OUTPUT_INTENTS: BusinessTaskOutputIntent[] = [
+  'answer_text',
+  'show_kpi',
+  'show_table',
+  'show_chart',
+  'confirm_action',
+  'ask_clarification',
+  'draft_document',
+];
 const TIME_PRESETS: BusinessTimeRange['preset'][] = [
   'today',
   'yesterday',
+  'last_week',
   'this_week',
   'next_week',
   'this_month',
@@ -59,6 +81,81 @@ const TIME_PRESETS: BusinessTimeRange['preset'][] = [
   'next_30_days',
   'custom',
 ];
+const DRAFT_FIELDS = [
+  'domain',
+  'taskType',
+  'event',
+  'metrics',
+  'entities',
+  'filters',
+  'timeRange',
+  'sort',
+  'limit',
+  'outputMode',
+  'outputIntent',
+  'requiredFields',
+  'ambiguities',
+  'riskLevel',
+  'confidence',
+  'reason',
+] as const;
+const BUSINESS_TASK_DRAFT_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    domain: { enum: DOMAINS },
+    taskType: { enum: TASK_TYPES },
+    event: { enum: EVENTS },
+    metrics: { type: 'array', items: { type: 'string' }, maxItems: 8 },
+    entities: {
+      type: 'array',
+      maxItems: 10,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          type: { type: 'string' },
+          value: { type: 'string' },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+        },
+        required: ['type', 'value'],
+      },
+    },
+    filters: { type: 'object' },
+    timeRange: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        preset: { enum: TIME_PRESETS },
+        startDate: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        endDate: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        label: { type: 'string' },
+      },
+      required: ['preset'],
+    },
+    sort: {
+      type: 'array',
+      maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          field: { type: 'string' },
+          direction: { enum: ['asc', 'desc'] },
+        },
+        required: ['field', 'direction'],
+      },
+    },
+    limit: { type: 'integer', minimum: 1, maximum: 50 },
+    outputMode: { enum: OUTPUT_MODES },
+    outputIntent: { enum: OUTPUT_INTENTS },
+    requiredFields: { type: 'array', items: { type: 'string' }, maxItems: 12 },
+    ambiguities: { type: 'array', items: { type: 'string' }, maxItems: 8 },
+    riskLevel: { enum: ['low', 'medium', 'high'] },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    reason: { type: 'string' },
+  },
+};
 
 export type BusinessTaskLlmDraftTask = Partial<
   Pick<
@@ -68,10 +165,14 @@ export type BusinessTaskLlmDraftTask = Partial<
     | 'entities'
     | 'metrics'
     | 'filters'
+    | 'event'
     | 'timeRange'
     | 'sort'
     | 'limit'
     | 'outputMode'
+    | 'outputIntent'
+    | 'requiredFields'
+    | 'ambiguities'
     | 'riskLevel'
     | 'confidence'
   >
@@ -135,18 +236,7 @@ export class BusinessTaskLlmCompilerService {
     }
 
     try {
-      const result = await this.aiService.chat([
-        { role: 'system', content: BUSINESS_TASK_COMPILER_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            message: input.message,
-            role: input.role,
-            context: this.compactContext(input.context),
-          }),
-        },
-      ]);
-      return this.validateDraft(this.parseJsonObject(result.text), 'ai_gateway');
+      return await this.compileAiDraftWithRetry(input);
     } catch (error) {
       return {
         used: true,
@@ -155,6 +245,77 @@ export class BusinessTaskLlmCompilerService {
         warnings: [`llm_task_compiler_failed:${error instanceof Error ? error.message : String(error)}`],
       };
     }
+  }
+
+  private async compileAiDraftWithRetry(input: {
+    message: string;
+    role?: string;
+    context?: Record<string, unknown>;
+  }): Promise<BusinessTaskLlmDraftResult> {
+    let lastInvalid: BusinessTaskLlmDraftResult | null = null;
+    let repairHint: string | undefined;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const result = await this.aiService!.chat(this.buildAiMessages(input, repairHint));
+        const parsed = this.parseJsonObject(result.text);
+        const validation = this.validateDraft(parsed, 'ai_gateway');
+        if (validation.status === 'success') {
+          return attempt > 0
+            ? { ...validation, warnings: ['llm_task_compiler_retried_after_schema_error', ...validation.warnings] }
+            : validation;
+        }
+        lastInvalid = validation;
+        repairHint = this.repairHint(validation.warnings);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        lastInvalid = {
+          used: true,
+          status: 'invalid',
+          source: 'ai_gateway',
+          warnings: [`llm_schema_parse_failed:${message}`],
+        };
+        repairHint = this.repairHint(lastInvalid.warnings);
+      }
+    }
+
+    return {
+      ...(lastInvalid ?? {
+        used: true,
+        status: 'invalid' as const,
+        source: 'ai_gateway' as const,
+        warnings: ['llm_task_draft_empty_or_invalid'],
+      }),
+      warnings: ['llm_task_compiler_retry_exhausted', ...(lastInvalid?.warnings ?? [])],
+    };
+  }
+
+  private buildAiMessages(
+    input: { message: string; role?: string; context?: Record<string, unknown> },
+    repairHint?: string,
+  ) {
+    return [
+      { role: 'system', content: BUSINESS_TASK_COMPILER_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          message: input.message,
+          role: input.role,
+          context: this.compactContext(input.context),
+          jsonSchema: BUSINESS_TASK_DRAFT_JSON_SCHEMA,
+          instructions: [
+            '只输出一个 JSON 对象，不要 Markdown，不要解释文字。',
+            '不要生成 SQL、数据库表名查询、工具名或业务事实结论。',
+            '字段必须符合 jsonSchema，不能输出 additionalProperties。',
+            repairHint,
+          ].filter(Boolean),
+        }),
+      },
+    ];
+  }
+
+  private repairHint(warnings: string[]) {
+    return `上一次输出未通过 schema 校验：${warnings.slice(0, 6).join(', ')}。请只返回符合 schema 的 JSON 对象。`;
   }
 
   private isEnabled(context?: Record<string, unknown>) {
@@ -173,6 +334,8 @@ export class BusinessTaskLlmCompilerService {
   private validateDraft(raw: Record<string, unknown>, source: BusinessTaskLlmDraftResult['source']): BusinessTaskLlmDraftResult {
     const warnings: string[] = [];
     const task: BusinessTaskLlmDraftTask = {};
+    const schemaWarnings = this.validateDraftSchemaShape(raw);
+    warnings.push(...schemaWarnings);
 
     const domain = this.pickAllowed(raw.domain, DOMAINS, 'domain', warnings);
     if (domain) task.domain = domain;
@@ -189,6 +352,9 @@ export class BusinessTaskLlmCompilerService {
     const filters = this.sanitizeFilters(raw.filters);
     if (Object.keys(filters).length) task.filters = filters;
 
+    const event = this.pickAllowed(raw.event, EVENTS, 'event', warnings);
+    if (event) task.event = event;
+
     const timeRange = this.sanitizeTimeRange(raw.timeRange, warnings);
     if (timeRange) task.timeRange = timeRange;
 
@@ -200,6 +366,15 @@ export class BusinessTaskLlmCompilerService {
 
     const outputMode = this.pickAllowed(raw.outputMode, OUTPUT_MODES, 'outputMode', warnings);
     if (outputMode) task.outputMode = outputMode;
+
+    const outputIntent = this.pickAllowed(raw.outputIntent, OUTPUT_INTENTS, 'outputIntent', warnings);
+    if (outputIntent) task.outputIntent = outputIntent;
+
+    const requiredFields = this.sanitizeStringList(raw.requiredFields, 'requiredFields', warnings);
+    if (requiredFields.length) task.requiredFields = requiredFields;
+
+    const ambiguities = this.sanitizeStringList(raw.ambiguities, 'ambiguities', warnings);
+    if (ambiguities.length) task.ambiguities = ambiguities;
 
     const riskLevel = this.pickAllowed(raw.riskLevel, ['low', 'medium', 'high'] as const, 'riskLevel', warnings);
     if (riskLevel) task.riskLevel = riskLevel;
@@ -229,6 +404,21 @@ export class BusinessTaskLlmCompilerService {
       raw,
       warnings,
     };
+  }
+
+  private validateDraftSchemaShape(raw: Record<string, unknown>) {
+    const warnings: string[] = [];
+    const allowedFields = new Set<string>(DRAFT_FIELDS);
+    for (const key of Object.keys(raw)) {
+      if (!allowedFields.has(key)) warnings.push(`llm_unknown_field:${key}`);
+    }
+    if (raw.timeRange !== undefined && !this.asObject(raw.timeRange)) warnings.push('llm_schema_timeRange_not_object');
+    if (raw.entities !== undefined && !Array.isArray(raw.entities)) warnings.push('llm_schema_entities_not_array');
+    if (raw.metrics !== undefined && !Array.isArray(raw.metrics)) warnings.push('llm_schema_metrics_not_array');
+    if (raw.sort !== undefined && !Array.isArray(raw.sort)) warnings.push('llm_schema_sort_not_array');
+    if (raw.requiredFields !== undefined && !Array.isArray(raw.requiredFields)) warnings.push('llm_schema_requiredFields_not_array');
+    if (raw.ambiguities !== undefined && !Array.isArray(raw.ambiguities)) warnings.push('llm_schema_ambiguities_not_array');
+    return warnings;
   }
 
   private pickAllowed<const T extends readonly string[]>(
