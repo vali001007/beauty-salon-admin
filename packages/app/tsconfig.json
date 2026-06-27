@@ -18,8 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@app/*": ["src/*"],
-      "@/*": ["../../src/*"]
+      "@/*": ["src/*"]
     }
   },
-  "include": ["src", "../../src/api", "../../src/types", "../../src/stores"]
+  "include": ["src"]
 }
