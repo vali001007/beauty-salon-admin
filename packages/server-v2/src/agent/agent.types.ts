@@ -50,8 +50,17 @@ export type AgentSuggestedAction = {
   riskLevel: AgentRiskLevel;
 };
 
+export type AgentPhaseOutput = {
+  phase: 'core_conclusion' | 'details' | 'recommendations' | 'action_draft';
+  title: string;
+  summary: string;
+  blockKinds?: AuraResponseBlock['kind'][];
+  actionLabels?: string[];
+};
+
 export type AgentEvidence = {
   source: string[];
+  sourceTables?: string[];
   dateRange?: string;
   metricDefinition: string;
   filters: string[];
@@ -71,10 +80,19 @@ export type AgentPlan = {
   confidence: number;
   clarificationNeeded: boolean;
   clarificationQuestion?: string | null;
+  executionPath?: 'fast' | 'deep';
+  progressNotice?: string;
   businessTask?: unknown;
   capabilityPlan?: {
     capabilityId: string;
     reason: string;
+  };
+  skillPlan?: {
+    skillId: string;
+    capabilityId?: string;
+    confidence: number;
+    reason: string;
+    outputContract?: unknown;
   };
   semanticSqlCandidate?: unknown;
 };
@@ -224,6 +242,14 @@ export type AuraResponseBlock =
       impactSummary?: string;
     }
   | {
+      kind: 'action_card';
+      title: string;
+      preview: string;
+      actionId: string;
+      riskLevel: AgentRiskLevel;
+      impactSummary?: string;
+    }
+  | {
       kind: 'alert';
       level: 'warning' | 'critical' | 'info';
       message: string;
@@ -259,14 +285,26 @@ export type AgentRunResult = {
   toolResults: AgentToolResult[];
   actions: AgentSuggestedAction[];
   evidence?: AgentEvidence;
+  responseMode?: 'structured_blocks' | 'composed_answer';
   approval?: {
     id: number;
     toolName: string;
     riskLevel: AgentRiskLevel;
     status: string;
+    reason?: string;
   };
   // 结构化渲染 blocks，前端 BlockRenderer 按 kind 渲染
   renderedBlocks?: AuraResponseBlock[];
+  // Deep Path 分阶段输出，前端可按阶段追加展示
+  phaseOutputs?: AgentPhaseOutput[];
+  answerContract?: {
+    valid: boolean;
+    contract: unknown;
+    missingKinds: string[];
+    warnings: string[];
+    errors: string[];
+    checkedAt: string;
+  };
   // Agent 动态生成的高价值关联问题（最多 3 个）
   followUpSuggestions?: string[];
 };

@@ -29,6 +29,22 @@ describe('AgentPolicyService', () => {
       allowed: true,
       requiresApproval: false,
       riskLevel: 'low',
+      reason: '低风险只读工具可直接执行。',
+    });
+  });
+
+  it('explains why medium and high risk tools require approval', () => {
+    expect(service.validateToolAccess({ ...tool, riskLevel: 'medium' }, actor)).toMatchObject({
+      requiresApproval: true,
+      reason: expect.stringContaining('中风险能力'),
+    });
+    expect(service.validateToolAccess({ ...tool, riskLevel: 'high' }, actor)).toMatchObject({
+      requiresApproval: true,
+      reason: expect.stringContaining('高风险能力'),
+    });
+    expect(service.validateToolAccess({ ...tool, requiresApproval: true }, actor)).toMatchObject({
+      requiresApproval: true,
+      reason: expect.stringContaining('声明需要人工审批'),
     });
   });
 

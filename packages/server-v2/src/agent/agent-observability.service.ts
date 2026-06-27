@@ -1,6 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+type FeedbackFailureItem = {
+  feedbackId: number;
+  runId: number;
+  role: string;
+  personaCode: string | null;
+  rating: number | null;
+  adopted: boolean | null;
+  reason: string;
+  question: string;
+  answer: string;
+  skillId: string;
+  capabilityId: string;
+  toolNames: string[];
+  createdAt: unknown;
+};
+
 @Injectable()
 export class AgentObservabilityService {
   constructor(private readonly prisma: PrismaService) {}
@@ -114,6 +130,86 @@ export class AgentObservabilityService {
     };
   }
 
+  async getFeedbackFailureReport(query: { storeId: number; days?: number | string; personaCode?: string; limit?: number | string }) {
+    const { days, start, limit } = this.resolveFailureQuery(query);
+    const runs = await this.delegate('agentRun').findMany({
+      where: {
+        storeId: Number(query.storeId),
+        createdAt: { gte: start },
+        ...(query.personaCode ? { personaCode: String(query.personaCode) } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 2000,
+      select: {
+        id: true,
+        role: true,
+        personaCode: true,
+        userInput: true,
+        planJson: true,
+        resultJson: true,
+        errorMessage: true,
+        createdAt: true,
+      },
+    });
+    const runMap = new Map(runs.map((run: any) => [Number(run.id), run]));
+    const runIds = [...runMap.keys()];
+    const feedbacks = runIds.length
+      ? await this.delegate('agentFeedback').findMany({
+          where: { runId: { in: runIds } },
+          orderBy: { createdAt: 'desc' },
+          take: 2000,
+        })
+      : [];
+    const items: FeedbackFailureItem[] = feedbacks
+      .filter((feedback: any) => feedback.adopted === false || Number(feedback.rating) <= 2)
+      .map((feedback: any) => this.buildFeedbackFailureItem(feedback, runMap.get(Number(feedback.runId))))
+      .slice(0, limit);
+    return {
+      range: {
+        days,
+        startDate: this.formatDate(start),
+        endDate: this.formatDate(new Date()),
+      },
+      kpis: {
+        negativeFeedbackCount: items.length,
+        affectedSkillCount: new Set(items.map((item: FeedbackFailureItem) => item.skillId)).size,
+      },
+      bySkill: this.groupFeedbackFailuresBySkill(items),
+      items,
+    };
+  }
+
+  async importFeedbackFailuresToEvalCases(query: {
+    storeId: number;
+    days?: number | string;
+    personaCode?: string;
+    limit?: number | string;
+    dryRun?: boolean;
+  }) {
+    const report = await this.getFeedbackFailureReport(query);
+    const candidates = report.items.map((item: FeedbackFailureItem) => ({
+      scenario: `feedback_failure:${item.skillId || item.capabilityId || 'unknown'}`,
+      input: item.question || `run:${item.runId}`,
+      role: item.role || 'manager',
+      expectedTool: item.toolNames[0] || null,
+      expectedOutcome: this.toJsonObject({
+        source: 'agent_feedback',
+        runId: item.runId,
+        feedbackId: item.feedbackId,
+        skillId: item.skillId,
+        capabilityId: item.capabilityId,
+        reason: item.reason,
+        answer: item.answer,
+      }),
+      status: 'draft',
+    }));
+    if (query.dryRun || !candidates.length) {
+      return { dryRun: Boolean(query.dryRun), candidates, created: 0 };
+    }
+    const created = await this.delegate('agentEvalCase').createMany({ data: candidates });
+    return { dryRun: false, candidates, created: Number(created?.count ?? candidates.length) };
+  }
+
   private groupRunsBy(runs: any[], key: 'personaCode' | 'role') {
     const groups = new Map<string, { name: string; runCount: number; completed: number; failed: number }>();
     for (const run of runs) {
@@ -154,6 +250,65 @@ export class AgentObservabilityService {
         failureRate: group.callCount ? group.failed / group.callCount : 0,
         avgLatencyMs: group.latencyCount ? Math.round(group.totalLatencyMs / group.latencyCount) : null,
       }));
+  }
+
+  private resolveFailureQuery(query: { days?: number | string; limit?: number | string }) {
+    const days = Math.min(90, Math.max(1, Number(query.days) || 7));
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const start = new Date();
+    start.setDate(start.getDate() - days + 1);
+    start.setHours(0, 0, 0, 0);
+    return { days, start, limit };
+  }
+
+  private buildFeedbackFailureItem(feedback: any, run: any): FeedbackFailureItem {
+    const action = this.asObject(feedback.businessActionJson);
+    const snapshot = this.asObject(action?.snapshot);
+    const result = this.asObject(run?.resultJson);
+    const plan = this.asObject(run?.planJson);
+    const traceSummary = this.asObject(result?.traceSummary);
+    const skillPlan = this.asObject(plan?.skillPlan);
+    const capabilityPlan = this.asObject(plan?.capabilityPlan);
+    const planToolNames = Array.isArray(plan?.toolPlan)
+      ? plan.toolPlan.map((item: any) => String(this.asObject(item)?.tool ?? '')).filter(Boolean)
+      : [];
+    const snapshotToolNames = Array.isArray(snapshot?.toolNames) ? snapshot.toolNames.map(String).filter(Boolean) : [];
+    return {
+      feedbackId: Number(feedback.id),
+      runId: Number(feedback.runId),
+      role: String(run?.role ?? 'manager'),
+      personaCode: run?.personaCode ?? null,
+      rating: feedback.rating ?? null,
+      adopted: feedback.adopted ?? null,
+      reason: feedback.comment ?? snapshot?.feedbackReason ?? '用户负反馈',
+      question: String(snapshot?.question ?? run?.userInput ?? ''),
+      answer: String(snapshot?.answer ?? result?.answer ?? run?.errorMessage ?? ''),
+      skillId: String(snapshot?.skillId ?? traceSummary?.skillId ?? skillPlan?.skillId ?? ''),
+      capabilityId: String(snapshot?.capabilityId ?? traceSummary?.capabilityId ?? skillPlan?.capabilityId ?? capabilityPlan?.capabilityId ?? ''),
+      toolNames: snapshotToolNames.length ? snapshotToolNames : planToolNames,
+      createdAt: feedback.createdAt,
+    };
+  }
+
+  private groupFeedbackFailuresBySkill(items: Array<{ skillId: string; capabilityId: string; reason: string; createdAt: unknown }>) {
+    const groups = new Map<string, { skillId: string; capabilityId: string; count: number; latestAt: unknown; reasons: string[] }>();
+    for (const item of items) {
+      const key = item.skillId || item.capabilityId || 'unknown';
+      const group = groups.get(key) ?? { skillId: item.skillId || 'unknown', capabilityId: item.capabilityId || 'unknown', count: 0, latestAt: item.createdAt, reasons: [] };
+      group.count += 1;
+      group.latestAt = item.createdAt ?? group.latestAt;
+      if (item.reason && !group.reasons.includes(item.reason)) group.reasons.push(item.reason);
+      groups.set(key, group);
+    }
+    return [...groups.values()].sort((a, b) => b.count - a.count).slice(0, 20);
+  }
+
+  private asObject(value: unknown): Record<string, any> | null {
+    return typeof value === 'object' && value !== null ? (value as Record<string, any>) : null;
+  }
+
+  private toJsonObject(value: Record<string, unknown>) {
+    return JSON.parse(JSON.stringify(value));
   }
 
   private async optionalFindMany(delegateName: string, args: Record<string, unknown>) {

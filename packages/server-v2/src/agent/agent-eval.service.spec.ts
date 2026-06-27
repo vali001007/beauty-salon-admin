@@ -1,4 +1,4 @@
-import { DEFAULT_AGENT_EVAL_CASES } from './agent-eval.cases.js';
+import { DEFAULT_AGENT_EVAL_CASES, P0_AGENT_EVAL_CASES } from './agent-eval.cases.js';
 import { AgentEvalService } from './agent-eval.service.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
@@ -6,6 +6,7 @@ import { AgentPlannerService } from './agent-planner.service.js';
 import { BusinessTaskCompilerService } from './business-task/business-task-compiler.service.js';
 import { BusinessTaskPreParserService } from './business-task/business-task-preparser.service.js';
 import { CapabilityRegistryService } from './capabilities/capability-registry.service.js';
+import { AgentSkillsRegistryService } from './skills/index.js';
 import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
 import { SemanticSqlDecisionService } from '../semantic-sql/semantic-sql-decision.service.js';
 
@@ -392,6 +393,7 @@ describe('AgentEvalService', () => {
     list: jest.fn(() => tools),
     get: jest.fn((name: string) => tools.find((tool) => tool.name === name)),
   } as any;
+  const skillRegistry = new AgentSkillsRegistryService();
   const planner = new AgentPlannerService(
     registry,
     new BusinessTaskCompilerService(
@@ -399,6 +401,8 @@ describe('AgentEvalService', () => {
       new CapabilityRegistryService(),
       new SemanticMetricRegistryService(),
       new SemanticSqlDecisionService(),
+      undefined,
+      skillRegistry,
     ),
   );
   const service = new AgentEvalService(
@@ -406,6 +410,7 @@ describe('AgentEvalService', () => {
     registry,
     new AgentFieldScopeSanitizerService(),
     new AgentResponseSafetyService(),
+    skillRegistry,
   );
 
   it('contains a broad natural-language regression matrix', () => {
@@ -470,7 +475,7 @@ describe('AgentEvalService', () => {
     expect(runtimeCheckedResults).toHaveLength(toolMatchedResults.length);
     expect(toolMatchedResults.every((item) => item.actual.runtimeResponseSafe === true)).toBe(true);
     expect(toolMatchedResults.every((item) => (item.actual.runtimeResponseSafetyViolations as string[]).length === 0)).toBe(true);
-    expect(Array.from(new Set(toolMatchedResults.map((item) => item.actual.firstTool)))).toEqual(
+    expect(Array.from(new Set(toolMatchedResults.flatMap((item) => item.actual.plannedTools as string[])))).toEqual(
       expect.arrayContaining(tools.map((tool) => tool.name)),
     );
     expect(result.results).toEqual(
@@ -489,6 +494,99 @@ describe('AgentEvalService', () => {
         }),
       ]),
     );
+  });
+
+  it('passes the standalone Dongxi Beauty P0 high-frequency QA baseline cases', async () => {
+    expect(P0_AGENT_EVAL_CASES.length).toBeGreaterThanOrEqual(50);
+    expect(new Set(P0_AGENT_EVAL_CASES.map((item) => item.scenario))).toEqual(
+      new Set(['P0 消费客户清单', 'P0 营收问数', 'P0 预约清单', 'P0 库存预警', 'P0 客户复购回访']),
+    );
+
+    const result = await service.runP0Cases();
+
+    expect(result.total).toBe(P0_AGENT_EVAL_CASES.length);
+    expect(result.failed).toBe(0);
+  });
+
+  it('runs eval cases by Skill and reports accuracy metrics', async () => {
+    const result = await service.runSkillCases();
+
+    expect(result.total).toBeGreaterThanOrEqual(8);
+    expect(result.failed).toBe(0);
+    expect(result.metrics).toMatchObject({
+      skillCount: expect.any(Number),
+      toolAccuracy: 1,
+      capabilityAccuracy: 1,
+      outputContractAccuracy: 1,
+    });
+    expect(result.bySkill).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ skillId: 'reservation.capacity.schedule', failed: 0 }),
+        expect.objectContaining({ skillId: 'inventory.supply.risk', failed: 0 }),
+        expect.objectContaining({ skillId: 'staff.performance.management', failed: 0 }),
+      ]),
+    );
+  });
+
+  it('runs eval cases for a single Skill', async () => {
+    const result = await service.runSkillCases('inventory.supply.risk');
+
+    expect(result.skillId).toBe('inventory.supply.risk');
+    expect(result.bySkill).toHaveLength(1);
+    expect(result.bySkill[0]).toMatchObject({
+      skillId: 'inventory.supply.risk',
+      total: 2,
+      failed: 0,
+      toolAccuracy: 1,
+    });
+  });
+
+  it('persists failed eval samples as draft regression cases when requested', async () => {
+    const prisma = {
+      agentEvalCase: {
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const persistService = new AgentEvalService(
+      planner,
+      registry,
+      new AgentFieldScopeSanitizerService(),
+      new AgentResponseSafetyService(),
+      skillRegistry,
+      prisma,
+    );
+
+    const result = await persistService.runDefaultCases(
+      [
+        {
+          id: 'forced-failure',
+          scenario: '强制失败样本',
+          input: '今天收入怎么样',
+          role: 'manager',
+          expectedTool: 'wrong.tool',
+          expectedClarification: false,
+        },
+      ],
+      { persistFailures: true, source: 'unit_test' },
+    );
+
+    expect(result.failed).toBe(1);
+    expect(result.savedFailureSamples).toBe(1);
+    expect(prisma.agentEvalCase.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          scenario: 'regression:强制失败样本',
+          input: '今天收入怎么样',
+          role: 'manager',
+          expectedTool: 'wrong.tool',
+          status: 'draft',
+          expectedOutcome: expect.objectContaining({
+            source: 'unit_test',
+            originalCaseId: 'forced-failure',
+          }),
+        }),
+      ],
+    });
   });
 
   it('reports account permission boundaries in eval results', async () => {

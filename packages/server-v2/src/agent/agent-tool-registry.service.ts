@@ -5175,21 +5175,127 @@ export class AgentToolRegistryService {
     const result = await this.diagnoseFinanceMargin(args, context);
     const data = typeof result.data === 'object' && result.data !== null ? (result.data as Record<string, any>) : {};
     const current = data.current ?? {};
+    const previous = data.previous ?? {};
+    const deltas = data.deltas ?? {};
+    const question = String(args.question ?? '');
+    const askedDecline = /下降|下滑|降低|变差|亏损|少了/.test(question);
+    const grossProfitDelta = this.toNumber(deltas.grossProfitDelta);
+    const revenueDelta = this.toNumber(deltas.revenueDelta);
+    const materialCostDelta = this.toNumber(current.materialCost) - this.toNumber(previous.materialCost);
+    const commissionDelta = this.toNumber(current.commissionTotal) - this.toNumber(previous.commissionTotal);
+    const refundDelta = this.toNumber(current.refundAmount) - this.toNumber(previous.refundAmount);
+    const lowMarginItems = Array.isArray(data.lowMarginItems) ? data.lowMarginItems as any[] : [];
+    const topCostItems = Array.isArray(data.topCostItems) ? data.topCostItems as any[] : [];
+    const trend =
+      result.status === 'no_data'
+        ? 'unknown'
+        : grossProfitDelta < 0
+          ? 'declined'
+          : grossProfitDelta > 0
+            ? 'increased'
+            : 'flat';
+    const trendSummary =
+      trend === 'declined'
+        ? `利润确有下降：毛利较上一周期减少 ${this.formatMoney(Math.abs(grossProfitDelta))}（${String(deltas.grossProfitDeltaRateText ?? '-') }）。`
+        : trend === 'increased'
+          ? `${askedDecline ? '当前数据不支持“利润下降”这个判断：' : ''}毛利较上一周期提升 ${this.formatMoney(Math.abs(grossProfitDelta))}（${String(deltas.grossProfitDeltaRateText ?? '-') }）。`
+          : trend === 'flat'
+            ? `${askedDecline ? '当前数据不支持“利润下降”这个判断：' : ''}毛利较上一周期基本持平。`
+            : String(result.summary ?? '暂无利润诊断数据。');
+    const drivers = [
+      revenueDelta < 0
+        ? {
+            driver: '净收入减少',
+            impact: `净收入较上一周期减少 ${this.formatMoney(Math.abs(revenueDelta))}`,
+            evidence: `${String(current.netRevenueText ?? '-')} vs ${String(previous.netRevenueText ?? '-')}`,
+            suggestedAction: '复盘订单数、客单价和高贡献项目变化，优先恢复成交来源。',
+            riskLevel: 'high',
+          }
+        : null,
+      materialCostDelta > 0
+        ? {
+            driver: '耗材/商品成本上升',
+            impact: `成本较上一周期增加 ${this.formatMoney(materialCostDelta)}`,
+            evidence: `${String(current.materialCostText ?? '-')} vs ${String(previous.materialCostText ?? '-')}`,
+            suggestedAction: '检查高成本项目 BOM、商品成本价和异常消耗记录。',
+            riskLevel: materialCostDelta > Math.max(1000, this.toNumber(current.netRevenue) * 0.05) ? 'high' : 'medium',
+          }
+        : null,
+      commissionDelta > 0
+        ? {
+            driver: '提成成本上升',
+            impact: `提成较上一周期增加 ${this.formatMoney(commissionDelta)}`,
+            evidence: `${String(current.commissionTotalText ?? '-')} vs ${String(previous.commissionTotalText ?? '-')}`,
+            suggestedAction: '复核提成规则、订单归属和高提成项目结构。',
+            riskLevel: 'medium',
+          }
+        : null,
+      refundDelta > 0
+        ? {
+            driver: '退款抵减增加',
+            impact: `退款较上一周期增加 ${this.formatMoney(refundDelta)}`,
+            evidence: `${String(current.refundAmountText ?? '-')} vs ${String(previous.refundAmountText ?? '-')}`,
+            suggestedAction: '核对退款原因、服务投诉和活动承诺履约情况。',
+            riskLevel: 'medium',
+          }
+        : null,
+      lowMarginItems[0]
+        ? {
+            driver: '低毛利项目/商品拖累',
+            impact: `${lowMarginItems[0].itemName} 毛利率 ${lowMarginItems[0].marginRateText}`,
+            evidence: `收入 ${lowMarginItems[0].revenueText}，成本 ${lowMarginItems[0].materialCostText}`,
+            suggestedAction: '控制折扣力度，复核定价、成本和耗材配置。',
+            riskLevel: this.toNumber(lowMarginItems[0].marginRate) < 0.2 ? 'high' : 'medium',
+          }
+        : null,
+      topCostItems[0] && !lowMarginItems[0]
+        ? {
+            driver: '成本占用集中',
+            impact: `${topCostItems[0].itemName} 成本 ${topCostItems[0].materialCostText}`,
+            evidence: `收入 ${topCostItems[0].revenueText}，毛利 ${topCostItems[0].grossProfitText}`,
+            suggestedAction: '优先检查成本占用最高的项目/商品是否有异常消耗。',
+            riskLevel: 'low',
+          }
+        : null,
+    ].filter(Boolean);
+    const diagnosisDrivers = drivers.length
+      ? drivers
+      : [
+          {
+            driver: trend === 'increased' ? '利润未下降' : '暂无明显异常驱动',
+            impact: trendSummary,
+            evidence: `净收入 ${String(current.netRevenueText ?? '-')}，毛利 ${String(current.grossProfitText ?? '-')}，毛利率 ${String(current.grossMarginRateText ?? '-')}`,
+            suggestedAction: trend === 'increased' ? '继续关注低毛利项、退款折扣和提成成本，避免增长掩盖结构性风险。' : '继续跟踪收入、成本、退款和提成变化。',
+            riskLevel: trend === 'increased' ? 'low' : 'medium',
+          },
+        ];
+    const profitSummary =
+      result.status === 'no_data'
+        ? result.summary
+        : `利润诊断：${trendSummary} 当前净收入 ${String(current.netRevenueText ?? '-')}，毛利 ${String(current.grossProfitText ?? '-')}，毛利率 ${String(current.grossMarginRateText ?? '-')}。主要线索：${diagnosisDrivers
+            .slice(0, 3)
+            .map((item: any) => `${item.driver}（${item.impact}）`)
+            .join('；')}。`;
     return {
       ...result,
       title: result.status === 'no_data' ? '利润诊断' : '利润与毛利诊断',
-      summary:
-        result.status === 'no_data'
-          ? result.summary
-          : `利润诊断：${result.summary}`,
+      summary: profitSummary,
       data: {
         ...data,
         reportType: 'finance_profit_diagnosis',
+        diagnosis: {
+          trend,
+          askedDecline,
+          conclusion: trendSummary,
+          drivers: diagnosisDrivers,
+        },
+        items: diagnosisDrivers,
         kpis: [
           { label: '净收入', value: String(current.netRevenueText ?? '-') },
           { label: '毛利', value: String(current.grossProfitText ?? '-') },
           { label: '毛利率', value: String(current.grossMarginRateText ?? '-') },
           { label: '提成成本', value: String(current.commissionTotalText ?? '-') },
+          { label: '毛利变化', value: String(deltas.grossProfitDeltaText ?? '-'), delta: String(deltas.grossProfitDeltaRateText ?? '-'), deltaType: trend === 'declined' ? 'down' : trend === 'increased' ? 'up' : 'neutral' },
         ],
       },
       actions: [
@@ -6223,21 +6329,6 @@ export class AgentToolRegistryService {
     return {
       customerId: customer.id,
       customerName: customer.name,
-      phone: this.maskPhone(customer.phone),
-      memberLevel: customer.memberLevel,
-      tags: customer.tags ?? [],
-      visitCount,
-      totalSpent,
-      lastVisitDate: customer.lastVisitDate,
-      lastVisitDays,
-      churnScore,
-      churnLevel: snapshot?.churnLevel,
-      repurchase30dScore: repurchaseScore,
-      marketingResponseScore,
-      reservationCount: signal?.reservationCount ?? 0,
-      pendingFollowUpCount: signal?.pendingFollowUpCount ?? 0,
-      urgentFollowUpCount: signal?.urgentFollowUpCount ?? 0,
-      priorityScore,
       priority: priorityScore >= 75 ? 'urgent' : priorityScore >= 55 ? 'recommended' : 'opportunity',
       reason: reasons.join('；') || '客户具备基础跟进价值，建议维持服务节奏。',
       suggestedAction:
@@ -6250,6 +6341,21 @@ export class AgentToolRegistryService {
           : repurchaseScore >= 60
             ? '按护理周期提醒到店，推荐上次相关项目。'
             : '发送轻量关怀并确认近期护理需求。',
+      phone: this.maskPhone(customer.phone),
+      memberLevel: customer.memberLevel,
+      priorityScore,
+      tags: customer.tags ?? [],
+      visitCount,
+      totalSpent,
+      lastVisitDate: customer.lastVisitDate,
+      lastVisitDays,
+      churnScore,
+      churnLevel: snapshot?.churnLevel,
+      repurchase30dScore: repurchaseScore,
+      marketingResponseScore,
+      reservationCount: signal?.reservationCount ?? 0,
+      pendingFollowUpCount: signal?.pendingFollowUpCount ?? 0,
+      urgentFollowUpCount: signal?.urgentFollowUpCount ?? 0,
     };
   }
 

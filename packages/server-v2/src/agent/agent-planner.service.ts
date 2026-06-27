@@ -29,8 +29,7 @@ export class AgentPlannerService {
         toolPlan: [],
         confidence: 0.9,
         clarificationNeeded: true,
-        clarificationQuestion:
-          '该请求涉及正式发布、批量触达、收银、核销或退款等高风险动作，Agent 不能直接执行。请先生成草稿或建议，并在管理端完成审批后再操作。',
+        clarificationQuestion: this.buildHighRiskDirectActionQuestion(text),
         businessTask,
         semanticSqlCandidate,
       };
@@ -82,6 +81,7 @@ export class AgentPlannerService {
         ],
         confidence: 0.87,
         clarificationNeeded: false,
+        executionPath: 'deep',
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
@@ -110,6 +110,7 @@ export class AgentPlannerService {
         ],
         confidence: 0.87,
         clarificationNeeded: false,
+        executionPath: 'deep',
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
@@ -156,7 +157,30 @@ export class AgentPlannerService {
         goal: '诊断利润和毛利变化',
         toolPlan: [
           {
+            tool: 'finance.revenue.summary',
+            args: {
+              question: input.message,
+              timeRange: businessTask.timeRange?.preset ?? 'last_30_days',
+            },
+          },
+          {
             tool: 'finance.profit.diagnose',
+            args: {
+              question: input.message,
+              timeRange: businessTask.timeRange?.preset ?? 'last_30_days',
+              limit: this.detectCustomerListLimit(text),
+            },
+          },
+          {
+            tool: 'finance.refund.discount.audit',
+            args: {
+              question: input.message,
+              timeRange: businessTask.timeRange?.preset ?? 'last_30_days',
+              limit: this.detectCustomerListLimit(text),
+            },
+          },
+          {
+            tool: 'finance.beautician.performance.audit',
             args: {
               question: input.message,
               timeRange: businessTask.timeRange?.preset ?? 'last_30_days',
@@ -166,11 +190,25 @@ export class AgentPlannerService {
         ],
         confidence: 0.87,
         clarificationNeeded: false,
+        executionPath: 'deep',
+        progressNotice: `正在分析${businessTask.timeRange?.label ?? '近30天'}的收入、利润成本、退款折扣和员工绩效风险。`,
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
           capabilityId: 'finance_profit_diagnosis',
           reason: '命中利润、毛利、成本或提成变化诊断意图，复用经营利润口径输出原因和建议。',
+        },
+        skillPlan: {
+          skillId: 'finance.profit.risk',
+          capabilityId: 'finance_profit_diagnosis',
+          confidence: 0.87,
+          reason: '命中 P1 Skill「利润风险诊断」：组合收入、毛利、退款折扣和员工绩效风险给出诊断结论。',
+          outputContract: {
+            requiredKinds: ['kpi', 'table', 'evidence'],
+            preferredKinds: ['kpi', 'table', 'evidence'],
+            evidenceRequired: true,
+            maxFollowUps: 3,
+          },
         },
       };
     }
@@ -193,6 +231,7 @@ export class AgentPlannerService {
         ],
         confidence: 0.87,
         clarificationNeeded: false,
+        executionPath: 'fast',
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
@@ -247,6 +286,7 @@ export class AgentPlannerService {
         ],
         confidence: 0.9,
         clarificationNeeded: false,
+        executionPath: 'fast',
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
@@ -274,6 +314,7 @@ export class AgentPlannerService {
         ],
         confidence: 0.88,
         clarificationNeeded: false,
+        executionPath: 'fast',
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
@@ -287,6 +328,7 @@ export class AgentPlannerService {
       if (!this.canUseTool('reception.card.benefit.summary', input.actor.role)) {
         return this.buildRoleDeniedPlan('reception.card.benefit.summary', businessTask, semanticSqlCandidate);
       }
+      const customerContextArgs = this.buildCustomerContextArgs(businessTask);
       return {
         intentType: 'query',
         goal: '查询客户卡项与权益概况',
@@ -295,7 +337,8 @@ export class AgentPlannerService {
             tool: 'reception.card.benefit.summary',
             args: {
               question: input.message,
-              customerQuery: this.extractCustomerQuery(input.message),
+              customerQuery: String(customerContextArgs.customerName ?? customerContextArgs.customerId ?? this.extractCustomerQuery(input.message)),
+              ...customerContextArgs,
             },
           },
         ],
@@ -359,6 +402,22 @@ export class AgentPlannerService {
         clarificationNeeded: false,
         businessTask,
         semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'inventory_supply_risk',
+          reason: '命中库存供应风险 Skill 的补货采购草稿场景，需人工审批后才创建采购草稿。',
+        },
+        skillPlan: {
+          skillId: 'inventory.supply.risk',
+          capabilityId: 'inventory_supply_risk',
+          confidence: 0.84,
+          reason: '命中 P1 Skill「库存供应风险诊断」：明确请求生成补货采购草稿。',
+          outputContract: {
+            requiredKinds: ['table', 'evidence'],
+            preferredKinds: ['kpi', 'table', 'action_card', 'evidence'],
+            evidenceRequired: true,
+            maxFollowUps: 3,
+          },
+        },
       };
     }
 
@@ -520,7 +579,7 @@ export class AgentPlannerService {
       };
     }
 
-    if (this.isBeauticianRepurchaseOpportunityRequest(text)) {
+    if (this.isBeauticianRepurchaseOpportunityRequest(text, input.actor.role)) {
       if (!this.canUseTool('beautician.repurchase.opportunity', input.actor.role)) {
         return this.buildRoleDeniedPlan('beautician.repurchase.opportunity', businessTask, semanticSqlCandidate);
       }
@@ -726,6 +785,9 @@ export class AgentPlannerService {
             args: {
               question: input.message,
               dateRange: this.detectMarketingTimeRange(text) ?? 'last_30_days',
+              filters: businessTask.filters,
+              ...(businessTask.filters?.activityId !== undefined ? { activityId: businessTask.filters.activityId } : {}),
+              ...(businessTask.filters?.activityTitle !== undefined ? { activityTitle: businessTask.filters.activityTitle } : {}),
             },
           },
         ],
@@ -779,6 +841,44 @@ export class AgentPlannerService {
       };
     }
 
+    if (this.isMarketingRecallActivityDraftRequest(text)) {
+      if (!this.canUseTool('marketing.activity.draft', input.actor.role)) {
+        return this.buildRoleDeniedPlan('marketing.activity.draft', businessTask, semanticSqlCandidate);
+      }
+      const recallDraft = this.buildMarketingRecallActivityDraftArgs(input.message, businessTask);
+      return {
+        intentType: 'draft',
+        goal: '生成客户召回营销活动草稿',
+        toolPlan: [
+          {
+            tool: 'marketing.activity.draft',
+            args: recallDraft,
+          },
+        ],
+        confidence: 0.86,
+        clarificationNeeded: false,
+        executionPath: 'deep',
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'marketing_growth_execution',
+          reason: '命中客户召回活动草稿意图，生成活动预览并等待人工确认，不直接发布或触达客户。',
+        },
+        skillPlan: {
+          skillId: 'marketing.growth.execution',
+          capabilityId: 'marketing_growth_execution',
+          confidence: 0.86,
+          reason: '命中 P1 Skill「营销增长执行」：根据召回目标生成营销活动草稿和确认卡。',
+          outputContract: {
+            requiredKinds: ['action_card'],
+            preferredKinds: ['action_card', 'evidence'],
+            evidenceRequired: true,
+            maxFollowUps: 3,
+          },
+        },
+      };
+    }
+
     if (this.isDraftRequest(text)) {
       const hasPreviousOpportunity = this.hasPreviousOpportunity(input.context);
       if (hasPreviousOpportunity && !this.canUseTool('marketing.activity.draft', input.actor.role)) {
@@ -799,6 +899,9 @@ export class AgentPlannerService {
         semanticSqlCandidate,
       };
     }
+
+    const clarificationPlan = this.planClarificationFromCompiledTask(compiled);
+    if (clarificationPlan) return clarificationPlan;
 
     const compiledPlan = this.planFromCompiledTask(compiled);
     if (compiledPlan) return compiledPlan;
@@ -907,6 +1010,7 @@ export class AgentPlannerService {
       ],
       confidence: Math.max(0.84, task.confidence),
       clarificationNeeded: false,
+      executionPath: this.executionPathForCapability('customer_priority_recommendation'),
       businessTask: task,
       semanticSqlCandidate,
       capabilityPlan: {
@@ -918,6 +1022,7 @@ export class AgentPlannerService {
 
   private planFromCompiledTask(compiled: Awaited<ReturnType<BusinessTaskCompilerService['compile']>>): AgentPlan | null {
     const capability = compiled.capabilityMatches[0];
+    const skill = compiled.skillMatches?.[0];
     if (!capability) return null;
     if (capability.capabilityId === 'business_query' && this.isMarketingOpportunity(this.normalize(compiled.task.objective))) {
       return null;
@@ -925,7 +1030,10 @@ export class AgentPlannerService {
     const goalByCapability: Record<string, string> = {
       customer_priority_recommendation: '推荐优先跟进客户',
       revenue_diagnosis: '诊断收入变化',
+      order_revenue_analysis: '查询营收订单 KPI',
+      order_customer_consumption_list: '查询消费客户清单',
       product_sales_ranking: '查询商品销量排行',
+      inventory_supply_risk: '诊断库存供应风险',
       inventory_risk_ranking: '查询库存风险排行',
       reservation_schedule_diagnosis: '诊断预约排班',
       project_business_diagnosis: '诊断项目经营',
@@ -947,7 +1055,7 @@ export class AgentPlannerService {
     if (!goal) return null;
     if (capability.capabilityId === 'business_query' && compiled.task.domain === 'unknown') return null;
     const analysisCapabilities = new Set(
-      Object.keys(goalByCapability).filter((id) => id !== 'business_query'),
+      Object.keys(goalByCapability).filter((id) => !['business_query', 'order_customer_consumption_list', 'order_revenue_analysis'].includes(id)),
     );
 
     return {
@@ -956,12 +1064,55 @@ export class AgentPlannerService {
       toolPlan: capability.toolPlan,
       confidence: Math.max(0.76, compiled.validation.confidence),
       clarificationNeeded: false,
+      executionPath: this.executionPathForCapability(capability.capabilityId),
       businessTask: compiled.task,
       semanticSqlCandidate: compiled.semanticSqlCandidate,
       capabilityPlan: {
         capabilityId: capability.capabilityId,
         reason: capability.reason,
       },
+      skillPlan: skill
+        ? {
+            skillId: skill.skillId,
+            capabilityId: skill.capabilityId,
+            confidence: skill.confidence,
+            reason: skill.reason,
+            outputContract: skill.outputContract,
+          }
+        : undefined,
+    };
+  }
+
+  private executionPathForCapability(capabilityId: string): AgentPlan['executionPath'] {
+    const fastPathCapabilities = new Set([
+      'order_customer_consumption_list',
+      'order_revenue_analysis',
+      'revenue_diagnosis',
+      'finance_revenue_summary',
+      'reservation_schedule_diagnosis',
+      'inventory_supply_risk',
+      'inventory_risk_ranking',
+      'staff_performance_ranking',
+      'customer_priority_recommendation',
+    ]);
+    return fastPathCapabilities.has(capabilityId) ? 'fast' : 'deep';
+  }
+
+  private planClarificationFromCompiledTask(
+    compiled: Awaited<ReturnType<BusinessTaskCompilerService['compile']>>,
+  ): AgentPlan | null {
+    if (compiled.validation.valid) return null;
+    return {
+      intentType: 'clarify',
+      goal: '澄清用户想执行的经营任务',
+      toolPlan: [],
+      confidence: Math.max(0.3, compiled.validation.confidence),
+      clarificationNeeded: true,
+      clarificationQuestion:
+        compiled.validation.clarificationQuestion ??
+        '请补充一个最关键条件，例如业务领域、时间范围、客户范围或要看的指标。',
+      businessTask: compiled.task,
+      semanticSqlCandidate: compiled.semanticSqlCandidate,
     };
   }
 
@@ -1056,9 +1207,10 @@ export class AgentPlannerService {
 
   private isCustomerPriorityListRequest(text: string) {
     const hasCount = /(\d+|[一二三四五六七八九十]+)(个|位|名)?.{0,8}(客户|顾客|会员|老客|VIP)|((客户|顾客|会员|老客|VIP).{0,8}(\d+|[一二三四五六七八九十]+)(个|位|名)?)/i.test(text);
-    const hasPriorityIntent = /优先|最值得|重点|回访|邀约|跟进|唤醒|复购/.test(text);
-    const hasCustomerDomain = /客户|顾客|会员|老客|VIP|沉睡|流失/.test(text);
-    return hasCount && hasPriorityIntent && hasCustomerDomain;
+    const hasListIntent = /哪些|谁|哪几位|哪几个|名单|清单|排行|排名|列出|看一下/.test(text);
+    const hasPriorityIntent = /优先|最值得|重点|该回访|回访|邀约|跟进|唤醒|复购|续卡|护理周期|再次到店/.test(text);
+    const hasCustomerDomain = /客户|顾客|会员|老客|VIP|沉睡|流失|服务客户|护理客户/.test(text);
+    return (hasCount || hasListIntent) && hasPriorityIntent && hasCustomerDomain;
   }
 
   private detectCustomerListLimit(text: string) {
@@ -1109,9 +1261,25 @@ export class AgentPlannerService {
   }
 
   private isHighRiskDirectAction(text: string) {
-    const hasDirectAction = /发布|上线|群发|发送|自动发|扣款|收款|直接退款|发起退款|确认退款|退款给|直接核销|帮.*核销|确认核销|核销次卡|划扣|确认收银|改排班|删除/.test(text);
+    const hasDirectAction = /发布|上线|群发|发送|推送|下发|自动发|发给|给.*(?:客户|会员).*发|扣款|收款|直接退款|发起退款|确认退款|退款给|直接核销|帮.*核销|确认核销|核销次卡|划扣|确认收银|改排班|删除/.test(text);
     const hasSensitiveDomain = /活动|客户|会员|短信|微信|小程序|订单|次卡|会员卡|余额|排班|预约|库存|收银|支付|扣款|收款/.test(text);
     return hasDirectAction && hasSensitiveDomain;
+  }
+
+  private buildHighRiskDirectActionQuestion(text: string) {
+    if (/优惠券|权益|券|短信|微信|群发|发送|自动发|客户|会员/.test(text)) {
+      return '该请求涉及正式触达客户，Agent 不能直接执行；请确认客户范围和是否先生成草稿预览？';
+    }
+    if (/退款|退费/.test(text)) {
+      return '该请求涉及真实退款，Agent 不能直接执行；请确认订单范围和是否先生成退款核对清单？';
+    }
+    if (/核销|次卡|划扣/.test(text)) {
+      return '该请求涉及真实核销或划扣，Agent 不能直接执行；请确认客户和卡项范围并先生成核对清单？';
+    }
+    if (/收银|收款|扣款|支付/.test(text)) {
+      return '该请求涉及真实收银或扣款，Agent 不能直接执行；请确认订单范围并先生成收银核对清单？';
+    }
+    return '该请求涉及正式发布、批量触达、收银、核销或退款等高风险动作，Agent 不能直接执行；请确认操作范围并先生成草稿预览？';
   }
 
   private isCustomerFollowUpDraftRequest(text: string) {
@@ -1188,10 +1356,10 @@ export class AgentPlannerService {
     return hasSelfOrStaff && hasPerformance && hasTimeOrProgress;
   }
 
-  private isBeauticianRepurchaseOpportunityRequest(text: string) {
+  private isBeauticianRepurchaseOpportunityRequest(text: string, role: AgentActor['role']) {
     const hasCustomerDomain = /客户|顾客|会员|老客|卡项|次卡/.test(text);
     const hasOpportunity = /复购|续卡|回访|下次护理|再次到店|护理周期|适合跟进|适合邀约/.test(text);
-    const hasBeauticianScope = /我|我的|美容师|服务后|服务客户|护理客户|哪些/.test(text);
+    const hasBeauticianScope = role === 'beautician' || /我|我的|美容师|技师|我的客户|我服务/.test(text);
     return hasCustomerDomain && hasOpportunity && hasBeauticianScope;
   }
 
@@ -1237,6 +1405,18 @@ export class AgentPlannerService {
     return candidates || text;
   }
 
+  private buildCustomerContextArgs(task: BusinessTask | undefined): Record<string, unknown> {
+    const filters = task?.filters ?? {};
+    const customerId = filters.customerId;
+    const customerName = filters.customerName;
+    const phoneMasked = filters.phoneMasked;
+    return {
+      ...(customerId !== undefined && customerId !== null && customerId !== '' ? { customerId } : {}),
+      ...(customerName !== undefined && customerName !== null && customerName !== '' ? { customerName } : {}),
+      ...(phoneMasked !== undefined && phoneMasked !== null && phoneMasked !== '' ? { phoneMasked } : {}),
+    };
+  }
+
   private detectMarketingSegment(text: string) {
     if (/沉睡|流失|没来|未到店|唤醒|召回/.test(text)) return 'churn';
     if (/新客|未转化|首单/.test(text)) return 'new_customer';
@@ -1262,6 +1442,52 @@ export class AgentPlannerService {
 
   private isDraftRequest(text: string) {
     return /草稿|生成活动|创建活动|新建活动|做个活动|活动方案/.test(text);
+  }
+
+  private isMarketingRecallActivityDraftRequest(text: string) {
+    const hasDraftIntent = /生成|创建|新建|做个|做一场|策划|活动方案|活动草稿|召回活动/.test(text);
+    const hasMarketingDomain = /活动|营销|促销|权益|优惠券|券|礼包|私域|短信/.test(text);
+    const hasRecallTarget = /召回|沉睡|流失|唤醒|未到店|没来|老客|回店|回流/.test(text);
+    return hasDraftIntent && (hasMarketingDomain || /召回活动/.test(text)) && hasRecallTarget;
+  }
+
+  private buildMarketingRecallActivityDraftArgs(message: string, businessTask: BusinessTask) {
+    const targetAudience = /高价值|VIP|大客户/.test(message)
+      ? '60 天未到店高价值客户'
+      : /沉睡/.test(message)
+        ? '60 天未到店沉睡客户'
+        : '60 天未到店流失风险客户';
+    const offerSummary = /券|优惠券/.test(message)
+      ? '回店护理券'
+      : /折扣/.test(message)
+        ? '回店专属折扣'
+        : '回店护理权益';
+    const title = /沉睡/.test(message)
+      ? '沉睡客户召回活动'
+      : /老客/.test(message)
+        ? '老客回店召回活动'
+        : '流失客户召回活动';
+    return {
+      question: message,
+      businessTask,
+      title,
+      targetAudience,
+      offerSummary,
+      copyPreview: `亲爱的会员，最近店里为您准备了${offerSummary}，可预约一次肤况复测和护理建议。名额有限，您看这两天哪天方便到店？`,
+      scheduleHint: '建议审批通过后保存为草稿，由运营确认客户名单和发送时间',
+      items: [
+        {
+          name: title,
+          productName: title,
+          opportunityType: '客户召回',
+          suggestedCampaign: offerSummary,
+          fitScore: 82,
+          customerCount: 60,
+          reason: `${targetAudience}存在回店承接机会，适合先生成草稿并人工确认名单。`,
+          riskWarnings: ['正式发布前需确认客户名单、权益成本和触达时间。'],
+        },
+      ],
+    };
   }
 
   private isBusinessQuestion(text: string) {

@@ -2,6 +2,7 @@ import { AgentPlannerService } from './agent-planner.service.js';
 import { BusinessTaskCompilerService } from './business-task/business-task-compiler.service.js';
 import { BusinessTaskPreParserService } from './business-task/business-task-preparser.service.js';
 import { CapabilityRegistryService } from './capabilities/capability-registry.service.js';
+import { AgentSkillsRegistryService } from './skills/index.js';
 import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
 import { SemanticSqlDecisionService } from '../semantic-sql/semantic-sql-decision.service.js';
 
@@ -52,6 +53,8 @@ describe('AgentPlannerService', () => {
     new CapabilityRegistryService(),
     new SemanticMetricRegistryService(),
     new SemanticSqlDecisionService(),
+    undefined,
+    new AgentSkillsRegistryService(),
   );
   const planner = new AgentPlannerService(toolRegistry, compiler);
   const actor = { storeId: 1, userId: 7, role: 'manager' as const, entrypoint: 'test' };
@@ -76,12 +79,16 @@ describe('AgentPlannerService', () => {
     }
   });
 
-  it('plans revenue questions into revenue diagnosis tool', async () => {
+  it('plans revenue KPI questions into the revenue order analysis skill', async () => {
     const plan = await planner.plan({ message: '今天收入怎么样', actor });
 
-    expect(plan.intentType).toBe('analysis_and_recommendation');
+    expect(plan.intentType).toBe('query');
     expect(plan.capabilityPlan).toMatchObject({
-      capabilityId: 'revenue_diagnosis',
+      capabilityId: 'order_revenue_analysis',
+    });
+    expect(plan.skillPlan).toMatchObject({
+      skillId: 'revenue.order.analysis',
+      outputContract: expect.objectContaining({ requiredKinds: ['kpi', 'evidence'] }),
     });
     expect(plan.businessTask).toMatchObject({
       domain: 'business',
@@ -89,8 +96,21 @@ describe('AgentPlannerService', () => {
       metrics: ['revenue'],
     });
     expect(plan.toolPlan[0]).toMatchObject({
-      tool: 'revenue.diagnose',
+      tool: 'business.query.ask',
       args: expect.objectContaining({ question: '今天收入怎么样', timeRange: 'today' }),
+    });
+  });
+
+  it('keeps revenue drop questions on the revenue diagnosis tool', async () => {
+    const plan = await planner.plan({ message: '为什么今天收入下降', actor });
+
+    expect(plan.intentType).toBe('analysis_and_recommendation');
+    expect(plan.capabilityPlan).toMatchObject({
+      capabilityId: 'revenue_diagnosis',
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'revenue.diagnose',
+      args: expect.objectContaining({ question: '为什么今天收入下降', timeRange: 'today' }),
     });
   });
 
@@ -100,6 +120,7 @@ describe('AgentPlannerService', () => {
     expect(plan).toMatchObject({
       intentType: 'analysis_and_recommendation',
       clarificationNeeded: false,
+      executionPath: 'fast',
       capabilityPlan: {
         capabilityId: 'finance_revenue_summary',
       },
@@ -162,12 +183,49 @@ describe('AgentPlannerService', () => {
     });
   });
 
+  it('passes focused customer context into card benefit follow-up tool args', async () => {
+    const plan = await planner.plan({
+      message: '这个客户还有什么卡和权益？',
+      actor: { ...actor, role: 'manager' },
+      context: {
+        conversationFocus: {
+          currentCustomer: {
+            customerId: 4606,
+            customerName: '林晓雯',
+            phoneMasked: '137****5293',
+          },
+          timeRange: { preset: 'yesterday', label: '昨天' },
+        },
+      },
+    });
+
+    expect(plan.capabilityPlan).toMatchObject({
+      capabilityId: 'reception_card_benefit_summary',
+    });
+    expect(plan.businessTask).toMatchObject({
+      filters: expect.objectContaining({ customerId: 4606, customerName: '林晓雯' }),
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'reception.card.benefit.summary',
+      args: expect.objectContaining({
+        customerId: 4606,
+        customerName: '林晓雯',
+        phoneMasked: '137****5293',
+        customerQuery: '林晓雯',
+      }),
+    });
+  });
+
   it('plans inventory risk questions into inventory risk ranking tool', async () => {
     const plan = await planner.plan({ message: '哪些商品库存不足', actor });
 
     expect(plan.intentType).toBe('analysis_and_recommendation');
     expect(plan.capabilityPlan).toMatchObject({
-      capabilityId: 'inventory_risk_ranking',
+      capabilityId: 'inventory_supply_risk',
+    });
+    expect(plan.skillPlan).toMatchObject({
+      skillId: 'inventory.supply.risk',
+      capabilityId: 'inventory_supply_risk',
     });
     expect(plan.businessTask).toMatchObject({
       domain: 'inventory',
@@ -232,10 +290,29 @@ describe('AgentPlannerService', () => {
     });
   });
 
+  it('records the matched business skill for order customer consumption lists', async () => {
+    const plan = await planner.plan({ message: '上周流水客户名单', actor });
+
+    expect(plan).toMatchObject({
+      intentType: 'query',
+      executionPath: 'fast',
+      toolPlan: [{ tool: 'business.query.ask', args: expect.objectContaining({ timeRange: 'last_week' }) }],
+      capabilityPlan: {
+        capabilityId: 'order_customer_consumption_list',
+      },
+      skillPlan: {
+        skillId: 'order.customer.consumption.list',
+        capabilityId: 'order_customer_consumption_list',
+        outputContract: expect.objectContaining({ requiredKinds: ['table', 'evidence'] }),
+      },
+    });
+  });
+
   it('plans scheduling status questions into reservation schedule diagnosis tool', async () => {
     const plan = await planner.plan({ message: '今天哪些美容师空闲', actor });
 
     expect(plan.intentType).toBe('analysis_and_recommendation');
+    expect(plan.executionPath).toBe('fast');
     expect(plan.capabilityPlan).toMatchObject({
       capabilityId: 'reservation_schedule_diagnosis',
     });
@@ -341,6 +418,26 @@ describe('AgentPlannerService', () => {
     expect(plan.clarificationQuestion).toContain('先说明');
   });
 
+  it('plans recall activity draft requests into marketing growth execution approval', async () => {
+    const plan = await planner.plan({ message: '帮我生成召回活动', actor });
+
+    expect(plan.intentType).toBe('draft');
+    expect(plan.clarificationNeeded).toBe(false);
+    expect(plan.capabilityPlan).toMatchObject({ capabilityId: 'marketing_growth_execution' });
+    expect(plan.skillPlan).toMatchObject({
+      skillId: 'marketing.growth.execution',
+      capabilityId: 'marketing_growth_execution',
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'marketing.activity.draft',
+      args: expect.objectContaining({
+        title: '流失客户召回活动',
+        targetAudience: '60 天未到店流失风险客户',
+        offerSummary: '回店护理权益',
+      }),
+    });
+  });
+
   it('plans customer follow-up task requests into the follow-up draft tool', async () => {
     const plan = await planner.plan({ message: '帮我生成流失客户跟进任务', actor });
 
@@ -369,14 +466,31 @@ describe('AgentPlannerService', () => {
     expect(plan).toMatchObject({
       intentType: 'analysis_and_recommendation',
       clarificationNeeded: false,
+      executionPath: 'deep',
+      progressNotice: expect.stringContaining('收入、利润成本、退款折扣和员工绩效风险'),
       capabilityPlan: {
         capabilityId: 'finance_profit_diagnosis',
       },
+      skillPlan: {
+        skillId: 'finance.profit.risk',
+        capabilityId: 'finance_profit_diagnosis',
+        outputContract: expect.objectContaining({ requiredKinds: ['kpi', 'table', 'evidence'] }),
+      },
     });
-    expect(plan.toolPlan[0]).toMatchObject({
-      tool: 'finance.profit.diagnose',
-      args: expect.objectContaining({ question: '本月利润为什么下降，成本影响多大' }),
-    });
+    expect(plan.toolPlan.map((item) => item.tool)).toEqual([
+      'finance.revenue.summary',
+      'finance.profit.diagnose',
+      'finance.refund.discount.audit',
+      'finance.beautician.performance.audit',
+    ]);
+    expect(plan.toolPlan).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tool: 'finance.profit.diagnose',
+          args: expect.objectContaining({ question: '本月利润为什么下降，成本影响多大' }),
+        }),
+      ]),
+    );
   });
 
   it('plans margin risk ranking questions into margin risk rank tool', async () => {
@@ -610,6 +724,37 @@ describe('AgentPlannerService', () => {
     });
   });
 
+  it('carries focused marketing activity context into effect diagnosis follow-up', async () => {
+    const plan = await planner.plan({
+      message: '这个活动转化效果怎么样',
+      actor,
+      context: {
+        conversationFocus: {
+          currentActivity: {
+            activityId: 901,
+            activityTitle: '编辑后的沉睡客户召回活动',
+          },
+        },
+      },
+    });
+
+    expect(plan.intentType).toBe('analysis_and_recommendation');
+    expect(plan.businessTask).toMatchObject({
+      domain: 'marketing',
+      filters: {
+        activityId: 901,
+        activityTitle: '编辑后的沉睡客户召回活动',
+      },
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'marketing.effect.diagnose',
+      args: expect.objectContaining({
+        activityId: 901,
+        activityTitle: '编辑后的沉睡客户召回活动',
+      }),
+    });
+  });
+
   it('blocks direct high-risk execution requests', async () => {
     const plan = await planner.plan({ message: '发布活动并群发给所有客户', actor });
 
@@ -617,5 +762,36 @@ describe('AgentPlannerService', () => {
     expect(plan.clarificationNeeded).toBe(true);
     expect(plan.toolPlan).toEqual([]);
     expect(plan.clarificationQuestion).toContain('不能直接执行');
+    expect((plan.clarificationQuestion?.match(/[？?]/g) ?? []).length).toBeLessThanOrEqual(1);
+  });
+
+  it('asks a single scope confirmation for direct customer coupon sending', async () => {
+    const plan = await planner.plan({ message: '给长期未到店客户发优惠券', actor });
+
+    expect(plan.intentType).toBe('clarify');
+    expect(plan.clarificationNeeded).toBe(true);
+    expect(plan.toolPlan).toEqual([]);
+    expect(plan.clarificationQuestion).toContain('客户范围');
+    expect(plan.clarificationQuestion).toContain('草稿预览');
+    expect((plan.clarificationQuestion?.match(/[？?]/g) ?? []).length).toBe(1);
+  });
+
+  it('uses compiler clarification for vague requests before generic fallback', async () => {
+    const plan = await planner.plan({ message: '随便看看', actor });
+
+    expect(plan.intentType).toBe('clarify');
+    expect(plan.clarificationNeeded).toBe(true);
+    expect(plan.toolPlan).toEqual([]);
+    expect(plan.clarificationQuestion).toContain('业务领域');
+  });
+
+  it('does not clarify defaultable low-risk order customer list questions', async () => {
+    const plan = await planner.plan({ message: '昨天有哪些消费客户，列出清单', actor });
+
+    expect(plan.intentType).toBe('query');
+    expect(plan.clarificationNeeded).toBe(false);
+    expect(plan.capabilityPlan).toMatchObject({
+      capabilityId: 'order_customer_consumption_list',
+    });
   });
 });

@@ -17,8 +17,15 @@ export class AgentPolicyService {
       allowed: true,
       requiresApproval: tool.requiresApproval || tool.riskLevel === 'medium' || tool.riskLevel === 'high',
       riskLevel: tool.riskLevel,
-      reason: tool.requiresApproval ? '工具风险等级要求人工确认' : '低风险只读工具可直接执行',
+      reason: this.approvalReason(tool),
     };
+  }
+
+  private approvalReason(tool: AgentToolDefinition) {
+    if (tool.requiresApproval) return `工具「${tool.name}」声明需要人工审批，执行前必须确认影响范围。`;
+    if (tool.riskLevel === 'high') return `工具「${tool.name}」为高风险能力，可能影响真实客户、订单、财务或库存数据，必须人工审批。`;
+    if (tool.riskLevel === 'medium') return `工具「${tool.name}」为中风险能力，可能生成草稿、任务或业务动作，执行前需要人工确认。`;
+    return '低风险只读工具可直接执行。';
   }
 
   private hasRequiredPermission(userPermissions: string[], requiredPermissions: string[]) {

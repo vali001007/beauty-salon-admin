@@ -8,6 +8,7 @@ export class AgentEvidenceService {
     if (!evidences.length) return undefined;
     return {
       source: [...new Set(evidences.flatMap((item) => item.source ?? []))],
+      sourceTables: [...new Set(evidences.flatMap((item) => item.sourceTables ?? item.source ?? []))],
       dateRange: evidences.map((item) => item.dateRange).filter(Boolean)[0],
       metricDefinition: evidences.map((item) => item.metricDefinition).filter(Boolean).join('；'),
       filters: [...new Set(evidences.flatMap((item) => item.filters ?? []))],

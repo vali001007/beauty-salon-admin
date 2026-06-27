@@ -195,6 +195,7 @@ export class AgentWorkflowRuntimeService {
     status: string;
     inputJson?: unknown;
     outputJson?: unknown;
+    startedAt?: Date;
     endedAt?: Date;
   }) {
     return this.delegate('agentStep').create({
@@ -205,6 +206,7 @@ export class AgentWorkflowRuntimeService {
         status: input.status,
         inputJson: this.toJson(input.inputJson),
         outputJson: this.toJson(input.outputJson),
+        startedAt: input.startedAt,
         endedAt: input.endedAt,
       },
     });
