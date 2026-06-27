@@ -12,6 +12,7 @@ import type {
   AgentRole,
   AgentRunResultV2,
   AgentSchemaReadiness,
+  AgentPhaseOutput,
   AuraResponseBlock,
 } from '@/types/agent';
 import {
@@ -33,7 +34,7 @@ import {
 } from '@/api/real/agent';
 import { useStoreStore } from '@/stores/storeStore';
 import { useAuthStore } from '@/stores/authStore';
-import { AgentBlockRenderer } from './components/AgentBlockRenderer';
+import { AgentBlockRenderer, AgentPhaseOutputRenderer } from './components/AgentBlockRenderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ interface ConversationMessage {
   role: 'user' | 'agent';
   text?: string;
   blocks?: AuraResponseBlock[];
+  phaseOutputs?: AgentPhaseOutput[];
   followUpSuggestions?: string[];
   loading?: boolean;
   error?: string;
@@ -184,6 +186,7 @@ export function AmiAgentWorkspace() {
           loading: false,
           text: result.answer,
           blocks: result.renderedBlocks,
+          phaseOutputs: result.phaseOutputs,
           followUpSuggestions: result.followUpSuggestions,
           runId: result.runId,
         });
@@ -269,6 +272,7 @@ export function AmiAgentWorkspace() {
         loading: false,
         text: result.answer,
         blocks: result.renderedBlocks,
+        phaseOutputs: result.phaseOutputs,
         followUpSuggestions: result.followUpSuggestions,
         runId: result.runId,
       });
@@ -858,10 +862,16 @@ function MessageItem({
   // 过滤掉 follow_up_chips 从 blocks 中（单独渲染）
   const contentBlocks = msg.blocks?.filter((b) => b.kind !== 'follow_up_chips') ?? [];
   const followUps = msg.followUpSuggestions ?? [];
+  const phaseOutputs = msg.phaseOutputs ?? [];
 
   return (
     <div className="space-y-2">
       <div className="rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3">
+        {phaseOutputs.length > 0 && (
+          <div className={hasBlocks ? 'mb-3' : ''}>
+            <AgentPhaseOutputRenderer phases={phaseOutputs} />
+          </div>
+        )}
         {hasBlocks ? (
           <AgentBlockRenderer
             blocks={contentBlocks}

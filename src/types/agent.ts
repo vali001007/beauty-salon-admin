@@ -112,16 +112,26 @@ export interface AgentPlan {
   confidence: number;
   clarificationNeeded: boolean;
   clarificationQuestion?: string | null;
+  executionPath?: 'fast' | 'deep';
+  progressNotice?: string;
   businessTask?: BusinessTask | unknown;
   capabilityPlan?: {
     capabilityId: string;
     reason: string;
+  };
+  skillPlan?: {
+    skillId: string;
+    capabilityId?: string;
+    confidence: number;
+    reason: string;
+    outputContract?: unknown;
   };
   semanticSqlCandidate?: SemanticSqlCandidate | unknown;
 }
 
 export interface AgentEvidence {
   source: string[];
+  sourceTables?: string[];
   dateRange?: string;
   metricDefinition: string;
   filters: string[];
@@ -133,6 +143,14 @@ export interface AgentSuggestedAction {
   label: string;
   action: string;
   riskLevel: AgentRiskLevel;
+}
+
+export interface AgentPhaseOutput {
+  phase: 'core_conclusion' | 'details' | 'recommendations' | 'action_draft';
+  title: string;
+  summary: string;
+  blockKinds?: string[];
+  actionLabels?: string[];
 }
 
 export interface AgentToolResult {
@@ -149,6 +167,7 @@ export interface AgentApprovalSummary {
   toolName: string;
   riskLevel: AgentRiskLevel;
   status: string;
+  reason?: string;
 }
 
 export interface AgentRunResult {
@@ -160,6 +179,8 @@ export interface AgentRunResult {
   toolResults: AgentToolResult[];
   actions: AgentSuggestedAction[];
   evidence?: AgentEvidence;
+  responseMode?: 'structured_blocks' | 'composed_answer';
+  phaseOutputs?: AgentPhaseOutput[];
   approval?: AgentApprovalSummary;
 }
 
@@ -408,6 +429,7 @@ export type AuraResponseBlock =
       actions?: AuraBlockAction[];
     }
   | { kind: 'confirm_action'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
+  | { kind: 'action_card'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
   | { kind: 'alert'; level: 'warning' | 'critical' | 'info'; message: string; actionId?: string }
   | { kind: 'follow_up_chips'; suggestions: string[] }
   | { kind: 'document_preview'; title: string; content: string; downloadable?: boolean }
@@ -416,6 +438,14 @@ export type AuraResponseBlock =
 // AgentRunResult 扩展版（含 renderedBlocks）
 export interface AgentRunResultV2 extends AgentRunResult {
   renderedBlocks?: AuraResponseBlock[];
+  answerContract?: {
+    valid: boolean;
+    contract: unknown;
+    missingKinds: string[];
+    warnings: string[];
+    errors: string[];
+    checkedAt: string;
+  };
   followUpSuggestions?: string[];
   personaCode?: AgentPersonaCode;
 }
@@ -506,6 +536,53 @@ export interface AgentQualityReport {
     createdAt: string;
   }>;
   recommendations: string[];
+}
+
+export interface AgentFeedbackFailureReport {
+  range: {
+    days: number;
+    startDate: string;
+    endDate: string;
+  };
+  kpis: {
+    negativeFeedbackCount: number;
+    affectedSkillCount: number;
+  };
+  bySkill: Array<{
+    skillId: string;
+    capabilityId: string;
+    count: number;
+    latestAt?: string;
+    reasons: string[];
+  }>;
+  items: Array<{
+    feedbackId: number;
+    runId: number;
+    role: string;
+    personaCode?: string | null;
+    rating?: number | null;
+    adopted?: boolean | null;
+    reason: string;
+    question: string;
+    answer: string;
+    skillId: string;
+    capabilityId: string;
+    toolNames: string[];
+    createdAt: string;
+  }>;
+}
+
+export interface AgentFeedbackFailureImportResult {
+  dryRun: boolean;
+  created: number;
+  candidates: Array<{
+    scenario: string;
+    input: string;
+    role: string;
+    expectedTool?: string | null;
+    expectedOutcome: unknown;
+    status: string;
+  }>;
 }
 
 export interface AgentSchemaReadinessGroup {

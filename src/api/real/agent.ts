@@ -17,6 +17,8 @@ import type {
   AgentAutomationTriggerTemplate,
   AgentCreateRunRequest,
   AgentEvalSummary,
+  AgentFeedbackFailureImportResult,
+  AgentFeedbackFailureReport,
   AgentFeedbackRequest,
   AgentDailyArchiveItem,
   AgentMemoryItem,
@@ -25,7 +27,6 @@ import type {
   AgentRunDetail,
   AgentRunListQuery,
   AgentRunRecord,
-  AgentRunResult,
   AgentRunResultV2,
   AgentSchemaReadiness,
   AgentToolCatalogItem,
@@ -103,6 +104,23 @@ export async function getAllAgentPersonas(): Promise<AgentPersonaSummary[]> {
 
 export async function submitAgentFeedback(runId: number, data: AgentFeedbackRequest): Promise<void> {
   return apiClient.post(`/agent/runs/${runId}/feedback`, data);
+}
+
+export async function getAgentFeedbackFailures(params: {
+  days?: number;
+  personaCode?: string;
+  limit?: number;
+} = {}): Promise<AgentFeedbackFailureReport> {
+  return apiClient.get('/agent/feedback/failures', { params });
+}
+
+export async function importAgentFeedbackFailuresToEvalCases(data: {
+  days?: number;
+  personaCode?: string;
+  limit?: number;
+  dryRun?: boolean;
+} = {}): Promise<AgentFeedbackFailureImportResult> {
+  return apiClient.post('/agent/feedback/failures/eval-cases', data);
 }
 
 // ─── Memory / Archive / Quality ──────────────────────────────────────────────

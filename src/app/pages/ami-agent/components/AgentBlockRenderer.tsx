@@ -28,7 +28,7 @@ import {
   PackageCheck,
   Truck,
 } from 'lucide-react';
-import type { AuraResponseBlock } from '@/types/agent';
+import type { AgentPhaseOutput, AuraResponseBlock } from '@/types/agent';
 
 type AgentActionPayload = {
   args?: Record<string, unknown>;
@@ -45,7 +45,7 @@ interface AgentBlockRendererProps {
  * 与 Kiosk 的 BlockRenderer 逻辑相同，独立实现以避免跨包依赖。
  */
 export function AgentBlockRenderer({ blocks, onCommand, onAction }: AgentBlockRendererProps) {
-  const groups = groupKpiCards(blocks);
+  const groups = groupKpiCards(orderBlocksForDisplay(blocks));
   return (
     <div className="flex flex-col gap-3">
       {groups.map((group, i) => {
@@ -81,7 +81,7 @@ function SingleBlock({
     case 'text':
       return <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{block.content}</p>;
     case 'table':
-      return <TableBlock columns={block.columns} rows={block.rows} caption={block.caption} />;
+      return <TableBlock columns={block.columns} rows={block.rows} sortable={block.sortable} caption={block.caption} />;
     case 'chart':
       return <ChartBlock chartType={block.chartType} title={block.title} data={block.data} xKey={block.xKey} yKeys={block.yKeys} />;
     case 'customer_card':
@@ -160,6 +160,7 @@ function SingleBlock({
     case 'supplier_purchase_card':
       return <SupplierPurchaseCard block={block} onAction={onAction} />;
     case 'confirm_action':
+    case 'action_card':
       return (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
           <div className="mb-1 font-medium text-sm text-foreground">{block.title}</div>
@@ -211,7 +212,7 @@ function SingleBlock({
         />
       );
     default:
-      return null;
+      return <UnknownBlock block={block} />;
   }
 }
 
@@ -573,7 +574,7 @@ function KpiCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
+    <div className="rounded-xl border border-border bg-card px-4 py-3" title={hint}>
       <div className="truncate text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-end gap-1">
         <span className="text-2xl font-semibold text-foreground">{value}</span>
@@ -605,30 +606,152 @@ function MetricChip({ label, value }: { label: string; value: string }) {
 
 // ─── Table ────────────────────────────────────────────────────────────────────
 
-function TableBlock({ columns, rows, caption }: { columns: string[]; rows: string[][]; caption?: string }) {
+function TableBlock({
+  columns,
+  rows,
+  sortable,
+  caption,
+}: {
+  columns: string[];
+  rows: string[][];
+  sortable?: boolean;
+  caption?: string;
+}) {
+  const [sortState, setSortState] = useState<{ index: number; direction: 'asc' | 'desc' } | null>(null);
+  const visibleRows = sortState
+    ? [...rows].sort((a, b) => compareTableCells(a[sortState.index], b[sortState.index], sortState.direction))
+    : rows;
+  const toggleSort = (index: number) => {
+    if (!sortable) return;
+    setSortState((current) => {
+      if (!current || current.index !== index) return { index, direction: 'asc' };
+      if (current.direction === 'asc') return { index, direction: 'desc' };
+      return null;
+    });
+  };
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/50">
             {columns.map((col, i) => (
-              <th key={i} className="px-3 py-2 text-left font-medium text-muted-foreground">{col}</th>
+              <th key={i} className="px-3 py-2 text-left font-medium text-muted-foreground">
+                {sortable ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(i)}
+                    className="inline-flex items-center gap-1 text-left font-medium hover:text-foreground"
+                    aria-label={`按${col}排序`}
+                  >
+                    {col}
+                    <span className="text-[10px] text-muted-foreground">
+                      {sortState?.index === i ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </button>
+                ) : (
+                  col
+                )}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, ri) => (
-            <tr key={ri} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-              {row.map((cell, ci) => (
-                <td key={ci} className="px-3 py-2 text-foreground">{cell}</td>
-              ))}
+          {visibleRows.length ? (
+            visibleRows.map((row, ri) => (
+              <tr key={ri} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                {columns.map((_, ci) => (
+                  <td key={ci} className="px-3 py-2 text-foreground">{row[ci] ?? ''}</td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td className="px-3 py-6 text-center text-muted-foreground" colSpan={Math.max(columns.length, 1)}>
+                暂无数据
+              </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
       {caption && <div className="px-3 py-1.5 text-xs text-muted-foreground border-t border-border/50">{caption}</div>}
     </div>
   );
+}
+
+export function AgentPhaseOutputRenderer({ phases }: { phases: AgentPhaseOutput[] }) {
+  if (!phases.length) return null;
+  return (
+    <div className="rounded-lg border border-[#7B5CFF]/20 bg-[#7B5CFF]/5 p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#5F46D6]">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        分阶段分析
+      </div>
+      <div className="grid gap-2">
+        {phases.slice(0, 4).map((phase, index) => (
+          <div key={`${phase.phase}-${index}`} className="rounded-md bg-background/80 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 text-xs font-medium text-foreground">
+                {index + 1}. {phase.title}
+              </div>
+              {phase.blockKinds && phase.blockKinds.length > 0 && (
+                <div className="shrink-0 text-[11px] text-muted-foreground">
+                  {phase.blockKinds.slice(0, 3).join(' / ')}
+                </div>
+              )}
+            </div>
+            <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+              {phase.summary}
+            </p>
+            {phase.actionLabels && phase.actionLabels.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {phase.actionLabels.slice(0, 3).map((label) => (
+                  <span key={label} className="rounded-full bg-[#7B5CFF]/10 px-2 py-0.5 text-[11px] text-[#5F46D6]">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function orderBlocksForDisplay(blocks: AuraResponseBlock[]) {
+  return [...blocks].sort((a, b) => blockDisplayPriority(a.kind) - blockDisplayPriority(b.kind));
+}
+
+function blockDisplayPriority(kind: AuraResponseBlock['kind']) {
+  if (kind === 'text') return 0;
+  if (kind === 'alert') return 1;
+  if (kind === 'kpi_card') return 2;
+  if (kind === 'table' || kind === 'chart' || kind === 'customer_card' || kind === 'opportunity_card' || kind === 'activity_draft_card' || kind === 'copy_variants' || kind === 'inventory_item_card' || kind === 'supplier_purchase_card' || kind === 'document_preview') {
+    return 3;
+  }
+  if (kind === 'evidence_panel') return 4;
+  if (kind === 'confirm_action' || kind === 'action_card') return 5;
+  if (kind === 'follow_up_chips') return 6;
+  return 10;
+}
+
+function compareTableCells(a: string | undefined, b: string | undefined, direction: 'asc' | 'desc') {
+  const left = String(a ?? '');
+  const right = String(b ?? '');
+  const leftNumber = parseDisplayNumber(left);
+  const rightNumber = parseDisplayNumber(right);
+  const result =
+    Number.isFinite(leftNumber) && Number.isFinite(rightNumber)
+      ? leftNumber - rightNumber
+      : left.localeCompare(right, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+  return direction === 'asc' ? result : -result;
+}
+
+function parseDisplayNumber(value: string) {
+  const normalized = value.replace(/[¥,%\s,]/g, '');
+  if (!normalized || !/^-?\d+(\.\d+)?$/.test(normalized)) return Number.NaN;
+  return Number(normalized);
 }
 
 // ─── Chart ────────────────────────────────────────────────────────────────────
@@ -651,6 +774,14 @@ function ChartBlock({
   const dataArr = Array.isArray(data) ? data : [];
   if (chartType === 'funnel') {
     return <FunnelChartBlock title={title} data={dataArr} valueKey={yKeys[0] ?? 'value'} />;
+  }
+  if (!dataArr.length) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="mb-2 text-xs font-medium text-muted-foreground">{title}</div>
+        <div className="flex h-[180px] items-center justify-center rounded bg-muted/30 text-xs text-muted-foreground">暂无图表数据</div>
+      </div>
+    );
   }
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -698,6 +829,14 @@ function FunnelChartBlock({
     .map((item) => (typeof item === 'object' && item ? item as Record<string, unknown> : null))
     .filter((item): item is Record<string, unknown> => Boolean(item));
   const max = Math.max(...rows.map((item) => Number(item[valueKey]) || 0), 1);
+  if (!rows.length) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="mb-2 text-xs font-medium text-muted-foreground">{title}</div>
+        <div className="flex h-24 items-center justify-center rounded bg-muted/30 text-xs text-muted-foreground">暂无图表数据</div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -725,6 +864,15 @@ function FunnelChartBlock({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function UnknownBlock({ block }: { block: unknown }) {
+  const kind = typeof block === 'object' && block && 'kind' in block ? String((block as { kind?: unknown }).kind) : 'unknown';
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+      暂不支持的内容类型：{kind}
     </div>
   );
 }
