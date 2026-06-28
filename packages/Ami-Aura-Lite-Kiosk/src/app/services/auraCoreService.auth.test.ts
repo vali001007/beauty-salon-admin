@@ -86,8 +86,10 @@ const mocks = vi.hoisted(() => {
   const api = {
     askBusinessQuery: vi.fn(async (): Promise<any> => ({ status: "success", title: "Ami 问数", summary: "ok" })),
     approveAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "approved" })),
+    appendAgentMessage: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
     createAgentRun: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
     rejectAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "rejected" })),
+    submitAgentFeedback: vi.fn(async (): Promise<any> => undefined),
     getProjects: vi.fn(async (): Promise<any[]> => []),
     getTerminalCatalogSync: vi.fn(async (): Promise<any> => ({ projects: [] })),
     getTerminalBootstrap: vi.fn(async () => bootstrap),
@@ -130,8 +132,10 @@ vi.mock("@/api", () => {
     getTerminalBootstrap: mocks.api.getTerminalBootstrap,
     askBusinessQuery: mocks.api.askBusinessQuery,
     approveAgentApproval: mocks.api.approveAgentApproval,
+    appendAgentMessage: mocks.api.appendAgentMessage,
     createAgentRun: mocks.api.createAgentRun,
     rejectAgentApproval: mocks.api.rejectAgentApproval,
+    submitAgentFeedback: mocks.api.submitAgentFeedback,
     getTerminalBeauticianCommission: unusedApi,
     closeTerminalCashierShift: unusedApi,
     getTerminalCatalogSync: mocks.api.getTerminalCatalogSync,
@@ -211,8 +215,10 @@ async function resetMockState() {
   mocks.api.getTerminalBootstrap.mockResolvedValue(mocks.bootstrap);
   mocks.api.askBusinessQuery.mockResolvedValue({ status: "success", title: "Ami 问数", summary: "ok" });
   mocks.api.approveAgentApproval.mockResolvedValue({ id: 1, status: "approved" });
+  mocks.api.appendAgentMessage.mockResolvedValue({ runId: 1, status: "success" });
   mocks.api.createAgentRun.mockResolvedValue({ runId: 1, status: "success" });
   mocks.api.rejectAgentApproval.mockResolvedValue({ id: 1, status: "rejected" });
+  mocks.api.submitAgentFeedback.mockResolvedValue(undefined);
   mocks.api.getTerminalCardVerificationContext.mockResolvedValue({ customers: [], storeName: mocks.store.name, generatedAt: "2026-06-11T09:00:00.000Z" });
   mocks.api.getTerminalCustomerCards.mockResolvedValue([]);
   mocks.api.getTerminalCustomerSummary.mockResolvedValue(null);
@@ -342,6 +348,26 @@ describe("auraCoreService auth repair", () => {
     expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(2);
     expect(mocks.api.createAgentRun).toHaveBeenNthCalledWith(1, expect.objectContaining({ operatorId: null }));
     expect(mocks.api.createAgentRun).toHaveBeenNthCalledWith(2, expect.objectContaining({ operatorId: null }));
+    expect(window.localStorage.getItem("token")).toBe("fresh-token");
+  });
+
+  it("logs in before terminal runtime agent runs when the token is missing", async () => {
+    window.localStorage.removeItem("token");
+    mocks.authState.token = null;
+    mocks.authState.user = null;
+    mocks.authState.isAuthenticated = false;
+
+    const runtimeService = await import("./agentRuntimeService");
+    const result = await runtimeService.createTerminalAgentRun({
+      command: "今天经营有什么风险",
+      role: "manager",
+      sourceAction: "business.query",
+      source: "text",
+    });
+
+    expect(result).toMatchObject({ runId: 1, status: "success" });
+    expect(mocks.authState.login).toHaveBeenCalledTimes(1);
+    expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem("token")).toBe("fresh-token");
   });
 

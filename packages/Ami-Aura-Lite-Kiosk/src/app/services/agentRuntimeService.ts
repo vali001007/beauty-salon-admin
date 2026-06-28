@@ -10,6 +10,7 @@ import type {
   AgentRunResultV2,
 } from '@/types/agent';
 import type { Role } from '../types';
+import { runWithAuraAuthRepair } from './auraCoreService';
 import { getActiveTerminalOperatorParams } from './terminalOperatorContext';
 import { resolveTerminalPersona, toTerminalAgentRole, type TerminalAgentPersonaCode } from './agentPersonaMapping';
 
@@ -80,12 +81,13 @@ export async function createTerminalAgentRun(input: TerminalAgentContextInput): 
     context,
   };
 
-  return createAgentRun(payload);
+  return runWithAuraAuthRepair(() => createAgentRun(payload));
 }
 
 export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): Promise<AgentRunResultV2> {
   if (!input.activeRunId) return createTerminalAgentRun(input);
 
+  const runId = input.activeRunId;
   const operatorId = getActiveTerminalOperatorParams()?.operatorId ?? null;
   const { context, personaCode } = buildTerminalAgentContext(input);
   const payload: AgentAppendMessageRequest = {
@@ -97,7 +99,7 @@ export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): 
     context,
   };
 
-  return appendAgentMessage(input.activeRunId, payload);
+  return runWithAuraAuthRepair(() => appendAgentMessage(runId, payload));
 }
 
 export async function submitTerminalAgentFeedback(input: TerminalAgentFeedbackInput): Promise<void> {
@@ -107,5 +109,5 @@ export async function submitTerminalAgentFeedback(input: TerminalAgentFeedbackIn
     comment: input.comment,
     businessActionJson: input.businessActionJson,
   };
-  return submitAgentFeedback(input.runId, payload);
+  return runWithAuraAuthRepair(() => submitAgentFeedback(input.runId, payload));
 }

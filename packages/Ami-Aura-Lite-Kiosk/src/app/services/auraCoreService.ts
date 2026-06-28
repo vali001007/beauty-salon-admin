@@ -1332,7 +1332,7 @@ async function ensureLoggedIn() {
   }
 }
 
-async function runWithAuraAuthRepair<T>(operation: () => Promise<T>): Promise<T> {
+export async function runWithAuraAuthRepair<T>(operation: () => Promise<T>): Promise<T> {
   await ensureLoggedIn();
   try {
     return await operation();
