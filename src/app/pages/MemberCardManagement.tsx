@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CreditCard, Gift, Loader2, Minus, MinusCircle, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCustomers } from '@/api/customer';
 import { isRealApi } from '@/api/mode';
 import {
   deductMemberCard,
@@ -14,13 +13,15 @@ import {
 import { getProjects } from '@/api/project';
 import { getStores } from '@/api/store';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
+import { CustomerPicker } from '../components/CustomerPicker';
+import { PaymentMethodSelector, type PaymentMethodOption } from '../components/PaymentMethodSelector';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import type { Customer, MemberCardAccount, MemberCardTransaction, Project, Store } from '@/types';
 
 type FormMode = 'open' | 'recharge' | 'gift' | 'deduct';
 
-const PAYMENT_METHODS = [
+const PAYMENT_METHODS: PaymentMethodOption[] = [
   { value: 'cash', label: '现金支付' },
   { value: 'wechat', label: '微信支付' },
   { value: 'alipay', label: '支付宝' },
@@ -248,7 +249,8 @@ export function MemberCardManagement() {
   const [keywordInput, setKeywordInput] = useState('');
   const [storeInput, setStoreInput] = useState('');
   const [filters, setFilters] = useState<{ keyword?: string; storeId?: number }>({});
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -266,12 +268,6 @@ export function MemberCardManagement() {
 
   useEffect(() => {
     void loadGlobalStores();
-    getCustomers()
-      .then(setCustomers)
-      .catch(() => {
-        setCustomers([]);
-        toast.error('客户数据加载失败，请稍后重试');
-      });
     getStores()
       .then(setStores)
       .catch(() => {
@@ -291,11 +287,8 @@ export function MemberCardManagement() {
     [stores],
   );
   const customerOptions = useMemo(
-    () =>
-      isRealApi
-        ? customers.map((customer) => ({ id: customer.id, name: customer.name, phone: customer.phone }))
-        : DEMO_CUSTOMERS,
-    [customers],
+    () => (isRealApi ? [] : DEMO_CUSTOMERS),
+    [],
   );
   const giftProjectOptions = useMemo(
     () =>
@@ -321,31 +314,37 @@ export function MemberCardManagement() {
       ...initialForm,
       customerId: account ? String(account.customerId) : '',
     });
+    setCustomerSearch('');
+    setSelectedCustomer(null);
   };
 
   const closeForm = () => {
     setIsFormOpen(false);
     setSelectedAccount(null);
     setForm(initialForm);
+    setCustomerSearch('');
+    setSelectedCustomer(null);
   };
 
   const submitForm = async () => {
     const rechargeAmount = parseAmount(form.rechargeAmount);
     const giftAmount = parseAmount(form.giftAmount);
-    const selectedCustomer = customerOptions.find((item) => item.id === Number(form.customerId));
+    const formCustomer = isRealApi
+      ? selectedCustomer
+      : customerOptions.find((item) => item.id === Number(form.customerId));
 
     try {
       setSubmitting(true);
       if (formMode === 'open') {
         if (!currentStoreId || !currentStore) throw new Error('请先在顶部标题栏选择具体门店');
-        if (!selectedCustomer) throw new Error('请选择客户');
+        if (!formCustomer) throw new Error('请选择客户');
         if (rechargeAmount <= 0) throw new Error('充值金额必须大于 0');
         await openMemberCard({
           storeId: currentStore.id,
           storeName: currentStore.name,
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          customerPhone: selectedCustomer.phone,
+          customerId: formCustomer.id,
+          customerName: formCustomer.name,
+          customerPhone: formCustomer.phone,
           rechargeAmount,
           giftAmount,
           giftProjects: form.giftProjects,
@@ -581,23 +580,46 @@ export function MemberCardManagement() {
             <div className="space-y-5 px-6 py-5">
               {formMode === 'open' ? (
                 <>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-semibold text-foreground">
-                      <span className="mr-1 text-destructive">*</span>选择用户
-                    </span>
-                    <select
-                      value={form.customerId}
-                      onChange={(event) => setForm((prev) => ({ ...prev, customerId: event.target.value }))}
-                      className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    >
-                      <option value="">请选择客户</option>
-                      {customerOptions.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {isRealApi ? (
+                    <CustomerPicker
+                      value={customerSearch}
+                      onValueChange={(value) => {
+                        setCustomerSearch(value);
+                        if (form.customerId) {
+                          setSelectedCustomer(null);
+                          setForm((prev) => ({ ...prev, customerId: '' }));
+                        }
+                      }}
+                      onSelect={(customer) => {
+                        setSelectedCustomer(customer);
+                        setForm((prev) => ({ ...prev, customerId: customer ? String(customer.id) : '' }));
+                      }}
+                      selectedCustomerId={form.customerId}
+                      storeName={currentStore?.name}
+                      label="选择用户"
+                      required
+                      placeholder="输入客户姓名或手机号搜索"
+                      emptyText="未找到客户，请先到客户资料中建档。"
+                    />
+                  ) : (
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-semibold text-foreground">
+                        <span className="mr-1 text-destructive">*</span>选择用户
+                      </span>
+                      <select
+                        value={form.customerId}
+                        onChange={(event) => setForm((prev) => ({ ...prev, customerId: event.target.value }))}
+                        className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring/40"
+                      >
+                        <option value="">请选择客户</option>
+                        {customerOptions.map((customer) => (
+                          <option key={customer.id} value={customer.id}>
+                            {customer.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </>
               ) : (
                 <div className="rounded-lg border border-border bg-muted/25 p-4">
@@ -638,17 +660,14 @@ export function MemberCardManagement() {
               {(formMode === 'open' || formMode === 'recharge') && (
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-foreground">支付方式</span>
-                  <select
+                  <PaymentMethodSelector<string>
                     value={form.paymentMethod}
-                    onChange={(event) => setForm((prev) => ({ ...prev, paymentMethod: event.target.value }))}
-                    className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring/40"
-                  >
-                    {PAYMENT_METHODS.map((method) => (
-                      <option key={method.value} value={method.value}>
-                        {method.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(paymentMethod) => setForm((prev) => ({ ...prev, paymentMethod }))}
+                    methods={PAYMENT_METHODS}
+                    columnsClassName="grid-cols-2 sm:grid-cols-4"
+                    activeClassName="border-primary bg-primary/10 text-primary"
+                    inactiveClassName="border-input bg-background text-foreground hover:bg-muted"
+                  />
                 </label>
               )}
 
