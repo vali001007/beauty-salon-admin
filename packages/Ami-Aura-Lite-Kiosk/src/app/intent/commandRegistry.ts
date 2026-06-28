@@ -23,7 +23,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   {
     intent: 'manager.staff.view',
     action: 'manager.staff',
-    label: '员工',
+    label: '排班',
     loadingLabel: '正在查询员工排班',
     riskLevel: 'none',
     requiresConfirmation: false,

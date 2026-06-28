@@ -18,6 +18,7 @@ import { AgentController } from './agent.controller.js';
 
 describe('AgentController', () => {
   let orchestrator: jest.Mocked<any>;
+  let personaService: jest.Mocked<any>;
   let businessTaskCompiler: jest.Mocked<any>;
   let queryPlanner: jest.Mocked<any>;
   let semanticQueryExecutor: jest.Mocked<any>;
@@ -30,11 +31,18 @@ describe('AgentController', () => {
   let controller: AgentController;
 
   beforeEach(() => {
+    delete process.env.AGENT_TERMINAL_RUNTIME_ENABLED;
     orchestrator = {
       createRun: jest.fn().mockResolvedValue({ runId: 101 }),
       appendMessage: jest.fn().mockResolvedValue({ runId: 101 }),
       approve: jest.fn().mockResolvedValue({ runId: 101 }),
       reject: jest.fn().mockResolvedValue({ runId: 101 }),
+    };
+    personaService = {
+      listForRole: jest.fn(),
+      listAll: jest.fn(),
+      getByCode: jest.fn(),
+      update: jest.fn(),
     };
     businessTaskCompiler = {
       compile: jest.fn(),
@@ -81,7 +89,7 @@ describe('AgentController', () => {
     };
     controller = new AgentController(
       orchestrator,
-      {} as any,
+      personaService,
       businessTaskCompiler,
       {} as any,
       {} as any,
@@ -254,6 +262,101 @@ describe('AgentController', () => {
     });
   });
 
+  it('updates an Agent Persona configuration', async () => {
+    personaService.update.mockResolvedValue({
+      code: 'inventory',
+      name: '库存采购 Agent',
+      toolGroups: ['inventory.risk.rank'],
+      suggestedQuestions: ['近期有哪些临期库存产品？'],
+    });
+
+    const result = await controller.updatePersona('inventory', {
+      toolGroups: ['inventory.risk.rank'],
+      suggestedQuestions: ['近期有哪些临期库存产品？'],
+    });
+
+    expect(result).toEqual({
+      code: 'inventory',
+      name: '库存采购 Agent',
+      toolGroups: ['inventory.risk.rank'],
+      suggestedQuestions: ['近期有哪些临期库存产品？'],
+    });
+    expect(personaService.update).toHaveBeenCalledWith('inventory', {
+      toolGroups: ['inventory.risk.rank'],
+      suggestedQuestions: ['近期有哪些临期库存产品？'],
+    });
+  });
+
+  it('preserves terminal entrypoint and context when creating a Kiosk AgentRun', async () => {
+    await controller.createRun(
+      1,
+      7,
+      9,
+      ['terminal:agent:ask'],
+      { customerPhone: 'masked' },
+      {
+        message: '近期有哪些临期库存产品',
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        personaCode: 'inventory',
+        context: {
+          terminal: {
+            entrypoint: 'terminal:kiosk',
+            personaCode: 'inventory',
+            sourceAction: 'manager.inventory',
+          },
+        },
+      },
+      ['manager', 'reception', 'beautician'],
+    );
+
+    expect(orchestrator.createRun).toHaveBeenCalledWith({
+      message: '近期有哪些临期库存产品',
+      context: {
+        terminal: {
+          entrypoint: 'terminal:kiosk',
+          personaCode: 'inventory',
+          sourceAction: 'manager.inventory',
+        },
+      },
+      actor: {
+        storeId: 1,
+        userId: 7,
+        deviceId: 9,
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        personaCode: 'inventory',
+        permissions: ['terminal:agent:ask'],
+        fieldScopes: { customerPhone: 'masked' },
+      },
+    });
+  });
+
+  it('rejects Kiosk AgentRun creation when terminal runtime is disabled', async () => {
+    process.env.AGENT_TERMINAL_RUNTIME_ENABLED = 'false';
+
+    await expect(
+      controller.createRun(
+        1,
+        7,
+        9,
+        ['terminal:agent:ask'],
+        { customerPhone: 'masked' },
+        {
+          message: '今天经营有什么风险',
+          role: 'manager',
+          entrypoint: 'terminal:kiosk',
+        },
+        ['manager'],
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'AGENT_TERMINAL_RUNTIME_DISABLED',
+      }),
+    });
+    expect(orchestrator.createRun).not.toHaveBeenCalled();
+  });
+
   it('uses the selected terminal operator as the Agent actor after validating store and role', async () => {
     prisma.user.findFirst.mockResolvedValue({
       id: 31,
@@ -343,6 +446,8 @@ describe('AgentController', () => {
       {
         message: '继续看我的服务质量',
         role: 'beautician',
+        entrypoint: 'terminal:kiosk',
+        personaCode: 'beautician',
         context: { source: 'test' },
       },
     );
@@ -356,11 +461,37 @@ describe('AgentController', () => {
         userId: 7,
         deviceId: 9,
         role: 'beautician',
-        entrypoint: 'api',
+        entrypoint: 'terminal:kiosk',
+        personaCode: 'beautician',
         permissions: ['terminal:service:view'],
         fieldScopes: { customerPhone: 'masked' },
       },
     });
+  });
+
+  it('rejects Kiosk AgentRun append when terminal runtime is disabled', async () => {
+    process.env.AGENT_TERMINAL_RUNTIME_ENABLED = 'off';
+
+    await expect(
+      controller.appendMessage(
+        101,
+        1,
+        7,
+        9,
+        ['terminal:service:view'],
+        { customerPhone: 'masked' },
+        {
+          message: '继续看库存风险',
+          role: 'manager',
+          entrypoint: 'terminal:kiosk',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'AGENT_TERMINAL_RUNTIME_DISABLED',
+      }),
+    });
+    expect(orchestrator.appendMessage).not.toHaveBeenCalled();
   });
 
   it('passes the request role when approving an Agent action', async () => {

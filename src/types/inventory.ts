@@ -54,10 +54,18 @@ export interface ExpiringProduct {
   productName: string;
   sku: string;
   batchNo: string;
+  expiryDate?: string;
   remainingDays: number;
   stock: number;
+  unit?: string | null;
+  retailPrice?: number;
+  costPrice?: number;
   costAmount: number;
   storeName: string;
+  supplier?: string | null;
+  categoryName?: string | null;
+  riskLevel?: 'high' | 'medium' | 'low' | string;
+  suggestedAction?: string;
   suggestion: '促销' | '调拨' | '报废';
 }
 

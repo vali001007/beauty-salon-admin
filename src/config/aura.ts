@@ -46,7 +46,11 @@ export const AURA_ROLE_ACTIONS: Record<AuraRole, AuraAction[]> = {
     'manager.inventory',
     'business.query',
     'reception.appointments',
+    'operation.verify',
     'operation.cashier',
+    'operation.card',
+    'operation.recharge',
+    'operation.print',
   ],
   reception: [
     'reception.appointments',

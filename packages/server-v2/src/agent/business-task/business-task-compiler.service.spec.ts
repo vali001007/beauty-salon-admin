@@ -45,6 +45,33 @@ describe('BusinessTaskCompilerService', () => {
     });
   });
 
+  it('compiles urgent recall customer list requests into customer priority rank', async () => {
+    const result = await service.compile({ message: '请列出10个需要紧急召回的客户', role: 'manager' });
+
+    expect(result.validation.valid).toBe(true);
+    expect(result.task).toMatchObject({
+      domain: 'customer',
+      taskType: 'recommendation',
+      limit: 10,
+      filters: { customerSegment: 'churn_risk' },
+      outputIntent: 'show_table',
+    });
+    expect(result.task.metrics).toEqual(expect.arrayContaining(['follow_up_priority_score', 'churn_risk_score']));
+    expect(result.capabilityMatches[0]).toMatchObject({
+      capabilityId: 'customer_priority_recommendation',
+      toolPlan: [
+        {
+          tool: 'customer.priority.rank',
+          args: expect.objectContaining({
+            question: '请列出10个需要紧急召回的客户',
+            limit: 10,
+            filters: expect.objectContaining({ customerSegment: 'churn_risk' }),
+          }),
+        },
+      ],
+    });
+  });
+
   it('compiles revenue questions into a dedicated revenue diagnosis capability', async () => {
     const result = await service.compile({ message: '为什么今天收入下降', role: 'manager' });
 
@@ -77,6 +104,38 @@ describe('BusinessTaskCompilerService', () => {
       capabilityId: 'order_revenue_analysis',
       outputContract: expect.objectContaining({ requiredKinds: ['kpi', 'evidence'] }),
     });
+  });
+
+  it('compiles KPI shorthand phrases into the revenue order analysis skill without clarification', async () => {
+    const cases = [
+      { message: '这个月营业额', timeRange: 'this_month', metrics: ['revenue'] },
+      { message: '本月营收', timeRange: 'this_month', metrics: ['revenue'] },
+      { message: '今日收入', timeRange: 'today', metrics: ['revenue'] },
+      { message: '昨天流水', timeRange: 'yesterday', metrics: ['revenue'] },
+      { message: '这个月客单价', timeRange: 'this_month', metrics: ['revenue', 'average_order_value'] },
+      { message: '本月订单数', timeRange: 'this_month', metrics: ['revenue', 'order_count'] },
+    ];
+
+    for (const item of cases) {
+      const result = await service.compile({ message: item.message, role: 'manager' });
+
+      expect(result.validation.valid).toBe(true);
+      expect(result.validation.missingSlots).not.toContain('taskType');
+      expect(result.task).toMatchObject({
+        domain: 'business',
+        taskType: 'query',
+        outputIntent: 'show_kpi',
+      });
+      expect(result.task.metrics).toEqual(expect.arrayContaining(item.metrics));
+      expect(result.capabilityMatches[0]).toMatchObject({
+        capabilityId: 'order_revenue_analysis',
+        toolPlan: [{ tool: 'business.query.ask', args: expect.objectContaining({ question: item.message, timeRange: item.timeRange }) }],
+      });
+      expect(result.skillMatches[0]).toMatchObject({
+        skillId: 'revenue.order.analysis',
+        capabilityId: 'order_revenue_analysis',
+      });
+    }
   });
 
   it('compiles weekly customer consumption list questions into the order list capability', async () => {

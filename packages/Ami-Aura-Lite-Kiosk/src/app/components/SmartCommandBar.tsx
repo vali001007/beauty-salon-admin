@@ -60,7 +60,7 @@ function QuickCommandButton({
       <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-[#F7F5F2]">
         <Icon className="h-5 w-5 text-[#1F1B2D]" />
       </span>
-      <span className="whitespace-nowrap text-[11px] font-medium text-[#6F6678]">{label}</span>
+      <span className="line-clamp-2 max-w-full break-words text-center text-[11px] font-medium leading-tight text-[#6F6678]">{label}</span>
     </button>
   );
 }
@@ -68,6 +68,7 @@ function QuickCommandButton({
 export function SmartCommandBar({
   currentRole,
   definition,
+  suggestedQuestions,
   onCommand,
   onAutomationCommand,
   automationStatus = "idle",
@@ -75,6 +76,7 @@ export function SmartCommandBar({
 }: {
   currentRole: Role;
   definition: RoleDefinition;
+  suggestedQuestions?: string[];
   onCommand: (command: string, source?: "quick_action" | "text") => void;
   onAutomationCommand?: (command: string) => void;
   automationStatus?: AutomationStatus;
@@ -82,13 +84,23 @@ export function SmartCommandBar({
 }) {
   const [inputValue, setInputValue] = useState("");
   const [quickActionsCollapsed, setQuickActionsCollapsed] = useState(false);
-  const hasQuickActions = definition.quickActions.length > 0;
+  const agentSuggestions = (suggestedQuestions ?? []).map((question) => question.trim()).filter(Boolean).slice(0, 3);
+  const quickButtons = definition.quickActions.map((button) => ({
+    ...button,
+    source: "quick_action" as const,
+    key: button.action,
+  }));
+  const hasQuickActions = quickButtons.length > 0;
+  const suggestedPlaceholder = agentSuggestions.length
+    ? `例如：${agentSuggestions.map((question) => question.replace(/[？?。.]$/, "")).join(" / ")}`
+    : null;
   const placeholder =
-    currentRole === "manager"
+    suggestedPlaceholder ??
+    (currentRole === "manager"
       ? "例如：今日经营 / 员工表现 / 流失客户 / 库存预警"
       : currentRole === "beautician"
         ? "例如：我的下一个客户 / 张三皮肤情况 / 记录本次服务"
-        : "例如：查张三 / 今日预约 / 核销次卡";
+        : "例如：查张三 / 今日预约 / 核销次卡");
 
   const handleSend = () => {
     const command = inputValue.trim();
@@ -122,12 +134,12 @@ export function SmartCommandBar({
       {hasQuickActions && !quickActionsCollapsed ? (
         <div className="mx-auto flex w-full max-w-[900px] items-stretch gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto pb-1">
-            {definition.quickActions.map((button) => (
-              <div key={button.action} className="min-w-[76px] flex-1">
+            {quickButtons.map((button) => (
+              <div key={button.key} className="min-w-[76px] flex-1">
                 <QuickCommandButton
                   iconName={button.icon as keyof typeof iconMap}
                   label={button.label}
-                  onClick={() => onCommand(button.action, "quick_action")}
+                  onClick={() => onCommand(button.action, button.source)}
                   disabled={disabled}
                 />
               </div>

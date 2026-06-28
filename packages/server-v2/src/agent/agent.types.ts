@@ -1,4 +1,6 @@
 export type AgentRole = 'manager' | 'reception' | 'beautician';
+export type AgentPersonaCode = 'manager' | 'marketing' | 'reception' | 'beautician' | 'inventory' | 'finance';
+export type AgentRouteMode = 'manual' | 'context_inherit' | 'auto' | 'role_default';
 export type AgentRiskLevel = 'low' | 'medium' | 'high';
 export type AgentRunStatus =
   | 'created'
@@ -103,8 +105,25 @@ export type AgentActor = {
   deviceId?: number;
   role: AgentRole;
   entrypoint: string;
+  personaCode?: string;
   permissions?: string[];
   fieldScopes?: AgentFieldScopes;
+};
+
+export type AgentRouteDecision = {
+  personaCode: AgentPersonaCode;
+  confidence: number;
+  reason: string;
+  candidates: Array<{
+    personaCode: string;
+    score: number;
+    matchedCapabilities: string[];
+  }>;
+  clarificationNeeded: boolean;
+  clarificationQuestion?: string | null;
+  deniedReason?: string | null;
+  mode: AgentRouteMode;
+  routeChanged?: boolean;
 };
 
 // ─── 结构化输出 Block 协议（AuraResponseBlock）───────────────────────────────
@@ -118,6 +137,7 @@ export type AuraBlockAction = {
 };
 
 export type AuraResponseBlock =
+  | { kind: 'summary_text'; content: string; title?: string }
   | { kind: 'text'; content: string }
   | {
       kind: 'kpi_card';
@@ -286,6 +306,8 @@ export type AgentRunResult = {
   actions: AgentSuggestedAction[];
   evidence?: AgentEvidence;
   responseMode?: 'structured_blocks' | 'composed_answer';
+  personaCode?: string | null;
+  routeDecision?: AgentRouteDecision;
   approval?: {
     id: number;
     toolName: string;

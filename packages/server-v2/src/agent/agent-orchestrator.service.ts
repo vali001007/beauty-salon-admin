@@ -6,11 +6,13 @@ import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.s
 import { AgentPlannerService } from './agent-planner.service.js';
 import { AgentPolicyService } from './agent-policy.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
+import { AgentRouterService } from './agent-router.service.js';
 import { AgentToolRegistryService } from './agent-tool-registry.service.js';
 import { AgentWorkflowRuntimeService } from './agent-workflow-runtime.service.js';
 import type {
   AgentActor,
   AgentPlan,
+  AgentRouteDecision,
   AgentRunResult,
   AgentSuggestedAction,
   AgentToolDefinition,
@@ -19,6 +21,52 @@ import type {
   AuraBlockAction,
   AuraResponseBlock,
 } from './agent.types.js';
+
+const TABLE_COLUMN_LABELS: Record<string, string> = {
+  id: 'ID',
+  customerId: '客户ID',
+  customerName: '客户',
+  phone: '手机号',
+  phoneMasked: '手机号',
+  memberLevel: '会员等级',
+  totalSpent: '累计消费',
+  visitCount: '到店次数',
+  lastVisitDate: '最近到店',
+  lastOrderTimeText: '最近消费',
+  paidAmount: '消费金额',
+  paidAmountText: '消费金额',
+  orderCount: '订单数',
+  customerCount: '客户数',
+  salesAmount: '销售额',
+  salesAmountText: '销售额',
+  averageOrderValue: '客单价',
+  quantity: '数量',
+  growthRate: '增长率',
+  growthRateText: '增长',
+  productName: '商品',
+  projectName: '项目',
+  cardName: '卡项',
+  beauticianId: '员工ID',
+  beauticianName: '员工姓名',
+  levelName: '等级',
+  status: '状态',
+  performanceScore: '表现分',
+  performanceLevel: '表现等级',
+  serviceCount: '服务次数',
+  completedTaskCount: '完成任务',
+  cardUsageTimes: '核销次数',
+  commissionAmount: '提成',
+  completionRate: '完成率',
+  completionRateText: '完成率',
+  reservationCount: '预约数',
+  completedReservationCount: '完成预约',
+  reason: '原因',
+  suggestion: '建议',
+  severity: '风险等级',
+  title: '标题',
+  metricValue: '当前值',
+  threshold: '阈值',
+};
 
 @Injectable()
 export class AgentOrchestratorService {
@@ -31,14 +79,27 @@ export class AgentOrchestratorService {
     private readonly evalService: AgentEvalService,
     private readonly fieldScopeSanitizer: AgentFieldScopeSanitizerService,
     private readonly responseSafety: AgentResponseSafetyService,
+    private readonly router: AgentRouterService,
     @Optional()
     private readonly answerContractValidator?: AnswerContractValidatorService,
   ) {}
 
   async createRun(input: { message: string; actor: AgentActor; context?: Record<string, unknown> }): Promise<AgentRunResult> {
-    const run = await this.runtime.createRun(input);
-    await this.runtime.addMessage(run.id, 'user', input.message, { entrypoint: input.actor.entrypoint });
-    return this.processRun({ run, message: input.message, actor: input.actor, context: input.context });
+    const routeDecision = await this.router.route({
+      message: input.message,
+      actor: input.actor,
+      context: input.context,
+      manualPersonaCode: input.actor.personaCode ?? this.getContextPersonaCode(input.context),
+    });
+    const routedActor = this.withRouteActor(input.actor, routeDecision);
+    const routedContext = this.withRouteContext(input.context, routeDecision, input.message, input.actor);
+    const run = await this.runtime.createRun({ ...input, actor: routedActor, context: routedContext });
+    await this.runtime.addMessage(run.id, 'user', input.message, {
+      entrypoint: routedActor.entrypoint,
+      personaCode: routedActor.personaCode,
+      routeDecision,
+    });
+    return this.processRun({ run, message: input.message, actor: routedActor, context: routedContext });
   }
 
   async appendMessage(input: {
@@ -47,9 +108,8 @@ export class AgentOrchestratorService {
     actor: AgentActor;
     context?: Record<string, unknown>;
   }): Promise<AgentRunResult> {
-    const run = await this.runtime.getRun(input.runId);
+    let run = await this.runtime.getRun(input.runId);
     if (!run) throw new Error('AgentRun not found');
-    await this.runtime.addMessage(input.runId, 'user', input.message, { entrypoint: input.actor.entrypoint });
     const previousResult = this.asObject(run.resultJson);
     const previousFocus = this.asObject(previousResult?.conversationFocus);
     const mergedContext = {
@@ -58,7 +118,25 @@ export class AgentOrchestratorService {
       ...(previousResult ? { previousResult } : {}),
       ...(input.context ?? {}),
     };
-    return this.processRun({ run, message: input.message, actor: input.actor, context: mergedContext });
+    const routeDecision = await this.router.route({
+      message: input.message,
+      actor: input.actor,
+      context: mergedContext,
+      manualPersonaCode: input.actor.personaCode ?? this.getContextPersonaCode(input.context),
+      previousPersonaCode: run.personaCode,
+    });
+    const routedActor = this.withRouteActor(input.actor, routeDecision);
+    const routedContext = this.withRouteContext(mergedContext, routeDecision, input.message, input.actor);
+    if (routeDecision.personaCode !== run.personaCode) {
+      run = await this.runtime.updateRun(input.runId, { personaCode: routeDecision.personaCode });
+    }
+    await this.runtime.addMessage(input.runId, 'user', input.message, {
+      entrypoint: routedActor.entrypoint,
+      personaCode: routedActor.personaCode,
+      routeDecision,
+    });
+    await this.runtime.updateRun(input.runId, { contextJson: this.toJson(routedContext) });
+    return this.processRun({ run, message: input.message, actor: routedActor, context: routedContext });
   }
 
   async getRun(id: number) {
@@ -70,6 +148,7 @@ export class AgentOrchestratorService {
     pageSize?: number | string;
     status?: string;
     role?: string;
+    personaCode?: string;
     entrypoint?: string;
     keyword?: string;
     storeId?: number;
@@ -99,6 +178,39 @@ export class AgentOrchestratorService {
 
   async runSkillEvals(skillId?: string, options?: { persistFailures?: boolean }) {
     return this.evalService.runSkillCases(skillId, { persistFailures: options?.persistFailures, source: 'agent_evals_skills' });
+  }
+
+  private withRouteActor(actor: AgentActor, routeDecision: AgentRouteDecision): AgentActor {
+    return {
+      ...actor,
+      personaCode: routeDecision.personaCode,
+    };
+  }
+
+  private getContextPersonaCode(context?: Record<string, unknown>): string | undefined {
+    const terminal = this.asObject(context?.terminal);
+    const personaCode = terminal?.personaCode;
+    return typeof personaCode === 'string' && personaCode.trim() ? personaCode.trim() : undefined;
+  }
+
+  private withRouteContext(
+    context: Record<string, unknown> | undefined,
+    routeDecision: AgentRouteDecision,
+    message: string,
+    actor: AgentActor,
+  ): Record<string, unknown> {
+    const terminal = this.asObject(context?.terminal) ?? {};
+    return {
+      ...(context ?? {}),
+      routeDecision,
+      terminal: {
+        ...terminal,
+        entrypoint: terminal.entrypoint ?? actor.entrypoint,
+        role: terminal.role ?? actor.role,
+        personaCode: routeDecision.personaCode,
+        command: terminal.command ?? message,
+      },
+    };
   }
 
   async approve(input: {
@@ -191,6 +303,7 @@ export class AgentOrchestratorService {
           responseMode,
           phaseOutputs,
           conversationFocus,
+          routeDecision: this.asObject(run.resultJson)?.routeDecision ?? this.asObject(run.contextJson)?.routeDecision,
           traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
         },
         startedAt: renderingStartedAt,
@@ -272,9 +385,10 @@ export class AgentOrchestratorService {
         stepType: 'planner',
         name: 'agent.planner',
         status: 'success',
-        inputJson: { message: input.message, role: input.actor.role, context: input.context },
+        inputJson: { message: input.message, role: input.actor.role, personaCode: input.actor.personaCode, context: input.context },
         outputJson: {
           ...plan,
+          routeDecision: this.asObject(input.context?.routeDecision),
           performance: { includes: ['business_task_compile', 'tool_planning'] },
           traceSummary: this.buildTraceSummary(plan),
         },
@@ -286,7 +400,7 @@ export class AgentOrchestratorService {
         const answer = plan.clarificationQuestion ?? '请补充要处理的经营任务。';
         await this.runtime.addMessage(runId, 'assistant', answer, { status: 'clarify' });
         const updated = await this.runtime.setRunStatus(runId, 'completed', {
-          resultJson: this.toJson({ answer, plan, toolResults: [] }),
+          resultJson: this.toJson({ answer, plan, toolResults: [], routeDecision: this.asObject(input.context?.routeDecision) }),
         });
         return this.buildRunResult(updated, plan, answer, [], []);
       }
@@ -323,7 +437,16 @@ export class AgentOrchestratorService {
           const conversationFocus = this.buildConversationFocus(runId, plan, toolResults, renderedBlocks);
           await this.runtime.addMessage(runId, 'assistant', answer, { status: 'waiting_approval', approvalId: approval.id });
           const updated = await this.runtime.setRunStatus(runId, 'waiting_approval', {
-            resultJson: this.toJson({ answer, plan, toolResults, approval, approvalReason: policy.reason, renderedBlocks, conversationFocus }),
+            resultJson: this.toJson({
+              answer,
+              plan,
+              toolResults,
+              approval,
+              approvalReason: policy.reason,
+              renderedBlocks,
+              conversationFocus,
+              routeDecision: this.asObject(input.context?.routeDecision),
+            }),
           });
           const runResult = this.buildRunResult(updated, plan, answer, toolResults, actions);
           return {
@@ -413,6 +536,7 @@ export class AgentOrchestratorService {
           responseMode,
           conversationFocus,
           phaseOutputs,
+          routeDecision: this.asObject(input.context?.routeDecision),
           traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
         }),
       });
@@ -845,6 +969,7 @@ export class AgentOrchestratorService {
     const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
     const responseMode = plan ? this.resolveResponseMode(plan, renderedBlocks) : undefined;
     const phaseOutputs = this.buildPhaseOutputs(plan, answer, toolResults, actions, renderedBlocks);
+    const routeDecision = this.asRouteDecision(this.asObject(run.resultJson)?.routeDecision ?? this.asObject(run.contextJson)?.routeDecision);
     return {
       runId: Number(run.id),
       runNo: String(run.runNo),
@@ -855,6 +980,8 @@ export class AgentOrchestratorService {
       actions,
       evidence: this.evidenceService.merge(toolResults),
       responseMode,
+      personaCode: run.personaCode ?? null,
+      routeDecision,
       renderedBlocks,
       phaseOutputs,
       answerContract,
@@ -1043,12 +1170,10 @@ export class AgentOrchestratorService {
           ? businessQueryCard.items as Array<Record<string, unknown>>
           : null;
       if (items && items.length > 0) {
-        const columns = Object.keys(items[0] ?? {}).slice(0, 6);
-        const rows = items.slice(0, 20).map((item) =>
-          columns.map((col) => String(item[col] ?? '')),
-        );
+        const columns = this.resolveTableColumns(data, businessQueryCard, items).slice(0, 6);
+        const rows = items.slice(0, 20).map((item) => this.buildTableRow(item, columns));
         if (columns.length > 0 && rows.length > 0) {
-          blocks.push({ kind: 'table', columns, rows });
+          blocks.push({ kind: 'table', columns: this.toDisplayTableColumns(columns), rows });
         }
       }
 
@@ -1096,6 +1221,42 @@ export class AgentOrchestratorService {
     }
 
     return blocks;
+  }
+
+  private resolveTableColumns(
+    data: Record<string, unknown>,
+    businessQueryCard: Record<string, unknown> | undefined,
+    items: Array<Record<string, unknown>>,
+  ): string[] {
+    const dataColumns = this.asStringArray(data.columns);
+    if (dataColumns.length) return dataColumns;
+
+    const cardColumns = this.asStringArray(businessQueryCard?.columns);
+    if (cardColumns.length) return cardColumns;
+
+    const first = items[0] as unknown;
+    if (Array.isArray(first)) return first.map((_, index) => `字段 ${index + 1}`);
+    return Object.keys((items[0] ?? {}) as Record<string, unknown>);
+  }
+
+  private toDisplayTableColumns(columns: string[]) {
+    return columns.map((column, index) => {
+      const label = String(column ?? '').trim();
+      if (!label || /^\d+$/.test(label)) return `字段 ${index + 1}`;
+      return TABLE_COLUMN_LABELS[label] ?? label;
+    });
+  }
+
+  private buildTableRow(item: Record<string, unknown>, columns: string[]) {
+    const raw = item as unknown;
+    if (Array.isArray(raw)) {
+      return columns.map((_, index) => String(raw[index] ?? ''));
+    }
+    return columns.map((column) => String(item[column] ?? ''));
+  }
+
+  private asStringArray(value: unknown) {
+    return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
   }
 
   private buildPendingApprovalBlocks(
@@ -1257,6 +1418,7 @@ export class AgentOrchestratorService {
     if (
       ![
         '库存风险排行',
+        '临期库存清单',
         '库存消耗趋势',
         '项目耗材 BOM 风险',
         '临期库存处理草稿',
@@ -1313,20 +1475,23 @@ export class AgentOrchestratorService {
       };
     }
 
+    const isExpiringInventoryList = result.title === '临期库存清单';
     return {
       kind: 'inventory_item_card',
       title: result.title,
       itemName: String(top.productName ?? top.name ?? '库存商品'),
       subtitle: top.sku ? `SKU ${String(top.sku)}` : undefined,
       riskLevel: this.normalizeRiskLevel(top.riskLevel),
-      statusLabel: top.projectedDaysLeft !== undefined && top.projectedDaysLeft !== null
+      statusLabel: isExpiringInventoryList && top.daysToExpiry !== undefined && top.daysToExpiry !== null
+        ? `${String(top.daysToExpiry)} 天后到期`
+        : top.projectedDaysLeft !== undefined && top.projectedDaysLeft !== null
         ? `预计可用 ${String(top.projectedDaysLeft)} 天`
         : this.riskLabel(top.riskLevel),
       metrics: [
         { label: '当前库存', value: this.withUnit(top.currentStock, top.unit) },
-        { label: '安全库存', value: this.withUnit(top.safetyStock, top.unit) },
-        { label: '累计消耗', value: this.withUnit(top.consumeQty ?? top.quantity, top.unit) },
-        { label: '建议量', value: this.withUnit(top.suggestedQty ?? top.quantity, top.unit), tone: 'warning' },
+        { label: isExpiringInventoryList ? '临期库存' : '安全库存', value: this.withUnit(isExpiringInventoryList ? top.expiringStock : top.safetyStock, top.unit), tone: isExpiringInventoryList ? 'warning' : 'default' },
+        { label: isExpiringInventoryList ? '最近到期' : '累计消耗', value: isExpiringInventoryList ? String(top.nearestExpiryDate ?? '-') : this.withUnit(top.consumeQty ?? top.quantity, top.unit) },
+        { label: isExpiringInventoryList ? '风险分' : '建议量', value: isExpiringInventoryList ? String(top.riskScore ?? '-') : this.withUnit(top.suggestedQty ?? top.quantity, top.unit), tone: 'warning' },
       ],
       reason: String(top.reason ?? result.summary),
       actions,
@@ -1432,6 +1597,12 @@ export class AgentOrchestratorService {
     const object = this.asObject(value);
     if (!object) return undefined;
     return object as AgentPlan;
+  }
+
+  private asRouteDecision(value: unknown): AgentRouteDecision | undefined {
+    const object = this.asObject(value);
+    if (!object || typeof object.personaCode !== 'string') return undefined;
+    return object as AgentRouteDecision;
   }
 
   private toJson(value: unknown) {

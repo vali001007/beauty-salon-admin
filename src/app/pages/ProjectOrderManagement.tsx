@@ -2,9 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createProjectOrder, getProjectOrderProfit, getProjectOrdersPaginated } from '@/api/order';
-import { getCustomers } from '@/api/customer';
 import { getProjects } from '@/api/project';
 import { getBeauticians } from '@/api/beautician';
+import { CustomerPicker } from '../components/CustomerPicker';
+import {
+  PRODUCT_ORDER_PAYMENT_METHOD_OPTIONS,
+  PaymentMethodSelector,
+  canUseMemberBalancePayment,
+} from '../components/PaymentMethodSelector';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -39,7 +44,6 @@ const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
 
 const STATUS_OPTIONS: Array<'全部' | ProductOrderStatus> = ['全部', '待付款', '已付款', '已完成', '已取消', '已退款'];
 const CREATE_STATUS_OPTIONS: ProductOrderStatus[] = ['待付款', '已付款', '已完成'];
-const PAYMENT_METHODS: ProductOrderPaymentMethod[] = ['微信', '支付宝', '现金', '银行卡', '会员卡划扣'];
 
 type DraftProjectItem = {
   rowId: number;
@@ -232,10 +236,8 @@ export function ProjectOrderManagement() {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [beauticians, setBeauticians] = useState<Beautician[]>([]);
   const [loadingBeauticians, setLoadingBeauticians] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [showCustomerOptions, setShowCustomerOptions] = useState(false);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState<OrderFormState>({
     customerId: undefined,
     customerName: '',
@@ -304,37 +306,6 @@ export function ProjectOrderManagement() {
     };
   }, [selectedOrderStore, showCreate]);
 
-  useEffect(() => {
-    if (!showCreate || !selectedOrderStore) {
-      setCustomers([]);
-      setLoadingCustomers(false);
-      return;
-    }
-
-    let ignore = false;
-    const timer = window.setTimeout(() => {
-      setLoadingCustomers(true);
-      getCustomers({
-        storeName: selectedOrderStore.name,
-        keyword: customerSearch.trim() || undefined,
-      })
-        .then((list) => {
-          if (!ignore) setCustomers(list.slice(0, 20));
-        })
-        .catch(() => {
-          if (!ignore) toast.error('客户数据加载失败，可先手工录入客户信息');
-        })
-        .finally(() => {
-          if (!ignore) setLoadingCustomers(false);
-        });
-    }, 200);
-
-    return () => {
-      ignore = true;
-      window.clearTimeout(timer);
-    };
-  }, [customerSearch, selectedOrderStore, showCreate]);
-
   const filters = useMemo(
     () => ({
       status: statusFilter !== '全部' ? statusFilter : undefined,
@@ -365,6 +336,10 @@ export function ProjectOrderManagement() {
     [draftItems],
   );
   const discountPreview = useMemo(() => getDiscountPreview(totalAmount, discountForm), [discountForm, totalAmount]);
+  const canUseBalancePayment = useMemo(
+    () => canUseMemberBalancePayment(selectedCustomer, discountPreview.netAmount),
+    [discountPreview.netAmount, selectedCustomer],
+  );
 
   const activeOrders = orders.filter((order) => !['已取消', '已退款'].includes(order.status));
   const completedCount = orders.filter((order) => order.status === '已完成').length;
@@ -407,7 +382,7 @@ export function ProjectOrderManagement() {
       remark: '',
     });
     setCustomerSearch('');
-    setShowCustomerOptions(false);
+    setSelectedCustomer(null);
     setDraftItems([createEmptyItem()]);
     setDiscountForm(createEmptyDiscount());
   };
@@ -461,32 +436,40 @@ export function ProjectOrderManagement() {
       customerPhone: '',
     }));
     setCustomerSearch('');
-    setCustomers([]);
-    setShowCustomerOptions(false);
     setDraftItems([createEmptyItem()]);
     setDiscountForm(createEmptyDiscount());
   };
 
   const handleCustomerInputChange = (value: string) => {
     setCustomerSearch(value);
+    setSelectedCustomer(null);
     setForm((prev) => ({
       ...prev,
       customerId: undefined,
       customerName: value,
       customerPhone: prev.customerId ? '' : prev.customerPhone,
+      paymentMethod: prev.paymentMethod === '会员卡划扣' ? '微信' : prev.paymentMethod,
     }));
-    setShowCustomerOptions(true);
   };
 
-  const handleSelectCustomer = (customer: Customer) => {
+  const handleSelectCustomer = (customer: Customer | null) => {
+    setSelectedCustomer(customer);
+    if (!customer) {
+      setForm((prev) => ({
+        ...prev,
+        customerId: undefined,
+        customerName: '',
+        customerPhone: prev.customerId ? '' : prev.customerPhone,
+        paymentMethod: prev.paymentMethod === '会员卡划扣' ? '微信' : prev.paymentMethod,
+      }));
+      return;
+    }
     setForm((prev) => ({
       ...prev,
       customerId: customer.id,
       customerName: customer.name,
       customerPhone: customer.phone,
     }));
-    setCustomerSearch(customer.name);
-    setShowCustomerOptions(false);
   };
 
   const handleSubmitOrder = async () => {
@@ -518,6 +501,10 @@ export function ProjectOrderManagement() {
     }
     if (draftItems.some((item) => item.projectName.trim() && !item.beauticianId)) {
       toast.error('请为每条项目明细选择服务员工，便于提成归属');
+      return;
+    }
+    if (form.paymentMethod === '会员卡划扣' && !canUseBalancePayment) {
+      toast.error('该客户会员余额不足，请更换支付方式');
       return;
     }
 
@@ -834,51 +821,18 @@ export function ProjectOrderManagement() {
           </DialogHeader>
 
           <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="relative space-y-1.5">
-              <span className="text-sm font-medium text-gray-700">客户姓名 *</span>
-              <Input
-                value={customerSearch}
-                onChange={(event) => handleCustomerInputChange(event.target.value)}
-                onFocus={() => setShowCustomerOptions(true)}
-                onBlur={() => window.setTimeout(() => setShowCustomerOptions(false), 120)}
-                placeholder={form.storeId ? '搜索或选择该门店客户' : '请先选择订单门店'}
-                disabled={!form.storeId}
-              />
-              {showCustomerOptions && form.storeId && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                  {loadingCustomers && (
-                    <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-500">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      正在加载客户...
-                    </div>
-                  )}
-                  {!loadingCustomers && customers.length > 0 && (
-                    <div className="py-1">
-                      {customers.map((customer) => (
-                        <button
-                          key={customer.id}
-                          type="button"
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-blue-50"
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            handleSelectCustomer(customer);
-                          }}
-                        >
-                          <span>
-                            <span className="font-medium text-gray-800">{customer.name}</span>
-                            <span className="ml-2 text-xs text-gray-500">{customer.memberLevel}</span>
-                          </span>
-                          <span className="text-xs text-gray-500">{customer.phone}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {!loadingCustomers && customers.length === 0 && (
-                    <div className="px-3 py-3 text-sm text-gray-500">未找到该门店客户，可继续手工录入新客户姓名。</div>
-                  )}
-                </div>
-              )}
-            </label>
+            <CustomerPicker
+              value={customerSearch}
+              onValueChange={handleCustomerInputChange}
+              onSelect={handleSelectCustomer}
+              selectedCustomerId={form.customerId}
+              storeName={selectedOrderStore?.name}
+              label="客户姓名"
+              required
+              placeholder={form.storeId ? '搜索或选择该门店客户' : '请先选择订单门店'}
+              disabled={!form.storeId}
+              allowManualInput
+            />
             <label className="space-y-1.5">
               <span className="text-sm font-medium text-gray-700">手机号码</span>
               <Input
@@ -919,17 +873,14 @@ export function ProjectOrderManagement() {
               </label>
               <label className="space-y-1.5">
                 <span className="text-sm font-medium text-gray-700">支付方式</span>
-                <select
-                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                <PaymentMethodSelector<ProductOrderPaymentMethod>
                   value={form.paymentMethod}
-                  onChange={(event) => setForm((prev) => ({ ...prev, paymentMethod: event.target.value as ProductOrderPaymentMethod }))}
-                >
-                  {PAYMENT_METHODS.map((method) => (
-                    <option key={method} value={method}>
-                      {method}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(paymentMethod) => setForm((prev) => ({ ...prev, paymentMethod }))}
+                  methods={PRODUCT_ORDER_PAYMENT_METHOD_OPTIONS as Array<{ value: ProductOrderPaymentMethod; label: string; requiresMemberBalance?: boolean }>}
+                  customer={selectedCustomer}
+                  amount={discountPreview.netAmount}
+                  columnsClassName="grid-cols-2"
+                />
               </label>
             </div>
           </div>

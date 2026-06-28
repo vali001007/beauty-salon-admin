@@ -18,9 +18,17 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["../../src/*"],
-      "@aura/*": ["src/*"]
+      "@aura/*": ["src/*"],
+      "@ami/agent-core": ["../agent-core/index.ts"],
+      "@ami/agent-core/*": ["../agent-core/*"]
     }
   },
-  "include": ["src", "../../src/api", "../../src/stores", "../../src/types"],
+  "include": ["src", "../../src/api", "../../src/stores", "../../src/types", "../agent-core"],
+  "exclude": [
+    "../agent-core/**/*.test.ts",
+    "../agent-core/**/*.test.tsx",
+    "../agent-core/**/*.spec.ts",
+    "../agent-core/**/*.spec.tsx"
+  ],
   "references": []
 }

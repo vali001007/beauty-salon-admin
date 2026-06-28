@@ -33,6 +33,7 @@ import {
   type TerminalQueryKey,
   type TerminalQueryResult,
 } from '../services/terminalQueryClient';
+import { isTerminalAgentRuntimeEnabled, runTerminalAgentIntent, shouldUseTerminalAgentRuntime } from '../services/terminalAgentAdapter';
 import type { MicroAppRunResult } from './microAppTypes';
 
 type CacheableMicroAppConfig<T> = {
@@ -58,6 +59,10 @@ export function getTerminalWeekStartKey() {
 
 export function getTerminalTodayKey() {
   return toTerminalDateKey(new Date());
+}
+
+function formatAgentRuntimeError(error: unknown) {
+  return error instanceof Error ? error.message : 'Agent Runtime 暂不可用';
 }
 
 function withCacheMeta<T>(
@@ -351,6 +356,31 @@ export async function runMicroAppIntent(
     };
   }
 
+  if (shouldUseTerminalAgentRuntime(intent)) {
+    try {
+      return await runTerminalAgentIntent(intent, command, intent.role, options);
+    } catch (error) {
+      const reason = formatAgentRuntimeError(error);
+      return {
+        messages: [
+          {
+            type: 'error',
+            payload: {
+              text: `Agent Runtime 暂不可用，已切换到 Ami 智能问答兜底。原因：${reason}`,
+              source: 'agent-runtime',
+            },
+          },
+        ],
+        aiStream: {
+          role: intent.role,
+          command,
+          businessContext: `Agent Runtime fallback: ${reason}`,
+        },
+        aiCommand: command,
+      };
+    }
+  }
+
   const cacheableConfig = getCacheableMicroAppConfig(action);
   if (cacheableConfig) {
     const result = await runCacheableMicroApp(cacheableConfig);
@@ -358,6 +388,12 @@ export async function runMicroAppIntent(
   }
 
   if (action === 'business.query') {
+    if (!isTerminalAgentRuntimeEnabled()) {
+      return {
+        messages: [],
+        aiStream: { role: intent.role, command },
+      };
+    }
     const context = options.agentContext ?? (options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : undefined);
     const data = await runBusinessAgent(command, intent.role, context);
     return {

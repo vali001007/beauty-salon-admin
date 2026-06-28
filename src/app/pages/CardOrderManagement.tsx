@@ -11,10 +11,15 @@ import {
   updateCardOrder,
   voidCardOrder,
 } from '@/api/card';
-import { getCustomers } from '@/api/customer';
 import { getUsers } from '@/api/user';
 import { getBeauticians } from '@/api/beautician';
 import { getProjects } from '@/api/project';
+import { CustomerPicker } from '../components/CustomerPicker';
+import {
+  CARD_ORDER_PAYMENT_METHOD_OPTIONS,
+  PaymentMethodSelector,
+  canUseMemberBalancePayment,
+} from '../components/PaymentMethodSelector';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -71,9 +76,7 @@ interface ProjectItem {
   remark: string;
 }
 
-type CardOrderPaymentMethod = '微信' | '支付宝' | '银行卡' | '现金';
-
-const CARD_ORDER_PAYMENT_METHODS: CardOrderPaymentMethod[] = ['微信', '支付宝', '银行卡', '现金'];
+type CardOrderPaymentMethod = '微信' | '支付宝' | '银行卡' | '现金' | '会员余额';
 
 function toProjectItems(card?: Card): ProjectItem[] {
   return (card?.projects ?? []).map((project, index) => {
@@ -159,11 +162,11 @@ export function CardOrderManagement() {
   }), [searchUserName, searchCardName]);
   const { data: orders, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<CardOrder>(getCardOrdersPaginated, filters);
   const [cards, setCards] = useState<Card[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [salesUsers, setSalesUsers] = useState<SystemUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
-  const [customersLoading, setCustomersLoading] = useState(false);
   const [salesUsersLoading, setSalesUsersLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const currentUser = useAuthStore((state) => state.user);
@@ -209,6 +212,10 @@ export function CardOrderManagement() {
     () => Math.max(0, Number((formData.cardPrice - formData.discountAmount).toFixed(2))),
     [formData.cardPrice, formData.discountAmount],
   );
+  const canUseBalancePayment = useMemo(
+    () => canUseMemberBalancePayment(selectedCustomer, receivableAmount),
+    [receivableAmount, selectedCustomer],
+  );
   const availableStores = useMemo(
     () => stores.filter(store => store.status !== 'inactive' && store.status !== 'disabled'),
     [stores],
@@ -216,10 +223,6 @@ export function CardOrderManagement() {
   const selectedStore = useMemo(
     () => availableStores.find(store => String(store.id) === formData.storeId),
     [availableStores, formData.storeId],
-  );
-  const selectedCustomer = useMemo(
-    () => customers.find(customer => String(customer.id) === formData.customerId),
-    [customers, formData.customerId],
   );
   const selectableSalesUsers = useMemo(() => {
     const storeId = Number(formData.storeId) || undefined;
@@ -275,28 +278,6 @@ export function CardOrderManagement() {
       void loadStores();
     }
   }, [loadStores, stores.length]);
-
-  useEffect(() => {
-    let mounted = true;
-    setCustomersLoading(true);
-    getCustomers()
-      .then((items) => {
-        if (mounted) setCustomers(items);
-      })
-      .catch(() => {
-        if (mounted) {
-          setCustomers([]);
-          toast.error('客户数据加载失败，请稍后重试');
-        }
-      })
-      .finally(() => {
-        if (mounted) setCustomersLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [currentStoreId, formData.storeId, isDialogOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -564,8 +545,33 @@ export function CardOrderManagement() {
       giftProjects: [],
       paymentMethod: '微信',
     });
+    setCustomerSearch('');
+    setSelectedCustomer(null);
     setProjectItems([]);
     setIsDialogOpen(true);
+  };
+
+  const handleCustomerSearchChange = (value: string) => {
+    setCustomerSearch(value);
+    if (formData.customerId) {
+      setSelectedCustomer(null);
+      setFormData((prev) => ({
+        ...prev,
+        customerId: '',
+        userName: '',
+        paymentMethod: prev.paymentMethod === '会员余额' ? '微信' : prev.paymentMethod,
+      }));
+    }
+  };
+
+  const handleSelectCustomer = (customer: Customer | null) => {
+    setSelectedCustomer(customer);
+    setFormData((prev) => ({
+      ...prev,
+      customerId: customer ? String(customer.id) : '',
+      userName: customer?.name ?? '',
+      storeId: customer?.storeId ? String(customer.storeId) : prev.storeId,
+    }));
   };
 
   const handleCloseDialog = () => {
@@ -591,6 +597,10 @@ export function CardOrderManagement() {
     }
     if (!formData.expireTime) {
       toast.error('请选择过期时间');
+      return;
+    }
+    if (formData.paymentMethod === '会员余额' && !canUseBalancePayment) {
+      toast.error('该客户会员余额不足，请更换支付方式');
       return;
     }
 
@@ -868,30 +878,20 @@ export function CardOrderManagement() {
 
               {/* Row 2: User & Store */}
               <div className="grid grid-cols-2 gap-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-red-500">*</span>
-                  <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">客户</label>
-                  <select
-                    className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.customerId}
-                    onChange={(e) => {
-                      const customer = customers.find((item) => String(item.id) === e.target.value);
-                      setFormData({
-                        ...formData,
-                        customerId: e.target.value,
-                        userName: customer?.name ?? '',
-                        storeId: customer?.storeId ? String(customer.storeId) : formData.storeId,
-                      });
-                    }}
-                    disabled={customersLoading}
-                  >
-                    <option value="">{customersLoading ? '客户加载中...' : '请选择客户'}</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={String(customer.id)}>
-                        {customer.name}{customer.phone ? `（${customer.phone}）` : ''}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-start gap-2">
+                  <span className="pt-8 text-red-500">*</span>
+                  <CustomerPicker
+                    value={customerSearch}
+                    onValueChange={handleCustomerSearchChange}
+                    onSelect={handleSelectCustomer}
+                    selectedCustomerId={formData.customerId}
+                    storeName={selectedStore?.name}
+                    label="客户"
+                    required={false}
+                    placeholder="输入客户姓名或手机号搜索"
+                    emptyText="未找到客户，请先到客户资料中建档。"
+                    className="flex-1"
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-red-500">*</span>
@@ -951,22 +951,15 @@ export function CardOrderManagement() {
                 <h3 className="text-sm font-medium text-gray-800 mb-4">付款信息</h3>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-700 whitespace-nowrap min-w-[70px]">支付方式</label>
-                  <div className="grid flex-1 grid-cols-4 gap-2">
-                    {CARD_ORDER_PAYMENT_METHODS.map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, paymentMethod: method })}
-                        className={`h-9 rounded-md border text-sm ${
-                          formData.paymentMethod === method
-                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {method}
-                      </button>
-                    ))}
-                  </div>
+                  <PaymentMethodSelector<CardOrderPaymentMethod>
+                    value={formData.paymentMethod}
+                    onChange={(paymentMethod) => setFormData({ ...formData, paymentMethod })}
+                    methods={CARD_ORDER_PAYMENT_METHOD_OPTIONS as Array<{ value: CardOrderPaymentMethod; label: string; requiresMemberBalance?: boolean }>}
+                    customer={selectedCustomer}
+                    amount={receivableAmount}
+                    columnsClassName="flex-1 grid-cols-2 sm:grid-cols-5"
+                    buttonClassName="min-h-9 rounded-md"
+                  />
                 </div>
               </div>
 

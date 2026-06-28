@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { MessagePanel } from "./components/MessagePanel";
 import { TopStatusBar } from "./components/TopStatusBar";
 import { SmartCommandBar } from "./components/SmartCommandBar";
 import { LockScreenOverlay } from "./components/LockScreenOverlay";
 import { ConversationHistory } from "./components/ConversationHistory";
+import { AgentMessageItem } from "./components/AgentMessageItem";
+import { PersonaSwitcher } from "./components/PersonaSwitcher";
 import { AutomationDraftCard } from "./components/AutomationDraftCard";
 import { AutomationTodayCard } from "./components/AutomationTodayCard";
 import { BeauticianScheduleCard } from "./components/BeauticianScheduleCard";
@@ -17,7 +19,6 @@ import { ServiceRecordFlowCard } from "./components/ServiceRecordFlowCard";
 import {
   BeauticianCustomerListCard,
   BeauticianDashboardCard,
-  AgentRunResultCard,
   BusinessQueryResultCard,
   CustomerGrowthCard,
   FollowUpTasksCard,
@@ -66,14 +67,26 @@ import {
   switchAuraStore,
   writeAuraStartupCache,
 } from "./services/auraCoreService";
+import { submitTerminalAgentFeedback } from "./services/agentRuntimeService";
+import { buildTerminalFactContext } from "./services/terminalFactContext";
+import {
+  getDefaultTerminalPersona,
+  getTerminalPersonasForRole,
+  resolveTerminalPersona,
+  type TerminalAgentPersonaCode,
+} from "./services/agentPersonaMapping";
+import { shouldUseTerminalAgentRuntime } from "./services/terminalAgentAdapter";
+import { useKioskAgentConversation } from "./hooks/useKioskAgentConversation";
 import type { AuraHomePayload } from "./services/auraCoreService";
-import type { AgentRunResult } from "@/types/agent";
 import type { BusinessQueryContext, BusinessQueryResponse } from "@/types/businessQuery";
+import { getAgentPersonas } from "@/api";
+import { BUILTIN_AGENT_PERSONAS, type AgentPersonaSummary } from "@ami/agent-core";
 import {
   agentActionToCommand,
   buildUnsupportedInternalActionResult,
   businessQueryActionToCommand,
   isInternalActionCode,
+  parseAgentApprovalAction,
   resolveTerminalActionResult,
 } from "./intent/actionCommands";
 import { resolveCommandIntent, shouldDisplayUserCommand } from "./intent/intentRouter";
@@ -132,6 +145,8 @@ const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "serviceRecord",
 ]);
 
+const PERSONA_REFRESH_INTERVAL_MS = 60_000;
+
 function createMessage(
   type: MessageType,
   payload?: Payload | { text: string; source?: string },
@@ -164,28 +179,15 @@ function getLatestBusinessQueryContext(messages: Message[]): BusinessQueryContex
   return undefined;
 }
 
-function getLatestAgentContext(messages: Message[]): Record<string, unknown> | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const payload = messages[index]?.payload as AuraPayload | undefined;
-    if (payload?.kind === "agentRun") {
-      const data = payload.data as AgentRunResult;
-      return {
-        previousRun: {
-          runId: data.runId,
-          runNo: data.runNo,
-          status: data.status,
-          plan: data.plan,
-          toolResults: data.toolResults,
-          actions: data.actions,
-          evidence: data.evidence,
-        },
-      };
-    }
-    if (payload?.kind === "businessQuery") {
-      return { previousBusinessQuery: getLatestBusinessQueryContext(messages) };
-    }
-  }
-  return undefined;
+function mergeMessageStreams(flowMessages: Message[], agentMessages: Message[]) {
+  return [...flowMessages, ...agentMessages].sort((left, right) => {
+    const timeDelta = left.timestamp.getTime() - right.timestamp.getTime();
+    return timeDelta !== 0 ? timeDelta : left.id.localeCompare(right.id);
+  });
+}
+
+function removeLoadingMessages(messages: Message[]) {
+  return messages.filter((message) => message.type !== "loading");
 }
 
 function LoadingCard({ text }: { text: string }) {
@@ -569,8 +571,19 @@ export default function AppContent() {
   const [bootstrap, setBootstrap] = useState<AuraBootstrap | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [currentRole, setCurrentRole] = useState<Role>("reception");
+  const [activePersonaCode, setActivePersonaCode] = useState<TerminalAgentPersonaCode>(getDefaultTerminalPersona("reception"));
+  const [agentPersonas, setAgentPersonas] = useState<AgentPersonaSummary[]>(BUILTIN_AGENT_PERSONAS);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const agentConversation = useKioskAgentConversation();
+  const {
+    messages: agentMessages,
+    setMessages: setAgentMessages,
+    loading: agentLoading,
+    setLoading: setAgentLoading,
+    clearMessages: clearAgentMessages,
+    getLatestContext: getLatestAgentContext,
+  } = agentConversation;
   const [suppressBlockingLoading, setSuppressBlockingLoading] = useState(false);
   const [automationLoading, setAutomationLoading] = useState(false);
   const [latestAutomationDraft, setLatestAutomationDraft] = useState<AutomationDraftData | null>(null);
@@ -585,23 +598,53 @@ export default function AppContent() {
   );
 
   const roleDefinition = useMemo(() => getRoleDefinition(currentRole), [currentRole]);
+  const showPersonaSwitcher = useMemo(() => {
+    const debugFromUrl = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debugPersona") === "1";
+    return debugFromUrl || import.meta.env.VITE_AURA_SHOW_PERSONA_SWITCHER === "true";
+  }, []);
+  const availableTerminalPersonas = useMemo<AgentPersonaSummary[]>(() => {
+    const allowed = new Set(getTerminalPersonasForRole(currentRole));
+    const available = agentPersonas.filter((persona) => allowed.has(persona.code));
+    return available.length ? available : BUILTIN_AGENT_PERSONAS.filter((persona) => allowed.has(persona.code));
+  }, [agentPersonas, currentRole]);
+  const suggestedQuestionPool = useMemo(
+    () => Array.from(new Set(availableTerminalPersonas.flatMap((persona) => persona.suggestedQuestions))).slice(0, 3),
+    [availableTerminalPersonas],
+  );
   const availableRoles = bootstrap?.availableRoles ?? [currentRole];
   const availableStores = bootstrap?.availableStores ?? [];
   const availableUsers = bootstrap?.terminalUsers ?? [];
   const currentOperatorId = bootstrap?.currentUser?.id ?? session?.user?.id ?? null;
-  const hasInlineLoading = messages.some((message) => message.type === "loading");
-  const messagesRef = useRef<Message[]>(messages);
+  const combinedMessages = useMemo(() => mergeMessageStreams(messages, agentMessages), [messages, agentMessages]);
+  const commandBusy = loading || agentLoading;
+  const hasInlineLoading = combinedMessages.some((message) => message.type === "loading");
+  const messagesRef = useRef<Message[]>(combinedMessages);
   const currentRoleRef = useRef<Role>(currentRole);
+  const activePersonaCodeRef = useRef<TerminalAgentPersonaCode>(activePersonaCode);
   const currentOperatorIdRef = useRef<number | null>(currentOperatorId);
   const conversationEpochRef = useRef(0);
+  const refreshAgentPersonas = useCallback(async (isActive: () => boolean = () => true) => {
+    try {
+      const personas = await getAgentPersonas();
+      if (!isActive()) return;
+      setAgentPersonas(personas.length ? personas : BUILTIN_AGENT_PERSONAS);
+    } catch {
+      if (!isActive()) return;
+      setAgentPersonas(BUILTIN_AGENT_PERSONAS);
+    }
+  }, []);
 
   useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+    messagesRef.current = combinedMessages;
+  }, [combinedMessages]);
 
   useEffect(() => {
     currentRoleRef.current = currentRole;
   }, [currentRole]);
+
+  useEffect(() => {
+    activePersonaCodeRef.current = activePersonaCode;
+  }, [activePersonaCode]);
 
   useEffect(() => {
     currentOperatorIdRef.current = currentOperatorId;
@@ -612,6 +655,33 @@ export default function AppContent() {
     setConversationScope(getConversationScopeForOperator(currentOperatorId, currentRole));
   }, [currentOperatorId, currentRole]);
 
+  useEffect(() => {
+    setActivePersonaCode((current) => resolveTerminalPersona(currentRole, current));
+  }, [currentRole]);
+
+  useEffect(() => {
+    if (!availableTerminalPersonas.length) return;
+    if (availableTerminalPersonas.some((persona) => persona.code === activePersonaCode)) return;
+    setActivePersonaCode(resolveTerminalPersona(currentRole, availableTerminalPersonas[0]?.code));
+  }, [activePersonaCode, availableTerminalPersonas, currentRole]);
+
+  useEffect(() => {
+    if (!bootstrap && !session) return;
+    let cancelled = false;
+    const load = async () => {
+      if (cancelled) return;
+      await refreshAgentPersonas(() => !cancelled);
+    };
+    void load();
+    const refreshTimer = window.setInterval(() => {
+      void load();
+    }, PERSONA_REFRESH_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
+  }, [bootstrap?.currentStore?.id, refreshAgentPersonas, session?.user?.id]);
+
   const getConversationEpoch = () => conversationEpochRef.current;
 
   const isConversationEpochActive = (epoch: number) => conversationEpochRef.current === epoch;
@@ -621,22 +691,32 @@ export default function AppContent() {
     return conversationEpochRef.current;
   };
 
-  const appendMessage = (message: Message, epoch = getConversationEpoch()) => {
+  const clearAllMessages = () => {
+    setMessages([]);
+    clearAgentMessages();
+  };
+
+  const appendMessage = (message: Message, epoch = getConversationEpoch(), stream: "flow" | "agent" = "flow") => {
     if (!isConversationEpochActive(epoch)) return;
-    setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, message] : prev));
+    const setTargetMessages = stream === "agent" ? setAgentMessages : setMessages;
+    setTargetMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, message] : prev));
   };
 
   const appendRunResult = (
     result: MicroAppRunResult,
     epoch = getConversationEpoch(),
-    options?: { prependMessages?: Message[]; replaceFixedFlowCards?: boolean },
+    options?: { prependMessages?: Message[]; replaceFixedFlowCards?: boolean; stream?: "flow" | "agent" },
   ) => {
     if (!isConversationEpochActive(epoch)) return;
     const createdMessages = result.messages.map((message) => createMessage(message.type, message.payload, message.title));
-    setMessages((prev) => {
+    const stream = options?.stream ?? "flow";
+    const setTargetMessages = stream === "agent" ? setAgentMessages : setMessages;
+    setTargetMessages((prev) => {
       if (!isConversationEpochActive(epoch)) return prev;
       const shouldReplaceFixedFlowCards =
-        options?.replaceFixedFlowCards && createdMessages.some((message) => FIXED_FLOW_MESSAGE_TYPES.has(message.type));
+        stream === "flow" &&
+        options?.replaceFixedFlowCards &&
+        createdMessages.some((message) => FIXED_FLOW_MESSAGE_TYPES.has(message.type));
       const baseMessages = shouldReplaceFixedFlowCards
         ? prev.filter((message) => !FIXED_FLOW_MESSAGE_TYPES.has(message.type))
         : prev;
@@ -656,7 +736,7 @@ export default function AppContent() {
           ...createMessage(message.type, message.payload, message.title),
           id: createdIds[index] ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         }));
-        setMessages((prev) => {
+        setTargetMessages((prev) => {
           if (!isConversationEpochActive(epoch)) return prev;
           const replaced = prev.map((message) => {
             const index = createdIds.indexOf(message.id);
@@ -673,7 +753,11 @@ export default function AppContent() {
       });
   };
 
-  const appendStreamingAiAnswer = async (stream: NonNullable<MicroAppRunResult["aiStream"]>, epoch = getConversationEpoch()) => {
+  const appendStreamingAiAnswer = async (
+    stream: NonNullable<MicroAppRunResult["aiStream"]>,
+    epoch = getConversationEpoch(),
+    targetStream: "flow" | "agent" = "flow",
+  ) => {
     if (!isConversationEpochActive(epoch)) return;
     const baseData: AiSuggestionData = {
       title: "Ami 智能问答",
@@ -682,13 +766,14 @@ export default function AppContent() {
     };
     const aiMessage = createMessage("ai", { kind: "ai", data: baseData });
     let text = "";
-    setMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, aiMessage] : prev));
+    const setTargetMessages = targetStream === "agent" ? setAgentMessages : setMessages;
+    setTargetMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, aiMessage] : prev));
 
     try {
       for await (const chunk of getTerminalBusinessAnswerStream(stream)) {
         if (!isConversationEpochActive(epoch)) return;
         text += chunk;
-        setMessages((prev) =>
+        setTargetMessages((prev) =>
           isConversationEpochActive(epoch)
             ? prev.map((message) =>
                 message.id === aiMessage.id
@@ -709,7 +794,7 @@ export default function AppContent() {
       }
     } catch (err) {
       if (!isConversationEpochActive(epoch)) return;
-      setMessages((prev) =>
+      setTargetMessages((prev) =>
         isConversationEpochActive(epoch)
           ? prev.map((message) =>
               message.id === aiMessage.id
@@ -751,7 +836,7 @@ export default function AppContent() {
     await persistAndClearConversation();
     advanceConversationEpoch();
     setShowConversationHistory(false);
-    setMessages([]);
+    clearAllMessages();
     setIsLocked(true);
   };
 
@@ -769,7 +854,7 @@ export default function AppContent() {
     setShowConversationHistory(false);
     setSession(null);
     setBootstrap(null);
-    setMessages([]);
+    clearAllMessages();
     setIsLocked(false);
     setShowLogin(true);
     setLoading(false);
@@ -997,7 +1082,7 @@ export default function AppContent() {
       setSession(createSessionFromBootstrap(nextBootstrap));
       setBootstrap(nextBootstrap);
       setCurrentRole(nextBootstrap.currentRole);
-      setMessages([]);
+      clearAllMessages();
       setShowLogin(false);
       await loadRoleHome(nextBootstrap.currentRole, { bootstrapForCache: nextBootstrap, epoch });
       if (isConversationEpochActive(epoch)) {
@@ -1023,6 +1108,7 @@ export default function AppContent() {
       setShowLogin(false);
       setCurrentRole(cachedStartup.currentRole);
       hydrateRoleHomeQueryCache(cachedStartup.currentRole, cachedStartup.homePayload);
+      clearAgentMessages();
       setMessages(createHomeMessages(cachedStartup.currentRole, cachedStartup.homePayload));
       setLoading(false);
     }
@@ -1061,6 +1147,7 @@ export default function AppContent() {
         setError(err instanceof Error ? err.message : "初始化失败");
         if (!cachedStartup) {
           setShowLogin(true);
+          clearAgentMessages();
           setMessages([
             createMessage("error", { text: "Ami_Core 会话初始化失败", source: "core" }),
           ]);
@@ -1081,12 +1168,12 @@ export default function AppContent() {
       getRole: () => currentRoleRef.current,
       getOperatorId: () => currentOperatorIdRef.current,
       getMessages: () => messagesRef.current,
-      clearMessages: () => setMessages([]),
+      clearMessages: clearAllMessages,
     });
   }, []);
 
   const handleUserChange = async (operatorId: number) => {
-    if (loading || switchingUser || currentOperatorIdRef.current === operatorId) return;
+    if (commandBusy || switchingUser || currentOperatorIdRef.current === operatorId) return;
     const targetUser = availableUsers.find((user) => user.id === operatorId);
     if (
       targetUser &&
@@ -1117,7 +1204,7 @@ export default function AppContent() {
       setLatestAutomationDraft(null);
       setConversationContext(createConversationContext(nextRole, nextBootstrap.currentStore?.id));
       setShowConversationHistory(false);
-      setMessages([]);
+      clearAllMessages();
       await loadRoleHome(nextRole, { bootstrapForCache: nextBootstrap, epoch });
       if (isConversationEpochActive(epoch)) {
         schedulePrefetch(nextRole, nextBootstrap.availableRoles);
@@ -1136,7 +1223,7 @@ export default function AppContent() {
 
   const handleStoreChange = async (storeId: number) => {
     const activeStoreId = bootstrap?.currentStore?.id ?? session?.store?.id ?? null;
-    if (loading || switchingStore || activeStoreId === storeId) return;
+    if (commandBusy || switchingStore || activeStoreId === storeId) return;
 
     const epoch = advanceConversationEpoch();
     setSwitchingStore(true);
@@ -1188,6 +1275,9 @@ export default function AppContent() {
       conversationContext,
     );
     if (!isConversationEpochActive(epoch)) return;
+    const routeToAgentRuntime = shouldUseTerminalAgentRuntime(intent);
+    const targetStream: "flow" | "agent" = routeToAgentRuntime ? "agent" : "flow";
+    const setCommandLoading = routeToAgentRuntime ? setAgentLoading : setLoading;
 
     // 每轮对话后更新上下文（action 名和用户输入，响应文本后续可补充）
     setConversationContext((prev) =>
@@ -1200,11 +1290,11 @@ export default function AppContent() {
       ? createMessage("query", { text: command }, "用户指令")
       : null;
     if (shouldDisplayUserCommand(intent)) {
-      appendMessage(userCommandMessage!, epoch);
+      appendMessage(userCommandMessage!, epoch, targetStream);
     }
     const shouldDelayLoading = source === "quick_action" || isCacheableMicroAppAction(intent.action);
     setSuppressBlockingLoading(shouldDelayLoading);
-    setLoading(true);
+    setCommandLoading(true);
     setLoadingText(intent.loadingLabel);
     setError(null);
 
@@ -1212,7 +1302,7 @@ export default function AppContent() {
       try {
         const data = await getTerminalBusinessAnswer({ role: currentRole, command: aiCommand, businessContext: businessSummary });
         if (!isConversationEpochActive(epoch)) return;
-        appendMessage(createMessage("ai", { kind: "ai", data }), epoch);
+        appendMessage(createMessage("ai", { kind: "ai", data }), epoch, targetStream);
       } catch {
         if (!isConversationEpochActive(epoch)) return;
         appendMessage(
@@ -1225,6 +1315,7 @@ export default function AppContent() {
             },
           }),
           epoch,
+          targetStream,
         );
       }
     };
@@ -1237,31 +1328,50 @@ export default function AppContent() {
         loadingTimer = window.setTimeout(() => {
           if (!isConversationEpochActive(epoch)) return;
           loadingMessageShown = true;
-          appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch);
+          appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch, targetStream);
         }, 300);
       } else {
         loadingMessageShown = true;
-        appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch);
+        appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch, targetStream);
       }
 
+      const selectedPersonaCode = activePersonaCodeRef.current;
+      const terminalFacts = buildTerminalFactContext(messagesRef.current, {
+        store: bootstrap?.currentStore ?? session?.store ?? null,
+        operator: bootstrap?.currentUser ?? session?.user ?? null,
+        device: {
+          entrypoint: "terminal:kiosk",
+          role: currentRoleRef.current,
+          ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
+        },
+      });
+
       const result = await runMicroAppIntent(intent, command, {
-        agentContext: intent.action === "business.query" ? getLatestAgentContext(messagesRef.current) : undefined,
-        businessQueryContext: intent.action === "business.query" ? getLatestBusinessQueryContext(messagesRef.current) : undefined,
+        agentContext: {
+          ...(getLatestAgentContext() ?? {}),
+          terminalFacts,
+          terminal: {
+            ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
+          },
+        },
+        businessQueryContext: getLatestBusinessQueryContext(messagesRef.current),
       });
       if (!isConversationEpochActive(epoch)) return;
       if (loadingTimer !== null) {
         window.clearTimeout(loadingTimer);
       }
-      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
+      const setTargetMessages = targetStream === "agent" ? setAgentMessages : setMessages;
+      setTargetMessages((prev) => (isConversationEpochActive(epoch) ? removeLoadingMessages(prev) : prev));
       if (!loadingMessageShown && shouldDelayLoading) {
         setLoadingText("");
       }
       appendRunResult(result, epoch, {
         prependMessages: userCommandMessage ? [userCommandMessage] : undefined,
         replaceFixedFlowCards: source === "quick_action",
+        stream: targetStream,
       });
       if (result.aiStream) {
-        await appendStreamingAiAnswer(result.aiStream, epoch);
+        await appendStreamingAiAnswer(result.aiStream, epoch, targetStream);
       }
       if (result.aiSummary && (source === "text" || source === "voice")) {
         await appendAiHint(result.aiSummary, result.aiCommand);
@@ -1271,11 +1381,12 @@ export default function AppContent() {
       if (loadingTimer !== null) {
         window.clearTimeout(loadingTimer);
       }
-      setMessages((prev) => (isConversationEpochActive(epoch) ? prev.filter((msg) => msg.type !== "loading") : prev));
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "请求失败", source: "core" }), epoch);
+      const setTargetMessages = targetStream === "agent" ? setAgentMessages : setMessages;
+      setTargetMessages((prev) => (isConversationEpochActive(epoch) ? removeLoadingMessages(prev) : prev));
+      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "请求失败", source: "core" }), epoch, targetStream);
     } finally {
       if (isConversationEpochActive(epoch)) {
-        setLoading(false);
+        setCommandLoading(false);
         setSuppressBlockingLoading(false);
       }
     }
@@ -1354,6 +1465,10 @@ export default function AppContent() {
     }
   };
 
+  const handleAgentFeedback = async (runId: number, adopted: boolean) => {
+    await submitTerminalAgentFeedback({ runId, adopted });
+  };
+
   const appendOperationResult = (data: OperationResultData, epoch = getConversationEpoch()) => {
     appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
@@ -1376,7 +1491,18 @@ export default function AppContent() {
   };
 
   const handleBusinessQueryAction = (action: string) => handleStructuredAction(action, businessQueryActionToCommand);
-  const handleAgentResultAction = (action: string) => handleStructuredAction(action, agentActionToCommand);
+  const handleAgentResultAction = async (action: string) => {
+    const approvalAction = parseAgentApprovalAction(action);
+    if (approvalAction?.decision === "approve") {
+      await handleAgentApprovalApprove(approvalAction.approvalId);
+      return;
+    }
+    if (approvalAction?.decision === "reject") {
+      await handleAgentApprovalReject(approvalAction.approvalId);
+      return;
+    }
+    await handleStructuredAction(action, agentActionToCommand);
+  };
 
   if (showLogin && !bootstrap) {
     return <AuraLoginPage error={error} loading={loading} onLogin={handleLogin} />;
@@ -1414,12 +1540,23 @@ export default function AppContent() {
         />
       ) : null}
 
-      <MessagePanel messages={messages}>
+      <MessagePanel messages={combinedMessages}>
         <div data-message-items className="flex w-full flex-col gap-4 pb-36">
-          {loading && !hasInlineLoading && !suppressBlockingLoading ? <LoadingCard text={loadingText} /> : null}
+          {showPersonaSwitcher && availableTerminalPersonas.length > 1 ? (
+            <PersonaSwitcher
+              personas={availableTerminalPersonas}
+              activePersonaCode={activePersonaCode}
+              onChange={(persona) => {
+                const nextPersonaCode = resolveTerminalPersona(currentRole, persona.code);
+                activePersonaCodeRef.current = nextPersonaCode;
+                setActivePersonaCode(nextPersonaCode);
+              }}
+            />
+          ) : null}
+          {commandBusy && !hasInlineLoading && !suppressBlockingLoading ? <LoadingCard text={loadingText} /> : null}
           {error ? <SystemNotice title="Ami_Core 请求异常" subtitle={error} /> : null}
 
-          {messages.map((message) => {
+          {combinedMessages.map((message) => {
             const key = message.id;
 
             if (message.type === "query") {
@@ -1560,11 +1697,13 @@ export default function AppContent() {
                 return (
                   <div key={key} className="grid gap-2">
                     <QueryStatusLine title={message.title} />
-                    <AgentRunResultCard
+                    <AgentMessageItem
                       data={payload.data}
+                      onCommand={(suggestion) => handleCommand(suggestion, "text")}
                       onAction={handleAgentResultAction}
                       onApprove={handleAgentApprovalApprove}
                       onReject={handleAgentApprovalReject}
+                      onFeedback={handleAgentFeedback}
                     />
                   </div>
                 );
@@ -1650,10 +1789,11 @@ export default function AppContent() {
       <SmartCommandBar
         currentRole={currentRole}
         definition={roleDefinition}
+        suggestedQuestions={suggestedQuestionPool}
         onCommand={handleCommand}
         onAutomationCommand={handleAutomationCommand}
         automationStatus={automationLoading ? "loading" : latestAutomationDraft?.status ?? "idle"}
-        disabled={loading}
+        disabled={commandBusy}
       />
     </div>
   );

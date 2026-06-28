@@ -97,6 +97,46 @@ describe('AgentBlockRenderer', () => {
     expect(screen.getByText('没有命中当前筛选条件。')).toBeInTheDocument();
   });
 
+  it('does not render array index values as table headers', () => {
+    const blocks: AuraResponseBlock[] = [
+      {
+        kind: 'table',
+        columns: ['0', '1', '2', '3'],
+        rows: [['沉睡客户（45-90天未到店）', '585人', '高', '发召回优惠券']],
+      },
+    ];
+
+    render(<AgentBlockRenderer blocks={blocks} />);
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: '字段 1' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '字段 4' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: '0' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: '沉睡客户（45-90天未到店）' })).toBeInTheDocument();
+  });
+
+  it('renders known business field keys as Chinese table headers', () => {
+    const blocks: AuraResponseBlock[] = [
+      {
+        kind: 'table',
+        columns: ['beauticianId', 'beauticianName', 'levelName', 'status', 'performanceScore', 'performanceLevel'],
+        rows: [['43', '宋乔', '明星顾问', 'active', '413', '表现突出']],
+      },
+    ];
+
+    render(<AgentBlockRenderer blocks={blocks} />);
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: '员工ID' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '员工姓名' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '等级' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '表现分' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '表现等级' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'beauticianName' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: '宋乔' })).toBeInTheDocument();
+  });
+
   it('renders action cards and unsupported block fallback', () => {
     const onAction = vi.fn();
     const blocks = [

@@ -2,7 +2,6 @@ import type {
   createAutomationDraft,
   getAutomationTodaySummary,
   getBusinessQueryAnswer,
-  runBusinessAgent,
   getBeauticianCustomerList,
   getBeauticianDashboard,
   getBeauticianScheduleFlow,
@@ -22,6 +21,7 @@ import type {
   getStaffSchedules,
   getTerminalBusinessAnswer,
 } from "../services/auraCoreService";
+import type { AgentRunResult } from "@/types/agent";
 import type { MessageType, Role } from "../types";
 
 export type AuraPayload =
@@ -44,7 +44,7 @@ export type AuraPayload =
   | { kind: "operation"; data: Awaited<ReturnType<typeof getOperationResult>> }
   | { kind: "automation"; data: Awaited<ReturnType<typeof createAutomationDraft>> }
   | { kind: "automationSummary"; data: Awaited<ReturnType<typeof getAutomationTodaySummary>> }
-  | { kind: "agentRun"; data: Awaited<ReturnType<typeof runBusinessAgent>> }
+  | { kind: "agentRun"; data: AgentRunResult }
   | { kind: "businessQuery"; data: Awaited<ReturnType<typeof getBusinessQueryAnswer>> }
   | { kind: "ai"; data: Awaited<ReturnType<typeof getTerminalBusinessAnswer>> };
 

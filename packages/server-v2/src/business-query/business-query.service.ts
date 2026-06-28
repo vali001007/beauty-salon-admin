@@ -1601,6 +1601,7 @@ export class BusinessQueryService {
         type: 'staffPerformance',
         title: '员工表现排行',
         summary: `当前周期表现较好的是 ${top.beauticianName}，表现分 ${top.performanceScore}，销售额 ${this.formatMoney(top.salesAmount)}，服务 ${top.serviceCount} 次。`,
+        columns: ['beauticianName', 'levelName', 'performanceScore', 'performanceLevel', 'serviceCount', 'salesAmount'],
         items,
         kpis: [
           { label: '上榜员工', value: `${items.length}` },

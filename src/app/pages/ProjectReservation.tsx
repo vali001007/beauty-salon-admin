@@ -12,11 +12,11 @@ import {
   updateReservation,
 } from '@/api/project';
 import { getBeauticians } from '@/api/beautician';
-import { getCustomers } from '@/api/customer';
 import { usePagination } from '@/hooks/usePagination';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import { useStoreStore } from '@/stores/storeStore';
+import { CustomerPicker } from '../components/CustomerPicker';
 import type { Beautician, Customer, Project } from '@/types';
 
 type ReservationStatus = 'pending' | 'confirmed' | 'checked_in' | 'completed' | 'cancelled' | 'no_show';
@@ -115,9 +115,6 @@ export function ProjectReservation() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<ReservationFormState>(() => createEmptyReservationForm());
   const [customerSearch, setCustomerSearch] = useState('');
-  const [isCustomerPickerOpen, setIsCustomerPickerOpen] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersLoading, setCustomersLoading] = useState(false);
   const [savingReservation, setSavingReservation] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -266,38 +263,6 @@ export function ProjectReservation() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isCreateOpen || !currentStoreName) {
-      setCustomers([]);
-      setCustomersLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      setCustomersLoading(true);
-      getCustomers({
-        storeName: currentStoreName,
-        keyword: customerSearch.trim() || undefined,
-      })
-        .then((items) => {
-          if (!cancelled) setCustomers(items.slice(0, 20));
-        })
-        .catch((error) => {
-          if (!cancelled)
-            toast.warning(error instanceof Error ? `客户数据加载失败：${error.message}` : '客户数据加载失败');
-        })
-        .finally(() => {
-          if (!cancelled) setCustomersLoading(false);
-        });
-    }, 200);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [customerSearch, currentStoreName, isCreateOpen]);
-
   const getStatusConfig = (status: Reservation['status']) => {
     const configs = {
       pending: { text: '待确认', color: 'bg-orange-100 text-orange-700 border-orange-300' },
@@ -326,29 +291,22 @@ export function ProjectReservation() {
     }
     setCreateForm(createEmptyReservationForm());
     setCustomerSearch('');
-    setIsCustomerPickerOpen(false);
     setIsCreateOpen(true);
   };
 
-  const handleSelectCustomer = (customerId: string) => {
-    const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
+  const handleSelectCustomer = (selectedCustomer: Customer | null) => {
     setCreateForm((prev) => ({
       ...prev,
       customerId: selectedCustomer?.id,
       customerName: selectedCustomer?.name || '',
       customerPhone: selectedCustomer?.phone || '',
     }));
-    if (selectedCustomer) {
-      setCustomerSearch(`${selectedCustomer.name}${selectedCustomer.phone ? ` / ${selectedCustomer.phone}` : ''}`);
-      setIsCustomerPickerOpen(false);
-    }
   };
 
   const handleCustomerSearchChange = (value: string) => {
     setCustomerSearch(value);
-    setIsCustomerPickerOpen(true);
     const selectedLabel = createForm.customerName
-      ? `${createForm.customerName}${createForm.customerPhone ? ` / ${createForm.customerPhone}` : ''}`
+      ? createForm.customerName
       : '';
     if (createForm.customerId && value !== selectedLabel) {
       setCreateForm((prev) => ({
@@ -732,39 +690,18 @@ export function ProjectReservation() {
               当前门店：{currentStoreName || '请先在顶部栏选择门店'}
             </div>
 
-            <label className="relative block text-sm">
-              <span className="mb-1 block text-gray-600">客户 *</span>
-              <Input
-                placeholder={customersLoading ? '客户加载中...' : '输入客户姓名或手机号搜索'}
-                value={customerSearch}
-                onChange={(event) => handleCustomerSearchChange(event.target.value)}
-                onFocus={() => setIsCustomerPickerOpen(true)}
-                onBlur={() => window.setTimeout(() => setIsCustomerPickerOpen(false), 120)}
-                disabled={!currentStoreName}
-              />
-              {isCustomerPickerOpen && currentStoreName && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-                  {customersLoading ? (
-                    <div className="px-3 py-2 text-sm text-gray-500">客户加载中...</div>
-                  ) : customers.length ? (
-                    customers.map((customer) => (
-                      <button
-                        key={customer.id}
-                        type="button"
-                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-blue-50"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => handleSelectCustomer(String(customer.id))}
-                      >
-                        <span className="font-medium text-gray-900">{customer.name}</span>
-                        <span className="text-gray-500">{customer.phone || '未留手机号'}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-gray-500">未找到匹配客户</div>
-                  )}
-                </div>
-              )}
-            </label>
+            <CustomerPicker
+              value={customerSearch}
+              onValueChange={handleCustomerSearchChange}
+              onSelect={handleSelectCustomer}
+              selectedCustomerId={createForm.customerId}
+              storeName={currentStoreName}
+              label="客户"
+              required
+              placeholder="输入客户姓名或手机号搜索"
+              disabled={!currentStoreName}
+              emptyText="未找到匹配客户，请先到客户资料中建档。"
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block text-sm">

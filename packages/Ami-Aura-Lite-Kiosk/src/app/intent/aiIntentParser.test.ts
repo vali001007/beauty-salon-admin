@@ -74,7 +74,7 @@ describe("parseAiIntentFallback", () => {
     });
   });
 
-  it("does not accept fixed quick-action flows from typed text even when confidence is high", async () => {
+  it("routes typed business questions through rules when AI returns a fixed dashboard action", async () => {
     resolveTerminalIntent.mockResolvedValue({
       intentName: "manager.dashboard.view",
       action: "manager.dashboard",
@@ -91,11 +91,22 @@ describe("parseAiIntentFallback", () => {
       source: "text",
     });
 
-    expect(result.action).toBeNull();
-    expect(result.loadingLabel).toBe("正在基于 Ami_Core 生成回答");
+    expect(result.action).toBe("business.query");
+    expect(result.name).toBe("business_query.ask");
+    expect(result.loadingLabel).toBe("正在查询 Ami_Core 运营数据");
+
+    const shorthandResult = await parseAiIntentFallback({
+      command: "这个月营业额",
+      role: "manager",
+      definition: definition("manager"),
+      source: "text",
+    });
+
+    expect(shorthandResult.action).toBe("business.query");
+    expect(shorthandResult.name).toBe("business_query.ask");
   });
 
-  it("falls back to AI Q&A when typed text is classified as cashier", async () => {
+  it("routes typed cashier metric questions through governed business query", async () => {
     resolveTerminalIntent.mockResolvedValue({
       intentName: "cashier.checkout",
       action: "operation.cashier",
@@ -112,8 +123,29 @@ describe("parseAiIntentFallback", () => {
       source: "text",
     });
 
-    expect(result.action).toBeNull();
-    expect(result.loadingLabel).toBe("正在基于 Ami_Core 生成回答");
+    expect(result.action).toBe("business.query");
+    expect(result.name).toBe("business_query.ask");
+  });
+
+  it("routes typed inventory questions through Agent Gateway when AI returns inventory card action", async () => {
+    resolveTerminalIntent.mockResolvedValue({
+      intentName: "manager.inventory.view",
+      action: "manager.inventory",
+      confidence: 0.95,
+      slots: {},
+      missingSlots: [],
+      reason: "AI matched inventory card",
+    });
+
+    const result = await parseAiIntentFallback({
+      command: "近期有哪些临期库存产品",
+      role: "manager",
+      definition: definition("manager"),
+      source: "text",
+    });
+
+    expect(result.action).toBe("business.query");
+    expect(result.name).toBe("business_query.ask");
   });
 
   it("falls back to AI Q&A when voice input is classified as a fixed quick-action flow", async () => {

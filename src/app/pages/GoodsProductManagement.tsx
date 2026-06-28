@@ -5,9 +5,14 @@ import { toast } from 'sonner';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { MarketingPageGeneratorDialog, type MarketingPageGeneratorSource } from '../components/MarketingPageGeneratorDialog';
+import { CustomerPicker } from '../components/CustomerPicker';
+import {
+  PRODUCT_ORDER_PAYMENT_METHOD_OPTIONS,
+  PaymentMethodSelector,
+  canUseMemberBalancePayment,
+} from '../components/PaymentMethodSelector';
 import { getProductsPaginated, updateProduct } from '@/api/product';
 import { createProductOrder } from '@/api/order';
-import { getCustomers } from '@/api/customer';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import type { Customer, Product, ProductOrderPaymentMethod } from '@/types';
@@ -26,8 +31,6 @@ type CashierForm = {
   quantity: number;
   paymentMethod: ProductOrderPaymentMethod;
 };
-
-const PAYMENT_METHODS: ProductOrderPaymentMethod[] = ['微信', '支付宝', '现金', '银行卡', '会员卡划扣'];
 
 function formatCurrency(value?: number | null) {
   return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -62,6 +65,7 @@ export function GoodsProductManagement() {
   });
   const [savingSale, setSavingSale] = useState(false);
   const [cashierProduct, setCashierProduct] = useState<Product | null>(null);
+  const [selectedCashierCustomer, setSelectedCashierCustomer] = useState<Customer | null>(null);
   const [cashierForm, setCashierForm] = useState<CashierForm>({
     customerName: '散客',
     customerPhone: '',
@@ -69,8 +73,6 @@ export function GoodsProductManagement() {
     paymentMethod: '微信',
   });
   const [customerSearch, setCustomerSearch] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [submittingCashier, setSubmittingCashier] = useState(false);
   const [marketingPageSource, setMarketingPageSource] = useState<MarketingPageGeneratorSource | null>(null);
 
@@ -102,27 +104,6 @@ export function GoodsProductManagement() {
     setPageSize,
     refresh,
   } = usePagination<Product>(getProductsPaginated, filters);
-
-  useEffect(() => {
-    if (!cashierProduct) {
-      setCustomers([]);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setLoadingCustomers(true);
-      const storeName = getStoreName(cashierProduct, stores);
-      getCustomers({
-        storeName: storeName === '当前门店' ? undefined : storeName,
-        keyword: customerSearch.trim() || undefined,
-      })
-        .then((list) => setCustomers(list.slice(0, 12)))
-        .catch(() => toast.error('客户列表加载失败，可按散客收银'))
-        .finally(() => setLoadingCustomers(false));
-    }, 200);
-
-    return () => window.clearTimeout(timer);
-  }, [cashierProduct, customerSearch, stores]);
 
   const openSaleDialog = (product: Product) => {
     setSaleProduct(product);
@@ -192,6 +173,7 @@ export function GoodsProductManagement() {
 
   const openCashierDialog = (product: Product) => {
     setCashierProduct(product);
+    setSelectedCashierCustomer(null);
     setCashierForm({
       customerId: undefined,
       customerName: '散客',
@@ -202,7 +184,30 @@ export function GoodsProductManagement() {
     setCustomerSearch('');
   };
 
-  const selectCustomer = (customer: Customer) => {
+  const handleCustomerSearchChange = (value: string) => {
+    setCustomerSearch(value);
+    setSelectedCashierCustomer(null);
+    setCashierForm((prev) => ({
+      ...prev,
+      customerId: undefined,
+      customerName: value || '散客',
+      customerPhone: prev.customerId ? '' : prev.customerPhone,
+      paymentMethod: prev.paymentMethod === '会员卡划扣' ? '微信' : prev.paymentMethod,
+    }));
+  };
+
+  const selectCustomer = (customer: Customer | null) => {
+    setSelectedCashierCustomer(customer);
+    if (!customer) {
+      setCashierForm((prev) => ({
+        ...prev,
+        customerId: undefined,
+        customerName: '散客',
+        customerPhone: prev.customerId ? '' : prev.customerPhone,
+        paymentMethod: prev.paymentMethod === '会员卡划扣' ? '微信' : prev.paymentMethod,
+      }));
+      return;
+    }
     setCashierForm((prev) => ({
       ...prev,
       customerId: customer.id,
@@ -224,6 +229,10 @@ export function GoodsProductManagement() {
     const subtotal = unitPrice * quantity;
     const storeId = cashierProduct.storeId ?? currentStoreId ?? undefined;
     const storeName = getStoreName(cashierProduct, stores);
+    if (cashierForm.paymentMethod === '会员卡划扣' && !canUseMemberBalancePayment(selectedCashierCustomer, subtotal)) {
+      toast.error('该客户会员余额不足，请更换支付方式');
+      return;
+    }
 
     setSubmittingCashier(true);
     try {
@@ -523,21 +532,18 @@ export function GoodsProductManagement() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-gray-700">客户</span>
-                  <Input
-                    value={customerSearch || cashierForm.customerName}
-                    onChange={(event) => {
-                      setCustomerSearch(event.target.value);
-                      setCashierForm((prev) => ({
-                        ...prev,
-                        customerId: undefined,
-                        customerName: event.target.value || '散客',
-                      }));
-                    }}
-                    placeholder="搜索客户，留空则按散客收银"
-                  />
-                </label>
+                <CustomerPicker
+                  value={customerSearch || (cashierForm.customerName === '散客' ? '' : cashierForm.customerName)}
+                  onValueChange={handleCustomerSearchChange}
+                  onSelect={selectCustomer}
+                  selectedCustomerId={cashierForm.customerId}
+                  storeName={cashierProduct ? getStoreName(cashierProduct, stores) : undefined}
+                  label="客户"
+                  placeholder="搜索客户，留空则按散客收银"
+                  emptyText="未匹配客户，可继续按散客收银。"
+                  allowManualInput
+                  pageSize={12}
+                />
                 <label className="space-y-1.5">
                   <span className="text-sm font-medium text-gray-700">手机号</span>
                   <Input
@@ -546,29 +552,6 @@ export function GoodsProductManagement() {
                     placeholder="可选"
                   />
                 </label>
-              </div>
-
-              <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200">
-                {loadingCustomers && (
-                  <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    正在加载客户...
-                  </div>
-                )}
-                {!loadingCustomers && customers.map((customer) => (
-                  <button
-                    key={customer.id}
-                    type="button"
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50"
-                    onClick={() => selectCustomer(customer)}
-                  >
-                    <span className="font-medium text-gray-800">{customer.name}</span>
-                    <span className="text-xs text-gray-500">{customer.phone}</span>
-                  </button>
-                ))}
-                {!loadingCustomers && customers.length === 0 && (
-                  <div className="px-3 py-3 text-sm text-gray-500">未匹配客户，可继续按散客收银。</div>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -583,19 +566,14 @@ export function GoodsProductManagement() {
                 </label>
                 <label className="space-y-1.5">
                   <span className="text-sm font-medium text-gray-700">支付方式</span>
-                  <select
-                    className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                  <PaymentMethodSelector<ProductOrderPaymentMethod>
                     value={cashierForm.paymentMethod}
-                    onChange={(event) =>
-                      setCashierForm((prev) => ({ ...prev, paymentMethod: event.target.value as ProductOrderPaymentMethod }))
-                    }
-                  >
-                    {PAYMENT_METHODS.map((method) => (
-                      <option key={method} value={method}>
-                        {method}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(paymentMethod) => setCashierForm((prev) => ({ ...prev, paymentMethod }))}
+                    methods={PRODUCT_ORDER_PAYMENT_METHOD_OPTIONS as Array<{ value: ProductOrderPaymentMethod; label: string; requiresMemberBalance?: boolean }>}
+                    customer={selectedCashierCustomer}
+                    amount={cashierProduct ? getEffectivePrice(cashierProduct) * Number(cashierForm.quantity || 0) : 0}
+                    columnsClassName="grid-cols-2"
+                  />
                 </label>
               </div>
 

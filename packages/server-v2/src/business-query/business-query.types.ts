@@ -86,6 +86,7 @@ export interface BusinessQueryCard {
   type: string;
   title: string;
   summary: string;
+  columns?: string[];
   items: Array<Record<string, unknown>>;
   kpis?: Array<{ label: string; value: string; hint?: string }>;
 }
