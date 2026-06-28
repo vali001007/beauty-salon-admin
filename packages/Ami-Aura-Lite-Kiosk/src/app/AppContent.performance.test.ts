@@ -38,4 +38,14 @@ describe("Ami Aura Lite role home loading performance", () => {
     expect(body).toContain("state.refresh");
     expect(body).not.toContain("renderDashboard(");
   });
+
+  it("keeps terminal persona suggestions refreshable at runtime", () => {
+    expect(source).toContain("const PERSONA_REFRESH_INTERVAL_MS = 60_000");
+    expect(source).toContain("const refreshAgentPersonas = useCallback");
+    expect(source).toContain("window.setInterval");
+    expect(source).toContain("window.clearInterval");
+    expect(source).toContain("const suggestedQuestionPool = useMemo");
+    expect(source).toContain("suggestedQuestions={suggestedQuestionPool}");
+    expect(source).toContain("showPersonaSwitcher && availableTerminalPersonas.length > 1");
+  });
 });

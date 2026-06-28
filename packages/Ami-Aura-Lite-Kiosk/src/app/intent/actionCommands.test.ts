@@ -4,6 +4,7 @@ import {
   buildUnsupportedInternalActionResult,
   businessQueryActionToCommand,
   isInternalActionCode,
+  parseAgentApprovalAction,
   resolveTerminalActionResult,
 } from './actionCommands';
 
@@ -44,5 +45,13 @@ describe('actionCommands', () => {
     const result = buildUnsupportedInternalActionResult();
     expect(result.title).toBe('该动作暂不能在终端直接打开');
     expect(result.description).toContain('不是用户输入内容');
+  });
+
+  it('parses approval actions before they can become generic commands', () => {
+    expect(parseAgentApprovalAction('approve:301')).toEqual({ approvalId: 301, decision: 'approve' });
+    expect(parseAgentApprovalAction('approve:301:cancel')).toEqual({ approvalId: 301, decision: 'reject' });
+    expect(parseAgentApprovalAction('reject:302')).toEqual({ approvalId: 302, decision: 'reject' });
+    expect(parseAgentApprovalAction('agent:tool:marketing.activity.draft')).toBeNull();
+    expect(agentActionToCommand('approve:301')).toBe('approve:301');
   });
 });

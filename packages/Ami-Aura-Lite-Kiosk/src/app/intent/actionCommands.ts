@@ -1,5 +1,22 @@
 import type { OperationResultData } from '../types';
 
+export type AgentApprovalActionDecision = 'approve' | 'reject';
+
+export interface AgentApprovalAction {
+  approvalId: number;
+  decision: AgentApprovalActionDecision;
+}
+
+export function parseAgentApprovalAction(action: string): AgentApprovalAction | null {
+  const approveMatch = /^approve:(\d+)$/.exec(action);
+  if (approveMatch) return { approvalId: Number(approveMatch[1]), decision: 'approve' };
+
+  const rejectMatch = /^(?:reject:(\d+)|approve:(\d+):cancel)$/.exec(action);
+  if (rejectMatch) return { approvalId: Number(rejectMatch[1] ?? rejectMatch[2]), decision: 'reject' };
+
+  return null;
+}
+
 export function businessQueryActionToCommand(action: string) {
   if (action.startsWith('product:')) return '查看这个商品详情';
   if (action.startsWith('marketing:draft:product:')) return '给这些商品创建营销活动草稿';
@@ -17,6 +34,7 @@ export function businessQueryActionToCommand(action: string) {
 }
 
 export function agentActionToCommand(action: string) {
+  if (parseAgentApprovalAction(action)) return action;
   if (action === 'agent:tool:marketing.activity.draft') return '帮我生成活动草稿';
   if (action === 'agent:tool:marketing.opportunity.discover') return '发现营销机会';
   if (action === 'agent:tool:customer.followup.task.draft') return '帮我生成客户跟进任务';

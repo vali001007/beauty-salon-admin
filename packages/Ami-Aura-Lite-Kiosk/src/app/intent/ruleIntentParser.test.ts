@@ -113,6 +113,15 @@ describe('parseRuleIntent', () => {
     const revenueResult = parseRuleIntent('今天收入怎么样', 'manager', definition('manager'), 'text');
     expect(revenueResult.action).toBe('business.query');
 
+    const shorthandRevenueResult = parseRuleIntent('这个月营业额', 'manager', definition('manager'), 'text');
+    expect(shorthandRevenueResult.action).toBe('business.query');
+    expect(shorthandRevenueResult.name).toBe('business_query.ask');
+    expect(shouldDisplayUserCommand(shorthandRevenueResult)).toBe(true);
+
+    const shorthandAverageOrderValueResult = parseRuleIntent('这个月客单价', 'manager', definition('manager'), 'text');
+    expect(shorthandAverageOrderValueResult.action).toBe('business.query');
+    expect(shorthandAverageOrderValueResult.name).toBe('business_query.ask');
+
     const replenishmentResult = parseRuleIntent('有哪些商品需要补货建议', 'manager', definition('manager'), 'text');
     expect(replenishmentResult.action).toBe('business.query');
 
@@ -140,6 +149,10 @@ describe('parseRuleIntent', () => {
 
     const churnListResult = parseRuleIntent('列出8个流失风险客户并给原因', 'manager', definition('manager'), 'text');
     expect(churnListResult.action).toBe('business.query');
+
+    const urgentRecallResult = parseRuleIntent('请列出10个需要紧急召回的客户', 'manager', definition('manager'), 'text');
+    expect(urgentRecallResult.action).toBe('business.query');
+    expect(urgentRecallResult.name).toBe('business_query.ask');
 
     const projectInviteResult = parseRuleIntent('哪些会员最适合邀约做补水护理', 'manager', definition('manager'), 'text');
     expect(projectInviteResult.action).toBe('business.query');

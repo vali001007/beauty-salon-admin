@@ -14,7 +14,8 @@ import {
   YAxis,
 } from 'recharts';
 import { AlertTriangle, AlertCircle, Info, ChevronDown, ChevronUp, Download } from 'lucide-react';
-import type { AuraResponseBlock, AuraBlockAction } from '../types';
+import type { AuraResponseBlock, AuraBlockAction, MetricTone } from '@ami/agent-core';
+import { groupBlocksForDisplay } from '@ami/agent-core';
 import { KpiCard, KpiCardGroup } from './KpiCard';
 import { FollowUpChips } from './FollowUpChips';
 
@@ -26,8 +27,55 @@ interface BlockRendererProps {
   streamComplete?: boolean;
 }
 
+const TABLE_COLUMN_LABELS: Record<string, string> = {
+  id: 'ID',
+  customerId: '客户ID',
+  customerName: '客户',
+  phone: '手机号',
+  phoneMasked: '手机号',
+  memberLevel: '会员等级',
+  totalSpent: '累计消费',
+  visitCount: '到店次数',
+  lastVisitDate: '最近到店',
+  lastOrderTimeText: '最近消费',
+  paidAmount: '消费金额',
+  paidAmountText: '消费金额',
+  orderCount: '订单数',
+  customerCount: '客户数',
+  salesAmount: '销售额',
+  salesAmountText: '销售额',
+  averageOrderValue: '客单价',
+  quantity: '数量',
+  growthRate: '增长率',
+  growthRateText: '增长',
+  productName: '商品',
+  projectName: '项目',
+  cardName: '卡项',
+  beauticianId: '员工ID',
+  beauticianName: '员工姓名',
+  levelName: '等级',
+  status: '状态',
+  performanceScore: '表现分',
+  performanceLevel: '表现等级',
+  serviceCount: '服务次数',
+  completedTaskCount: '完成任务',
+  cardUsageTimes: '核销次数',
+  commissionAmount: '提成',
+  completionRate: '完成率',
+  completionRateText: '完成率',
+  reservationCount: '预约数',
+  completedReservationCount: '完成预约',
+  reason: '原因',
+  suggestion: '建议',
+  severity: '风险等级',
+  title: '标题',
+  metricValue: '当前值',
+  threshold: '阈值',
+};
+
 /**
  * 按 AuraResponseBlock.kind 分发渲染，AI 内容与 UI 解耦。
+ * - summary_text → 核心结论摘要
  * - text → 纯文字段落
  * - kpi_card → KpiCard 指标卡
  * - table → 数据表格
@@ -40,8 +88,7 @@ interface BlockRendererProps {
  * - evidence_panel → 数据来源面板
  */
 export function BlockRenderer({ blocks, onCommand, onAction, streamComplete = true }: BlockRendererProps) {
-  // 将连续的 kpi_card 合并渲染为一组
-  const groups = groupKpiCards(blocks);
+  const groups = groupBlocksForDisplay(blocks);
 
   return (
     <div className="flex flex-col gap-3">
@@ -81,6 +128,8 @@ function SingleBlock({
   streamComplete?: boolean;
 }) {
   switch (block.kind) {
+    case 'summary_text':
+      return <SummaryTextBlock title={block.title} content={block.content} />;
     case 'text':
       return <TextBlock content={block.content} />;
     case 'table':
@@ -89,8 +138,20 @@ function SingleBlock({
       return <ChartBlock chartType={block.chartType} title={block.title} data={block.data} xKey={block.xKey} yKeys={block.yKeys} />;
     case 'customer_card':
       return <CustomerCardBlock block={block} onAction={onAction} />;
+    case 'opportunity_card':
+      return <OpportunityCardBlock block={block} onAction={onAction} />;
+    case 'copy_variants':
+      return <CopyVariantsBlock block={block} onAction={onAction} />;
+    case 'activity_draft_card':
+      return <ActivityDraftCardBlock block={block} onAction={onAction} />;
+    case 'inventory_item_card':
+      return <InventoryItemCardBlock block={block} onAction={onAction} />;
+    case 'supplier_purchase_card':
+      return <SupplierPurchaseCardBlock block={block} onAction={onAction} />;
     case 'confirm_action':
       return <ConfirmActionBlock block={block} onAction={onAction} />;
+    case 'action_card':
+      return <ActionCardBlock block={block} onAction={onAction} />;
     case 'alert':
       return <AlertBlock level={block.level} message={block.message} actionId={block.actionId} onAction={onAction} />;
     case 'follow_up_chips':
@@ -117,7 +178,183 @@ function SingleBlock({
   }
 }
 
+// ─── Marketing / Inventory Cards ─────────────────────────────────────────────
+
+function MetricPill({ label, value, tone = 'default' }: { label: string; value: string; tone?: MetricTone }) {
+  const toneClass: Record<MetricTone, string> = {
+    default: 'bg-[#F7F5F2] text-[#1F1B2D]',
+    warning: 'bg-amber-50 text-amber-800',
+    critical: 'bg-rose-50 text-rose-700',
+    success: 'bg-emerald-50 text-emerald-700',
+  };
+  return (
+    <div className={`rounded-lg px-2.5 py-2 ${toneClass[tone] ?? toneClass.default}`}>
+      <div className="text-[11px] opacity-70">{label}</div>
+      <div className="mt-0.5 text-xs font-semibold">{value}</div>
+    </div>
+  );
+}
+function ActionRow({ actions, onAction }: { actions?: AuraBlockAction[]; onAction?: (actionId: string) => void }) {
+  if (!actions?.length) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {actions.map((action) => (
+        <ActionButton key={action.actionId} action={action} onAction={onAction} />
+      ))}
+    </div>
+  );
+}
+
+function OpportunityCardBlock({
+  block,
+  onAction,
+}: {
+  block: Extract<AuraResponseBlock, { kind: 'opportunity_card' }>;
+  onAction?: (actionId: string) => void;
+}) {
+  const metrics = [
+    block.fitScore ? { label: '匹配度', value: `${Math.round(block.fitScore * 100)}%`, tone: 'success' as MetricTone } : null,
+    typeof block.currentStock === 'number' ? { label: '当前库存', value: String(block.currentStock) } : null,
+    typeof block.salesAmount === 'number' ? { label: '销售额', value: `¥${block.salesAmount.toLocaleString()}` } : null,
+    typeof block.customerCount === 'number' ? { label: '客户数', value: String(block.customerCount) } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string; tone?: MetricTone }>;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="text-sm font-semibold text-foreground">{block.title}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{block.productName}{block.sku ? ` · ${block.sku}` : ''}</div>
+      <p className="mt-2 text-xs leading-relaxed text-foreground">{block.summary || block.reason}</p>
+      {metrics.length ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {metrics.map((metric) => <MetricPill key={metric.label} {...metric} />)}
+        </div>
+      ) : null}
+      {block.suggestedCampaign ? <p className="mt-2 text-xs text-[#6F6678]">建议活动：{block.suggestedCampaign}</p> : null}
+      {block.riskWarnings?.length ? (
+        <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-amber-800">
+          {block.riskWarnings.join('；')}
+        </div>
+      ) : null}
+      <ActionRow actions={block.actions} onAction={onAction} />
+    </div>
+  );
+}
+
+function CopyVariantsBlock({
+  block,
+  onAction,
+}: {
+  block: Extract<AuraResponseBlock, { kind: 'copy_variants' }>;
+  onAction?: (actionId: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="text-sm font-semibold text-foreground">{block.title}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{block.target} · {block.offer}</div>
+      <div className="mt-3 grid gap-2">
+        {block.variants.slice(0, 3).map((variant) => (
+          <div key={variant.label} className="rounded-lg bg-[#F7F5F2] px-3 py-2">
+            <div className="text-xs font-medium text-[#6F6678]">{variant.label}{variant.tone ? ` · ${variant.tone}` : ''}</div>
+            <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-[#1F1B2D]">{variant.content}</p>
+          </div>
+        ))}
+      </div>
+      <ActionRow actions={block.actions} onAction={onAction} />
+    </div>
+  );
+}
+
+function ActivityDraftCardBlock({
+  block,
+  onAction,
+}: {
+  block: Extract<AuraResponseBlock, { kind: 'activity_draft_card' }>;
+  onAction?: (actionId: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-foreground">{block.title}</div>
+          <div className="mt-1 text-xs text-muted-foreground">目标客群：{block.targetAudience}</div>
+        </div>
+        {block.editable ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">可编辑</span> : null}
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-foreground">{block.offerSummary}</p>
+      <div className="mt-2 rounded-lg bg-[#F7F5F2] px-3 py-2 text-xs leading-relaxed text-[#1F1B2D]">
+        {block.copyPreview}
+      </div>
+      {block.offerCostEstimate?.length ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {block.offerCostEstimate.map((metric) => <MetricPill key={metric.label} {...metric} />)}
+        </div>
+      ) : null}
+      {block.impactSummary ? <p className="mt-2 text-xs text-[#6F6678]">{block.impactSummary}</p> : null}
+      <ActionRow actions={block.actions} onAction={onAction} />
+    </div>
+  );
+}
+
+function InventoryItemCardBlock({
+  block,
+  onAction,
+}: {
+  block: Extract<AuraResponseBlock, { kind: 'inventory_item_card' }>;
+  onAction?: (actionId: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-foreground">{block.itemName}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{block.title}{block.subtitle ? ` · ${block.subtitle}` : ''}</div>
+        </div>
+        {block.statusLabel ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">{block.statusLabel}</span> : null}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {block.metrics.map((metric) => <MetricPill key={metric.label} {...metric} />)}
+      </div>
+      {block.reason ? <p className="mt-2 text-xs leading-relaxed text-[#6F6678]">{block.reason}</p> : null}
+      <ActionRow actions={block.actions} onAction={onAction} />
+    </div>
+  );
+}
+
+function SupplierPurchaseCardBlock({
+  block,
+  onAction,
+}: {
+  block: Extract<AuraResponseBlock, { kind: 'supplier_purchase_card' }>;
+  onAction?: (actionId: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-foreground">{block.productName}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{block.title} · {block.supplierName}</div>
+        </div>
+        {block.statusLabel ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">{block.statusLabel}</span> : null}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {block.metrics.map((metric) => <MetricPill key={metric.label} {...metric} />)}
+      </div>
+      {block.reason ? <p className="mt-2 text-xs leading-relaxed text-[#6F6678]">{block.reason}</p> : null}
+      <ActionRow actions={block.actions} onAction={onAction} />
+    </div>
+  );
+}
+
 // ─── Text ─────────────────────────────────────────────────────────────────────
+
+function SummaryTextBlock({ title, content }: { title?: string; content: string }) {
+  return (
+    <div className="rounded-lg border border-[#2D1B69]/10 bg-[#F7F5F2] px-3 py-2.5">
+      {title ? <div className="mb-1 text-xs font-semibold text-[#2D1B69]">{title}</div> : null}
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#1F1B2D]">{content}</p>
+    </div>
+  );
+}
 
 function TextBlock({ content }: { content: string }) {
   return (
@@ -128,12 +365,13 @@ function TextBlock({ content }: { content: string }) {
 // ─── Table ────────────────────────────────────────────────────────────────────
 
 function TableBlock({ columns, rows, caption }: { columns: string[]; rows: string[][]; caption?: string }) {
+  const visibleColumns = normalizeTableColumns(columns, rows);
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/50">
-            {columns.map((col, i) => (
+            {visibleColumns.map((col, i) => (
               <th key={i} className="px-3 py-2 text-left font-medium text-muted-foreground">
                 {col}
               </th>
@@ -143,9 +381,9 @@ function TableBlock({ columns, rows, caption }: { columns: string[]; rows: strin
         <tbody>
           {rows.map((row, ri) => (
             <tr key={ri} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-              {row.map((cell, ci) => (
+              {visibleColumns.map((_, ci) => (
                 <td key={ci} className="px-3 py-2 text-foreground">
-                  {cell}
+                  {row[ci] ?? ''}
                 </td>
               ))}
             </tr>
@@ -157,6 +395,16 @@ function TableBlock({ columns, rows, caption }: { columns: string[]; rows: strin
       )}
     </div>
   );
+}
+
+function normalizeTableColumns(columns: string[], rows: string[][]) {
+  const maxRowLength = Math.max(0, ...rows.map((row) => row.length));
+  const source = columns.length ? columns : Array.from({ length: maxRowLength }, (_, index) => String(index));
+  return source.map((column, index) => {
+    const label = String(column ?? '').trim();
+    if (!label || /^\d+$/.test(label)) return `字段 ${index + 1}`;
+    return TABLE_COLUMN_LABELS[label] ?? label;
+  });
 }
 
 // ─── Chart ────────────────────────────────────────────────────────────────────
@@ -307,6 +555,35 @@ function ConfirmActionBlock({
   );
 }
 
+function ActionCardBlock({
+  block,
+  onAction,
+}: {
+  block: Extract<AuraResponseBlock, { kind: 'action_card' }>;
+  onAction?: (actionId: string) => void;
+}) {
+  const riskClass = {
+    low: 'border-blue-200 bg-blue-50/50',
+    medium: 'border-amber-200 bg-amber-50/50',
+    high: 'border-rose-200 bg-rose-50/50',
+  }[block.riskLevel];
+
+  return (
+    <div className={`rounded-lg border p-3 ${riskClass}`}>
+      <div className="text-sm font-medium text-foreground">{block.title}</div>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{block.preview}</p>
+      {block.impactSummary ? <p className="mt-2 text-xs text-foreground/70">{block.impactSummary}</p> : null}
+      <button
+        type="button"
+        onClick={() => onAction?.(block.actionId)}
+        className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:opacity-80"
+      >
+        查看/处理
+      </button>
+    </div>
+  );
+}
+
 // ─── Alert ────────────────────────────────────────────────────────────────────
 
 function AlertBlock({
@@ -448,34 +725,4 @@ function ActionButton({ action, onAction }: { action: AuraBlockAction; onAction?
       {action.label}
     </button>
   );
-}
-
-// ─── kpi_card 连续分组工具 ────────────────────────────────────────────────────
-
-type BlockGroup =
-  | { type: 'kpi_group'; items: Array<Extract<AuraResponseBlock, { kind: 'kpi_card' }>> }
-  | { type: 'single'; block: AuraResponseBlock };
-
-function groupKpiCards(blocks: AuraResponseBlock[]): BlockGroup[] {
-  const groups: BlockGroup[] = [];
-  let kpiBuffer: Array<Extract<AuraResponseBlock, { kind: 'kpi_card' }>> = [];
-
-  function flushKpi() {
-    if (kpiBuffer.length > 0) {
-      groups.push({ type: 'kpi_group', items: [...kpiBuffer] });
-      kpiBuffer = [];
-    }
-  }
-
-  for (const block of blocks) {
-    if (block.kind === 'kpi_card') {
-      kpiBuffer.push(block);
-    } else {
-      flushKpi();
-      groups.push({ type: 'single', block });
-    }
-  }
-  flushKpi();
-
-  return groups;
 }

@@ -261,6 +261,7 @@ function isAppointmentWorkbenchCommand(text: string, role: Role) {
 }
 
 function isBusinessQueryCommand(text: string, role: Role) {
+  const isKpiShorthandQuery = isBusinessKpiShorthandQuery(text);
   const hasQueryVerb =
     /查|查询|看|看看|分析|统计|列出|排行|排名|对比|哪些|哪个|什么|有没有|多少|几个|几位|几笔|几单|来几个|几|谁|怎么样|情况|趋势|增长|下降|预警|不足|到期|表现|业绩|最多|最少|高频|失败|异常|问题|忙不忙|做什么/.test(text);
   const hasAdvancedQueryVerb =
@@ -282,12 +283,24 @@ function isBusinessQueryCommand(text: string, role: Role) {
     /创建|新增|删除|修改|收银|开单|买单|结算|付款|收费|核销|办卡|充值|登记|确认|取消|改期|打印|启用/.test(text) ||
     (text.includes('支付') && !text.includes('支付方式'));
   return (
+    isKpiShorthandQuery ||
     (isContextFollowUp ||
       hasStaffPerformanceIntent ||
       hasBeauticianSelfPerformanceIntent ||
       ((hasQueryVerb || hasAdvancedQueryVerb || hasTopN || hasCustomerOperationIntent) && hasDomain)) &&
     !(isWriteCommand && !isReadOnlyQuestion)
   );
+}
+
+function isBusinessKpiShorthandQuery(text: string) {
+  const hasKpiMetric = /收入|营收|营业额|流水|实收|收款|客单价|订单数/.test(text);
+  if (!hasKpiMetric) return false;
+  if (/为什么|原因|归因|下降|异常|诊断|复盘|风险|建议|生成|创建|收银|开单|买单|结算|付款|收费|核销|办卡|充值|登记|确认|取消|改期|打印/.test(text)) {
+    return false;
+  }
+  const hasTimeRange = /今天|今日|昨天|昨日|本周|这周|上周|上星期|本月|这个月|当月|上月|最近|近期|近\d+天|最近\d+天/.test(text);
+  const isMetricOnly = /^(?:今天|今日|昨天|昨日|本周|这周|上周|上星期|本月|这个月|当月|上月|最近|近期|近\d+天|最近\d+天)?(?:收入|营收|营业额|流水|实收|收款|客单价|订单数)$/.test(text);
+  return hasTimeRange || isMetricOnly;
 }
 
 function shouldRouteToAgent(text: string, role: Role, source: AuraCommandSource) {

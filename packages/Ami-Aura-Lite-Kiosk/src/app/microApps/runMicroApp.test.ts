@@ -68,6 +68,7 @@ const state = vi.hoisted(() => {
     })),
     serviceRecordFlowLoader: vi.fn(async () => ({ title: '服务记录', tasks: [], beauticianName: '沈晴' })),
     cashierFlowLoader: vi.fn(async () => ({ title: '收银', customers: [], catalog: [] })),
+    cardVerificationFlowLoader: vi.fn(async () => ({ title: '核销', customers: [] })),
     rechargeFlowLoader: vi.fn(async () => ({
       title: '会员充值',
       subtitle: 'Ami 全量演示门店',
@@ -116,6 +117,21 @@ const state = vi.hoisted(() => {
         metricDefinition: '商品活动机会规则评分',
       },
     })),
+    appendBusinessAgentLoader: vi.fn(async () => ({
+      runId: 1001,
+      runNo: 'AG202606160001',
+      status: 'completed',
+      plan: {
+        intentType: 'analysis_and_recommendation',
+        goal: '继续分析上一轮 AgentRun',
+        toolPlan: [{ tool: 'business.query.ask', args: { question: '继续分析' } }],
+        confidence: 0.82,
+        clarificationNeeded: false,
+      },
+      answer: '已基于上一轮结果继续分析。',
+      toolResults: [],
+      actions: [],
+    })),
   };
 });
 
@@ -138,11 +154,18 @@ vi.mock('@/api', () => ({
   })),
 }));
 
+vi.mock('../services/agentRuntimeService', () => ({
+  appendTerminalAgentMessage: state.appendBusinessAgentLoader,
+  createTerminalAgentRun: state.businessAgentLoader,
+  submitTerminalAgentFeedback: vi.fn(),
+}));
+
 vi.mock('../services/auraCoreService', () => ({
+  appendBusinessAgentMessage: state.appendBusinessAgentLoader,
   getBeauticianDashboard: state.beauticianDashboardLoader,
   getBeauticianCustomerList: state.beauticianCustomerListLoader,
   getCardOpeningFlow: vi.fn(),
-  getCardVerificationFlow: vi.fn(async () => ({ title: '核销', customers: [] })),
+  getCardVerificationFlow: state.cardVerificationFlowLoader,
   getCashierFlow: state.cashierFlowLoader,
   getCustomerCard: state.customerCardLoader,
   getCustomerGrowthCandidates: vi.fn(async () => []),
@@ -194,8 +217,30 @@ function definition(role: Role): RoleDefinition {
   };
 }
 
+function expectTerminalAgentCreateCall(command: string, role: Role, context: Record<string, unknown>) {
+  expect(state.businessAgentLoader).toHaveBeenCalledWith(
+    expect.objectContaining({
+      command,
+      role,
+      context: expect.objectContaining(context),
+    }),
+  );
+}
+
+function expectTerminalAgentAppendCall(activeRunId: number, command: string, role: Role, context: Record<string, unknown>) {
+  expect(state.appendBusinessAgentLoader).toHaveBeenCalledWith(
+    expect.objectContaining({
+      activeRunId,
+      command,
+      role,
+      context: expect.objectContaining(context),
+    }),
+  );
+}
+
 describe('runMicroApp cache and prefetch behavior', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     state.currentStoreId = 1;
     state.maxActiveLoaders = 0;
     state.deferredTasks.splice(0);
@@ -234,6 +279,21 @@ describe('runMicroApp cache and prefetch behavior', () => {
         filters: ['storeId=当前门店'],
         metricDefinition: '商品活动机会规则评分',
       },
+    });
+    state.appendBusinessAgentLoader.mockResolvedValue({
+      runId: 1001,
+      runNo: 'AG202606160001',
+      status: 'completed',
+      plan: {
+        intentType: 'analysis_and_recommendation',
+        goal: '继续分析上一轮 AgentRun',
+        toolPlan: [{ tool: 'business.query.ask', args: { question: '继续分析' } }],
+        confidence: 0.82,
+        clarificationNeeded: false,
+      },
+      answer: '已基于上一轮结果继续分析。',
+      toolResults: [],
+      actions: [],
     });
     state.cashierFlowLoader.mockResolvedValue({ title: '收银', customers: [], catalog: [] });
     state.beauticianCustomerListLoader.mockResolvedValue({
@@ -274,7 +334,9 @@ describe('runMicroApp cache and prefetch behavior', () => {
 
     expect(intent.action).toBe('business.query');
     expect(state.customerCardLoader).not.toHaveBeenCalled();
-    expect(state.businessAgentLoader).toHaveBeenCalledWith('查客户张三', 'reception', undefined);
+    expectTerminalAgentCreateCall('查客户张三', 'reception', {
+      intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
+    });
     expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
     expect(result.messages[0]?.payload).toMatchObject({
       kind: 'agentRun',
@@ -293,7 +355,9 @@ describe('runMicroApp cache and prefetch behavior', () => {
 
     expect(intent.action).toBe('business.query');
     expect(state.cashierFlowLoader).not.toHaveBeenCalled();
-    expect(state.businessAgentLoader).toHaveBeenCalledWith('今天收银多少', 'reception', undefined);
+    expectTerminalAgentCreateCall('今天收银多少', 'reception', {
+      intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
+    });
     expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
   });
@@ -304,7 +368,9 @@ describe('runMicroApp cache and prefetch behavior', () => {
     const result = await runMicroAppIntent(intent, '近期销量增长的商品');
 
     expect(intent.action).toBe('business.query');
-    expect(state.businessAgentLoader).toHaveBeenCalledWith('近期销量增长的商品', 'manager', undefined);
+    expectTerminalAgentCreateCall('近期销量增长的商品', 'manager', {
+      intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
+    });
     expect(result.messages[0]?.payload).toMatchObject({
       kind: 'agentRun',
       data: {
@@ -312,6 +378,36 @@ describe('runMicroApp cache and prefetch behavior', () => {
           toolPlan: [{ tool: 'marketing.opportunity.discover' }],
         },
       },
+    });
+  });
+
+  it('routes yesterday consumption customer list questions into Agent Runtime', async () => {
+    const intent = parseRuleIntent('昨天有哪些消费的客户，列出清单', 'manager', definition('manager'), 'text');
+
+    const result = await runMicroAppIntent(intent, '昨天有哪些消费的客户，列出清单', {
+      agentContext: { terminal: { personaCode: 'manager' } },
+    });
+
+    expect(intent.action).toBe('business.query');
+    expectTerminalAgentCreateCall('昨天有哪些消费的客户，列出清单', 'manager', {
+      terminal: expect.objectContaining({ personaCode: 'manager' }),
+      intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
+    });
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
+  });
+
+  it('falls back to the legacy business answer path when terminal Agent Runtime is disabled by env', async () => {
+    vi.stubEnv('VITE_KIOSK_AGENT_RUNTIME_ENABLED', 'false');
+    const intent = parseRuleIntent('昨天有哪些消费的客户，列出清单', 'manager', definition('manager'), 'text');
+
+    const result = await runMicroAppIntent(intent, '昨天有哪些消费的客户，列出清单');
+
+    expect(intent.action).toBe('business.query');
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
+    expect(result.messages).toEqual([]);
+    expect(result.aiStream).toMatchObject({
+      role: 'manager',
+      command: '昨天有哪些消费的客户，列出清单',
     });
   });
 
@@ -331,9 +427,121 @@ describe('runMicroApp cache and prefetch behavior', () => {
 
     await runMicroAppIntent(intent, '这些商品库存够吗', { businessQueryContext: context });
 
-    expect(state.businessAgentLoader).toHaveBeenCalledWith('这些商品库存够吗', 'manager', {
+    expectTerminalAgentCreateCall('这些商品库存够吗', 'manager', {
       previousBusinessQuery: context,
+      intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
     });
+  });
+
+  it('appends governed follow-up questions to the previous AgentRun when run context exists', async () => {
+    const intent = parseRuleIntent('继续看这些商品的库存风险', 'manager', definition('manager'), 'text');
+    const agentContext = {
+      previousRun: {
+        runId: 1001,
+        runNo: 'AG202606160001',
+        status: 'completed',
+      },
+    };
+
+    const result = await runMicroAppIntent(intent, '继续看这些商品的库存风险', { agentContext });
+
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
+    expectTerminalAgentAppendCall(1001, '继续看这些商品的库存风险', 'manager', {
+      previousRun: expect.objectContaining({ runId: 1001 }),
+      intent: expect.objectContaining({ source: 'text' }),
+    });
+    expect(result.messages[0]?.payload).toMatchObject({
+      kind: 'agentRun',
+      data: { runId: 1001, answer: '已基于上一轮结果继续分析。' },
+    });
+  });
+
+  it('falls back to streaming AI when Agent Runtime is unavailable', async () => {
+    state.businessAgentLoader.mockRejectedValueOnce(new Error('agent gateway timeout'));
+    const intent = parseRuleIntent('今天经营有什么风险', 'manager', definition('manager'), 'text');
+
+    const result = await runMicroAppIntent(intent, '今天经营有什么风险');
+
+    expect(state.businessAgentLoader).toHaveBeenCalled();
+    expect(result.messages[0]).toMatchObject({
+      type: 'error',
+      payload: {
+        source: 'agent-runtime',
+      },
+    });
+    expect(result.aiStream).toMatchObject({
+      role: 'manager',
+      command: '今天经营有什么风险',
+      businessContext: expect.stringContaining('agent gateway timeout'),
+    });
+  });
+
+  it('routes typed inventory questions into Agent Runtime instead of the inventory card', async () => {
+    const intent: AuraResolvedIntent = {
+      name: 'manager.inventory.view',
+      role: 'manager',
+      action: 'manager.inventory',
+      source: 'text',
+      confidence: 0.88,
+      slots: {},
+      missingSlots: [],
+      riskLevel: 'none',
+      requiresConfirmation: false,
+      showUserCommand: true,
+      loadingLabel: '正在查询库存预警',
+    };
+
+    const result = await runMicroAppIntent(intent, '近期有哪些临期库存产品');
+
+    expect(intent.action).toBe('manager.inventory');
+    expect(state.inventoryAlertsLoader).not.toHaveBeenCalled();
+    expectTerminalAgentCreateCall('近期有哪些临期库存产品', 'manager', {
+      intent: expect.objectContaining({ action: 'manager.inventory', source: 'text' }),
+    });
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
+  });
+
+  it.each([
+    '昨天有哪些消费的客户，列出清单',
+    '近期有哪些临期库存产品',
+    '临期库存怎么处理，生成草稿建议',
+    '今天经营有什么风险',
+    '哪些客户最值得优先回访',
+    '哪些商品需要补货',
+    '本月员工业绩排行',
+  ])('routes T6.5 terminal acceptance question into Agent Runtime: %s', async (question) => {
+    const intent = parseRuleIntent(question, 'manager', definition('manager'), 'text');
+
+    const result = await runMicroAppIntent(intent, question, {
+      agentContext: {
+        terminalFacts: {
+          inventory: { source: 'test', items: [{ productName: '临期精华', expiryDate: '2026-07-10' }] },
+        },
+      },
+    });
+
+    expect(state.businessAgentLoader).toHaveBeenCalledTimes(1);
+    expectTerminalAgentCreateCall(question, 'manager', {
+      terminalFacts: expect.objectContaining({
+        inventory: expect.objectContaining({ source: 'test' }),
+      }),
+      intent: expect.objectContaining({ source: 'text' }),
+    });
+    expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
+  });
+
+  it('keeps inventory quick actions on the card flow', async () => {
+    const intent = parseRuleIntent('manager.inventory', 'manager', definition('manager'), 'quick_action');
+    const promise = runMicroAppIntent(intent, 'manager.inventory');
+
+    state.deferredTasks.shift()?.();
+    const result = await promise;
+
+    expect(intent.action).toBe('manager.inventory');
+    expect(state.inventoryAlertsLoader).toHaveBeenCalledTimes(1);
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'inventory' });
   });
 
   it('returns cached high-frequency dashboard data without calling the loader again', async () => {
@@ -513,6 +721,52 @@ describe('runMicroApp cache and prefetch behavior', () => {
       data: { title: '会员充值', customers: [expect.objectContaining({ name: '马语嫣' })] },
     });
     expect(state.rechargeFlowLoader).toHaveBeenCalledTimes(1);
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
+  });
+
+  it('keeps verify quick actions on the FlowCard path instead of Agent Runtime', async () => {
+    const intent: AuraResolvedIntent = {
+      name: 'card.consume',
+      role: 'reception',
+      action: 'operation.verify',
+      source: 'quick_action',
+      confidence: 1,
+      slots: {},
+      missingSlots: [],
+      riskLevel: 'medium',
+      requiresConfirmation: true,
+      showUserCommand: true,
+      loadingLabel: '正在准备核销',
+    };
+
+    const result = await runMicroAppIntent(intent, '核销');
+
+    expect(result.messages[0]?.type).toBe('cardVerification');
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'cardVerification' });
+    expect(state.cardVerificationFlowLoader).toHaveBeenCalledTimes(1);
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
+  });
+
+  it('keeps cashier quick actions on the FlowCard path instead of Agent Runtime', async () => {
+    const intent: AuraResolvedIntent = {
+      name: 'cashier.checkout',
+      role: 'reception',
+      action: 'operation.cashier',
+      source: 'quick_action',
+      confidence: 1,
+      slots: {},
+      missingSlots: [],
+      riskLevel: 'medium',
+      requiresConfirmation: true,
+      showUserCommand: true,
+      loadingLabel: '正在准备收银',
+    };
+
+    const result = await runMicroAppIntent(intent, '收银');
+
+    expect(result.messages[0]?.type).toBe('cashier');
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'cashier' });
+    expect(state.cashierFlowLoader).toHaveBeenCalledTimes(1);
     expect(state.businessAgentLoader).not.toHaveBeenCalled();
   });
 

@@ -33,6 +33,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(rootDir, 'src'),
       '@aura': path.resolve(__dirname, './src'),
+      '@ami/agent-core': path.resolve(rootDir, 'packages/agent-core/index.ts'),
     },
   },
   server: {

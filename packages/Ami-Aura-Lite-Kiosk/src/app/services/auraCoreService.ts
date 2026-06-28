@@ -1,5 +1,6 @@
 import { format, startOfWeek } from 'date-fns';
 import { formatBusinessDateTime } from '../utils/businessTime';
+import { resolveTerminalPersona } from './agentPersonaMapping';
 import {
   getBeauticians,
   getCards,
@@ -39,6 +40,7 @@ import {
   getUserInfo,
   analyzeSkinPhoto,
   askBusinessQuery,
+  appendAgentMessage,
   approveAgentApproval,
   createAgentRun,
   rejectAgentApproval,
@@ -1590,6 +1592,10 @@ function buildTerminalBusinessContext(
   const today = getTodayRange().today;
   const todayReservations = snapshot.reservations.filter((item) => isReservationOnDate(item, today));
   const lowStock = snapshot.stockItems.filter(isLowStock);
+  const expiringProducts = snapshot.expiringProducts
+    .slice()
+    .sort((a, b) => (a.remainingDays ?? 999) - (b.remainingDays ?? 999))
+    .slice(0, 10);
   const totalRevenue = sum(snapshot.orders, (order) => order.totalAmount);
   const topCustomers = [...snapshot.customers]
     .sort((a, b) => b.totalSpent - a.totalSpent)
@@ -1616,6 +1622,7 @@ function buildTerminalBusinessContext(
       orderCount: snapshot.orders.length,
       totalRevenue,
       lowStockCount: lowStock.length,
+      expiringProductCount: snapshot.expiringProducts.length,
       beauticianCount: snapshot.beauticians.length,
     },
     churnCandidates: churnCandidates.map((item, index) => ({
@@ -1645,6 +1652,18 @@ function buildTerminalBusinessContext(
       safetyStock: item.safetyStock,
       status: item.status,
     })),
+    expiringProducts: expiringProducts.map((item) => ({
+      productName: item.productName,
+      sku: item.sku,
+      batchNo: item.batchNo,
+      expiryDate: item.expiryDate,
+      remainingDays: item.remainingDays,
+      stock: item.stock,
+      unit: item.unit,
+      costAmount: item.costAmount,
+      riskLevel: item.riskLevel,
+      suggestion: item.suggestedAction ?? item.suggestion,
+    })),
     topCustomers,
   };
 }
@@ -1657,9 +1676,18 @@ function buildFallbackBusinessAnswer(command: string, context: ReturnType<typeof
   const stockText = context.overview.lowStockCount
     ? `库存有 ${context.overview.lowStockCount} 项低库存。`
     : '库存暂无明显低库存风险。';
+  const expiringLines = context.expiringProducts
+    .slice(0, 5)
+    .map((item, index) => `${index + 1}. ${item.productName}（批次 ${item.batchNo}，${item.remainingDays} 天后到期，库存 ${item.stock}${item.unit ?? ''}）`);
 
   if (/流失|沉默|唤醒|回访|客户/.test(command) && churnLines.length) {
     return `基于 Ami_Core 当前门店数据，优先关注这些潜在流失客户：\n${churnLines.join('\n')}\n建议先联系高消费且 60 天以上未到店客户，确认护理计划并安排复购/预约。`;
+  }
+
+  if (/临期|过期|快过期|效期/.test(command)) {
+    return expiringLines.length
+      ? `基于 Ami_Core 当前门店库存批次，近期临期库存如下：\n${expiringLines.join('\n')}\n建议优先处理剩余天数最短且库存金额较高的批次。`
+      : '基于 Ami_Core 当前门店库存批次，未来 30 天暂无临期库存批次。';
   }
 
   return `基于 Ami_Core 当前门店数据：客户 ${context.overview.customerTotal} 位，订单 ${context.overview.orderCount} 笔，累计金额约 ￥${context.overview.totalRevenue.toLocaleString()}。${reservationText}${stockText}`;
@@ -1682,18 +1710,67 @@ function toAgentRole(role: Role): AgentRole {
   return role === 'beautician' ? 'beautician' : role === 'reception' ? 'reception' : 'manager';
 }
 
+function resolveAgentPersonaCode(role: Role, context?: Record<string, unknown>): string | undefined {
+  const terminal = context?.terminal;
+  const requestedPersonaCode =
+    terminal && typeof terminal === 'object' ? (terminal as { personaCode?: unknown }).personaCode : undefined;
+  return typeof requestedPersonaCode === 'string' && requestedPersonaCode.trim()
+    ? resolveTerminalPersona(role, requestedPersonaCode)
+    : undefined;
+}
+
 export async function runBusinessAgent(
   command: string,
   role: Role,
   context?: Record<string, unknown>,
 ): Promise<AgentRunResult> {
+  const personaCode = resolveAgentPersonaCode(role, context);
   return runWithAuraAuthRepair(() =>
     createAgentRun({
       message: command,
       role: toAgentRole(role),
-      entrypoint: 'aura_lite',
+      entrypoint: 'terminal:kiosk',
+      ...(personaCode ? { personaCode } : {}),
       operatorId: getActiveOperatorParams()?.operatorId ?? null,
-      context,
+      context: {
+        ...(context ?? {}),
+        terminal: {
+          ...(((context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
+          entrypoint: 'terminal:kiosk',
+          role,
+          command,
+          ...(personaCode ? { personaCode } : {}),
+        },
+      },
+    }),
+  );
+}
+
+export async function appendBusinessAgentMessage(
+  runId: number,
+  command: string,
+  role: Role,
+  context?: Record<string, unknown>,
+): Promise<AgentRunResult> {
+  const personaCode = resolveAgentPersonaCode(role, context);
+  return runWithAuraAuthRepair(() =>
+    appendAgentMessage(runId, {
+      message: command,
+      role: toAgentRole(role),
+      entrypoint: 'terminal:kiosk',
+      ...(personaCode ? { personaCode } : {}),
+      operatorId: getActiveOperatorParams()?.operatorId ?? null,
+      context: {
+        ...(context ?? {}),
+        terminal: {
+          ...(((context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
+          entrypoint: 'terminal:kiosk',
+          role,
+          command,
+          previousRunId: runId,
+          ...(personaCode ? { personaCode } : {}),
+        },
+      },
     }),
   );
 }

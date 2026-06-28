@@ -114,7 +114,8 @@ export async function parseAiIntentFallback(params: {
     const confidentEnough = result.confidence >= MIN_AI_CONFIDENCE;
     const explicitCompleteAction = Boolean(action && missingSlots.length === 0 && result.confidence >= 0.5);
     if ((params.source === "text" || params.source === "voice") && action && NATURAL_LANGUAGE_BLOCKED_ACTIONS.has(action)) {
-      return buildRuleDefault(params);
+      const ruleResult = parseRuleIntent(params.command, params.role, params.definition, params.source);
+      return ruleResult.name === "unknown.clarify" ? buildRuleDefault(params) : ruleResult;
     }
     if (!action || (!confidentEnough && !explicitCompleteAction)) {
       return buildRuleDefault(params);
