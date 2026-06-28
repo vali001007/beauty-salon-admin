@@ -1,7 +1,7 @@
 # 洞悉美业 Agent Runtime 统一升级详细开发计划 tasks
 
-版本：v3.1  
-日期：2026-06-28  
+版本：v3.1
+日期：2026-06-28
 适用范围：Ami Aura Lite 智能终端、管理端 `/ami-agent`、`packages/server-v2` Agent Runtime、`packages/agent-core` 前端对话内核。
 
 ---
