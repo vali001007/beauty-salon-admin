@@ -141,6 +141,7 @@ export function AmiAgentWorkspace() {
     sending,
     sendMessage: sendAgentMessage,
     submitFeedback: submitAgentConversationFeedback,
+    updateLastAgentMessage,
     reset: resetConversation,
   } = useAgentConversation<ConversationMessage>({
     api: conversationApi,

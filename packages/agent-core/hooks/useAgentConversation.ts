@@ -63,6 +63,20 @@ export function useAgentConversation<TMessage extends AgentConversationMessage =
     setMessages((prev) => prev.map((message) => (message.id === messageId ? { ...message, ...patch } : message)));
   }, []);
 
+  const updateLastAgentMessage = useCallback((patch: Partial<TMessage>) => {
+    setMessages((prev) => {
+      let lastAgentIndex = -1;
+      for (let index = prev.length - 1; index >= 0; index -= 1) {
+        if (prev[index].role === 'agent') {
+          lastAgentIndex = index;
+          break;
+        }
+      }
+      if (lastAgentIndex < 0) return prev;
+      return prev.map((message, index) => (index === lastAgentIndex ? { ...message, ...patch } : message));
+    });
+  }, []);
+
   const sendMessage = useCallback(
     async (rawText: string, sendOptions: SendAgentMessageOptions = {}) => {
       const text = rawText.trim();
@@ -160,6 +174,7 @@ export function useAgentConversation<TMessage extends AgentConversationMessage =
     setActiveRunId,
     sendMessage,
     submitFeedback,
+    updateLastAgentMessage,
     reset,
   };
 }

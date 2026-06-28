@@ -114,6 +114,42 @@ describe('useAgentConversation', () => {
     });
   });
 
+  it('updates only the latest agent message', async () => {
+    const api: AgentConversationApi = {
+      createRun: vi.fn(async () => ({
+        runId: 301,
+        runNo: 'AG301',
+        status: 'completed' as const,
+        answer: '首轮回答',
+        toolResults: [],
+        actions: [],
+      })),
+      appendMessage: vi.fn(async () => ({
+        runId: 301,
+        runNo: 'AG301',
+        status: 'completed' as const,
+        answer: '追问回答',
+        toolResults: [],
+        actions: [],
+      })),
+    };
+
+    const { result } = renderHook(() => useAgentConversation({ api }));
+
+    await act(async () => {
+      await result.current.sendMessage('第一问');
+    });
+    await act(async () => {
+      await result.current.sendMessage('第二问');
+    });
+    act(() => {
+      result.current.updateLastAgentMessage({ text: '已审批', loading: false });
+    });
+
+    expect(result.current.messages[1]).toMatchObject({ role: 'agent', text: '首轮回答' });
+    expect(result.current.messages[3]).toMatchObject({ role: 'agent', text: '已审批', loading: false });
+  });
+
   it('maps no_data, unsupported, and failed results into shared status notices for UI rendering', async () => {
     const responses = [
       {
