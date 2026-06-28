@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm install --legacy-peer-deps
 
 COPY src ./src
+COPY packages/agent-core ./packages/agent-core
 COPY packages/Ami-Aura-Lite-Kiosk ./packages/Ami-Aura-Lite-Kiosk
 
 RUN npm install --legacy-peer-deps --prefix packages/Ami-Aura-Lite-Kiosk
