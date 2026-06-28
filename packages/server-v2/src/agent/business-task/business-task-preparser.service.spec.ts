@@ -33,6 +33,28 @@ describe('BusinessTaskPreParserService', () => {
     expect(result.task.filters.customerSegment).toBe('existing');
   });
 
+  it('recognizes urgent recall customer lists as customer priority rankings', () => {
+    const result = service.parse({ message: '请列出10个需要紧急召回的客户', role: 'manager' });
+
+    expect(result.task).toMatchObject({
+      domain: 'customer',
+      taskType: 'recommendation',
+      limit: 10,
+      outputMode: 'ranked_list',
+      outputIntent: 'show_table',
+      filters: { customerSegment: 'churn_risk' },
+      requiredFields: ['customerName', 'priorityScore', 'reason', 'suggestedAction'],
+    });
+    expect(result.task.metrics).toEqual(expect.arrayContaining(['follow_up_priority_score', 'churn_risk_score']));
+    expect(result.task.sort).toEqual([{ field: 'follow_up_priority_score', direction: 'desc' }]);
+    expect(result.deterministicSlots).toMatchObject({
+      domainMatched: true,
+      taskTypeMatched: true,
+      limitMatched: true,
+      metricMatched: true,
+    });
+  });
+
   it('recognizes product sales growth ranking', () => {
     const result = service.parse('近30天销量增长最快的商品');
 
@@ -80,6 +102,28 @@ describe('BusinessTaskPreParserService', () => {
     expect(result.task.taskType).toBe('diagnosis');
     expect(result.task.timeRange?.preset).toBe('today');
     expect(result.task.metrics).toContain('revenue');
+  });
+
+  it('recognizes time plus KPI shorthand phrases as queries', () => {
+    const cases = [
+      { message: '这个月营业额', preset: 'this_month', metrics: ['revenue'] },
+      { message: '本月营收', preset: 'this_month', metrics: ['revenue'] },
+      { message: '今日收入', preset: 'today', metrics: ['revenue'] },
+      { message: '昨天流水', preset: 'yesterday', metrics: ['revenue'] },
+      { message: '这个月客单价', preset: 'this_month', metrics: ['revenue', 'average_order_value'] },
+      { message: '本月订单数', preset: 'this_month', metrics: ['revenue', 'order_count'] },
+    ];
+
+    for (const item of cases) {
+      const result = service.parse(item.message);
+
+      expect(result.task.taskType).toBe('query');
+      expect(result.task.timeRange?.preset).toBe(item.preset);
+      expect(result.task.outputIntent).toBe('show_kpi');
+      expect(result.task.missingSlots).not.toContain('taskType');
+      expect(result.deterministicSlots.taskTypeMatched).toBe(true);
+      expect(result.task.metrics).toEqual(expect.arrayContaining(item.metrics));
+    }
   });
 
   it('recognizes consumption customer list questions as order tasks before generic customer growth', () => {
@@ -205,6 +249,59 @@ describe('BusinessTaskPreParserService', () => {
       ]),
     );
     expect(result.task.outputIntent).toBe('show_table');
+  });
+
+  it('limits priority follow-up questions to the previous consumption customer list', () => {
+    const result = service.parse({
+      message: '优先联系哪些客户？',
+      role: 'manager',
+      context: {
+        conversationFocus: {
+          sourceRunId: 156,
+          timeRange: { preset: 'yesterday', label: '昨天' },
+          currentItems: [
+            {
+              customerId: 501,
+              customerName: '马美琳',
+              paidAmount: 3600,
+              paidAmountText: '¥3,600',
+              memberLevel: '金卡',
+              phoneMasked: '138****0001',
+              itemsSummary: '水光护理',
+              suggestion: '优先邀约复购水光护理。',
+            },
+            {
+              customerId: 502,
+              customerName: '林晓雯',
+              paidAmount: 980,
+              paidAmountText: '¥980',
+              memberLevel: '银卡',
+              phoneMasked: '139****0002',
+              itemsSummary: '肩颈护理',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.task).toMatchObject({
+      domain: 'customer',
+      taskType: 'recommendation',
+      limit: 2,
+      outputMode: 'ranked_list',
+      outputIntent: 'show_table',
+      timeRange: { preset: 'yesterday', label: '昨天' },
+    });
+    expect(result.task.metrics).toContain('follow_up_priority_score');
+    expect(result.task.filters).toMatchObject({
+      contextScope: 'previous_order_customer_consumption_list',
+      customerIds: [501, 502],
+      focusedCustomers: [
+        expect.objectContaining({ customerId: 501, customerName: '马美琳', paidAmountText: '¥3,600' }),
+        expect.objectContaining({ customerId: 502, customerName: '林晓雯', paidAmountText: '¥980' }),
+      ],
+    });
+    expect(result.warnings).toEqual(expect.arrayContaining(['已将追问限定在上一轮消费客户清单范围内', '已沿用上一轮时间范围']));
   });
 
   it('applies conversation focus for marketing activity follow-up questions', () => {

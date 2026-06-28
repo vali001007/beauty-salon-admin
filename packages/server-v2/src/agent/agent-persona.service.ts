@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export type AgentPersonaCode =
@@ -16,6 +16,11 @@ export type PersonaSummary = {
   targetRoles: string[];
   toolGroups: string[];
   suggestedQuestions: string[];
+};
+
+export type UpdateAgentPersonaInput = {
+  toolGroups?: string[];
+  suggestedQuestions?: string[];
 };
 
 /**
@@ -49,7 +54,7 @@ const BUILTIN_PERSONAS: Record<AgentPersonaCode, PersonaSummary> = {
     code: 'marketing',
     name: '营销增长 Agent',
     description: '发现增长机会、识别客群、匹配权益、生成活动草稿、生成触达话术，并追踪活动效果。',
-    targetRoles: ['manager'],
+    targetRoles: ['manager', 'reception'],
     toolGroups: [
       'marketing.customer.segment.discover',
       'marketing.opportunity.discover',
@@ -162,16 +167,122 @@ export class AgentPersonaService {
    * 优先从数据库读取，不存在时返回内置配置。
    */
   async listForRole(role: string): Promise<PersonaSummary[]> {
-    const all = Object.values(BUILTIN_PERSONAS);
+    const all = await this.listAll();
     return all.filter((p) => p.targetRoles.includes(role));
   }
 
   async getByCode(code: string): Promise<PersonaSummary | null> {
-    return BUILTIN_PERSONAS[code as AgentPersonaCode] ?? null;
+    const base = BUILTIN_PERSONAS[code as AgentPersonaCode];
+    if (!base) return null;
+    const stored = await this.findStoredByCode(code);
+    return this.mergePersona(base, stored);
   }
 
   /** 获取所有 Persona（管理员视图）*/
   async listAll(): Promise<PersonaSummary[]> {
-    return Object.values(BUILTIN_PERSONAS);
+    const builtins = Object.values(BUILTIN_PERSONAS);
+    const storedByCode = await this.findStoredPersonas();
+    return builtins.map((base) => this.mergePersona(base, storedByCode.get(base.code)));
+  }
+
+  async update(code: string, input: UpdateAgentPersonaInput): Promise<PersonaSummary | null> {
+    const base = BUILTIN_PERSONAS[code as AgentPersonaCode];
+    if (!base) return null;
+
+    const next: PersonaSummary = {
+      ...base,
+      toolGroups: this.normalizeStringArray(input.toolGroups ?? base.toolGroups, base.toolGroups),
+      suggestedQuestions: this.normalizeStringArray(input.suggestedQuestions ?? base.suggestedQuestions, base.suggestedQuestions).slice(0, 6),
+    };
+
+    try {
+      const stored = await this.delegate('agentPersona').upsert({
+        where: { code: next.code },
+        create: {
+          code: next.code,
+          name: next.name,
+          description: next.description,
+          targetRoles: next.targetRoles,
+          toolGroups: next.toolGroups,
+          suggestedQuestions: next.suggestedQuestions,
+          status: 'active',
+        },
+        update: {
+          name: next.name,
+          description: next.description,
+          targetRoles: next.targetRoles,
+          toolGroups: next.toolGroups,
+          suggestedQuestions: next.suggestedQuestions,
+          status: 'active',
+        },
+      });
+      return this.mergePersona(base, stored);
+    } catch (error) {
+      if (this.isMissingPersonaSchemaError(error)) {
+        throw new ServiceUnavailableException({
+          message: 'Agent Persona 配置表尚未迁移，暂不能保存 Persona 配置。',
+          code: 'AGENT_SCHEMA_MIGRATION_PENDING',
+          details: { migration: '20260625000000_add_agent_persona_rendered_block_feedback' },
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async findStoredByCode(code: string) {
+    try {
+      return await this.delegate('agentPersona').findUnique({ where: { code } });
+    } catch (error) {
+      if (this.isMissingPersonaSchemaError(error)) return null;
+      throw error;
+    }
+  }
+
+  private async findStoredPersonas() {
+    try {
+      const rows = await this.delegate('agentPersona').findMany({ where: { status: 'active' } });
+      return new Map(rows.map((row: any) => [row.code, row]));
+    } catch (error) {
+      if (this.isMissingPersonaSchemaError(error)) return new Map<string, any>();
+      throw error;
+    }
+  }
+
+  private mergePersona(base: PersonaSummary, stored?: any): PersonaSummary {
+    if (!stored) return base;
+    return {
+      code: base.code,
+      name: typeof stored.name === 'string' && stored.name.trim() ? stored.name : base.name,
+      description: typeof stored.description === 'string' && stored.description.trim() ? stored.description : base.description,
+      targetRoles: this.normalizeStringArray(stored.targetRoles, base.targetRoles),
+      toolGroups: this.normalizeStringArray(stored.toolGroups, base.toolGroups),
+      suggestedQuestions: this.normalizeStringArray(stored.suggestedQuestions, base.suggestedQuestions),
+    };
+  }
+
+  private normalizeStringArray(value: unknown, fallback: string[]) {
+    if (!Array.isArray(value)) return fallback;
+    const normalized = value.map((item) => String(item).trim()).filter(Boolean);
+    return normalized.length ? Array.from(new Set(normalized)) : fallback;
+  }
+
+  private delegate(name: string): any {
+    const delegate = (this.prisma as any)[name];
+    if (!delegate) throw new Error(`Prisma delegate ${name} is unavailable. Run prisma generate after applying agent schema.`);
+    return delegate;
+  }
+
+  private isMissingPersonaSchemaError(error: unknown) {
+    const anyError = error as { code?: string; message?: string; meta?: { table?: string } };
+    const message = String(anyError?.message ?? '').toLowerCase();
+    const table = String(anyError?.meta?.table ?? '').toLowerCase();
+    return (
+      anyError?.code === 'P2021' ||
+      anyError?.code === 'P2022' ||
+      table.includes('agent_personas') ||
+      message.includes('agent_personas') ||
+      message.includes('agentpersona') ||
+      message.includes('does not exist')
+    );
   }
 }

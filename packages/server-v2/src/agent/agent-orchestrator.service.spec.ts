@@ -11,6 +11,7 @@ describe('AgentOrchestratorService', () => {
   let policy: jest.Mocked<any>;
   let toolRegistry: jest.Mocked<any>;
   let evalService: jest.Mocked<any>;
+  let router: jest.Mocked<any>;
   let service: AgentOrchestratorService;
 
   beforeEach(() => {
@@ -32,6 +33,7 @@ describe('AgentOrchestratorService', () => {
       getApproval: jest.fn(),
       getToolCall: jest.fn(),
       updateApproval: jest.fn().mockResolvedValue({}),
+      updateRun: jest.fn().mockResolvedValue({}),
     };
     planner = {
       plan: jest.fn(),
@@ -47,6 +49,19 @@ describe('AgentOrchestratorService', () => {
     evalService = {
       runDefaultCases: jest.fn(),
       runP0Cases: jest.fn(),
+      runSkillCases: jest.fn(),
+    };
+    router = {
+      route: jest.fn().mockImplementation(async (input: any) => ({
+        personaCode: input.previousPersonaCode ?? input.manualPersonaCode ?? 'manager',
+        confidence: 0.88,
+        reason: input.previousPersonaCode ? '测试继承分诊' : '测试默认分诊',
+        candidates: [{ personaCode: input.previousPersonaCode ?? input.manualPersonaCode ?? 'manager', score: 0.88, matchedCapabilities: ['经营'] }],
+        clarificationNeeded: false,
+        clarificationQuestion: null,
+        deniedReason: null,
+        mode: input.previousPersonaCode ? 'context_inherit' : input.manualPersonaCode ? 'manual' : 'auto',
+      })),
     };
     service = new AgentOrchestratorService(
       runtime,
@@ -57,6 +72,7 @@ describe('AgentOrchestratorService', () => {
       evalService,
       new AgentFieldScopeSanitizerService(),
       new AgentResponseSafetyService(),
+      router,
       new AnswerContractValidatorService(),
     );
   });
@@ -73,6 +89,124 @@ describe('AgentOrchestratorService', () => {
 
     await expect(service.runP0Evals()).resolves.toEqual({ total: 8, passed: 8, failed: 0, results: [] });
     expect(evalService.runP0Cases).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves persona before creating a run when personaCode is omitted', async () => {
+    const plan = {
+      intentType: 'clarify',
+      goal: '澄清问题',
+      toolPlan: [],
+      confidence: 0.5,
+      clarificationNeeded: true,
+      clarificationQuestion: '要查看哪类风险？',
+    };
+    router.route.mockResolvedValue({
+      personaCode: 'inventory',
+      confidence: 0.86,
+      reason: '命中库存风险',
+      candidates: [{ personaCode: 'inventory', score: 0.86, matchedCapabilities: ['库存'] }],
+      clarificationNeeded: false,
+      clarificationQuestion: null,
+      deniedReason: null,
+      mode: 'auto',
+    });
+    planner.plan.mockResolvedValue(plan);
+
+    const result = await service.createRun({ message: '哪些库存临期', actor });
+
+    expect(runtime.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      actor: expect.objectContaining({ personaCode: 'inventory' }),
+      context: expect.objectContaining({
+        routeDecision: expect.objectContaining({ personaCode: 'inventory' }),
+      }),
+    }));
+    expect(runtime.addMessage).toHaveBeenCalledWith(101, 'user', '哪些库存临期', expect.objectContaining({
+      personaCode: 'inventory',
+      routeDecision: expect.objectContaining({ personaCode: 'inventory' }),
+    }));
+    expect(result.routeDecision?.personaCode).toBe('inventory');
+  });
+
+  it('uses manual personaCode when explicitly provided', async () => {
+    const manualActor = { ...actor, personaCode: 'finance' };
+    const plan = {
+      intentType: 'clarify',
+      goal: '澄清问题',
+      toolPlan: [],
+      confidence: 0.5,
+      clarificationNeeded: true,
+      clarificationQuestion: '要查看哪个财务周期？',
+    };
+    router.route.mockResolvedValue({
+      personaCode: 'finance',
+      confidence: 1,
+      reason: '手动指定',
+      candidates: [{ personaCode: 'finance', score: 1, matchedCapabilities: ['财务'] }],
+      clarificationNeeded: false,
+      clarificationQuestion: null,
+      deniedReason: null,
+      mode: 'manual',
+    });
+    planner.plan.mockResolvedValue(plan);
+
+    await service.createRun({ message: '本月利润为什么下降', actor: manualActor });
+
+    expect(router.route).toHaveBeenCalledWith(expect.objectContaining({ manualPersonaCode: 'finance' }));
+    expect(runtime.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      actor: expect.objectContaining({ personaCode: 'finance' }),
+    }));
+  });
+
+  it('appendMessage routes without requiring actor.personaCode and updates the run when changed', async () => {
+    runtime.getRun.mockResolvedValue({
+      id: 101,
+      runNo: 'ar_test',
+      status: 'completed',
+      personaCode: 'inventory',
+      contextJson: { routeDecision: { personaCode: 'inventory' } },
+      resultJson: { answer: '库存风险', conversationFocus: { topic: 'inventory' } },
+    });
+    runtime.updateRun.mockImplementation(async (_id: number, data: any) => ({
+      id: 101,
+      runNo: 'ar_test',
+      status: 'completed',
+      personaCode: data.personaCode ?? 'inventory',
+      contextJson: data.contextJson,
+      resultJson: { answer: '库存风险' },
+    }));
+    router.route.mockResolvedValue({
+      personaCode: 'finance',
+      confidence: 0.9,
+      reason: '追问切换到财务域',
+      candidates: [{ personaCode: 'finance', score: 0.9, matchedCapabilities: ['利润'] }],
+      clarificationNeeded: false,
+      clarificationQuestion: null,
+      deniedReason: null,
+      mode: 'auto',
+      routeChanged: true,
+    });
+    const plan = {
+      intentType: 'clarify',
+      goal: '澄清财务问题',
+      toolPlan: [],
+      confidence: 0.5,
+      clarificationNeeded: true,
+      clarificationQuestion: '要查看哪个周期？',
+    };
+    planner.plan.mockResolvedValue(plan);
+
+    const result = await service.appendMessage({ runId: 101, message: '本月利润为什么下降', actor });
+
+    expect(router.route).toHaveBeenCalledWith(expect.objectContaining({
+      previousPersonaCode: 'inventory',
+      manualPersonaCode: undefined,
+    }));
+    expect(runtime.updateRun).toHaveBeenCalledWith(101, { personaCode: 'finance' });
+    expect(runtime.addMessage).toHaveBeenCalledWith(101, 'user', '本月利润为什么下降', expect.objectContaining({
+      personaCode: 'finance',
+      routeDecision: expect.objectContaining({ routeChanged: true }),
+    }));
+    expect(result.routeDecision?.personaCode).toBe('finance');
   });
 
   it('executes low-risk tools and completes the run with evidence', async () => {
@@ -312,7 +446,7 @@ describe('AgentOrchestratorService', () => {
         expect.objectContaining({ kind: 'kpi_card', label: '消费客户', value: '2' }),
         expect.objectContaining({
           kind: 'table',
-          columns: expect.arrayContaining(['customerName', 'paidAmountText', 'orderCount']),
+          columns: expect.arrayContaining(['客户', '消费金额', '订单数']),
           rows: [expect.arrayContaining(['马美琳', '¥1,500', '2'])],
         }),
         expect.objectContaining({ kind: 'evidence_panel' }),
@@ -413,6 +547,55 @@ describe('AgentOrchestratorService', () => {
     );
   });
 
+  it('uses tool-provided table columns when items are array rows', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '发现营销客群',
+      toolPlan: [{ tool: 'marketing.customer.segment.discover', args: { question: '有哪些待召回客户' } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'marketing.customer.segment.discover',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '可运营客群发现',
+      summary: '共发现939位可运营客户，分4个客群',
+      data: {
+        items: [
+          ['沉睡客户（45-90天未到店）', '585人', '高', '发召回优惠券'],
+          ['深度沉睡（90天以上）', '25人', '中', '发专属回访话术'],
+        ],
+        columns: ['客群', '人数', '优先级', '建议动作'],
+      },
+      evidence: {
+        source: ['Customer'],
+        metricDefinition: '按到店间隔和消费金额分群',
+      },
+    });
+
+    const result = await service.createRun({ message: '有哪些待召回客户', actor });
+
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          columns: ['客群', '人数', '优先级', '建议动作'],
+          rows: [
+            ['沉睡客户（45-90天未到店）', '585人', '高', '发召回优惠券'],
+            ['深度沉睡（90天以上）', '25人', '中', '发专属回访话术'],
+          ],
+        }),
+      ]),
+    );
+  });
+
   it('injects the previous conversation focus when appending a follow-up message', async () => {
     runtime.getRun.mockResolvedValue({
       id: 101,
@@ -441,7 +624,20 @@ describe('AgentOrchestratorService', () => {
     };
     planner.plan.mockResolvedValue(plan);
 
-    const result = await service.appendMessage({ runId: 101, message: '这个客户还有什么卡和权益？', actor });
+    const result = await service.appendMessage({
+      runId: 101,
+      message: '这个客户还有什么卡和权益？',
+      actor,
+      context: {
+        terminal: {
+          entrypoint: 'terminal:kiosk',
+          personaCode: 'reception',
+        },
+        terminalFacts: {
+          customers: { items: [{ customerId: 501, customerName: '马美琳' }] },
+        },
+      },
+    });
 
     expect(result.status).toBe('completed');
     expect(planner.plan).toHaveBeenCalledWith(
@@ -456,6 +652,36 @@ describe('AgentOrchestratorService', () => {
           previousResult: expect.objectContaining({
             conversationFocus: expect.objectContaining({
               currentCustomer: expect.objectContaining({ customerId: 501 }),
+            }),
+          }),
+          terminal: expect.objectContaining({
+            entrypoint: 'terminal:kiosk',
+            personaCode: 'reception',
+          }),
+          terminalFacts: expect.objectContaining({
+            customers: expect.objectContaining({
+              items: [expect.objectContaining({ customerName: '马美琳' })],
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(runtime.updateRun).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({
+        contextJson: expect.objectContaining({
+          locale: 'zh-CN',
+          conversationFocus: expect.objectContaining({
+            currentCustomer: expect.objectContaining({ customerName: '马美琳' }),
+          }),
+          previousResult: expect.objectContaining({
+            conversationFocus: expect.objectContaining({
+              currentCustomer: expect.objectContaining({ customerId: 501 }),
+            }),
+          }),
+          terminalFacts: expect.objectContaining({
+            customers: expect.objectContaining({
+              items: [expect.objectContaining({ customerName: '马美琳' })],
             }),
           }),
         }),

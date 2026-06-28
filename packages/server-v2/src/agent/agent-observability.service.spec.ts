@@ -27,8 +27,8 @@ describe('AgentObservabilityService', () => {
 
   it('builds quality report from runs feedback tools and eval runs', async () => {
     prisma.agentRun.findMany.mockResolvedValue([
-      { id: 1, status: 'completed', personaCode: 'finance', role: 'manager' },
-      { id: 2, status: 'failed', personaCode: 'inventory', role: 'manager' },
+      { id: 1, status: 'completed', personaCode: 'finance', role: 'manager', entrypoint: 'ami-agent:finance' },
+      { id: 2, status: 'failed', personaCode: 'inventory', role: 'manager', entrypoint: 'terminal:kiosk' },
     ]);
     prisma.agentFeedback.findMany.mockResolvedValue([
       { runId: 1, rating: 5, adopted: true, comment: '有用' },
@@ -64,6 +64,12 @@ describe('AgentObservabilityService', () => {
     expect(result.toolBreakdown).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ toolName: 'inventory.consumption.trend', failed: 1 }),
+      ]),
+    );
+    expect(result.entrypointBreakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'ami-agent:finance', runCount: 1, completed: 1 }),
+        expect.objectContaining({ name: 'terminal:kiosk', runCount: 1, failed: 1 }),
       ]),
     );
     expect(result.recentNegativeFeedback[0]).toMatchObject({ comment: '答非所问' });

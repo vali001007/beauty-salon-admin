@@ -18,6 +18,12 @@ export class CreateAgentRunDto {
   @MaxLength(50)
   entrypoint?: string;
 
+  @ApiPropertyOptional({ description: '角色 Agent 代码', example: 'manager' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  personaCode?: string;
+
   @ApiPropertyOptional({ description: '当前终端选择的操作账号 ID' })
   @IsOptional()
   @IsInt()
@@ -39,6 +45,18 @@ export class AppendAgentMessageDto {
   @IsOptional()
   @IsIn(['manager', 'reception', 'beautician'])
   role?: 'manager' | 'reception' | 'beautician';
+
+  @ApiPropertyOptional({ description: '入口来源', example: 'terminal:kiosk' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  entrypoint?: string;
+
+  @ApiPropertyOptional({ description: '角色 Agent 代码', example: 'manager' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  personaCode?: string;
 
   @ApiPropertyOptional({ description: '当前终端选择的操作账号 ID' })
   @IsOptional()

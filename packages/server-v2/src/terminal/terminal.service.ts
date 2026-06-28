@@ -2541,7 +2541,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         'manager.customers',
         'manager.inventory',
         'reception.appointments',
+        'operation.verify',
         'operation.cashier',
+        'operation.card',
+        'operation.recharge',
+        'operation.print',
       ],
       reception: [
         'reception.appointments',
@@ -5049,7 +5053,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           stock: { gt: 0 },
           expiryDate: { not: null, lte: alertBefore },
         },
-        include: { product: true },
+        include: { product: { include: { category: { select: { name: true } } } } },
         orderBy: { expiryDate: 'asc' },
         take: 50,
       }),
@@ -5073,18 +5077,36 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         storeName: store.name,
       }));
 
-    const expiring = batches.map((batch) => ({
-      id: batch.id,
-      urgency: batch.expiryDate && batch.expiryDate < now ? '已过期' : '临期',
-      productName: batch.product.name,
-      sku: batch.product.sku,
-      batchNo: batch.batchNo,
-      remainingDays: batch.expiryDate ? Math.ceil((batch.expiryDate.getTime() - now.getTime()) / 86400000) : 0,
-      stock: this.toNumber(batch.stock),
-      costAmount: this.toNumber(batch.stock) * this.toNumber(batch.product.costPrice),
-      storeName: store.name,
-      suggestion: batch.expiryDate && batch.expiryDate < now ? '报废' : '促销',
-    }));
+    const expiring = batches.map((batch) => {
+      const remainingDays = batch.expiryDate ? Math.ceil((batch.expiryDate.getTime() - now.getTime()) / 86400000) : 0;
+      const riskLevel = remainingDays <= 0 ? 'high' : remainingDays <= 15 ? 'high' : remainingDays <= 30 ? 'medium' : 'low';
+      const suggestion = batch.expiryDate && batch.expiryDate < now ? '报废' : '促销';
+      return {
+        id: batch.id,
+        urgency: batch.expiryDate && batch.expiryDate < now ? '已过期' : remainingDays <= 15 ? '紧急' : '临期',
+        productName: batch.product.name,
+        sku: batch.product.sku,
+        batchNo: batch.batchNo,
+        expiryDate: batch.expiryDate?.toISOString(),
+        remainingDays,
+        stock: this.toNumber(batch.stock),
+        unit: batch.product.unit,
+        retailPrice: this.toNumber(batch.product.retailPrice),
+        costPrice: this.toNumber(batch.product.costPrice),
+        costAmount: this.toNumber(batch.stock) * this.toNumber(batch.product.costPrice),
+        storeName: store.name,
+        supplier: batch.product.supplier,
+        categoryName: batch.product.category?.name ?? null,
+        riskLevel,
+        suggestedAction:
+          remainingDays <= 0
+            ? '暂停销售并走报废/盘点流程'
+            : remainingDays <= 15
+              ? '优先顾问定向邀约或护理搭赠'
+              : '加入低峰到店加项礼或会员满赠',
+        suggestion,
+      };
+    });
 
     const replenishment = lowStock.map((item) => ({
       id: item.id,

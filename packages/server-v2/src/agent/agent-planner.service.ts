@@ -1206,9 +1206,11 @@ export class AgentPlannerService {
   }
 
   private isCustomerPriorityListRequest(text: string) {
-    const hasCount = /(\d+|[一二三四五六七八九十]+)(个|位|名)?.{0,8}(客户|顾客|会员|老客|VIP)|((客户|顾客|会员|老客|VIP).{0,8}(\d+|[一二三四五六七八九十]+)(个|位|名)?)/i.test(text);
+    const hasCount =
+      /(?:top|前)(\d+|[一二三四五六七八九十]+)/i.test(text) ||
+      /(\d+|[一二三四五六七八九十]+)(个|位|名).{0,8}(客户|顾客|会员|老客|VIP)|((客户|顾客|会员|老客|VIP).{0,8}(\d+|[一二三四五六七八九十]+)(个|位|名))/i.test(text);
     const hasListIntent = /哪些|谁|哪几位|哪几个|名单|清单|排行|排名|列出|看一下/.test(text);
-    const hasPriorityIntent = /优先|最值得|重点|该回访|回访|邀约|跟进|唤醒|复购|续卡|护理周期|再次到店/.test(text);
+    const hasPriorityIntent = /优先|最值得|重点|紧急|该回访|回访|邀约|跟进|唤醒|召回|回流|复购|续卡|护理周期|再次到店/.test(text);
     const hasCustomerDomain = /客户|顾客|会员|老客|VIP|沉睡|流失|服务客户|护理客户/.test(text);
     return (hasCount || hasListIntent) && hasPriorityIntent && hasCustomerDomain;
   }

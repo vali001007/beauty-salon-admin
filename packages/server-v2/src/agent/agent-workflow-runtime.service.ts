@@ -9,6 +9,7 @@ export class AgentWorkflowRuntimeService {
   async createRun(input: { message: string; actor: AgentActor; context?: Record<string, unknown>; agentCode?: string }) {
     const delegate = this.delegate('agentRun');
     const runNo = `ar_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const personaCode = this.resolvePersonaCode(input.actor.personaCode, input.context);
     return delegate.create({
       data: {
         runNo,
@@ -18,6 +19,7 @@ export class AgentWorkflowRuntimeService {
         role: input.actor.role,
         entrypoint: input.actor.entrypoint,
         agentCode: input.agentCode ?? 'business_operations',
+        personaCode,
         status: 'created',
         userInput: input.message,
         contextJson: this.toJson(input.context),
@@ -42,6 +44,7 @@ export class AgentWorkflowRuntimeService {
     pageSize?: number | string;
     status?: string;
     role?: string;
+    personaCode?: string;
     entrypoint?: string;
     keyword?: string;
     storeId?: number;
@@ -53,6 +56,7 @@ export class AgentWorkflowRuntimeService {
       ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
       ...(query.status ? { status: String(query.status) } : {}),
       ...(query.role ? { role: String(query.role) } : {}),
+      ...(query.personaCode ? { personaCode: String(query.personaCode) } : {}),
       ...(query.entrypoint ? { entrypoint: String(query.entrypoint) } : {}),
       ...(keyword
         ? {
@@ -68,6 +72,24 @@ export class AgentWorkflowRuntimeService {
     const [runs, total] = await Promise.all([
       this.delegate('agentRun').findMany({
         where,
+        select: {
+          id: true,
+          runNo: true,
+          storeId: true,
+          userId: true,
+          deviceId: true,
+          role: true,
+          entrypoint: true,
+          agentCode: true,
+          personaCode: true,
+          status: true,
+          userInput: true,
+          errorMessage: true,
+          startedAt: true,
+          completedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -280,6 +302,14 @@ export class AgentWorkflowRuntimeService {
   private toJson(value: unknown) {
     if (value === undefined) return undefined;
     return JSON.parse(JSON.stringify(value));
+  }
+
+  private resolvePersonaCode(personaCode?: string, context?: Record<string, unknown>) {
+    if (personaCode && String(personaCode).trim()) return String(personaCode).trim();
+    const terminal = context?.terminal;
+    if (!terminal || typeof terminal !== 'object') return undefined;
+    const terminalPersonaCode = (terminal as { personaCode?: unknown }).personaCode;
+    return typeof terminalPersonaCode === 'string' && terminalPersonaCode.trim() ? terminalPersonaCode.trim() : undefined;
   }
 
   private normalizePage(value: unknown) {

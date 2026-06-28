@@ -83,6 +83,7 @@ export class AgentObservabilityService {
       ? Math.round(latencies.reduce((sum: number, value: number) => sum + value, 0) / latencies.length)
       : null;
     const personaBreakdown = this.groupRunsBy(runs, 'personaCode');
+    const entrypointBreakdown = this.groupRunsBy(runs, 'entrypoint');
     const toolBreakdown = this.groupToolCalls(toolCalls);
     const recentNegativeFeedback = feedbacks
       .filter((item: any) => item.adopted === false || Number(item.rating) <= 2)
@@ -124,6 +125,7 @@ export class AgentObservabilityService {
         evalPassRate: evalRuns.length ? evalPassed / evalRuns.length : null,
       },
       personaBreakdown,
+      entrypointBreakdown,
       toolBreakdown,
       recentNegativeFeedback,
       recommendations,
@@ -210,7 +212,7 @@ export class AgentObservabilityService {
     return { dryRun: false, candidates, created: Number(created?.count ?? candidates.length) };
   }
 
-  private groupRunsBy(runs: any[], key: 'personaCode' | 'role') {
+  private groupRunsBy(runs: any[], key: 'personaCode' | 'role' | 'entrypoint') {
     const groups = new Map<string, { name: string; runCount: number; completed: number; failed: number }>();
     for (const run of runs) {
       const name = String(run[key] || run.role || 'unknown');

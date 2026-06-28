@@ -35,8 +35,11 @@ export class BusinessTaskPreParserService {
     const limit = this.extractLimit(text);
     const timeRange = this.extractTimeRange(text);
     const domain = this.detectDomain(text);
-    const taskType = this.detectTaskType(text);
+    let taskType = this.detectTaskType(text);
     const metrics = this.detectMetrics(text, domain, taskType);
+    if (taskType === 'clarify' && this.isImplicitKpiQuery(text, domain, timeRange, metrics)) {
+      taskType = 'query';
+    }
     const entities = this.extractEntities(text, domain);
     const event = this.detectEvent(text, domain);
     const requiresApproval = taskType === 'draft' || taskType === 'workflow';
@@ -169,12 +172,12 @@ export class BusinessTaskPreParserService {
     if (/客户|顾客|会员|老客|新客|沉睡|流失|高价值|复购|回访|邀约|唤醒/.test(text)) return 'customer';
     if (/商品|产品|品项|sku/.test(text)) return 'product';
     if (/项目|护理|服务|疗程/.test(text)) return 'project';
-    if (/收入|营收|营业额|流水|业绩|收了多少钱|收款多少/.test(text)) return 'business';
+    if (/收入|营收|营业额|流水|业绩|收了多少钱|收款多少|客单价|订单数/.test(text)) return 'business';
     if (/排班|班表|人手|请假|忙碌|美容师/.test(text)) return 'schedule';
     if (/订单|收银|开单|流水|消费|成交|客单价|支付方式/.test(text)) return 'order';
     if (/营销|活动|触达|转化|推广|推广页|线索/.test(text)) return 'marketing';
     if (/员工|店员|顾问|绩效|提成/.test(text)) return 'staff';
-    if (/经营|收入|营收|营业额|业绩/.test(text)) return 'business';
+    if (/经营|收入|营收|营业额|业绩|客单价|订单数/.test(text)) return 'business';
     return 'unknown';
   }
 
@@ -188,9 +191,33 @@ export class BusinessTaskPreParserService {
     if (/为什么|原因|归因|怎么会|为何|异常|下降|诊断|复盘|影响|冲突|风险高|不稳定|慢/.test(text)) return 'diagnosis';
     if (/排行|排名|前\d+|top\d+|最多|最少|最高|最低|最快|最慢|最好|最差|较好|优秀|表现好|做得好|业绩好|服务好|成交高|销售高|销量好|销售好|卖得好|卖的好/.test(text)) return 'ranking';
     if (/可能|预计|预测|风险|预警|下周|未来/.test(text)) return 'forecast';
-    if (/最值得|优先|重点|建议|适合|可以推|机会|推荐|怎么做|跟进|回访|邀约|唤醒/.test(text)) return 'recommendation';
+    if (/最值得|优先|重点|建议|适合|可以推|机会|推荐|怎么做|跟进|回访|邀约|唤醒|召回|回流|紧急/.test(text)) return 'recommendation';
+    if (this.hasKpiMetricTerm(text) && (this.hasExplicitTimeTerm(text) || this.isKpiOnlyPhrase(text))) return 'query';
     if (/查|查询|看|看看|分析|统计|多少|怎么样|情况|趋势|增长|不足|到期|空闲|忙碌|请假|占用率|缺口|时段|名单|清单|明细|列出|列一下|哪些|哪个|哪家|哪位|谁|效果|使用率|触达率|完成率|转化率|领取率|核销率|绑定率|退款率|毛利率|业绩|提成|表现|对比|问题|分类|质量|满意|链路|访问|浏览|活跃|成交|转化|领取|高吗|低吗|完成好/.test(text)) return 'query';
     return 'clarify';
+  }
+
+  private isImplicitKpiQuery(
+    text: string,
+    domain: BusinessTaskDomain,
+    timeRange: BusinessTimeRange | undefined,
+    metrics: string[],
+  ) {
+    const kpiMetrics = new Set(['revenue', 'net_revenue', 'average_order_value', 'order_count']);
+    const hasKpiMetric = metrics.some((metric) => kpiMetrics.has(metric)) || this.hasKpiMetricTerm(text);
+    return domain !== 'unknown' && hasKpiMetric && (Boolean(timeRange) || this.isKpiOnlyPhrase(text));
+  }
+
+  private hasKpiMetricTerm(text: string) {
+    return /收入|营收|营业额|流水|实收|收款|客单价|订单数/.test(text);
+  }
+
+  private hasExplicitTimeTerm(text: string) {
+    return /今天|今日|昨天|昨日|本周|这周|上周|上星期|本月|这个月|当月|近7天|最近7天|近七天|最近七天|近30天|最近30天|近三十天|最近三十天|近一个月|最近一个月|\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}/.test(text);
+  }
+
+  private isKpiOnlyPhrase(text: string) {
+    return /^(?:今天|今日|昨天|昨日|本周|这周|上周|上星期|本月|这个月|当月|近7天|最近7天|近七天|最近七天|近30天|最近30天|近三十天|最近三十天|近一个月|最近一个月)?(?:收入|营收|营业额|流水|实收|收款|客单价|订单数)$/.test(text);
   }
 
   private detectEvent(text: string, domain: BusinessTaskDomain): BusinessTaskEvent {
@@ -217,7 +244,7 @@ export class BusinessTaskPreParserService {
       return 'show_table';
     }
     if (/趋势|走势|变化|曲线|图/.test(text)) return 'show_chart';
-    if (/多少|汇总|概览|总览|统计|营收|收入|营业额|客单价|订单数/.test(text)) return 'show_kpi';
+    if (/多少|汇总|概览|总览|统计|营收|收入|营业额|流水|实收|收款|客单价|订单数/.test(text)) return 'show_kpi';
     return 'answer_text';
   }
 
@@ -230,7 +257,7 @@ export class BusinessTaskPreParserService {
     if (domain === 'order' && event === 'paid_order' && outputIntent === 'show_table') {
       return ['customerName', 'phoneMasked', 'paidAmount', 'orderCount', 'lastOrderTime', 'itemsSummary'];
     }
-    if (domain === 'customer' && /回访|跟进|优先|重点/.test(text)) {
+    if (domain === 'customer' && /回访|跟进|优先|重点|召回|回流|紧急/.test(text)) {
       return ['customerName', 'priorityScore', 'reason', 'suggestedAction'];
     }
     if (outputIntent === 'show_kpi') return ['metricLabel', 'metricValue', 'dateRange', 'metricDefinition'];
@@ -246,11 +273,11 @@ export class BusinessTaskPreParserService {
 
   private detectMetrics(text: string, domain: BusinessTaskDomain, taskType: BusinessTaskType) {
     const metrics = new Set<string>();
-    if (domain === 'customer' && (taskType === 'recommendation' || /跟进|回访|邀约|最值得|优先/.test(text))) {
+    if (domain === 'customer' && (taskType === 'recommendation' || /跟进|回访|邀约|召回|回流|最值得|优先|紧急/.test(text))) {
       metrics.add('follow_up_priority_score');
     }
-    if (domain === 'customer' && /机会|最高|重点|名单|优先|跟进|回访|邀约|唤醒/.test(text)) metrics.add('follow_up_priority_score');
-    if (/流失|沉睡/.test(text)) metrics.add('churn_risk_score');
+    if (domain === 'customer' && /机会|最高|重点|名单|优先|跟进|回访|邀约|唤醒|召回|回流|紧急/.test(text)) metrics.add('follow_up_priority_score');
+    if (/流失|沉睡|召回|回流|紧急/.test(text)) metrics.add('churn_risk_score');
     if (/复购/.test(text)) metrics.add('repurchase_opportunity_score');
     if (/ltv|累计价值|高价值/.test(text)) metrics.add('ltv');
     if (/rfm|活跃价值|活跃度/.test(text)) metrics.add('rfm_score');
@@ -271,7 +298,14 @@ export class BusinessTaskPreParserService {
     if (domain === 'memberCard' && /沉睡|未消费|沉淀/.test(text)) metrics.add('balance_inactive_days');
     if (/收入|营收|营业额|流水|业绩/.test(text)) metrics.add('revenue');
     if (/净收入|实收|净额/.test(text)) metrics.add('net_revenue');
-    if (/客单价/.test(text)) metrics.add('average_order_value');
+    if (/客单价/.test(text)) {
+      metrics.add('revenue');
+      metrics.add('average_order_value');
+    }
+    if (/订单数/.test(text)) {
+      metrics.add('revenue');
+      metrics.add('order_count');
+    }
     if (/异常/.test(text)) metrics.add('business_anomaly_count');
     if (domain === 'finance' && /毛利|利润|盈利|亏损/.test(text)) metrics.add('gross_margin');
     if (domain === 'finance' && /成本|耗材/.test(text)) metrics.add('material_cost');
@@ -338,7 +372,7 @@ export class BusinessTaskPreParserService {
       [/老客/, '老客'],
       [/新客/, '新客'],
       [/沉睡/, '沉睡客户'],
-      [/流失/, '流失风险客户'],
+      [/流失|召回|回流|紧急/, '流失风险客户'],
       [/高价值|vip/, '高价值客户'],
       [/会员/, '会员'],
     ];
@@ -356,6 +390,7 @@ export class BusinessTaskPreParserService {
     if (/沉睡/.test(text)) filters.customerSegment = 'dormant';
     if (/流失/.test(text)) filters.customerSegment = 'churn_risk';
     if (/高价值|vip/.test(text)) filters.customerSegment = 'high_value';
+    if (!filters.customerSegment && /召回|回流|紧急/.test(text)) filters.customerSegment = 'churn_risk';
     if (/本人|我的/.test(text)) filters.scope = 'self';
     if (/小程序|ami glow|客户端|会员端/.test(text)) filters.channel = 'customer_app';
     if (/微信/.test(text)) filters.channel = 'wechat';
@@ -366,7 +401,7 @@ export class BusinessTaskPreParserService {
   private detectSort(text: string, metrics: string[]) {
     if (!metrics.length) return undefined;
     if (/最低|最少|最慢/.test(text)) return [{ field: metrics[0], direction: 'asc' as const }];
-    if (/排行|排名|前|top|最多|最高|最快|最值得|优先|重点/.test(text)) {
+    if (/排行|排名|前|top|最多|最高|最快|最值得|优先|重点|紧急|召回|回流/.test(text)) {
       return [{ field: metrics[0], direction: 'desc' as const }];
     }
     return undefined;
@@ -401,6 +436,7 @@ export class BusinessTaskPreParserService {
     const focus = this.extractConversationFocus(context);
     const focusCustomer = this.asObject(focus?.currentCustomer);
     const focusActivity = this.asObject(focus?.currentActivity);
+    const focusItems = Array.isArray(focus?.currentItems) ? focus.currentItems : [];
 
     if (this.hasCustomerReference(text) && focusCustomer) {
       const customerId = focusCustomer.customerId;
@@ -423,6 +459,40 @@ export class BusinessTaskPreParserService {
       };
       task.missingSlots = task.missingSlots.filter((slot) => slot !== 'domain');
       warnings.push('已使用上一轮当前关注客户补齐查询条件');
+    }
+
+    if (this.isFocusedCustomerListPriorityRequest(text, task) && focusItems.length) {
+      const focusedCustomers = focusItems
+        .map((item) => this.asObject(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => ({
+          customerId: Number(item.customerId),
+          customerName: item.customerName ?? item.name,
+          paidAmount: item.paidAmount,
+          paidAmountText: item.paidAmountText,
+          memberLevel: item.memberLevel,
+          phoneMasked: item.phoneMasked,
+          itemsSummary: item.itemsSummary,
+          suggestion: item.suggestion,
+        }))
+        .filter((item) => Number.isFinite(item.customerId) && item.customerId > 0);
+      if (focusedCustomers.length) {
+        task.domain = 'customer';
+        task.taskType = 'recommendation';
+        task.metrics = Array.from(new Set([...task.metrics, 'follow_up_priority_score']));
+        task.outputMode = 'ranked_list';
+        task.outputIntent = 'show_table';
+        task.filters = {
+          ...task.filters,
+          contextScope: 'previous_order_customer_consumption_list',
+          customerIds: focusedCustomers.map((item) => item.customerId),
+          focusedCustomers,
+        };
+        task.limit = task.limit ?? focusedCustomers.length;
+        task.missingSlots = task.missingSlots.filter((slot) => slot !== 'domain' && slot !== 'limit');
+        task.confidence = Math.max(task.confidence, 0.9);
+        warnings.push('已将追问限定在上一轮消费客户清单范围内');
+      }
     }
 
     if (this.hasActivityReference(text) && focusActivity) {
@@ -476,6 +546,12 @@ export class BusinessTaskPreParserService {
 
   private hasActivityReference(text: string) {
     return /这个活动|该活动|这场活动|上次那个活动|上一个活动|刚才那个活动|上面那个活动|这个草稿|该草稿|上次那个草稿/.test(text);
+  }
+
+  private isFocusedCustomerListPriorityRequest(text: string, task: BusinessTask) {
+    const asksPriority = /优先|重点|最值得|先联系|先跟进|先回访|值得联系|值得跟进|联系哪些|跟进哪些|回访哪些/.test(text);
+    const asksCustomer = /客户|会员|顾客|哪些|哪几位|名单|清单|他们|这些|这批/.test(text);
+    return asksPriority && (asksCustomer || task.domain === 'customer' || task.domain === 'unknown');
   }
 
   private extractConversationFocus(context?: Record<string, unknown>) {

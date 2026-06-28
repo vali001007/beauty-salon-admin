@@ -35,6 +35,20 @@ type PriorityCustomerSignal = {
 type PriorityCustomerOptions = {
   range?: AgentDateRange;
   customerSegment?: string;
+  customerIds?: number[];
+  focusedCustomers?: FocusedPriorityCustomer[];
+  contextScope?: string;
+};
+
+type FocusedPriorityCustomer = {
+  customerId: number;
+  customerName?: unknown;
+  paidAmount?: unknown;
+  paidAmountText?: unknown;
+  memberLevel?: unknown;
+  phoneMasked?: unknown;
+  itemsSummary?: unknown;
+  suggestion?: unknown;
 };
 
 @Injectable()
@@ -56,7 +70,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['terminal:customer:view'],
       requiresApproval: false,
-      consumedSlots: ['timeRange', 'limit', 'filters.customerSegment'],
+      consumedSlots: ['timeRange', 'limit', 'filters.customerSegment', 'filters.customerIds', 'filters.contextScope'],
       maxRows: 300,
       timeoutMs: 10_000,
       execute: (args, context) => this.rankCustomerPriority(args, context),
@@ -2438,10 +2452,18 @@ export class AgentToolRegistryService {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
     const range = this.resolveDateRange(args.timeRange ?? 'today');
     const filters = this.asRecord(args.filters);
+    const customerIds = this.toNumberList(filters.customerIds);
+    const focusedCustomers = this.normalizeFocusedPriorityCustomers(filters.focusedCustomers);
+    const contextScope = typeof filters.contextScope === 'string' ? filters.contextScope : undefined;
+    const scopedToPreviousList = customerIds.length > 0 && contextScope === 'previous_order_customer_consumption_list';
     const candidates = await this.resolvePriorityCustomers(context.storeId, limit, {
       range,
       customerSegment: typeof filters.customerSegment === 'string' ? filters.customerSegment : undefined,
+      customerIds,
+      focusedCustomers,
+      contextScope,
     });
+    const titlePrefix = scopedToPreviousList ? '上一轮消费客户清单' : range.label;
     const evidence: AgentEvidence = {
       source: ['Customer', 'PredictionSnapshot', 'Reservation', 'FollowUpTask'],
       dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
@@ -2452,17 +2474,23 @@ export class AgentToolRegistryService {
         'Customer.deletedAt is null',
         `timeRange=${range.label}`,
         filters.customerSegment ? `customerSegment=${filters.customerSegment}` : '',
+        scopedToPreviousList ? 'scope=上一轮消费客户清单' : '',
+        customerIds.length ? `customerIds=${customerIds.join(',')}` : '',
         `limit=${limit}`,
       ].filter(Boolean),
       sampleSize: candidates.totalAvailable,
-      limitations: ['P0 使用预测快照、指定周期预约和近期跟进任务评分；若缺少预测快照，会降级使用最近到店、消费额和到店次数评分。'],
+      limitations: [
+        scopedToPreviousList
+          ? '本次追问限定在上一轮消费客户清单内排序，不扩展到全店客户池。'
+          : 'P0 使用预测快照、指定周期预约和近期跟进任务评分；若缺少预测快照，会降级使用最近到店、消费额和到店次数评分。',
+      ],
     };
 
     if (!candidates.items.length) {
       return {
         status: 'no_data',
-        title: `${range.label}优先跟进客户`,
-        summary: `${range.label}没有找到可用于优先跟进推荐的客户数据。`,
+        title: `${titlePrefix}优先跟进客户`,
+        summary: `${titlePrefix}没有找到可用于优先跟进推荐的客户数据。`,
         data: {
           items: [],
           requestedLimit: limit,
@@ -2482,8 +2510,8 @@ export class AgentToolRegistryService {
 
     return {
       status: 'success',
-      title: `${range.label}优先跟进客户`,
-      summary: `${range.label}${shortage} 优先建议跟进 ${top.customerName}，原因：${top.reason}`,
+      title: `${titlePrefix}优先跟进客户`,
+      summary: `${titlePrefix}${shortage} 优先建议跟进 ${top.customerName}，原因：${top.reason}`,
       data: {
         items: candidates.items,
         requestedLimit: limit,
@@ -2781,6 +2809,8 @@ export class AgentToolRegistryService {
     context: AgentToolExecutionContext,
   ): Promise<AgentToolResult> {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const question = String(args.question ?? '');
+    const wantsExpiringInventory = /临期|近效期|效期|过期|快到期|到期|批次/.test(question);
     const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
     const now = new Date();
     const products = await (this.prisma as any).product.findMany({
@@ -2851,6 +2881,16 @@ export class AgentToolRegistryService {
         const riskScore = Math.min(100, Math.round(lowStockScore + demandScore + expiryScore + statusScore));
         const riskLevel = riskScore >= 65 ? 'high' : riskScore >= 40 ? 'medium' : 'low';
         const suggestedReplenishment = Math.max(stockGap, projectedGap14d);
+        const suggestedAction =
+          expiry.expiringStock > 0
+            ? expiry.daysToExpiry <= 14
+              ? '临期窗口很短，优先顾问定向邀约消化，暂停大批量补货。'
+              : expiry.daysToExpiry <= 30
+                ? '临期商品建议安排顾问复购承接或到店搭赠，处理前确认剩余库存。'
+                : '纳入临期关注清单，结合近 30 天销量评估是否做小范围促销。'
+            : suggestedReplenishment > 0
+              ? '生成补货采购草稿，确认在途库存和供应商交期后再执行。'
+              : '保持常规巡检。';
         const reasonParts = [
           stockGap > 0 ? `低于安全库存 ${this.formatQuantity(stockGap, product.unit)}` : '',
           projectedGap14d > 0 ? `按近 30 天销量预计 14 天缺口 ${this.formatQuantity(projectedGap14d, product.unit)}` : '',
@@ -2878,19 +2918,37 @@ export class AgentToolRegistryService {
           nearestExpiryDate: expiry.nearestExpiryDate ? this.formatDate(new Date(expiry.nearestExpiryDate)) : null,
           riskScore,
           riskLevel,
+          suggestedAction,
           reason: reasonParts.join('；') || '库存风险较低，保持常规巡检。',
         };
       })
-      .filter((item) => item.riskScore > 0 || item.currentStock <= item.safetyStock)
-      .sort((a, b) => b.riskScore - a.riskScore || b.stockGap - a.stockGap)
+      .filter((item) =>
+        wantsExpiringInventory
+          ? item.expiringStock > 0
+          : item.riskScore > 0 || item.currentStock <= item.safetyStock,
+      )
+      .sort((a, b) =>
+        wantsExpiringInventory
+          ? (a.daysToExpiry ?? 999) - (b.daysToExpiry ?? 999) || b.expiringStock - a.expiringStock
+          : b.riskScore - a.riskScore || b.stockGap - a.stockGap,
+      )
       .slice(0, limit);
 
     const evidence: AgentEvidence = {
       source: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'],
       dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
       metricDefinition:
-        'stock_risk_score = 低库存缺口、安全库存、近 30 天销量推算的 14 天需求缺口、90 天内临期批次和商品状态的规则评分；仅生成库存风险建议，不自动采购。',
-      filters: ['storeId=当前门店', 'Product.deletedAt is null', 'OrderItem.itemType=product', '订单状态 in completed/paid', `limit=${limit}`],
+        wantsExpiringInventory
+          ? '临期库存清单 = 90 天内仍有库存的临期批次按最近到期日和临期库存量排序；仅查询清单和建议，不自动调价、不发布活动。'
+          : 'stock_risk_score = 低库存缺口、安全库存、近 30 天销量推算的 14 天需求缺口、90 天内临期批次和商品状态的规则评分；仅生成库存风险建议，不自动采购。',
+      filters: [
+        'storeId=当前门店',
+        'Product.deletedAt is null',
+        'OrderItem.itemType=product',
+        '订单状态 in completed/paid',
+        wantsExpiringInventory ? 'StockBatch.stock > 0 and expiryDate <= next_90_days' : '',
+        `limit=${limit}`,
+      ].filter(Boolean),
       sampleSize: (products as any[]).length + (orderItems as any[]).length + (batches as any[]).length,
       limitations: ['P0 未叠加在途库存、供应商交期、最小起订量和真实耗材消耗预测；采购仍需走草稿和审批。'],
     };
@@ -2898,8 +2956,8 @@ export class AgentToolRegistryService {
     if (!items.length) {
       return {
         status: 'no_data',
-        title: '库存风险排行',
-        summary: '当前没有低库存、临期或 14 天预测缺口明显的商品。',
+        title: wantsExpiringInventory ? '临期库存清单' : '库存风险排行',
+        summary: wantsExpiringInventory ? '未来 90 天暂无仍有库存的临期批次。' : '当前没有低库存、临期或 14 天预测缺口明显的商品。',
         data: {
           items: [],
           requestedLimit: limit,
@@ -2914,12 +2972,15 @@ export class AgentToolRegistryService {
     const top = items[0];
     return {
       status: 'success',
-      title: '库存风险排行',
-      summary: `库存风险最高的是 ${top.productName}，风险分 ${top.riskScore}，${top.reason}。`,
+      title: wantsExpiringInventory ? '临期库存清单' : '库存风险排行',
+      summary: wantsExpiringInventory
+        ? `找到 ${items.length} 个临期库存商品，最近到期的是 ${top.productName}，${top.daysToExpiry} 天后到期，临期库存 ${this.formatQuantity(top.expiringStock, top.unit)}。`
+        : `库存风险最高的是 ${top.productName}，风险分 ${top.riskScore}，${top.reason}。`,
       data: {
         items,
         requestedLimit: limit,
         totalAvailable: items.length,
+        mode: wantsExpiringInventory ? 'expiring_inventory' : 'inventory_risk',
         timeRange: { start: this.formatDate(range.start), end: this.formatDate(range.end), label: range.label },
         consumedSlots: this.buildConsumedSlots(range, limit, {}),
       },
@@ -5729,6 +5790,10 @@ export class AgentToolRegistryService {
   private async resolvePriorityCustomers(storeId: number, limit: number, options: PriorityCustomerOptions = {}) {
     const range = options.range ?? this.resolveDateRange('today');
     const customerSegment = options.customerSegment;
+    const scopedCustomerIds = this.toNumberList(options.customerIds);
+    const focusedByCustomerId = new Map(
+      (options.focusedCustomers ?? []).map((item) => [item.customerId, item] as const),
+    );
     const latestRun = await (this.prisma as any).predictionRun
       .findFirst({
         where: { storeId, status: { in: ['completed', 'success', 'finished'] } },
@@ -5737,6 +5802,53 @@ export class AgentToolRegistryService {
       .catch(() => null);
 
     const take = Math.max(limit * 5, 100);
+    if (scopedCustomerIds.length) {
+      const [snapshots, customers] = await Promise.all([
+        latestRun?.id
+          ? (this.prisma as any).customerPredictionSnapshot.findMany({
+              where: { storeId, runId: latestRun.id, customerId: { in: scopedCustomerIds } },
+              orderBy: [{ churnScore: 'desc' }, { marketingResponseScore: 'desc' }, { repurchase30dScore: 'desc' }],
+              take: Math.max(scopedCustomerIds.length, limit),
+            })
+          : Promise.resolve([]),
+        (this.prisma as any).customer.findMany({
+          where: { storeId, deletedAt: null, id: { in: scopedCustomerIds } },
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            memberLevel: true,
+            visitCount: true,
+            totalSpent: true,
+            lastVisitDate: true,
+            createdAt: true,
+            tags: true,
+          },
+          take: Math.max(scopedCustomerIds.length, limit),
+        }),
+      ]);
+      const snapshotByCustomerId = new Map(
+        (snapshots as any[]).map((snapshot) => [Number(snapshot.customerId), snapshot] as const),
+      );
+      const customerSignals = await this.loadPrioritySignals(storeId, scopedCustomerIds, range, Math.max(scopedCustomerIds.length, limit));
+      const customerItems: any[] = (customers as any[])
+        .map((customer) => {
+          const customerId = Number(customer.id);
+          const mapped = this.mapPriorityCustomer(
+            customer,
+            snapshotByCustomerId.get(customerId) ?? null,
+            customerSignals.get(customerId),
+            customerSegment,
+          );
+          return mapped ? this.enrichFocusedPriorityCustomer(mapped, focusedByCustomerId.get(customerId)) : null;
+        })
+        .filter(Boolean);
+      const items = customerItems
+        .sort((a, b) => b.priorityScore - a.priorityScore)
+        .slice(0, limit);
+      return { items, totalAvailable: customerItems.length };
+    }
+
     const snapshots = latestRun?.id
       ? await (this.prisma as any).customerPredictionSnapshot.findMany({
           where: { storeId, runId: latestRun.id },
@@ -6033,6 +6145,34 @@ export class AgentToolRegistryService {
   private asRecord(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     return value as Record<string, unknown>;
+  }
+
+  private toNumberList(value: unknown): number[] {
+    if (!Array.isArray(value)) return [];
+    return Array.from(
+      new Set(
+        value
+          .map((item) => Number(item))
+          .filter((item) => Number.isFinite(item) && item > 0),
+      ),
+    );
+  }
+
+  private normalizeFocusedPriorityCustomers(value: unknown): FocusedPriorityCustomer[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => this.asRecord(item))
+      .map((item) => ({
+        customerId: Number(item.customerId),
+        customerName: item.customerName ?? item.name,
+        paidAmount: item.paidAmount,
+        paidAmountText: item.paidAmountText,
+        memberLevel: item.memberLevel,
+        phoneMasked: item.phoneMasked,
+        itemsSummary: item.itemsSummary,
+        suggestion: item.suggestion,
+      }))
+      .filter((item) => Number.isFinite(item.customerId) && item.customerId > 0);
   }
 
   private buildConsumedSlots(range: AgentDateRange, limit: number, filters: Record<string, unknown>) {
@@ -6356,6 +6496,47 @@ export class AgentToolRegistryService {
       reservationCount: signal?.reservationCount ?? 0,
       pendingFollowUpCount: signal?.pendingFollowUpCount ?? 0,
       urgentFollowUpCount: signal?.urgentFollowUpCount ?? 0,
+    };
+  }
+
+  private enrichFocusedPriorityCustomer(item: any, focused?: FocusedPriorityCustomer) {
+    if (!focused) return item;
+    const paidAmount = this.toNumber(focused.paidAmount);
+    const paidAmountText =
+      typeof focused.paidAmountText === 'string' && focused.paidAmountText.trim()
+        ? focused.paidAmountText
+        : paidAmount > 0
+          ? this.formatMoney(paidAmount)
+          : '';
+    const itemsSummary =
+      typeof focused.itemsSummary === 'string' && focused.itemsSummary.trim()
+        ? focused.itemsSummary.trim()
+        : '';
+    const suggestion =
+      typeof focused.suggestion === 'string' && focused.suggestion.trim()
+        ? focused.suggestion.trim()
+        : '';
+    const consumptionBonus = paidAmount >= 3000 ? 12 : paidAmount >= 1500 ? 8 : paidAmount > 0 ? 4 : 0;
+    const priorityScore = Math.min(100, this.toNumber(item.priorityScore) + consumptionBonus);
+    const scopedReasons = [
+      paidAmountText ? `上一轮消费 ${paidAmountText}` : '',
+      itemsSummary ? `消费内容：${itemsSummary}` : '',
+      item.reason,
+    ].filter(Boolean);
+
+    return {
+      ...item,
+      customerName: item.customerName ?? focused.customerName,
+      phone: item.phone ?? focused.phoneMasked,
+      memberLevel: item.memberLevel ?? focused.memberLevel,
+      paidAmount,
+      paidAmountText,
+      itemsSummary,
+      reason: scopedReasons.join('；'),
+      suggestedAction: suggestion || item.suggestedAction,
+      priorityScore,
+      priority: priorityScore >= 75 ? 'urgent' : priorityScore >= 55 ? 'recommended' : 'opportunity',
+      contextScope: 'previous_order_customer_consumption_list',
     };
   }
 

@@ -101,6 +101,31 @@ describe('AgentPlannerService', () => {
     });
   });
 
+  it('plans urgent recall customer list requests into customer priority ranking', async () => {
+    const plan = await planner.plan({ message: '请列出10个需要紧急召回的客户', actor });
+
+    expect(plan.clarificationNeeded).toBe(false);
+    expect(plan.intentType).toBe('analysis_and_recommendation');
+    expect(plan.capabilityPlan).toMatchObject({
+      capabilityId: 'customer_priority_recommendation',
+    });
+    expect(plan.businessTask).toMatchObject({
+      domain: 'customer',
+      taskType: 'recommendation',
+      limit: 10,
+      filters: expect.objectContaining({ customerSegment: 'churn_risk' }),
+      outputIntent: 'show_table',
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'customer.priority.rank',
+      args: expect.objectContaining({
+        question: '请列出10个需要紧急召回的客户',
+        limit: 10,
+        filters: expect.objectContaining({ customerSegment: 'churn_risk' }),
+      }),
+    });
+  });
+
   it('keeps revenue drop questions on the revenue diagnosis tool', async () => {
     const plan = await planner.plan({ message: '为什么今天收入下降', actor });
 
@@ -394,6 +419,49 @@ describe('AgentPlannerService', () => {
     expect(plan.toolPlan[0]).toMatchObject({
       tool: 'customer.priority.rank',
       args: expect.objectContaining({ limit: 5 }),
+    });
+  });
+
+  it('passes previous consumption customer scope into priority ranking tool args', async () => {
+    const plan = await planner.plan({
+      message: '优先联系哪些客户？',
+      actor,
+      context: {
+        conversationFocus: {
+          sourceRunId: 156,
+          timeRange: { preset: 'yesterday', label: '昨天' },
+          currentItems: [
+            { customerId: 501, customerName: '马美琳', paidAmountText: '¥3,600', itemsSummary: '水光护理' },
+            { customerId: 502, customerName: '林晓雯', paidAmountText: '¥980', itemsSummary: '肩颈护理' },
+          ],
+        },
+      },
+    });
+
+    expect(plan.clarificationNeeded).toBe(false);
+    expect(plan.businessTask).toMatchObject({
+      domain: 'customer',
+      taskType: 'recommendation',
+      limit: 2,
+      filters: expect.objectContaining({
+        contextScope: 'previous_order_customer_consumption_list',
+        customerIds: [501, 502],
+      }),
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'customer.priority.rank',
+      args: expect.objectContaining({
+        limit: 2,
+        timeRange: 'yesterday',
+        filters: expect.objectContaining({
+          contextScope: 'previous_order_customer_consumption_list',
+          customerIds: [501, 502],
+          focusedCustomers: [
+            expect.objectContaining({ customerId: 501, customerName: '马美琳' }),
+            expect.objectContaining({ customerId: 502, customerName: '林晓雯' }),
+          ],
+        }),
+      }),
     });
   });
 

@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentDevice } from '../terminal/decorators/current-device.decorator.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
@@ -66,6 +66,17 @@ export class AgentController {
   @ApiOperation({ summary: '获取指定 Agent Persona 的能力、工具和推荐问题' })
   async personaByCode(@Param('code') code: string) {
     const persona = await this.personaService.getByCode(code);
+    if (!persona) throw new ForbiddenException(`未找到 Agent Persona: ${code}`);
+    return persona;
+  }
+
+  @Patch('personas/:code')
+  @ApiOperation({ summary: '更新指定 Agent Persona 的工具组和推荐问题' })
+  async updatePersona(
+    @Param('code') code: string,
+    @Body() body: { toolGroups?: string[]; suggestedQuestions?: string[] },
+  ) {
+    const persona = await this.personaService.update(code, body);
     if (!persona) throw new ForbiddenException(`未找到 Agent Persona: ${code}`);
     return persona;
   }
@@ -579,6 +590,7 @@ export class AgentController {
     @Body() dto: CreateAgentRunDto,
     @CurrentDevice('availableRoles') availableRoles?: AgentRole[],
   ) {
+    this.assertTerminalRuntimeEnabled(dto.entrypoint);
     const actorContext = await this.resolveActorContext({
       storeId,
       authenticatedUserId: userId,
@@ -597,6 +609,7 @@ export class AgentController {
         deviceId,
         role: actorContext.role,
         entrypoint: dto.entrypoint ?? 'api',
+        ...(dto.personaCode ? { personaCode: dto.personaCode } : {}),
         permissions: actorContext.permissions,
         fieldScopes: actorContext.fieldScopes,
       },
@@ -611,10 +624,11 @@ export class AgentController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('role') role?: string,
+    @Query('personaCode') personaCode?: string,
     @Query('entrypoint') entrypoint?: string,
     @Query('keyword') keyword?: string,
   ) {
-    return this.orchestrator.findRuns({ page, pageSize, status, role, entrypoint, keyword, storeId });
+    return this.orchestrator.findRuns({ page, pageSize, status, role, personaCode, entrypoint, keyword, storeId });
   }
 
   @Get('runs/:id/detail')
@@ -641,6 +655,7 @@ export class AgentController {
     @Body() dto: AppendAgentMessageDto,
     @CurrentDevice('availableRoles') availableRoles?: AgentRole[],
   ) {
+    this.assertTerminalRuntimeEnabled(dto.entrypoint);
     const actorContext = await this.resolveActorContext({
       storeId,
       authenticatedUserId: userId,
@@ -659,7 +674,8 @@ export class AgentController {
         userId: actorContext.userId,
         deviceId,
         role: actorContext.role,
-        entrypoint: 'api',
+        entrypoint: dto.entrypoint ?? 'api',
+        ...(dto.personaCode ? { personaCode: dto.personaCode } : {}),
         permissions: actorContext.permissions,
         fieldScopes: actorContext.fieldScopes,
       },
@@ -783,6 +799,16 @@ export class AgentController {
         answerContract: result?.answerContract,
         feedbackReason: body.comment ?? (body.adopted === false ? '用户标记无用' : body.adopted === true ? '用户标记有用' : undefined),
       },
+    });
+  }
+
+  private assertTerminalRuntimeEnabled(entrypoint?: string) {
+    if (entrypoint !== 'terminal:kiosk') return;
+    const value = String(process.env.AGENT_TERMINAL_RUNTIME_ENABLED ?? '').trim().toLowerCase();
+    if (!['0', 'false', 'off', 'disabled'].includes(value)) return;
+    throw new ServiceUnavailableException({
+      message: '终端 Agent Runtime 已通过灰度开关关闭。',
+      code: 'AGENT_TERMINAL_RUNTIME_DISABLED',
     });
   }
 

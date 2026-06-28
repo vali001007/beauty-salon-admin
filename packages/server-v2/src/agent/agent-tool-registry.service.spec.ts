@@ -122,6 +122,8 @@ describe('AgentToolRegistryService', () => {
       'timeRange',
       'limit',
       'filters.customerSegment',
+      'filters.customerIds',
+      'filters.contextScope',
     ]);
     expect(service.list().find((tool) => tool.name === 'revenue.diagnose')?.consumedSlots).toEqual(['timeRange']);
     expect(service.list().find((tool) => tool.name === 'finance.revenue.summary')?.consumedSlots).toEqual(['timeRange']);
@@ -333,6 +335,97 @@ describe('AgentToolRegistryService', () => {
     );
   });
 
+  it('limits priority ranking to the previous consumption customer list when customerIds are provided', async () => {
+    prisma.predictionRun.findFirst.mockResolvedValue({ id: 13, status: 'completed' });
+    prisma.customerPredictionSnapshot.findMany.mockResolvedValue([
+      {
+        id: 1,
+        customerId: 501,
+        churnScore: 40,
+        churnLevel: '中',
+        repurchase30dScore: 70,
+        marketingResponseScore: 60,
+      },
+      {
+        id: 2,
+        customerId: 502,
+        churnScore: 30,
+        churnLevel: '低',
+        repurchase30dScore: 45,
+        marketingResponseScore: 45,
+      },
+    ]);
+    prisma.customer.findMany.mockResolvedValue([
+      {
+        id: 501,
+        name: '马美琳',
+        phone: '13800000001',
+        memberLevel: '金卡',
+        visitCount: 6,
+        totalSpent: 18000,
+        lastVisitDate: new Date(Date.now() - 20 * 86_400_000),
+        createdAt: new Date(Date.now() - 300 * 86_400_000),
+        tags: ['VIP'],
+      },
+      {
+        id: 502,
+        name: '林晓雯',
+        phone: '13900000002',
+        memberLevel: '银卡',
+        visitCount: 3,
+        totalSpent: 5000,
+        lastVisitDate: new Date(Date.now() - 45 * 86_400_000),
+        createdAt: new Date(Date.now() - 180 * 86_400_000),
+        tags: [],
+      },
+    ]);
+
+    const result = await service.execute(
+      'customer.priority.rank',
+      {
+        question: '优先联系哪些客户？',
+        limit: 2,
+        timeRange: 'yesterday',
+        filters: {
+          contextScope: 'previous_order_customer_consumption_list',
+          customerIds: [501, 502],
+          focusedCustomers: [
+            { customerId: 501, customerName: '马美琳', paidAmount: 3600, paidAmountText: '¥3,600', itemsSummary: '水光护理', suggestion: '优先邀约复购水光护理。' },
+            { customerId: 502, customerName: '林晓雯', paidAmount: 980, paidAmountText: '¥980', itemsSummary: '肩颈护理' },
+          ],
+        },
+      },
+      { runId: 303, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('上一轮消费客户清单优先跟进客户');
+    expect(result.summary).toContain('马美琳');
+    expect(result.evidence?.filters).toEqual(expect.arrayContaining(['scope=上一轮消费客户清单', 'customerIds=501,502']));
+    expect(result.evidence?.limitations).toEqual(expect.arrayContaining(['本次追问限定在上一轮消费客户清单内排序，不扩展到全店客户池。']));
+    expect((result.data as any).items.map((item: any) => item.customerId)).toEqual([501, 502]);
+    expect((result.data as any).items[0]).toMatchObject({
+      customerId: 501,
+      customerName: '马美琳',
+      paidAmount: 3600,
+      paidAmountText: '¥3,600',
+      itemsSummary: '水光护理',
+      suggestedAction: '优先邀约复购水光护理。',
+      contextScope: 'previous_order_customer_consumption_list',
+    });
+    expect((result.data as any).items[0].reason).toContain('上一轮消费 ¥3,600');
+    expect(prisma.customerPredictionSnapshot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ customerId: { in: [501, 502] } }),
+      }),
+    );
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [501, 502] } }),
+      }),
+    );
+  });
+
   it('adapts business query service as a read-only agent tool', async () => {
     businessQueryService.ask.mockResolvedValue({
       status: 'success',
@@ -351,6 +444,74 @@ describe('AgentToolRegistryService', () => {
     expect(result.status).toBe('success');
     expect(result.summary).toBe('今天收入 ¥8,000。');
     expect(businessQueryService.ask).toHaveBeenCalledWith(expect.objectContaining({ question: '今天收入怎么样', storeId: 1 }));
+  });
+
+  it('returns yesterday consumption customer list through business query agent tool', async () => {
+    businessQueryService.ask.mockResolvedValue({
+      status: 'success',
+      answer: '昨天共有 2 位消费客户，3 笔有效订单，消费合计 ¥1,980。',
+      card: {
+        title: '消费客户清单',
+        summary: '昨天共有 2 位消费客户，3 笔有效订单，消费合计 ¥1,980。',
+        metrics: [
+          { label: '消费客户', value: '2' },
+          { label: '有效订单', value: '3' },
+          { label: '消费合计', value: '¥1,980' },
+        ],
+        table: {
+          columns: ['客户', '手机号', '消费金额', '消费内容', '复购承接建议'],
+          rows: [
+            ['马美琳', '138****8888', '¥1,280', '水光护理、修护精华', '高价值客户，结合最近服务记录做复购承接。'],
+            ['李晓兰', '139****6666', '¥700', '补水护理', '完成满意度回访并预约下一次护理周期。'],
+          ],
+        },
+      },
+      queryPlan: {
+        capability: 'order_customer_consumption_list',
+        timeRange: { preset: 'yesterday', label: '昨天' },
+      },
+      evidence: {
+        source: ['ProductOrder', 'OrderItem', 'Customer', 'ServiceTask'],
+        dateRange: '昨天',
+        metricDefinition: '消费客户清单按有效订单聚合。',
+        filters: ['订单状态 in completed/paid', 'timeRange=昨天'],
+        sampleSize: 3,
+      },
+      actions: [{ label: '生成复购承接清单', action: 'agent:tool:customer.followup.task.draft', riskLevel: 'medium' }],
+    });
+
+    const result = await service.execute(
+      'business.query.ask',
+      { question: '昨天有哪些消费的客户，列出清单' },
+      { runId: 33, storeId: 6, userId: 7, role: 'manager' },
+    );
+
+    expect(result).toMatchObject({
+      status: 'success',
+      title: '消费客户清单',
+      summary: expect.stringContaining('2 位消费客户'),
+      evidence: expect.objectContaining({
+        source: ['ProductOrder', 'OrderItem', 'Customer', 'ServiceTask'],
+        dateRange: '昨天',
+        metricDefinition: expect.stringContaining('消费客户清单'),
+      }),
+    });
+    expect((result.data as any).queryPlan).toMatchObject({
+      capability: 'order_customer_consumption_list',
+      timeRange: { preset: 'yesterday', label: '昨天' },
+    });
+    expect((result.data as any).card.table.rows[0]).toEqual(
+      expect.arrayContaining(['马美琳', '¥1,280', '高价值客户，结合最近服务记录做复购承接。']),
+    );
+    expect(result.actions?.[0]).toMatchObject({ action: 'agent:tool:customer.followup.task.draft', riskLevel: 'medium' });
+    expect(businessQueryService.ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        question: '昨天有哪些消费的客户，列出清单',
+        role: 'manager',
+        storeId: 6,
+        operatorId: 7,
+      }),
+    );
   });
 
   it('ranks staff performance with sales commission service quality and evidence without business query fallback', async () => {
@@ -1110,6 +1271,53 @@ describe('AgentToolRegistryService', () => {
       source: ['Product', 'StockBatch', 'ProductOrder', 'OrderItem'],
     });
     expect(result.actions?.[0]).toMatchObject({ action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' });
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('lists expiring inventory first when the user asks for expiring products', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      { id: 301, name: '补水精华', sku: 'P301', currentStock: 2, safetyStock: 10, unit: '瓶', status: 'active' },
+      { id: 302, name: '修护面膜', sku: 'P302', currentStock: 20, safetyStock: 8, unit: '片', status: 'active' },
+    ]);
+    prisma.orderItem.findMany.mockResolvedValue([
+      {
+        orderId: 101,
+        itemType: 'product',
+        itemId: 301,
+        quantity: 15,
+        subtotal: 7500,
+        order: { id: 101, createdAt: new Date(), status: 'completed' },
+      },
+    ]);
+    prisma.stockBatch.findMany.mockResolvedValue([
+      { productId: 302, stock: 5, expiryDate: new Date(Date.now() + 20 * 86_400_000) },
+    ]);
+
+    const result = await service.execute(
+      'inventory.risk.rank',
+      { question: '近期有哪些临期库存产品', limit: 10, timeRange: 'last_30_days' },
+      { runId: 306, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('临期库存清单');
+    expect(result.summary).toContain('修护面膜');
+    expect((result.data as any).mode).toBe('expiring_inventory');
+    expect((result.data as any).items).toEqual([
+      expect.objectContaining({
+        productId: 302,
+        productName: '修护面膜',
+        expiringStock: 5,
+        daysToExpiry: expect.any(Number),
+        nearestExpiryDate: expect.any(String),
+        unit: '片',
+        currentStock: 20,
+        riskLevel: expect.any(String),
+        suggestedAction: expect.stringContaining('临期'),
+      }),
+    ]);
+    expect(result.evidence?.metricDefinition).toContain('临期库存清单');
+    expect(result.evidence?.filters).toEqual(expect.arrayContaining(['StockBatch.stock > 0 and expiryDate <= next_90_days']));
     expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
   });
 

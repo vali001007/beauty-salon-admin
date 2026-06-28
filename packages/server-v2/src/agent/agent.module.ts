@@ -23,6 +23,7 @@ import { AgentPersonaService } from './agent-persona.service.js';
 import { AgentPlannerService } from './agent-planner.service.js';
 import { AgentPolicyService } from './agent-policy.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
+import { AgentRouterService } from './agent-router.service.js';
 import { AgentSchemaReadinessService } from './agent-schema-readiness.service.js';
 import { AgentToolRegistryService } from './agent-tool-registry.service.js';
 import { AgentWorkflowRuntimeService } from './agent-workflow-runtime.service.js';
@@ -73,6 +74,7 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     AgentObservabilityService,
     AgentFieldScopeSanitizerService,
     AgentResponseSafetyService,
+    AgentRouterService,
     AgentSchemaReadinessService,
     AnswerContractValidatorService,
     BusinessTaskCompilerService,

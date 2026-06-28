@@ -1,4 +1,4 @@
-import { DEFAULT_AGENT_EVAL_CASES, P0_AGENT_EVAL_CASES } from './agent-eval.cases.js';
+import { DEFAULT_AGENT_EVAL_CASES, P0_AGENT_EVAL_CASES, TERMINAL_ACCEPTANCE_AGENT_EVAL_CASES } from './agent-eval.cases.js';
 import { AgentEvalService } from './agent-eval.service.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
@@ -506,6 +506,33 @@ describe('AgentEvalService', () => {
 
     expect(result.total).toBe(P0_AGENT_EVAL_CASES.length);
     expect(result.failed).toBe(0);
+  });
+
+  it('passes the T6.5 terminal acceptance question baseline cases', async () => {
+    expect(TERMINAL_ACCEPTANCE_AGENT_EVAL_CASES.map((item) => item.input)).toEqual([
+      '昨天有哪些消费的客户，列出清单',
+      '近期有哪些临期库存产品',
+      '临期库存怎么处理，生成草稿建议',
+      '今天经营有什么风险',
+      '哪些客户最值得优先回访',
+      '哪些商品需要补货',
+      '本月员工业绩排行',
+    ]);
+
+    const result = await service.runDefaultCases(TERMINAL_ACCEPTANCE_AGENT_EVAL_CASES);
+
+    expect(result.total).toBe(TERMINAL_ACCEPTANCE_AGENT_EVAL_CASES.length);
+    expect(result.failed).toBe(0);
+    expect(result.results.every((item) => item.passed)).toBe(true);
+    expect(new Set(result.results.map((item) => item.actual.firstTool))).toEqual(
+      new Set([
+        'business.query.ask',
+        'inventory.risk.rank',
+        'inventory.expiring.clearance.draft',
+        'customer.priority.rank',
+        'staff.performance.rank',
+      ]),
+    );
   });
 
   it('runs eval cases by Skill and reports accuracy metrics', async () => {

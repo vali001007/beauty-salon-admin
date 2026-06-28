@@ -189,10 +189,10 @@ export class AgentResponseSafetyService {
   private sanitizeEvidence(evidence: AgentEvidence): AgentEvidence {
     return {
       ...evidence,
-      source: evidence.source.map((source) => this.normalizeDisplayText(source)),
+      source: Array.isArray(evidence.source) ? evidence.source.map((source) => this.normalizeDisplayText(source)) : [],
       dateRange: evidence.dateRange ? this.normalizeDisplayText(evidence.dateRange) : evidence.dateRange,
       metricDefinition: this.normalizeDisplayText(evidence.metricDefinition),
-      filters: evidence.filters.map((filter) => this.normalizeDisplayText(filter)),
+      filters: Array.isArray(evidence.filters) ? evidence.filters.map((filter) => this.normalizeDisplayText(filter)) : [],
       limitations: evidence.limitations?.map((limitation) => this.normalizeDisplayText(limitation)),
     };
   }
