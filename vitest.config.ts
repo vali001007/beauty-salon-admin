@@ -12,13 +12,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@ami/agent-core': path.resolve(__dirname, './packages/agent-core/index.ts'),
     },
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}', 'packages/Ami-Aura-Lite-Kiosk/src/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'packages/Ami-Aura-Lite-Kiosk/src/**/*.{test,spec}.{ts,tsx}',
+      'packages/agent-core/**/*.{test,spec}.{ts,tsx}',
+    ],
     coverage: {
       reporter: ['text', 'html'],
       include: ['src/**/*.{ts,tsx}'],

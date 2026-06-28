@@ -20,8 +20,10 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@ami/agent-core": ["./packages/agent-core/index.ts"],
+      "@ami/agent-core/*": ["./packages/agent-core/*"]
     }
   },
-  "include": ["src", "vite-env.d.ts"]
+  "include": ["src", "packages/agent-core", "vite-env.d.ts"]
 }
