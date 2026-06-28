@@ -19,6 +19,16 @@ import type {
 import apiClient from '../client';
 
 export async function realGetCustomers(params?: { keyword?: string; memberLevel?: string; storeName?: string }): Promise<Customer[]> {
+  if (params?.keyword || params?.memberLevel || params?.storeName) {
+    const response = await apiClient.get('/customers/paginated', {
+      params: {
+        page: 1,
+        pageSize: 2000,
+        ...params,
+      },
+    }) as unknown as { items?: Customer[] };
+    return Array.isArray(response.items) ? response.items : [];
+  }
   return apiClient.get('/customers', { params });
 }
 

@@ -1,32 +1,32 @@
-export type AgentRole = 'manager' | 'reception' | 'beautician';
+import type {
+  AgentPersonaCode,
+  AgentRiskLevel,
+  AgentRole,
+  AgentRunResultV2,
+  AgentRunStatus,
+  AgentToolPlanItem,
+} from '@ami/agent-core';
 
-export type AgentRiskLevel = 'low' | 'medium' | 'high';
-
-export type AgentRunStatus =
-  | 'created'
-  | 'planning'
-  | 'validating'
-  | 'running_tool'
-  | 'waiting_approval'
-  | 'composing'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
-
-export interface AgentCreateRunRequest {
-  message: string;
-  role?: AgentRole;
-  entrypoint?: string;
-  operatorId?: number | null;
-  context?: Record<string, unknown>;
-}
-
-export interface AgentAppendMessageRequest {
-  message: string;
-  role?: AgentRole;
-  operatorId?: number | null;
-  context?: Record<string, unknown>;
-}
+export type {
+  AgentAppendMessageRequest,
+  AgentApprovalSummary,
+  AgentCreateRunRequest,
+  AgentEvidence,
+  AgentFeedbackRequest,
+  AgentPersonaCode,
+  AgentPersonaSummary,
+  AgentPlan,
+  AgentRouteDecision,
+  AgentRiskLevel,
+  AgentRole,
+  AgentRunStatus,
+  AgentRunResultV2,
+  AgentSuggestedAction,
+  AgentToolPlanItem,
+  AgentToolResult,
+  AuraBlockAction,
+  AuraResponseBlock,
+} from '@ami/agent-core';
 
 export interface AgentApprovalDecisionRequest {
   role?: AgentRole;
@@ -39,11 +39,6 @@ export interface AgentCompileBusinessTaskRequest {
   message: string;
   role?: AgentRole;
   context?: Record<string, unknown>;
-}
-
-export interface AgentToolPlanItem {
-  tool: string;
-  args: Record<string, unknown>;
 }
 
 export interface BusinessTimeRange {
@@ -105,46 +100,6 @@ export interface AgentBusinessTaskCompileResult {
   semanticSqlCandidate: SemanticSqlCandidate;
 }
 
-export interface AgentPlan {
-  intentType: 'query' | 'analysis_and_recommendation' | 'draft' | 'clarify';
-  goal: string;
-  toolPlan: AgentToolPlanItem[];
-  confidence: number;
-  clarificationNeeded: boolean;
-  clarificationQuestion?: string | null;
-  executionPath?: 'fast' | 'deep';
-  progressNotice?: string;
-  businessTask?: BusinessTask | unknown;
-  capabilityPlan?: {
-    capabilityId: string;
-    reason: string;
-  };
-  skillPlan?: {
-    skillId: string;
-    capabilityId?: string;
-    confidence: number;
-    reason: string;
-    outputContract?: unknown;
-  };
-  semanticSqlCandidate?: SemanticSqlCandidate | unknown;
-}
-
-export interface AgentEvidence {
-  source: string[];
-  sourceTables?: string[];
-  dateRange?: string;
-  metricDefinition: string;
-  filters: string[];
-  sampleSize?: number;
-  limitations?: string[];
-}
-
-export interface AgentSuggestedAction {
-  label: string;
-  action: string;
-  riskLevel: AgentRiskLevel;
-}
-
 export interface AgentPhaseOutput {
   phase: 'core_conclusion' | 'details' | 'recommendations' | 'action_draft';
   title: string;
@@ -153,35 +108,8 @@ export interface AgentPhaseOutput {
   actionLabels?: string[];
 }
 
-export interface AgentToolResult {
-  status: 'success' | 'no_data' | 'unsupported' | 'failed';
-  title: string;
-  summary: string;
-  data?: unknown;
-  evidence?: AgentEvidence;
-  actions?: AgentSuggestedAction[];
-}
-
-export interface AgentApprovalSummary {
-  id: number;
-  toolName: string;
-  riskLevel: AgentRiskLevel;
-  status: string;
-  reason?: string;
-}
-
-export interface AgentRunResult {
-  runId: number;
-  runNo: string;
-  status: AgentRunStatus;
-  plan?: AgentPlan;
-  answer: string;
-  toolResults: AgentToolResult[];
-  actions: AgentSuggestedAction[];
-  evidence?: AgentEvidence;
-  responseMode?: 'structured_blocks' | 'composed_answer';
+export interface AgentRunResult extends AgentRunResultV2 {
   phaseOutputs?: AgentPhaseOutput[];
-  approval?: AgentApprovalSummary;
 }
 
 export interface AgentToolCatalogItem {
@@ -221,6 +149,7 @@ export interface AgentRunRecord {
   role: AgentRole | string;
   entrypoint: string;
   agentCode: string;
+  personaCode?: string | null;
   status: AgentRunStatus | string;
   userInput: string;
   planJson?: unknown;
@@ -304,6 +233,7 @@ export interface AgentRunListQuery {
   pageSize?: number;
   status?: string;
   role?: string;
+  personaCode?: string;
   entrypoint?: string;
   keyword?: string;
 }
@@ -316,148 +246,12 @@ export interface AgentApprovalListQuery {
 
 // ─── Persona（六大角色 Agent 配置）──────────────────────────────────────────
 
-export type AgentPersonaCode =
-  | 'manager'
-  | 'marketing'
-  | 'reception'
-  | 'beautician'
-  | 'inventory'
-  | 'finance';
-
-export interface AgentPersonaSummary {
-  code: AgentPersonaCode;
-  name: string;
-  description: string;
-  targetRoles: string[];
-  toolGroups: string[];
-  suggestedQuestions: string[];
+export interface UpdateAgentPersonaRequest {
+  toolGroups?: string[];
+  suggestedQuestions?: string[];
 }
 
-// ─── AuraResponseBlock（与后端 agent.types.ts 保持同步）──────────────────────
-
-export type AuraBlockAction = {
-  label: string;
-  actionId: string;
-  riskLevel: AgentRiskLevel;
-};
-
-export type AuraResponseBlock =
-  | { kind: 'text'; content: string }
-  | { kind: 'kpi_card'; label: string; value: string; delta?: string; deltaType?: 'up' | 'down' | 'neutral'; unit?: string; hint?: string }
-  | { kind: 'table'; columns: string[]; rows: string[][]; sortable?: boolean; caption?: string }
-  | { kind: 'chart'; chartType: 'line' | 'bar' | 'pie' | 'funnel'; title: string; data: unknown; xKey?: string; yKeys?: string[] }
-  | { kind: 'customer_card'; customerId: string; name: string; vipLevel?: string; lastVisit?: string; suggestion?: string; actions?: AuraBlockAction[] }
-  | {
-      kind: 'opportunity_card';
-      title: string;
-      summary: string;
-      opportunityType: string;
-      fitScore: number;
-      productName: string;
-      sku?: string;
-      currentStock?: number;
-      safetyStock?: number;
-      salesQuantity?: number;
-      salesAmount?: number;
-      customerCount?: number;
-      expiringStock?: number;
-      daysToExpiry?: number | null;
-      marginRateText?: string;
-      reason: string;
-      suggestedCampaign?: string;
-      suggestedChannels?: string[];
-      riskWarnings?: string[];
-      actions?: AuraBlockAction[];
-    }
-  | {
-      kind: 'copy_variants';
-      title: string;
-      target: string;
-      offer: string;
-      variants: Array<{
-        label: string;
-        content: string;
-        tone?: string;
-      }>;
-      actions?: AuraBlockAction[];
-    }
-  | {
-      kind: 'activity_draft_card';
-      title: string;
-      targetAudience: string;
-      offerSummary: string;
-      copyPreview: string;
-      scheduleHint?: string;
-      impactSummary?: string;
-      offerCostEstimate?: Array<{
-        label: string;
-        value: string;
-        tone?: 'default' | 'warning' | 'critical' | 'success';
-      }>;
-      audienceDetails?: Array<{
-        label: string;
-        value: string;
-        description?: string;
-      }>;
-      editable?: boolean;
-      recommendedItems?: Array<{
-        name: string;
-        reason?: string;
-        fitScore?: number;
-      }>;
-      actions?: AuraBlockAction[];
-    }
-  | {
-      kind: 'inventory_item_card';
-      title: string;
-      itemName: string;
-      subtitle?: string;
-      riskLevel?: AgentRiskLevel;
-      statusLabel?: string;
-      metrics: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'critical' | 'success' }>;
-      reason?: string;
-      actions?: AuraBlockAction[];
-    }
-  | {
-      kind: 'supplier_purchase_card';
-      title: string;
-      productName: string;
-      supplierName: string;
-      statusLabel?: string;
-      metrics: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'critical' | 'success' }>;
-      reason?: string;
-      actions?: AuraBlockAction[];
-    }
-  | { kind: 'confirm_action'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
-  | { kind: 'action_card'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
-  | { kind: 'alert'; level: 'warning' | 'critical' | 'info'; message: string; actionId?: string }
-  | { kind: 'follow_up_chips'; suggestions: string[] }
-  | { kind: 'document_preview'; title: string; content: string; downloadable?: boolean }
-  | { kind: 'evidence_panel'; sources: string[]; dateRange?: string; metricDefinition: string; limitations?: string[] };
-
-// AgentRunResult 扩展版（含 renderedBlocks）
-export interface AgentRunResultV2 extends AgentRunResult {
-  renderedBlocks?: AuraResponseBlock[];
-  answerContract?: {
-    valid: boolean;
-    contract: unknown;
-    missingKinds: string[];
-    warnings: string[];
-    errors: string[];
-    checkedAt: string;
-  };
-  followUpSuggestions?: string[];
-  personaCode?: AgentPersonaCode;
-}
-
-// ─── Feedback ────────────────────────────────────────────────────────────────
-
-export interface AgentFeedbackRequest {
-  rating?: number;
-  adopted?: boolean;
-  comment?: string;
-  businessActionJson?: unknown;
-}
+// AuraResponseBlock、AgentRunResultV2、AgentFeedbackRequest 由 @ami/agent-core 统一导出。
 
 export interface AgentMemoryItem {
   id: number;
@@ -515,6 +309,13 @@ export interface AgentQualityReport {
     evalPassRate?: number | null;
   };
   personaBreakdown: Array<{
+    name: string;
+    runCount: number;
+    completed: number;
+    failed: number;
+    successRate: number;
+  }>;
+  entrypointBreakdown: Array<{
     name: string;
     runCount: number;
     completed: number;

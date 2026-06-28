@@ -28,6 +28,7 @@ import {
   PackageCheck,
   Truck,
 } from 'lucide-react';
+import { groupBlocksForDisplay } from '@ami/agent-core';
 import type { AgentPhaseOutput, AuraResponseBlock } from '@/types/agent';
 
 type AgentActionPayload = {
@@ -40,12 +41,58 @@ interface AgentBlockRendererProps {
   onAction?: (actionId: string, payload?: AgentActionPayload) => void;
 }
 
+const TABLE_COLUMN_LABELS: Record<string, string> = {
+  id: 'ID',
+  customerId: '客户ID',
+  customerName: '客户',
+  phone: '手机号',
+  phoneMasked: '手机号',
+  memberLevel: '会员等级',
+  totalSpent: '累计消费',
+  visitCount: '到店次数',
+  lastVisitDate: '最近到店',
+  lastOrderTimeText: '最近消费',
+  paidAmount: '消费金额',
+  paidAmountText: '消费金额',
+  orderCount: '订单数',
+  customerCount: '客户数',
+  salesAmount: '销售额',
+  salesAmountText: '销售额',
+  averageOrderValue: '客单价',
+  quantity: '数量',
+  growthRate: '增长率',
+  growthRateText: '增长',
+  productName: '商品',
+  projectName: '项目',
+  cardName: '卡项',
+  beauticianId: '员工ID',
+  beauticianName: '员工姓名',
+  levelName: '等级',
+  status: '状态',
+  performanceScore: '表现分',
+  performanceLevel: '表现等级',
+  serviceCount: '服务次数',
+  completedTaskCount: '完成任务',
+  cardUsageTimes: '核销次数',
+  commissionAmount: '提成',
+  completionRate: '完成率',
+  completionRateText: '完成率',
+  reservationCount: '预约数',
+  completedReservationCount: '完成预约',
+  reason: '原因',
+  suggestion: '建议',
+  severity: '风险等级',
+  title: '标题',
+  metricValue: '当前值',
+  threshold: '阈值',
+};
+
 /**
  * 管理端 AuraResponseBlock 渲染器。
- * 与 Kiosk 的 BlockRenderer 逻辑相同，独立实现以避免跨包依赖。
+ * 使用 agent-core 的 block 排序与 KPI 分组，保证管理端和 Kiosk 展示协议一致。
  */
 export function AgentBlockRenderer({ blocks, onCommand, onAction }: AgentBlockRendererProps) {
-  const groups = groupKpiCards(orderBlocksForDisplay(blocks));
+  const groups = groupBlocksForDisplay(blocks);
   return (
     <div className="flex flex-col gap-3">
       {groups.map((group, i) => {
@@ -67,7 +114,6 @@ export function AgentBlockRenderer({ blocks, onCommand, onAction }: AgentBlockRe
     </div>
   );
 }
-
 function SingleBlock({
   block,
   onCommand,
@@ -618,6 +664,7 @@ function TableBlock({
   caption?: string;
 }) {
   const [sortState, setSortState] = useState<{ index: number; direction: 'asc' | 'desc' } | null>(null);
+  const visibleColumns = normalizeTableColumns(columns, rows);
   const visibleRows = sortState
     ? [...rows].sort((a, b) => compareTableCells(a[sortState.index], b[sortState.index], sortState.direction))
     : rows;
@@ -635,7 +682,7 @@ function TableBlock({
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/50">
-            {columns.map((col, i) => (
+            {visibleColumns.map((col, i) => (
               <th key={i} className="px-3 py-2 text-left font-medium text-muted-foreground">
                 {sortable ? (
                   <button
@@ -660,14 +707,14 @@ function TableBlock({
           {visibleRows.length ? (
             visibleRows.map((row, ri) => (
               <tr key={ri} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                {columns.map((_, ci) => (
+                {visibleColumns.map((_, ci) => (
                   <td key={ci} className="px-3 py-2 text-foreground">{row[ci] ?? ''}</td>
                 ))}
               </tr>
             ))
           ) : (
             <tr>
-              <td className="px-3 py-6 text-center text-muted-foreground" colSpan={Math.max(columns.length, 1)}>
+              <td className="px-3 py-6 text-center text-muted-foreground" colSpan={Math.max(visibleColumns.length, 1)}>
                 暂无数据
               </td>
             </tr>
@@ -677,6 +724,16 @@ function TableBlock({
       {caption && <div className="px-3 py-1.5 text-xs text-muted-foreground border-t border-border/50">{caption}</div>}
     </div>
   );
+}
+
+function normalizeTableColumns(columns: string[], rows: string[][]) {
+  const maxRowLength = Math.max(0, ...rows.map((row) => row.length));
+  const source = columns.length ? columns : Array.from({ length: maxRowLength }, (_, index) => String(index));
+  return source.map((column, index) => {
+    const label = String(column ?? '').trim();
+    if (!label || /^\d+$/.test(label)) return `字段 ${index + 1}`;
+    return TABLE_COLUMN_LABELS[label] ?? label;
+  });
 }
 
 export function AgentPhaseOutputRenderer({ phases }: { phases: AgentPhaseOutput[] }) {
@@ -717,23 +774,6 @@ export function AgentPhaseOutputRenderer({ phases }: { phases: AgentPhaseOutput[
       </div>
     </div>
   );
-}
-
-function orderBlocksForDisplay(blocks: AuraResponseBlock[]) {
-  return [...blocks].sort((a, b) => blockDisplayPriority(a.kind) - blockDisplayPriority(b.kind));
-}
-
-function blockDisplayPriority(kind: AuraResponseBlock['kind']) {
-  if (kind === 'text') return 0;
-  if (kind === 'alert') return 1;
-  if (kind === 'kpi_card') return 2;
-  if (kind === 'table' || kind === 'chart' || kind === 'customer_card' || kind === 'opportunity_card' || kind === 'activity_draft_card' || kind === 'copy_variants' || kind === 'inventory_item_card' || kind === 'supplier_purchase_card' || kind === 'document_preview') {
-    return 3;
-  }
-  if (kind === 'evidence_panel') return 4;
-  if (kind === 'confirm_action' || kind === 'action_card') return 5;
-  if (kind === 'follow_up_chips') return 6;
-  return 10;
 }
 
 function compareTableCells(a: string | undefined, b: string | undefined, direction: 'asc' | 'desc') {
@@ -962,24 +1002,4 @@ function EvidencePanel({
       )}
     </div>
   );
-}
-
-// ─── Grouping util ────────────────────────────────────────────────────────────
-
-type BlockGroup =
-  | { type: 'kpi_group'; items: Array<Extract<AuraResponseBlock, { kind: 'kpi_card' }>> }
-  | { type: 'single'; block: AuraResponseBlock };
-
-function groupKpiCards(blocks: AuraResponseBlock[]): BlockGroup[] {
-  const groups: BlockGroup[] = [];
-  let buf: Array<Extract<AuraResponseBlock, { kind: 'kpi_card' }>> = [];
-  const flush = () => {
-    if (buf.length > 0) { groups.push({ type: 'kpi_group', items: [...buf] }); buf = []; }
-  };
-  for (const block of blocks) {
-    if (block.kind === 'kpi_card') { buf.push(block); }
-    else { flush(); groups.push({ type: 'single', block }); }
-  }
-  flush();
-  return groups;
 }

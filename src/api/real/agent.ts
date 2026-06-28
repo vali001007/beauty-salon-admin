@@ -1,5 +1,6 @@
 import apiClient from '../client';
 import type { AxiosRequestConfig } from 'axios';
+import { createAgentApi } from '@ami/agent-core';
 import type {
   AgentBusinessTaskCompileResult,
   AgentCompileBusinessTaskRequest,
@@ -30,6 +31,7 @@ import type {
   AgentRunResultV2,
   AgentSchemaReadiness,
   AgentToolCatalogItem,
+  UpdateAgentPersonaRequest,
 } from '@/types/agent';
 import type { PaginatedResponse } from '@/types/pagination';
 import { normalizePaginatedResponse } from './response';
@@ -37,9 +39,13 @@ import { normalizePaginatedResponse } from './response';
 type AgentRequestConfig = AxiosRequestConfig & { skipRetry?: boolean };
 
 const agentLongTaskConfig: AgentRequestConfig = { timeout: 60000, skipRetry: true };
+const sharedAgentApi = createAgentApi({
+  get: (url, config) => apiClient.get(url, config as AxiosRequestConfig),
+  post: (url, data, config) => apiClient.post(url, data, config as AgentRequestConfig),
+});
 
 export async function createAgentRun(data: AgentCreateRunRequest): Promise<AgentRunResultV2> {
-  return apiClient.post('/agent/runs', data, agentLongTaskConfig);
+  return sharedAgentApi.createRun(data);
 }
 
 export async function compileBusinessTask(data: AgentCompileBusinessTaskRequest): Promise<AgentBusinessTaskCompileResult> {
@@ -51,7 +57,7 @@ export async function getAgentRun(id: number): Promise<AgentRunResultV2> {
 }
 
 export async function appendAgentMessage(id: number, data: AgentAppendMessageRequest): Promise<AgentRunResultV2> {
-  return apiClient.post(`/agent/runs/${id}/messages`, data, agentLongTaskConfig);
+  return sharedAgentApi.appendMessage(id, data);
 }
 
 export async function getAgentTools(): Promise<AgentToolCatalogItem[]> {
@@ -68,7 +74,7 @@ export async function getAgentRunsPaginated(params: AgentRunListQuery): Promise<
 }
 
 export async function getAgentRunDetail(id: number): Promise<AgentRunDetail> {
-  return apiClient.get(`/agent/runs/${id}/detail`);
+  return sharedAgentApi.getRunDetail<AgentRunDetail>(id);
 }
 
 export async function getAgentApprovalsPaginated(
@@ -89,21 +95,25 @@ export async function rejectAgentApproval(id: number, data: AgentApprovalDecisio
 // ─── Persona API ─────────────────────────────────────────────────────────────
 
 export async function getAgentPersonas(): Promise<AgentPersonaSummary[]> {
-  return apiClient.get('/agent/personas');
+  return sharedAgentApi.getPersonas();
 }
 
 export async function getAgentPersonaByCode(code: string): Promise<AgentPersonaSummary> {
-  return apiClient.get(`/agent/personas/${code}`);
+  return sharedAgentApi.getPersonaByCode(code);
 }
 
 export async function getAllAgentPersonas(): Promise<AgentPersonaSummary[]> {
   return apiClient.get('/agent/personas/all');
 }
 
+export async function updateAgentPersona(code: string, data: UpdateAgentPersonaRequest): Promise<AgentPersonaSummary> {
+  return apiClient.patch(`/agent/personas/${code}`, data);
+}
+
 // ─── Feedback API ─────────────────────────────────────────────────────────────
 
 export async function submitAgentFeedback(runId: number, data: AgentFeedbackRequest): Promise<void> {
-  return apiClient.post(`/agent/runs/${runId}/feedback`, data);
+  return sharedAgentApi.submitFeedback(runId, data);
 }
 
 export async function getAgentFeedbackFailures(params: {
