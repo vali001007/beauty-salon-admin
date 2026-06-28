@@ -8,7 +8,7 @@ describe('blockUtils', () => {
     { kind: 'confirm_action', title: '确认', preview: '确认执行', actionId: 'a1', riskLevel: 'medium' },
     { kind: 'table', columns: ['客户'], rows: [['马美琳']] },
     { kind: 'kpi_card', label: '消费客户', value: '2' },
-    { kind: 'evidence_panel', sources: ['ProductOrder'], metricDefinition: '有效订单', filters: [] },
+    { kind: 'evidence_panel', sources: ['ProductOrder'], metricDefinition: '有效订单' },
     { kind: 'summary_text', content: '核心结论' },
     { kind: 'kpi_card', label: '消费金额', value: '¥1,980' },
   ];

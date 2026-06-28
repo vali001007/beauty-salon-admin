@@ -6,8 +6,11 @@ function createMockClient(): AgentHttpClient & {
   post: ReturnType<typeof vi.fn>;
 } {
   return {
-    get: vi.fn(async () => ({})),
-    post: vi.fn(async () => ({})),
+    get: vi.fn(async <T = unknown>() => ({} as T)),
+    post: vi.fn(async <T = unknown>() => ({} as T)),
+  } as unknown as AgentHttpClient & {
+    get: ReturnType<typeof vi.fn>;
+    post: ReturnType<typeof vi.fn>;
   };
 }
 

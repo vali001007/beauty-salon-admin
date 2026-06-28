@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  type AgentRunContextSource,
   buildContextSummary,
   createConversationContext,
   getLatestAgentContextFromMessages,
@@ -75,8 +76,12 @@ describe('conversationContext', () => {
   });
 
   it('extracts latest previous run context from arbitrary message streams', () => {
-    const messages = [
-      { payload: { kind: 'agentRun', data: { runId: 101, runNo: 'AG101', status: 'completed', answer: 'old' } } },
+    type TestMessage =
+      | { payload: { kind: 'agentRun'; data: AgentRunContextSource } }
+      | { payload: { kind: 'businessQuery'; data: { requestId: string; answer?: string } } };
+
+    const messages: TestMessage[] = [
+      { payload: { kind: 'agentRun', data: { runId: 101, runNo: 'AG101', status: 'completed' } } },
       { payload: { kind: 'businessQuery', data: { requestId: 'bq_1' } } },
       {
         payload: {
