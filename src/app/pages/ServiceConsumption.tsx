@@ -347,7 +347,7 @@ export function ServiceConsumption() {
       setSelectedService(updatedService);
       setBomDraftItems(updatedService.bom.map((item) => toBomDraftItem(item, products)));
       setShowEditBOMDialog(false);
-      window.dispatchEvent(new CustomEvent('project-bom-updated', { detail: { projectId: updatedService.id } }));
+      window.dispatchEvent(new window.CustomEvent('project-bom-updated', { detail: { projectId: updatedService.id } }));
       toast.success('BOM 已保存');
       await loadData();
     } catch (error) {
