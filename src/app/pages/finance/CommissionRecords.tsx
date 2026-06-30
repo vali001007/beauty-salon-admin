@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Download, Pencil, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
@@ -24,21 +24,6 @@ const typeLabels: Record<CommissionType, string> = {
   new_customer: '新客',
 };
 
-const statusLabels: Record<string, string> = {
-  pending: '未结算',
-  confirmed: '未结算',
-  settled: '已结算',
-  cancelled: '已取消',
-};
-
-const statusFilterOptions = [
-  { value: '', label: '全部状态' },
-  { value: 'pending', label: '未结算（历史）' },
-  { value: 'confirmed', label: '未结算' },
-  { value: 'settled', label: '已结算' },
-  { value: 'cancelled', label: '已取消' },
-];
-
 function currentMonth() {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -58,7 +43,7 @@ export function CommissionRecords() {
   const [editForm, setEditForm] = useState({ staffUserId: '', sourceAmount: '', ratePercent: '', amount: '', remark: '' });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ settleMonth: currentMonth(), staffUserId: '', type: '', status: '' });
+  const [filters, setFilters] = useState({ settleMonth: currentMonth(), staffUserId: '', type: '' });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -69,7 +54,6 @@ export function CommissionRecords() {
         settleMonth: filters.settleMonth || undefined,
         staffUserId: filters.staffUserId || undefined,
         type: filters.type || undefined,
-        status: filters.status || undefined,
       };
       const [recordPage, recordSummary, userList] = await Promise.all([
         getCommissionRecords(params),
@@ -90,15 +74,9 @@ export function CommissionRecords() {
     loadData();
   }, [loadData]);
 
-  const unsettledAmount = useMemo(() => summary.pendingAmount + summary.confirmedAmount, [summary.confirmedAmount, summary.pendingAmount]);
-
   const openEditDialog = (record: CommissionRecord) => {
     if (!canManageFinance) {
       toast.error('当前账号没有修改提成的权限');
-      return;
-    }
-    if (record.status === 'settled') {
-      toast.error('已结算提成不能修改');
       return;
     }
     if (record.status === 'cancelled') {
@@ -178,7 +156,6 @@ export function CommissionRecords() {
         sourceAmount: record.sourceAmount,
         rate: `${Math.round(record.rate * 10000) / 100}%`,
         amount: record.amount,
-        status: statusLabels[record.status] ?? record.status,
         remark: record.remark ?? '',
       })),
       [
@@ -190,7 +167,6 @@ export function CommissionRecords() {
         { key: 'sourceAmount', header: '金额基数', width: 14 },
         { key: 'rate', header: '比例', width: 10 },
         { key: 'amount', header: '提成金额', width: 14 },
-        { key: 'status', header: '状态', width: 12 },
         { key: 'remark', header: '备注', width: 24 },
       ],
       `提成明细-${filters.settleMonth || '全部'}.xlsx`,
@@ -202,7 +178,7 @@ export function CommissionRecords() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">提成明细</h1>
-          <p className="mt-1 text-sm text-muted-foreground">查看和修改员工提成流水；修改后直接同步为订单成本，并进入月度结算。</p>
+          <p className="mt-1 text-sm text-muted-foreground">系统按订单、核销、开卡和充值自动生成提成流水；必要时在此修改，修改后同步订单成本。</p>
         </div>
         <div className="flex gap-2">
           {canExportFinance ? (
@@ -213,12 +189,11 @@ export function CommissionRecords() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-3">
         {[
           ['当月总提成', summary.totalAmount],
-          ['未结算金额', unsettledAmount],
-          ['已结算金额', summary.settledAmount],
           ['提成流水数', summary.count],
+          ['平均单笔提成', summary.count ? summary.totalAmount / summary.count : 0],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-lg border border-border bg-card p-4">
             <div className="text-sm text-muted-foreground">{label}</div>
@@ -248,9 +223,6 @@ export function CommissionRecords() {
           <option value="">全部类型</option>
           {Object.entries(typeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
-        <select className="h-10 rounded-md border border-border bg-background px-3 text-sm" value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}>
-          {statusFilterOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
-        </select>
         <Button variant="outline" className="gap-2" onClick={loadData} disabled={loading}>
           <RefreshCcw className="h-4 w-4" /> 刷新
         </Button>
@@ -266,7 +238,6 @@ export function CommissionRecords() {
             <TableHead>金额基数</TableHead>
             <TableHead>比例</TableHead>
             <TableHead>提成</TableHead>
-            <TableHead>状态</TableHead>
             {canManageFinance ? <TableHead className="w-24 text-right">操作</TableHead> : null}
           </TableRow>
         </TableHeader>
@@ -283,11 +254,10 @@ export function CommissionRecords() {
               <TableCell>{money(record.sourceAmount)}</TableCell>
               <TableCell>{Math.round(record.rate * 10000) / 100}%</TableCell>
               <TableCell className="font-medium">{money(record.amount)}</TableCell>
-              <TableCell>{statusLabels[record.status] ?? record.status}</TableCell>
               {canManageFinance ? (
                 <TableCell>
                   <div className="flex justify-end">
-                    <Button size="sm" variant="outline" className="gap-1" disabled={record.status === 'settled' || record.status === 'cancelled'} onClick={() => openEditDialog(record)}>
+                    <Button size="sm" variant="outline" className="gap-1" disabled={record.status === 'cancelled'} onClick={() => openEditDialog(record)}>
                       <Pencil className="h-3.5 w-3.5" />
                       修改
                     </Button>
@@ -298,7 +268,7 @@ export function CommissionRecords() {
           ))}
           {!records.length && (
             <TableRow>
-              <TableCell colSpan={canManageFinance ? 9 : 8} className="py-10 text-center text-muted-foreground">暂无提成流水</TableCell>
+              <TableCell colSpan={canManageFinance ? 8 : 7} className="py-10 text-center text-muted-foreground">暂无提成流水</TableCell>
             </TableRow>
           )}
         </TableBody>

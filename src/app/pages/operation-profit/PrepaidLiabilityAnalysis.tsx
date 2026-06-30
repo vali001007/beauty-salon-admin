@@ -24,6 +24,7 @@ const riskLabels: Record<string, string> = {
 };
 
 type LiabilityPageMode = 'balance' | 'card';
+const DEFAULT_PAGE_SIZE = 10;
 
 const pageCopy: Record<
   LiabilityPageMode,
@@ -64,10 +65,48 @@ function CompactMetricCard({ label, value, hint }: { label: string; value: strin
   );
 }
 
+function PaginationBar({
+  page,
+  pageSize,
+  total,
+  loading,
+  onPageChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total ? (page - 1) * pageSize + 1 : 0;
+  const to = Math.min(page * pageSize, total);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+      <div className="text-sm text-muted-foreground">
+        共 {total} 条，当前 {from}-{to}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" disabled={loading || page <= 1} onClick={() => onPageChange(page - 1)}>
+          上一页
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {page} / {totalPages}
+        </span>
+        <Button variant="outline" size="sm" disabled={loading || page >= totalPages} onClick={() => onPageChange(page + 1)}>
+          下一页
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const [riskOnly, setRiskOnly] = useState(true);
   const [keyword, setKeyword] = useState('');
+  const [page, setPage] = useState(1);
   const [rows, setRows] = useState<PrepaidLiabilityRow[]>([]);
   const [total, setTotal] = useState(0);
   const [serverSummary, setServerSummary] = useState<PrepaidLiabilitySummary | undefined>();
@@ -77,23 +116,27 @@ function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await getPrepaidLiabilities({
-        page: 1,
-        pageSize: 100,
+      const response = await getPrepaidLiabilities({
+        page,
+        pageSize: DEFAULT_PAGE_SIZE,
         storeId: currentStoreId ?? undefined,
         riskOnly,
         type: mode,
         keyword: keyword.trim() || undefined,
       });
-      setRows(page.items);
-      setTotal(page.total);
-      setServerSummary(page.summary);
+      setRows(response.items);
+      setTotal(response.total);
+      setServerSummary(response.summary);
     } catch (error) {
       toast.error(errorMessage(error, copy.loadError));
     } finally {
       setLoading(false);
     }
-  }, [copy.loadError, currentStoreId, riskOnly, mode, keyword]);
+  }, [copy.loadError, currentStoreId, riskOnly, mode, keyword, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [currentStoreId, riskOnly, mode, keyword]);
 
   useEffect(() => {
     void loadData();
@@ -108,15 +151,17 @@ function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
           balanceLiability: sum.balanceLiability + (row.liabilityType === 'balance' ? row.estimatedRemainingValue : 0),
           cashBalance: sum.cashBalance + Number(row.cashBalance ?? 0),
           giftBalance: sum.giftBalance + Number(row.giftBalance ?? 0),
+          cardRecognizedIncome: sum.cardRecognizedIncome + (row.liabilityType !== 'balance' ? Number(row.recognizedIncome ?? 0) : 0),
+          remainingTimes: sum.remainingTimes + Number(row.remainingTimes ?? 0),
           highRisk: sum.highRisk + (row.riskLevel === 'high' ? 1 : 0),
           mediumRisk: sum.mediumRisk + (row.riskLevel === 'medium' ? 1 : 0),
         }),
-        { totalLiability: 0, cardLiability: 0, balanceLiability: 0, cashBalance: 0, giftBalance: 0, highRisk: 0, mediumRisk: 0 },
+        { totalLiability: 0, cardLiability: 0, balanceLiability: 0, cashBalance: 0, giftBalance: 0, cardRecognizedIncome: 0, remainingTimes: 0, highRisk: 0, mediumRisk: 0 },
       ),
     [rows],
   );
   const summary = serverSummary ?? fallbackSummary;
-  const remainingTimes = useMemo(() => rows.reduce((sum, row) => sum + Number(row.remainingTimes ?? 0), 0), [rows]);
+  const remainingTimes = summary.remainingTimes ?? 0;
   const highRiskCount = summary.highRisk;
   const mediumRiskCount = summary.mediumRisk;
 
@@ -148,101 +193,104 @@ function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
 
       {mode === 'balance' ? (
         <section className="grid grid-cols-5 gap-2">
-          <CompactMetricCard label="储值" value={String(total)} hint={`${rows.length} 条`} />
+          <CompactMetricCard label="储值" value={String(total)} hint={`每页 ${DEFAULT_PAGE_SIZE} 条`} />
           <CompactMetricCard label="余额" value={compactMoney(summary.balanceLiability)} />
           <CompactMetricCard label="现金" value={compactMoney(summary.cashBalance)} />
           <CompactMetricCard label="赠送" value={compactMoney(summary.giftBalance)} />
           <CompactMetricCard label="风险" value={String(highRiskCount)} hint={`中危 ${mediumRiskCount}`} />
         </section>
       ) : (
-        <section className="grid grid-cols-5 gap-2">
-          <CompactMetricCard label="次卡" value={String(total)} hint={`${rows.length} 条`} />
+        <section className="grid gap-2 md:grid-cols-5">
+          <CompactMetricCard label="次卡" value={String(total)} hint={`每页 ${DEFAULT_PAGE_SIZE} 条`} />
           <CompactMetricCard label="权益" value={compactMoney(summary.cardLiability)} />
+          <CompactMetricCard label="已履约收入" value={compactMoney(summary.cardRecognizedIncome)} hint="次卡核销确认收入" />
           <CompactMetricCard label="次数" value={String(remainingTimes)} />
-          <CompactMetricCard label="高危" value={String(highRiskCount)} />
-          <CompactMetricCard label="中危" value={String(mediumRiskCount)} />
+          <CompactMetricCard label="风险" value={String(highRiskCount)} hint={`中危 ${mediumRiskCount}`} />
         </section>
       )}
 
       {loading && !rows.length ? (
         <LoadingBlock />
       ) : rows.length ? (
-        <Table>
-          <TableHeader>
-            {mode === 'balance' ? (
-              <TableRow>
-                <TableHead>客户</TableHead>
-                <TableHead>权益名称</TableHead>
-                <TableHead>风险</TableHead>
-                <TableHead className="text-right">现金余额</TableHead>
-                <TableHead className="text-right">赠送余额</TableHead>
-                <TableHead className="text-right">待履约余额</TableHead>
-                <TableHead>最近流水</TableHead>
-                <TableHead>原因</TableHead>
-              </TableRow>
-            ) : (
-              <TableRow>
-                <TableHead>客户</TableHead>
-                <TableHead>卡项</TableHead>
-                <TableHead>风险</TableHead>
-                <TableHead className="text-right">剩余次数</TableHead>
-                <TableHead className="text-right">剩余权益估算</TableHead>
-                <TableHead>到期日</TableHead>
-                <TableHead>最近核销</TableHead>
-                <TableHead>原因</TableHead>
-              </TableRow>
-            )}
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={`${row.liabilityType ?? 'card'}-${row.customerCardId || row.customerId}`}>
-                <TableCell>
-                  <div className="font-medium">{row.customerName || `客户 ${row.customerId}`}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">ID {row.customerId}</div>
-                </TableCell>
-                <TableCell>
-                  <div>{row.cardName}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {mode === 'balance' ? '会员卡储值余额' : `总次数 ${row.totalTimes}`}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <StatusBadge tone={statusTone(row.riskLevel)}>{riskLabels[row.riskLevel] ?? row.riskLevel}</StatusBadge>
-                </TableCell>
-                {mode === 'balance' ? (
-                  <>
-                    <TableCell className="text-right">{money(row.cashBalance ?? 0)}</TableCell>
-                    <TableCell className="text-right">{money(row.giftBalance ?? 0)}</TableCell>
-                    <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
-                  </>
-                ) : (
-                  <>
-                    <TableCell className="text-right">{row.remainingTimes}</TableCell>
-                    <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
-                    <TableCell>{dateText(row.expiryDate)}</TableCell>
-                  </>
-                )}
-                <TableCell>
-                  <div>{dateText(row.lastUsedAt)}</div>
-                  {row.lastTransactionOrderNo ? <div className="mt-1 text-xs text-muted-foreground">{row.lastTransactionOrderNo}</div> : null}
-                </TableCell>
-                <TableCell>
-                  {row.riskReasons.length ? (
-                    <div className="flex flex-wrap gap-1">
-                      {row.riskReasons.map((reason) => (
-                        <StatusBadge key={reason} tone="border-amber-200 bg-amber-50 text-amber-700">
-                          {reason}
-                        </StatusBadge>
-                      ))}
+        <div className="rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              {mode === 'balance' ? (
+                <TableRow>
+                  <TableHead>客户</TableHead>
+                  <TableHead>权益名称</TableHead>
+                  <TableHead>风险</TableHead>
+                  <TableHead className="text-right">现金余额</TableHead>
+                  <TableHead className="text-right">赠送余额</TableHead>
+                  <TableHead className="text-right">待履约余额</TableHead>
+                  <TableHead>最近流水</TableHead>
+                  <TableHead>原因</TableHead>
+                </TableRow>
+              ) : (
+                <TableRow>
+                  <TableHead>客户</TableHead>
+                  <TableHead>卡项</TableHead>
+                  <TableHead>风险</TableHead>
+                  <TableHead className="text-right">剩余次数</TableHead>
+                  <TableHead className="text-right">剩余权益估算</TableHead>
+                  <TableHead>到期日</TableHead>
+                  <TableHead>最近核销</TableHead>
+                  <TableHead>原因</TableHead>
+                </TableRow>
+              )}
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={`${row.liabilityType ?? 'card'}-${row.customerCardId || row.customerId}`}>
+                  <TableCell>
+                    <div className="font-medium">{row.customerName || `客户 ${row.customerId}`}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">ID {row.customerId}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div>{row.cardName}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {mode === 'balance' ? '会员卡储值余额' : `总次数 ${row.totalTimes}`}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge tone={statusTone(row.riskLevel)}>{riskLabels[row.riskLevel] ?? row.riskLevel}</StatusBadge>
+                  </TableCell>
+                  {mode === 'balance' ? (
+                    <>
+                      <TableCell className="text-right">{money(row.cashBalance ?? 0)}</TableCell>
+                      <TableCell className="text-right">{money(row.giftBalance ?? 0)}</TableCell>
+                      <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
+                    </>
                   ) : (
-                    <span className="text-sm text-muted-foreground">暂无</span>
+                    <>
+                      <TableCell className="text-right">{row.remainingTimes}</TableCell>
+                      <TableCell className="text-right font-medium">{money(row.estimatedRemainingValue)}</TableCell>
+                      <TableCell>{dateText(row.expiryDate)}</TableCell>
+                    </>
                   )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  <TableCell>
+                    <div>{dateText(row.lastUsedAt)}</div>
+                    {row.lastTransactionOrderNo ? <div className="mt-1 text-xs text-muted-foreground">{row.lastTransactionOrderNo}</div> : null}
+                  </TableCell>
+                  <TableCell>
+                    {row.riskReasons.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {row.riskReasons.map((reason) => (
+                          <StatusBadge key={reason} tone="border-amber-200 bg-amber-50 text-amber-700">
+                            {reason}
+                          </StatusBadge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">暂无</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <PaginationBar page={page} pageSize={DEFAULT_PAGE_SIZE} total={total} loading={loading} onPageChange={setPage} />
+        </div>
       ) : (
         <EmptyBlock label={copy.emptyLabel} />
       )}

@@ -20,6 +20,7 @@ import {
   OpenCashierShiftDto,
   QueryAmiBillDto,
   QueryAmiPerformanceDto,
+  QueryCashFlowRecordsDto,
   QueryCashierShiftDto,
   QueryCommissionRecordsDto,
   QueryCommissionRuleAssignmentsDto,
@@ -217,6 +218,27 @@ export class CommissionController {
   @ApiOperation({ summary: '关班' })
   closeShift(@Body() dto: CloseCashierShiftDto, @Headers('x-store-id') storeHeader?: string) {
     return this.commissionService.closeCashierShift({ ...dto, storeId: this.storeIdFrom(dto.storeId, storeHeader) });
+  }
+
+  @Get('payment-records')
+  @Permissions('core:finance:view')
+  @ApiOperation({ summary: '支付流水列表' })
+  getPaymentRecords(@Query() query: QueryCashFlowRecordsDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.commissionService.getPaymentRecords({ ...query, storeId: this.storeIdFrom(query.storeId, storeHeader) });
+  }
+
+  @Get('refund-records')
+  @Permissions('core:finance:view')
+  @ApiOperation({ summary: '退款记录列表' })
+  getRefundRecords(@Query() query: QueryCashFlowRecordsDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.commissionService.getRefundRecords({ ...query, storeId: this.storeIdFrom(query.storeId, storeHeader) });
+  }
+
+  @Get('reconciliation-exceptions')
+  @Permissions('core:finance:view')
+  @ApiOperation({ summary: '收银对账异常列表' })
+  getReconciliationExceptions(@Query() query: QueryCashFlowRecordsDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.commissionService.getReconciliationExceptions({ ...query, storeId: this.storeIdFrom(query.storeId, storeHeader) });
   }
 
   @Get('daily-settlements')

@@ -161,6 +161,14 @@ export function ProjectMarginAnalysis() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const handleProjectBomUpdated = () => {
+      void loadData();
+    };
+    window.addEventListener('project-bom-updated', handleProjectBomUpdated);
+    return () => window.removeEventListener('project-bom-updated', handleProjectBomUpdated);
+  }, [loadData]);
+
   const summary = useMemo(
     () =>
       rows.reduce(

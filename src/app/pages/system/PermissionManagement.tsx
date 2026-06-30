@@ -13,6 +13,7 @@ const PLATFORM_LABELS: Record<PermissionPlatform, string> = {
 const TYPE_LABELS: Record<PermissionType, string> = {
   menu: '菜单',
   operation: '操作',
+  action: '动作',
   api: '接口',
 };
 
@@ -43,6 +44,7 @@ export function PermissionManagement() {
       total: PERMISSION_CATALOG.length,
       menu: PERMISSION_CATALOG.filter((permission) => permission.type === 'menu').length,
       operation: PERMISSION_CATALOG.filter((permission) => permission.type === 'operation').length,
+      action: PERMISSION_CATALOG.filter((permission) => permission.type === 'action').length,
       api: PERMISSION_CATALOG.filter((permission) => permission.type === 'api').length,
     };
   }, []);
@@ -55,7 +57,7 @@ export function PermissionManagement() {
         <p className="text-sm text-gray-500 mt-1">所有平台、菜单、操作、接口权限都从这里出发，角色管理页只消费同一份目录。</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="text-sm text-gray-500">权限总数</div>
           <div className="text-2xl font-semibold text-gray-900 mt-1">{stats.total}</div>
@@ -67,6 +69,10 @@ export function PermissionManagement() {
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="text-sm text-gray-500">操作权限</div>
           <div className="text-2xl font-semibold text-green-700 mt-1">{stats.operation}</div>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-500">动作权限</div>
+          <div className="text-2xl font-semibold text-amber-700 mt-1">{stats.action}</div>
         </div>
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="text-sm text-gray-500">接口权限</div>
@@ -92,6 +98,7 @@ export function PermissionManagement() {
           <option value="all">全部类型</option>
           <option value="menu">菜单</option>
           <option value="operation">操作</option>
+          <option value="action">动作</option>
           <option value="api">接口</option>
         </select>
       </div>

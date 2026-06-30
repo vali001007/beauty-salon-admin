@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit2, Link2, Plus, RefreshCcw, Trash2 } from 'lucide-react';
+import { Edit2, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -517,9 +517,6 @@ export function CommissionRules() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => openCreateAssignment()}>
-            <Link2 className="h-4 w-4" /> 新增配置
-          </Button>
           <Button className="gap-2" onClick={() => openCreateRule()}>
             <Plus className="h-4 w-4" /> 新建规则
           </Button>

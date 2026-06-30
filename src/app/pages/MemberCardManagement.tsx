@@ -9,6 +9,7 @@ import {
   giftMemberCard,
   openMemberCard,
   rechargeMemberCard,
+  refundMemberCard,
 } from '@/api/order';
 import { getProjects } from '@/api/project';
 import { getStores } from '@/api/store';
@@ -19,7 +20,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import type { Customer, MemberCardAccount, MemberCardTransaction, Project, Store } from '@/types';
 
-type FormMode = 'open' | 'recharge' | 'gift' | 'deduct';
+type FormMode = 'open' | 'recharge' | 'gift' | 'deduct' | 'refund';
 
 const PAYMENT_METHODS: PaymentMethodOption[] = [
   { value: 'cash', label: '现金支付' },
@@ -77,6 +78,7 @@ function transactionTypeText(value?: string) {
     recharge: '充值',
     gift: '赠送',
     deduct: '划扣',
+    refund: '退款',
   };
   return value ? (labels[value] ?? value) : '-';
 }
@@ -370,6 +372,15 @@ export function MemberCardManagement() {
         if (rechargeAmount <= 0) throw new Error('划扣金额必须大于 0');
         await deductMemberCard(selectedAccount.id, { amount: rechargeAmount, remark: form.remark });
         toast.success('划扣成功');
+      } else if (formMode === 'refund' && selectedAccount) {
+        if (rechargeAmount <= 0) throw new Error('退款金额必须大于 0');
+        if (rechargeAmount > Number(selectedAccount.availableBalance ?? 0)) throw new Error('退款金额不能大于储值现金余额');
+        await refundMemberCard(selectedAccount.id, {
+          amount: rechargeAmount,
+          paymentMethod: form.paymentMethod,
+          remark: form.remark,
+        });
+        toast.success('退款成功');
       }
       closeForm();
       refresh();
@@ -414,7 +425,9 @@ export function MemberCardManagement() {
         ? '会员卡充值'
         : formMode === 'gift'
           ? '赠送余额'
-          : '会员卡划扣';
+          : formMode === 'deduct'
+            ? '会员卡划扣'
+            : '会员卡退款';
 
   return (
     <div className="flex flex-col gap-5">
@@ -521,6 +534,14 @@ export function MemberCardManagement() {
                     <button className="inline-flex items-center gap-1 text-[#ff4d4f] hover:text-[#cf1322]" onClick={() => openForm('deduct', account)}>
                       <MinusCircle className="h-4 w-4" />
                       划扣
+                    </button>
+                    <button
+                      className="inline-flex items-center gap-1 text-red-500 hover:text-red-600 disabled:text-gray-300"
+                      onClick={() => openForm('refund', account)}
+                      disabled={Number(account.availableBalance ?? 0) <= 0}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      退款
                     </button>
                     <button className="inline-flex items-center gap-1 text-[#fa8c16] hover:text-[#d46b08]" onClick={() => openDetail(account)}>
                       <ReceiptText className="h-4 w-4" />
@@ -631,9 +652,9 @@ export function MemberCardManagement() {
                 </div>
               )}
 
-              {(formMode === 'open' || formMode === 'recharge' || formMode === 'deduct') && (
+              {(formMode === 'open' || formMode === 'recharge' || formMode === 'deduct' || formMode === 'refund') && (
                 <AmountStepper
-                  label={formMode === 'deduct' ? '划扣金额(元)' : '充值金额(元)'}
+                  label={formMode === 'deduct' ? '划扣金额(元)' : formMode === 'refund' ? '退款金额(元)' : '充值金额(元)'}
                   value={form.rechargeAmount}
                   onChange={(value) => setForm((prev) => ({ ...prev, rechargeAmount: value }))}
                   required
@@ -657,9 +678,9 @@ export function MemberCardManagement() {
                 />
               )}
 
-              {(formMode === 'open' || formMode === 'recharge') && (
+              {(formMode === 'open' || formMode === 'recharge' || formMode === 'refund') && (
                 <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-foreground">支付方式</span>
+                  <span className="mb-2 block text-sm font-semibold text-foreground">{formMode === 'refund' ? '退款方式' : '支付方式'}</span>
                   <PaymentMethodSelector<string>
                     value={form.paymentMethod}
                     onChange={(paymentMethod) => setForm((prev) => ({ ...prev, paymentMethod }))}

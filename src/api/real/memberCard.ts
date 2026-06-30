@@ -4,6 +4,7 @@ import type {
   MemberCardGiftPayload,
   MemberCardOpenPayload,
   MemberCardRechargePayload,
+  MemberCardRefundPayload,
   MemberCardTransaction,
 } from '@/types';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
@@ -65,6 +66,7 @@ function normalizeMemberCardTransaction(item: ApiMemberCardTransaction): MemberC
     recharge: '充值',
     gift: '赠送',
     deduct: '划扣',
+    refund: '退款',
   };
   return {
     id: Number(item.id ?? 0),
@@ -118,6 +120,11 @@ export async function realGiftMemberCard(id: number, data: MemberCardGiftPayload
 
 export async function realDeductMemberCard(id: number, data: MemberCardDeductPayload): Promise<MemberCardAccount> {
   const item = await apiClient.post<unknown, ApiMemberCardAccount>(`/orders/member-cards/${id}/deduct`, data);
+  return normalizeMemberCardAccount(item);
+}
+
+export async function realRefundMemberCard(id: number, data: MemberCardRefundPayload): Promise<MemberCardAccount> {
+  const item = await apiClient.post<unknown, ApiMemberCardAccount>(`/orders/member-cards/${id}/refund`, data);
   return normalizeMemberCardAccount(item);
 }
 

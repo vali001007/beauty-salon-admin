@@ -39,9 +39,24 @@ export interface Schedule {
   slots: ScheduleSlot[];
 }
 
+export interface ScheduleReservationInfo {
+  id: number;
+  status?: string;
+  customerId?: number;
+  customerName?: string;
+  customerPhone?: string;
+  projectId?: number;
+  projectName?: string;
+  projectDuration?: number;
+  remark?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
 export interface ScheduleSlot {
   time: string;
   period: '上午' | '下午';
   available: boolean;
-  status?: 'normal' | 'available' | 'booked' | 'expired' | 'leave' | 'busy' | string;
+  status?: 'free' | 'available' | 'booked' | 'expired' | 'leave' | string;
+  reservationInfo?: ScheduleReservationInfo;
 }

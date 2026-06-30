@@ -1,4 +1,5 @@
 import type { Card } from '@/types/card';
+import type { RefundRecord } from '@/types/order';
 import type { TerminalCardOrderCreateRequest } from '@/types/terminal';
 import type { CardFormData } from '@/schemas/card';
 import apiClient from '../client';
@@ -41,6 +42,9 @@ type ApiCardOrder = {
   listAmount?: number | string;
   discountAmount?: number | string;
   refundAmount?: number | string;
+  refundNo?: string;
+  refundRecord?: RefundRecord;
+  refundRecords?: RefundRecord[];
   recognizedAmount?: number | string;
   status?: string;
   purchaseTime?: string;
@@ -236,6 +240,8 @@ function normalizeCardOrder(item: ApiCardOrder) {
     : item.status === 'expired' || item.status === '已过期'
       ? 'expired'
       : 'active';
+  const refundRecords = Array.isArray(item.refundRecords) ? item.refundRecords : [];
+  const latestRefundRecord = (item.refundRecord ?? refundRecords[0]) as RefundRecord | undefined;
 
   return {
     id: String(item.id ?? ''),
@@ -257,6 +263,9 @@ function normalizeCardOrder(item: ApiCardOrder) {
     listAmount: Number(item.listAmount ?? actualPrice),
     discountAmount: Number(item.discountAmount ?? 0),
     refundAmount: Number(item.refundAmount ?? 0),
+    refundNo: item.refundNo ?? latestRefundRecord?.refundNo,
+    refundRecord: item.refundRecord,
+    refundRecords,
     recognizedAmount: Number(item.recognizedAmount ?? 0),
     status,
     purchaseTime: normalizeDateTime(item.purchaseTime ?? item.purchaseDate ?? item.createdAt),

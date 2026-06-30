@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, RefreshCcw, RotateCcw } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import {
-  generateDailySettlement,
   getDailySettlements,
   type DailySettlement as DailySettlementItem,
 } from '@/api/commission';
-import { usePermission } from '@/hooks/usePermission';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 
@@ -32,6 +30,25 @@ function compactMoney(value?: number) {
   return `¥${Math.round(amount).toLocaleString('zh-CN')}`;
 }
 
+function PaymentMethodBreakdown({ cash, wechat, alipay, card, className = 'text-sm' }: { cash?: number; wechat?: number; alipay?: number; card?: number; className?: string }) {
+  const items = [
+    { label: '现金', value: cash },
+    { label: '微信', value: wechat },
+    { label: '支付宝', value: alipay },
+    { label: '银行卡', value: card },
+  ];
+  return (
+    <div className={`grid grid-cols-2 gap-x-4 gap-y-1 ${className}`}>
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">{item.label}</span>
+          <span className="font-medium text-foreground">{money(item.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function dateText(value?: string) {
   return value ? String(value).slice(0, 10) : '-';
 }
@@ -41,7 +58,6 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function DailySettlement() {
-  const canManageFinance = usePermission('core:finance:manage');
   const [items, setItems] = useState<DailySettlementItem[]>([]);
   const [detailItem, setDetailItem] = useState<DailySettlementItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,7 +93,10 @@ export function DailySettlement() {
           cashRevenue: sum.cashRevenue + item.cashRevenue,
           wechatRevenue: sum.wechatRevenue + item.wechatRevenue,
           alipayRevenue: sum.alipayRevenue + item.alipayRevenue,
+          cardRevenue: sum.cardRevenue + item.cardRevenue,
           balanceRevenue: sum.balanceRevenue + item.balanceRevenue,
+          prepaidIncome: sum.prepaidIncome + Number(item.prepaidIncome ?? item.rechargeIncome ?? 0),
+          cardUsageRevenue: sum.cardUsageRevenue + Number(item.cardUsageRevenue ?? 0),
           refundAmount: sum.refundAmount + item.refundAmount,
           grossProfit: sum.grossProfit + item.grossProfit,
           commissionTotal: sum.commissionTotal + item.commissionTotal,
@@ -89,7 +108,10 @@ export function DailySettlement() {
           cashRevenue: 0,
           wechatRevenue: 0,
           alipayRevenue: 0,
+          cardRevenue: 0,
           balanceRevenue: 0,
+          prepaidIncome: 0,
+          cardUsageRevenue: 0,
           refundAmount: 0,
           grossProfit: 0,
           commissionTotal: 0,
@@ -99,51 +121,37 @@ export function DailySettlement() {
       ),
     [items],
   );
-
-  const handleGenerate = async () => {
-    if (!canManageFinance) {
-      toast.error('当前账号没有生成日结的权限');
-      return;
-    }
-    try {
-      await generateDailySettlement(filters.dateTo || todayText());
-      toast.success('日结已重新计算');
-      void loadData();
-    } catch (error) {
-      toast.error(errorMessage(error, '生成日结失败'));
-    }
-  };
+  const cashflowReceived = totals.cashRevenue + totals.wechatRevenue + totals.alipayRevenue + totals.cardRevenue;
 
   const summaryCards = [
     {
-      label: '净收入',
+      label: '营业收入',
       value: money(totals.totalRevenue),
       hint: `${totals.orderCount} 单 / ${totals.customerCount} 位顾客`,
     },
-    { label: '现金收入', value: money(totals.cashRevenue), hint: '关班现金核对依据' },
-    { label: '微信收入', value: money(totals.wechatRevenue), hint: '线上支付拆分' },
-    { label: '支付宝收入', value: money(totals.alipayRevenue), hint: '线上支付拆分' },
-    { label: '储值消耗', value: money(totals.balanceRevenue), hint: '会员余额核销' },
+    {
+      label: '现金收入',
+      value: money(cashflowReceived),
+      hint: <PaymentMethodBreakdown cash={totals.cashRevenue} wechat={totals.wechatRevenue} alipay={totals.alipayRevenue} card={totals.cardRevenue} className="text-xs" />,
+    },
+    { label: '预收金额', value: money(totals.prepaidIncome), hint: '当期充值和办次卡等未履约预收' },
+    { label: '会员余额划扣', value: money(totals.balanceRevenue), hint: '非现金结算，不重复计现金入账' },
+    { label: '次卡核销确认', value: money(totals.cardUsageRevenue), hint: '权益核销后的履约确认收入' },
     { label: '退款金额', value: money(totals.refundAmount), hint: `提成合计 ${money(totals.commissionTotal)}` },
   ];
   const detailRows = useMemo(() => {
     if (!detailItem) return [];
+    const detailCashflow = Number(detailItem.cashRevenue ?? 0) + Number(detailItem.wechatRevenue ?? 0) + Number(detailItem.alipayRevenue ?? 0) + Number(detailItem.cardRevenue ?? 0);
     return [
-      { group: '收入', name: '净收入', value: money(detailItem.totalRevenue), note: '收银收入扣除退款后的当日净额' },
-      { group: '收入', name: '充值收入', value: money(detailItem.rechargeIncome), note: '当日充值类订单金额' },
-      { group: '支付', name: '现金', value: money(detailItem.cashRevenue), note: '现金收款汇总' },
-      { group: '支付', name: '微信', value: money(detailItem.wechatRevenue), note: '微信支付汇总' },
-      { group: '支付', name: '支付宝', value: money(detailItem.alipayRevenue), note: '支付宝支付汇总' },
-      { group: '支付', name: '会员卡/银行卡', value: money(detailItem.cardRevenue), note: '卡类支付汇总' },
-      { group: '支付', name: '储值消耗', value: money(detailItem.balanceRevenue), note: '会员余额核销金额' },
-      { group: '调整', name: '退款', value: money(detailItem.refundAmount), note: '成功退款金额' },
-      { group: '业务', name: '订单数', value: `${detailItem.orderCount} 单`, note: '当日已完成或已支付订单' },
-      { group: '业务', name: '顾客数', value: `${detailItem.customerCount} 位`, note: '当日去重顾客数' },
-      { group: '业务', name: '客单价', value: money(detailItem.avgTransaction), note: '净收入 / 订单数' },
-      { group: '成本', name: '耗材成本', value: money(detailItem.materialCost), note: '系统按订单明细和耗材规则汇总' },
-      { group: '成本', name: '提成成本', value: money(detailItem.commissionTotal), note: '系统按提成流水汇总' },
-      { group: '利润', name: '毛利', value: money(detailItem.grossProfit), note: '净收入 - 耗材成本 - 提成成本' },
-      { group: '利润', name: '毛利率', value: `${Number(detailItem.grossMargin ?? 0).toFixed(2)}%`, note: '毛利 / 净收入' },
+      { name: '营业收入', value: money(detailItem.totalRevenue), detail: '订单净收入 + 次卡核销确认' },
+      { name: '现金收入', value: money(detailCashflow), detail: <PaymentMethodBreakdown cash={detailItem.cashRevenue} wechat={detailItem.wechatRevenue} alipay={detailItem.alipayRevenue} card={detailItem.cardRevenue} /> },
+      { name: '预收金额', value: money(detailItem.prepaidIncome ?? detailItem.rechargeIncome), detail: `含充值收入 ${money(detailItem.rechargeIncome)}，以及办次卡等未履约预收` },
+      { name: '会员划扣', value: money(detailItem.balanceRevenue), detail: '会员余额消费，确认订单结清但不产生新的现金入账' },
+      { name: '次卡核销', value: money(detailItem.cardUsageRevenue), detail: '次卡核销后的履约确认收入，已并入营业收入' },
+      { name: '退款金额', value: money(detailItem.refundAmount), detail: '成功退款金额，按退款时间归属营业日' },
+      { name: '订单/顾客', value: `${detailItem.orderCount} / ${detailItem.customerCount}`, detail: `客单价 ${money(detailItem.avgTransaction)}` },
+      { name: '成本', value: money(Number(detailItem.materialCost ?? 0) + Number(detailItem.commissionTotal ?? 0)), detail: `耗材 ${money(detailItem.materialCost)} / 提成 ${money(detailItem.commissionTotal)}` },
+      { name: '毛利', value: money(detailItem.grossProfit), detail: `毛利率 ${Number(detailItem.grossMargin ?? 0).toFixed(2)}%` },
     ];
   }, [detailItem]);
 
@@ -155,8 +163,10 @@ export function DailySettlement() {
           date: dateText(item.settleDate).slice(5),
           fullDate: dateText(item.settleDate),
           totalRevenue: Number(item.totalRevenue ?? 0),
+          cashflowReceived: Number(item.cashRevenue ?? 0) + Number(item.wechatRevenue ?? 0) + Number(item.alipayRevenue ?? 0) + Number(item.cardRevenue ?? 0),
           grossProfit: Number(item.grossProfit ?? 0),
           refundAmount: Number(item.refundAmount ?? 0),
+          cardUsageRevenue: Number(item.cardUsageRevenue ?? 0),
           orderCount: Number(item.orderCount ?? 0),
           grossMargin: Number(item.grossMargin ?? 0),
         })),
@@ -170,24 +180,36 @@ export function DailySettlement() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">日结报表</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            按门店每日汇总收银、退款、毛利和提成，默认采纳系统汇集数据，用于关账复核。
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-muted-foreground">日期范围</span>
+          <input
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+            type="date"
+            value={filters.dateFrom}
+            onChange={(event) => {
+              setRangePreset('custom');
+              setFilters((prev) => ({ ...prev, dateFrom: event.target.value }));
+            }}
+          />
+          <span className="text-sm text-muted-foreground">至</span>
+          <input
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+            type="date"
+            value={filters.dateTo}
+            onChange={(event) => {
+              setRangePreset('custom');
+              setFilters((prev) => ({ ...prev, dateTo: event.target.value }));
+            }}
+          />
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => void loadData()} disabled={loading}>
-            <RefreshCcw className="h-4 w-4" />
-            刷新
+          <Button size="sm" variant={rangePreset === '7' ? 'default' : 'outline'} onClick={() => applyPreset(7)}>
+            近 7 日
           </Button>
-          {canManageFinance ? (
-            <Button className="gap-2" onClick={() => void handleGenerate()}>
-              <RotateCcw className="h-4 w-4" />
-              重新计算选中日期
-            </Button>
-          ) : null}
+          <Button size="sm" variant={rangePreset === '30' ? 'default' : 'outline'} onClick={() => applyPreset(30)}>
+            近 30 日
+          </Button>
         </div>
       </div>
 
@@ -206,16 +228,8 @@ export function DailySettlement() {
           <div>
             <div className="text-sm font-medium">日结趋势</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              跟踪净收入、毛利与退款波动，支持近 7 日 / 30 日快速切换。
+              跟踪营业收入、毛利与退款波动。
             </p>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant={rangePreset === '7' ? 'default' : 'outline'} onClick={() => applyPreset(7)}>
-              近 7 日
-            </Button>
-            <Button size="sm" variant={rangePreset === '30' ? 'default' : 'outline'} onClick={() => applyPreset(30)}>
-              近 30 日
-            </Button>
           </div>
         </div>
         <div className="mt-4 h-72">
@@ -243,7 +257,7 @@ export function DailySettlement() {
                 <Tooltip
                   formatter={(value: number, name) => {
                     const labels: Record<string, string> = {
-                      totalRevenue: '净收入',
+                      totalRevenue: '营业收入',
                       grossProfit: '毛利',
                       refundAmount: '退款',
                     };
@@ -274,55 +288,17 @@ export function DailySettlement() {
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">暂无趋势数据</div>
           )}
         </div>
-        {trendRows.length ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            {trendRows.slice(-4).map((item) => (
-              <div key={item.fullDate} className="rounded-md bg-muted/35 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{item.fullDate}</span>
-                  <span className="text-muted-foreground">{item.orderCount} 单</span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <span>净收 {money(item.totalRevenue)}</span>
-                  <span>毛利率 {item.grossMargin.toFixed(2)}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
       </section>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
-          type="date"
-          value={filters.dateFrom}
-          onChange={(event) => {
-            setRangePreset('custom');
-            setFilters((prev) => ({ ...prev, dateFrom: event.target.value }));
-          }}
-        />
-        <span className="text-sm text-muted-foreground">至</span>
-        <input
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
-          type="date"
-          value={filters.dateTo}
-          onChange={(event) => {
-            setRangePreset('custom');
-            setFilters((prev) => ({ ...prev, dateTo: event.target.value }));
-          }}
-        />
-      </div>
 
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>日期</TableHead>
-            <TableHead>净收入</TableHead>
-            <TableHead>现金</TableHead>
-            <TableHead>微信</TableHead>
-            <TableHead>支付宝</TableHead>
-            <TableHead>储值消耗</TableHead>
+            <TableHead>营业收入</TableHead>
+            <TableHead>现金收入</TableHead>
+            <TableHead>预收金额</TableHead>
+            <TableHead>会员余额划扣</TableHead>
+            <TableHead>次卡核销确认</TableHead>
             <TableHead>退款</TableHead>
             <TableHead>订单/顾客</TableHead>
             <TableHead>客单价</TableHead>
@@ -342,10 +318,10 @@ export function DailySettlement() {
               <TableRow key={item.id}>
                 <TableCell className="font-medium">{dateText(item.settleDate)}</TableCell>
                 <TableCell>{money(item.totalRevenue)}</TableCell>
-                <TableCell>{money(item.cashRevenue)}</TableCell>
-                <TableCell>{money(item.wechatRevenue)}</TableCell>
-                <TableCell>{money(item.alipayRevenue)}</TableCell>
+                <TableCell>{money(Number(item.cashRevenue ?? 0) + Number(item.wechatRevenue ?? 0) + Number(item.alipayRevenue ?? 0) + Number(item.cardRevenue ?? 0))}</TableCell>
+                <TableCell>{money(item.prepaidIncome ?? item.rechargeIncome)}</TableCell>
                 <TableCell>{money(item.balanceRevenue)}</TableCell>
+                <TableCell>{money(item.cardUsageRevenue)}</TableCell>
                 <TableCell>{money(item.refundAmount)}</TableCell>
                 <TableCell>
                   {item.orderCount} / {item.customerCount}
@@ -385,7 +361,7 @@ export function DailySettlement() {
             <div className="space-y-4">
               <section className="grid gap-3 md:grid-cols-4">
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">净收入</div>
+                  <div className="text-xs text-muted-foreground">营业收入</div>
                   <div className="mt-1 text-lg font-semibold">{money(detailItem.totalRevenue)}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
@@ -407,19 +383,17 @@ export function DailySettlement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-24">分类</TableHead>
-                    <TableHead className="w-36">指标</TableHead>
-                    <TableHead className="w-40">数值</TableHead>
-                    <TableHead>说明</TableHead>
+                    <TableHead className="w-40">项目</TableHead>
+                    <TableHead className="w-44">金额</TableHead>
+                    <TableHead>明细</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {detailRows.map((row) => (
-                    <TableRow key={`${row.group}-${row.name}`}>
-                      <TableCell className="text-muted-foreground">{row.group}</TableCell>
+                    <TableRow key={row.name}>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell>{row.value}</TableCell>
-                      <TableCell className="text-muted-foreground">{row.note}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.detail}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,6 +1,6 @@
 export type PermissionPlatform = 'core' | 'assist' | 'terminal';
 
-export type PermissionType = 'menu' | 'operation' | 'api';
+export type PermissionType = 'menu' | 'operation' | 'action' | 'api';
 
 export type DataScopeValue =
   | 'all'

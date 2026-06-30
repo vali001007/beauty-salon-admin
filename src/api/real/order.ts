@@ -5,6 +5,7 @@ import type {
   ProductOrderCreatePayload,
   ProductOrderItem,
   ProductOrderPaymentMethod,
+  ProductOrderRefundPayload,
   ProductOrderStatus,
   ProductOrderProfitDetail,
   ProjectOrderProfitDetail,
@@ -259,8 +260,8 @@ export async function realDeleteProductOrder(id: number): Promise<void> {
   return apiClient.delete(`/orders/product/${id}`);
 }
 
-export async function realRefundProductOrder(id: number): Promise<ProductOrder> {
-  const item = await apiClient.post<unknown, ApiProductOrder>(`/orders/product/${id}/refund`);
+export async function realRefundProductOrder(id: number, data?: ProductOrderRefundPayload): Promise<ProductOrder> {
+  const item = await apiClient.post<unknown, ApiProductOrder>(`/orders/product/${id}/refund`, data ?? {});
   return normalizeProductOrder(item);
 }
 

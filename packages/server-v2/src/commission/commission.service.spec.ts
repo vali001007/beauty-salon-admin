@@ -9,14 +9,15 @@ describe('CommissionService', () => {
       project: { findUnique: jest.fn(), findFirst: jest.fn() },
       product: { findUnique: jest.fn(), findFirst: jest.fn() },
       card: { findUnique: jest.fn() },
+      cardUsageRecord: { findMany: jest.fn() },
       user: { findFirst: jest.fn() },
       beauticianLevel: { findUnique: jest.fn() },
       beautician: { findFirst: jest.fn() },
       projectBomItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
       store: { findMany: jest.fn(), count: jest.fn() },
-      paymentRecord: { findMany: jest.fn() },
-      refundRecord: { findMany: jest.fn() },
+      paymentRecord: { findMany: jest.fn(), count: jest.fn() },
+      refundRecord: { findMany: jest.fn(), count: jest.fn() },
       commissionRule: {
         create: jest.fn(),
         count: jest.fn(),
@@ -48,6 +49,11 @@ describe('CommissionService', () => {
         findMany: jest.fn(),
         update: jest.fn(),
       },
+      commissionSettlementRecord: {
+        findMany: jest.fn(),
+        deleteMany: jest.fn(),
+        createMany: jest.fn(),
+      },
       cashierShift: {
         findFirst: jest.fn(),
         create: jest.fn(),
@@ -78,6 +84,8 @@ describe('CommissionService', () => {
         findMany: jest.fn(),
       },
     };
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.commissionSettlementRecord.findMany.mockResolvedValue([]);
     service = new CommissionService(prisma);
   });
 
@@ -688,6 +696,12 @@ describe('CommissionService', () => {
       { staffUserId: 22, beauticianId: 6, amount: 20, status: 'settled', staffUser: { id: 22, name: 'Bob' }, beautician: { id: 6, name: 'Bob' } },
       { staffUserId: 22, beauticianId: 6, amount: 10, status: 'cancelled', staffUser: { id: 22, name: 'Bob' }, beautician: { id: 6, name: 'Bob' } },
     ]);
+    prisma.commissionSettlementRecord.findMany.mockResolvedValue([
+      {
+        amountSnapshot: 25,
+        commissionRecord: { staffUserId: 22, beauticianId: 6, staffUser: { id: 22, name: 'Bob' }, beautician: { id: 6, name: 'Bob' } },
+      },
+    ]);
 
     const result = await service.getRecordSummary({ storeId: 3, settleMonth: '2026-06', type: 'project' });
 
@@ -695,19 +709,33 @@ describe('CommissionService', () => {
       where: { storeId: 3, type: 'project', settleMonth: '2026-06' },
       include: { staffUser: { select: { id: true, name: true, username: true } }, beautician: { select: { id: true, name: true } } },
     });
+    expect(prisma.commissionSettlementRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        settlement: { status: { in: ['confirmed', 'paid'] }, storeId: 3, settleMonth: '2026-06' },
+        commissionRecord: { type: 'project' },
+      },
+      include: {
+        commissionRecord: {
+          include: {
+            staffUser: { select: { id: true, name: true, username: true } },
+            beautician: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
     expect(result).toEqual({
       totalAmount: 180,
       pendingAmount: 100,
       confirmedAmount: 50,
-      settledAmount: 20,
+      settledAmount: 25,
       count: 4,
       items: [
         { staffUserId: 21, staffUserName: 'Alice', beauticianId: 5, beauticianName: 'Alice', totalAmount: 150, pendingAmount: 100, confirmedAmount: 50, settledAmount: 0, count: 2 },
-        { staffUserId: 22, staffUserName: 'Bob', beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 20, count: 2 },
+        { staffUserId: 22, staffUserName: 'Bob', beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 25, count: 2 },
       ],
       data: [
         { staffUserId: 21, staffUserName: 'Alice', beauticianId: 5, beauticianName: 'Alice', totalAmount: 150, pendingAmount: 100, confirmedAmount: 50, settledAmount: 0, count: 2 },
-        { staffUserId: 22, staffUserName: 'Bob', beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 20, count: 2 },
+        { staffUserId: 22, staffUserName: 'Bob', beauticianId: 6, beauticianName: 'Bob', totalAmount: 30, pendingAmount: 0, confirmedAmount: 0, settledAmount: 25, count: 2 },
       ],
     });
   });
@@ -831,10 +859,11 @@ describe('CommissionService', () => {
 
   it('generates monthly settlement grouped by staff user and type', async () => {
     prisma.commissionRecord.findMany.mockResolvedValue([
-      { staffUserId: 21, beauticianId: 1, type: 'project', amount: 100 },
-      { staffUserId: 21, beauticianId: 1, type: 'product', amount: 20 },
-      { staffUserId: 22, beauticianId: 2, type: 'recharge', amount: 30 },
+      { id: 101, staffUserId: 21, beauticianId: 1, type: 'project', amount: 100, status: 'confirmed' },
+      { id: 102, staffUserId: 21, beauticianId: 1, type: 'product', amount: 20, status: 'pending' },
+      { id: 201, staffUserId: 22, beauticianId: 2, type: 'recharge', amount: 30, status: 'confirmed' },
     ]);
+    prisma.commissionSettlement.findUnique.mockResolvedValue(null);
     prisma.commissionSettlement.upsert.mockImplementation(async ({ create }: any) => ({
       id: create.staffUserId,
       ...create,
@@ -858,6 +887,14 @@ describe('CommissionService', () => {
         }),
       }),
     );
+    expect(prisma.commissionSettlementRecord.deleteMany).toHaveBeenCalledWith({ where: { settlementId: 21 } });
+    expect(prisma.commissionSettlementRecord.createMany).toHaveBeenCalledWith({
+      data: [
+        { settlementId: 21, commissionRecordId: 101, amountSnapshot: 100, statusSnapshot: 'confirmed' },
+        { settlementId: 21, commissionRecordId: 102, amountSnapshot: 20, statusSnapshot: 'pending' },
+      ],
+    });
+    expect(result.items[0]).toEqual(expect.objectContaining({ detailCount: 2, detailAmount: 120 }));
   });
 
   it('exports commission settlements as a payroll csv with traceable amounts', async () => {
@@ -891,6 +928,7 @@ describe('CommissionService', () => {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
+        settlementRecords: true,
       },
       orderBy: [{ settleMonth: 'desc' }, { staffUserId: 'asc' }],
     });
@@ -923,8 +961,27 @@ describe('CommissionService', () => {
       staffUser: { id: 21, name: 'Alice', username: 'alice' },
       beautician: { id: 5, name: 'Alice' },
     };
-    prisma.commissionSettlement.findUnique.mockResolvedValue(settlement);
-    prisma.commissionSettlement.update.mockResolvedValue({ ...settlement, status: 'confirmed', confirmedAt: systemNow, confirmedBy: 99 });
+    prisma.commissionSettlement.findUnique.mockResolvedValue({
+      ...settlement,
+      settlementRecords: [
+        { id: 1, settlementId: 20, commissionRecordId: 701, amountSnapshot: 100, statusSnapshot: 'confirmed' },
+        { id: 2, settlementId: 20, commissionRecordId: 702, amountSnapshot: 95, statusSnapshot: 'pending' },
+      ],
+    });
+    prisma.commissionSettlement.update.mockResolvedValue({
+      ...settlement,
+      status: 'confirmed',
+      confirmedAt: systemNow,
+      confirmedBy: 99,
+      settlementRecords: [
+        { id: 1, settlementId: 20, commissionRecordId: 701, amountSnapshot: 100, statusSnapshot: 'confirmed' },
+        { id: 2, settlementId: 20, commissionRecordId: 702, amountSnapshot: 95, statusSnapshot: 'pending' },
+      ],
+    });
+    prisma.commissionRecord.findMany.mockResolvedValue([
+      { id: 701, amount: 100, status: 'confirmed' },
+      { id: 702, amount: 95, status: 'pending' },
+    ]);
     prisma.commissionRecord.updateMany.mockResolvedValue({ count: 3 });
 
     const result = await service.confirmSettlement(20, 99);
@@ -935,6 +992,23 @@ describe('CommissionService', () => {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
+        settlementRecords: {
+          include: {
+            commissionRecord: {
+              include: {
+                staffUser: { select: { id: true, name: true, username: true } },
+                beautician: { select: { id: true, name: true } },
+                store: { select: { id: true, name: true } },
+                order: { select: { id: true, orderNo: true, customerName: true } },
+                orderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
+                cardUsageRecord: { select: { id: true, cardName: true, projectName: true } },
+                rule: { select: { id: true, name: true } },
+                assignment: { include: { rule: { select: { id: true, name: true } } } },
+              },
+            },
+          },
+          orderBy: { id: 'asc' },
+        },
       },
     });
     expect(prisma.commissionSettlement.update).toHaveBeenCalledWith({
@@ -944,13 +1018,94 @@ describe('CommissionService', () => {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
+        settlementRecords: true,
       },
     });
     expect(prisma.commissionRecord.updateMany).toHaveBeenCalledWith({
-      where: { storeId: 3, staffUserId: 21, settleMonth: '2026-06', status: { in: ['pending', 'confirmed'] } },
+      where: { id: { in: [701, 702] }, status: { in: ['pending', 'confirmed'] } },
       data: { status: 'settled', settledAt: systemNow },
     });
     expect(result).toEqual(expect.objectContaining({ id: 20, status: 'confirmed', netAmount: 195, staffUserName: 'Alice' }));
+  });
+
+  it('marks draft commission settlements as needing regeneration when locked records drift', async () => {
+    prisma.commissionSettlement.findMany.mockResolvedValue([
+      {
+        id: 20,
+        storeId: 3,
+        staffUserId: 21,
+        beauticianId: 5,
+        settleMonth: '2026-06',
+        projectAmount: 100,
+        productAmount: 20,
+        cardSaleAmount: 0,
+        rechargeAmount: 0,
+        otherAmount: 0,
+        totalAmount: 120,
+        deductions: 0,
+        netAmount: 120,
+        status: 'draft',
+        store: { id: 3, name: 'Store A' },
+        staffUser: { id: 21, name: 'Alice', username: 'alice' },
+        beautician: { id: 5, name: 'Alice' },
+        settlementRecords: [
+          { id: 1, settlementId: 20, commissionRecordId: 701, amountSnapshot: 100, statusSnapshot: 'confirmed' },
+          { id: 2, settlementId: 20, commissionRecordId: 702, amountSnapshot: 20, statusSnapshot: 'pending' },
+        ],
+      },
+    ]);
+    prisma.commissionSettlement.count.mockResolvedValue(1);
+    prisma.commissionRecord.findMany.mockResolvedValue([
+      { id: 701, amount: 130, status: 'confirmed' },
+      { id: 702, amount: 20, status: 'pending' },
+      { id: 703, amount: 25, status: 'confirmed' },
+    ]);
+
+    const result = await service.getSettlements({ page: 1, pageSize: 20, storeId: 3, settleMonth: '2026-06' });
+
+    expect(prisma.commissionRecord.findMany).toHaveBeenCalledWith({
+      where: { storeId: 3, staffUserId: 21, settleMonth: '2026-06', status: { in: ['pending', 'confirmed'] } },
+      select: { id: true, amount: true, status: true },
+    });
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        needsRegenerate: true,
+        regenerateMissingRecordCount: 1,
+        regenerateChangedRecordCount: 1,
+        regenerateDiffAmount: 55,
+      }),
+    );
+    expect(result.items[0].regenerateReason).toContain('重新生成结算单');
+  });
+
+  it('rejects confirming a draft settlement when locked commission records drift', async () => {
+    prisma.commissionSettlement.findUnique.mockResolvedValue({
+      id: 20,
+      storeId: 3,
+      staffUserId: 21,
+      beauticianId: 5,
+      settleMonth: '2026-06',
+      projectAmount: 100,
+      productAmount: 20,
+      cardSaleAmount: 0,
+      rechargeAmount: 0,
+      otherAmount: 0,
+      totalAmount: 120,
+      deductions: 0,
+      netAmount: 120,
+      status: 'draft',
+      store: { id: 3, name: 'Store A' },
+      staffUser: { id: 21, name: 'Alice', username: 'alice' },
+      beautician: { id: 5, name: 'Alice' },
+      settlementRecords: [
+        { id: 1, settlementId: 20, commissionRecordId: 701, amountSnapshot: 100, statusSnapshot: 'confirmed' },
+      ],
+    });
+    prisma.commissionRecord.findMany.mockResolvedValue([{ id: 701, amount: 130, status: 'confirmed' }]);
+
+    await expect(service.confirmSettlement(20, 99)).rejects.toThrow('重新生成结算单');
+    expect(prisma.commissionSettlement.update).not.toHaveBeenCalled();
+    expect(prisma.commissionRecord.updateMany).not.toHaveBeenCalled();
   });
 
   it('marks a confirmed commission settlement as paid', async () => {
@@ -1351,6 +1506,203 @@ describe('CommissionService', () => {
     expect(result.data).toBe(result.items);
   });
 
+  it('queries payment records for cashier reconciliation with order context', async () => {
+    const dateFrom = new Date('2026-05-31T16:00:00.000Z');
+    const dateToExclusive = new Date('2026-06-08T16:00:00.000Z');
+    const where = {
+      status: 'success',
+      method: 'wechat',
+      paidAt: { gte: dateFrom, lt: dateToExclusive },
+      order: { storeId: 3 },
+    };
+    prisma.paymentRecord.findMany.mockResolvedValue([
+      {
+        id: 91,
+        orderId: 8,
+        paymentNo: 'PAY-91',
+        method: 'wechat',
+        amount: '128.50',
+        status: 'success',
+        paidAt: new Date('2026-06-01T09:00:00.000Z'),
+        order: { id: 8, orderNo: 'PO-8', checkoutGroupNo: 'PO-GROUP-8', orderKind: 'product', source: 'terminal', customerName: '王敏', storeId: 3, store: { id: 3, name: 'Store A' } },
+      },
+    ]);
+    prisma.paymentRecord.count.mockResolvedValue(1);
+
+    const result = await service.getPaymentRecords({
+      page: '1',
+      pageSize: '10',
+      storeId: '3',
+      status: 'success',
+      method: 'wechat',
+      dateFrom: '2026-06-01',
+      dateTo: '2026-06-08',
+    });
+
+    expect(prisma.paymentRecord.findMany).toHaveBeenCalledWith({
+      where,
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNo: true,
+            checkoutGroupNo: true,
+            orderKind: true,
+            source: true,
+            customerName: true,
+            storeId: true,
+            store: { select: { id: true, name: true } },
+          },
+        },
+      },
+      skip: 0,
+      take: 10,
+      orderBy: { paidAt: 'desc' },
+    });
+    expect(prisma.paymentRecord.count).toHaveBeenCalledWith({ where });
+    expect(result.items[0]).toEqual(expect.objectContaining({ amount: 128.5, orderNo: 'PO-8', checkoutGroupNo: 'PO-GROUP-8', source: 'terminal', customerName: '王敏', storeName: 'Store A' }));
+  });
+
+  it('queries refund records for cashier reconciliation with order context', async () => {
+    const dateFrom = new Date('2026-05-31T16:00:00.000Z');
+    const dateToExclusive = new Date('2026-06-08T16:00:00.000Z');
+    const where = {
+      status: 'success',
+      refundedAt: { gte: dateFrom, lt: dateToExclusive },
+      order: { storeId: 3, payMethod: 'member_balance' },
+    };
+    prisma.refundRecord.findMany.mockResolvedValue([
+      {
+        id: 51,
+        orderId: 7,
+        refundNo: 'REF-51',
+        amount: '66.80',
+        status: 'success',
+        reason: '客户退款',
+        refundedAt: new Date('2026-06-01T10:00:00.000Z'),
+        order: { id: 7, orderNo: 'PO-7', orderKind: 'project', customerName: '李丽', storeId: 3, payMethod: 'member_balance', store: { id: 3, name: 'Store A' } },
+      },
+    ]);
+    prisma.refundRecord.count.mockResolvedValue(1);
+
+    const result = await service.getRefundRecords({
+      page: '1',
+      pageSize: '10',
+      storeId: '3',
+      status: 'success',
+      method: 'member_balance',
+      dateFrom: '2026-06-01',
+      dateTo: '2026-06-08',
+    });
+
+    expect(prisma.refundRecord.findMany).toHaveBeenCalledWith({
+      where,
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNo: true,
+            orderKind: true,
+            customerName: true,
+            storeId: true,
+            payMethod: true,
+            store: { select: { id: true, name: true } },
+          },
+        },
+      },
+      skip: 0,
+      take: 10,
+      orderBy: { refundedAt: 'desc' },
+    });
+    expect(prisma.refundRecord.count).toHaveBeenCalledWith({ where });
+    expect(result.items[0]).toEqual(expect.objectContaining({ amount: 66.8, orderNo: 'PO-7', customerName: '李丽', payMethod: 'member_balance' }));
+  });
+
+  it('detects cashier reconciliation exceptions from daily settlement, refunds and cash shifts', async () => {
+    const dateFrom = new Date('2026-05-31T16:00:00.000Z');
+    const dateToExclusive = new Date('2026-06-01T16:00:00.000Z');
+    prisma.dailySettlement.findMany.mockResolvedValue([
+      {
+        id: 31,
+        storeId: 3,
+        settleDate: new Date('2026-06-01T00:00:00.000Z'),
+        totalRevenue: '100',
+        refundAmount: '20',
+        status: 'draft',
+        updatedAt: new Date('2026-06-01T09:00:00.000Z'),
+        store: { id: 3, name: 'Store A' },
+      },
+    ]);
+    prisma.paymentRecord.findMany.mockResolvedValue([
+      {
+        id: 91,
+        orderId: 8,
+        amount: '200',
+        status: 'success',
+        paidAt: new Date('2026-06-01T08:00:00.000Z'),
+        order: { id: 8, orderNo: 'PO-8', customerName: '王敏', storeId: 3 },
+      },
+    ]);
+    prisma.refundRecord.findMany.mockResolvedValue([
+      {
+        id: 51,
+        orderId: 7,
+        refundNo: 'REF-51',
+        amount: '50',
+        status: 'success',
+        refundedAt: new Date('2026-06-01T10:00:00.000Z'),
+        order: { id: 7, orderNo: 'PO-7', customerName: '李丽', storeId: 3 },
+      },
+    ]);
+    prisma.cashierShift.findMany.mockResolvedValue([
+      {
+        id: 61,
+        storeId: 3,
+        startedAt: new Date('2026-06-01T08:00:00.000Z'),
+        status: 'closed',
+        cashDiff: '60',
+        store: { id: 3, name: 'Store A' },
+        device: null,
+        operator: { id: 21, name: 'Alice' },
+      },
+    ]);
+
+    const result = await service.getReconciliationExceptions({ page: 1, pageSize: 20, storeId: 3, dateFrom: '2026-06-01', dateTo: '2026-06-01' });
+
+    expect(prisma.dailySettlement.findMany).toHaveBeenCalledWith({
+      where: { storeId: 3, settleDate: { gte: dateFrom, lt: dateToExclusive } },
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: { settleDate: 'desc' },
+    });
+    expect(prisma.paymentRecord.findMany).toHaveBeenCalledWith({
+      where: { status: 'success', paidAt: { gte: dateFrom, lt: dateToExclusive }, order: { storeId: 3 } },
+      include: { order: { select: { id: true, orderNo: true, customerName: true, storeId: true } } },
+    });
+    expect(prisma.refundRecord.findMany).toHaveBeenCalledWith({
+      where: { status: { in: ['success', 'completed', 'refunded'] }, refundedAt: { gte: dateFrom, lt: dateToExclusive }, order: { storeId: 3 } },
+      include: { order: { select: { id: true, orderNo: true, customerName: true, storeId: true } } },
+    });
+    expect(prisma.cashierShift.findMany).toHaveBeenCalledWith({
+      where: { storeId: 3, startedAt: { gte: dateFrom, lt: dateToExclusive }, status: { in: ['closed', 'reconciled'] } },
+      include: {
+        store: { select: { id: true, name: true } },
+        device: { select: { id: true, name: true } },
+        operator: { select: { id: true, name: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+    expect(result.total).toBe(4);
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'daily_unconfirmed', severity: 'medium', actionTarget: 'daily' }),
+        expect.objectContaining({ type: 'daily_amount_mismatch', severity: 'high', actionTarget: 'daily', amountDiff: -50 }),
+        expect.objectContaining({ type: 'refund_after_daily_settlement', severity: 'medium', actionTarget: 'refunds', sourceId: 51 }),
+        expect.objectContaining({ type: 'cash_shift_diff', severity: 'high', actionTarget: 'shifts', amountDiff: 60 }),
+      ]),
+    );
+    expect(result.summary).toEqual({ high: 2, medium: 2, low: 0 });
+  });
+
   it('generates daily settlement with net revenue, payment split, costs and commissions', async () => {
     const settleDate = new Date('2026-06-08T00:00:00.000Z');
     const dayStart = new Date('2026-06-07T16:00:00.000Z');
@@ -1387,8 +1739,19 @@ describe('CommissionService', () => {
         paymentRecords: [{ method: 'member_balance', amount: 200 }],
         orderItems: [],
       },
+      {
+        id: 4,
+        customerId: 103,
+        totalAmount: 300,
+        payMethod: 'cash',
+        paymentRecords: [],
+        orderItems: [{ itemType: 'card', itemId: 66, quantity: 1, netAmount: 300, subtotal: 300 }],
+      },
     ]);
     prisma.refundRecord.findMany.mockResolvedValue([{ amount: 50 }]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([
+      { storeId: 3, verifiedAt: new Date('2026-06-08T06:00:00.000Z'), recognizedAmount: 200 },
+    ]);
     prisma.product.findUnique.mockResolvedValue({ costPrice: 15 });
     prisma.projectBomItem.findMany.mockResolvedValue([
       { standardQty: 2, product: { costPrice: 20 } },
@@ -1435,38 +1798,40 @@ describe('CommissionService', () => {
       expect.objectContaining({
         where: { storeId_settleDate: { storeId: 3, settleDate } },
         create: expect.objectContaining({
-          totalRevenue: 1650,
-          cashRevenue: 300,
+          totalRevenue: 1950,
+          cashRevenue: 600,
           wechatRevenue: 700,
           alipayRevenue: 500,
           balanceRevenue: 200,
           rechargeIncome: 500,
           refundAmount: 50,
-          orderCount: 3,
-          customerCount: 2,
-          avgTransaction: 550,
+          orderCount: 4,
+          customerCount: 3,
+          avgTransaction: 487.5,
           materialCost: 90,
-          grossProfit: 1460,
-          grossMargin: 88.48,
+          grossProfit: 1760,
+          grossMargin: 90.26,
           commissionTotal: 100,
           status: 'draft',
           summary: expect.objectContaining({
-            cash: 300,
+            cash: 600,
             wechat: 700,
             alipay: 500,
             member_balance: 200,
             refund: 50,
-            total: 1700,
+            total: 2000,
           }),
         }),
       }),
     );
     expect(result).toEqual(
       expect.objectContaining({
-        totalRevenue: 1650,
+        totalRevenue: 2150,
+        cardUsageRevenue: 200,
+        prepaidIncome: 800,
         refundAmount: 50,
-        grossProfit: 1460,
-        grossMargin: 88.48,
+        grossProfit: 1960,
+        grossMargin: 91.16,
         commissionTotal: 100,
         settleDate: '2026-06-08',
       }),
@@ -1504,6 +1869,28 @@ describe('CommissionService', () => {
       updatedAt: new Date('2026-06-23T04:00:00.000Z'),
     };
     prisma.dailySettlement.findMany.mockResolvedValue([canonical, legacy]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([
+      { storeId: 3, verifiedAt: new Date('2026-06-23T05:00:00.000Z'), recognizedAmount: 180 },
+      { storeId: 3, verifiedAt: new Date('2026-06-23T08:00:00.000Z'), recognizedAmount: 120 },
+    ]);
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        storeId: 3,
+        createdAt: new Date('2026-06-23T02:00:00.000Z'),
+        totalAmount: 500,
+        netAmount: 500,
+        paymentRecords: [{ amount: 500 }],
+        orderItems: [{ itemType: 'recharge', netAmount: 500, subtotal: 500 }],
+      },
+      {
+        storeId: 3,
+        createdAt: new Date('2026-06-23T04:00:00.000Z'),
+        totalAmount: 300,
+        netAmount: 300,
+        paymentRecords: [{ amount: 300 }],
+        orderItems: [{ itemType: 'card', netAmount: 300, subtotal: 300 }],
+      },
+    ]);
 
     const result = await service.getDailySettlements({ page: 1, pageSize: 20, storeId: 3, dateFrom: '2026-06-23', dateTo: '2026-06-23' });
 
@@ -1518,8 +1905,36 @@ describe('CommissionService', () => {
       include: { store: { select: { id: true, name: true } } },
       orderBy: { settleDate: 'desc' },
     });
+    expect(prisma.cardUsageRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: { in: [3] },
+        verifiedAt: {
+          gte: new Date('2026-06-22T16:00:00.000Z'),
+          lt: new Date('2026-06-23T16:00:00.000Z'),
+        },
+      },
+      select: { storeId: true, verifiedAt: true, recognizedAmount: true },
+    });
+    expect(prisma.productOrder.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: { in: [3] },
+        createdAt: {
+          gte: new Date('2026-06-22T16:00:00.000Z'),
+          lt: new Date('2026-06-23T16:00:00.000Z'),
+        },
+        orderItems: { some: { itemType: { in: ['recharge', 'card', 'open'] } } },
+        OR: [
+          { status: { in: ['completed', 'paid', 'refunded'] } },
+          { paymentRecords: { some: { status: 'success' } } },
+        ],
+      },
+      include: {
+        orderItems: true,
+        paymentRecords: { where: { status: 'success' } },
+      },
+    });
     expect(result.total).toBe(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({ id: 20, settleDate: '2026-06-23', totalRevenue: 1200 }));
+    expect(result.items[0]).toEqual(expect.objectContaining({ id: 20, settleDate: '2026-06-23', totalRevenue: 1500, cardUsageRevenue: 300, prepaidIncome: 800, grossProfit: 1400, grossMargin: 93.33 }));
   });
 
   it('generates yesterday daily settlements for all active stores and keeps partial failures', async () => {

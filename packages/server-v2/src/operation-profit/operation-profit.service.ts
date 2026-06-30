@@ -331,6 +331,55 @@ export class OperationProfitService {
     return this.toNumber(result._sum.amount);
   }
 
+  private async getPerformanceCommissionRecords(orderItemIds: number[], cardUsageRecordIds: number[], storeId?: number) {
+    if (!orderItemIds.length && !cardUsageRecordIds.length) return [];
+    const sourceFilters: any[] = [];
+    if (orderItemIds.length) sourceFilters.push({ orderItemId: { in: orderItemIds } });
+    if (cardUsageRecordIds.length) {
+      sourceFilters.push({ cardUsageRecordId: { in: cardUsageRecordIds } });
+      sourceFilters.push({ sourceType: 'card_usage', sourceId: { in: cardUsageRecordIds } });
+    }
+    const records = await this.prisma.commissionRecord.findMany({
+      where: {
+        ...(storeId ? { storeId } : {}),
+        OR: sourceFilters,
+        type: { in: ['project', 'product'] },
+        status: { not: 'cancelled' },
+      },
+      select: {
+        staffUserId: true,
+        beauticianId: true,
+        orderItemId: true,
+        cardUsageRecordId: true,
+        sourceType: true,
+        sourceId: true,
+        amount: true,
+      },
+    });
+    return Array.isArray(records) ? records : [];
+  }
+
+  private buildPerformanceCommissionLookup(records: any[]) {
+    const lookup = new Map<string, number>();
+    const add = (key: string, amount: number) => lookup.set(key, this.round(this.toNumber(lookup.get(key)) + amount));
+    for (const record of records) {
+      const amount = this.toNumber(record.amount);
+      const staffKeys = [record.staffUserId ? `staff:${record.staffUserId}` : '', record.beauticianId ? `beautician:${record.beauticianId}` : ''].filter(Boolean);
+      for (const staffKey of staffKeys) {
+        if (record.orderItemId) add(`${staffKey}:orderItem:${record.orderItemId}`, amount);
+        if (record.cardUsageRecordId) add(`${staffKey}:cardUsage:${record.cardUsageRecordId}`, amount);
+        if (record.sourceType === 'card_usage' && record.sourceId) add(`${staffKey}:cardUsage:${record.sourceId}`, amount);
+      }
+    }
+    return lookup;
+  }
+
+  private getPerformanceCommissionAmount(lookup: Map<string, number>, staffUserId: number, beauticianIds: Set<number>, sourceType: 'orderItem' | 'cardUsage', sourceId: number) {
+    const staffAmount = this.toNumber(lookup.get(`staff:${staffUserId}:${sourceType}:${sourceId}`));
+    if (staffAmount > 0) return this.round(staffAmount);
+    return this.round(Array.from(beauticianIds).reduce((sum, id) => sum + this.toNumber(lookup.get(`beautician:${id}:${sourceType}:${sourceId}`)), 0));
+  }
+
   private async getPerformanceStaffUsers(storeId?: number, legacyBeauticianId?: number) {
     const storeFilter = storeId
       ? {
@@ -1128,9 +1177,18 @@ export class OperationProfitService {
         })
       : [];
     const usageByCustomerCard = new Map<string, any>();
+    const cardRecognizedAmountByCardId = new Map<number, number>();
+    const cardRecognizedAmountByCustomerCardKey = new Map<string, number>();
     for (const usage of usageRecords) {
       const key = `${usage.customerId}:${usage.cardName}`;
       if (!usageByCustomerCard.has(key)) usageByCustomerCard.set(key, usage);
+      const amount = this.toNumber(usage.recognizedAmount);
+      const customerCardId = Number(usage.customerCardId ?? 0);
+      if (customerCardId > 0) {
+        cardRecognizedAmountByCardId.set(customerCardId, (cardRecognizedAmountByCardId.get(customerCardId) ?? 0) + amount);
+      } else {
+        cardRecognizedAmountByCustomerCardKey.set(key, (cardRecognizedAmountByCustomerCardKey.get(key) ?? 0) + amount);
+      }
     }
 
     const now = new Date();
@@ -1160,6 +1218,10 @@ export class OperationProfitService {
         totalTimes: card.totalTimes,
         remainingTimes: card.remainingTimes,
         estimatedRemainingValue: this.round(estimatedRemainingValue),
+        recognizedIncome: this.round(
+          (cardRecognizedAmountByCardId.get(card.id) ?? 0) +
+            (cardRecognizedAmountByCustomerCardKey.get(`${card.customerId}:${card.cardName}`) ?? 0),
+        ),
         expiryDate: card.expiryDate.toISOString(),
         lastUsedAt: lastUsage?.verifiedAt?.toISOString(),
         riskLevel,
@@ -1237,6 +1299,10 @@ export class OperationProfitService {
       ),
       cashBalance: this.round(filtered.reduce((sum, row: any) => sum + this.toNumber(row.cashBalance), 0)),
       giftBalance: this.round(filtered.reduce((sum, row: any) => sum + this.toNumber(row.giftBalance), 0)),
+      cardRecognizedIncome: this.round(
+        filtered.filter((row) => row.liabilityType === 'card').reduce((sum, row: any) => sum + this.toNumber(row.recognizedIncome), 0),
+      ),
+      remainingTimes: filtered.reduce((sum, row: any) => sum + this.toNumber(row.remainingTimes), 0),
       highRisk: filtered.filter((row) => row.riskLevel === 'high').length,
       mediumRisk: filtered.filter((row) => row.riskLevel === 'medium').length,
     };
@@ -1253,7 +1319,10 @@ export class OperationProfitService {
       this.getCardUsageRecords(range, storeId),
       this.getCardUnitValueByName(),
     ]);
-    const orderItems = orders.flatMap((order) => order.orderItems.map((item) => ({ ...item, customerId: order.customerId })));
+    const orderItems = orders.flatMap((order) => order.orderItems.map((item) => ({ ...item, order, customerId: order.customerId, customerName: order.customerName })));
+    const serviceOrderItemIds = orderItems.filter((item) => this.isServiceItem(item.itemType)).map((item) => Number(item.id)).filter(Boolean);
+    const cardUsageRecordIds = cardUsageRecords.map((record) => Number(record.id)).filter(Boolean);
+    const commissionLookup = this.buildPerformanceCommissionLookup(await this.getPerformanceCommissionRecords(serviceOrderItemIds, cardUsageRecordIds, storeId));
     const rowsWithEmpty = await Promise.all(
       staffUsers.map(async (staffUser) => {
         const beauticianProfiles = staffUser.beauticianProfiles ?? [];
@@ -1269,6 +1338,42 @@ export class OperationProfitService {
           (sum, record) => sum + this.getCardUsageRecognizedAmount(record, cardUnitValueByName),
           0,
         );
+        const serviceDetails = [
+          ...serviceItems.map((item) => {
+            const income = this.round(this.getItemNetAmount(item));
+            const commissionCost = this.getPerformanceCommissionAmount(commissionLookup, staffUser.id, beauticianIds, 'orderItem', Number(item.id));
+            return {
+              id: `order-${item.id}`,
+              sourceType: 'order',
+              sourceLabel: '项目订单',
+              sourceNo: item.order?.orderNo,
+              serviceName: item.name,
+              customerName: item.customerName ?? item.order?.customerName,
+              occurredAt: item.order?.createdAt?.toISOString?.() ?? item.createdAt?.toISOString?.(),
+              quantity: this.toNumber(item.quantity) || 1,
+              income,
+              commissionCost,
+              contributionProfit: this.round(income - commissionCost),
+            };
+          }),
+          ...usageItems.map((record) => {
+            const income = this.round(this.getCardUsageRecognizedAmount(record, cardUnitValueByName));
+            const commissionCost = this.getPerformanceCommissionAmount(commissionLookup, staffUser.id, beauticianIds, 'cardUsage', Number(record.id));
+            return {
+              id: `card-usage-${record.id}`,
+              sourceType: 'card_usage',
+              sourceLabel: '次卡核销',
+              sourceNo: record.sourceOrder?.orderNo ?? record.sourceOrder?.checkoutGroupNo,
+              serviceName: record.projectName || record.project?.name || record.sourceOrderItem?.name || '未命名服务',
+              customerName: record.customerName ?? record.customer?.name,
+              occurredAt: record.verifiedAt?.toISOString?.(),
+              quantity: this.toNumber(record.times) || 1,
+              income,
+              commissionCost,
+              contributionProfit: this.round(income - commissionCost),
+            };
+          }),
+        ].sort((a, b) => String(b.occurredAt ?? '').localeCompare(String(a.occurredAt ?? '')));
         const serviceIncome = serviceItems.reduce((sum, item) => sum + this.getItemNetAmount(item), 0) + cardUsageIncome;
         const serviceCount =
           serviceItems.reduce((sum, item) => sum + (this.toNumber(item.quantity) || 1), 0) +
@@ -1307,6 +1412,7 @@ export class OperationProfitService {
           contributionProfit: this.round(contributionProfit),
           repurchaseRate: 0,
           missingCostReasons: commissionCost <= 0 && serviceIncome > 0 ? ['missing_commission'] : [],
+          serviceDetails,
         };
       }),
     );
