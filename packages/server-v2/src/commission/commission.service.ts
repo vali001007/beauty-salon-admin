@@ -1612,6 +1612,7 @@ export class CommissionService {
   ) {
     const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('提成流水不存在');
+    if (record.status === 'settled') throw new BadRequestException('已结算提成不能修改');
     if (record.status === 'cancelled') throw new BadRequestException('已取消提成不能修改');
 
     const data: any = {};

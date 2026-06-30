@@ -127,7 +127,7 @@ describe("AgentMessageItem", () => {
         ?.click();
     });
 
-    expect(onAction).toHaveBeenCalledWith("customer.followup.draft");
+    expect(onAction).toHaveBeenCalledWith("customer.followup.draft", "生成回访话术");
   });
 
   it("does not repeat top-level actions as follow-up suggestions", () => {
@@ -275,7 +275,7 @@ describe("AgentMessageItem", () => {
         ?.click();
     });
 
-    expect(onAction).toHaveBeenCalledWith("inventory.alerts.view");
+    expect(onAction).toHaveBeenCalledWith("inventory.alerts.view", "查看库存预警");
   });
 
   it("submits negative feedback with run id for quality analytics", async () => {

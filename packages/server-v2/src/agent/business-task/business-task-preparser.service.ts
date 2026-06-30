@@ -153,7 +153,7 @@ export class BusinessTaskPreParserService {
     if (/我的.*(表现|业绩|绩效|提成|服务质量|服务|成交|销售|完成|贡献|复购)|我.*(表现|业绩|绩效|提成|服务质量|服务|成交|销售|完成|贡献|复购)/.test(text)) return 'staff';
     if (hasStaffSubject && hasStaffPerformanceIntent) return 'staff';
     if (/售后|退款|退费|退单|退货|投诉|纠纷/.test(text)) return 'afterSales';
-    if (/(OCR|图片|识别|采购单|入库单|语音|口述|自然语言|出库|盘点|报废|商品元数据|资料补全|保质期|安全库存).*(库存|商品|产品|SKU|品项|采购|入库|出库|盘点|报废|草稿)|(库存|商品|产品|SKU|品项|采购|入库|出库|盘点|报废|草稿).*(OCR|图片|识别|采购单|入库单|语音|口述|自然语言|元数据|资料补全|保质期|安全库存)/i.test(text)) return 'inventory';
+    if (/(OCR|图片|识别|语音|口述|自然语言|出库|盘点|报废|商品元数据|资料补全|保质期|安全库存).*(库存|商品|产品|SKU|品项|采购|入库|出库|盘点|报废|草稿)|(库存|商品|产品|SKU|品项|采购|入库|出库|盘点|报废|草稿).*(OCR|图片|识别|语音|口述|自然语言|元数据|资料补全|保质期|安全库存)/i.test(text)) return 'inventory';
     if (/供应商|供货|采购|入库|到货|交期|起订|供应链|结算供应商/.test(text)) return 'supplyChain';
     if (/自动化|自动触达|自动提醒|触达任务|自动任务|策略执行/.test(text)) return 'automation';
     if (/小程序|ami glow|客户端|会员端|绑定|openid|渠道来源/.test(text)) return /渠道|来源/.test(text) ? 'channel' : 'customerApp';

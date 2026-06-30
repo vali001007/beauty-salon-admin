@@ -482,7 +482,7 @@ export class AgentPlannerService {
         return this.buildRoleDeniedPlan('inventory.risk.rank', businessTask, semanticSqlCandidate);
       }
       return {
-        intentType: 'query',
+        intentType: 'analysis_and_recommendation',
         goal: '查询库存风险与安全库存',
         toolPlan: [{ tool: 'inventory.risk.rank', args: { question: input.message, timeRange: businessTask.timeRange?.preset ?? 'today', limit: 20 } }],
         confidence: 0.84,
@@ -490,8 +490,8 @@ export class AgentPlannerService {
         businessTask,
         semanticSqlCandidate,
         capabilityPlan: {
-          capabilityId: 'inventory_risk_ranking',
-          reason: '命中库存风险、安全库存、库存货值或低效库存查询意图。',
+          capabilityId: 'inventory_supply_risk',
+          reason: '命中库存供应风险、安全库存、库存货值或低效库存查询意图。',
         },
         outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'chart', 'action_card', 'evidence_panel']),
       };
@@ -1333,8 +1333,9 @@ export class AgentPlannerService {
 
   private isFinanceRevenueSummaryRequest(text: string) {
     if (/客户名单|客户清单|哪些客户|消费客户|流水客户/.test(text)) return false;
+    if (/会员.*储值|储值.*余额|会员卡.*余额/.test(text)) return false;
     const hasRevenueDomain = /收入|营收|营业额|流水|实收|收款|订单金额|预付|预付款|应收账款|储值|分期付款|挂账|重复收费|双计费|多了还是少了|漏收|多收/.test(text);
-    const hasSummaryIntent = /汇总|概览|总览|看板|统计|小结|实收|漏收|多收|多了还是少了|预付|预付款|应收账款|储值|分期付款|挂账|重复收费|双计费|多少|有没有|记录|需要处理|关注|情况/.test(text);
+    const hasSummaryIntent = /汇总|概览|总览|看板|统计|小结|实收|漏收|多收|多了还是少了|预付|预付款|应收账款|分期付款|挂账|重复收费|双计费|有没有|记录|需要处理|关注/.test(text);
     const hasProfitIntent = /利润|毛利|成本|亏损|提成/.test(text);
     const hasRiskRankIntent = /排行|排名|风险|最低|最高|亏损项|低毛利/.test(text);
     return hasRevenueDomain && hasSummaryIntent && !hasProfitIntent && !hasRiskRankIntent;
@@ -1346,7 +1347,8 @@ export class AgentPlannerService {
     const hasDiscount = /折扣|优惠|打折|免单|赠送|手工优惠|手动优惠|优惠金额|折让/.test(text);
     const hasRefund = /退款|退费/.test(text);
     const hasCashierRisk = /收款|收费/.test(text) && /私自|不入账|重复|双计费|异常|风险/.test(text);
-    return (hasDiscount || hasRefund || hasCashierRisk) && (hasAuditIntent || hasRiskIntent || hasRefund);
+    if (hasRefund && !hasDiscount && !hasCashierRisk && !hasAuditIntent && !/财务|审计|稽核|折扣|手工|优惠|权限|合规|违规/.test(text)) return false;
+    return (hasDiscount || hasRefund || hasCashierRisk) && (hasAuditIntent || hasRiskIntent);
   }
 
   private isFinanceBeauticianPerformanceAuditRequest(text: string) {
@@ -1389,8 +1391,9 @@ export class AgentPlannerService {
 
   private isReceptionCustomerLookupRequest(text: string) {
     if (/这个活动|该活动|这场活动|上次那个活动|上一个活动/.test(text)) return false;
+    if (this.isMarketingOpportunity(text) || this.isPromotionOfferMatchRequest(text) || this.isCustomerPriorityListRequest(text)) return false;
     if (/(搞|做|设计|活动|营销).{0,8}会员权益|会员权益.{0,8}(活动|营销|适合|搞)/.test(text)) return false;
-    if (/营销|转化|roi|投入回报|免费体验|活动吸引|进店.*活动|自动识别|自动升级|自动触发|规则|供应商|理论耗材|实际差|储值卡余额总计/.test(text)) return false;
+    if (/营销|转化|roi|投入回报|免费体验|活动吸引|进店.*活动|自动识别|自动升级|自动触发|规则|供应商|理论耗材|实际差|储值卡余额总计|复购机会/.test(text)) return false;
     const hasLookupIntent =
       /查客户|查询客户|客户资料|客户信息|客户档案|会员资料|会员信息|查一下|快速看一下|看一下|找一下|上次|之前|办过卡|会员等级|权益|剩余|备注|标签|欠款|退款记录|活动|推荐过|固定的习惯|不满|家人也来过|反映的问题/.test(text);
     const hasCustomerMarker = /客户|客人|顾客|会员|手机号|电话|姓名|资料|信息|她|他|这位|这个/.test(text);
@@ -1399,7 +1402,8 @@ export class AgentPlannerService {
 
   private isReceptionReservationTodayRequest(text: string) {
     const hasTimeScope = /今天|今日|本日|明天|明日|本周|这周|下午|上午|现在|临时/.test(text);
-    const hasReservationIntent = /预约|到店|待确认|未确认|没有确认|排期|排班|改期|空档|空位|加客|安排|通知到位|找不到记录|排得特别满|同时安排/.test(text);
+    if (/预约排班|排班.*风险|风险.*排班|邀约|回访|跟进/.test(text)) return false;
+    const hasReservationIntent = /预约|到店|待确认|未确认|没有确认|排期|排班|改期|空档|空位|加客|通知到位|找不到记录|排得特别满|同时安排/.test(text);
     const hasQueryIntent = /查看|查询|看看|有哪些|什么|有没有|几个|几点|哪天|哪个|帮我|确认|能不能|可以吗|需要|能/.test(text);
     const hasNamedReservation = /预约.*(几点|做什么|项目)|(.{2,4})的预约/.test(text);
     const hasReservationAnomaly = /预约.{0,8}(没确认|没有确认|未确认|找不到记录|超过.{0,4}没有确认)|临时来了没预约|没预约.*安排|排得特别满|哪个时段可以加客|同时安排/.test(text);
@@ -1408,6 +1412,7 @@ export class AgentPlannerService {
 
   private isReceptionCardBenefitSummaryRequest(text: string) {
     if (/适合发.*优惠券|发什么优惠券|优惠券.*适合/.test(text)) return false;
+    if (this.isPromotionOfferMatchRequest(text)) return false;
     if (/自动升级|规则|储值卡余额总计|客户都来消费|财务|现金流/.test(text)) return false;
     const hasCardIntent = /卡项权益|还有什么卡|卡还有|卡里还有|还有什么次卡|还剩多少次|剩余次数|可用次数|未核销.*优惠券|优惠券|会员折扣|预存|储值卡|次卡有效期|办过卡|升级会员|核销界面|用次卡|退卡|礼品卡/.test(text);
     const hasCustomerIntent = /客户|客人|顾客|会员|手机号|电话|姓名|张三|李四|王五|这个客户|这位客户|这个客人|这位客人|他|她/.test(text);
@@ -1549,6 +1554,7 @@ export class AgentPlannerService {
 
   private isInventoryRiskQueryRequest(text: string) {
     if (/供应商|采购计划|询价单|价格|账期|物流|下单|到货|供货|质检/.test(text)) return false;
+    if (/哪家|分店|门店/.test(text)) return false;
     if (/补货草稿|采购草稿|生成补货|创建补货|生成采购|创建采购|补货建议草稿/.test(text)) return false;
     const hasRiskIntent = /低于安全库存|安全库存线|安全库存|低库存|缺货|仓库里有多少货|值多少钱|货值|一直有但从来不用|很长时间还没用完|需求突然增加|损耗金额|损耗多少|成本控制空间|过期.*损耗|变质/.test(text);
     const hasInventoryDomain = /库存|商品|产品|货|货品|仓库|耗材|护肤品|原材料|一次性耗材/.test(text);
@@ -1597,7 +1603,7 @@ export class AgentPlannerService {
   private isBeauticianTodayServiceListRequest(text: string) {
     const hasTimeScope = /今天|今日|本日|当天|本周|这周|下午|上午|现在/.test(text);
     const hasCustomerOrService = /客户|客人|顾客|会员|服务|护理|预约|到店|空档|空位|排班|安排|培训|耗材|产品/.test(text);
-    const hasSelfOrBeautician = /我|本人|美容师|我的|下一个|下个|最后一个|有哪些|安排/.test(text);
+    const hasSelfOrBeautician = /我|本人|美容师|我的|下一个|下个|最后一个/.test(text) || (/安排/.test(text) && /美容师|我的|我|服务客户/.test(text));
     const hasQueryIntent = /有哪些|什么|查看|看看|查|安排|列表|几点|多久|几个小时|空档|结束|取消|排班|怎样/.test(text);
     return hasTimeScope && hasCustomerOrService && hasSelfOrBeautician && hasQueryIntent;
   }

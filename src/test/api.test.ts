@@ -528,6 +528,7 @@ describe('API facades', () => {
       realUpdateTerminalServiceRecord: vi.fn(),
       realVerifyTerminalCardUsage: vi.fn(),
       realHeartbeatTerminalDevice: vi.fn(),
+      realGetTerminalPrintableDocumentsToday: vi.fn(),
       realGetTerminalBootstrap,
       realLoginTerminalDevice,
       realProvisionTerminalDevice,
