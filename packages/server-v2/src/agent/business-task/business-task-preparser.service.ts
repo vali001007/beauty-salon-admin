@@ -153,35 +153,42 @@ export class BusinessTaskPreParserService {
     if (/我的.*(表现|业绩|绩效|提成|服务质量|服务|成交|销售|完成|贡献|复购)|我.*(表现|业绩|绩效|提成|服务质量|服务|成交|销售|完成|贡献|复购)/.test(text)) return 'staff';
     if (hasStaffSubject && hasStaffPerformanceIntent) return 'staff';
     if (/售后|退款|退费|退单|退货|投诉|纠纷/.test(text)) return 'afterSales';
+    if (/(OCR|图片|识别|采购单|入库单|语音|口述|自然语言|出库|盘点|报废|商品元数据|资料补全|保质期|安全库存).*(库存|商品|产品|SKU|品项|采购|入库|出库|盘点|报废|草稿)|(库存|商品|产品|SKU|品项|采购|入库|出库|盘点|报废|草稿).*(OCR|图片|识别|采购单|入库单|语音|口述|自然语言|元数据|资料补全|保质期|安全库存)/i.test(text)) return 'inventory';
     if (/供应商|供货|采购|入库|到货|交期|起订|供应链|结算供应商/.test(text)) return 'supplyChain';
     if (/自动化|自动触达|自动提醒|触达任务|自动任务|策略执行/.test(text)) return 'automation';
     if (/小程序|ami glow|客户端|会员端|绑定|openid|渠道来源/.test(text)) return /渠道|来源/.test(text) ? 'channel' : 'customerApp';
+    if (/(卡|次卡|卡项|会员卡|疗程卡).*(权益|剩余|次数|核销)|(权益|剩余|次数|核销).*(卡|次卡|卡项|会员卡|疗程卡)/.test(text)) return 'card';
     if (/优惠券|权益|券|满减|满赠|折扣|促销|优惠码|活动权益/.test(text)) return 'promotion';
     if (/渠道|来源|投放|引流|转化路径/.test(text)) return 'channel';
     if (/营销|活动|推广|推广页|线索|归因|投放/.test(text)) return 'marketing';
     if (/终端|设备|平板|收银机|打印机|扫码器|摄像头|会话|对话失败|问答失败|高频问题/.test(text)) return 'terminal';
     if (/服务质量|服务评价|满意|客户满意|护理效果|护理记录|服务记录|服务任务|护理完成|服务完成|服务记录质量/.test(text)) return 'serviceQuality';
+    if (/调拨/.test(text)) return 'inventory';
     if (/门店|多店|分店|店铺/.test(text)) return 'store';
     if (/(项目|护理|服务|疗程).*(毛利|耗材|成本|利润)|(毛利|耗材|成本|利润).*(项目|护理|服务|疗程)/.test(text)) return 'project';
     if (/(商品|产品|品项|sku).*(毛利|成本|利润)|(毛利|成本|利润).*(商品|产品|品项|sku)/.test(text)) return 'product';
     if (/会员卡|储值卡|余额|充值/.test(text)) return 'memberCard';
     if (/次卡|卡项|疗程卡|核销|剩余次数|到期卡/.test(text)) return 'card';
-    if (/财务|现金流|毛利|成本|利润|盈利|亏损|净收入|实收|净额/.test(text)) return 'finance';
-    if (/库存|补货|临期|缺货|耗材|批次|周转/.test(text)) return 'inventory';
-    if (/预约|爽约|改约/.test(text) || (/到店/.test(text) && /今天|今日|本日|昨天|昨日|明天|明日/.test(text))) return 'reservation';
-    if (/客户|顾客|会员|老客|新客|沉睡|流失|高价值|复购|回访|邀约|唤醒/.test(text)) return 'customer';
+    if (/财务|现金流|毛利|成本|利润|盈利|亏损|净收入|实收|净额|漏收|多收|多了还是少了|大额异常收款|房租水电|打折优惠|免单|赠送金额|应收账款|预付款|分期付款|预算|挂账|重复收费|双计费|报销|储值|估值/.test(text)) return 'finance';
+    if (/现金|微信|支付宝|储值卡|支付方式|收款|收了多少|收到多少|收款记录|收款明细|第一笔收款|这笔单子|买单|结算/.test(text)) return 'order';
+    if (/库存|补货|临期|缺货|耗材|批次|周转|调拨|仓库|货值|进出库|过期|损耗|保存不当|变质|原材料|备货|多备|质检|物流|下单|到货|什么时候能到|低于安全库存|安全库存线|洗面奶|补水精华/.test(text)) return 'inventory';
+    if (/预约|爽约|改约|改期|空档|空位|加客|找不到记录|待确认|未确认|没有确认|没预约.*安排|同时安排/.test(text) || (/到店/.test(text) && /今天|今日|本日|昨天|昨日|明天|明日/.test(text))) return 'reservation';
+    if (/客户|顾客|客人|会员|老客|新客|沉睡|流失|高价值|复购|回访|邀约|唤醒|上次来|固定的习惯|表达过.*不满|家人也来过|反映的问题/.test(text)) return 'customer';
     if (/商品|产品|品项|sku/.test(text)) return 'product';
     if (/项目|护理|服务|疗程/.test(text)) return 'project';
-    if (/收入|营收|营业额|流水|业绩|收了多少钱|收款多少|客单价|订单数/.test(text)) return 'business';
+    if (/收入|营收|营业额|流水|业绩|收了多少钱|收款多少|客单价|订单数|目标完成率|异常情况|接待能力|紧急事项|年底.*盘点|经营.*客户.*库存|复购率|比.*上.*差距|哪天.*差距|哪天特别差/.test(text)) return 'business';
     if (/排班|班表|人手|请假|忙碌|美容师/.test(text)) return 'schedule';
     if (/订单|收银|开单|流水|消费|成交|客单价|支付方式/.test(text)) return 'order';
-    if (/营销|活动|触达|转化|推广|推广页|线索/.test(text)) return 'marketing';
+    if (/营销|活动|触达|转化|推广|推广页|线索|文案|话术|消息|模板|祝福|欢迎词|脚本|通知/.test(text)) return 'marketing';
     if (/员工|店员|顾问|绩效|提成/.test(text)) return 'staff';
     if (/经营|收入|营收|营业额|业绩|客单价|订单数/.test(text)) return 'business';
     return 'unknown';
   }
 
   private detectTaskType(text: string): BusinessTaskType {
+    if (/收款记录|收款明细|第一笔收款|支付方式|微信还是现金|几笔.*储值卡消费|今天.*收款|上周.*收款/.test(text)) {
+      return 'query';
+    }
     if (/发布|上线|群发|发送|自动发|扣款|收款|直接退款|发起退款|确认退款|退款给|直接核销|帮.*核销|确认核销|核销次卡|划扣|确认收银|改排班|删除|下发/.test(text)) {
       return 'workflow';
     }
@@ -311,7 +318,7 @@ export class BusinessTaskPreParserService {
     if (domain === 'finance' && /成本|耗材/.test(text)) metrics.add('material_cost');
     if (domain === 'finance' && /提成/.test(text)) metrics.add('commission_cost');
     if (domain === 'finance' && /现金流|实收|收款|净额|净收入/.test(text)) metrics.add('net_revenue');
-    if (/库存|补货|缺货|临期|不够|风险|预警/.test(text)) metrics.add('stock_risk_score');
+    if (/库存|补货|缺货|临期|不够|风险|预警|调拨|OCR|图片|识别|采购单|入库单|语音|口述|出库|盘点|报废|元数据|资料补全|保质期|安全库存/.test(text)) metrics.add('stock_risk_score');
     if (domain === 'inventory' && /周转/.test(text)) metrics.add('stock_turnover_days');
     if (domain === 'inventory' && /批次|临期|过期/.test(text)) metrics.add('batch_expiry_risk');
     if (/预约|到店|爽约/.test(text)) metrics.add('reservation_count');
@@ -340,7 +347,8 @@ export class BusinessTaskPreParserService {
     if (domain === 'supplyChain' && /结算|应付|账款/.test(text)) metrics.add('supplier_settlement_amount');
     if (domain === 'supplyChain' && /采购|补货|供应商/.test(text)) metrics.add('supplier_purchase_score');
     if (domain === 'supplyChain' && !metrics.size) metrics.add('supplier_delivery_cycle');
-    if (domain === 'marketing' && /转化|效果|漏斗|线索|活动/.test(text)) metrics.add('campaign_conversion_rate');
+    if (domain === 'marketing' && /活动/.test(text) && !/转化|效果|漏斗|线索|成交|归因|roi/i.test(text)) metrics.add('marketing_activity_count');
+    if (domain === 'marketing' && /转化|效果|漏斗|线索/.test(text)) metrics.add('campaign_conversion_rate');
     if (domain === 'marketing' && /收入|成交|roi|归因/.test(text)) metrics.add('campaign_revenue');
     if (domain === 'promotion' && /领取|核销|使用|权益|券/.test(text)) metrics.add('promotion_claim_rate');
     if (domain === 'promotion' && /效果|转化|成交/.test(text)) metrics.add('campaign_conversion_rate');

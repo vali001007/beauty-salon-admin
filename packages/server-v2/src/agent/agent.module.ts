@@ -31,6 +31,11 @@ import { BusinessTaskCompilerService } from './business-task/business-task-compi
 import { BusinessTaskLlmCompilerService } from './business-task/business-task-llm-compiler.service.js';
 import { BusinessTaskPreParserService } from './business-task/business-task-preparser.service.js';
 import { CapabilityRegistryService } from './capabilities/capability-registry.service.js';
+import { ActionOntologyService } from './knowledge/action-ontology.service.js';
+import { CapabilityCatalogService } from './knowledge/capability-catalog.service.js';
+import { EntityResolverService } from './knowledge/entity-resolver.service.js';
+import { SchemaGraphService } from './knowledge/schema-graph.service.js';
+import { UnifiedQueryPlannerService } from './knowledge/unified-query-planner.service.js';
 import { AgentSkillsRegistryService } from './skills/index.js';
 import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
 import { SemanticDataModule } from '../semantic-data/semantic-data.module.js';
@@ -81,6 +86,11 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     BusinessTaskLlmCompilerService,
     BusinessTaskPreParserService,
     CapabilityRegistryService,
+    ActionOntologyService,
+    CapabilityCatalogService,
+    EntityResolverService,
+    SchemaGraphService,
+    UnifiedQueryPlannerService,
     AgentSkillsRegistryService,
     SemanticMetricRegistryService,
     SemanticSqlDecisionService,
@@ -95,6 +105,10 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     AgentObservabilityService,
     AgentAutomationService,
     AgentSchemaReadinessService,
+    CapabilityCatalogService,
+    EntityResolverService,
+    SchemaGraphService,
+    UnifiedQueryPlannerService,
   ],
 })
 export class AgentModule {}

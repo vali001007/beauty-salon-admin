@@ -1,5 +1,9 @@
 import { BusinessQueryService } from './business-query.service.js';
 import type { BusinessQueryResponse } from './business-query.types.js';
+import { ActionOntologyService } from '../agent/knowledge/action-ontology.service.js';
+import { CapabilityCatalogService } from '../agent/knowledge/capability-catalog.service.js';
+import { EntityResolverService } from '../agent/knowledge/entity-resolver.service.js';
+import { UnifiedQueryPlannerService } from '../agent/knowledge/unified-query-planner.service.js';
 
 function expectBusinessQueryResponseContract(
   result: BusinessQueryResponse,
@@ -36,6 +40,12 @@ function expectBusinessQueryResponseContract(
   }
 }
 
+function createUnifiedQueryPlanner(prisma: jest.Mocked<any>) {
+  const entityResolver = new EntityResolverService(prisma);
+  const capabilityCatalog = new CapabilityCatalogService(new ActionOntologyService());
+  return new UnifiedQueryPlannerService(entityResolver, capabilityCatalog);
+}
+
 describe('BusinessQueryService', () => {
   let prisma: jest.Mocked<any>;
   let service: BusinessQueryService;
@@ -44,20 +54,23 @@ describe('BusinessQueryService', () => {
     prisma = {
       orderItem: { findMany: jest.fn() },
       product: { findMany: jest.fn() },
+      stockBatch: { findMany: jest.fn() },
       project: { findMany: jest.fn() },
       customer: { findMany: jest.fn() },
       beautician: { findMany: jest.fn() },
       reservation: { findMany: jest.fn() },
       schedule: { findMany: jest.fn() },
       serviceTask: { findMany: jest.fn() },
-      productOrder: { findMany: jest.fn() },
-      customerCard: { findMany: jest.fn() },
+      productOrder: { findMany: jest.fn(), findFirst: jest.fn() },
+      customerCard: { findMany: jest.fn(), findFirst: jest.fn() },
       cardUsageRecord: { findMany: jest.fn() },
       customerBalanceAccount: { findMany: jest.fn() },
       commissionRecord: { findMany: jest.fn() },
       paymentRecord: { findMany: jest.fn() },
       refundRecord: { findMany: jest.fn() },
       marketingAttribution: { findMany: jest.fn() },
+      marketingActivity: { findMany: jest.fn(), findUnique: jest.fn() },
+      marketingPage: { findMany: jest.fn() },
       marketingPageAttribution: { findMany: jest.fn() },
       recommendationEvent: { findMany: jest.fn() },
       marketingAutomationExecution: { findMany: jest.fn() },
@@ -66,7 +79,647 @@ describe('BusinessQueryService', () => {
       userStore: { findMany: jest.fn() },
       aiAuditLog: { create: jest.fn() },
     };
+    prisma.marketingPage.findMany?.mockResolvedValue?.([]);
+    prisma.marketingActivity.findMany?.mockResolvedValue?.([]);
+    prisma.customer.findMany.mockResolvedValue([]);
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.stockBatch.findMany.mockResolvedValue([]);
+    prisma.project.findMany.mockResolvedValue([]);
+    prisma.beautician.findMany.mockResolvedValue([]);
+    prisma.productOrder.findMany.mockResolvedValue([]);
+    prisma.customerCard.findMany.mockResolvedValue([]);
     service = new BusinessQueryService(prisma);
+  });
+
+  it('uses entity-driven knowledge query for marketing activity link lookup before legacy project rules', async () => {
+    prisma.marketingPage.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 11,
+          activityId: 7,
+          title: '老朋友回店护理礼',
+          shareUrl: 'https://example.com/old-friend',
+          miniappPath: '/pages/marketing/old-friend',
+          qrCodeUrl: null,
+          status: 'published',
+          storeId: 1,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 11,
+          activityId: 7,
+          title: '老朋友回店护理礼',
+          shareUrl: 'https://example.com/old-friend',
+          miniappPath: '/pages/marketing/old-friend',
+          qrCodeUrl: null,
+          status: 'published',
+          storeId: 1,
+        },
+      ]);
+    prisma.marketingActivity.findMany.mockResolvedValue([
+      {
+        id: 7,
+        title: '老朋友回店护理礼',
+        status: 'active',
+        publishStatus: 'published',
+      },
+    ]);
+    prisma.marketingActivity.findUnique.mockResolvedValue({
+      id: 7,
+      title: '老朋友回店护理礼',
+      status: 'active',
+      publishStatus: 'published',
+      startDate: null,
+      endDate: null,
+      publishedAt: new Date('2026-06-01T00:00:00.000Z'),
+    });
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '老朋友回店护理礼活动链接发我',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.domain).toBe('marketing');
+    expect(result.capability).toBe('marketing_activity_link_lookup');
+    expect(result.answer).toContain('https://example.com/old-friend');
+    expect(result.queryPlan.filters.entityResolution).toEqual(
+      expect.objectContaining({
+        status: 'resolved',
+        action: 'get_link',
+        capabilityId: 'marketing.activity.link.lookup',
+      }),
+    );
+    expect(result.queryPlan.plannerTrace).toEqual(
+      expect.objectContaining({
+        parserVersion: 'unified-query-planner-v1',
+        actionIntent: 'get_link',
+        capabilityId: 'marketing.activity.link.lookup',
+        executionPath: 'knowledge_graph',
+        fallbackReason: null,
+      }),
+    );
+  });
+
+  it('executes knowledge-routed marketing activity list without falling through to legacy semantic query', async () => {
+    prisma.marketingPage.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 11,
+          activityId: 7,
+          storeId: 1,
+          shareUrl: 'https://example.com/old-friend',
+          miniappPath: null,
+          qrCodeUrl: null,
+        },
+      ]);
+    prisma.marketingActivity.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          title: '老朋友回店护理礼',
+          status: 'active',
+          publishStatus: 'published',
+          participants: 18,
+          conversion: '12%',
+          startDate: new Date('2026-06-01T00:00:00.000Z'),
+          endDate: new Date('2026-06-30T00:00:00.000Z'),
+          targetCustomers: '沉睡客户',
+          discount: '护理礼',
+          publishedAt: new Date('2026-06-01T00:00:00.000Z'),
+          createdAt: new Date('2026-06-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-06-20T00:00:00.000Z'),
+        },
+      ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '推荐近期营销活动',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result.capability).toBe('marketing_activity_list');
+    expect(result.card?.type).toBe('marketingActivityList');
+    expect(result.answer).toContain('老朋友回店护理礼');
+    expect(result.queryPlan.filters.entityResolution).toEqual(
+      expect.objectContaining({
+        status: 'not_found',
+        action: 'recommend',
+        capabilityId: 'marketing.activity.list',
+      }),
+    );
+  });
+
+  it('filters marketing activity list by current-store marketing pages when activities have no storeId', async () => {
+    prisma.marketingPage.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 11,
+          activityId: 7,
+          storeId: 1,
+          shareUrl: 'https://example.com/old-friend',
+          miniappPath: null,
+          qrCodeUrl: null,
+        },
+      ]);
+    prisma.marketingActivity.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          title: '老朋友回店护理礼',
+          status: 'active',
+          publishStatus: 'published',
+          participants: 18,
+          conversion: '12%',
+          startDate: new Date('2026-06-01T00:00:00.000Z'),
+          endDate: new Date('2026-06-30T00:00:00.000Z'),
+          targetCustomers: '沉睡客户',
+          discount: '护理礼',
+          publishedAt: new Date('2026-06-01T00:00:00.000Z'),
+          createdAt: new Date('2026-06-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-06-20T00:00:00.000Z'),
+        },
+        {
+          id: 8,
+          title: '其他门店周年庆',
+          status: 'active',
+          publishStatus: 'published',
+          participants: 99,
+          conversion: '30%',
+          startDate: new Date('2026-06-01T00:00:00.000Z'),
+          endDate: new Date('2026-06-30T00:00:00.000Z'),
+          targetCustomers: '全量客户',
+          discount: '周年礼',
+          publishedAt: new Date('2026-06-01T00:00:00.000Z'),
+          createdAt: new Date('2026-06-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-06-21T00:00:00.000Z'),
+        },
+      ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '推荐近期营销活动',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result.card?.items).toHaveLength(1);
+    expect(result.card?.items[0]).toMatchObject({ activityName: '老朋友回店护理礼' });
+    expect(result.answer).not.toContain('其他门店周年庆');
+    expect(prisma.marketingPage.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          activityId: { in: [7, 8] },
+          OR: [{ storeId: 1 }, { storeId: null }],
+        }),
+      }),
+    );
+    expect(result.evidence.filters).toContain('MarketingPage.storeId=当前门店或全局页');
+  });
+
+  it('does not invent marketing activities when no activity records exist', async () => {
+    prisma.marketingPage.findMany.mockResolvedValue([]);
+    prisma.marketingActivity.findMany.mockResolvedValue([]);
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '推荐近期营销活动',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'no_data');
+    expect(result.capability).toBe('marketing_activity_list');
+    expect(result.answer).toContain('没有可查看的营销活动');
+    expect(result.card?.items ?? []).toHaveLength(0);
+    expect(result.evidence.source).toEqual(['MarketingActivity', 'MarketingPage']);
+  });
+
+  it('does not fabricate a marketing link when the resolved activity has no publishable page link', async () => {
+    prisma.marketingPage.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 11,
+          activityId: 7,
+          title: '老朋友回店护理礼',
+          shareUrl: null,
+          miniappPath: null,
+          qrCodeUrl: null,
+          status: 'draft',
+          storeId: 1,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 11,
+          activityId: 7,
+          title: '老朋友回店护理礼',
+          shareUrl: null,
+          miniappPath: null,
+          qrCodeUrl: null,
+          status: 'draft',
+          storeId: 1,
+        },
+      ]);
+    prisma.marketingActivity.findMany.mockResolvedValue([
+      {
+        id: 7,
+        title: '老朋友回店护理礼',
+        status: 'active',
+        publishStatus: 'draft',
+      },
+    ]);
+    prisma.marketingActivity.findUnique.mockResolvedValue({
+      id: 7,
+      title: '老朋友回店护理礼',
+      status: 'active',
+      publishStatus: 'draft',
+      startDate: null,
+      endDate: null,
+      publishedAt: null,
+    });
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '老朋友回店护理礼活动链接发我',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.capability).toBe('marketing_activity_link_lookup');
+    expect(result.answer).toContain('当前没有可直接发送的活动链接');
+    expect(result.answer).not.toContain('https://');
+    expect(result.card?.items[0]).toMatchObject({
+      活动链接: '',
+      小程序路径: '',
+      二维码: '',
+    });
+    expect(result.actions).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: '打开活动链接' })]));
+  });
+
+  it('executes knowledge-routed inventory product lookup with resolved product scope', async () => {
+    prisma.product.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 301,
+          name: '一次性丁腈手套',
+          sku: 'GLOVE-NITRILE',
+          brand: 'Ami',
+          currentStock: 3,
+          safetyStock: 20,
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 301,
+          name: '一次性丁腈手套',
+          sku: 'GLOVE-NITRILE',
+          currentStock: 3,
+          safetyStock: 20,
+          unit: '盒',
+          status: 'active',
+        },
+      ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '一次性丁腈手套库存还够吗',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.capability).toBe('inventory_alert');
+    expect(result.queryPlan.filters.contextProductIds).toEqual([301]);
+    expect(result.card?.items[0]).toMatchObject({
+      productId: 301,
+      productName: '一次性丁腈手套',
+      currentStock: 3,
+      safetyStock: 20,
+    });
+  });
+
+  it('executes knowledge-routed expiring inventory list from stock batches', async () => {
+    prisma.stockBatch.findMany.mockResolvedValueOnce([
+      {
+        id: 801,
+        batchNo: 'BATCH-EXP-001',
+        stock: 6,
+        productionDate: new Date('2026-03-01T00:00:00.000Z'),
+        expiryDate: new Date(Date.now() + 15 * 86_400_000),
+        product: {
+          id: 301,
+          name: '屏障修护精华',
+          sku: 'SERUM-REPAIR',
+          unit: '瓶',
+          currentStock: 9,
+          safetyStock: 5,
+          status: 'active',
+        },
+      },
+      {
+        id: 802,
+        batchNo: 'BATCH-EXP-002',
+        stock: 3,
+        productionDate: new Date('2026-02-01T00:00:00.000Z'),
+        expiryDate: new Date(Date.now() + 45 * 86_400_000),
+        product: {
+          id: 302,
+          name: '舒缓面膜',
+          sku: 'MASK-CALM',
+          unit: '盒',
+          currentStock: 12,
+          safetyStock: 8,
+          status: 'active',
+        },
+      },
+    ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '近期有哪些临期库存产品',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result.capability).toBe('inventory_alert');
+    expect(result.card?.type).toBe('inventoryExpiringList');
+    expect(result.card?.items[0]).toEqual(
+      expect.objectContaining({
+        batchNo: 'BATCH-EXP-001',
+        productName: '屏障修护精华',
+        status: '紧急临期',
+      }),
+    );
+    expect(result.actions.map((item) => item.action)).toContain('inventory.expiring.consume_plan.draft');
+  });
+
+  it('executes knowledge-routed customer recall list with requested limit', async () => {
+    prisma.customer.findMany.mockResolvedValue(
+      Array.from({ length: 12 }).map((_, index) => ({
+        id: 100 + index,
+        name: `客户${index + 1}`,
+        phone: `138000000${String(index).padStart(2, '0')}`.slice(0, 11),
+        memberLevel: index < 3 ? '金卡' : '银卡',
+        totalSpent: 20_000 - index * 500,
+        visitCount: 30 - index,
+        lastVisitDate: new Date(Date.now() - (60 + index) * 86_400_000),
+        tags: ['沉睡'],
+      })),
+    );
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '请列出10个需要紧急召回的客户',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result.capability).toBe('customer_growth_opportunity');
+    expect(result.card?.items).toHaveLength(10);
+    expect(result.queryPlan.plannerTrace).toEqual(
+      expect.objectContaining({
+        capabilityId: 'marketing.customer.recall.list',
+        executionPath: 'knowledge_graph',
+      }),
+    );
+    expect(result.answer).toContain('高价值客户');
+  });
+
+  it('does not invent customer recall candidates when no customer records exist', async () => {
+    prisma.customer.findMany.mockResolvedValue([]);
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '请列出10个需要紧急召回的客户',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'no_data');
+    expect(result.capability).toBe('customer_growth_opportunity');
+    expect(result.answer).toContain('没有可用于客户增长分析的客户数据');
+    expect(result.card?.items ?? []).toHaveLength(0);
+    expect(result.evidence.source).toEqual(['Customer']);
+  });
+
+  it('executes knowledge-routed today transaction list with print action', async () => {
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        id: 9001,
+        orderNo: 'PO-TODAY-001',
+        checkoutGroupNo: 'CG-TODAY-001',
+        orderKind: 'product',
+        customerName: '张雯',
+        totalAmount: 680,
+        netAmount: 650,
+        status: 'completed',
+        payMethod: 'cash',
+        source: 'kiosk',
+        createdAt: new Date(),
+        orderItems: [{ itemType: 'product', name: '补水精华', quantity: 1, netAmount: 650, subtotal: 680 }],
+        paymentRecords: [{ amount: 650, method: 'cash', status: 'paid', paidAt: new Date() }],
+        refundRecords: [],
+      },
+      {
+        id: 9002,
+        orderNo: 'PO-TODAY-002',
+        checkoutGroupNo: 'CG-TODAY-002',
+        orderKind: 'card',
+        customerName: '李晓',
+        totalAmount: 1980,
+        netAmount: 1980,
+        status: 'completed',
+        payMethod: 'wechat',
+        source: 'kiosk',
+        createdAt: new Date(),
+        orderItems: [{ itemType: 'card', name: '水光护理卡', quantity: 1, netAmount: 1980, subtotal: 1980 }],
+        paymentRecords: [{ amount: 1980, method: 'wechat', status: 'paid', paidAt: new Date() }],
+        refundRecords: [],
+      },
+    ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({
+      question: '列出今天所有收银、核销、办卡订单列表，支持打印操作',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result.capability).toBe('finance_today_transaction_list');
+    expect(result.card?.type).toBe('financeTodayTransactionList');
+    expect(result.card?.items[0]).toEqual(
+      expect.objectContaining({
+        orderNo: 'PO-TODAY-001',
+        transactionType: '商品收银',
+        printable: true,
+      }),
+    );
+    expect(result.actions.map((item) => item.action)).toContain('print:today_transactions');
+  });
+
+  it('executes knowledge-routed customer reservation lookup for a resolved customer', async () => {
+    prisma.customer.findMany.mockResolvedValueOnce([{ id: 21, name: '张雯', phone: '13800008888', memberLevel: '金卡' }]);
+    prisma.reservation.findMany.mockResolvedValueOnce([
+      {
+        id: 701,
+        date: new Date(),
+        startTime: '14:00',
+        endTime: '15:00',
+        status: 'confirmed',
+        checkedInAt: null,
+        project: { id: 77, name: '肩颈舒压护理' },
+        beautician: { id: 43, name: '宋乔' },
+        customer: { id: 21, name: '张雯' },
+      },
+    ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({ question: '张雯今天有哪些预约', storeId: 1, role: 'reception' });
+
+    expect(result.status).toBe('success');
+    expect(result.capability).toBe('customer_reservation_today');
+    expect(result.card?.items[0]).toMatchObject({
+      customerName: '张雯',
+      projectName: '肩颈舒压护理',
+      beauticianName: '宋乔',
+      startTime: '14:00',
+    });
+  });
+
+  it('executes knowledge-routed customer card benefit summary for a resolved customer', async () => {
+    prisma.customer.findMany.mockResolvedValueOnce([{ id: 21, name: '张雯', phone: '13800008888', memberLevel: '金卡' }]);
+    prisma.customerCard.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 501,
+          cardName: '水光护理卡',
+          remainingTimes: 3,
+          totalTimes: 10,
+          giftTimes: 1,
+          expiryDate: new Date('2026-09-01T00:00:00.000Z'),
+          status: 'active',
+          customer: { id: 21, name: '张雯', memberLevel: '金卡' },
+        },
+      ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({ question: '张雯还有什么卡和权益', storeId: 1, role: 'reception' });
+
+    expect(result.status).toBe('success');
+    expect(result.capability).toBe('customer_card_benefit_summary');
+    expect(result.card?.items[0]).toMatchObject({
+      customerName: '张雯',
+      cardName: '水光护理卡',
+      remainingTimes: 3,
+    });
+  });
+
+  it('executes knowledge-routed order lookup for a resolved order number', async () => {
+    prisma.productOrder.findMany.mockResolvedValueOnce([
+      { id: 9001, orderNo: 'PO202606300001', checkoutGroupNo: 'CG202606300001', customerName: '张雯', status: 'completed' },
+    ]);
+    prisma.productOrder.findFirst.mockResolvedValueOnce({
+      id: 9001,
+      orderNo: 'PO202606300001',
+      checkoutGroupNo: 'CG202606300001',
+      orderKind: 'product',
+      customerName: '张雯',
+      totalAmount: 880,
+      netAmount: 780,
+      status: 'completed',
+      payMethod: 'cash',
+      createdAt: new Date('2026-06-30T10:00:00.000Z'),
+      orderItems: [{ id: 1, itemType: 'product', name: '补水精华', quantity: 1, unitPrice: 880, netAmount: 780, subtotal: 880 }],
+      paymentRecords: [{ id: 1, amount: 780, method: 'cash', status: 'paid', paidAt: new Date('2026-06-30T10:01:00.000Z') }],
+      refundRecords: [],
+    });
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({ question: '查一下订单 PO202606300001', storeId: 1, role: 'manager' });
+
+    expect(result.status).toBe('success');
+    expect(result.capability).toBe('finance_order_lookup');
+    expect(result.card?.items[0]).toMatchObject({ orderNo: 'PO202606300001', netAmount: 780, itemCount: 1, paymentCount: 1 });
+  });
+
+  it('does not invent order details when a resolved order is not found in the current store', async () => {
+    prisma.productOrder.findMany.mockResolvedValueOnce([
+      { id: 9001, orderNo: 'PO202606300001', checkoutGroupNo: 'CG202606300001', customerName: '张雯', status: 'completed' },
+    ]);
+    prisma.productOrder.findFirst.mockResolvedValueOnce(null);
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({ question: '查一下订单 PO202606300001', storeId: 1, role: 'manager' });
+
+    expectBusinessQueryResponseContract(result, 'no_data');
+    expect(result.capability).toBe('finance_order_lookup');
+    expect(result.answer).toContain('未找到该订单');
+    expect(result.card?.items ?? []).toHaveLength(0);
+    expect(prisma.productOrder.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 9001, storeId: 1 },
+      }),
+    );
+  });
+
+  it('executes knowledge-routed member card lookup for a resolved customer card', async () => {
+    prisma.customerCard.findMany.mockResolvedValueOnce([
+      {
+        id: 501,
+        cardName: '水光护理卡',
+        remainingTimes: 3,
+        totalTimes: 10,
+        expiryDate: new Date('2026-09-01T00:00:00.000Z'),
+        status: 'active',
+        customer: { id: 21, name: '张雯', memberLevel: '金卡' },
+      },
+    ]);
+    prisma.customerCard.findFirst.mockResolvedValueOnce({
+      id: 501,
+      cardName: '水光护理卡',
+      remainingTimes: 3,
+      totalTimes: 10,
+      giftTimes: 1,
+      expiryDate: new Date('2026-09-01T00:00:00.000Z'),
+      status: 'active',
+      customer: { id: 21, name: '张雯', phone: '13800008888', memberLevel: '金卡' },
+      usageRecords: [{ id: 1, projectName: '水光护理', times: 1, remainingTimes: 3, verifiedAt: new Date('2026-06-20T10:00:00.000Z'), beautician: { id: 43, name: '宋乔' } }],
+    });
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({ question: '张雯的水光护理卡还剩几次', storeId: 1, role: 'reception' });
+
+    expect(result.status).toBe('success');
+    expect(result.capability).toBe('member_card_lookup');
+    expect(result.card?.items[0]).toMatchObject({ customerName: '张雯', cardName: '水光护理卡', remainingTimes: 3 });
   });
 
   it('routes product sales growth questions to product sales trend instead of customer growth', () => {
@@ -90,6 +743,24 @@ describe('BusinessQueryService', () => {
 
     expect(plan.domain).toBe('customer');
     expect(plan.capability).toBe('customer_growth_opportunity');
+  });
+
+  it('marks legacy fallback reason when unified planner is not available', () => {
+    const plan = service.resolve({
+      question: '经营异常提醒',
+      storeId: 1,
+      role: 'manager',
+    });
+
+    expect(plan.capability).toBe('business_anomaly_alert');
+    expect(plan.plannerTrace).toEqual(
+      expect.objectContaining({
+        parserVersion: 'legacy-rule',
+        executionPath: 'legacy_fallback',
+        fallbackReason: 'business_task_preparser_unavailable',
+      }),
+    );
+    expect(plan.fallbackReason).toBe('business_task_preparser_unavailable');
   });
 
   it('uses unified query hub before legacy BusinessQuery query methods when planner is injected', async () => {
@@ -886,6 +1557,49 @@ describe('BusinessQueryService', () => {
       convertedCount: 1,
       attributedRevenue: 1300,
     });
+    expect(prisma.marketingAutomationExecution.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          touches: { some: { customer: { storeId: 1 } } },
+        }),
+        include: expect.objectContaining({
+          touches: expect.objectContaining({ where: { customer: { storeId: 1 } } }),
+          attributions: expect.objectContaining({ where: { customer: { storeId: 1 }, order: { storeId: 1 } } }),
+        }),
+      }),
+    );
+    expect(result.evidence.filters).toContain('storeId=当前门店');
+  });
+
+  it('executes automation summary through the knowledge planner without falling back to legacy', async () => {
+    prisma.marketingAutomationExecution.findMany.mockResolvedValue([
+      {
+        id: 1,
+        strategyId: 401,
+        strategyName: '沉睡客户唤醒',
+        status: 'success',
+        triggeredCount: 10,
+        reachedCount: 8,
+        executedAt: new Date(),
+        strategy: { id: 401, name: '沉睡客户唤醒', status: 'enabled', source: 'manual' },
+        touches: [{ id: 1, status: 'converted', actualRevenue: 500, convertedAt: new Date(), customerId: 101 }],
+        attributions: [{ id: 1, attributedRevenue: 800, customerId: 101, orderId: 1001 }],
+      },
+    ]);
+
+    const knowledgeService = new BusinessQueryService(prisma, undefined, undefined, undefined, createUnifiedQueryPlanner(prisma));
+
+    const result = await knowledgeService.ask({ question: '自动化执行复盘', storeId: 1, role: 'manager' });
+
+    expectBusinessQueryResponseContract(result, 'success', { requireCard: true, requireItems: true });
+    expect(result.capability).toBe('automation_execution_summary');
+    expect(result.queryPlan.plannerTrace).toEqual(
+      expect.objectContaining({
+        executionPath: 'knowledge_graph',
+        capabilityId: 'automation.execution.summary',
+        fallbackReason: null,
+      }),
+    );
   });
 
   it('estimates project material margin from BOM and product cost', async () => {
@@ -975,6 +1689,14 @@ describe('BusinessQueryService', () => {
         expect.objectContaining({ domain: '自动化', severity: 'high' }),
       ]),
     );
+    expect(prisma.marketingAutomationExecution.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          touches: { some: { customer: { storeId: 1 } } },
+        }),
+      }),
+    );
+    expect(result.evidence.filters).toContain('自动化执行通过 touch.customer.storeId 限定当前门店');
   });
 
   it('compares only stores authorized for the current operator', async () => {

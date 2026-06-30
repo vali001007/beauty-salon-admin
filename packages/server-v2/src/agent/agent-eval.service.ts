@@ -5,6 +5,7 @@ import { AgentResponseSafetyService } from './agent-response-safety.service.js';
 import { AgentToolRegistryService } from './agent-tool-registry.service.js';
 import type { AgentToolResult } from './agent.types.js';
 import { DEFAULT_AGENT_EVAL_CASES, P0_AGENT_EVAL_CASES, type AgentEvalCaseDefinition } from './agent-eval.cases.js';
+import type { AgentEvalConversationCase, AgentEvalConversationTurn } from './agent-eval-question-bank.js';
 import { AgentSkillsRegistryService } from './skills/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -15,6 +16,21 @@ export type AgentEvalCaseResult = {
   expected: Record<string, unknown>;
   actual: Record<string, unknown>;
   errors: string[];
+};
+
+export type AgentEvalConversationTurnResult = AgentEvalCaseResult & {
+  turnId: string;
+  turnIndex: number;
+};
+
+export type AgentEvalConversationCaseResult = {
+  id: string;
+  scenario: string;
+  passed: boolean;
+  totalTurns: number;
+  passedTurns: number;
+  failedTurns: number;
+  turns: AgentEvalConversationTurnResult[];
 };
 
 export type AgentEvalRunOptions = {
@@ -137,6 +153,75 @@ export class AgentEvalService {
     return this.runDefaultCases(P0_AGENT_EVAL_CASES, options);
   }
 
+  async runConversationCases(cases: AgentEvalConversationCase[], options: AgentEvalRunOptions = {}) {
+    const conversationResults: AgentEvalConversationCaseResult[] = [];
+    const turnResults: AgentEvalConversationTurnResult[] = [];
+
+    for (const testCase of cases) {
+      let context = this.toJsonObject(testCase.initialContext ?? {});
+      const turns: AgentEvalConversationTurnResult[] = [];
+
+      for (const [index, turn] of testCase.turns.entries()) {
+        const role = turn.role ?? testCase.role;
+        const plan = await this.planner.plan({
+          message: turn.input,
+          actor: { storeId: 1, userId: 1, role, entrypoint: 'eval' },
+          context,
+        });
+        const actual = this.buildConversationTurnActual(turn, role, plan);
+        const expected = this.buildConversationTurnExpected(turn);
+        const errors = this.collectConversationTurnErrors(expected, actual);
+        const result: AgentEvalConversationTurnResult = {
+          id: `${testCase.id}:${turn.id}`,
+          scenario: testCase.scenario,
+          turnId: turn.id,
+          turnIndex: index + 1,
+          passed: errors.length === 0,
+          expected,
+          actual,
+          errors,
+        };
+        turns.push(result);
+        turnResults.push(result);
+        if (turn.contextPatch) {
+          context = this.mergeContext(context, turn.contextPatch);
+        }
+      }
+
+      conversationResults.push({
+        id: testCase.id,
+        scenario: testCase.scenario,
+        passed: turns.every((item) => item.passed),
+        totalTurns: turns.length,
+        passedTurns: turns.filter((item) => item.passed).length,
+        failedTurns: turns.filter((item) => !item.passed).length,
+        turns,
+      });
+    }
+
+    const failedResults = turnResults.filter((item) => !item.passed);
+    const savedFailureSamples = options.persistFailures
+      ? await this.persistFailedSamples(failedResults, options.source ?? 'agent_eval_conversation')
+      : 0;
+    return {
+      total: turnResults.length,
+      passed: turnResults.filter((item) => item.passed).length,
+      failed: failedResults.length,
+      conversations: conversationResults,
+      results: turnResults,
+      failureSamples: failedResults.map((item) => ({
+        id: item.id,
+        scenario: item.scenario,
+        turnId: item.turnId,
+        input: String((item.actual as any).input ?? ''),
+        expected: item.expected,
+        actual: item.actual,
+        errors: item.errors,
+      })),
+      savedFailureSamples,
+    };
+  }
+
   async runSkillCases(skillId?: string, options: AgentEvalRunOptions = {}) {
     const skills = (this.skillRegistry?.list() ?? []).filter((skill) => (skillId ? skill.id === skillId : skill.evalCases.length > 0));
     const cases = skills.flatMap((skill) =>
@@ -231,6 +316,22 @@ export class AgentEvalService {
     return JSON.parse(JSON.stringify(value));
   }
 
+  private mergeContext(base: Record<string, unknown>, patch: Record<string, unknown>) {
+    return this.deepMerge(this.toJsonObject(base), this.toJsonObject(patch));
+  }
+
+  private deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+    const merged = { ...base };
+    for (const [key, value] of Object.entries(patch)) {
+      if (this.isPlainObject(value) && this.isPlainObject(merged[key])) {
+        merged[key] = this.deepMerge(merged[key] as Record<string, unknown>, value);
+      } else {
+        merged[key] = value;
+      }
+    }
+    return merged;
+  }
+
   private getBusinessTaskDomain(value: unknown) {
     if (!value || typeof value !== 'object') return undefined;
     const domain = (value as { domain?: unknown }).domain;
@@ -306,6 +407,55 @@ export class AgentEvalService {
 
   private asObject(value: unknown): Record<string, unknown> | null {
     return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private buildConversationTurnActual(turn: AgentEvalConversationTurn, role: string, plan: { [key: string]: any }) {
+    const businessTask = this.asObject(plan.businessTask);
+    return {
+      input: turn.input,
+      role,
+      intentType: plan.intentType,
+      clarificationNeeded: plan.clarificationNeeded,
+      firstTool: Array.isArray(plan.toolPlan) ? plan.toolPlan[0]?.tool : undefined,
+      plannedTools: Array.isArray(plan.toolPlan) ? plan.toolPlan.map((item: any) => item.tool) : [],
+      domain: this.getBusinessTaskDomain(plan.businessTask),
+      filters: this.asObject(businessTask?.filters) ?? {},
+      timeRange: this.asObject(businessTask?.timeRange) ?? undefined,
+      capabilityId: this.asObject(plan.capabilityPlan)?.capabilityId,
+    };
+  }
+
+  private buildConversationTurnExpected(turn: AgentEvalConversationTurn) {
+    return {
+      intentType: turn.expectedIntentType,
+      clarificationNeeded: turn.expectedClarification,
+      firstTool: turn.expectedTool,
+      domain: turn.expectedDomain,
+      filters: turn.expectedFilters,
+    };
+  }
+
+  private collectConversationTurnErrors(expected: Record<string, unknown>, actual: Record<string, unknown>) {
+    const errors = this.collectErrors({ ...expected, filters: undefined }, actual);
+    const expectedFilters = this.asObject(expected.filters);
+    if (expectedFilters && !this.isObjectSubset(expectedFilters, this.asObject(actual.filters) ?? {})) {
+      errors.push(`filters: expected subset ${JSON.stringify(expectedFilters)}, got ${JSON.stringify(actual.filters ?? {})}`);
+    }
+    return errors;
+  }
+
+  private isObjectSubset(expected: Record<string, unknown>, actual: Record<string, unknown>): boolean {
+    return Object.entries(expected).every(([key, expectedValue]) => {
+      const actualValue = actual[key];
+      if (this.isPlainObject(expectedValue)) {
+        return this.isPlainObject(actualValue) && this.isObjectSubset(expectedValue, actualValue);
+      }
+      return JSON.stringify(expectedValue) === JSON.stringify(actualValue);
+    });
   }
 
   private buildRuntimeToolResultFixture(toolName: string, testCase: AgentEvalCaseDefinition): AgentToolResult | undefined {
@@ -396,7 +546,7 @@ export class AgentEvalService {
         summary: '本月收入汇总按订单实收、订单数和客单价展示。',
         data: { reportType: 'finance_revenue_summary', current: { revenue: 12800, orderCount: 32, averageOrderValue: 400 } },
         evidence: commonEvidence(['ProductOrder', 'OrderItem'], '有效订单 totalAmount 和支付记录汇总。'),
-        actions: [{ label: '查看财务日结', action: 'finance:daily-settlement:open', riskLevel: 'low' }],
+        actions: [{ label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' }],
       },
       'manager.daily.briefing': {
         status: 'success',
@@ -693,7 +843,7 @@ export class AgentEvalService {
         summary: '毛利风险最高的是 高成本修护，毛利率 18%。',
         data: { reportType: 'finance_margin_risk_rank', items: [{ itemName: '高成本修护', marginRate: 0.18, riskLevel: 'high' }] },
         evidence: commonEvidence(['ProductOrder', 'OrderItem', 'Product', 'ProjectBomItem', 'CommissionRecord', 'DailySettlement'], '按项目/商品收入、耗材成本和提成成本计算毛利率。'),
-        actions: [{ label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' }],
+        actions: [{ label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' }],
       },
       'finance.refund.discount.audit': {
         status: 'success',
@@ -709,7 +859,7 @@ export class AgentEvalService {
         summary: '发现 1 位美容师存在提成或服务记录完整率审计风险。',
         data: { reportType: 'finance_beautician_performance_audit', items: [{ beauticianName: '宋乔', riskLevel: 'medium' }] },
         evidence: commonEvidence(['Beautician', 'OrderItem', 'CommissionRecord', 'Reservation', 'ServiceTask'], '销售、提成、服务记录和预约完成率。'),
-        actions: [{ label: '查看提成记录', action: 'finance:commission:open', riskLevel: 'low' }],
+        actions: [{ label: '查看员工提成', action: 'finance:staff-commission:open', riskLevel: 'low' }],
       },
       'finance.report.draft': {
         status: 'success',
@@ -717,7 +867,7 @@ export class AgentEvalService {
         summary: '本月财务经营报告草稿已生成，包含收入、利润、退款折扣和员工绩效风险。',
         data: { reportType: 'finance_report_draft', document: { title: '本月财务经营报告草稿', content: '# 本月财务经营报告草稿\n\n## 收入概览\n收入稳定。', downloadable: true } },
         evidence: commonEvidence(['ProductOrder', 'RefundRecord', 'CommissionRecord', 'ServiceTask'], '财务报告草稿由多个只读财务诊断结果汇总。'),
-        actions: [{ label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' }],
+        actions: [{ label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' }],
       },
       'staff.performance.rank': {
         status: 'success',

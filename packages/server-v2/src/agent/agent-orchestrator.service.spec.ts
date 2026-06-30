@@ -275,6 +275,92 @@ describe('AgentOrchestratorService', () => {
     );
   });
 
+  it('renders schedule diagnosis items as a table and passes the answer contract', async () => {
+    const plan = {
+      intentType: 'analysis_and_recommendation',
+      goal: '诊断预约排班',
+      toolPlan: [{ tool: 'schedule.diagnose', args: { question: '今天预约排班情况', timeRange: 'today', limit: 10 } }],
+      confidence: 0.86,
+      clarificationNeeded: false,
+      businessTask: {
+        domain: 'reservation',
+        taskType: 'query',
+        outputIntent: 'show_table',
+        metrics: ['schedule_utilization_rate'],
+        timeRange: { preset: 'today', label: '今天' },
+        confidence: 0.86,
+      },
+      skillPlan: {
+        skillId: 'reservation.schedule.capacity',
+        capabilityId: 'reservation_schedule_diagnosis',
+        confidence: 0.86,
+        reason: '命中预约排班容量诊断。',
+        outputContract: {
+          requiredKinds: ['table', 'evidence'],
+          evidenceRequired: true,
+        },
+      },
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'schedule.diagnose',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '预约排班诊断',
+      summary: '今日有效预约 4 条，已到店/完成 2 条；王璐 占用率最高，为 0%。',
+      data: {
+        columns: ['beauticianName', 'utilizationRateText', 'reservationCount', 'availableCount', 'busyCount', 'leaveCount'],
+        items: [
+          {
+            beauticianName: '王璐',
+            utilizationRateText: '0%',
+            reservationCount: 4,
+            availableCount: 0,
+            busyCount: 0,
+            leaveCount: 0,
+          },
+        ],
+        staffItems: [
+          {
+            beauticianName: '王璐',
+            utilizationRateText: '0%',
+            reservationCount: 4,
+            availableCount: 0,
+            busyCount: 0,
+            leaveCount: 0,
+          },
+        ],
+      },
+      evidence: {
+        source: ['Schedule', 'Reservation', 'Beautician'],
+        metricDefinition: '预约排班诊断统计预约数、排班占用率和未覆盖预约。',
+        filters: ['storeId=当前门店'],
+        sampleSize: 4,
+      },
+      actions: [{ label: '查看排班表', action: 'scheduling:open', riskLevel: 'low' }],
+    });
+
+    const result = await service.createRun({ message: '今天预约排班情况', actor });
+
+    expect(result.status).toBe('completed');
+    expect(result.answerContract).toMatchObject({ valid: true, missingKinds: [] });
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          columns: ['员工姓名', '占用率', '预约数', '空闲时段', '忙碌时段', '请假时段'],
+          rows: [['王璐', '0%', '4', '0', '0', '0']],
+        }),
+        expect.objectContaining({ kind: 'evidence_panel' }),
+      ]),
+    );
+  });
+
   it('executes deep-path multi-tool plans and composes numbered summaries', async () => {
     const plan = {
       intentType: 'analysis_and_recommendation',
@@ -454,7 +540,7 @@ describe('AgentOrchestratorService', () => {
     );
     expect(result.answerContract).toMatchObject({
       valid: true,
-      contract: expect.objectContaining({ source: 'skill', requiredKinds: ['table', 'evidence'] }),
+      contract: expect.objectContaining({ source: 'skill', requiredKinds: ['table', 'evidence_panel'] }),
       missingKinds: [],
     });
     expect(runtime.setRunStatus).toHaveBeenCalledWith(
@@ -545,6 +631,136 @@ describe('AgentOrchestratorService', () => {
       '昨天共有 2 位消费客户，3 笔有效订单，消费合计 ¥1,980。',
       { status: 'completed', executionPath: 'fast', responseMode: 'structured_blocks' },
     );
+  });
+
+  it('renders marketing activity link query as entity badge and link card', async () => {
+    const plan = {
+      intentType: 'answer',
+      goal: '查询营销活动链接',
+      toolPlan: [{ tool: 'business.query.ask', args: { question: '老朋友回店护理礼活动链接发我' } }],
+      confidence: 0.9,
+      clarificationNeeded: false,
+      executionPath: 'fast',
+      outputContract: {
+        requiredKinds: ['link_card', 'evidence_panel'],
+        evidenceRequired: true,
+      },
+    };
+    planner.plan.mockResolvedValue(plan);
+    toolRegistry.get.mockReturnValue({
+      name: 'business.query.ask',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiresApproval: false,
+    });
+    policy.validateToolAccess.mockReturnValue({ allowed: true, requiresApproval: false, riskLevel: 'low' });
+    toolRegistry.execute.mockResolvedValue({
+      status: 'success',
+      title: '营销活动链接',
+      summary: '已找到「老朋友回店礼」的活动链接：https://example.com/old-friend',
+      data: {
+        card: {
+          type: 'marketingActivityLink',
+          title: '营销活动链接',
+          summary: '已找到「老朋友回店礼」的活动链接：https://example.com/old-friend',
+          columns: ['活动名称', '活动状态', '发布状态', '页面标题', '活动链接', '小程序路径', '二维码'],
+          items: [
+            {
+              活动名称: '老朋友回店礼',
+              活动状态: 'active',
+              发布状态: 'published',
+              页面标题: '老朋友回店礼 H5',
+              活动链接: 'https://example.com/old-friend',
+              小程序路径: '/pages/marketing/old-friend',
+              二维码: 'https://example.com/old-friend.png',
+            },
+          ],
+        },
+        queryPlan: {
+          requestId: 'bq_link',
+          domain: 'marketing',
+          capability: 'marketing_activity_link_lookup',
+          filters: {
+            storeId: 1,
+            selectedEntity: {
+              objectType: 'MarketingActivity',
+              entityId: '7',
+              displayName: '老朋友回店礼',
+              sourceModel: 'MarketingActivity',
+            },
+            entityResolution: {
+              status: 'resolved',
+              action: 'get_link',
+              capabilityId: 'marketing.activity.link.lookup',
+              candidates: [
+                {
+                  objectType: 'MarketingActivity',
+                  entityId: '7',
+                  displayName: '老朋友回店礼',
+                  confidence: 0.92,
+                  matchStrategy: 'fuzzy',
+                  sourceModel: 'MarketingActivity',
+                },
+              ],
+            },
+          },
+          plannerTrace: {
+            capabilityId: 'marketing.activity.link.lookup',
+            queryTemplateId: 'marketing_activity_link_lookup',
+            actionIntent: 'get_link',
+            executionPath: 'business_query',
+            schemaPath: ['MarketingActivity', 'MarketingPage'],
+            confidence: 0.92,
+          },
+        },
+      },
+      evidence: {
+        source: ['MarketingActivity', 'MarketingPage'],
+        sourceTables: ['MarketingActivity', 'MarketingPage'],
+        metricDefinition: '营销活动链接 = 查询关联推广页链接。',
+        filters: ['storeId=1'],
+        sampleSize: 2,
+      },
+      actions: [{ label: '打开活动链接', action: 'https://example.com/old-friend', riskLevel: 'low' }],
+    });
+
+    const result = await service.createRun({
+      message: '老朋友回店护理礼活动链接发我',
+      actor,
+      context: { debugTrace: true },
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.responseMode).toBe('structured_blocks');
+    expect(result.renderedBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'entity_resolution_badge',
+          objectType: '营销活动',
+          entityName: '老朋友回店礼',
+          confidence: 0.92,
+        }),
+        expect.objectContaining({
+          kind: 'link_card',
+          title: '老朋友回店礼',
+          primaryUrl: 'https://example.com/old-friend',
+          miniappPath: '/pages/marketing/old-friend',
+          qrCodeUrl: 'https://example.com/old-friend.png',
+        }),
+        expect.objectContaining({
+          kind: 'capability_trace',
+          capabilityId: 'marketing.activity.link.lookup',
+          queryTemplateId: 'marketing_activity_link_lookup',
+          schemaPath: ['营销活动', '推广页'],
+        }),
+        expect.objectContaining({ kind: 'evidence_panel', sources: ['MarketingActivity', 'MarketingPage'] }),
+      ]),
+    );
+    expect(result.renderedBlocks?.some((block) => block.kind === 'table')).toBe(false);
+    expect(result.answerContract).toMatchObject({
+      valid: true,
+      missingKinds: [],
+    });
   });
 
   it('uses tool-provided table columns when items are array rows', async () => {
@@ -1092,7 +1308,7 @@ describe('AgentOrchestratorService', () => {
         },
       },
       evidence: { source: ['ProductOrder'], metricDefinition: '财务报告草稿。', filters: ['当前门店'] },
-      actions: [{ label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' }],
+      actions: [{ label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' }],
     });
 
     const result = await service.createRun({ message: '生成本月财务报告草稿', actor });

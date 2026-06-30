@@ -55,6 +55,7 @@ export interface AgentPlan {
     reason: string;
     outputContract?: unknown;
   };
+  outputContract?: unknown;
   semanticSqlCandidate?: unknown;
 }
 

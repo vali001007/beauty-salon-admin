@@ -46,6 +46,20 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   productName: '商品',
   projectName: '项目',
   cardName: '卡项',
+  activityId: '活动ID',
+  activityName: '活动名称',
+  campaignId: '活动ID',
+  campaignName: '活动名称',
+  publishStatus: '发布状态',
+  activityDateRange: '活动时间',
+  targetCustomers: '目标客户',
+  offer: '活动权益',
+  participants: '参与人数',
+  conversion: '转化率',
+  pageCount: '推广页数',
+  linkCount: '链接数',
+  publishedAt: '发布时间',
+  updatedAt: '更新时间',
   beauticianId: '员工ID',
   beauticianName: '员工姓名',
   levelName: '等级',
@@ -60,6 +74,10 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   completionRateText: '完成率',
   reservationCount: '预约数',
   completedReservationCount: '完成预约',
+  utilizationRateText: '占用率',
+  availableCount: '空闲时段',
+  busyCount: '忙碌时段',
+  leaveCount: '请假时段',
   reason: '原因',
   suggestion: '建议',
   severity: '风险等级',
@@ -285,7 +303,7 @@ export class AgentOrchestratorService {
         approvalId: input.approvalId,
       });
       const renderingStartedAt = new Date();
-      const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+      const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan, this.asObject(run.contextJson));
       const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
       const responseMode = this.resolveResponseMode(plan, renderedBlocks);
       const phaseOutputs = this.buildPhaseOutputs(plan, answer, toolResults, actions, renderedBlocks);
@@ -326,7 +344,7 @@ export class AgentOrchestratorService {
           traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
         }),
       });
-      return this.buildRunResult(updated, plan, answer, toolResults, actions);
+      return this.buildRunResult(updated, plan, answer, toolResults, actions, this.asObject(run.contextJson));
     } catch (error) {
       const answer = error instanceof Error ? error.message : String(error);
       await this.runtime.updateToolCall(Number(toolCall.id), { status: 'failed', resultJson: this.toJson({ error: answer }) });
@@ -335,7 +353,7 @@ export class AgentOrchestratorService {
         approvalId: input.approvalId,
       });
       const updated = await this.runtime.setRunStatus(Number(run.id), 'failed', { errorMessage: answer });
-      return this.buildRunResult(updated, this.asPlan(run.planJson), `Agent 审批后执行失败：${answer}`, [], []);
+      return this.buildRunResult(updated, this.asPlan(run.planJson), `Agent 审批后执行失败：${answer}`, [], [], this.asObject(run.contextJson));
     }
   }
 
@@ -364,7 +382,7 @@ export class AgentOrchestratorService {
     const updated = await this.runtime.setRunStatus(Number(run.id), 'cancelled', {
       resultJson: this.toJson({ answer, approval: { ...approval, status: 'rejected' } }),
     });
-    return this.buildRunResult(updated, this.asPlan(run.planJson), answer, [], []);
+    return this.buildRunResult(updated, this.asPlan(run.planJson), answer, [], [], this.asObject(run.contextJson));
   }
 
   private async processRun(input: {
@@ -402,7 +420,7 @@ export class AgentOrchestratorService {
         const updated = await this.runtime.setRunStatus(runId, 'completed', {
           resultJson: this.toJson({ answer, plan, toolResults: [], routeDecision: this.asObject(input.context?.routeDecision) }),
         });
-        return this.buildRunResult(updated, plan, answer, [], []);
+        return this.buildRunResult(updated, plan, answer, [], [], input.context);
       }
 
       await this.runtime.setRunStatus(runId, 'validating');
@@ -448,7 +466,7 @@ export class AgentOrchestratorService {
               routeDecision: this.asObject(input.context?.routeDecision),
             }),
           });
-          const runResult = this.buildRunResult(updated, plan, answer, toolResults, actions);
+          const runResult = this.buildRunResult(updated, plan, answer, toolResults, actions, input.context);
           return {
             ...runResult,
             renderedBlocks: renderedBlocks.length ? renderedBlocks : runResult.renderedBlocks,
@@ -498,7 +516,7 @@ export class AgentOrchestratorService {
       const renderingStartedAt = new Date();
       const evidence = this.evidenceService.merge(toolResults);
       const answer = this.composeAnswer(plan, toolResults);
-      const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+      const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan, input.context);
       const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
       const responseMode = this.resolveResponseMode(plan, renderedBlocks);
       const phaseOutputs = this.buildPhaseOutputs(plan, answer, toolResults, actions, renderedBlocks);
@@ -540,12 +558,12 @@ export class AgentOrchestratorService {
           traceSummary: this.buildTraceSummary(plan, answerContract, responseMode, renderedBlocks),
         }),
       });
-      return this.buildRunResult(updated, plan, answer, toolResults, actions);
+      return this.buildRunResult(updated, plan, answer, toolResults, actions, input.context);
     } catch (error) {
       const answer = error instanceof Error ? error.message : String(error);
       await this.runtime.addMessage(runId, 'assistant', `Agent 执行失败：${answer}`, { status: 'failed' });
       const updated = await this.runtime.setRunStatus(runId, 'failed', { errorMessage: answer });
-      return this.buildRunResult(updated, undefined, `Agent 执行失败：${answer}`, [], []);
+      return this.buildRunResult(updated, undefined, `Agent 执行失败：${answer}`, [], [], input.context);
     }
   }
 
@@ -963,8 +981,9 @@ export class AgentOrchestratorService {
     answer: string,
     toolResults: AgentToolResult[],
     actions: AgentSuggestedAction[],
+    context?: Record<string, unknown>,
   ): AgentRunResult {
-    const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan);
+    const renderedBlocks = this.buildRenderedBlocks(answer, toolResults, plan, context ?? this.asObject(run.contextJson));
     const followUpSuggestions = this.buildFollowUpSuggestions(actions, plan);
     const answerContract = this.validateAnswerContract(plan, answer, toolResults, renderedBlocks);
     const responseMode = plan ? this.resolveResponseMode(plan, renderedBlocks) : undefined;
@@ -1017,6 +1036,7 @@ export class AgentOrchestratorService {
     answer: string,
     toolResults: AgentToolResult[],
     plan?: AgentPlan,
+    context?: Record<string, unknown>,
   ): AuraResponseBlock[] {
     const blocks: AuraResponseBlock[] = [];
 
@@ -1026,9 +1046,38 @@ export class AgentOrchestratorService {
     }
 
     for (const result of toolResults) {
+      if (result.status === 'no_data' || result.status === 'unsupported') {
+        blocks.push({
+          kind: 'data_gap',
+          title: result.title || (result.status === 'unsupported' ? '当前系统暂无该业务数据' : '暂无匹配数据'),
+          message: result.summary || (result.status === 'unsupported' ? '当前系统暂不支持该业务闭环。' : '当前筛选条件下暂无数据。'),
+          missingData: result.status === 'unsupported' ? ['业务对象或数据闭环'] : ['匹配业务记录'],
+          nextSteps: result.status === 'unsupported'
+            ? ['补充业务模块或数据源后再查询', '联系管理员确认当前门店是否已启用该模块']
+            : ['调整时间范围或筛选条件', '确认门店是否已有对应业务记录'],
+        });
+      }
       if (result.status !== 'success') continue;
       const data = result.data as Record<string, unknown> | undefined;
       if (!data) continue;
+      const businessQueryCard = this.asObject(data.card) ?? this.asObject(this.asObject(data.raw)?.card);
+
+      const entityBadge = this.buildEntityResolutionBadge(data);
+      if (entityBadge) {
+        blocks.push(entityBadge);
+      }
+
+      if (this.isDebugTraceEnabled(context)) {
+        const capabilityTrace = this.buildCapabilityTraceBlock(data);
+        if (capabilityTrace) {
+          blocks.push(capabilityTrace);
+        }
+      }
+
+      const linkCard = this.buildLinkCard(result, data, businessQueryCard);
+      if (linkCard) {
+        blocks.push(linkCard);
+      }
 
       if (result.title === '商品活动机会' && Array.isArray(data.items) && data.items.length > 0) {
         const top = data.items[0] as Record<string, unknown>;
@@ -1144,7 +1193,6 @@ export class AgentOrchestratorService {
       }
 
       // KPI 指标数组 → kpi_card blocks
-      const businessQueryCard = this.asObject(data.card);
       const kpis = Array.isArray(data.kpis)
         ? data.kpis as Array<{ label: string; value: string; delta?: string; deltaType?: string }>
         : Array.isArray(businessQueryCard?.kpis)
@@ -1163,7 +1211,10 @@ export class AgentOrchestratorService {
       }
 
       // items 数组 → table block
-      const shouldSkipGenericItems = result.title === '营销话术生成' || result.title === '活动效果复盘';
+      const shouldSkipGenericItems =
+        result.title === '营销话术生成' ||
+        result.title === '活动效果复盘' ||
+        businessQueryCard?.type === 'marketingActivityLink';
       const items = !shouldSkipGenericItems && Array.isArray(data.items)
         ? data.items as Array<Record<string, unknown>>
         : !shouldSkipGenericItems && Array.isArray(businessQueryCard?.items)
@@ -1237,6 +1288,138 @@ export class AgentOrchestratorService {
     const first = items[0] as unknown;
     if (Array.isArray(first)) return first.map((_, index) => `字段 ${index + 1}`);
     return Object.keys((items[0] ?? {}) as Record<string, unknown>);
+  }
+
+  private buildEntityResolutionBadge(data: Record<string, unknown>): AuraResponseBlock | null {
+    const queryPlan = this.asObject(data.queryPlan) ?? this.asObject(this.asObject(data.raw)?.queryPlan);
+    const filters = this.asObject(queryPlan?.filters);
+    const selectedEntity = this.asObject(filters?.selectedEntity);
+    if (!selectedEntity?.displayName) return null;
+    const entityResolution = this.asObject(filters?.entityResolution);
+    const candidates = Array.isArray(entityResolution?.candidates) ? entityResolution.candidates as Array<Record<string, unknown>> : [];
+    const matchedCandidate = candidates.find((candidate) => String(candidate.entityId) === String(selectedEntity.entityId)) ?? candidates[0];
+    return {
+      kind: 'entity_resolution_badge',
+      objectType: this.businessObjectLabel(String(selectedEntity.objectType ?? '')),
+      entityName: String(selectedEntity.displayName),
+      confidence: this.optionalNumber(matchedCandidate?.confidence),
+      sourceModel: selectedEntity.sourceModel ? String(selectedEntity.sourceModel) : undefined,
+      matchStrategy: matchedCandidate?.matchStrategy ? String(matchedCandidate.matchStrategy) : undefined,
+      label: '已识别业务对象',
+    };
+  }
+
+  private buildCapabilityTraceBlock(data: Record<string, unknown>): AuraResponseBlock | null {
+    const queryPlan = this.asObject(data.queryPlan) ?? this.asObject(this.asObject(data.raw)?.queryPlan);
+    const trace = this.asObject(queryPlan?.plannerTrace);
+    if (!trace) return null;
+
+    const filters = this.asObject(queryPlan?.filters);
+    const selectedEntity = this.asObject(filters?.selectedEntity);
+    const entityMatches = Array.isArray(trace.entityMatches)
+      ? trace.entityMatches as Array<Record<string, unknown>>
+      : [];
+    const matchedEntity = selectedEntity ?? entityMatches[0];
+    const schemaPath = this.asStringArray(trace.schemaPath);
+    const capabilityId = this.firstString(trace.capabilityId, queryPlan?.capability);
+    const queryTemplateId = this.firstString(trace.queryTemplateId);
+    const action = this.firstString(trace.actionIntent, queryPlan?.action);
+    const executionPath = this.firstString(trace.executionPath);
+    const confidence = this.optionalNumber(trace.confidence);
+    const fallbackReason = this.firstString(trace.fallbackReason);
+
+    if (!capabilityId && !queryTemplateId && !action && !executionPath && !schemaPath.length && !matchedEntity) {
+      return null;
+    }
+
+    return {
+      kind: 'capability_trace',
+      title: '能力命中调试',
+      capabilityId: capabilityId || undefined,
+      queryTemplateId: queryTemplateId || undefined,
+      action: action || undefined,
+      executionPath: executionPath || undefined,
+      schemaPath: schemaPath.length ? schemaPath : undefined,
+      confidence,
+      fallbackReason: fallbackReason || null,
+      entity: matchedEntity
+        ? {
+            objectType: matchedEntity.objectType ? String(matchedEntity.objectType) : undefined,
+            entityName: this.firstString(matchedEntity.displayName, matchedEntity.entityName, matchedEntity.name),
+            entityId: matchedEntity.entityId ? String(matchedEntity.entityId) : undefined,
+            sourceModel: matchedEntity.sourceModel ? String(matchedEntity.sourceModel) : undefined,
+            confidence: this.optionalNumber(matchedEntity.confidence),
+          }
+        : undefined,
+    };
+  }
+
+  private isDebugTraceEnabled(context?: Record<string, unknown>) {
+    return context?.debugTrace === true || context?.debugTrace === '1';
+  }
+
+  private buildLinkCard(
+    result: AgentToolResult,
+    data: Record<string, unknown>,
+    businessQueryCard: Record<string, unknown> | undefined,
+  ): AuraResponseBlock | null {
+    if (businessQueryCard?.type !== 'marketingActivityLink') return null;
+    const items = Array.isArray(businessQueryCard.items) ? businessQueryCard.items as Array<Record<string, unknown>> : [];
+    const item = items[0] ?? {};
+    const primaryUrl = this.firstString(item['活动链接'], item.shareUrl, data.shareUrl);
+    const miniappPath = this.firstString(item['小程序路径'], item.miniappPath, data.miniappPath);
+    const qrCodeUrl = this.firstString(item['二维码'], item.qrCodeUrl, data.qrCodeUrl);
+    const activityName = this.firstString(item['活动名称'], item.activityName, item.title) || String(businessQueryCard.title ?? result.title);
+    const pageTitle = this.firstString(item['页面标题'], item.pageTitle);
+    const statusLabel = this.firstString(item['发布状态'], item.publishStatus, item.status);
+    const links = [
+      primaryUrl ? { label: '活动链接', value: primaryUrl, type: 'url' as const } : null,
+      miniappPath ? { label: '小程序路径', value: miniappPath, type: 'miniapp_path' as const } : null,
+      qrCodeUrl ? { label: '二维码', value: qrCodeUrl, type: 'qr_code' as const } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; type: 'url' | 'miniapp_path' | 'qr_code' }>;
+    if (!links.length && !activityName) return null;
+    return {
+      kind: 'link_card',
+      title: activityName,
+      description: pageTitle ? `推广页：${pageTitle}` : String(businessQueryCard.summary ?? result.summary ?? ''),
+      primaryUrl,
+      miniappPath,
+      qrCodeUrl,
+      statusLabel,
+      links,
+      actions: (result.actions ?? []).slice(0, 3).map((action) => ({
+        label: action.label,
+        actionId: action.action,
+        riskLevel: action.riskLevel,
+      })),
+    };
+  }
+
+  private businessObjectLabel(objectType: string) {
+    const labels: Record<string, string> = {
+      MarketingActivity: '营销活动',
+      MarketingPage: '营销推广页',
+      Customer: '客户',
+      InventoryProduct: '库存商品',
+      Project: '护理项目',
+      Beautician: '美容师',
+      Order: '订单',
+      MemberCard: '客户卡项',
+    };
+    return labels[objectType] ?? objectType;
+  }
+
+  private optionalNumber(value: unknown) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : undefined;
+  }
+
+  private firstString(...values: unknown[]) {
+    for (const value of values) {
+      const text = String(value ?? '').trim();
+      if (text) return text;
+    }
+    return '';
   }
 
   private toDisplayTableColumns(columns: string[]) {

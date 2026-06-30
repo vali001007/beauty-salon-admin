@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import {
+  AGENT_EVAL_QUESTION_BANK_P0_TOTAL,
+  AGENT_EVAL_QUESTION_BANK_TOTAL,
+  QUESTION_BANK_CONVERSATION_CASES,
+} from './agent-eval-question-bank.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 type FeedbackFailureItem = {
@@ -96,11 +101,15 @@ export class AgentObservabilityService {
         createdAt: item.createdAt,
       }));
     const evalPassed = evalRuns.filter((item: any) => item.status === 'passed' || Number(item.score) >= 0.8).length;
+    const questionBank = this.buildQuestionBankQuality(evalRuns);
     const recommendations = [
       ...(failed > 0 ? [`近 ${days} 天有 ${failed} 次失败，优先补失败工具的 eval 用例。`] : []),
       ...(feedbacks.length < Math.max(3, Math.round(runs.length * 0.2)) ? ['反馈样本偏少，建议在关键回答后引导店长点击有用/无用。'] : []),
       ...(rejected > adopted && feedbacks.length ? ['负反馈多于采纳反馈，需要复核回答口径和建议可执行性。'] : []),
       ...(avgLatencyMs && avgLatencyMs > 5000 ? ['平均工具耗时超过 5 秒，建议排查慢查询或拆分重工具。'] : []),
+      ...(questionBank.priorityPassRates.some((item) => item.total === 0)
+        ? ['问题库 P0/P1/P2 分层评测尚未全部持久化，建议接入每日 P0 自动回归结果。']
+        : []),
     ];
 
     return {
@@ -124,12 +133,49 @@ export class AgentObservabilityService {
         evalPassed,
         evalPassRate: evalRuns.length ? evalPassed / evalRuns.length : null,
       },
+      questionBank,
       personaBreakdown,
       entrypointBreakdown,
       toolBreakdown,
       recentNegativeFeedback,
       recommendations,
     };
+  }
+
+  private buildQuestionBankQuality(evalRuns: any[]) {
+    const conversationTurns = QUESTION_BANK_CONVERSATION_CASES.reduce((sum, item) => sum + item.turns.length, 0);
+    return {
+      totalQuestions: AGENT_EVAL_QUESTION_BANK_TOTAL,
+      structuredQuestions: AGENT_EVAL_QUESTION_BANK_TOTAL,
+      coverageRate: 1,
+      p0Cases: AGENT_EVAL_QUESTION_BANK_P0_TOTAL,
+      conversationCases: QUESTION_BANK_CONVERSATION_CASES.length,
+      conversationTurns,
+      priorityPassRates: (['P0', 'P1', 'P2'] as const).map((priority) => {
+        const runs = evalRuns.filter((item: any) => this.extractEvalPriority(item) === priority);
+        const passed = runs.filter((item: any) => item.status === 'passed' || Number(item.score) >= 0.8).length;
+        return {
+          priority,
+          total: runs.length,
+          passed,
+          failed: runs.length - passed,
+          passRate: runs.length ? passed / runs.length : null,
+        };
+      }),
+    };
+  }
+
+  private extractEvalPriority(evalRun: any) {
+    const result = this.asRecord(evalRun?.resultJson);
+    const expected = this.asRecord(result?.expected);
+    const caseMeta = this.asRecord(result?.case);
+    const candidates = [result?.priority, expected?.priority, caseMeta?.priority, result?.level, result?.sourcePriority];
+    const matched = candidates.find((item) => ['P0', 'P1', 'P2'].includes(String(item)));
+    return matched ? String(matched) : null;
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
   }
 
   async getFeedbackFailureReport(query: { storeId: number; days?: number | string; personaCode?: string; limit?: number | string }) {

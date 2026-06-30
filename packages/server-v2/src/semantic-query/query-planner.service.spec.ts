@@ -116,4 +116,19 @@ describe('QueryPlannerService', () => {
     });
     expect(result.plan?.metrics.map((item) => item.key)).toEqual(expect.arrayContaining(['reservation_count', 'arrival_rate']));
   });
+
+  it('plans recent marketing activity questions as activity list instead of conversion diagnosis', () => {
+    const { task } = preParser.parse({ message: '推荐近期营销活动', role: 'manager' });
+    const result = planner.plan({ task, role: 'manager', storeId: 1, operatorId: 9 });
+
+    expect(result.rejectedReason).toBeUndefined();
+    expect(result.plan).toMatchObject({
+      capabilityId: 'marketing_activity_list',
+      templateId: 'marketing_activity_list',
+      dimensions: ['campaignId', 'campaignName'],
+      outputShape: 'table',
+      storeScope: { storeIds: [1], scopeType: 'current_store' },
+    });
+    expect(result.plan?.metrics.map((item) => item.key)).toEqual(['marketing_activity_count']);
+  });
 });

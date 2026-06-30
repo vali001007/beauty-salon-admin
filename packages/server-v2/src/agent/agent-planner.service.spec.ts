@@ -195,6 +195,26 @@ describe('AgentPlannerService', () => {
     });
   });
 
+  it('plans natural reception reservation anomaly questions into reception reservation tool', async () => {
+    const cases = [
+      '有没有预约了但还没确认的客人',
+      '有个客人临时来了没预约，现在还能安排吗',
+      '帮我查一下今天下午哪个时段可以加客',
+    ];
+
+    for (const message of cases) {
+      const plan = await planner.plan({ message, actor: { ...actor, role: 'reception' } });
+
+      expect(plan.intentType).toBe('query');
+      expect(plan.capabilityPlan).toMatchObject({
+        capabilityId: 'reception_reservation_today',
+      });
+      expect(plan.toolPlan[0]).toMatchObject({
+        tool: 'reception.reservation.today',
+      });
+    }
+  });
+
   it('plans card benefit summary requests into reception card benefit tool', async () => {
     const plan = await planner.plan({ message: '张三还有什么卡项权益', actor: { ...actor, role: 'reception' } });
 
@@ -206,6 +226,32 @@ describe('AgentPlannerService', () => {
       tool: 'reception.card.benefit.summary',
       args: expect.objectContaining({ customerQuery: expect.stringContaining('张三') }),
     });
+  });
+
+  it('plans reception cashier payment questions into controlled business query', async () => {
+    const plan = await planner.plan({ message: '帮我看一下今天所有的收款明细', actor: { ...actor, role: 'reception' } });
+
+    expect(plan.intentType).toBe('query');
+    expect(plan.capabilityPlan).toMatchObject({
+      capabilityId: 'business_query',
+    });
+    expect(plan.toolPlan[0]).toMatchObject({
+      tool: 'business.query.ask',
+    });
+  });
+
+  it('plans reception onsite project and product guidance into business tools', async () => {
+    const projectPlan = await planner.plan({
+      message: '有个客人问我们推荐什么项目，她是新客皮肤偏干',
+      actor: { ...actor, role: 'reception' },
+    });
+    const productPlan = await planner.plan({
+      message: '客人要买产品带走，我们现在有什么产品可以卖',
+      actor: { ...actor, role: 'reception' },
+    });
+
+    expect(projectPlan.toolPlan[0]).toMatchObject({ tool: 'project.diagnose' });
+    expect(productPlan.toolPlan[0]).toMatchObject({ tool: 'product.sales.rank' });
   });
 
   it('passes focused customer context into card benefit follow-up tool args', async () => {

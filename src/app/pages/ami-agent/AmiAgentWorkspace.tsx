@@ -14,6 +14,7 @@ import type {
   AgentApprovalListItem,
   AgentEvalSummary,
   AgentFeedbackFailureReport,
+  AgentKnowledgeGovernance,
   AgentSchemaReadiness,
   AgentPhaseOutput,
   AgentRunDetail,
@@ -31,6 +32,7 @@ import {
   getAgentApprovalsPaginated,
   getAgentDailyArchives,
   getAgentFeedbackFailures,
+  getAgentKnowledgeGovernance,
   getAgentMemories,
   getAgentPersonas,
   getAgentQualityReport,
@@ -54,7 +56,7 @@ interface ConversationMessage extends AgentConversationMessage {
   phaseOutputs?: AgentPhaseOutput[];
 }
 
-type AgentWorkspaceTab = 'debug' | 'audit' | 'approvals' | 'personas' | 'eval' | 'quality';
+type AgentWorkspaceTab = 'debug' | 'audit' | 'approvals' | 'personas' | 'eval' | 'quality' | 'knowledge';
 
 const AGENT_WORKSPACE_TABS: Array<{ key: AgentWorkspaceTab; label: string; description: string }> = [
   { key: 'debug', label: '对话调试', description: '验证 Persona、Planner、工具调用和富输出' },
@@ -63,6 +65,7 @@ const AGENT_WORKSPACE_TABS: Array<{ key: AgentWorkspaceTab; label: string; descr
   { key: 'personas', label: 'Persona 配置', description: '查看六大角色 Agent 能力边界' },
   { key: 'eval', label: '评测集', description: '运行默认评测并查看失败项' },
   { key: 'quality', label: '质量大盘', description: '汇总反馈、失败率和能力缺口' },
+  { key: 'knowledge', label: '语义治理', description: '查看图谱、能力目录、Eval 门禁和旧规则' },
 ];
 
 type AgentActionPayload = {
@@ -103,6 +106,10 @@ export function AmiAgentWorkspace() {
   const [evalSummary, setEvalSummary] = useState<AgentEvalSummary | null>(null);
   const [evalLoading, setEvalLoading] = useState(false);
   const [feedbackFailures, setFeedbackFailures] = useState<AgentFeedbackFailureReport | null>(null);
+  const [knowledgeGovernance, setKnowledgeGovernance] = useState<AgentKnowledgeGovernance | null>(null);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [knowledgeCapabilityId, setKnowledgeCapabilityId] = useState('');
+  const [knowledgeDebugText, setKnowledgeDebugText] = useState('');
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<React.ElementRef<'textarea'>>(null);
@@ -148,6 +155,7 @@ export function AmiAgentWorkspace() {
     role: agentRole,
     entrypoint: showPersonaDebug ? `ami-agent:${activePersona?.code ?? 'manager'}` : 'ami-agent:auto',
     personaCode: showPersonaDebug ? activePersona?.code ?? 'manager' : undefined,
+    context: showPersonaDebug ? { debugTrace: true } : undefined,
     formatError: formatAgentError,
     mapAgentResult: (result) => {
       const displayModel = getAgentResultDisplayModel(result);
@@ -262,12 +270,27 @@ export function AmiAgentWorkspace() {
     }
   }, [activePersona?.code]);
 
+  const loadKnowledgePanel = useCallback(async () => {
+    setKnowledgeLoading(true);
+    try {
+      setKnowledgeGovernance(await getAgentKnowledgeGovernance({
+        capabilityId: knowledgeCapabilityId.trim() || undefined,
+        q: knowledgeDebugText.trim() || undefined,
+      }));
+    } catch (error) {
+      console.warn(error);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  }, [knowledgeCapabilityId, knowledgeDebugText]);
+
   useEffect(() => {
     if (activeTab === 'audit') void loadAuditPanel();
     if (activeTab === 'approvals') void loadApprovalsPanel();
     if (activeTab === 'eval') void loadEvalPanel();
     if (activeTab === 'quality') void loadInsightPanel();
-  }, [activeTab, loadApprovalsPanel, loadAuditPanel, loadEvalPanel, loadInsightPanel]);
+    if (activeTab === 'knowledge') void loadKnowledgePanel();
+  }, [activeTab, loadApprovalsPanel, loadAuditPanel, loadEvalPanel, loadInsightPanel, loadKnowledgePanel]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -375,6 +398,15 @@ export function AmiAgentWorkspace() {
       }
       const activityId = Number(idText);
       navigate(activityId ? `/customer-marketing/activity-effect/${activityId}` : '/customer-marketing/activity-management');
+      return;
+    }
+    const routeByActionId: Record<string, string> = {
+      'finance:reconciliation:open': '/finance/reconciliation',
+      'finance:staff-commission:open': '/finance/staff-commission',
+    };
+    const route = routeByActionId[actionId];
+    if (route) {
+      navigate(route);
       return;
     }
     const approvalAction = action;
@@ -576,6 +608,18 @@ export function AmiAgentWorkspace() {
               .then(setFeedbackFailures)
               .catch(() => undefined);
           }}
+        />
+      ) : null}
+
+      {activeTab === 'knowledge' ? (
+        <AgentKnowledgeGovernanceTab
+          data={knowledgeGovernance}
+          loading={knowledgeLoading}
+          capabilityId={knowledgeCapabilityId}
+          debugText={knowledgeDebugText}
+          onCapabilityIdChange={setKnowledgeCapabilityId}
+          onDebugTextChange={setKnowledgeDebugText}
+          onRefresh={loadKnowledgePanel}
         />
       ) : null}
     </div>
@@ -1148,7 +1192,169 @@ function AgentEvalTab({
   );
 }
 
-function AgentQualityTab({
+function AgentKnowledgeGovernanceTab({
+  data,
+  loading,
+  capabilityId,
+  debugText,
+  onCapabilityIdChange,
+  onDebugTextChange,
+  onRefresh,
+}: {
+  data: AgentKnowledgeGovernance | null;
+  loading: boolean;
+  capabilityId: string;
+  debugText: string;
+  onCapabilityIdChange: (value: string) => void;
+  onDebugTextChange: (value: string) => void;
+  onRefresh: () => void;
+}) {
+  const gate = data?.evalReport?.gate;
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto bg-muted/20 p-5">
+      <PanelHeader title="语义治理" loading={loading} onRefresh={onRefresh} />
+      <div className="mb-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto]">
+        <label className="block text-xs text-muted-foreground">
+          Capability 筛选
+          <input
+            value={capabilityId}
+            onChange={(event) => onCapabilityIdChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onRefresh();
+            }}
+            placeholder="例如 marketing.activity.link.lookup"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          />
+        </label>
+        <label className="block text-xs text-muted-foreground">
+          Entity Resolver 调试
+          <input
+            value={debugText}
+            onChange={(event) => onDebugTextChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onRefresh();
+            }}
+            placeholder="输入一句自然语言，例如 老朋友回店护理礼活动链接发我"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="self-end rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          查询
+        </button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MiniMetric label="Schema 节点" value={String(data?.schemaGraph.nodeCount ?? 0)} />
+        <MiniMetric label="Schema 关系" value={String(data?.schemaGraph.relationCount ?? 0)} />
+        <MiniMetric label="能力目录" value={`${data?.capabilityCatalog.filtered ?? 0}/${data?.capabilityCatalog.total ?? 0}`} />
+        <MiniMetric label="Eval 通过率" value={formatPercent(data?.evalReport?.summary.passRate)} />
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        <AuditSection title="Capability Catalog" count={data?.capabilityCatalog.items.length ?? 0}>
+          {data?.capabilityCatalog.items.slice(0, 12).map((item) => (
+            <TimelineRow
+              key={item.capabilityId}
+              title={`${item.displayName} · ${item.capabilityId}`}
+              subtitle={`${item.personaCodes.join('/')} · ${item.objectTypes.join('/')} · 输出 ${item.outputKinds.join('/')}`}
+            />
+          )) ?? <EmptyPanelText text="暂无能力目录数据。" />}
+        </AuditSection>
+        <AuditSection title="Schema Graph" count={data?.schemaGraph.objects.length ?? 0}>
+          {data?.schemaGraph.objects.slice(0, 12).map((item) => (
+            <TimelineRow
+              key={item.modelName}
+              title={`${item.displayName} · ${item.modelName}`}
+              subtitle={`${item.objectType} · 关系 ${item.relationCount} · 可查询字段 ${item.queryableFieldCount}${item.storeScoped ? ' · 门店隔离' : ''}`}
+            />
+          )) ?? <EmptyPanelText text="暂无 Schema Graph 数据。" />}
+        </AuditSection>
+        <AuditSection title="Eval Gate" count={data?.evalReport ? 1 : 0}>
+          {data?.evalReport ? (
+            <>
+              <TimelineRow
+                title={`最新报告 · ${data.evalReport.summary.passed}/${data.evalReport.summary.total}`}
+                subtitle={`路由 ${formatPercent(data.evalReport.summary.routingAccuracy)} · 实体 ${formatPercent(data.evalReport.summary.entityAccuracy)} · 输出 ${formatPercent(data.evalReport.summary.outputContractAccuracy)}`}
+              />
+              {gate ? (
+                <TimelineRow
+                  title={`${gate.level.toUpperCase()} 门禁 · ${gate.passed ? '通过' : '未通过'}`}
+                  subtitle={`覆盖 ${gate.evaluatedTotal} 条 · 通过率 ${formatPercent(gate.actual.passRate)} · 路由 ${formatPercent(gate.actual.routingAccuracy)}`}
+                />
+              ) : null}
+              {(data.evalReport.improvementBacklog.length ? data.evalReport.improvementBacklog : data.evalReport.failures).slice(0, 8).map((item) => (
+                <TimelineRow
+                  key={item.id}
+                  title={`${item.id} · ${(item as { priority?: string }).priority ?? '失败样本'}`}
+                  subtitle={'recommendation' in item ? item.recommendation : item.input}
+                />
+              ))}
+            </>
+          ) : (
+            <EmptyPanelText text="暂无 Eval 报告。先运行 agent:eval:knowledge-map:gate:p2 生成基线。" />
+          )}
+        </AuditSection>
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+        <AuditSection title="Entity Resolver 调试" count={data?.entityDebug?.candidates.length ?? 0}>
+          {data?.entityDebug ? (
+            <>
+              <TimelineRow
+                title={`状态：${data.entityDebug.status}`}
+                subtitle={data.entityDebug.clarificationQuestion ?? data.entityDebug.query}
+              />
+              {data.entityDebug.candidates.slice(0, 8).map((item) => (
+                <TimelineRow
+                  key={`${item.objectType}-${item.entityId}`}
+                  title={`${item.objectType} · ${item.displayName}`}
+                  subtitle={`置信度 ${Math.round(item.confidence * 100)}% · ${item.matchStrategy} · ${item.sourceModel}`}
+                />
+              ))}
+            </>
+          ) : (
+            <EmptyPanelText text="输入一句自然语言后，可查看实体候选、置信度和匹配策略。" />
+          )}
+        </AuditSection>
+        <AuditSection title="Legacy Fallback 治理" count={data?.legacyRules.legacyFallbackRuns ?? 0}>
+          {data ? (
+            <>
+              <TimelineRow
+                title={`最近扫描 ${data.legacyRules.scannedRuns} 次运行`}
+                subtitle={`legacy fallback ${data.legacyRules.legacyFallbackRuns} 次`}
+              />
+              {data.legacyRules.usageByReason.slice(0, 6).map((item) => (
+                <TimelineRow key={item.reason} title={item.reason} subtitle={`使用 ${item.count} 次`} />
+              ))}
+              {data.legacyRules.samples.slice(0, 4).map((item) => (
+                <TimelineRow key={item.runId} title={item.runNo} subtitle={`${item.fallbackReason} · ${item.question}`} />
+              ))}
+              {data.legacyRules.deprecationCandidates?.slice(0, 6).map((item) => (
+                <TimelineRow
+                  key={item.reason}
+                  title={`废弃候选 · ${item.reason}`}
+                  subtitle={`最近窗口 ${item.latestCount} 次，上一个窗口 ${item.previousCount} 次`}
+                />
+              ))}
+              {data.legacyRules.deprecationPolicy.slice(0, 3).map((item) => (
+                <TimelineRow key={item} title="清理策略" subtitle={item} />
+              ))}
+            </>
+          ) : (
+            <EmptyPanelText text="暂无旧规则统计。" />
+          )}
+        </AuditSection>
+      </div>
+    </div>
+  );
+}
+
+export function AgentQualityTab({
   persona,
   qualityReport,
   schemaReadiness,
@@ -1172,6 +1378,7 @@ function AgentQualityTab({
   onRefresh: () => void;
 }) {
   const kpis = qualityReport?.kpis;
+  const questionBank = qualityReport?.questionBank;
   const entrypointComparison = (qualityReport?.entrypointBreakdown ?? []).map((item) => ({
     ...item,
     label: item.name === 'terminal:kiosk'
@@ -1190,6 +1397,31 @@ function AgentQualityTab({
         <MiniMetric label="成功率" value={formatPercent(kpis?.successRate)} />
         <MiniMetric label="反馈数" value={String(kpis?.feedbackCount ?? 0)} />
         <MiniMetric label="采纳率" value={formatPercent(kpis?.adoptionRate)} />
+      </div>
+      <div className="mt-5 rounded-xl border border-border bg-background p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">问题库门禁</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              覆盖 650 条自然语言问题，按 P0/P1/P2 分层追踪回归结果。
+            </p>
+          </div>
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+            P0 {questionBank?.p0Cases ?? 0} 条
+          </span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <MiniMetric label="覆盖率" value={formatPercent(questionBank?.coverageRate)} />
+          <MiniMetric label="结构化问题" value={`${questionBank?.structuredQuestions ?? 0}/${questionBank?.totalQuestions ?? 0}`} />
+          <MiniMetric label="多轮轮次" value={String(questionBank?.conversationTurns ?? 0)} />
+          {(questionBank?.priorityPassRates ?? ['P0', 'P1', 'P2'].map((priority) => ({ priority, total: 0, passed: 0, failed: 0, passRate: null }))).map((item) => (
+            <MiniMetric
+              key={item.priority}
+              label={`${item.priority} 通过率`}
+              value={item.total ? `${formatPercent(item.passRate)} · ${item.passed}/${item.total}` : '未运行'}
+            />
+          ))}
+        </div>
       </div>
       <div className="mt-5">
         <AuditSection title="灰度入口对比" count={entrypointComparison.length}>
@@ -1920,7 +2152,8 @@ export function MessageItem({
   const contentBlocks = msg.blocks?.filter((b) => b.kind !== 'follow_up_chips') ?? [];
   const followUps = msg.followUpSuggestions ?? [];
   const phaseOutputs = msg.phaseOutputs ?? [];
-  const actions = msg.actions ?? [];
+  const blockActionIds = collectBlockActionIds(contentBlocks);
+  const actions = (msg.actions ?? []).filter((action) => !blockActionIds.has(action.action));
   const limitations = msg.limitations ?? [];
   const statusNotice = msg.statusNotice;
   const routePersonaCode = msg.routeDecision?.personaCode ?? msg.personaCode;
@@ -2021,4 +2254,21 @@ export function MessageItem({
       )}
     </div>
   );
+}
+
+function collectBlockActionIds(blocks: NonNullable<ConversationMessage['blocks']>) {
+  const ids = new Set<string>();
+  for (const block of blocks) {
+    if ('actionId' in block && typeof block.actionId === 'string') {
+      ids.add(block.actionId);
+    }
+    if ('actions' in block && Array.isArray(block.actions)) {
+      for (const action of block.actions) {
+        if (action && typeof action === 'object' && 'actionId' in action && typeof action.actionId === 'string') {
+          ids.add(action.actionId);
+        }
+      }
+    }
+  }
+  return ids;
 }

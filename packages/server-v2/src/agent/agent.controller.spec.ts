@@ -13,6 +13,9 @@ jest.mock('./agent-automation.service.js', () => ({ AgentAutomationService: clas
 jest.mock('./agent-memory.service.js', () => ({ AgentMemoryService: class AgentMemoryService {} }));
 jest.mock('./agent-observability.service.js', () => ({ AgentObservabilityService: class AgentObservabilityService {} }));
 jest.mock('./agent-schema-readiness.service.js', () => ({ AgentSchemaReadinessService: class AgentSchemaReadinessService {} }));
+jest.mock('./knowledge/capability-catalog.service.js', () => ({ CapabilityCatalogService: class CapabilityCatalogService {} }));
+jest.mock('./knowledge/entity-resolver.service.js', () => ({ EntityResolverService: class EntityResolverService {} }));
+jest.mock('./knowledge/schema-graph.service.js', () => ({ SchemaGraphService: class SchemaGraphService {} }));
 
 import { AgentController } from './agent.controller.js';
 
@@ -27,6 +30,9 @@ describe('AgentController', () => {
   let observabilityService: jest.Mocked<any>;
   let automationService: jest.Mocked<any>;
   let schemaReadinessService: jest.Mocked<any>;
+  let capabilityCatalog: jest.Mocked<any>;
+  let entityResolver: jest.Mocked<any>;
+  let schemaGraph: jest.Mocked<any>;
   let prisma: jest.Mocked<any>;
   let controller: AgentController;
 
@@ -82,9 +88,42 @@ describe('AgentController', () => {
     schemaReadinessService = {
       getStatus: jest.fn(),
     };
+    capabilityCatalog = {
+      list: jest.fn().mockReturnValue([
+        {
+          capabilityId: 'marketing.activity.link.lookup',
+          businessQueryCapabilityId: 'marketing_activity_link_lookup',
+          displayName: '营销活动链接查询',
+          personaCodes: ['manager', 'marketing'],
+          objectTypes: ['MarketingActivity'],
+          actions: ['get_link'],
+          outputKinds: ['link_card', 'evidence_panel'],
+          riskLevel: 'low',
+          examples: ['活动链接发我'],
+        },
+      ]),
+    };
+    entityResolver = {
+      resolve: jest.fn().mockResolvedValue({ status: 'not_found', query: '', candidates: [] }),
+    };
+    schemaGraph = {
+      listNodes: jest.fn().mockReturnValue([
+        {
+          modelName: 'MarketingActivity',
+          objectType: 'MarketingActivity',
+          displayName: '营销活动',
+          storeScoped: false,
+          relations: [],
+          fields: [{ name: 'title', queryable: true }],
+        },
+      ]),
+    };
     prisma = {
       user: {
         findFirst: jest.fn(),
+      },
+      agentRun: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     controller = new AgentController(
@@ -98,6 +137,9 @@ describe('AgentController', () => {
       observabilityService,
       automationService,
       schemaReadinessService,
+      capabilityCatalog,
+      entityResolver,
+      schemaGraph,
       queryPlanner,
       semanticQueryExecutor,
       responseComposer,
@@ -114,6 +156,105 @@ describe('AgentController', () => {
 
     expect(result).toEqual({ ready: false, missingTables: ['agent_daily_archives'] });
     expect(schemaReadinessService.getStatus).toHaveBeenCalledWith();
+  });
+
+  it('returns read-only knowledge governance summary for Agent Studio', async () => {
+    entityResolver.resolve.mockResolvedValue({
+      status: 'resolved',
+      query: '活动链接发我',
+      entity: { objectType: 'MarketingActivity', entityId: '7', displayName: '老朋友回店礼', confidence: 0.95 },
+      candidates: [{ objectType: 'MarketingActivity', entityId: '7', displayName: '老朋友回店礼', confidence: 0.95 }],
+    });
+    prisma.agentRun.findMany.mockResolvedValue([
+      {
+        id: 1,
+        runNo: 'AR001',
+        userInput: '未知问题',
+        planJson: { plannerTrace: { executionPath: 'legacy_fallback', fallbackReason: 'capability_not_found' } },
+        resultJson: {},
+        createdAt: new Date('2026-06-30T08:00:00Z'),
+      },
+    ]);
+
+    const result = await controller.knowledgeGovernance(
+      { storeId: 6, role: 'manager' },
+      'marketing.activity.link.lookup',
+      '活动链接发我',
+    );
+
+    expect(result.capabilityCatalog.filtered).toBe(1);
+    expect(result.schemaGraph.nodeCount).toBe(1);
+    expect(result.entityDebug?.status).toBe('resolved');
+    expect(result.legacyRules.legacyFallbackRuns).toBe(1);
+    expect(result.legacyRules.usageByReason[0]).toEqual({ reason: 'capability_not_found', count: 1 });
+    expect(result.legacyRules.retainedReasons).toEqual(
+      expect.arrayContaining([expect.objectContaining({ reason: 'capability_not_found', latestCount: 1 })]),
+    );
+    expect(result.legacyRules.deprecationCandidates).toHaveLength(0);
+  });
+
+  it('marks legacy fallback reasons as deprecation candidates after two unhit windows', async () => {
+    entityResolver.resolve.mockResolvedValue({
+      status: 'not_found',
+      query: '未知问题',
+      candidates: [],
+    });
+    prisma.agentRun.findMany.mockResolvedValue([
+      {
+        id: 1,
+        runNo: 'AR001',
+        userInput: '未知问题 A',
+        planJson: { plannerTrace: { executionPath: 'legacy_fallback', fallbackReason: 'capability_not_found' } },
+        resultJson: {},
+        createdAt: new Date('2026-06-30T08:00:00Z'),
+      },
+      {
+        id: 2,
+        runNo: 'AR002',
+        userInput: '普通问题 B',
+        planJson: { plannerTrace: { executionPath: 'knowledge_graph', fallbackReason: null } },
+        resultJson: {},
+        createdAt: new Date('2026-06-29T08:00:00Z'),
+      },
+      {
+        id: 3,
+        runNo: 'AR003',
+        userInput: '普通问题 C',
+        planJson: { plannerTrace: { executionPath: 'knowledge_graph', fallbackReason: null } },
+        resultJson: {},
+        createdAt: new Date('2026-06-28T08:00:00Z'),
+      },
+      {
+        id: 4,
+        runNo: 'AR004',
+        userInput: '普通问题 D',
+        planJson: { plannerTrace: { executionPath: 'knowledge_graph', fallbackReason: null } },
+        resultJson: {},
+        createdAt: new Date('2026-06-27T08:00:00Z'),
+      },
+    ]);
+
+    const result = await controller.knowledgeGovernance(
+      { storeId: 6, role: 'manager' },
+      undefined,
+      '未知问题',
+    );
+
+    expect(result.legacyRules.deprecationWindows.latest.runCount).toBe(2);
+    expect(result.legacyRules.deprecationWindows.previous.runCount).toBe(2);
+    expect(result.legacyRules.retainedReasons).toEqual(
+      expect.arrayContaining([expect.objectContaining({ reason: 'capability_not_found', latestCount: 1, previousCount: 0 })]),
+    );
+    expect(result.legacyRules.deprecationCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: 'legacy_rule_fallback',
+          latestCount: 0,
+          previousCount: 0,
+          action: 'move_to_deprecated_candidate',
+        }),
+      ]),
+    );
   });
 
   it('creates an Agent automation draft for the current store', async () => {

@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-agent-eval-scripts",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": ["prisma/agent-eval-*.ts", "src/**/*"],
+  "exclude": ["node_modules", "dist", "dist-agent-eval-scripts", "src/**/*.spec.ts", "test/**/*"]
+}

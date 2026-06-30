@@ -1,13 +1,26 @@
 import type { AgentRiskLevel, AgentRole, AgentToolPlanItem } from '../agent.types.js';
 import type { BusinessTask, BusinessTaskDomain, BusinessTaskType } from '../business-task/business-task.types.js';
 
-export type AmiBusinessSkillOutputKind = 'text' | 'kpi' | 'table' | 'chart' | 'action_card' | 'clarify' | 'evidence';
+export type AmiBusinessSkillOutputKind =
+  | 'text'
+  | 'kpi'
+  | 'table'
+  | 'chart'
+  | 'link_card'
+  | 'action_card'
+  | 'clarification_card'
+  | 'clarify'
+  | 'evidence'
+  | 'evidence_panel'
+  | 'data_gap'
+  | 'permission_notice';
 
 export type AmiBusinessSkillOutputContract = {
   requiredKinds: AmiBusinessSkillOutputKind[];
   preferredKinds?: AmiBusinessSkillOutputKind[];
   minItems?: number;
   evidenceRequired?: boolean;
+  approvalRequired?: boolean;
   maxFollowUps?: number;
 };
 

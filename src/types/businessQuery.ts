@@ -29,6 +29,24 @@ export interface BusinessQueryPlan {
   limit: number;
   needClarification: boolean;
   clarificationQuestion?: string | null;
+  plannerTrace?: {
+    parserVersion: 'unified-query-planner-v1' | 'business-task-preparser' | 'legacy-rule';
+    entityMatches: Array<{
+      objectType: string;
+      entityId?: string;
+      displayName: string;
+      confidence?: number;
+      sourceModel?: string;
+    }>;
+    actionIntent?: string;
+    capabilityId?: string;
+    queryTemplateId?: string;
+    executionPath: 'knowledge_graph' | 'semantic_query' | 'legacy_fallback' | 'clarify' | 'unsupported';
+    fallbackReason?: string | null;
+    schemaPath?: string[];
+    confidence?: number;
+  };
+  fallbackReason?: string | null;
 }
 
 export interface BusinessQueryEvidence {

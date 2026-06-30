@@ -139,6 +139,18 @@ export class QueryTemplateRegistryService {
       supportedOutputShapes: ['list', 'table'],
       sourceModels: ['MarketingActivity', 'MarketingPageEvent', 'MarketingPageLead'],
     },
+    {
+      id: 'marketing_activity_list',
+      title: '营销活动清单查询',
+      description: '查询近期营销活动、活动草稿、已发布活动和进行中活动清单。',
+      capabilityIds: ['marketing_activity_list', 'marketing_growth_execution'],
+      metricKeys: ['marketing_activity_count'],
+      defaultDimensions: ['campaignId', 'campaignName'],
+      supportedOutputShapes: ['list', 'table'],
+      sourceModels: ['MarketingActivity', 'MarketingPage'],
+      defaultOrderBy: [{ key: 'updatedAt', direction: 'desc' }],
+      defaultLimit: 10,
+    },
   ];
 
   list() {

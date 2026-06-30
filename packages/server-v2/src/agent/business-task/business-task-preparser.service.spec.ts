@@ -77,6 +77,18 @@ describe('BusinessTaskPreParserService', () => {
   it('recognizes card and member balance questions before generic customer membership', () => {
     const cardRisk = service.parse('未来30天哪些次卡快到期');
     const memberBalance = service.parse('会员卡余额怎么样');
+    const customerBenefits = service.parse({
+      message: '这个客户还有什么卡和权益？',
+      role: 'reception',
+      context: {
+        conversationFocus: {
+          currentCustomer: {
+            customerId: 501,
+            customerName: '马美琳',
+          },
+        },
+      },
+    });
 
     expect(cardRisk.task.domain).toBe('card');
     expect(cardRisk.task.taskType).toBe('forecast');
@@ -84,6 +96,8 @@ describe('BusinessTaskPreParserService', () => {
     expect(memberBalance.task.domain).toBe('memberCard');
     expect(memberBalance.task.taskType).toBe('query');
     expect(memberBalance.task.metrics).toContain('member_balance');
+    expect(customerBenefits.task.domain).toBe('card');
+    expect(customerBenefits.task.filters).toMatchObject({ customerId: 501, customerName: '马美琳' });
   });
 
   it('recognizes finance margin questions as finance diagnosis', () => {

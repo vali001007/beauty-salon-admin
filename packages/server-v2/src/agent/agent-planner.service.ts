@@ -3,6 +3,7 @@ import type { AgentActor, AgentPlan } from './agent.types.js';
 import { AgentToolRegistryService } from './agent-tool-registry.service.js';
 import type { BusinessTask } from './business-task/business-task.types.js';
 import { BusinessTaskCompilerService } from './business-task/business-task-compiler.service.js';
+import type { AmiBusinessSkillOutputContract } from './skills/index.js';
 
 @Injectable()
 export class AgentPlannerService {
@@ -59,6 +60,7 @@ export class AgentPlannerService {
           capabilityId: 'finance_report_draft',
           reason: '命中财务日报、周报或月报草稿意图，生成只读报告预览。',
         },
+        outputContract: this.outputContract(['kpi', 'table', 'action_card', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -145,6 +147,7 @@ export class AgentPlannerService {
           capabilityId: 'finance_margin_risk_rank',
           reason: '命中低毛利、亏损或毛利风险排行意图，按项目/商品输出风险列表和处理建议。',
         },
+        outputContract: this.outputContract(['kpi', 'table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -238,6 +241,7 @@ export class AgentPlannerService {
           capabilityId: 'finance_revenue_summary',
           reason: '命中收入汇总、营收概览或实收流水查询意图，输出财务口径收入概览。',
         },
+        outputContract: this.outputContract(['kpi', 'table', 'chart', 'evidence_panel']),
       };
     }
 
@@ -268,35 +272,7 @@ export class AgentPlannerService {
       };
     }
 
-    if (this.isReceptionCustomerLookupRequest(text)) {
-      if (!this.canUseTool('reception.customer.lookup', input.actor.role)) {
-        return this.buildRoleDeniedPlan('reception.customer.lookup', businessTask, semanticSqlCandidate);
-      }
-      return {
-        intentType: 'query',
-        goal: '查询前台客户资料',
-        toolPlan: [
-          {
-            tool: 'reception.customer.lookup',
-            args: {
-              question: input.message,
-              query: this.extractCustomerQuery(input.message),
-            },
-          },
-        ],
-        confidence: 0.9,
-        clarificationNeeded: false,
-        executionPath: 'fast',
-        businessTask,
-        semanticSqlCandidate,
-        capabilityPlan: {
-          capabilityId: 'reception_customer_lookup',
-          reason: '命中前台查客户资料意图。',
-        },
-      };
-    }
-
-    if (this.isReceptionReservationTodayRequest(text)) {
+    if (input.actor.role !== 'beautician' && this.isReceptionReservationTodayRequest(text)) {
       if (!this.canUseTool('reception.reservation.today', input.actor.role)) {
         return this.buildRoleDeniedPlan('reception.reservation.today', businessTask, semanticSqlCandidate);
       }
@@ -321,10 +297,11 @@ export class AgentPlannerService {
           capabilityId: 'reception_reservation_today',
           reason: '命中前台查看今日预约意图。',
         },
+        outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
-    if (this.isReceptionCardBenefitSummaryRequest(text)) {
+    if (input.actor.role !== 'beautician' && this.isReceptionCardBenefitSummaryRequest(text)) {
       if (!this.canUseTool('reception.card.benefit.summary', input.actor.role)) {
         return this.buildRoleDeniedPlan('reception.card.benefit.summary', businessTask, semanticSqlCandidate);
       }
@@ -350,6 +327,124 @@ export class AgentPlannerService {
           capabilityId: 'reception_card_benefit_summary',
           reason: '命中前台卡项权益查询意图。',
         },
+        outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
+      };
+    }
+
+    if (input.actor.role !== 'beautician' && this.isReceptionCashierQueryRequest(text)) {
+      if (!this.canUseTool('business.query.ask', input.actor.role)) {
+        return this.buildRoleDeniedPlan('business.query.ask', businessTask, semanticSqlCandidate);
+      }
+      return {
+        intentType: 'query',
+        goal: '查询前台收银与支付明细',
+        toolPlan: [
+          {
+            tool: 'business.query.ask',
+            args: {
+              question: input.message,
+              context: input.context,
+              businessTask,
+            },
+          },
+        ],
+        confidence: 0.84,
+        clarificationNeeded: false,
+        executionPath: 'fast',
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'business_query',
+          reason: '命中前台收银、支付方式、收款记录或结算明细查询意图，走受控经营问数。',
+        },
+        outputContract: this.outputContract(['evidence_panel'], ['kpi', 'table', 'evidence_panel']),
+      };
+    }
+
+    if (input.actor.role !== 'beautician' && this.isReceptionOnsiteProjectGuidanceRequest(text)) {
+      if (!this.canUseTool('project.diagnose', input.actor.role)) {
+        return this.buildRoleDeniedPlan('project.diagnose', businessTask, semanticSqlCandidate);
+      }
+      return {
+        intentType: 'query',
+        goal: '查询前台可推荐项目',
+        toolPlan: [
+          {
+            tool: 'project.diagnose',
+            args: {
+              question: input.message,
+              timeRange: 'last_30_days',
+              limit: 10,
+            },
+          },
+        ],
+        confidence: 0.82,
+        clarificationNeeded: false,
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'project_business_diagnosis',
+          reason: '命中前台现场接待中的项目推荐、加项目或服务内容咨询。',
+        },
+        outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
+      };
+    }
+
+    if (input.actor.role !== 'beautician' && this.isReceptionProductGuidanceRequest(text)) {
+      if (!this.canUseTool('product.sales.rank', input.actor.role)) {
+        return this.buildRoleDeniedPlan('product.sales.rank', businessTask, semanticSqlCandidate);
+      }
+      return {
+        intentType: 'query',
+        goal: '查询前台可售商品',
+        toolPlan: [
+          {
+            tool: 'product.sales.rank',
+            args: {
+              question: input.message,
+              timeRange: 'last_30_days',
+              limit: 10,
+            },
+          },
+        ],
+        confidence: 0.82,
+        clarificationNeeded: false,
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'product_sales_ranking',
+          reason: '命中前台现场接待中的可售产品、带走商品或产品推荐咨询。',
+        },
+        outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
+      };
+    }
+
+    if (input.actor.role !== 'beautician' && this.isReceptionCustomerLookupRequest(text)) {
+      if (!this.canUseTool('reception.customer.lookup', input.actor.role)) {
+        return this.buildRoleDeniedPlan('reception.customer.lookup', businessTask, semanticSqlCandidate);
+      }
+      return {
+        intentType: 'query',
+        goal: '查询前台客户资料',
+        toolPlan: [
+          {
+            tool: 'reception.customer.lookup',
+            args: {
+              question: input.message,
+              query: this.extractCustomerQuery(input.message),
+            },
+          },
+        ],
+        confidence: 0.9,
+        clarificationNeeded: false,
+        executionPath: 'fast',
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'reception_customer_lookup',
+          reason: '命中前台查客户资料意图。',
+        },
+        outputContract: this.outputContract(['evidence_panel'], ['table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -379,6 +474,46 @@ export class AgentPlannerService {
           capabilityId: 'customer_followup_task_draft',
           reason: '用户请求生成客户跟进任务，属于中风险草稿能力。',
         },
+      };
+    }
+
+    if (this.isInventoryRiskQueryRequest(text)) {
+      if (!this.canUseTool('inventory.risk.rank', input.actor.role)) {
+        return this.buildRoleDeniedPlan('inventory.risk.rank', businessTask, semanticSqlCandidate);
+      }
+      return {
+        intentType: 'query',
+        goal: '查询库存风险与安全库存',
+        toolPlan: [{ tool: 'inventory.risk.rank', args: { question: input.message, timeRange: businessTask.timeRange?.preset ?? 'today', limit: 20 } }],
+        confidence: 0.84,
+        clarificationNeeded: false,
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'inventory_risk_ranking',
+          reason: '命中库存风险、安全库存、库存货值或低效库存查询意图。',
+        },
+        outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'chart', 'action_card', 'evidence_panel']),
+      };
+    }
+
+    if (this.isSupplyChainDiagnoseRequest(text)) {
+      if (!this.canUseTool('supply_chain.diagnose', input.actor.role)) {
+        return this.buildRoleDeniedPlan('supply_chain.diagnose', businessTask, semanticSqlCandidate);
+      }
+      return {
+        intentType: 'query',
+        goal: '诊断采购供应链与供应商协同',
+        toolPlan: [{ tool: 'supply_chain.diagnose', args: { question: input.message, timeRange: businessTask.timeRange?.preset ?? 'last_30_days', limit: 10 } }],
+        confidence: 0.82,
+        clarificationNeeded: false,
+        businessTask,
+        semanticSqlCandidate,
+        capabilityPlan: {
+          capabilityId: 'supplier_performance_diagnosis',
+          reason: '命中采购计划、供应商价格、交期、询价、质检或物流协同查询意图。',
+        },
+        outputContract: this.outputContract(['evidence_panel'], ['kpi', 'table', 'chart', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -437,6 +572,7 @@ export class AgentPlannerService {
           capabilityId: 'inventory_consumption_trend',
           reason: '命中库存出库、耗材消耗和可用天数趋势分析意图。',
         },
+        outputContract: this.outputContract(['evidence_panel'], ['kpi', 'table', 'chart', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -456,6 +592,7 @@ export class AgentPlannerService {
           capabilityId: 'inventory_project_bom_risk',
           reason: '命中项目耗材、BOM 和服务消耗保障风险意图。',
         },
+        outputContract: this.outputContract(['table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -475,6 +612,7 @@ export class AgentPlannerService {
           capabilityId: 'inventory_expiring_clearance_draft',
           reason: '命中临期库存、处理草稿和清库存建议意图。',
         },
+        outputContract: this.outputContract(['evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -494,6 +632,7 @@ export class AgentPlannerService {
           capabilityId: 'supplier_purchase_link',
           reason: '命中供应商、采购链接、供货价或交期查询意图。',
         },
+        outputContract: this.outputContract(['evidence_panel'], ['table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -525,7 +664,7 @@ export class AgentPlannerService {
       };
     }
 
-    if (this.isBeauticianCustomerCareBriefRequest(text)) {
+    if (input.actor.role === 'beautician' && this.isBeauticianCustomerCareBriefRequest(text)) {
       if (!this.canUseTool('beautician.customer.care.brief', input.actor.role)) {
         return this.buildRoleDeniedPlan('beautician.customer.care.brief', businessTask, semanticSqlCandidate);
       }
@@ -576,6 +715,7 @@ export class AgentPlannerService {
           capabilityId: 'beautician_performance_progress',
           reason: '命中美容师本人业绩、服务和提成进度查询意图。',
         },
+        outputContract: this.outputContract(['kpi', 'table', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -769,6 +909,7 @@ export class AgentPlannerService {
           capabilityId: 'marketing_copy_generate',
           reason: '命中营销文案生成意图。',
         },
+        outputContract: this.outputContract(['action_card', 'table', 'evidence_panel'], ['action_card', 'table', 'evidence_panel'], true),
       };
     }
 
@@ -799,6 +940,7 @@ export class AgentPlannerService {
           capabilityId: 'marketing_effect_diagnosis',
           reason: '命中营销效果复盘意图。',
         },
+        outputContract: this.outputContract(['kpi', 'table', 'chart', 'evidence_panel']),
       };
     }
 
@@ -829,6 +971,7 @@ export class AgentPlannerService {
           capabilityId: 'marketing_opportunity_discovery',
           reason: '商品/项目/客户活动机会问题命中营销机会发现能力。',
         },
+        outputContract: this.outputContract(['kpi', 'table', 'action_card', 'evidence_panel']),
       };
     }
 
@@ -870,12 +1013,14 @@ export class AgentPlannerService {
           confidence: 0.86,
           reason: '命中 P1 Skill「营销增长执行」：根据召回目标生成营销活动草稿和确认卡。',
           outputContract: {
-            requiredKinds: ['action_card'],
-            preferredKinds: ['action_card', 'evidence'],
+            requiredKinds: ['action_card', 'table', 'evidence_panel'],
+            preferredKinds: ['action_card', 'table', 'evidence_panel'],
             evidenceRequired: true,
+            approvalRequired: true,
             maxFollowUps: 3,
           },
         },
+        outputContract: this.outputContract(['action_card', 'table', 'evidence_panel'], ['action_card', 'table', 'evidence_panel'], true),
       };
     }
 
@@ -972,6 +1117,20 @@ export class AgentPlannerService {
     return registry.list?.().find((tool) => tool.name === toolName);
   }
 
+  private outputContract(
+    requiredKinds: AmiBusinessSkillOutputContract['requiredKinds'],
+    preferredKinds: AmiBusinessSkillOutputContract['preferredKinds'] = requiredKinds,
+    approvalRequired = false,
+  ): AmiBusinessSkillOutputContract {
+    return {
+      requiredKinds,
+      preferredKinds,
+      evidenceRequired: requiredKinds.includes('evidence_panel') || requiredKinds.includes('evidence'),
+      approvalRequired,
+      maxFollowUps: approvalRequired ? 1 : 3,
+    };
+  }
+
   private normalize(value: string) {
     return String(value || '')
       .trim()
@@ -1017,6 +1176,7 @@ export class AgentPlannerService {
         capabilityId: 'customer_priority_recommendation',
         reason: '命中客户优先跟进推荐能力，按流失风险、复购机会、客户价值和近期跟进状态生成客户名单。',
       },
+      outputContract: this.outputContract(['table', 'action_card', 'evidence_panel'], ['kpi', 'table', 'action_card', 'evidence_panel']),
     };
   }
 
@@ -1071,6 +1231,7 @@ export class AgentPlannerService {
         capabilityId: capability.capabilityId,
         reason: capability.reason,
       },
+      outputContract: skill?.outputContract ?? this.deriveOutputContract(compiled.task),
       skillPlan: skill
         ? {
             skillId: skill.skillId,
@@ -1080,6 +1241,49 @@ export class AgentPlannerService {
             outputContract: skill.outputContract,
           }
         : undefined,
+    };
+  }
+
+  private deriveOutputContract(task: BusinessTask): AmiBusinessSkillOutputContract {
+    if (task.outputIntent === 'show_table' || task.outputMode === 'table' || task.outputMode === 'ranked_list') {
+      return {
+        requiredKinds: ['table', 'evidence_panel'],
+        preferredKinds: ['kpi', 'table', 'evidence_panel'],
+        minItems: 0,
+        evidenceRequired: true,
+        maxFollowUps: 3,
+      };
+    }
+    if (task.outputIntent === 'show_kpi' || task.outputMode === 'card') {
+      return {
+        requiredKinds: ['kpi', 'evidence_panel'],
+        preferredKinds: ['kpi', 'table', 'evidence_panel'],
+        evidenceRequired: true,
+        maxFollowUps: 3,
+      };
+    }
+    if (task.outputIntent === 'show_chart') {
+      return {
+        requiredKinds: ['chart', 'evidence_panel'],
+        preferredKinds: ['chart', 'table', 'evidence_panel'],
+        evidenceRequired: true,
+        maxFollowUps: 3,
+      };
+    }
+    if (task.outputIntent === 'confirm_action' || task.outputIntent === 'draft_document' || task.outputMode === 'draft' || task.outputMode === 'workflow') {
+      return {
+        requiredKinds: ['action_card', 'evidence_panel'],
+        preferredKinds: ['action_card', 'evidence_panel'],
+        evidenceRequired: true,
+        approvalRequired: task.requiresApproval,
+        maxFollowUps: 1,
+      };
+    }
+    return {
+      requiredKinds: ['text'],
+      preferredKinds: ['text', 'evidence_panel'],
+      evidenceRequired: false,
+      maxFollowUps: 3,
     };
   }
 
@@ -1102,6 +1306,10 @@ export class AgentPlannerService {
     compiled: Awaited<ReturnType<BusinessTaskCompilerService['compile']>>,
   ): AgentPlan | null {
     if (compiled.validation.valid) return null;
+    const task = compiled.task;
+    if (task.domain !== 'unknown' && !task.requiresApproval && task.riskLevel !== 'high') {
+      return null;
+    }
     return {
       intentType: 'clarify',
       goal: '澄清用户想执行的经营任务',
@@ -1124,19 +1332,21 @@ export class AgentPlannerService {
   }
 
   private isFinanceRevenueSummaryRequest(text: string) {
-    const hasRevenueDomain = /收入|营收|营业额|流水|实收|收款|订单金额/.test(text);
-    const hasSummaryIntent = /汇总|概览|总览|看板|统计|小结|实收/.test(text);
+    if (/客户名单|客户清单|哪些客户|消费客户|流水客户/.test(text)) return false;
+    const hasRevenueDomain = /收入|营收|营业额|流水|实收|收款|订单金额|预付|预付款|应收账款|储值|分期付款|挂账|重复收费|双计费|多了还是少了|漏收|多收/.test(text);
+    const hasSummaryIntent = /汇总|概览|总览|看板|统计|小结|实收|漏收|多收|多了还是少了|预付|预付款|应收账款|储值|分期付款|挂账|重复收费|双计费|多少|有没有|记录|需要处理|关注|情况/.test(text);
     const hasProfitIntent = /利润|毛利|成本|亏损|提成/.test(text);
     const hasRiskRankIntent = /排行|排名|风险|最低|最高|亏损项|低毛利/.test(text);
     return hasRevenueDomain && hasSummaryIntent && !hasProfitIntent && !hasRiskRankIntent;
   }
 
   private isFinanceRefundDiscountAuditRequest(text: string) {
-    const hasAuditIntent = /审计|稽核|复核|风控|检查|财务/.test(text);
-    const hasRiskIntent = /异常|风险|高折扣|高退款/.test(text);
-    const hasDiscount = /折扣|优惠|手工优惠|手动优惠|优惠金额|折让/.test(text);
+    const hasAuditIntent = /审计|稽核|复核|风控|检查|财务|超权限|合规|违规|规定范围|审批流程|私自|不入账|可疑|重复收费|双计费/.test(text);
+    const hasRiskIntent = /异常|风险|高折扣|高退款|纠纷|处理时间|大额异常/.test(text);
+    const hasDiscount = /折扣|优惠|打折|免单|赠送|手工优惠|手动优惠|优惠金额|折让/.test(text);
     const hasRefund = /退款|退费/.test(text);
-    return hasDiscount && (hasAuditIntent || hasRiskIntent || hasRefund);
+    const hasCashierRisk = /收款|收费/.test(text) && /私自|不入账|重复|双计费|异常|风险/.test(text);
+    return (hasDiscount || hasRefund || hasCashierRisk) && (hasAuditIntent || hasRiskIntent || hasRefund);
   }
 
   private isFinanceBeauticianPerformanceAuditRequest(text: string) {
@@ -1148,14 +1358,14 @@ export class AgentPlannerService {
 
   private isFinanceReportDraftRequest(text: string) {
     const hasFinanceDomain = /财务|收入|利润|毛利|经营/.test(text);
-    const hasReportIntent = /报告|报表|日报|周报|月报|经营报告/.test(text);
-    const hasDraftIntent = /草稿|生成|起草|写|出一份|做一份/.test(text);
+    const hasReportIntent = /报告|报表|日报|周报|月报|经营报告|财务简报/.test(text);
+    const hasDraftIntent = /草稿|生成|起草|写|出一份|做一份|什么时候要出|需要什么数据/.test(text);
     return hasFinanceDomain && hasReportIntent && hasDraftIntent;
   }
 
   private isFinanceProfitDiagnoseRequest(text: string) {
-    const hasProfitDomain = /利润|盈利|净收入|成本|耗材成本|提成成本/.test(text);
-    const hasDiagnosisIntent = /诊断|分析|原因|为什么|下降|上升|变化|影响|怎么样|情况|趋势|高吗|高不高/.test(text);
+    const hasProfitDomain = /利润|盈利|净收入|成本|耗材成本|提成成本|房租水电|预算|支出/.test(text);
+    const hasDiagnosisIntent = /诊断|分析|原因|为什么|下降|上升|变化|影响|怎么样|情况|趋势|高吗|高不高|算一下|花了多少|控制空间|超出预算/.test(text);
     const hasProjectOnlyIntent = /项目耗材|项目毛利|服务项目/.test(text);
     const hasRiskRankIntent = /排行|排名|风险最高|风险最低|哪些.*(低|亏)|低毛利/.test(text);
     return hasProfitDomain && hasDiagnosisIntent && !hasProjectOnlyIntent && !hasRiskRankIntent;
@@ -1163,7 +1373,7 @@ export class AgentPlannerService {
 
   private isFinanceMarginRiskRankRequest(text: string) {
     const hasMarginDomain = /毛利|利润|亏损|成本/.test(text);
-    const hasRiskIntent = /风险|排行|排名|最低|最高|低毛利|亏损项|拖累|异常/.test(text);
+    const hasRiskIntent = /风险|排行|排名|最低|最高|低毛利|亏损项|拖累|异常|控制空间|在亏损/.test(text);
     const hasTarget = /项目|商品|产品|服务|护理|品项|哪些|哪个/.test(text);
     const hasBomIntent = /BOM|bom|耗材保障|标准用量|够不够/.test(text);
     const hasProjectOnlyIntent = /项目毛利|项目.*毛利|服务项目|护理服务/.test(text) && !/商品|产品|品项/.test(text);
@@ -1178,30 +1388,59 @@ export class AgentPlannerService {
   }
 
   private isReceptionCustomerLookupRequest(text: string) {
-    const hasLookupIntent = /查客户|查询客户|客户资料|客户信息|客户档案|会员资料|会员信息|查一下/.test(text);
-    const hasCustomerMarker = /客户|会员|手机号|电话|姓名|资料|信息/.test(text);
+    if (/这个活动|该活动|这场活动|上次那个活动|上一个活动/.test(text)) return false;
+    if (/(搞|做|设计|活动|营销).{0,8}会员权益|会员权益.{0,8}(活动|营销|适合|搞)/.test(text)) return false;
+    if (/营销|转化|roi|投入回报|免费体验|活动吸引|进店.*活动|自动识别|自动升级|自动触发|规则|供应商|理论耗材|实际差|储值卡余额总计/.test(text)) return false;
+    const hasLookupIntent =
+      /查客户|查询客户|客户资料|客户信息|客户档案|会员资料|会员信息|查一下|快速看一下|看一下|找一下|上次|之前|办过卡|会员等级|权益|剩余|备注|标签|欠款|退款记录|活动|推荐过|固定的习惯|不满|家人也来过|反映的问题/.test(text);
+    const hasCustomerMarker = /客户|客人|顾客|会员|手机号|电话|姓名|资料|信息|她|他|这位|这个/.test(text);
     return hasLookupIntent && hasCustomerMarker;
   }
 
   private isReceptionReservationTodayRequest(text: string) {
-    const hasToday = /今天|今日|本日/.test(text);
-    const hasReservationIntent = /预约|到店|待确认|排期|排班/.test(text);
-    const hasQueryIntent = /查看|查询|看看|有哪些|什么/.test(text);
-    return hasToday && hasReservationIntent && hasQueryIntent;
+    const hasTimeScope = /今天|今日|本日|明天|明日|本周|这周|下午|上午|现在|临时/.test(text);
+    const hasReservationIntent = /预约|到店|待确认|未确认|没有确认|排期|排班|改期|空档|空位|加客|安排|通知到位|找不到记录|排得特别满|同时安排/.test(text);
+    const hasQueryIntent = /查看|查询|看看|有哪些|什么|有没有|几个|几点|哪天|哪个|帮我|确认|能不能|可以吗|需要|能/.test(text);
+    const hasNamedReservation = /预约.*(几点|做什么|项目)|(.{2,4})的预约/.test(text);
+    const hasReservationAnomaly = /预约.{0,8}(没确认|没有确认|未确认|找不到记录|超过.{0,4}没有确认)|临时来了没预约|没预约.*安排|排得特别满|哪个时段可以加客|同时安排/.test(text);
+    return (hasTimeScope || hasNamedReservation || hasReservationAnomaly || /待确认|未确认|改期|空档|空位/.test(text)) && hasReservationIntent && hasQueryIntent;
   }
 
   private isReceptionCardBenefitSummaryRequest(text: string) {
-    const hasCardIntent = /卡项权益|还有什么卡|卡还有|卡里还有|还有什么次卡|还剩多少次|剩余次数|可用次数/.test(text);
-    const hasCustomerIntent = /客户|会员|手机号|电话|姓名|张三|李四|王五|这个客户|这位客户|他|她/.test(text);
+    if (/适合发.*优惠券|发什么优惠券|优惠券.*适合/.test(text)) return false;
+    if (/自动升级|规则|储值卡余额总计|客户都来消费|财务|现金流/.test(text)) return false;
+    const hasCardIntent = /卡项权益|还有什么卡|卡还有|卡里还有|还有什么次卡|还剩多少次|剩余次数|可用次数|未核销.*优惠券|优惠券|会员折扣|预存|储值卡|次卡有效期|办过卡|升级会员|核销界面|用次卡|退卡|礼品卡/.test(text);
+    const hasCustomerIntent = /客户|客人|顾客|会员|手机号|电话|姓名|张三|李四|王五|这个客户|这位客户|这个客人|这位客人|他|她/.test(text);
     const hasWholeShopIntent = /哪些|排行|全部|整体|门店|全店/.test(text);
-    return hasCardIntent && hasCustomerIntent && !hasWholeShopIntent;
+    return hasCardIntent && (hasCustomerIntent || /核销界面|用次卡|退卡|礼品卡/.test(text)) && !hasWholeShopIntent;
+  }
+
+  private isReceptionCashierQueryRequest(text: string) {
+    if (/财务|利润|毛利|现金流|经营报告|月报|周报/.test(text)) return false;
+    const hasCashierIntent = /支付方式|微信|支付宝|现金|收款记录|收款明细|第一笔收款|已经收了多少钱|收了多少钱|收款多少|这笔单子|结算|买单|收银/.test(text);
+    const hasOrderContext = /今天|今日|昨天|昨日|上周|本周|这笔|单子|客人|客户|她|他|产品|项目|储值卡消费/.test(text);
+    return hasCashierIntent && hasOrderContext;
+  }
+
+  private isReceptionOnsiteProjectGuidanceRequest(text: string) {
+    if (/营销|活动|促销|供应商|库存|财务|利润|毛利/.test(text)) return false;
+    const hasProjectIntent = /推荐什么项目|什么项目|能做的项目|介绍什么|临时加项目|加项目|改变服务内容|服务内容|做面部|做身体/.test(text);
+    const hasReceptionContext = /客人|客户|顾客|新客|现场|今天来了|她|他|洗手间|等待/.test(text);
+    return hasProjectIntent && hasReceptionContext;
+  }
+
+  private isReceptionProductGuidanceRequest(text: string) {
+    if (/营销|活动|促销|供应商|库存|财务|利润|毛利/.test(text)) return false;
+    const hasProductIntent = /产品可以卖|有什么产品|买产品带走|可售产品|推荐产品|卖什么产品/.test(text);
+    const hasReceptionContext = /客人|客户|顾客|现场|她|他|现在|我们/.test(text);
+    return hasProductIntent && hasReceptionContext;
   }
 
   private isMarketingCustomerSegmentDiscoveryRequest(text: string) {
-    const hasSegmentIntent = /沉睡|流失|未到店|没来|召回|唤醒|回访|新客|未转化|高价值|复购/.test(text);
-    const hasAudienceIntent = /客户|顾客|会员|人群|客群|名单/.test(text);
+    const hasSegmentIntent = /沉睡|流失|消失|未到店|没来|召回|唤醒|回访|新客|未转化|高价值|复购|生日|分层|消费金额|优惠敏感|打折才来|基础项目|没升单|办了卡|还没预约|响应/.test(text);
+    const hasAudienceIntent = /客户|顾客|客人|会员|人群|客群|名单/.test(text);
     const hasDiscoveryIntent = /找|筛|发现|盘一盘|看看|哪些|哪个|分群|做|安排|帮我|回访|召回|唤醒/.test(text);
-    const hasCopyIntent = /短信|话术|文案|朋友圈|海报文案|私域文案|群发文案/.test(text);
+    const hasCopyIntent = /短信|话术|文案|朋友圈|海报文案|私域文案|群发文案|消息|模板|祝福|欢迎词|脚本|通知/.test(text);
     return hasSegmentIntent && hasAudienceIntent && hasDiscoveryIntent && !hasCopyIntent && !this.isCustomerPriorityListRequest(text);
   }
 
@@ -1249,8 +1488,8 @@ export class AgentPlannerService {
   }
 
   private isMarketingCopyGenerateRequest(text: string) {
-    const hasCopyIntent = /话术|文案|短信|朋友圈|海报文案|私域文案|群发文案/.test(text);
-    const hasGenerateIntent = /生成|写|起草|准备|改写|优化|帮我写|帮我生成/.test(text);
+    const hasCopyIntent = /话术|文案|短信|朋友圈|海报文案|私域文案|群发文案|消息|模板|祝福|欢迎词|脚本|通知|私信|感谢消息/.test(text);
+    const hasGenerateIntent = /生成|写|起草|准备|改写|优化|帮我写|帮我生成|给.*写|发给/.test(text);
     return hasCopyIntent && hasGenerateIntent;
   }
 
@@ -1263,6 +1502,11 @@ export class AgentPlannerService {
   }
 
   private isHighRiskDirectAction(text: string) {
+    const isReadOnlyCashierQuery =
+      /查|查询|看|看看|明细|记录|多少|几笔|第一笔|方式|微信|支付宝|现金|有没有|异常|风险|不入账|可疑|重复|双计费/.test(text) &&
+      /收款|收银|支付|单子|订单|结算/.test(text) &&
+      !/确认收银|确认收款|直接收款|直接扣款|扣款|收款给|发起收款/.test(text);
+    if (isReadOnlyCashierQuery) return false;
     const hasDirectAction = /发布|上线|群发|发送|推送|下发|自动发|发给|给.*(?:客户|会员).*发|扣款|收款|直接退款|发起退款|确认退款|退款给|直接核销|帮.*核销|确认核销|核销次卡|划扣|确认收银|改排班|删除/.test(text);
     const hasSensitiveDomain = /活动|客户|会员|短信|微信|小程序|订单|次卡|会员卡|余额|排班|预约|库存|收银|支付|扣款|收款/.test(text);
     return hasDirectAction && hasSensitiveDomain;
@@ -1285,8 +1529,8 @@ export class AgentPlannerService {
   }
 
   private isCustomerFollowUpDraftRequest(text: string) {
-    const hasTaskIntent = /跟进任务|邀约任务|回访任务|唤醒任务|创建跟进|生成跟进|安排跟进|生成邀约/.test(text);
-    const hasCustomerDomain = /客户|顾客|会员|流失|复购|邀约|回访|唤醒|沉睡/.test(text);
+    const hasTaskIntent = /跟进任务|邀约任务|回访任务|唤醒任务|创建跟进|生成跟进|安排跟进|生成邀约|设置.*提醒|提醒.*联系|下个月.*联系/.test(text);
+    const hasCustomerDomain = /客户|客人|顾客|会员|流失|复购|邀约|回访|唤醒|沉睡/.test(text);
     return hasTaskIntent && hasCustomerDomain;
   }
 
@@ -1303,9 +1547,17 @@ export class AgentPlannerService {
     return hasDraftIntent && hasInventoryDomain;
   }
 
+  private isInventoryRiskQueryRequest(text: string) {
+    if (/供应商|采购计划|询价单|价格|账期|物流|下单|到货|供货|质检/.test(text)) return false;
+    if (/补货草稿|采购草稿|生成补货|创建补货|生成采购|创建采购|补货建议草稿/.test(text)) return false;
+    const hasRiskIntent = /低于安全库存|安全库存线|安全库存|低库存|缺货|仓库里有多少货|值多少钱|货值|一直有但从来不用|很长时间还没用完|需求突然增加|损耗金额|损耗多少|成本控制空间|过期.*损耗|变质/.test(text);
+    const hasInventoryDomain = /库存|商品|产品|货|货品|仓库|耗材|护肤品|原材料|一次性耗材/.test(text);
+    return hasRiskIntent && hasInventoryDomain;
+  }
+
   private isInventoryConsumptionTrendRequest(text: string) {
-    const hasTrendIntent = /趋势|消耗|耗材消耗|出库|用量|消耗最快|可用几天|还能用几天/.test(text);
-    const hasInventoryDomain = /库存|商品|产品|耗材|物料/.test(text);
+    const hasTrendIntent = /趋势|消耗|耗材消耗|出库|进出库|用量|用了多少|还剩多少|消耗最快|可用几天|还能用几天|够用多久|够用吗|接待量增加|每个月.*损耗|损耗多少|货值/.test(text);
+    const hasInventoryDomain = /库存|商品|产品|耗材|物料|洗面奶|补水精华|货|货值|一次性耗材/.test(text);
     return hasTrendIntent && hasInventoryDomain;
   }
 
@@ -1318,8 +1570,8 @@ export class AgentPlannerService {
   }
 
   private isExpiringClearanceDraftRequest(text: string) {
-    const hasExpiryIntent = /临期|快过期|即将过期|过期风险|清库存|消化库存/.test(text);
-    const hasDraftOrAdvice = /处理|草稿|方案|建议|怎么做|清一清|活动/.test(text);
+    const hasExpiryIntent = /临期|快过期|即将过期|过期风险|清库存|消化库存|过期|保存不当|变质/.test(text);
+    const hasDraftOrAdvice = /处理|草稿|方案|建议|怎么做|清一清|活动|损失金额|损耗|规定|有没有/.test(text);
     return hasExpiryIntent && hasDraftOrAdvice;
   }
 
@@ -1330,23 +1582,29 @@ export class AgentPlannerService {
     return hasSupplierDomain && hasPurchaseIntent && hasProductPurchaseContext;
   }
 
+  private isSupplyChainDiagnoseRequest(text: string) {
+    const hasSupplyDomain = /供应商|供货商|采购|询价|价格|账期|原材料|备货|进口|物流|下单|到货|质检|新品|交易记录/.test(text);
+    const hasSupplyIntent = /计划|比较|优惠|替代|上涨|趋势|多备|核对|数量|价格|什么时候能到|影响不影响|提前多少天|联系方式|整理|记录|要不要/.test(text);
+    return hasSupplyDomain && hasSupplyIntent;
+  }
+
   private isServiceRecordDraftRequest(text: string) {
-    const hasDraftIntent = /服务记录草稿|护理记录草稿|生成服务记录|生成护理记录|补服务记录|补护理记录/.test(text);
-    const hasServiceDomain = /服务|护理|记录|美容师/.test(text);
+    const hasDraftIntent = /服务记录草稿|护理记录草稿|生成服务记录|生成护理记录|补服务记录|补护理记录|记录一下|记一下|怎么记录|服务时长|具体操作步骤|仪器参数|特殊需求|皮肤状态有明显变化/.test(text);
+    const hasServiceDomain = /服务|护理|记录|美容师|客人|客户|仪器|皮肤/.test(text);
     return hasDraftIntent && hasServiceDomain;
   }
 
   private isBeauticianTodayServiceListRequest(text: string) {
-    const hasToday = /今天|今日|本日|当天/.test(text);
-    const hasCustomerOrService = /客户|顾客|会员|服务|护理|预约|到店/.test(text);
-    const hasSelfOrBeautician = /我|本人|美容师|我的|下一个|有哪些|安排/.test(text);
-    const hasQueryIntent = /有哪些|什么|查看|看看|查|安排|列表|客户/.test(text);
-    return hasToday && hasCustomerOrService && hasSelfOrBeautician && hasQueryIntent;
+    const hasTimeScope = /今天|今日|本日|当天|本周|这周|下午|上午|现在/.test(text);
+    const hasCustomerOrService = /客户|客人|顾客|会员|服务|护理|预约|到店|空档|空位|排班|安排|培训|耗材|产品/.test(text);
+    const hasSelfOrBeautician = /我|本人|美容师|我的|下一个|下个|最后一个|有哪些|安排/.test(text);
+    const hasQueryIntent = /有哪些|什么|查看|看看|查|安排|列表|几点|多久|几个小时|空档|结束|取消|排班|怎样/.test(text);
+    return hasTimeScope && hasCustomerOrService && hasSelfOrBeautician && hasQueryIntent;
   }
 
   private isBeauticianCustomerCareBriefRequest(text: string) {
-    const hasNextCustomer = /下一个客户|下一位客户|下个客户|这个客户|这位客户|客户要注意|护理前|服务前/.test(text);
-    const hasCareIntent = /注意|提醒|护理建议|护理摘要|准备|禁忌|过敏|肤况|护理要点|服务要点/.test(text);
+    const hasNextCustomer = /下一个客户|下一位客户|下个客户|下一个客人|下一位客人|下个客人|这个客户|这位客户|这个客人|这位客人|客户要注意|客人要注意|护理前|服务前|她|他|客人|客户/.test(text);
+    const hasCareIntent = /注意|提醒|护理建议|护理摘要|准备|禁忌|过敏|肤况|护理要点|服务要点|上次做|特殊要求|疗程|保养|怎么建议|怎么回答|抗老|升级|推荐项目|出油|色斑|敏感|暗沉|护理方案|护理重点|怎么调整|怎么介绍|沟通|送客/.test(text);
     return hasNextCustomer && hasCareIntent;
   }
 
@@ -1359,8 +1617,8 @@ export class AgentPlannerService {
   }
 
   private isBeauticianRepurchaseOpportunityRequest(text: string, role: AgentActor['role']) {
-    const hasCustomerDomain = /客户|顾客|会员|老客|卡项|次卡/.test(text);
-    const hasOpportunity = /复购|续卡|回访|下次护理|再次到店|护理周期|适合跟进|适合邀约/.test(text);
+    const hasCustomerDomain = /客户|客人|顾客|会员|老客|卡项|次卡/.test(text);
+    const hasOpportunity = /复购|续卡|回访|下次护理|再次到店|护理周期|适合跟进|适合邀约|推荐|升级|项目/.test(text);
     const hasBeauticianScope = role === 'beautician' || /我|我的|美容师|技师|我的客户|我服务/.test(text);
     return hasCustomerDomain && hasOpportunity && hasBeauticianScope;
   }
@@ -1447,10 +1705,10 @@ export class AgentPlannerService {
   }
 
   private isMarketingRecallActivityDraftRequest(text: string) {
-    const hasDraftIntent = /生成|创建|新建|做个|做一场|策划|活动方案|活动草稿|召回活动/.test(text);
-    const hasMarketingDomain = /活动|营销|促销|权益|优惠券|券|礼包|私域|短信/.test(text);
-    const hasRecallTarget = /召回|沉睡|流失|唤醒|未到店|没来|老客|回店|回流/.test(text);
-    return hasDraftIntent && (hasMarketingDomain || /召回活动/.test(text)) && hasRecallTarget;
+    const hasDraftIntent = /生成|创建|新建|做个|做一场|策划|设计|方案|怎么设计|做什么活动|活动方案|活动草稿|召回活动/.test(text);
+    const hasMarketingDomain = /活动|营销|促销|权益|优惠券|券|礼包|私域|短信|老带新|三周年|周年|引流|朋友圈|新客/.test(text);
+    const hasTarget = /召回|沉睡|流失|唤醒|未到店|没来|老客|回店|回流|老带新|新客|三周年|周年|朋友圈|引流|提前预约|不用打折|销售下滑|欢迎礼包/.test(text);
+    return hasDraftIntent && (hasMarketingDomain || /召回活动/.test(text)) && hasTarget;
   }
 
   private buildMarketingRecallActivityDraftArgs(message: string, businessTask: BusinessTask) {

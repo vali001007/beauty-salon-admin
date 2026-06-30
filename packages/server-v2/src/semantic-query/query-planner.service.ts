@@ -83,7 +83,7 @@ export class QueryPlannerService {
     if (task.domain === 'reservation' || task.domain === 'schedule') return ['reservation_count', 'arrival_rate'];
     if (task.domain === 'card') return ['card_usage_times'];
     if (task.domain === 'memberCard') return ['member_balance'];
-    if (task.domain === 'marketing') return ['campaign_conversion_rate'];
+    if (task.domain === 'marketing') return ['marketing_activity_count'];
     return [];
   }
 
@@ -100,7 +100,7 @@ export class QueryPlannerService {
     if (metricKeys.includes('card_expiry_risk')) return ['customerId', 'customerName', 'cardName'];
     if (metricKeys.includes('staff_performance_score')) return ['beauticianId', 'beauticianName'];
     if (task.outputMode === 'table' || task.outputMode === 'ranked_list' || task.taskType === 'ranking') {
-      if (metricKeys.includes('campaign_conversion_rate')) return ['campaignId', 'campaignName'];
+      if (metricKeys.includes('campaign_conversion_rate') || metricKeys.includes('marketing_activity_count')) return ['campaignId', 'campaignName'];
     }
     if (this.isTrendTask(task)) return ['date'];
     if (task.domain === 'order' || task.domain === 'business' || task.domain === 'finance') return ['date'];
@@ -131,6 +131,7 @@ export class QueryPlannerService {
   private resolveOutputShape(task: BusinessTask, dimensions: string[], template?: SemanticQueryTemplateDefinition): SemanticQueryOutputShape {
     if (task.taskType === 'ranking' || task.outputMode === 'ranked_list') return 'list';
     if (task.outputIntent === 'show_table' && template?.supportedOutputShapes.includes('table')) return 'table';
+    if (template?.id === 'marketing_activity_list') return 'table';
     if (this.isTrendTask(task) || dimensions.includes('date')) return 'trend';
     if (task.outputMode === 'table') return 'table';
     return 'summary';
@@ -147,7 +148,7 @@ export class QueryPlannerService {
     if (task.domain === 'inventory') return 'inventory_risk_ranking';
     if (task.domain === 'staff') return 'staff_performance_ranking';
     if (task.domain === 'card' || task.domain === 'memberCard') return 'card_member_business_diagnosis';
-    if (task.domain === 'marketing') return 'marketing_conversion_diagnosis';
+    if (task.domain === 'marketing') return 'marketing_activity_list';
     if (task.domain === 'order' || task.domain === 'business' || task.domain === 'finance') return 'revenue_diagnosis';
     return 'business_query';
   }

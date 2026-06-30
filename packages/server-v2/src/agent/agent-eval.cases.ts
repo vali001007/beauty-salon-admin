@@ -22,7 +22,20 @@ export type AgentEvalCaseDefinition = {
   expectedProtectedFieldScopes?: string[];
   expectedResponseSafe?: boolean;
   expectedRuntimeResponseSafe?: boolean;
-  expectedOutputKinds?: Array<'text' | 'kpi' | 'table' | 'chart' | 'action_card' | 'clarify' | 'evidence'>;
+  expectedOutputKinds?: Array<
+    | 'text'
+    | 'kpi'
+    | 'table'
+    | 'chart'
+    | 'link_card'
+    | 'action_card'
+    | 'clarification_card'
+    | 'clarify'
+    | 'evidence'
+    | 'evidence_panel'
+    | 'data_gap'
+    | 'permission_notice'
+  >;
   expectedPlannedTools?: string[];
 };
 

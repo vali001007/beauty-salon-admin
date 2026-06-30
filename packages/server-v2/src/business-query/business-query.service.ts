@@ -2,6 +2,8 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BusinessTaskPreParserService } from '../agent/business-task/business-task-preparser.service.js';
 import type { BusinessTask } from '../agent/business-task/business-task.types.js';
+import type { EntityResolutionCandidate } from '../agent/knowledge/knowledge.types.js';
+import { UnifiedQueryPlannerService } from '../agent/knowledge/unified-query-planner.service.js';
 import { QueryPlannerService } from '../semantic-query/query-planner.service.js';
 import { SemanticQueryExecutorService } from '../semantic-query/semantic-query-executor.service.js';
 import type { SemanticQueryResult } from '../semantic-query/query-plan.types.js';
@@ -13,6 +15,7 @@ import type {
   BusinessQueryDomain,
   BusinessQueryEvidence,
   BusinessQueryPlan,
+  BusinessQueryPlannerTrace,
   BusinessQueryResponse,
   BusinessQueryRole,
 } from './business-query.types.js';
@@ -28,6 +31,7 @@ export class BusinessQueryService {
     @Optional() private readonly queryPlanner?: QueryPlannerService,
     @Optional() private readonly semanticQueryExecutor?: SemanticQueryExecutorService,
     @Optional() private readonly preParser?: BusinessTaskPreParserService,
+    @Optional() private readonly unifiedQueryPlanner?: UnifiedQueryPlannerService,
   ) {}
 
   capabilities(role?: BusinessQueryRole) {
@@ -37,6 +41,18 @@ export class BusinessQueryService {
   async ask(params: { question: string; storeId: number; role?: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext }) {
     const startedAt = Date.now();
     const role = params.role ?? 'manager';
+    const knowledgeQueryResponse = await this.tryKnowledgeQueryFirst(params, role);
+    if (knowledgeQueryResponse) {
+      await this.logAudit({
+        queryPlan: knowledgeQueryResponse.queryPlan,
+        response: knowledgeQueryResponse,
+        operatorId: params.operatorId,
+        storeId: params.storeId,
+        latencyMs: Date.now() - startedAt,
+      });
+      return knowledgeQueryResponse;
+    }
+
     const unifiedQueryResponse = await this.tryUnifiedSemanticQueryFirst(params, role);
     if (unifiedQueryResponse) {
       await this.logAudit({
@@ -132,6 +148,9 @@ export class BusinessQueryService {
             case 'finance_cashflow_summary':
               response = await this.queryFinanceCashflowSummary(queryPlan);
               break;
+            case 'finance_today_transaction_list':
+              response = await this.queryTodayTransactionList(queryPlan);
+              break;
             case 'marketing_conversion':
               response = await this.queryMarketingConversion(queryPlan);
               break;
@@ -172,6 +191,197 @@ export class BusinessQueryService {
       });
       throw error;
     }
+  }
+
+  private async tryKnowledgeQueryFirst(
+    params: { question: string; storeId: number; role?: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext },
+    role: BusinessQueryRole,
+  ): Promise<BusinessQueryResponse | null> {
+    if (!this.unifiedQueryPlanner) return null;
+    const decision = await this.unifiedQueryPlanner.planBusinessQuery({
+      question: params.question,
+      storeId: params.storeId,
+      role,
+    });
+    if (decision.status === 'fallback' || !decision.businessCapabilityId || !decision.capabilityDecision.capability) return null;
+    const entityResolution = decision.entityResolution;
+    const entities = entityResolution.entity ? [entityResolution.entity] : entityResolution.candidates;
+    const resolvedCapability = decision.capabilityDecision.capability;
+    const businessCapabilityId = decision.businessCapabilityId;
+
+    const queryPlan = this.buildKnowledgeQueryPlan({
+      question: params.question,
+      storeId: params.storeId,
+      role,
+      operatorId: params.operatorId,
+      capability: businessCapabilityId,
+      metrics: [],
+      dimensions: entities.map((entity) => entity.objectType),
+      filters: {
+        storeId: params.storeId,
+        role,
+        operatorId: params.operatorId,
+        contextProductIds: entities
+          .filter((entity) => entity.objectType === 'InventoryProduct')
+          .map((entity) => Number(entity.entityId))
+          .filter((id) => Number.isInteger(id) && id > 0),
+        selectedEntity: entityResolution.entity
+          ? {
+              objectType: entityResolution.entity.objectType,
+              entityId: entityResolution.entity.entityId,
+              displayName: entityResolution.entity.displayName,
+              sourceModel: entityResolution.entity.sourceModel,
+              metadata: entityResolution.entity.metadata,
+            }
+          : null,
+        entityResolution: {
+          status: entityResolution.status,
+          action: decision.capabilityDecision.action,
+          capabilityId: resolvedCapability.capabilityId,
+          candidates: entityResolution.candidates.map((item) => ({
+            objectType: item.objectType,
+            entityId: item.entityId,
+            displayName: item.displayName,
+            confidence: item.confidence,
+            matchStrategy: item.matchStrategy,
+            sourceModel: item.sourceModel,
+          })),
+        },
+      },
+      plannerTrace: decision.trace,
+      fallbackReason: decision.fallbackReason,
+    });
+
+    if (decision.status === 'clarify') {
+      return {
+        requestId: queryPlan.requestId,
+        status: 'clarify',
+        domain: queryPlan.domain,
+        capability: businessCapabilityId,
+        queryPlan: {
+          ...queryPlan,
+          intent: 'clarify',
+          needClarification: true,
+          clarificationQuestion: entityResolution.clarificationQuestion,
+          plannerTrace: decision.trace,
+        },
+        answer: entityResolution.clarificationQuestion ?? '我找到了多个可能对象，请确认要查询哪一个。',
+        evidence: this.emptyEvidence('实体解析出现多个候选'),
+        actions: [],
+      };
+    }
+
+    if (businessCapabilityId === 'marketing_activity_link_lookup') {
+      if (entityResolution.status !== 'resolved' || !entityResolution.entity) return null;
+      return this.queryMarketingActivityLinkLookup(queryPlan, entityResolution.entity);
+    }
+
+    return this.executeKnowledgeBackedBusinessQuery(queryPlan);
+  }
+
+  private async executeKnowledgeBackedBusinessQuery(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse | null> {
+    switch (queryPlan.capability) {
+      case 'business_overview':
+        return this.queryBusinessOverview(queryPlan);
+      case 'product_sales_trend':
+        return this.queryProductSalesTrend(queryPlan);
+      case 'product_customer_distribution':
+        return this.queryProductCustomerDistribution(queryPlan);
+      case 'product_replenishment_opportunity':
+        return this.queryProductReplenishmentOpportunity(queryPlan);
+      case 'customer_profile_lookup':
+        return this.queryCustomerProfileLookup(queryPlan);
+      case 'customer_reservation_today':
+        return this.queryCustomerReservationToday(queryPlan);
+      case 'customer_card_benefit_summary':
+        return this.queryCustomerCardBenefitSummary(queryPlan);
+      case 'customer_churn_risk':
+        return this.queryCustomerChurnRisk(queryPlan);
+      case 'reservation_today':
+        return this.queryTodayReservations(queryPlan);
+      case 'finance_order_lookup':
+        return this.queryFinanceOrderLookup(queryPlan);
+      case 'finance_today_transaction_list':
+        return this.queryTodayTransactionList(queryPlan);
+      case 'order_customer_consumption_list':
+        return this.queryOrderCustomerConsumptionList(queryPlan);
+      case 'member_card_lookup':
+        return this.queryMemberCardLookup(queryPlan);
+      case 'card_expiry_risk':
+        return this.queryCardExpiryRisk(queryPlan);
+      case 'marketing_activity_list':
+        return this.queryMarketingActivityList(queryPlan);
+      case 'customer_growth_opportunity':
+        return this.queryCustomerGrowthOpportunity(queryPlan);
+      case 'card_usage_analysis':
+        return this.queryCardUsageAnalysis(queryPlan);
+      case 'member_balance_analysis':
+        return this.queryMemberBalanceAnalysis(queryPlan);
+      case 'inventory_alert':
+        return this.queryInventoryAlerts(queryPlan);
+      case 'project_service_trend':
+        return this.queryProjectServiceTrend(queryPlan);
+      case 'project_material_margin':
+        return this.queryProjectMaterialMargin(queryPlan);
+      case 'staff_performance':
+        return this.queryStaffPerformance(queryPlan);
+      case 'schedule_utilization':
+        return this.queryScheduleUtilization(queryPlan);
+      case 'order_revenue_analysis':
+        return this.queryOrderRevenue(queryPlan);
+      case 'finance_cashflow_summary':
+        return this.queryFinanceCashflowSummary(queryPlan);
+      case 'marketing_conversion':
+        return this.queryMarketingConversion(queryPlan);
+      case 'automation_execution_summary':
+        return this.queryAutomationExecutionSummary(queryPlan);
+      case 'supplier_purchase_advice':
+        return this.querySupplierPurchaseAdvice(queryPlan);
+      case 'business_anomaly_alert':
+        return this.queryBusinessAnomalyAlert(queryPlan);
+      case 'multi_store_comparison':
+        return this.queryMultiStoreComparison(queryPlan);
+      case 'terminal_health_diagnosis':
+        return this.queryTerminalHealthDiagnosis(queryPlan);
+      default:
+        return null;
+    }
+  }
+
+  private buildKnowledgeQueryPlan(params: {
+    question: string;
+    storeId: number;
+    role: BusinessQueryRole;
+    operatorId?: number;
+    capability: BusinessQueryCapabilityId;
+    metrics: string[];
+    dimensions: string[];
+    filters: Record<string, unknown>;
+    plannerTrace?: BusinessQueryPlannerTrace;
+    fallbackReason?: string | null;
+  }): BusinessQueryPlan {
+    const text = this.normalize(params.question);
+    const existingDateRange = params.filters.dateRange as Record<string, string> | undefined;
+    const limit = this.extractRequestedLimit(text) ?? this.getDefaultLimit(params.capability);
+    return {
+      requestId: `bq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      originalQuestion: params.question,
+      domain: getBusinessQueryCapability(params.capability)?.domain ?? 'unknown',
+      capability: params.capability,
+      intent: 'query',
+      metrics: params.metrics,
+      dimensions: params.dimensions,
+      filters: {
+        ...params.filters,
+        dateRange: existingDateRange ?? this.resolveDateRange(text, params.capability),
+        status: PAID_ORDER_STATUSES,
+      },
+      limit,
+      needClarification: false,
+      clarificationQuestion: null,
+      plannerTrace: params.plannerTrace,
+      fallbackReason: params.fallbackReason ?? null,
+    };
   }
 
   private async tryUnifiedSemanticQueryFirst(
@@ -250,6 +460,17 @@ export class BusinessQueryService {
       limit: task.limit ?? this.getDefaultLimit(capability),
       needClarification: false,
       clarificationQuestion: null,
+      plannerTrace: {
+        parserVersion: 'business-task-preparser',
+        entityMatches: [],
+        actionIntent: task.outputMode,
+        capabilityId: this.mapBusinessQueryCapabilityToUnifiedCapability(capability),
+        queryTemplateId: capability,
+        executionPath: 'semantic_query',
+        fallbackReason: null,
+        schemaPath: [domain],
+        confidence: task.confidence,
+      },
     };
   }
 
@@ -304,10 +525,13 @@ export class BusinessQueryService {
     if (parsed && parsed.task.domain !== 'unknown' && parsed.task.taskType !== 'clarify' && parsed.task.metrics.length) {
       return this.businessQueryPlanFromBusinessTask(parsed.task, params, params.role);
     }
-    return this.legacyResolve(params);
+    return this.legacyResolve(params, parsed ? 'business_task_preparser_no_executable_plan' : 'business_task_preparser_unavailable');
   }
 
-  private legacyResolve(params: { question: string; storeId: number; role: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext }): BusinessQueryPlan {
+  private legacyResolve(
+    params: { question: string; storeId: number; role: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext },
+    fallbackReason = 'legacy_rule_fallback',
+  ): BusinessQueryPlan {
     const text = this.normalize(params.question);
     const domain = this.legacyDetectDomain(text);
     const contextualCapability = this.detectContextualCapability(text, params.context);
@@ -331,6 +555,17 @@ export class BusinessQueryService {
         limit,
         needClarification: true,
         clarificationQuestion: this.getClarificationQuestion(text),
+        plannerTrace: {
+          parserVersion: 'legacy-rule',
+          entityMatches: [],
+          capabilityId: 'unsupported',
+          queryTemplateId: 'unsupported',
+          executionPath: 'clarify',
+          fallbackReason,
+          schemaPath: [],
+          confidence: 0,
+        },
+        fallbackReason,
       };
     }
 
@@ -355,6 +590,17 @@ export class BusinessQueryService {
       limit,
       needClarification: false,
       clarificationQuestion: null,
+      plannerTrace: {
+        parserVersion: 'legacy-rule',
+        entityMatches: [],
+        capabilityId: capability,
+        queryTemplateId: capability,
+        executionPath: 'legacy_fallback',
+        fallbackReason,
+        schemaPath: [resolvedDomain],
+        confidence: 0.5,
+      },
+      fallbackReason,
     };
   }
 
@@ -418,6 +664,7 @@ export class BusinessQueryService {
     if (domain === 'card') return /核销/.test(text) ? 'card_usage_analysis' : 'card_expiry_risk';
     if (domain === 'memberCard') return 'member_balance_analysis';
     if (domain === 'finance') return 'finance_cashflow_summary';
+    if (domain === 'marketing' && /活动|推广|优惠/.test(text) && !/转化|效果|漏斗|线索|成交|归因|roi/i.test(text)) return 'marketing_activity_list';
     if (domain === 'marketing') return 'marketing_conversion';
     if (domain === 'schedule') return 'schedule_utilization';
     if (domain === 'staff') return 'staff_performance';
@@ -455,6 +702,14 @@ export class BusinessQueryService {
     return getBusinessQueryCapability(capability)?.resultLimit ?? 10;
   }
 
+  private extractRequestedLimit(text: string) {
+    const match = text.match(/(?:列出|列一下|前|top)?(\d{1,3})(?:个|条|位|名|笔)?/i);
+    if (!match) return null;
+    const value = Number(match[1]);
+    if (!Number.isInteger(value) || value <= 0) return null;
+    return Math.min(value, 100);
+  }
+
   private resolveDateRange(text: string, capability: BusinessQueryCapabilityId) {
     const now = new Date();
     const today = this.startOfDay(now);
@@ -472,7 +727,7 @@ export class BusinessQueryService {
       const start = new Date(today.getTime() - DAY_MS);
       return { type: 'yesterday', start: start.toISOString(), end: today.toISOString() };
     }
-    if (/今天|今日/.test(text) || capability === 'reservation_today' || capability === 'order_revenue_analysis') {
+    if (/今天|今日/.test(text) || capability === 'reservation_today' || capability === 'order_revenue_analysis' || capability === 'finance_today_transaction_list') {
       return { type: 'today', start: today.toISOString(), end: now.toISOString() };
     }
     const currentStart = new Date(now.getTime() - 30 * DAY_MS);
@@ -505,6 +760,8 @@ export class BusinessQueryService {
       card_usage_analysis: ['usageTimes', 'customerCount', 'beauticianCount'],
       member_balance_analysis: ['cashBalance', 'giftBalance', 'totalBalance'],
       finance_cashflow_summary: ['incomeAmount', 'refundAmount', 'netAmount'],
+      marketing_activity_list: ['activityCount'],
+      marketing_activity_link_lookup: [],
       marketing_conversion: ['attributedRevenue', 'conversionCount', 'touchCount'],
       automation_execution_summary: ['executionCount', 'reachedCount', 'conversionCount', 'attributedRevenue'],
       supplier_purchase_advice: ['suggestedQty', 'estimatedAmount', 'leadDays', 'moq'],
@@ -535,6 +792,8 @@ export class BusinessQueryService {
       card_usage_analysis: ['cardName', 'projectName'],
       member_balance_analysis: ['customerId', 'customerName'],
       finance_cashflow_summary: ['payMethod'],
+      marketing_activity_list: ['campaignId', 'campaignName'],
+      marketing_activity_link_lookup: ['campaignId', 'campaignName'],
       marketing_conversion: ['sourceType', 'campaignName'],
       automation_execution_summary: ['strategyId', 'strategyName'],
       supplier_purchase_advice: ['productId', 'productName', 'supplierName'],
@@ -1124,16 +1383,18 @@ export class BusinessQueryService {
       orderBy: [{ totalSpent: 'desc' }, { visitCount: 'desc' }],
       take: queryPlan.limit,
     });
-    const items = customers.map((customer: any) => ({
-      customerId: customer.id,
-      customerName: customer.name,
-      phone: this.maskPhone(customer.phone),
-      memberLevel: customer.memberLevel,
-      totalSpent: this.toNumber(customer.totalSpent),
-      visitCount: this.toNumber(customer.visitCount),
-      lastVisitDate: customer.lastVisitDate,
-      tags: customer.tags ?? [],
-    }));
+    const items = customers
+      .map((customer: any) => ({
+        customerId: customer.id,
+        customerName: customer.name,
+        phone: this.maskPhone(customer.phone),
+        memberLevel: customer.memberLevel,
+        totalSpent: this.toNumber(customer.totalSpent),
+        visitCount: this.toNumber(customer.visitCount),
+        lastVisitDate: customer.lastVisitDate,
+        tags: customer.tags ?? [],
+      }))
+      .slice(0, queryPlan.limit);
     const evidence = this.buildEvidence({
       source: ['Customer'],
       metricDefinition: '客户增长机会 = 按历史消费和到店次数排序，P0 用于识别优先经营对象。',
@@ -1144,11 +1405,126 @@ export class BusinessQueryService {
     return this.basicSuccess(queryPlan, 'customerGrowthOpportunity', '客户增长机会', items, evidence, `优先关注 ${items[0].customerName} 等高价值客户，结合最近服务记录做复购承接。`);
   }
 
+  private async queryCustomerProfileLookup(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const selected = this.getSelectedEntity(queryPlan, 'Customer');
+    const customerId = Number(selected?.entityId);
+    if (!Number.isInteger(customerId)) return this.buildUnsupportedResponse(queryPlan);
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, storeId: Number(queryPlan.filters.storeId), deletedAt: null },
+      select: { id: true, name: true, phone: true, memberLevel: true, totalSpent: true, visitCount: true, lastVisitDate: true, tags: true },
+    });
+    const evidence = this.buildEvidence({
+      source: ['Customer'],
+      metricDefinition: '客户档案查询 = 基于 EntityResolver 解析出的 Customer.id 查询客户基础资料、消费和到店摘要。',
+      filters: ['storeId=当前门店', `customerId=${customerId}`, 'deletedAt is null'],
+      sampleSize: customer ? 1 : 0,
+    });
+    if (!customer) return this.noData(queryPlan, evidence, '未找到该客户档案，可能已删除或不属于当前门店。');
+    const item = {
+      customerId: customer.id,
+      customerName: customer.name,
+      phone: this.maskPhone(customer.phone),
+      memberLevel: customer.memberLevel,
+      totalSpent: this.toNumber(customer.totalSpent),
+      visitCount: this.toNumber(customer.visitCount),
+      lastVisitDate: customer.lastVisitDate ? formatBusinessDate(customer.lastVisitDate) : '暂无',
+      tags: customer.tags ?? [],
+    };
+    return this.basicSuccess(queryPlan, 'customerProfileLookup', '客户档案', [item], evidence, `${customer.name} 是${customer.memberLevel ?? '普通'}客户，累计消费 ${this.formatMoney(item.totalSpent)}，到店 ${item.visitCount} 次。`);
+  }
+
+  private async queryCustomerReservationToday(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const selected = this.getSelectedEntity(queryPlan, 'Customer');
+    const customerId = Number(selected?.entityId);
+    if (!Number.isInteger(customerId)) return this.buildUnsupportedResponse(queryPlan);
+    const now = new Date();
+    const start = this.startOfDay(now);
+    const end = new Date(start.getTime() + DAY_MS);
+    const reservations = await this.prisma.reservation.findMany({
+      where: { storeId: Number(queryPlan.filters.storeId), customerId, date: { gte: start, lt: end } },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        checkedInAt: true,
+        project: { select: { id: true, name: true } },
+        beautician: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true } },
+      },
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+      take: queryPlan.limit,
+    });
+    const evidence = this.buildEvidence({
+      source: ['Reservation', 'Customer', 'Project', 'Beautician'],
+      metricDefinition: '客户今日预约 = 根据 Customer.id 查询当前门店今天的预约记录。',
+      dateRange: this.formatRange(start, end),
+      filters: ['storeId=当前门店', `customerId=${customerId}`, 'date=today'],
+      sampleSize: reservations.length,
+    });
+    if (!reservations.length) return this.noData(queryPlan, evidence, `${selected?.displayName ?? '该客户'}今天没有预约记录。`);
+    const items = reservations.map((reservation: any) => ({
+      reservationId: reservation.id,
+      customerName: reservation.customer?.name ?? selected?.displayName,
+      projectName: reservation.project?.name ?? '未设置',
+      beauticianName: reservation.beautician?.name ?? '未指定',
+      startTime: reservation.startTime,
+      endTime: reservation.endTime ?? '',
+      status: reservation.status,
+      checkedInAt: reservation.checkedInAt ? formatBusinessDateTime(reservation.checkedInAt) : '',
+    }));
+    return this.basicSuccess(queryPlan, 'customerReservationToday', '客户今日预约', items, evidence, `${items[0].customerName} 今天有 ${items.length} 条预约，最早 ${items[0].startTime} 到店。`);
+  }
+
+  private async queryCustomerCardBenefitSummary(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const selected = this.getSelectedEntity(queryPlan, 'Customer');
+    const customerId = Number(selected?.entityId);
+    if (!Number.isInteger(customerId)) return this.buildUnsupportedResponse(queryPlan);
+    const cards = await this.prisma.customerCard.findMany({
+      where: { customerId, customer: { storeId: Number(queryPlan.filters.storeId) } },
+      select: {
+        id: true,
+        cardName: true,
+        remainingTimes: true,
+        totalTimes: true,
+        giftTimes: true,
+        expiryDate: true,
+        status: true,
+        customer: { select: { id: true, name: true, memberLevel: true } },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { createdAt: 'desc' }],
+      take: queryPlan.limit,
+    });
+    const evidence = this.buildEvidence({
+      source: ['CustomerCard', 'Customer'],
+      metricDefinition: '客户卡项权益摘要 = 根据 Customer.id 查询客户持有卡项、剩余次数、赠送次数、到期和状态。',
+      filters: ['storeId=当前门店', `customerId=${customerId}`],
+      sampleSize: cards.length,
+    });
+    if (!cards.length) return this.noData(queryPlan, evidence, `${selected?.displayName ?? '该客户'}当前没有可展示的卡项权益。`);
+    const items = cards.map((card: any) => ({
+      customerCardId: card.id,
+      customerName: card.customer?.name ?? selected?.displayName,
+      memberLevel: card.customer?.memberLevel ?? '',
+      cardName: card.cardName,
+      remainingTimes: card.remainingTimes,
+      totalTimes: card.totalTimes,
+      giftTimes: card.giftTimes,
+      expiryDate: card.expiryDate ? formatBusinessDate(card.expiryDate) : '',
+      status: card.status,
+    }));
+    return this.basicSuccess(queryPlan, 'customerCardBenefitSummary', '客户卡项权益', items, evidence, `${items[0].customerName} 当前有 ${items.length} 张卡项，${items[0].cardName} 剩余 ${items[0].remainingTimes} 次。`);
+  }
+
   private async queryInventoryAlerts(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
     const storeId = Number(queryPlan.filters.storeId);
     const contextProductIds = Array.isArray(queryPlan.filters.contextProductIds)
       ? (queryPlan.filters.contextProductIds as unknown[]).map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)
       : [];
+    if (!contextProductIds.length && this.isExpiringInventoryQuestion(queryPlan.originalQuestion)) {
+      return this.queryExpiringInventoryBatches(queryPlan);
+    }
     const products = await this.prisma.product.findMany({
       where: { storeId, deletedAt: null, ...(contextProductIds.length ? { id: { in: contextProductIds } } : {}) },
       select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
@@ -1189,6 +1565,80 @@ export class BusinessQueryService {
       );
     }
     return this.basicSuccess(queryPlan, 'inventoryAlert', '库存预警', items, evidence, `${items.length} 个商品低于或等于安全库存，优先处理 ${items[0].productName}。`);
+  }
+
+  private async queryExpiringInventoryBatches(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const storeId = Number(queryPlan.filters.storeId);
+    const today = this.startOfDay(new Date());
+    const end = new Date(today.getTime() + DAY_MS * 90);
+    const batches = await this.prisma.stockBatch.findMany({
+      where: {
+        stock: { gt: 0 },
+        expiryDate: { not: null, gte: today, lt: end },
+        product: { storeId, deletedAt: null },
+      },
+      select: {
+        id: true,
+        batchNo: true,
+        stock: true,
+        productionDate: true,
+        expiryDate: true,
+        product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, status: true } },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { stock: 'desc' }],
+      take: Math.max(queryPlan.limit, 20),
+    });
+    const items = (batches as any[])
+      .map((batch) => {
+        const daysToExpire = this.daysUntil(batch.expiryDate);
+        const stock = this.toNumber(batch.stock);
+        return {
+          batchId: batch.id,
+          productId: batch.product?.id,
+          productName: batch.product?.name ?? '未知商品',
+          sku: batch.product?.sku ?? '',
+          batchNo: batch.batchNo,
+          stock,
+          unit: batch.product?.unit ?? '',
+          productionDate: batch.productionDate ? formatBusinessDate(batch.productionDate) : '',
+          expiryDate: batch.expiryDate ? formatBusinessDate(batch.expiryDate) : '',
+          daysToExpire,
+          currentStock: this.toNumber(batch.product?.currentStock),
+          safetyStock: this.toNumber(batch.product?.safetyStock),
+          status: daysToExpire <= 30 ? '紧急临期' : daysToExpire <= 60 ? '临期关注' : '近期到期',
+          suggestedAction: daysToExpire <= 30 ? '优先安排消耗或暂停采购' : '纳入近期消耗计划',
+        };
+      })
+      .sort((a, b) => a.daysToExpire - b.daysToExpire || b.stock - a.stock)
+      .slice(0, queryPlan.limit);
+    const evidence = this.buildEvidence({
+      source: ['StockBatch', 'Product'],
+      metricDefinition: '临期库存 = StockBatch.stock > 0 且 expiryDate 位于未来 90 天内的库存批次，按到期日升序排序。',
+      dateRange: this.formatRange(today, end),
+      filters: ['storeId=当前门店', 'Product.deletedAt is null', 'StockBatch.stock>0', 'expiryDate in next_90_days'],
+      sampleSize: batches.length,
+      limitations: ['临期判断基于批次有效期；没有批次或有效期的商品不会进入本清单。'],
+    });
+    if (!items.length) return this.noData(queryPlan, evidence, '未来 90 天暂无有批次有效期的临期库存产品。');
+    const urgentCount = items.filter((item) => item.daysToExpire <= 30).length;
+    return {
+      ...this.basicSuccess(queryPlan, 'inventoryExpiringList', '临期库存清单', items, evidence, `未来 90 天有 ${items.length} 个临期批次，${urgentCount} 个 30 天内到期，优先处理 ${items[0].productName}。`),
+      card: {
+        type: 'inventoryExpiringList',
+        title: '临期库存清单',
+        summary: `未来 90 天有 ${items.length} 个临期批次，${urgentCount} 个 30 天内到期。`,
+        items,
+        kpis: [
+          { label: '临期批次', value: `${items.length}` },
+          { label: '30天内到期', value: `${urgentCount}` },
+          { label: '最早到期', value: `${items[0].daysToExpire}天` },
+        ],
+      },
+      actions: [
+        { label: '生成消耗计划', action: 'inventory.expiring.consume_plan.draft', riskLevel: 'medium' },
+        { label: '查看库存批次', action: 'inventory:batches:open', riskLevel: 'low' },
+      ],
+    };
   }
 
   private async queryProductReplenishmentOpportunity(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
@@ -1396,7 +1846,7 @@ export class BusinessQueryService {
     const end = new Date(range.end);
     const [beauticians, orderItems, commissionRecords, reservations, serviceTasks, cardUsageRecords] = await Promise.all([
       this.prisma.beautician.findMany({
-        where: { storeId },
+        where: { storeId, status: 'active', userId: { not: null } },
         select: { id: true, name: true, status: true, level: { select: { name: true } } },
         take: 300,
       }),
@@ -1808,6 +2258,102 @@ export class BusinessQueryService {
     };
   }
 
+  private async queryTodayTransactionList(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const storeId = Number(queryPlan.filters.storeId);
+    const range = queryPlan.filters.dateRange as Record<string, string>;
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId,
+        status: { notIn: CANCELLED_ORDER_STATUSES },
+        createdAt: { gte: start, lt: end },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        checkoutGroupNo: true,
+        orderKind: true,
+        customerName: true,
+        totalAmount: true,
+        netAmount: true,
+        status: true,
+        payMethod: true,
+        source: true,
+        createdAt: true,
+        orderItems: { select: { itemType: true, name: true, quantity: true, netAmount: true, subtotal: true } },
+        paymentRecords: { select: { amount: true, method: true, status: true, paidAt: true } },
+        refundRecords: { select: { amount: true, status: true, reason: true, refundedAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.max(queryPlan.limit, 50),
+    });
+    const items = (orders as any[]).slice(0, queryPlan.limit).map((order) => {
+      const paidAmount = this.getOrderPaidAmount(order);
+      const refundAmount = (order.refundRecords ?? []).reduce((total: number, refund: any) => total + this.toNumber(refund.amount), 0);
+      const itemNames = (order.orderItems ?? [])
+        .map((item: any) => item.name)
+        .filter(Boolean)
+        .slice(0, 3)
+        .join('、');
+      const itemTypes = Array.from(new Set<string>((order.orderItems ?? []).map((item: any) => String(item.itemType || '')).filter(Boolean)));
+      return {
+        orderId: order.id,
+        orderNo: order.orderNo,
+        checkoutGroupNo: order.checkoutGroupNo ?? '',
+        transactionType: this.getTransactionTypeLabel(order.orderKind, itemTypes),
+        customerName: order.customerName ?? '散客',
+        paidAmount,
+        refundAmount,
+        netAmount: this.toNumber(order.netAmount),
+        payMethod: order.payMethod ?? (order.paymentRecords?.[0]?.method ?? ''),
+        status: order.status,
+        itemSummary: itemNames || '无明细',
+        paymentCount: order.paymentRecords?.length ?? 0,
+        refundCount: order.refundRecords?.length ?? 0,
+        createdAt: formatBusinessDateTime(order.createdAt),
+        printable: true,
+      };
+    });
+    const paidTotal = items.reduce((total, item) => total + item.paidAmount, 0);
+    const refundTotal = items.reduce((total, item) => total + item.refundAmount, 0);
+    const transactionTypes = new Set(items.map((item) => item.transactionType));
+    const evidence = this.buildEvidence({
+      source: ['ProductOrder', 'OrderItem', 'PaymentRecord', 'RefundRecord'],
+      metricDefinition: '今日交易清单 = 今日未取消订单，按 ProductOrder 创建时间展示收银、核销、办卡、充值等交易，并关联支付与退款记录。',
+      dateRange: this.formatRange(start, end),
+      filters: ['storeId=当前门店', 'status not in cancelled/refunded', 'createdAt=today', `limit=${queryPlan.limit}`],
+      sampleSize: orders.length,
+      limitations: ['当前版本按订单行展示；退款作为订单关联退款金额展示，不单独拆成负向交易行。'],
+    });
+    if (!items.length) return this.noData(queryPlan, evidence, '今天暂无可打印的收银、核销、办卡或充值订单。');
+    const answer = `今天共有 ${items.length} 笔交易订单，实收 ${this.formatMoney(paidTotal)}，退款 ${this.formatMoney(refundTotal)}，覆盖 ${transactionTypes.size} 类交易。`;
+    return {
+      requestId: queryPlan.requestId,
+      status: 'success',
+      domain: queryPlan.domain,
+      capability: queryPlan.capability,
+      queryPlan,
+      card: {
+        type: 'financeTodayTransactionList',
+        title: '今日交易订单清单',
+        summary: answer,
+        items,
+        kpis: [
+          { label: '交易订单', value: `${items.length}` },
+          { label: '实收', value: this.formatMoney(paidTotal) },
+          { label: '退款', value: this.formatMoney(refundTotal) },
+        ],
+      },
+      answer,
+      evidence,
+      actions: [
+        { label: '打印交易清单', action: 'print:today_transactions', riskLevel: 'medium' },
+        { label: '查看收银订单', action: 'orders:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
   private async queryOrderRevenue(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
     const storeId = Number(queryPlan.filters.storeId);
     const range = queryPlan.filters.dateRange as Record<string, string>;
@@ -1861,6 +2407,77 @@ export class BusinessQueryService {
       evidence,
       actions: [{ label: '查看订单明细', action: 'orders:open', riskLevel: 'low' }],
     };
+  }
+
+  private async queryFinanceOrderLookup(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const selected = this.getSelectedEntity(queryPlan, 'Order');
+    const orderId = Number(selected?.entityId);
+    if (!Number.isInteger(orderId)) return this.buildUnsupportedResponse(queryPlan);
+    const order = await this.prisma.productOrder.findFirst({
+      where: { id: orderId, storeId: Number(queryPlan.filters.storeId) },
+      select: {
+        id: true,
+        orderNo: true,
+        checkoutGroupNo: true,
+        orderKind: true,
+        customerName: true,
+        totalAmount: true,
+        netAmount: true,
+        status: true,
+        payMethod: true,
+        createdAt: true,
+        orderItems: { select: { id: true, itemType: true, name: true, quantity: true, unitPrice: true, netAmount: true, subtotal: true } },
+        paymentRecords: { select: { id: true, amount: true, method: true, status: true, paidAt: true } },
+        refundRecords: { select: { id: true, amount: true, reason: true, status: true, refundedAt: true } },
+      },
+    });
+    const evidence = this.buildEvidence({
+      source: ['ProductOrder', 'OrderItem', 'PaymentRecord', 'RefundRecord'],
+      metricDefinition: '订单详情 = 根据 ProductOrder.id 查询订单、明细、支付和退款记录。',
+      filters: ['storeId=当前门店', `orderId=${orderId}`],
+      sampleSize: order ? 1 + order.orderItems.length + order.paymentRecords.length + order.refundRecords.length : 0,
+    });
+    if (!order) return this.noData(queryPlan, evidence, '未找到该订单，可能不属于当前门店或已被删除。');
+    const items = [
+      {
+        orderId: order.id,
+        orderNo: order.orderNo,
+        checkoutGroupNo: order.checkoutGroupNo ?? '',
+        orderKind: order.orderKind,
+        customerName: order.customerName ?? '',
+        totalAmount: this.toNumber(order.totalAmount),
+        netAmount: this.toNumber(order.netAmount),
+        status: order.status,
+        payMethod: order.payMethod ?? '',
+        createdAt: formatBusinessDateTime(order.createdAt),
+        itemCount: order.orderItems.length,
+        paymentCount: order.paymentRecords.length,
+        refundCount: order.refundRecords.length,
+      },
+      ...order.orderItems.map((item: any) => ({
+        type: '订单明细',
+        itemName: item.name,
+        itemType: item.itemType,
+        quantity: this.toNumber(item.quantity),
+        unitPrice: this.toNumber(item.unitPrice),
+        amount: this.toNumber(item.netAmount ?? item.subtotal),
+      })),
+      ...order.paymentRecords.map((payment: any) => ({
+        type: '支付记录',
+        method: payment.method,
+        amount: this.toNumber(payment.amount),
+        status: payment.status,
+        paidAt: payment.paidAt ? formatBusinessDateTime(payment.paidAt) : '',
+      })),
+      ...order.refundRecords.map((refund: any) => ({
+        type: '退款记录',
+        amount: this.toNumber(refund.amount),
+        status: refund.status,
+        reason: refund.reason ?? '',
+        refundedAt: refund.refundedAt ? formatBusinessDateTime(refund.refundedAt) : '',
+      })),
+    ];
+    return this.basicSuccess(queryPlan, 'financeOrderLookup', '订单流水详情', items, evidence, `订单 ${order.orderNo} 实收 ${this.formatMoney(this.toNumber(order.netAmount))}，状态 ${order.status}。`);
   }
 
   private async queryOrderCustomerConsumptionList(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
@@ -2049,6 +2666,60 @@ export class BusinessQueryService {
     });
     if (!items.length) return this.noData(queryPlan, evidence, '未来 30 天暂无有剩余次数且即将到期的次卡。');
     return this.basicSuccess(queryPlan, 'cardExpiryRisk', '卡项到期风险', items, evidence, `${items.length} 张次卡未来 30 天内到期，最近一张为 ${items[0].customerName} 的 ${items[0].cardName}。`);
+  }
+
+  private async queryMemberCardLookup(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const selected = this.getSelectedEntity(queryPlan, 'MemberCard');
+    const customerCardId = Number(selected?.entityId);
+    if (!Number.isInteger(customerCardId)) return this.buildUnsupportedResponse(queryPlan);
+    const card = await this.prisma.customerCard.findFirst({
+      where: { id: customerCardId, customer: { storeId: Number(queryPlan.filters.storeId), deletedAt: null } },
+      select: {
+        id: true,
+        cardName: true,
+        remainingTimes: true,
+        totalTimes: true,
+        giftTimes: true,
+        expiryDate: true,
+        status: true,
+        customer: { select: { id: true, name: true, phone: true, memberLevel: true } },
+        usageRecords: {
+          select: { id: true, projectName: true, times: true, remainingTimes: true, verifiedAt: true, beautician: { select: { id: true, name: true } } },
+          orderBy: { verifiedAt: 'desc' },
+          take: 5,
+        },
+      },
+    });
+    const evidence = this.buildEvidence({
+      source: ['CustomerCard', 'Customer', 'CardUsageRecord'],
+      metricDefinition: '客户卡项详情 = 根据 CustomerCard.id 查询卡项剩余次数、到期状态和最近核销记录。',
+      filters: ['storeId=当前门店', `customerCardId=${customerCardId}`],
+      sampleSize: card ? 1 + card.usageRecords.length : 0,
+    });
+    if (!card) return this.noData(queryPlan, evidence, '未找到该客户卡项，可能不属于当前门店或已失效。');
+    const items = [
+      {
+        customerCardId: card.id,
+        customerName: card.customer?.name ?? '',
+        phone: this.maskPhone(card.customer?.phone),
+        memberLevel: card.customer?.memberLevel ?? '',
+        cardName: card.cardName,
+        remainingTimes: card.remainingTimes,
+        totalTimes: card.totalTimes,
+        giftTimes: card.giftTimes,
+        expiryDate: card.expiryDate ? formatBusinessDate(card.expiryDate) : '',
+        status: card.status,
+      },
+      ...card.usageRecords.map((record: any) => ({
+        type: '最近核销',
+        projectName: record.projectName,
+        times: record.times,
+        remainingTimes: record.remainingTimes,
+        beauticianName: record.beautician?.name ?? '',
+        verifiedAt: formatBusinessDateTime(record.verifiedAt),
+      })),
+    ];
+    return this.basicSuccess(queryPlan, 'memberCardLookup', '客户卡项详情', items, evidence, `${card.customer?.name ?? '该客户'}的 ${card.cardName} 剩余 ${card.remainingTimes} 次，到期日 ${formatBusinessDate(card.expiryDate)}。`);
   }
 
   private async queryCardUsageAnalysis(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
@@ -2354,16 +3025,255 @@ export class BusinessQueryService {
     };
   }
 
+  private async queryMarketingActivityLinkLookup(queryPlan: BusinessQueryPlan, entity: EntityResolutionCandidate): Promise<BusinessQueryResponse> {
+    const activityId = entity.objectType === 'MarketingActivity' ? Number(entity.entityId) : Number(entity.metadata?.activityId);
+    const pageId = entity.objectType === 'MarketingPage' ? Number(entity.metadata?.pageId ?? entity.entityId) : undefined;
+    const activity = Number.isFinite(activityId)
+      ? await (this.prisma as any).marketingActivity.findUnique({
+          where: { id: activityId },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            publishStatus: true,
+            startDate: true,
+            endDate: true,
+            publishedAt: true,
+          },
+        })
+      : null;
+
+    const pageWhere =
+      pageId && Number.isFinite(pageId)
+        ? { id: pageId }
+        : Number.isFinite(activityId)
+          ? {
+              OR: [
+                { activityId },
+                { sourceId: String(activityId) },
+                activity?.title ? { title: { contains: String(activity.title) } } : { id: -1 },
+              ],
+            }
+          : { title: { contains: entity.displayName } };
+
+    const pages = await (this.prisma as any).marketingPage.findMany({
+      where: {
+        AND: [
+          pageWhere,
+          queryPlan.filters.storeId ? { OR: [{ storeId: Number(queryPlan.filters.storeId) }, { storeId: null }] } : {},
+        ],
+      },
+      select: {
+        id: true,
+        activityId: true,
+        title: true,
+        slug: true,
+        shareUrl: true,
+        miniappPath: true,
+        qrCodeUrl: true,
+        status: true,
+        shareTitle: true,
+        publishedAt: true,
+        updatedAt: true,
+      },
+      take: 20,
+      orderBy: [{ updatedAt: 'desc' }],
+    });
+
+    const sortedPages = [...(pages as any[])].sort((a, b) => this.pageLinkScore(b) - this.pageLinkScore(a));
+    const primaryPage = sortedPages[0];
+    const displayName = String(activity?.title ?? entity.displayName);
+    const hasAnyLink = Boolean(primaryPage?.shareUrl || primaryPage?.miniappPath || primaryPage?.qrCodeUrl);
+    const rows = [
+      {
+        活动名称: displayName,
+        活动状态: activity?.status ?? '未设置',
+        发布状态: activity?.publishStatus ?? primaryPage?.status ?? '未设置',
+        页面标题: primaryPage?.title ?? '未找到推广页',
+        活动链接: primaryPage?.shareUrl ?? '',
+        小程序路径: primaryPage?.miniappPath ?? '',
+        二维码: primaryPage?.qrCodeUrl ?? '',
+      },
+    ];
+
+    const answer = hasAnyLink
+      ? `已找到「${displayName}」的活动链接：${primaryPage.shareUrl || primaryPage.miniappPath || primaryPage.qrCodeUrl}`
+      : `已找到营销活动「${displayName}」，但当前没有可直接发送的活动链接。建议先检查活动是否已发布并生成推广页。`;
+
+    return {
+      requestId: queryPlan.requestId,
+      status: activity || primaryPage ? 'success' : 'no_data',
+      domain: 'marketing',
+      capability: 'marketing_activity_link_lookup',
+      queryPlan,
+      card: {
+        type: 'marketingActivityLink',
+        title: '营销活动链接',
+        summary: answer,
+        columns: ['活动名称', '活动状态', '发布状态', '页面标题', '活动链接', '小程序路径', '二维码'],
+        items: rows,
+      },
+      answer,
+      evidence: {
+        source: ['MarketingActivity', 'MarketingPage'],
+        sourceTables: ['MarketingActivity', 'MarketingPage'],
+        filters: [`entity=${entity.displayName}`, `storeId=${queryPlan.filters.storeId ?? '未限定'}`],
+        metricDefinition: '营销活动链接 = 先解析 MarketingActivity/MarketingPage 实体，再查询关联推广页 shareUrl、miniappPath、qrCodeUrl。',
+        sampleSize: (activity ? 1 : 0) + (pages as any[]).length,
+        limitations: ['MarketingActivity 当前未内置 storeId，门店范围优先通过 MarketingPage.storeId 过滤。'],
+      },
+      actions: [
+        ...(primaryPage?.shareUrl ? [{ label: '打开活动链接', action: String(primaryPage.shareUrl), riskLevel: 'low' as const }] : []),
+        { label: '查看活动列表', action: 'marketing:activities:open', riskLevel: 'low' as const },
+      ],
+    };
+  }
+
+  private async queryMarketingActivityList(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const range = this.resolveDateRange(queryPlan.originalQuestion, 'marketing_activity_list');
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    const storeId = Number(queryPlan.filters.storeId);
+    const activityTake = Math.min(Math.max(queryPlan.limit * 3, queryPlan.limit), 100);
+    const activities = await (this.prisma as any).marketingActivity.findMany({
+      where: {
+        OR: [
+          { createdAt: { gte: start, lt: end } },
+          { updatedAt: { gte: start, lt: end } },
+          { startDate: { gte: start, lt: end } },
+          { endDate: { gte: start, lt: end } },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishStatus: true,
+        participants: true,
+        conversion: true,
+        startDate: true,
+        endDate: true,
+        targetCustomers: true,
+        discount: true,
+        publishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: activityTake,
+    });
+
+    const activityIds = (activities as any[]).map((activity) => Number(activity.id)).filter((id) => Number.isFinite(id));
+    const pages = activityIds.length
+      ? await (this.prisma as any).marketingPage.findMany({
+          where: {
+            activityId: { in: activityIds },
+            OR: Number.isFinite(storeId) ? [{ storeId }, { storeId: null }] : [{ storeId: null }],
+          },
+          select: { id: true, activityId: true, storeId: true, shareUrl: true, miniappPath: true, qrCodeUrl: true },
+          take: 1000,
+        })
+      : [];
+
+    const scopedActivityIds = new Set((pages as any[]).map((page) => Number(page.activityId)).filter((id) => Number.isFinite(id)));
+    const pageCountByActivityId = new Map<number, number>();
+    const linkCountByActivityId = new Map<number, number>();
+    for (const page of pages as any[]) {
+      const activityId = Number(page.activityId);
+      if (!Number.isFinite(activityId)) continue;
+      pageCountByActivityId.set(activityId, (pageCountByActivityId.get(activityId) ?? 0) + 1);
+      if (page.shareUrl || page.miniappPath || page.qrCodeUrl) {
+        linkCountByActivityId.set(activityId, (linkCountByActivityId.get(activityId) ?? 0) + 1);
+      }
+    }
+
+    const scopedActivities = Number.isFinite(storeId)
+      ? (activities as any[]).filter((activity) => scopedActivityIds.has(Number(activity.id)))
+      : (activities as any[]);
+    const items = scopedActivities
+      .map((activity) => ({
+        activityId: activity.id,
+        activityName: activity.title,
+        status: activity.status ?? '未设置',
+        publishStatus: activity.publishStatus ?? '未发布',
+        activityDateRange: this.formatRange(activity.startDate ? new Date(activity.startDate) : undefined, activity.endDate ? new Date(activity.endDate) : undefined) ?? '',
+        targetCustomers: activity.targetCustomers ?? '未设置',
+        offer: activity.discount ?? '未设置',
+        participants: this.toNumber(activity.participants),
+        conversion: activity.conversion ?? '0%',
+        pageCount: pageCountByActivityId.get(Number(activity.id)) ?? 0,
+        linkCount: linkCountByActivityId.get(Number(activity.id)) ?? 0,
+        publishedAt: activity.publishedAt ? formatBusinessDate(new Date(activity.publishedAt)) : '',
+        updatedAt: formatBusinessDate(new Date(activity.updatedAt ?? activity.createdAt)),
+      }))
+      .slice(0, queryPlan.limit);
+
+    const evidence = this.buildEvidence({
+      source: ['MarketingActivity', 'MarketingPage'],
+      sourceTables: ['MarketingActivity', 'MarketingPage'],
+      dateRange: this.formatRange(start, end),
+      metricDefinition: '营销活动清单 = 查询周期内创建、更新、开始或结束，且能通过当前门店推广页关联到的营销活动，按最近更新时间倒序。',
+      filters: [
+        '活动创建/更新/开始/结束时间在查询周期内',
+        `storeId=${Number.isFinite(storeId) ? storeId : '未指定'}`,
+        'MarketingPage.storeId=当前门店或全局页',
+        `limit=${queryPlan.limit}`,
+      ],
+      sampleSize: (activities as any[]).length + (pages as any[]).length,
+      limitations: ['MarketingActivity 当前未内置 storeId，仅展示能关联到当前门店或全局 MarketingPage 的活动；未生成推广页的活动不会跨门店展示。'],
+    });
+    if (!items.length) return this.noData(queryPlan, evidence, `${this.formatRange(start, end)}没有可查看的营销活动。`);
+
+    const runningCount = items.filter((item) => /active|进行中|published|已发布/i.test(String(item.status)) || /published|已发布/i.test(String(item.publishStatus))).length;
+    const draftCount = items.filter((item) => /draft|草稿|未发布/i.test(String(item.status)) || /draft|草稿|未发布/i.test(String(item.publishStatus))).length;
+    const answer = `${this.formatRange(start, end)}共找到 ${items.length} 条营销活动，已发布/进行中 ${runningCount} 条，草稿/未发布 ${draftCount} 条；最近更新的是「${items[0].activityName}」。`;
+    return {
+      requestId: queryPlan.requestId,
+      status: 'success',
+      domain: queryPlan.domain,
+      capability: queryPlan.capability,
+      queryPlan,
+      card: {
+        type: 'marketingActivityList',
+        title: '近期营销活动',
+        summary: answer,
+        items,
+      },
+      answer,
+      evidence,
+      actions: [{ label: '查看活动列表', action: 'marketing:activities:open', riskLevel: 'low' }],
+    };
+  }
+
+  private pageLinkScore(page: any) {
+    let score = 0;
+    if (page?.shareUrl) score += 3;
+    if (page?.miniappPath) score += 2;
+    if (page?.qrCodeUrl) score += 1;
+    if (String(page?.status || '').includes('publish') || String(page?.status || '').includes('已发布')) score += 1;
+    return score;
+  }
+
   private async queryAutomationExecutionSummary(queryPlan: BusinessQueryPlan): Promise<BusinessQueryResponse> {
+    const storeId = Number(queryPlan.filters.storeId);
     const range = queryPlan.filters.dateRange as Record<string, string>;
     const start = new Date(range.start);
     const end = new Date(range.end);
     const executions = await this.prisma.marketingAutomationExecution.findMany({
-      where: { executedAt: { gte: start, lt: end } },
+      where: {
+        executedAt: { gte: start, lt: end },
+        touches: { some: { customer: { storeId } } },
+      },
       include: {
         strategy: { select: { id: true, name: true, status: true, source: true } },
-        touches: { select: { id: true, status: true, actualRevenue: true, convertedAt: true, customerId: true } },
-        attributions: { select: { id: true, attributedRevenue: true, customerId: true, orderId: true } },
+        touches: {
+          where: { customer: { storeId } },
+          select: { id: true, status: true, actualRevenue: true, convertedAt: true, customerId: true },
+        },
+        attributions: {
+          where: { customer: { storeId }, order: { storeId } },
+          select: { id: true, attributedRevenue: true, customerId: true, orderId: true },
+        },
       },
       orderBy: { executedAt: 'desc' },
       take: 500,
@@ -2440,8 +3350,9 @@ export class BusinessQueryService {
       source: ['MarketingAutomationExecution', 'MarketingAutomationTouch', 'MarketingAttribution'],
       metricDefinition: '自动化执行复盘 = 查询周期内自动化执行次数、触达人数、转化次数和归因收入汇总。',
       dateRange: this.formatRange(start, end),
-      filters: ['executedAt=查询周期'],
+      filters: ['storeId=当前门店', 'executedAt=查询周期', 'touch.customer.storeId=当前门店', 'attribution.order.storeId=当前门店'],
       sampleSize: executions.length,
+      limitations: ['MarketingAutomationExecution 当前未内置 storeId，门店范围通过触达客户和归因订单限定。'],
     });
 
     if (!items.length) return this.noData(queryPlan, evidence, '当前周期没有自动化执行记录。');
@@ -2594,7 +3505,11 @@ export class BusinessQueryService {
         take: 500,
       }),
       this.prisma.marketingAutomationExecution.findMany({
-        where: { executedAt: { gte: start, lt: end }, status: { in: ['failed', 'error', '失败'] } },
+        where: {
+          executedAt: { gte: start, lt: end },
+          status: { in: ['failed', 'error', '失败'] },
+          touches: { some: { customer: { storeId } } },
+        },
         select: { id: true, strategyName: true, status: true, message: true, executedAt: true },
         take: 100,
       }),
@@ -2631,9 +3546,9 @@ export class BusinessQueryService {
       source: ['ProductOrder', 'Reservation', 'Product', 'Customer', 'MarketingAutomationExecution'],
       metricDefinition: '经营异常主动提醒 = 当前周期内收入、到店、库存、客户流失和自动化失败的规则化扫描。',
       dateRange: this.formatRange(start, end),
-      filters: ['storeId=当前门店', '订单排除取消/退款', '预约排除取消', '商品/客户未删除'],
+      filters: ['storeId=当前门店', '订单排除取消/退款', '预约排除取消', '商品/客户未删除', '自动化执行通过 touch.customer.storeId 限定当前门店'],
       sampleSize: orders.length + reservations.length + products.length + customers.length + failedExecutions.length,
-      limitations: ['P2 当前为规则扫描，暂未做同比/环比异常检测。'],
+      limitations: ['P2 当前为规则扫描，暂未做同比/环比异常检测。', 'MarketingAutomationExecution 当前未内置 storeId，门店范围通过触达客户限定。'],
     });
     if (!items.length) return this.noData(queryPlan, evidence, '当前周期未发现明显经营异常。');
     return {
@@ -2770,6 +3685,16 @@ export class BusinessQueryService {
     };
   }
 
+  private getSelectedEntity(queryPlan: BusinessQueryPlan, objectType?: string) {
+    const entity = queryPlan.filters.selectedEntity as
+      | { objectType?: string; entityId?: string | number; displayName?: string; sourceModel?: string; metadata?: Record<string, unknown> }
+      | null
+      | undefined;
+    if (!entity) return null;
+    if (objectType && entity.objectType !== objectType) return null;
+    return entity;
+  }
+
   private buildClarifyResponse(queryPlan: BusinessQueryPlan): BusinessQueryResponse {
     return {
       requestId: queryPlan.requestId,
@@ -2852,6 +3777,7 @@ export class BusinessQueryService {
       'inventory_alert',
       'member_balance_analysis',
       'card_usage_analysis',
+      'marketing_activity_list',
     ]).has(capability);
   }
 
@@ -2885,6 +3811,7 @@ export class BusinessQueryService {
       inventory_alert: ['stock_risk_score'],
       member_balance_analysis: ['member_balance'],
       card_usage_analysis: ['card_usage_times'],
+      marketing_activity_list: ['marketing_activity_count'],
     };
     return map[capability] ?? [];
   }
@@ -2895,6 +3822,7 @@ export class BusinessQueryService {
     if (capability === 'inventory_alert') return 'inventory';
     if (capability === 'member_balance_analysis') return 'memberCard';
     if (capability === 'card_usage_analysis') return 'card';
+    if (capability === 'marketing_activity_list' || capability === 'marketing_activity_link_lookup') return 'marketing';
     return fallback === 'unknown' ? 'business' : fallback;
   }
 
@@ -2906,6 +3834,7 @@ export class BusinessQueryService {
       inventory_alert: 'inventory_risk_ranking',
       member_balance_analysis: 'card_member_business_diagnosis',
       card_usage_analysis: 'card_member_business_diagnosis',
+      marketing_activity_list: 'marketing_activity_list',
     };
     return map[capability] ?? 'business_query';
   }
@@ -3049,6 +3978,10 @@ export class BusinessQueryService {
     return next;
   }
 
+  private isExpiringInventoryQuestion(question: string) {
+    return /临期|过期|到期|快过期|有效期/.test(String(question || ''));
+  }
+
   private getOrderPaidAmount(order: Record<string, unknown>) {
     const paymentRecords = Array.isArray(order.paymentRecords) ? order.paymentRecords as Array<Record<string, unknown>> : [];
     const paidByRecords = paymentRecords
@@ -3058,6 +3991,17 @@ export class BusinessQueryService {
     const netAmount = this.toNumber(order.netAmount);
     if (netAmount > 0) return netAmount;
     return this.toNumber(order.totalAmount);
+  }
+
+  private getTransactionTypeLabel(orderKind: unknown, itemTypes: string[]) {
+    const text = `${String(orderKind || '')} ${itemTypes.join(' ')}`.toLowerCase();
+    if (/refund|退款|退费/.test(text)) return '退款';
+    if (/usage|verify|consume|核销|card_usage/.test(text)) return '核销';
+    if (/recharge|topup|充值|balance/.test(text)) return '充值';
+    if (/card|member|办卡|开卡/.test(text)) return '办卡';
+    if (/project|service|服务|项目/.test(text)) return '项目收银';
+    if (/product|商品|产品/.test(text)) return '商品收银';
+    return '收银';
   }
 
   private classifyTerminalConversationFailure(conversation: Record<string, unknown>) {

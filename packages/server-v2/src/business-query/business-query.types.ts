@@ -28,16 +28,24 @@ export type BusinessQueryCapabilityId =
   | 'project_service_trend'
   | 'project_material_margin'
   | 'customer_churn_risk'
+  | 'customer_profile_lookup'
+  | 'customer_reservation_today'
+  | 'customer_card_benefit_summary'
   | 'customer_growth_opportunity'
   | 'inventory_alert'
   | 'reservation_today'
   | 'schedule_utilization'
   | 'order_customer_consumption_list'
+  | 'finance_order_lookup'
+  | 'finance_today_transaction_list'
   | 'order_revenue_analysis'
   | 'card_expiry_risk'
+  | 'member_card_lookup'
   | 'card_usage_analysis'
   | 'member_balance_analysis'
   | 'finance_cashflow_summary'
+  | 'marketing_activity_list'
+  | 'marketing_activity_link_lookup'
   | 'marketing_conversion'
   | 'automation_execution_summary'
   | 'supplier_purchase_advice'
@@ -46,6 +54,24 @@ export type BusinessQueryCapabilityId =
   | 'staff_performance'
   | 'terminal_health_diagnosis'
   | 'unsupported';
+
+export interface BusinessQueryPlannerTrace {
+  parserVersion: 'unified-query-planner-v1' | 'business-task-preparser' | 'legacy-rule';
+  entityMatches: Array<{
+    objectType: string;
+    entityId?: string;
+    displayName: string;
+    confidence?: number;
+    sourceModel?: string;
+  }>;
+  actionIntent?: string;
+  capabilityId?: string;
+  queryTemplateId?: string;
+  executionPath: 'knowledge_graph' | 'semantic_query' | 'legacy_fallback' | 'clarify' | 'unsupported';
+  fallbackReason?: string | null;
+  schemaPath?: string[];
+  confidence?: number;
+}
 
 export interface BusinessQueryPlan {
   requestId: string;
@@ -60,6 +86,8 @@ export interface BusinessQueryPlan {
   limit: number;
   needClarification: boolean;
   clarificationQuestion?: string | null;
+  plannerTrace?: BusinessQueryPlannerTrace;
+  fallbackReason?: string | null;
 }
 
 export interface BusinessQueryContext {
