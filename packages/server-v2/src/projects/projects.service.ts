@@ -5,9 +5,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class ProjectsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(storeId?: number) {
-    const where: any = { deletedAt: null };
-    if (storeId) where.storeId = storeId;
+  async findAll(query: { keyword?: string; type?: string; status?: string; sellableOnly?: boolean | string } = {}, storeId?: number) {
+    const where = this.buildProjectWhere(query, storeId);
     return this.prisma.project.findMany({
       where,
       include: { type: true, store: true, bomItems: { include: { product: true } } },
@@ -15,12 +14,9 @@ export class ProjectsService {
     });
   }
 
-  async findPaginated(query: { page?: number; pageSize?: number; keyword?: string; type?: string }, storeId?: number) {
-    const { page = 1, pageSize = 20, keyword, type } = query;
-    const where: any = { deletedAt: null };
-    if (storeId) where.storeId = storeId;
-    if (keyword) where.name = { contains: keyword, mode: 'insensitive' };
-    if (type) where.type = { name: type };
+  async findPaginated(query: { page?: number; pageSize?: number; keyword?: string; type?: string; status?: string; sellableOnly?: boolean | string }, storeId?: number) {
+    const { page = 1, pageSize = 20 } = query;
+    const where = this.buildProjectWhere(query, storeId);
 
     const [items, total] = await Promise.all([
       this.prisma.project.findMany({
@@ -139,6 +135,12 @@ export class ProjectsService {
     if (data.duration !== undefined) {
       payload.duration = Math.max(0, Number(data.duration));
     }
+    if (data.careCycleWeeks !== undefined) {
+      payload.careCycleWeeks = this.toOptionalPositiveInt(data.careCycleWeeks);
+    }
+    if (data.treatmentCourseTimes !== undefined) {
+      payload.treatmentCourseTimes = this.toOptionalPositiveInt(data.treatmentCourseTimes);
+    }
     if (data.recommend !== undefined) {
       payload.recommend = Boolean(data.recommend);
     }
@@ -189,5 +191,25 @@ export class ProjectsService {
     if (status === '启用' || status === '在售') return 'active';
     if (status === '停用' || status === '停售') return 'inactive';
     return String(status || 'active');
+  }
+
+  private toOptionalPositiveInt(value: unknown) {
+    if (value === null || value === '') return null;
+    const numberValue = Number(value);
+    if (!Number.isFinite(numberValue) || numberValue <= 0) return null;
+    return Math.floor(numberValue);
+  }
+
+  private buildProjectWhere(query: { keyword?: string; type?: string; status?: string; sellableOnly?: boolean | string }, storeId?: number) {
+    const { keyword, type, status, sellableOnly } = query;
+    const where: any = { deletedAt: null };
+    if (storeId) where.storeId = storeId;
+    if (keyword) where.name = { contains: keyword, mode: 'insensitive' };
+    if (type) where.type = { name: type };
+    if (status) where.status = this.normalizeStatus(status);
+    if (sellableOnly === true || sellableOnly === 'true') {
+      where.price = { gt: 0 };
+    }
+    return where;
   }
 }

@@ -15,10 +15,12 @@ import {
   getInventoryAlerts,
   getManagerDashboard,
   getOperationResult,
+  getTodayPrintDocuments,
   getServiceRecordPreparation,
   prefetchAuraBootstrap,
   getReceptionDashboard,
   getRechargeFlow,
+  getRefundFlow,
   getRegistrationFlow,
   getStaffSchedules,
   getServiceRecordFlow,
@@ -253,6 +255,23 @@ function getCacheableMicroAppConfig(action: string): CacheableMicroAppConfig<unk
     };
   }
 
+  if (action === 'operation.print') {
+    return {
+      key: ['print-documents', today],
+      ttlMs: TERMINAL_QUERY_TTL.printDocuments,
+      loader: getTodayPrintDocuments,
+      toResult: (data) => ({
+        messages: [
+          {
+            type: 'dashboard',
+            payload: { kind: 'printDocuments', data: data as Awaited<ReturnType<typeof getTodayPrintDocuments>> },
+          },
+        ],
+        aiSummary: (data as Awaited<ReturnType<typeof getTodayPrintDocuments>>).summary,
+      }),
+    };
+  }
+
   if (action === 'operation.verify') {
     return {
       key: ['card-verification-context', today, ''],
@@ -476,6 +495,11 @@ export async function runMicroAppIntent(
   if (action === 'operation.recharge') {
     const data = await getRechargeFlow();
     return { messages: [{ type: 'recharge', payload: { kind: 'recharge', data } }] };
+  }
+
+  if (action === 'operation.refund') {
+    const data = await getRefundFlow();
+    return { messages: [{ type: 'refund', payload: { kind: 'refund', data } }] };
   }
 
   if (action === 'beautician.schedule' || action === 'beautician.commission') {

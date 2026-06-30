@@ -197,6 +197,16 @@ export interface CommissionSummary {
   }>;
 }
 
+export interface CommissionSettlementRecord {
+  id?: number;
+  settlementId?: number;
+  commissionRecordId: number;
+  amountSnapshot: number;
+  statusSnapshot?: CommissionRecordStatus;
+  createdAt?: string;
+  commissionRecord?: CommissionRecord;
+}
+
 export interface CommissionSettlement {
   id: number;
   storeId: number;
@@ -215,6 +225,14 @@ export interface CommissionSettlement {
   deductions: number;
   netAmount: number;
   status: CommissionSettlementStatus;
+  detailCount?: number;
+  detailAmount?: number;
+  settlementRecords?: CommissionSettlementRecord[];
+  needsRegenerate?: boolean;
+  regenerateReason?: string;
+  regenerateDiffAmount?: number;
+  regenerateMissingRecordCount?: number;
+  regenerateChangedRecordCount?: number;
   confirmedAt?: string;
   paidAt?: string;
 }
@@ -239,6 +257,55 @@ export interface CashierShift {
   alertLevel?: 'normal' | 'warning';
 }
 
+export interface PaymentRecord {
+  id: number;
+  orderId: number;
+  orderNo?: string;
+  checkoutGroupNo?: string;
+  orderKind?: string;
+  source?: string;
+  customerName?: string;
+  storeId?: number;
+  storeName?: string;
+  paymentNo: string;
+  method: string;
+  amount: number;
+  status: string;
+  transactionNo?: string;
+  paidAt?: string;
+  createdAt?: string;
+}
+
+export interface RefundRecord {
+  id: number;
+  orderId: number;
+  orderNo?: string;
+  orderKind?: string;
+  customerName?: string;
+  storeId?: number;
+  storeName?: string;
+  refundNo: string;
+  amount: number;
+  reason?: string;
+  status: string;
+  payMethod?: string;
+  refundedAt?: string;
+  createdAt?: string;
+}
+
+export interface ReconciliationException {
+  id: string;
+  storeId?: number;
+  date: string;
+  type: string;
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  detail: string;
+  actionTarget: 'daily' | 'payments' | 'refunds' | 'shifts' | string;
+  sourceId?: number;
+  amountDiff?: number;
+}
+
 export interface DailySettlement {
   id: number;
   storeId: number;
@@ -251,6 +318,8 @@ export interface DailySettlement {
   cardRevenue: number;
   balanceRevenue: number;
   rechargeIncome: number;
+  prepaidIncome?: number;
+  cardUsageRevenue?: number;
   refundAmount: number;
   orderCount: number;
   customerCount: number;
@@ -343,6 +412,10 @@ export async function realGetCommissionSettlements(params: PaginationParams & Re
   return normalizePaginated<CommissionSettlement>(response);
 }
 
+export async function realGetCommissionSettlement(id: number) {
+  return apiClient.get<unknown, CommissionSettlement>(`/commission/settlements/${id}`);
+}
+
 export async function realConfirmCommissionSettlement(id: number) {
   return apiClient.put(`/commission/settlements/${id}/confirm`);
 }
@@ -373,6 +446,21 @@ export async function realOpenCashierShift(data: { openingCash?: number; operato
 
 export async function realCloseCashierShift(data: { shiftId?: number; closingCash: number }) {
   return apiClient.post<unknown, CashierShift>('/commission/shifts/close', data);
+}
+
+export async function realGetPaymentRecords(params: PaginationParams & Record<string, unknown>) {
+  const response = await apiClient.get('/commission/payment-records', { params });
+  return normalizePaginated<PaymentRecord>(response);
+}
+
+export async function realGetRefundRecords(params: PaginationParams & Record<string, unknown>) {
+  const response = await apiClient.get('/commission/refund-records', { params });
+  return normalizePaginated<RefundRecord>(response);
+}
+
+export async function realGetReconciliationExceptions(params: PaginationParams & Record<string, unknown>) {
+  const response = await apiClient.get('/commission/reconciliation-exceptions', { params });
+  return normalizePaginated<ReconciliationException>(response);
 }
 
 export async function realGetDailySettlements(params: PaginationParams & Record<string, unknown>) {

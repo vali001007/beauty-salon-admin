@@ -72,6 +72,7 @@ describe('CardsService inventory consumption', () => {
       projectName: '深层补水护理',
       consumedTimes: 1,
       operatorId: 7,
+      remark: '库存发布前验收-次卡核销 BOM 扣减',
     });
 
     expect(tx.customerCard.update).toHaveBeenCalledWith({
@@ -97,6 +98,7 @@ describe('CardsService inventory consumption', () => {
         sourceType: 'card_usage',
         sourceId: 88,
         sourceNo: '补水护理 10 次卡',
+        remark: expect.stringContaining('库存发布前验收-次卡核销 BOM 扣减'),
       }),
     });
     expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({

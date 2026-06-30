@@ -18,6 +18,7 @@ import type {
   TerminalBeauticianQualitySummary,
   TerminalFollowUpTask,
   TerminalFollowUpTaskSummary,
+  TerminalPrintableDocumentsResponse,
   TerminalSkinMetric,
 } from '../../../../src/types/terminal';
 
@@ -34,6 +35,7 @@ export type MessageType =
   | 'cardOpening'
   | 'registration'
   | 'recharge'
+  | 'refund'
   | 'serviceRecord'
   | 'beauticianSchedule'
   | 'loading'
@@ -429,6 +431,35 @@ export interface RechargeConfirmInput {
   paymentMethod: TerminalOrderPaymentMethod;
 }
 
+export interface RefundOrderOption {
+  id: number | string;
+  orderNo: string;
+  orderKind: 'product' | 'project' | 'mixed' | string;
+  kindLabel: string;
+  customerName: string;
+  customerPhone?: string;
+  storeName?: string;
+  itemSummary: string;
+  paymentMethod: string;
+  refundableAmount: number;
+  createdAt: string;
+}
+
+export interface RefundFlowData {
+  title: string;
+  subtitle: string;
+  source: string;
+  generatedAt: string;
+  orders: RefundOrderOption[];
+}
+
+export interface RefundConfirmInput {
+  orderId: number | string;
+  orderKind: 'product' | 'project' | 'mixed' | 'card' | string;
+  amount: number;
+  reason: string;
+}
+
 export interface OperationResultData {
   title: string;
   subtitle: string;
@@ -509,7 +540,7 @@ export interface OperationReceiptItem {
 }
 
 export interface OperationReceiptData {
-  sourceType: 'cashier_order' | 'card_order' | 'recharge_order' | 'card_usage' | 'reservation' | 'custom';
+  sourceType: 'cashier_order' | 'card_order' | 'recharge_order' | 'card_usage' | 'refund_order' | 'reservation' | 'custom';
   sourceId?: number;
   receiptNo: string;
   businessTitle?: string;
@@ -525,6 +556,8 @@ export interface OperationReceiptData {
   paidAmount: number;
   createdAt: string;
 }
+
+export type PrintDocumentsData = TerminalPrintableDocumentsResponse;
 
 export interface AiSuggestionData {
   title: string;

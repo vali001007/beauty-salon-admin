@@ -192,6 +192,7 @@ function createMemberCardTransaction(
     recharge: '充值',
     gift: '赠送',
     deduct: '划扣',
+    refund: '退款',
   };
   const transaction: MemberCardTransaction = {
     id: Date.now(),

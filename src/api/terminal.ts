@@ -63,6 +63,7 @@ import type {
   TerminalCardOrder,
   TerminalCardOrderCreateRequest,
   TerminalPaymentCompleteRequest,
+  TerminalPrintableDocumentsResponse,
   TerminalPrintJob,
   TerminalPrintJobCreateRequest,
   TerminalPrintJobStatusUpdateRequest,
@@ -161,6 +162,7 @@ import {
   realGetTerminalInventoryAlertsDashboard,
   realGetTerminalManagerDashboard,
   realGetTerminalPromotions,
+  realGetTerminalPrintableDocumentsToday,
   realGetTerminalPrintJobStatus,
   realGetTerminalPrintJobs,
   realGetTerminalReservationAvailability,
@@ -505,6 +507,9 @@ export const adjustTerminalBalance: (data: TerminalBalanceAdjustRequest) => Prom
 
 export const createTerminalPrintJob: (data: TerminalPrintJobCreateRequest) => Promise<TerminalPrintJob> =
   realCreateTerminalPrintJob;
+
+export const getTerminalPrintableDocumentsToday: () => Promise<TerminalPrintableDocumentsResponse> =
+  realGetTerminalPrintableDocumentsToday;
 
 export const getTerminalPrintJobs: (params?: {
   sourceType?: TerminalPrintJobCreateRequest['sourceType'];

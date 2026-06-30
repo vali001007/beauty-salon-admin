@@ -19,7 +19,7 @@ import {
   realUpdateReservation,
 } from './real/project';
 
-export const getProjects: (params?: { keyword?: string; type?: string }) => Promise<Project[]> =
+export const getProjects: (params?: { keyword?: string; type?: string; status?: string; sellableOnly?: boolean }) => Promise<Project[]> =
   realGetProjects;
 
 export const getProjectById: (id: number) => Promise<Project | undefined> =
@@ -42,7 +42,7 @@ export const setProjectBom: (id: number, items: ProjectBomPayloadItem[]) => Prom
 export const deleteProject: (id: number) => Promise<void> =
   realDeleteProject;
 
-export const getProjectsPaginated: (params: PaginationParams & { keyword?: string; type?: string }) => Promise<PaginatedResponse<Project>> =
+export const getProjectsPaginated: (params: PaginationParams & { keyword?: string; type?: string; status?: string; sellableOnly?: boolean }) => Promise<PaginatedResponse<Project>> =
   realGetProjectsPaginated;
 
 export const getReservationsPaginated: (
@@ -54,6 +54,7 @@ export const getReservationsPaginated: (
     status?: string;
     startDate?: string;
     endDate?: string;
+    scope?: 'future' | 'history';
   },
 ) => Promise<PaginatedResponse<any>> =
   realGetReservationsPaginated;

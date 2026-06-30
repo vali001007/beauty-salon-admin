@@ -153,7 +153,10 @@ describe('AgentSkillsRegistryService', () => {
       skillId: 'marketing.growth.execution',
       capabilityId: 'marketing_growth_execution',
       toolPlan: [{ tool: 'marketing.activity.draft', args: expect.objectContaining({ title: '流失客户召回活动' }) }],
-      outputContract: expect.objectContaining({ requiredKinds: ['action_card'], evidenceRequired: true }),
+      outputContract: expect.objectContaining({
+        requiredKinds: expect.arrayContaining(['action_card']),
+        evidenceRequired: true,
+      }),
     });
   });
 

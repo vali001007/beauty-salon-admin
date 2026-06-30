@@ -41,6 +41,7 @@ export class SemanticQueryExecutorService {
     if (template?.id === 'card_expiry' || metricKeys.includes('card_expiry_risk')) return this.queryCardExpiry(plan);
     if (template?.id === 'staff_performance' || metricKeys.includes('staff_performance_score')) return this.queryStaffPerformance(plan);
     if (template?.id === 'reservation_schedule' || metricKeys.some((key) => ['reservation_count', 'arrival_rate'].includes(key))) return this.queryReservationSchedule(plan);
+    if (template?.id === 'marketing_activity_list' || metricKeys.includes('marketing_activity_count')) return this.queryRecentMarketingActivities(plan);
     if (template?.id === 'marketing_conversion' || metricKeys.includes('campaign_conversion_rate')) return this.queryMarketingConversion(plan);
     return this.rejected(plan, '当前查询指标尚未接入统一查询执行器。');
   }
@@ -831,17 +832,92 @@ export class SemanticQueryExecutorService {
     });
   }
 
+  private async queryRecentMarketingActivities(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
+    const range = this.resolveDateRange(plan.timeRange);
+    const activities = await (this.prisma as any).marketingActivity.findMany({
+      where: {
+        OR: [
+          { createdAt: { gte: range.start, lt: range.end } },
+          { updatedAt: { gte: range.start, lt: range.end } },
+          { startDate: { gte: range.start, lt: range.end } },
+          { endDate: { gte: range.start, lt: range.end } },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishStatus: true,
+        participants: true,
+        conversion: true,
+        startDate: true,
+        endDate: true,
+        targetCustomers: true,
+        discount: true,
+        publishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: plan.limit,
+    });
+
+    const activityIds = (activities as any[]).map((activity) => Number(activity.id)).filter((id) => Number.isFinite(id));
+    const pages = activityIds.length
+      ? await (this.prisma as any).marketingPage.findMany({
+          where: { activityId: { in: activityIds } },
+          select: { id: true, activityId: true, storeId: true },
+          take: 1000,
+        })
+      : [];
+    const pageCountByActivityId = new Map<number, number>();
+    for (const page of pages as any[]) {
+      const activityId = Number(page.activityId);
+      if (!Number.isFinite(activityId)) continue;
+      pageCountByActivityId.set(activityId, (pageCountByActivityId.get(activityId) ?? 0) + 1);
+    }
+
+    const rows = (activities as any[]).map((activity) => ({
+      campaignId: activity.id,
+      campaignName: activity.title,
+      status: activity.status ?? '未设置',
+      publishStatus: activity.publishStatus ?? '未发布',
+      activityDateRange: this.formatOptionalDateRange(activity.startDate, activity.endDate),
+      targetCustomers: activity.targetCustomers ?? '未设置',
+      offer: activity.discount ?? '未设置',
+      participants: this.toNumber(activity.participants),
+      conversion: activity.conversion ?? '0%',
+      pageCount: pageCountByActivityId.get(Number(activity.id)) ?? 0,
+      publishedAt: activity.publishedAt ? this.formatDate(new Date(activity.publishedAt)) : '',
+      updatedAt: this.formatDate(new Date(activity.updatedAt ?? activity.createdAt)),
+    }));
+
+    const evidence = this.evidence(plan, {
+      source: ['MarketingActivity', 'MarketingPage'],
+      dateRange: this.formatRange(range),
+      metricDefinition: '营销活动清单 = 查询周期内创建、更新、开始或结束的营销活动，按最近更新时间倒序。',
+      filters: ['活动创建/更新/开始/结束时间在查询周期内', `limit=${plan.limit}`],
+      sampleSize: (activities as any[]).length + (pages as any[]).length,
+      limitations: ['MarketingActivity 当前未内置 storeId，门店范围通过关联 MarketingPage 统计页数量辅助呈现。'],
+    });
+    if (!rows.length) return this.noData(plan, `${range.label}没有可查看的营销活动。`, evidence);
+    const runningCount = rows.filter((row) => String(row.status).includes('进行中')).length;
+    const draftCount = rows.filter((row) => String(row.status).includes('draft') || String(row.publishStatus).includes('未发布')).length;
+    return this.success(plan, {
+      title: '近期营销活动',
+      summary: `${range.label}共找到 ${rows.length} 条营销活动，进行中 ${runningCount} 条，草稿/未发布 ${draftCount} 条；最近更新的是「${rows[0].campaignName}」。`,
+      rows,
+      evidence,
+      actions: [{ label: '查看活动列表', action: 'marketing:activities:open', riskLevel: 'low' }],
+    });
+  }
+
   private async queryMarketingConversion(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
     const range = this.resolveDateRange(plan.timeRange);
     const storeId = plan.storeScope.storeIds[0];
-    const [activities, pages, leads, events] = await Promise.all([
-      (this.prisma as any).marketingActivity.findMany({
-        where: { OR: [{ storeId }, { storeId: null }] },
-        select: { id: true, title: true, status: true },
-        take: 1000,
-      }),
+    const [pages, leads, events] = await Promise.all([
       (this.prisma as any).marketingPage.findMany({
-        where: { storeId },
+        where: { storeId, status: 'active', userId: { not: null } },
         select: { id: true, activityId: true, title: true },
         take: 1000,
       }),
@@ -856,6 +932,16 @@ export class SemanticQueryExecutorService {
         take: 5000,
       }),
     ]);
+    const activityIds = Array.from(
+      new Set((pages as any[]).map((page) => Number(page.activityId)).filter((activityId) => Number.isFinite(activityId) && activityId > 0)),
+    );
+    const activities = activityIds.length
+      ? await (this.prisma as any).marketingActivity.findMany({
+          where: { id: { in: activityIds } },
+          select: { id: true, title: true, status: true },
+          take: 1000,
+        })
+      : [];
     const activityById = new Map((activities as any[]).map((item) => [Number(item.id), item]));
     const pageById = new Map((pages as any[]).map((item) => [Number(item.id), item]));
     const bucket = new Map<number, { campaignId: number; campaignName: string; viewCount: number; leadCount: number; convertedCount: number }>();
@@ -1025,6 +1111,13 @@ export class SemanticQueryExecutorService {
 
   private formatRange(range: DateRange) {
     return `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`;
+  }
+
+  private formatOptionalDateRange(start?: Date | string | null, end?: Date | string | null) {
+    if (!start && !end) return '未设置';
+    const startText = start ? this.formatDate(new Date(start)) : '未设置';
+    const endText = end ? this.formatDate(new Date(end)) : '未设置';
+    return `${startText} 至 ${endText}`;
   }
 
   private formatDate(value: Date) {

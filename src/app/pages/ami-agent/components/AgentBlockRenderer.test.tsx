@@ -52,7 +52,7 @@ describe('AgentBlockRenderer', () => {
     expect(within(table).getByRole('cell', { name: '¥1,280' })).toBeInTheDocument();
     expect(screen.getByText('仅统计当前门店已支付或已完成订单，排除取消和退款完成订单。')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /数据来源 · ProductOrder、OrderItem、Customer/ }));
+    fireEvent.click(screen.getByRole('button', { name: /数据来源 · 订单、订单明细、客户/ }));
     expect(screen.getByText('统计区间：yesterday')).toBeInTheDocument();
     expect(screen.getByText('口径：有效消费客户 = 指定时间范围内存在已支付或已完成订单的客户去重。')).toBeInTheDocument();
     expect(screen.getByText('注意：不包含已取消订单。')).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe('AgentBlockRenderer', () => {
     expect(screen.getByText('没有命中当前筛选条件。')).toBeInTheDocument();
   });
 
-  it('does not render array index values as table headers', () => {
+  it('infers Chinese table headers when source columns are array indexes', () => {
     const blocks: AuraResponseBlock[] = [
       {
         kind: 'table',
@@ -109,9 +109,12 @@ describe('AgentBlockRenderer', () => {
     render(<AgentBlockRenderer blocks={blocks} />);
 
     const table = screen.getByRole('table');
-    expect(within(table).getByRole('columnheader', { name: '字段 1' })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: '字段 4' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '客户分群' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '人数' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '优先级' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '建议动作' })).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: '0' })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: '字段 1' })).not.toBeInTheDocument();
     expect(within(table).getByRole('cell', { name: '沉睡客户（45-90天未到店）' })).toBeInTheDocument();
   });
 
@@ -137,6 +140,82 @@ describe('AgentBlockRenderer', () => {
     expect(within(table).getByRole('cell', { name: '宋乔' })).toBeInTheDocument();
   });
 
+  it('renders order revenue field keys and payment values in Chinese', () => {
+    render(
+      <AgentBlockRenderer
+        blocks={[
+          {
+            kind: 'table',
+            columns: ['payMethod', 'revenue', 'paidAmount', 'refundAmount', 'netAmount', 'orderCount'],
+            rows: [['wechat', '84265.67', '84265.67', '0', '84265.67', '101']],
+          },
+          {
+            kind: 'evidence_panel',
+            sources: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
+            metricDefinition: '按支付方式统计订单实收、退款和净额。',
+          },
+        ]}
+      />,
+    );
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: '支付方式' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '实收金额' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '退款金额' })).toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: '微信' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'payMethod' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /数据来源 · 订单、收款记录、退款记录/ })).toBeInTheDocument();
+  });
+
+  it('renders entity badge and marketing link card', () => {
+    const blocks: AuraResponseBlock[] = [
+      {
+        kind: 'entity_resolution_badge',
+        objectType: '营销活动',
+        entityName: '老朋友回店礼',
+        confidence: 0.92,
+        sourceModel: 'MarketingActivity',
+      },
+      {
+        kind: 'link_card',
+        title: '老朋友回店礼',
+        description: '推广页：老朋友回店礼 H5',
+        primaryUrl: 'https://example.com/old-friend',
+        miniappPath: '/pages/marketing/old-friend',
+        qrCodeUrl: 'https://example.com/old-friend.png',
+        statusLabel: '已发布',
+        links: [
+          { label: '活动链接', value: 'https://example.com/old-friend', type: 'url' },
+          { label: '小程序路径', value: '/pages/marketing/old-friend', type: 'miniapp_path' },
+          { label: '二维码', value: 'https://example.com/old-friend.png', type: 'qr_code' },
+        ],
+      },
+      {
+        kind: 'capability_trace',
+        capabilityId: 'marketing.activity.link.lookup',
+        queryTemplateId: 'marketing_activity_link_lookup',
+        action: 'get_link',
+        executionPath: 'business_query',
+        schemaPath: ['MarketingActivity', 'MarketingPage'],
+        confidence: 0.92,
+      },
+    ];
+
+    render(<AgentBlockRenderer blocks={blocks} />);
+
+    expect(screen.getByText('已识别业务对象')).toBeInTheDocument();
+    expect(screen.getByText('营销活动 · 老朋友回店礼')).toBeInTheDocument();
+    expect(screen.getAllByText('92%')).toHaveLength(2);
+    expect(screen.getByText('营销活动链接')).toBeInTheDocument();
+    expect(screen.getByText('https://example.com/old-friend')).toBeInTheDocument();
+    expect(screen.getByText('/pages/marketing/old-friend')).toBeInTheDocument();
+    expect(screen.getByText('https://example.com/old-friend.png')).toBeInTheDocument();
+    expect(screen.getByText('能力命中调试')).toBeInTheDocument();
+    expect(screen.getByText('marketing.activity.link.lookup')).toBeInTheDocument();
+    expect(screen.getByText('MarketingActivity → MarketingPage')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
   it('renders action cards and unsupported block fallback', () => {
     const onAction = vi.fn();
     const blocks = [
@@ -160,6 +239,30 @@ describe('AgentBlockRenderer', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认执行' }));
     expect(onAction).toHaveBeenCalledWith('customer.followup.task.draft');
     expect(screen.getByText('暂不支持的内容类型：unknown_demo')).toBeInTheDocument();
+  });
+
+  it('renders clarification cards and continues with the selected option', () => {
+    const onCommand = vi.fn();
+    const blocks: AuraResponseBlock[] = [
+      {
+        kind: 'clarification_card',
+        title: '需要确认对象',
+        question: '你是指哪个回店礼活动？',
+        options: [
+          { label: '老朋友回店护理礼', value: '查询老朋友回店护理礼活动链接', description: '已发布推广页' },
+          { label: '老朋友回店礼', value: '查询老朋友回店礼活动链接', description: '草稿活动' },
+        ],
+        allowFreeText: true,
+      },
+    ];
+
+    render(<AgentBlockRenderer blocks={blocks} onCommand={onCommand} />);
+
+    expect(screen.getByText('需要确认对象')).toBeInTheDocument();
+    expect(screen.getByText('你是指哪个回店礼活动？')).toBeInTheDocument();
+    expect(screen.getByText('已发布推广页')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /老朋友回店护理礼/ }));
+    expect(onCommand).toHaveBeenCalledWith('查询老朋友回店护理礼活动链接');
   });
 
   it('orders response blocks with evidence before actions and follow-up chips last', () => {
@@ -196,7 +299,7 @@ describe('AgentBlockRenderer', () => {
 
     const text = screen.getByText('昨天有消费客户，优先看高价值会员。');
     const table = screen.getByRole('table');
-    const evidence = screen.getByRole('button', { name: /数据来源 · Customer、ProductOrder/ });
+    const evidence = screen.getByRole('button', { name: /数据来源 · 客户、订单/ });
     const action = screen.getByText('确认发送');
     const followUp = screen.getByRole('button', { name: '生成话术' });
     expect(text.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

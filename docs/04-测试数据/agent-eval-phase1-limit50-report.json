@@ -1,0 +1,750 @@
+{
+  "mode": "run",
+  "persona": "all",
+  "totalQuestions": 650,
+  "systemUnsupported": {
+    "total": 22,
+    "byPersona": {
+      "manager": 11,
+      "marketing": 1,
+      "reception": 5,
+      "beautician": 3,
+      "finance": 1,
+      "edge": 1
+    },
+    "byReason": {
+      "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。": 9,
+      "当前系统没有客户等待离店或现场排队流失记录业务闭环。": 1,
+      "当前系统有采购与供应链数据，但没有供应商涨价通知业务对象。": 1,
+      "当前系统支持终端运行诊断，但没有美容设备维保或故障业务闭环。": 1,
+      "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。": 5,
+      "当前系统没有员工离职交接或客户流失归因到离职带走的业务闭环。": 1,
+      "当前系统没有消防安全、税务、发票或纳税业务闭环。": 4
+    }
+  },
+  "alreadyTested": {
+    "total": 128,
+    "byCoverageStage": {
+      "p0_daily": 119,
+      "kiosk_e2e": 9
+    }
+  },
+  "remainingSupported": {
+    "total": 500,
+    "selected": 50,
+    "passed": 33,
+    "failed": 17,
+    "passRate": 0.66,
+    "byPersona": {
+      "manager": 50
+    },
+    "bySupportStatus": {
+      "system_supported_testable": 49,
+      "system_supported_agent_gap": 1
+    }
+  },
+  "failureReasons": {
+    "wrong_intent": 14,
+    "skill_missing": 14,
+    "route_error": 5,
+    "missing_evidence": 14,
+    "missing_output_kind": 13
+  },
+  "systemUnsupportedList": [
+    {
+      "id": "qb-manager-customer-management-025",
+      "input": "最近有没有客户投诉或者表达不满",
+      "persona": "manager",
+      "sourceCategory": "客户管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-customer-management-033",
+      "input": "最近有没有客户因为等待时间长而离开",
+      "persona": "manager",
+      "sourceCategory": "客户管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户等待离店或现场排队流失记录业务闭环。"
+    },
+    {
+      "id": "qb-manager-customer-management-037",
+      "input": "帮我看一下客户满意度整体情况",
+      "persona": "manager",
+      "sourceCategory": "客户管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-staff-management-048",
+      "input": "哪个美容师的客诉最多，最近有没有",
+      "persona": "manager",
+      "sourceCategory": "员工管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-inventory-ops-076",
+      "input": "最近有没有收到供应商的涨价通知",
+      "persona": "manager",
+      "sourceCategory": "库存运营",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统有采购与供应链数据，但没有供应商涨价通知业务对象。"
+    },
+    {
+      "id": "qb-manager-risk-alert-085",
+      "input": "店里设备最近有没有什么问题",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统支持终端运行诊断，但没有美容设备维保或故障业务闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-090",
+      "input": "有没有客户最近投诉了但我还没处理",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-096",
+      "input": "最近有没有出现服务事故或皮肤过敏的情况",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-097",
+      "input": "这个月有没有收到很多差评或负面反馈",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-098",
+      "input": "最近有没有员工离职带走客户的风险",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有员工离职交接或客户流失归因到离职带走的业务闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-099",
+      "input": "店里消防安全检查需要做吗",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-marketing-automation-touch-092",
+      "input": "我想自动收集每次服务后的客户满意度",
+      "persona": "marketing",
+      "sourceCategory": "自动化与触达规则",
+      "sourceSection": "二、营销增长 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-reception-customer-lookup-008",
+      "input": "她的皮肤有没有什么过敏或者特殊注意事项",
+      "persona": "reception",
+      "sourceCategory": "客户查询",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-reception-cashier-card-usage-059",
+      "input": "帮我开具今天消费的收据或发票",
+      "persona": "reception",
+      "sourceCategory": "收银与核销",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-reception-onsite-coordination-085",
+      "input": "这个客人说她过敏，之前记录了什么",
+      "persona": "reception",
+      "sourceCategory": "现场协调",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-reception-onsite-coordination-092",
+      "input": "这个客人要求开发票，我怎么操作",
+      "persona": "reception",
+      "sourceCategory": "现场协调",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-reception-onsite-coordination-095",
+      "input": "有客人说要投诉，我应该怎么处理",
+      "persona": "reception",
+      "sourceCategory": "现场协调",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-beautician-service-schedule-011",
+      "input": "下一个客人有没有皮肤过敏或者什么注意事项",
+      "persona": "beautician",
+      "sourceCategory": "今日服务安排",
+      "sourceSection": "四、美容师服务 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-beautician-care-advice-028",
+      "input": "这个客人有过敏史，做项目前我需要注意什么",
+      "persona": "beautician",
+      "sourceCategory": "客户护理建议",
+      "sourceSection": "四、美容师服务 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-beautician-personal-performance-090",
+      "input": "我的客户满意度高不高",
+      "persona": "beautician",
+      "sourceCategory": "个人业绩",
+      "sourceSection": "四、美容师服务 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-finance-finance-risk-compliance-081",
+      "input": "有没有税务方面需要注意的事项",
+      "persona": "finance",
+      "sourceCategory": "财务风险与合规",
+      "sourceSection": "六、财务风控 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-edge-cross-domain-022",
+      "input": "有个客人投诉说效果差，我应该退款还是再给她做一次",
+      "persona": "edge",
+      "sourceCategory": "跨场景融合问题",
+      "sourceSection": "附：Edge Case 与多轮对话测试问题",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    }
+  ],
+  "agentGapList": [
+    {
+      "id": "qb-manager-business-overview-005",
+      "input": "本周跟上周比，哪天差距最大",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error",
+        "missing_evidence"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-006",
+      "input": "这个月目标完成率多少了，还差多远",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-008",
+      "input": "今天有没有什么异常情况我需要知道",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error",
+        "missing_evidence"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "analysis_and_recommendation",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-010",
+      "input": "今天退款有几笔，金额多少",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "order.refund.diagnose",
+        "capabilityId": "refund_risk_diagnosis",
+        "businessDomain": "afterSales",
+        "outputKinds": [
+          "text",
+          "kpi",
+          "evidence",
+          "table"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-012",
+      "input": "今天新客老客各来了几个",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-013",
+      "input": "现在几点了，下午还有几个预约",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "reservation",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-017",
+      "input": "最近三天营业额趋势怎么样",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "query",
+        "clarificationNeeded": false,
+        "firstTool": "business.query.ask",
+        "capabilityId": "order_revenue_analysis",
+        "businessDomain": "business",
+        "outputKinds": [
+          "text",
+          "kpi",
+          "evidence",
+          "table"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "chart"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-018",
+      "input": "这周有没有哪天特别差，为什么",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error",
+        "missing_evidence"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "analysis_and_recommendation",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-019",
+      "input": "今天现金收了多少，微信支付宝各多少",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-customer-management-038",
+      "input": "这个月新客主要来自什么渠道",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "客户管理",
+      "supportStatus": "system_supported_agent_gap",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "channel",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-customer-management-039",
+      "input": "老客户平均多久回来一次",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "客户管理",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-staff-management-050",
+      "input": "帮我看一下各美容师的服务次数对比",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "员工管理",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "staff.performance.rank",
+        "capabilityId": "staff_performance_ranking",
+        "businessDomain": "staff",
+        "outputKinds": [
+          "text",
+          "table",
+          "evidence",
+          "kpi"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "chart"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-staff-management-053",
+      "input": "有没有员工最近很长时间没有新客了",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "员工管理",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-staff-management-057",
+      "input": "最近有没有员工出现迟到早退",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "员工管理",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "staff",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-staff-management-060",
+      "input": "有没有员工的客户被别的美容师挖走的迹象",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "员工管理",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-inventory-ops-065",
+      "input": "有什么产品积压太久了",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "库存运营",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "product",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-inventory-ops-066",
+      "input": "下次采购需要补什么货",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "库存运营",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "missing_evidence",
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "supplyChain",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "action_card"
+        ]
+      }
+    }
+  ]
+}

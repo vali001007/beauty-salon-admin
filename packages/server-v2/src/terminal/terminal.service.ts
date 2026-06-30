@@ -22,6 +22,7 @@ import { TerminalDashboardCacheService } from './terminal-dashboard-cache.servic
 import { CardsService } from '../cards/cards.service.js';
 import { collectAuraUserFieldScopes, resolveAuraAvailableRolesForUser } from './terminal-role-access.js';
 import { formatBusinessDate, formatBusinessDateTime, toBusinessDateOnly } from '../common/utils/business-time.js';
+import { deductStockItem, deductStockItems } from '../common/inventory-stock-deduction.js';
 import { DeviceLoginDto } from './dto/device-login.dto.js';
 import { DeviceHeartbeatDto } from './dto/device-heartbeat.dto.js';
 import { QuickCreateCustomerDto } from './dto/quick-create-customer.dto.js';
@@ -577,6 +578,45 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       member_balance: 'member_balance',
     };
     return map[method || ''] || method || 'cash';
+  }
+
+  private summarizePaymentRecords(payments: any[] = []) {
+    const summary: Record<string, number> = {
+      cash: 0,
+      wechat: 0,
+      alipay: 0,
+      card: 0,
+      member_balance: 0,
+      customer_card: 0,
+      other: 0,
+      total: 0,
+    };
+    for (const payment of payments) {
+      const method = this.getPaymentMethod(payment?.method);
+      const amount = this.toNumber(payment?.amount);
+      if (method in summary) summary[method] += amount;
+      else summary.other += amount;
+      summary.total += amount;
+    }
+    return summary;
+  }
+
+  private getCashIncomeFromPaymentSummary(summary: Record<string, number>) {
+    return this.roundCurrency(
+      this.toNumber(summary.cash) + this.toNumber(summary.wechat) + this.toNumber(summary.alipay) + this.toNumber(summary.card),
+    );
+  }
+
+  private getOrderItemCost(item: any) {
+    const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
+    return this.toNumber(
+      payload.costAmount ??
+        payload.productCostAmount ??
+        payload.materialCost ??
+        payload.cost ??
+        payload.productCost ??
+        0,
+    );
   }
 
   private createSequenceNo(prefix: string) {
@@ -1761,58 +1801,15 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const quantity = this.toNumber(item.quantity ?? item.qty ?? item.amount ?? item.standardQty);
     if (!productId || quantity <= 0) return;
 
-    const product = await tx.product.findFirst({ where: { id: productId, storeId, deletedAt: null } });
-    if (!product) return;
-
-    const isOutbound = movementType.endsWith('_out') || movementType.includes('consume');
-    const beforeStock = this.toNonNegativeStock(product.currentStock);
-    const appliedQty = isOutbound ? Math.min(beforeStock, quantity) : quantity;
-    const signedQuantity = isOutbound ? -appliedQty : appliedQty;
-    const afterStock = isOutbound ? beforeStock - appliedQty : beforeStock + appliedQty;
-    if (isOutbound && appliedQty <= 0) {
-      if (this.toNumber(product.currentStock) < 0) {
-        await tx.product.update({
-          where: { id: product.id },
-          data: { currentStock: 0 },
-        });
-      }
-      return;
-    }
-
-    await tx.product.update({
-      where: { id: product.id },
-      data: { currentStock: afterStock },
-    });
-
-    const batchId = item.batchId ? Number(item.batchId) : undefined;
-    if (batchId) {
-      const batch = await tx.stockBatch.findFirst({
-        where: { id: batchId, productId: product.id },
-        select: { stock: true },
-      });
-      const beforeBatchStock = this.toNonNegativeStock(batch?.stock);
-      const afterBatchStock = isOutbound ? Math.max(0, beforeBatchStock - appliedQty) : beforeBatchStock + appliedQty;
-      await tx.stockBatch.updateMany({
-        where: { id: batchId, productId: product.id },
-        data: { stock: afterBatchStock },
-      });
-    }
-
-    await tx.stockMovement.create({
-      data: {
-        storeId,
-        productId: product.id,
-        batchId,
-        movementNo: this.createSequenceNo('SM'),
-        movementType,
-        quantity: signedQuantity,
-        beforeStock,
-        afterStock,
-        unit: product.unit,
-        sourceType: source.type,
-        sourceId: source.id,
-        sourceNo: source.no,
-        remark: this.buildInventoryShortageRemark(source.remark, quantity, appliedQty),
+    await deductStockItem(tx, {
+      storeId,
+      movementType,
+      source,
+      item: {
+        productId,
+        quantity,
+        batchId: item.batchId ? Number(item.batchId) : undefined,
+        remark: source.remark,
       },
     });
   }
@@ -2545,6 +2542,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         'operation.cashier',
         'operation.card',
         'operation.recharge',
+        'operation.refund',
         'operation.print',
       ],
       reception: [
@@ -2554,6 +2552,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         'operation.cashier',
         'operation.card',
         'operation.recharge',
+        'operation.refund',
         'operation.print',
       ],
       beautician: [
@@ -2569,7 +2568,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       reception: '前台',
       beautician: '美容师',
       'manager.dashboard': '经营',
-      'manager.staff': '员工',
+      'manager.staff': '排班',
       'manager.customers': '客户增长',
       'manager.inventory': '库存',
       'reception.appointments': '预约',
@@ -2578,6 +2577,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       'operation.cashier': '收银',
       'operation.card': '办卡',
       'operation.recharge': '充值',
+      'operation.refund': '退款',
       'operation.print': '打印',
       'operation.service-complete': '服务记录',
       'beautician.schedule': '我的预约',
@@ -2597,6 +2597,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       'operation.cashier': 'CreditCard',
       'operation.card': 'Wallet',
       'operation.recharge': 'Wallet',
+      'operation.refund': 'RotateCcw',
       'operation.print': 'Printer',
       'operation.service-complete': 'FileText',
       'beautician.schedule': 'CalendarCheck',
@@ -2620,6 +2621,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         'aura:cashier:create',
         'aura:card-order:create',
         'aura:recharge:create',
+        'aura:refund:create',
         'aura:inventory:read',
         'aura:staff:read',
       ],
@@ -2632,6 +2634,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         'aura:cashier:create',
         'aura:card-order:create',
         'aura:recharge:create',
+        'aura:refund:create',
       ],
       beautician: ['aura:beautician:view', 'aura:customer:read', 'aura:appointment:read', 'aura:service-record:create'],
     };
@@ -3780,14 +3783,22 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         include: { project: true },
       });
 
-      for (const item of consumptionItems) {
-        await this.createStockMovementForItem(tx, task.storeId, item, 'service_consume', {
+      await deductStockItems(tx, {
+        storeId: task.storeId,
+        movementType: 'service_consume',
+        source: {
           type: 'service_task',
           id: task.id,
           no: task.taskNo,
           remark: dto?.remark,
-        });
-      }
+        },
+        items: consumptionItems.map((item: any) => ({
+          productId: Number(item.productId ?? item.itemId ?? item.id),
+          quantity: this.toNumber(item.quantity ?? item.qty ?? item.amount ?? item.standardQty),
+          batchId: item.batchId ? Number(item.batchId) : undefined,
+          remark: dto?.remark,
+        })),
+      });
 
       return completedTask;
     });
@@ -3895,14 +3906,25 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
             include: { project: true },
           });
 
-      for (const item of consumptionItems) {
-        await this.createStockMovementForItem(tx, storeId, item, 'service_consume', {
+      await deductStockItems(tx, {
+        storeId,
+        movementType: 'service_consume',
+        source: {
           type: 'service_record',
           id: task.id,
           no: task.taskNo,
           remark: note,
-        });
-      }
+        },
+        items: consumptionItems.map((rawItem) => {
+          const item = rawItem as any;
+          return {
+            productId: Number(item.productId ?? item.itemId ?? item.id),
+            quantity: this.toNumber(item.quantity ?? item.qty ?? item.amount ?? item.standardQty),
+            batchId: item.batchId ? Number(item.batchId) : undefined,
+            remark: note,
+          };
+        }),
+      });
 
       const consumptionRecord = await tx.consumptionRecord.create({
         data: {
@@ -4462,6 +4484,252 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       }),
     );
     return this.mapBalanceAccount(result.account, customer, result.transaction);
+  }
+
+  private getPrintDocumentTodayRange() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { today, tomorrow };
+  }
+
+  private getPaymentMethodLabel(method?: string | null) {
+    const normalized = this.getPaymentMethod(method ?? undefined);
+    const map: Record<string, string> = {
+      cash: '现金',
+      wechat: '微信',
+      alipay: '支付宝',
+      card: '银行卡',
+      customer_card: '次卡抵扣',
+      member_balance: '会员余额',
+    };
+    return map[normalized] ?? method ?? '未记录';
+  }
+
+  private getStatusLabel(status?: string | null) {
+    const map: Record<string, string> = {
+      completed: '已完成',
+      paid: '已支付',
+      active: '已生效',
+      success: '成功',
+    };
+    return map[String(status ?? '')] ?? String(status ?? '已完成');
+  }
+
+  private getReceiptOrderItems(order: any): Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    listAmount: number;
+    discountAmount: number;
+    subtotal: number;
+  }> {
+    const sourceItems =
+      Array.isArray(order?.orderItems) && order.orderItems.length
+        ? order.orderItems
+        : Array.isArray(order?.items)
+          ? order.items
+          : [];
+    return sourceItems.map((item: any) => {
+      const quantity = this.toNumber(item.quantity ?? item.qty ?? 1) || 1;
+      const unitPrice = this.toNumber(item.unitPrice ?? item.price ?? item.amount);
+      const listAmount = this.toNumber(item.listAmount) || quantity * unitPrice;
+      const discountAmount = this.toNumber(item.itemDiscountAmount ?? item.totalDiscountAmount ?? item.discountAmount ?? item.discount);
+      const subtotal = this.toNumber(item.subtotal ?? item.netAmount ?? listAmount - discountAmount);
+      return {
+        name: String(item.name ?? item.projectName ?? item.productName ?? item.cardName ?? '未命名单项'),
+        quantity,
+        unitPrice,
+        listAmount,
+        discountAmount,
+        subtotal,
+      };
+    });
+  }
+
+  private getOrderPaidAmount(order: any) {
+    const paymentTotal = Array.isArray(order?.paymentRecords)
+      ? order.paymentRecords
+          .filter((payment: any) => !payment?.status || payment.status === 'success')
+          .reduce((sum: number, payment: any) => sum + this.toNumber(payment.amount), 0)
+      : 0;
+    return paymentTotal || this.toNumber(order?.netAmount ?? order?.totalAmount);
+  }
+
+  private mapOrderPrintDocument(order: any, storeName: string, sourceType: 'cashier_order' | 'card_order') {
+    const items = this.getReceiptOrderItems(order);
+    const listAmount = this.toNumber(order.listAmount) || items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0);
+    const discountAmount =
+      this.toNumber(order.totalDiscountAmount) ||
+      Math.max(0, items.reduce((sum, item) => sum + this.toNumber(item.discountAmount), 0));
+    const paidAmount = this.getOrderPaidAmount(order);
+    const firstPayment = Array.isArray(order.paymentRecords) ? order.paymentRecords[0] : null;
+    const cardSource = Array.isArray(order.sourceCustomerCards) ? order.sourceCustomerCards[0] : null;
+    const typeLabel = sourceType === 'card_order' ? '办卡' : '收银';
+    const createdAt = this.toIso(order.createdAt) || new Date().toISOString();
+    const receipt = {
+      sourceType,
+      sourceId: order.id,
+      receiptNo: order.orderNo,
+      businessTitle: sourceType === 'card_order' ? '办卡小票' : '消费小票',
+      detailLabel: sourceType === 'card_order' ? '卡项明细' : '收费明细',
+      storeName,
+      customerName: order.customerName ?? order.customer?.name ?? '散客',
+      customerPhone: order.customer?.phone ?? undefined,
+      cashierName: cardSource?.operator?.name ?? cardSource?.operator?.username ?? undefined,
+      paymentMethod: this.getPaymentMethodLabel(firstPayment?.method ?? order.payMethod),
+      items,
+      subtotalAmount: listAmount,
+      discountAmount,
+      paidAmount,
+      createdAt,
+    };
+    return {
+      id: `${sourceType}:${order.id}`,
+      sourceType,
+      sourceId: order.id,
+      receiptNo: order.orderNo,
+      typeLabel,
+      title: `${typeLabel}单 ${order.orderNo}`,
+      customerName: receipt.customerName,
+      customerPhone: receipt.customerPhone,
+      amount: paidAmount,
+      status: this.getStatusLabel(order.status),
+      time: createdAt,
+      description: items.map((item) => `${item.name} x${item.quantity}`).join('、') || `${typeLabel}单据`,
+      receipt,
+    };
+  }
+
+  private mapCardUsagePrintDocument(record: any, storeName: string) {
+    const createdAt = this.toIso(record.verifiedAt) || new Date().toISOString();
+    const recognizedAmount = this.toNumber(record.recognizedAmount);
+    const receipt = {
+      sourceType: 'card_usage' as const,
+      sourceId: record.id,
+      receiptNo: `CU${String(record.id).padStart(6, '0')}`,
+      businessTitle: '核销凭证',
+      detailLabel: '核销明细',
+      storeName,
+      customerName: record.customerName ?? record.customer?.name ?? '',
+      customerPhone: record.customer?.phone ?? undefined,
+      cashierName: record.operator?.name ?? record.operator?.username ?? undefined,
+      paymentMethod: '次卡核销',
+      items: [
+        {
+          name: `${record.cardName} · ${record.projectName}`,
+          quantity: this.toNumber(record.times) || 1,
+          unitPrice: recognizedAmount,
+          listAmount: recognizedAmount,
+          discountAmount: 0,
+          subtotal: recognizedAmount,
+        },
+      ],
+      subtotalAmount: recognizedAmount,
+      discountAmount: 0,
+      paidAmount: recognizedAmount,
+      createdAt,
+    };
+    return {
+      id: `card_usage:${record.id}`,
+      sourceType: 'card_usage' as const,
+      sourceId: record.id,
+      receiptNo: receipt.receiptNo,
+      typeLabel: '核销',
+      title: `核销单 ${receipt.receiptNo}`,
+      customerName: receipt.customerName,
+      customerPhone: receipt.customerPhone,
+      amount: recognizedAmount,
+      status: '已核销',
+      time: createdAt,
+      description: `${record.cardName} · ${record.projectName}，扣减 ${record.times} 次，剩余 ${record.remainingTimes} 次`,
+      receipt,
+    };
+  }
+
+  async getTodayPrintDocuments(storeId: number) {
+    const { today, tomorrow } = this.getPrintDocumentTodayRange();
+    const successOrderWhere = {
+      storeId,
+      createdAt: { gte: today, lt: tomorrow },
+      status: { in: ['completed', 'paid'] },
+    };
+    const orderInclude = {
+      customer: { select: { id: true, name: true, phone: true } },
+      orderItems: true,
+      paymentRecords: { where: { status: 'success' }, orderBy: { paidAt: 'desc' as const } },
+      sourceCustomerCards: {
+        include: {
+          operator: { select: { id: true, name: true, username: true } },
+        },
+      },
+    };
+    const [store, cashierOrders, cardOrders, cardUsageRecords] = await Promise.all([
+      this.getStore(storeId),
+      this.prisma.productOrder.findMany({
+        where: {
+          ...successOrderWhere,
+          NOT: [
+            { orderKind: { in: ['member_card_open', 'member_card_recharge'] } },
+            { orderItems: { some: { itemType: { in: ['card', 'recharge'] } } } },
+            { sourceCustomerCards: { some: {} } },
+          ],
+        },
+        include: orderInclude,
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.productOrder.findMany({
+        where: {
+          ...successOrderWhere,
+          OR: [
+            { orderKind: 'member_card_open' },
+            { orderItems: { some: { itemType: 'card' } } },
+            { sourceCustomerCards: { some: {} } },
+          ],
+        },
+        include: orderInclude,
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.cardUsageRecord.findMany({
+        where: {
+          storeId,
+          verifiedAt: { gte: today, lt: tomorrow },
+        },
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          operator: { select: { id: true, name: true, username: true } },
+        },
+        orderBy: { verifiedAt: 'desc' },
+        take: 100,
+      }),
+    ]);
+    const cashierDocuments = cashierOrders.map((order) => this.mapOrderPrintDocument(order, store.name, 'cashier_order'));
+    const cardOrderDocuments = cardOrders.map((order) => this.mapOrderPrintDocument(order, store.name, 'card_order'));
+    const cardUsageDocuments = cardUsageRecords.map((record) => this.mapCardUsagePrintDocument(record, store.name));
+    const items = [...cashierDocuments, ...cardUsageDocuments, ...cardOrderDocuments].sort(
+      (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+    );
+
+    return {
+      title: '今日可打印单据',
+      subtitle: store.name,
+      summary:
+        items.length > 0
+          ? `今日共 ${items.length} 张可打印单据：收银 ${cashierDocuments.length} 单，核销 ${cardUsageDocuments.length} 单，办卡 ${cardOrderDocuments.length} 单。`
+          : '今日暂无收银、核销或办卡单据可打印。',
+      date: this.toLocalDateText(today),
+      generatedAt: new Date().toISOString(),
+      total: items.length,
+      counts: {
+        cashier: cashierDocuments.length,
+        cardUsage: cardUsageDocuments.length,
+        cardOrder: cardOrderDocuments.length,
+      },
+      items,
+    };
   }
 
   async createPrintJob(storeId: number, dto: any) {
@@ -5166,13 +5434,21 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (storeId && Array.isArray(dto.items)) {
-        for (const item of dto.items) {
-          await this.createStockMovementForItem(tx, storeId, item, 'service_consume', {
+        await deductStockItems(tx, {
+          storeId,
+          movementType: 'service_consume',
+          source: {
             type: 'consumption_record',
             id: created.id,
             remark: dto.remark,
-          });
-        }
+          },
+          items: dto.items.map((item: any) => ({
+            productId: Number(item.productId ?? item.itemId ?? item.id),
+            quantity: this.toNumber(item.quantity ?? item.qty ?? item.amount ?? item.standardQty),
+            batchId: item.batchId ? Number(item.batchId) : undefined,
+            remark: dto.remark,
+          })),
+        });
       }
 
       return created;
@@ -5435,23 +5711,45 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.expireOverdueFollowUpTasks(storeId);
 
+      const explicitAssigneeUserId = query.assigneeUserId ? Number(query.assigneeUserId) : undefined;
+      const operatorId = !explicitAssigneeUserId && query.operatorId ? Number(query.operatorId) : undefined;
+      const operatorBeautician = operatorId
+        ? await this.prisma.beautician.findFirst({ where: { storeId, userId: operatorId }, select: { id: true } })
+        : null;
+      const operatorAssigneeScope = operatorId
+        ? [
+            { assigneeUserId: operatorId },
+            ...(operatorBeautician?.id ? [{ assigneeBeauticianId: operatorBeautician.id }] : []),
+          ]
+        : [];
       const where: any = {
         storeId,
         deletedAt: null,
         ...(query.status ? { status: query.status } : {}),
         ...(query.assigneeRole ? { assigneeRole: query.assigneeRole } : {}),
-        ...(query.assigneeUserId ? { assigneeUserId: Number(query.assigneeUserId) } : {}),
+        ...(explicitAssigneeUserId ? { assigneeUserId: explicitAssigneeUserId } : {}),
         ...(query.customerId ? { customerId: Number(query.customerId) } : {}),
         ...(query.recommendationId ? { recommendationId: Number(query.recommendationId) } : {}),
       };
+      const andScopes: any[] = [];
+      if (operatorAssigneeScope.length) {
+        andScopes.push({ OR: operatorAssigneeScope });
+      }
       if (query.keyword) {
         const keyword = String(query.keyword).trim();
-        where.OR = [
-          { title: { contains: keyword, mode: 'insensitive' } },
-          { note: { contains: keyword, mode: 'insensitive' } },
-          { customer: { name: { contains: keyword, mode: 'insensitive' } } },
-          { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
-        ];
+        if (keyword) {
+          andScopes.push({
+            OR: [
+              { title: { contains: keyword, mode: 'insensitive' } },
+              { note: { contains: keyword, mode: 'insensitive' } },
+              { customer: { name: { contains: keyword, mode: 'insensitive' } } },
+              { customer: { phone: { contains: keyword, mode: 'insensitive' } } },
+            ],
+          });
+        }
+      }
+      if (andScopes.length) {
+        where.AND = andScopes;
       }
       const summaryScopeWhere = { ...where };
       delete summaryScopeWhere.status;
@@ -6489,7 +6787,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       store,
       customerTotal,
       activeCustomerTotal,
-      orderStats,
+      todayOrders,
+      todayPayments,
+      todayRefunds,
+      todayCommissionRecords,
+      todayDailySettlement,
       reservationCount,
       reservations,
       arrivedReservationCount,
@@ -6498,15 +6800,56 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       recentOrders,
       beauticians,
       schedules,
-      amiDashboard,
     ] = await Promise.all([
       this.getStore(storeId),
       this.prisma.customer.count({ where: { storeId, deletedAt: null } }),
       this.prisma.customer.count({ where: { storeId, deletedAt: null, visitCount: { gt: 0 } } }),
-      this.prisma.productOrder.aggregate({
-        where: { storeId, status: 'completed' },
-        _sum: { totalAmount: true },
-        _count: true,
+      this.prisma.productOrder.findMany({
+        where: {
+          storeId,
+          createdAt: { gte: today, lt: tomorrow },
+          OR: [
+            { status: { in: ['completed', 'paid', 'refunded'] } },
+            { paymentRecords: { some: { status: 'success' } } },
+          ],
+        },
+        include: {
+          orderItems: true,
+          paymentRecords: { where: { status: 'success' } },
+        },
+      }),
+      this.prisma.paymentRecord.findMany({
+        where: {
+          status: 'success',
+          OR: [
+            { paidAt: { gte: today, lt: tomorrow } },
+            { paidAt: null, createdAt: { gte: today, lt: tomorrow } },
+          ],
+          order: { storeId },
+        },
+        select: { method: true, amount: true },
+      }),
+      this.prisma.refundRecord.findMany({
+        where: {
+          status: { in: ['success', 'completed', 'refunded'] },
+          OR: [
+            { refundedAt: { gte: today, lt: tomorrow } },
+            { refundedAt: null, createdAt: { gte: today, lt: tomorrow } },
+          ],
+          order: { storeId },
+        },
+        select: { amount: true },
+      }),
+      this.prisma.commissionRecord.findMany({
+        where: {
+          storeId,
+          createdAt: { gte: today, lt: tomorrow },
+          status: { not: 'cancelled' },
+        },
+        select: { amount: true },
+      }),
+      this.prisma.dailySettlement.findUnique({
+        where: { storeId_settleDate: { storeId, settleDate: today } },
       }),
       this.prisma.reservation.count({
         where: {
@@ -6569,12 +6912,6 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderBy: [{ beauticianId: 'asc' }, { startTime: 'asc' }],
         take: 80,
       }),
-      this.commissionService.getAmiDashboard({ storeId }).catch((error) => {
-        if (!this.warnOptionalTableSkipped('AmiPerformanceRecord/AmiMonthlyBill', error)) {
-          console.warn('Ami Core manager dashboard Ami contribution skipped', error);
-        }
-        return { revenueGenerated: 0, totalFee: 0, roi: 0, recordCount: 0 };
-      }),
     ]);
 
     const mappedReservations = await Promise.all(reservations.map((reservation) => this.mapReservation(reservation)));
@@ -6622,7 +6959,35 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         summary: `${item.name} 今日共有 ${todaySlots.length} 个排班时段，占用率 ${utilization}。`,
       };
     });
-    const revenue = this.toNumber(orderStats._sum.totalAmount);
+    const paymentSummary = this.summarizePaymentRecords(todayPayments);
+    const refundAmount = todayRefunds.reduce((sum, refund) => sum + this.toNumber(refund.amount), 0);
+    const orderGrossRevenue = todayOrders.reduce((sum, order: any) => {
+      const paid = Array.isArray(order.paymentRecords)
+        ? order.paymentRecords.reduce((paymentSum: number, payment: any) => paymentSum + this.toNumber(payment.amount), 0)
+        : 0;
+      return sum + (paid > 0 ? paid : this.toNumber(order.netAmount ?? order.totalAmount));
+    }, 0);
+    const orderMaterialCost = todayOrders.reduce((sum, order: any) => {
+      const items = Array.isArray(order.orderItems) ? order.orderItems : [];
+      return sum + items.reduce((itemSum: number, item: any) => itemSum + this.getOrderItemCost(item), 0);
+    }, 0);
+    const commissionTotal = todayCommissionRecords.reduce((sum, record) => sum + this.toNumber(record.amount), 0);
+    const fallbackRevenue = this.roundCurrency(orderGrossRevenue - refundAmount);
+    const fallbackGrossProfit = this.roundCurrency(fallbackRevenue - orderMaterialCost - commissionTotal);
+    const fallbackGrossMargin = fallbackRevenue > 0 ? this.roundCurrency((fallbackGrossProfit / fallbackRevenue) * 100) : 0;
+    const settlementCashIncome = todayDailySettlement
+      ? this.roundCurrency(
+          this.toNumber((todayDailySettlement as any).cashRevenue) +
+            this.toNumber((todayDailySettlement as any).wechatRevenue) +
+            this.toNumber((todayDailySettlement as any).alipayRevenue) +
+            this.toNumber((todayDailySettlement as any).cardRevenue),
+        )
+      : null;
+    const revenue = todayDailySettlement ? this.toNumber((todayDailySettlement as any).totalRevenue) : fallbackRevenue;
+    const cashIncome = settlementCashIncome ?? this.getCashIncomeFromPaymentSummary(paymentSummary);
+    const grossProfit = todayDailySettlement ? this.toNumber((todayDailySettlement as any).grossProfit) : fallbackGrossProfit;
+    const grossMargin = todayDailySettlement ? this.toNumber((todayDailySettlement as any).grossMargin) : fallbackGrossMargin;
+    const orderCount = todayDailySettlement ? this.toNumber((todayDailySettlement as any).orderCount) : todayOrders.length;
     const reservationCustomerIds = new Set(reservations.map((reservation) => reservation.customerId));
     const customersAtRisk = customersForInsights
       .map((customer) => ({
@@ -6668,9 +7033,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         customerTotal,
         activeCustomerTotal,
         revenue,
-        orderCount: orderStats._count,
+        orderCount,
         reservationCount,
         arrivedReservationCount,
+        cashIncome,
+        grossProfit,
+        grossMargin,
       },
       customersAtRisk,
       todayReservations: mappedReservations.map((reservation) => ({
@@ -6693,9 +7061,6 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       })),
     };
     const insights = await this.getManagerDashboardInsights(storeId, insightContext);
-    const amiRevenue = this.toNumber((amiDashboard as any)?.revenueGenerated);
-    const amiFee = this.toNumber((amiDashboard as any)?.totalFee);
-    const amiRecordCount = this.toNumber((amiDashboard as any)?.recordCount);
 
     return {
       manager: {
@@ -6703,16 +7068,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         subtitle: store.name,
         summary: `${store.name} 已接入 Ami_Core 数据，优先关注经营、预约、库存和员工协同。`,
         kpis: [
-          { label: '客户总数', value: String(customerTotal) },
-          { label: '营业额', value: `￥${revenue.toLocaleString()}` },
+          { label: '营业收入', value: `￥${revenue.toLocaleString()}` },
+          { label: '现金收入', value: `￥${cashIncome.toLocaleString()}` },
+          { label: '毛利/毛利率', value: `￥${grossProfit.toLocaleString()} / ${grossMargin.toFixed(2)}%` },
           { label: '预约客户', value: String(reservationCount) },
           { label: '到店客户', value: String(arrivedReservationCount) },
-          { label: '活跃客户', value: String(activeCustomerTotal) },
-          {
-            label: 'Ami关联收入 / 费用',
-            value: `￥${amiRevenue.toLocaleString()}`,
-            hint: `费用 ￥${amiFee.toLocaleString()} · ${amiRecordCount} 条贡献记录`,
-          },
+          { label: '订单', value: String(orderCount) },
         ],
         risks: insights.risks,
         highlights: insights.suggestions,

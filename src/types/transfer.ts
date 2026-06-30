@@ -11,15 +11,6 @@ export interface StoreStock {
   status: '正常' | '偏低' | '缺货';
 }
 
-export interface TransferSuggestion {
-  id: number;
-  fromStore: string;
-  toStore: string;
-  productName: string;
-  suggestedQty: number;
-  reason: string;
-}
-
 export interface TransferOrder {
   id: number;
   orderNo: string;
@@ -28,4 +19,22 @@ export interface TransferOrder {
   productCount: number;
   status: '待确认' | '运输中' | '已完成' | '已取消';
   createdAt: string;
+  reason?: string;
+}
+
+export interface TransferSuggestion {
+  id: string;
+  sku: string;
+  productName: string;
+  productId: number;
+  fromStoreId: number;
+  fromStoreName: string;
+  toStoreId: number;
+  toStoreName: string;
+  sourceStock: number;
+  targetStock: number;
+  safetyStock: number;
+  suggestedQty: number;
+  unit?: string | null;
+  reason: string;
 }

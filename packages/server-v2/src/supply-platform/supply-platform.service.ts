@@ -538,7 +538,7 @@ export class SupplyPlatformService {
     return shipment;
   }
 
-  async receiveOrder(orderId: number, dto: ReceiveProcurementOrderDto) {
+  async receiveOrder(orderId: number, dto: ReceiveProcurementOrderDto & { operatorId?: number | string }) {
     const affectedStoreId = await this.prisma.$transaction(async (tx) => {
       const order = await tx.procurementOrder.findUnique({
         where: { id: orderId },
@@ -584,6 +584,7 @@ export class SupplyPlatformService {
             sourceType: 'supply_platform_order',
             sourceId: order.id,
             sourceNo: order.orderNo,
+            ...(dto.operatorId ? { operatorId: Number(dto.operatorId) } : {}),
             remark: dto.remark,
           },
         });

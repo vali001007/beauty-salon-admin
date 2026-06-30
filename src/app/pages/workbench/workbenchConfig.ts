@@ -65,7 +65,7 @@ export const workbenchConfig: Record<AdminWorkbenchRole, WorkbenchRoleConfig> = 
         icon: 'TrendingUp',
         tone: 'rose',
         path: '/finance/platform-revenue',
-        permission: 'core:finance:view',
+        permission: 'core:platform-revenue:view',
         fallbackKeys: ['income'],
         fallbackValue: '-',
         fallbackHint: '等待总部口径数据',
@@ -105,7 +105,7 @@ export const workbenchConfig: Record<AdminWorkbenchRole, WorkbenchRoleConfig> = 
     quickActions: [
       { key: 'stores', label: '门店管理', path: '/system/stores', icon: 'Building2', permission: 'core:system:stores', group: 'system' },
       { key: 'roles', label: '角色权限', path: '/system/roles', icon: 'Shield', permission: 'core:system:roles', group: 'system' },
-      { key: 'platformRevenue', label: '平台收入', path: '/finance/platform-revenue', icon: 'BarChart3', permission: 'core:finance:view', group: 'system' },
+      { key: 'platformRevenue', label: '平台收入', path: '/finance/platform-revenue', icon: 'BarChart3', permission: 'core:platform-revenue:view', group: 'system' },
       { key: 'devices', label: '终端设备', path: '/system/devices', icon: 'Monitor', permission: 'core:system:stores', group: 'system' },
     ],
     insight: {
@@ -166,7 +166,7 @@ export const workbenchConfig: Record<AdminWorkbenchRole, WorkbenchRoleConfig> = 
       { key: 'scheduling', label: '排班管理', path: '/stores/scheduling', icon: 'Calendar', permission: 'core:store:scheduling', group: 'management' },
       { key: 'inventory', label: '库存管理', path: '/inventory/stock', icon: 'PackageCheck', permission: 'core:inventory:stock', group: 'management' },
       { key: 'marketing', label: '营销工作台', path: '/customer-marketing/workbench', icon: 'Sparkles', permission: 'core:marketing:view', group: 'operation' },
-      { key: 'dailySettlement', label: '日结报表', path: '/finance/daily-settlement', icon: 'ClipboardList', permission: 'core:finance:view', group: 'analytics' },
+      { key: 'dailySettlement', label: '收银对账', path: '/finance/reconciliation', icon: 'ClipboardList', permission: 'core:finance:view', group: 'analytics' },
     ],
     insight: {
       conclusion: '优先处理今日预约、服务积压和库存风险。',
@@ -277,7 +277,7 @@ export const workbenchConfig: Record<AdminWorkbenchRole, WorkbenchRoleConfig> = 
         label: '我的提成',
         icon: 'WalletCards',
         tone: 'slate',
-        path: '/finance/commission-records',
+        path: '/finance/staff-commission',
         permission: 'core:finance:view',
         fallbackValue: '-',
         fallbackHint: '提成数据待接入',
@@ -288,7 +288,7 @@ export const workbenchConfig: Record<AdminWorkbenchRole, WorkbenchRoleConfig> = 
       { key: 'customerProfile', label: '客户画像', path: '/customers/profile', icon: 'Users', permission: 'core:customer:profile', group: 'operation' },
       { key: 'serviceRecord', label: '服务记录', path: '/orders/card-usage', icon: 'FileText', permission: 'terminal:service:view', group: 'operation' },
       { key: 'careAdvice', label: '护理建议', path: '/customers/script', icon: 'HeartPulse', permission: 'core:customer:script', group: 'operation' },
-      { key: 'commission', label: '提成明细', path: '/finance/commission-records', icon: 'WalletCards', permission: 'core:finance:view', group: 'analytics' },
+      { key: 'commission', label: '员工提成', path: '/finance/staff-commission', icon: 'WalletCards', permission: 'core:finance:view', group: 'analytics' },
     ],
     insight: {
       conclusion: '优先完成当前服务和服务记录补充。',

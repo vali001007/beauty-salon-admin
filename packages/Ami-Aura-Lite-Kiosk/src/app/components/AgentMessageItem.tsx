@@ -18,7 +18,7 @@ type AgentRunWithBlocks = AgentRunResult & {
 export interface AgentMessageItemProps {
   data: AgentRunWithBlocks;
   onCommand?: (command: string) => void;
-  onAction?: (action: string) => void;
+  onAction?: (action: string, label?: string) => void;
   onApprove?: (approvalId: number) => void;
   onReject?: (approvalId: number) => void;
   onFeedback?: (runId: number, adopted: boolean) => Promise<void> | void;
@@ -229,7 +229,7 @@ export function AgentMessageItem({
               <button
                 key={`${action.action}-${action.label}`}
                 type="button"
-                onClick={() => onAction?.(action.action)}
+                onClick={() => onAction?.(action.action, action.label)}
                 className="rounded-xl border border-[#2D1B69]/15 bg-[#2D1B69]/5 px-3 py-2 text-xs font-medium text-[#2D1B69]"
               >
                 {action.label}

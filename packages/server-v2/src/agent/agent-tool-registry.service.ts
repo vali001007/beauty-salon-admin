@@ -70,6 +70,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['terminal:customer:view'],
       requiresApproval: false,
+      outputKinds: ['table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit', 'filters.customerSegment', 'filters.customerIds', 'filters.contextScope'],
       maxRows: 300,
       timeoutMs: 10_000,
@@ -83,6 +84,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'evidence_panel'],
       consumedSlots: ['timeRange'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -93,9 +95,10 @@ export class AgentToolRegistryService {
       name: 'finance.revenue.summary',
       description: '汇总财务收入、实收、订单数、客单价和上一周期变化，面向店长经营看板问答',
       riskLevel: 'low',
-      allowedRoles: ['manager'],
+      allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'evidence_panel'],
       consumedSlots: ['timeRange'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -109,6 +112,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:product:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -122,6 +126,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:inventory:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -135,6 +140,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception', 'beautician'],
       requiredPermissions: [],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'action_card', 'evidence_panel'],
       maxRows: 2000,
       timeoutMs: 10_000,
       execute: (args, context) => this.executeBusinessQuery(args, context),
@@ -147,6 +153,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:marketing:recommend'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       maxRows: 2000,
       timeoutMs: 10_000,
       execute: (args, context) => this.discoverMarketingOpportunity(args, context),
@@ -168,9 +175,10 @@ export class AgentToolRegistryService {
       name: 'customer.followup.task.draft',
       description: '根据客户流失、复购或营销响应信号生成客户跟进任务草稿，需人工确认',
       riskLevel: 'medium',
-      allowedRoles: ['manager', 'reception'],
+      allowedRoles: ['manager', 'reception', 'beautician'],
       requiredPermissions: ['terminal:customer:followup'],
       requiresApproval: true,
+      outputKinds: ['table', 'action_card', 'evidence_panel'],
       maxRows: 50,
       timeoutMs: 10_000,
       execute: (args, context) => this.createCustomerFollowUpTaskDraft(args, context),
@@ -189,12 +197,50 @@ export class AgentToolRegistryService {
     });
 
     this.register({
+      name: 'inventory.purchase.intake.draft',
+      description: '从 OCR、图片识别文本或手工粘贴采购单生成入库草稿，不直接入库',
+      riskLevel: 'medium',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['core:inventory:purchase'],
+      requiresApproval: true,
+      maxRows: 100,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.createPurchaseIntakeDraft(args, context),
+    });
+
+    this.register({
+      name: 'inventory.stock.operation.draft',
+      description: '从语音或自然语言生成出库、盘点、报废等库存操作草稿，不直接改库存',
+      riskLevel: 'medium',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:adjustment'],
+      requiresApproval: true,
+      maxRows: 100,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.createStockOperationDraft(args, context),
+    });
+
+    this.register({
+      name: 'inventory.product.metadata.suggest',
+      description: '根据商品名称、类别或行业模板给出品牌、规格、单位、保质期和安全库存建议，不直接写入商品资料',
+      riskLevel: 'low',
+      allowedRoles: ['manager', 'reception'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
+      maxRows: 100,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.suggestProductMetadata(args, context),
+    });
+
+    this.register({
       name: 'inventory.consumption.trend',
       description: '分析库存出库与服务耗材消耗趋势，识别高消耗品和异常消耗',
       riskLevel: 'low',
       allowedRoles: ['manager'],
       requiredPermissions: ['core:inventory:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 3000,
       timeoutMs: 10_000,
@@ -208,10 +254,24 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:inventory:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 3000,
       timeoutMs: 10_000,
       execute: (args, context) => this.diagnoseProjectBomInventoryRisk(args, context),
+    });
+
+    this.register({
+      name: 'inventory.transfer.suggestion',
+      description: '基于跨门店同 SKU 库存差异生成调拨建议，只读返回建议不创建调拨单',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:inventory:view'],
+      requiresApproval: false,
+      consumedSlots: ['limit', 'filters.targetStoreId'],
+      maxRows: 1000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.suggestInventoryTransfers(args, context),
     });
 
     this.register({
@@ -221,6 +281,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:inventory:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['limit'],
       maxRows: 1000,
       timeoutMs: 10_000,
@@ -234,6 +295,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:inventory:purchase'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['limit'],
       maxRows: 1000,
       timeoutMs: 10_000,
@@ -247,6 +309,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['beautician', 'manager'],
       requiredPermissions: ['terminal:service:view'],
       requiresApproval: false,
+      outputKinds: ['table', 'action_card', 'evidence_panel'],
       maxRows: 20,
       timeoutMs: 10_000,
       execute: (args, context) => this.createServiceRecordDraft(args, context),
@@ -259,6 +322,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['beautician', 'manager'],
       requiredPermissions: ['terminal:service:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 100,
       timeoutMs: 8_000,
@@ -284,6 +348,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['beautician', 'manager'],
       requiredPermissions: [],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -322,6 +387,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:store:scheduling'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -335,6 +401,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:project:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -348,6 +415,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:order:card-usage'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -361,6 +429,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 3000,
       timeoutMs: 10_000,
@@ -374,6 +443,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 3000,
       timeoutMs: 10_000,
@@ -397,9 +467,10 @@ export class AgentToolRegistryService {
       name: 'finance.refund.discount.audit',
       description: '审计退款、折扣、手工优惠和高退款率订单，输出财务风控清单',
       riskLevel: 'low',
-      allowedRoles: ['manager'],
+      allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 3000,
       timeoutMs: 10_000,
@@ -426,6 +497,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange'],
       maxRows: 3000,
       timeoutMs: 10_000,
@@ -439,6 +511,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'beautician'],
       requiredPermissions: [],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'chart', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -452,6 +525,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:inventory:purchase'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -465,6 +539,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:marketing:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -504,6 +579,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:marketing:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       maxRows: 1000,
       timeoutMs: 10_000,
       execute: (args, context) => this.analyzePromotionEffect(args, context),
@@ -542,6 +618,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:order:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       consumedSlots: ['timeRange', 'limit'],
       maxRows: 2000,
       timeoutMs: 10_000,
@@ -584,6 +661,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['terminal:customer:view'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       maxRows: 10,
       timeoutMs: 8_000,
       execute: (args, context) => this.lookupCustomerForReception(args, context),
@@ -596,6 +674,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:store:reservations'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       maxRows: 100,
       timeoutMs: 8_000,
       execute: (args, context) => this.getTodayReservationsForReception(args, context),
@@ -608,6 +687,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager', 'reception'],
       requiredPermissions: ['core:order:card-usage'],
       requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
       maxRows: 20,
       timeoutMs: 8_000,
       execute: (args, context) => this.getCustomerCardBenefitSummary(args, context),
@@ -646,6 +726,7 @@ export class AgentToolRegistryService {
       allowedRoles: ['manager'],
       requiredPermissions: ['core:marketing:view'],
       requiresApproval: false,
+      outputKinds: ['action_card', 'table', 'evidence_panel'],
       maxRows: 10,
       timeoutMs: 10_000,
       execute: (args, context) => this.generateMarketingCopy(args, context),
@@ -676,6 +757,7 @@ export class AgentToolRegistryService {
       consumedSlots: tool.consumedSlots,
       maxRows: tool.maxRows,
       timeoutMs: tool.timeoutMs,
+      outputKinds: tool.outputKinds,
     }));
   }
 
@@ -818,7 +900,7 @@ export class AgentToolRegistryService {
 
     const [beauticians, orderItems, commissionRecords, reservations, serviceTasks, cardUsageRecords] = await Promise.all([
       (this.prisma as any).beautician.findMany({
-        where: { storeId: context.storeId, ...beauticianFilter },
+        where: { storeId: context.storeId, status: 'active', userId: { not: null }, ...beauticianFilter },
         select: { id: true, name: true, status: true, userId: true, level: { select: { name: true } } },
         take: scopedBeauticianId ? 1 : 500,
       }),
@@ -2637,7 +2719,7 @@ export class AgentToolRegistryService {
       },
       actions: [
         ...(result.actions ?? []),
-        { label: '查看财务日结', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+        { label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' },
       ],
     };
   }
@@ -3213,6 +3295,67 @@ export class AgentToolRegistryService {
     };
   }
 
+  private async suggestInventoryTransfers(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const filters = args.filters && typeof args.filters === 'object' ? args.filters as Record<string, unknown> : {};
+    const targetStoreId = Number(args.targetStoreId ?? filters.targetStoreId) || undefined;
+    const suggestions = await this.inventoryService.getTransferSuggestions(targetStoreId);
+    const items = (Array.isArray(suggestions) ? suggestions : [])
+      .slice(0, limit)
+      .map((item: any) => ({
+        id: item.id,
+        sku: item.sku,
+        productName: item.productName,
+        productId: item.productId,
+        fromStoreId: item.fromStoreId,
+        fromStoreName: item.fromStoreName,
+        toStoreId: item.toStoreId,
+        toStoreName: item.toStoreName,
+        sourceStock: this.toNumber(item.sourceStock),
+        targetStock: this.toNumber(item.targetStock),
+        safetyStock: this.toNumber(item.safetyStock),
+        suggestedQty: this.toNumber(item.suggestedQty),
+        unit: item.unit,
+        reason: item.reason,
+        riskLevel: 'medium',
+        suggestedAction: '生成调拨申请草稿前，先确认来源门店可用库存和目标门店近期预约消耗。',
+      }));
+    const evidence: AgentEvidence = {
+      source: ['Product', 'Store'],
+      metricDefinition: '门店调拨建议 = 同 SKU 目标门店低于安全库存、来源门店高于安全库存 4 倍时计算可调拨数量；只读建议，不创建调拨单。',
+      filters: [
+        targetStoreId ? `targetStoreId=${targetStoreId}` : 'targetStoreId=全部门店',
+        `contextStoreId=${context.storeId}`,
+        `limit=${limit}`,
+      ],
+      sampleSize: items.length,
+      limitations: ['未自动创建调拨单；正式调拨仍需在门店调拨页确认批次、数量和审批。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '门店调拨建议',
+        summary: '当前没有符合安全库存规则的跨门店调拨建议。',
+        data: { items: [], requestedLimit: limit, targetStoreId: targetStoreId ?? null, consumedSlots: { limit, filters: { targetStoreId: targetStoreId ?? null } } },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '门店调拨建议',
+      summary: `找到 ${items.length} 条调拨建议，优先从 ${items[0].fromStoreName} 调 ${items[0].suggestedQty}${items[0].unit ?? ''} ${items[0].productName} 到 ${items[0].toStoreName}。`,
+      data: { items, requestedLimit: limit, targetStoreId: targetStoreId ?? null, consumedSlots: { limit, filters: { targetStoreId: targetStoreId ?? null } } },
+      evidence,
+      actions: [
+        { label: '查看门店调拨', action: 'inventory:transfer:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
   private async createExpiringInventoryClearanceDraft(
     args: Record<string, unknown>,
     context: AgentToolExecutionContext,
@@ -3288,6 +3431,228 @@ export class AgentToolRegistryService {
         { label: '查看库存批次', action: 'inventory:expiry:open', riskLevel: 'low' },
       ],
     };
+  }
+
+  private async createPurchaseIntakeDraft(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const text = String(args.ocrText ?? args.imageText ?? args.text ?? args.question ?? '').trim();
+    const parsedItems = this.parseInventoryDraftItems(text);
+    const productNames = parsedItems.map((item) => item.productName).filter(Boolean);
+    const products = productNames.length
+      ? await (this.prisma as any).product.findMany({
+          where: { storeId: context.storeId, deletedAt: null, OR: productNames.map((name) => ({ name: { contains: name } })) },
+          select: { id: true, name: true, sku: true, unit: true, costPrice: true, shelfLife: true, safetyStock: true, brand: true, spec: true },
+          take: 100,
+        })
+      : [];
+    const items = parsedItems.map((item, index) => {
+      const matchedProduct = (products as any[]).find((product) => {
+        const productName = String(product.name ?? '');
+        return item.productName && (productName.includes(item.productName) || item.productName.includes(productName));
+      });
+      const metadata = this.buildProductMetadataSuggestion(item.productName, matchedProduct);
+      return {
+        lineNo: index + 1,
+        productId: matchedProduct?.id ?? null,
+        productName: matchedProduct?.name ?? item.productName,
+        sku: matchedProduct?.sku ?? metadata.sku,
+        quantity: item.quantity,
+        unit: item.unit ?? matchedProduct?.unit ?? metadata.unit,
+        unitPrice: item.unitPrice ?? matchedProduct?.costPrice ?? null,
+        amount: item.unitPrice ? Number((item.quantity * item.unitPrice).toFixed(2)) : null,
+        matchStatus: matchedProduct ? 'matched_product' : 'new_product_candidate',
+        metadataSuggestion: metadata,
+      };
+    });
+    const evidence: AgentEvidence = {
+      source: ['OCR文本/图片识别文本', 'Product'],
+      metricDefinition: '采购入库草稿 = 从识别文本抽取商品、数量、单位和单价，并匹配本店商品资料；只生成待确认草稿，不创建入库批次、不增加库存。',
+      filters: [`storeId=${context.storeId}`, `parsedLines=${parsedItems.length}`],
+      sampleSize: items.length + (products as any[]).length,
+      limitations: ['OCR 结果需人工复核；未确认前不会创建采购单、库存批次或库存流水。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '采购入库草稿',
+        summary: '没有从输入内容中识别到有效采购商品行。',
+        data: { items: [], draftType: 'purchase_intake', sourceText: text, requiresConfirmation: true },
+        evidence,
+        actions: [],
+      };
+    }
+    const totalAmount = items.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+    return {
+      status: 'success',
+      title: '采购入库草稿',
+      summary: `已生成 ${items.length} 条采购入库草稿，预计金额 ${this.formatMoney(totalAmount)}；确认前不会入库。`,
+      data: {
+        draftType: 'purchase_intake',
+        sourceText: text,
+        status: 'pending_confirmation',
+        requiresConfirmation: true,
+        items,
+        totalAmount,
+      },
+      evidence,
+      actions: [{ label: '打开采购入库草稿', action: 'inventory:purchase:intake-draft', riskLevel: 'medium' }],
+    };
+  }
+
+  private async createStockOperationDraft(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const text = String(args.voiceText ?? args.text ?? args.question ?? '').trim();
+    const operationType = /盘点|修正/.test(text)
+      ? 'stocktake'
+      : /报废|过期|损耗/.test(text)
+        ? 'scrap_out'
+        : /出库|领用|消耗/.test(text)
+          ? 'manual_outbound'
+          : 'manual_adjustment';
+    const parsedItems = this.parseInventoryDraftItems(text);
+    const items = parsedItems.map((item, index) => ({
+      lineNo: index + 1,
+      productName: item.productName,
+      quantity: item.quantity,
+      unit: item.unit,
+      targetStock: operationType === 'stocktake' ? item.quantity : undefined,
+      adjustmentType: operationType,
+      reason: text,
+    }));
+    const evidence: AgentEvidence = {
+      source: ['语音转写文本/自然语言输入'],
+      metricDefinition: '库存操作草稿 = 从语音或文本抽取商品和数量，生成出库、盘点或报废待确认草稿；不调用库存调整接口。',
+      filters: [`storeId=${context.storeId}`, `operationType=${operationType}`],
+      sampleSize: items.length,
+      limitations: ['高风险库存动作必须人工确认；草稿不会改变商品库存、批次库存或库存流水。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '库存操作草稿',
+        summary: '没有从输入内容中识别到有效库存操作明细。',
+        data: { items: [], draftType: 'stock_operation', operationType, sourceText: text, requiresConfirmation: true },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '库存操作草稿',
+      summary: `已生成 ${items.length} 条${operationType === 'stocktake' ? '盘点' : operationType === 'scrap_out' ? '报废' : '出库'}草稿，确认前不会改库存。`,
+      data: {
+        draftType: 'stock_operation',
+        operationType,
+        sourceText: text,
+        status: 'pending_confirmation',
+        requiresConfirmation: true,
+        items,
+      },
+      evidence,
+      actions: [{ label: '打开库存操作草稿', action: 'inventory:adjustment:draft', riskLevel: 'medium' }],
+    };
+  }
+
+  private async suggestProductMetadata(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const rawNames = Array.isArray(args.items)
+      ? args.items.map((item: any) => String(item.name ?? item.productName ?? item).trim()).filter(Boolean)
+      : [String(args.productName ?? args.name ?? args.question ?? '').replace(/补全|元数据|商品|资料|建议/g, '').trim()].filter(Boolean);
+    const items = rawNames.slice(0, 20).map((name) => ({
+      productName: name,
+      ...this.buildProductMetadataSuggestion(name),
+    }));
+    const evidence: AgentEvidence = {
+      source: ['输入商品名称', '行业默认规则'],
+      metricDefinition: '商品元数据建议 = 根据商品名称关键词推断品牌、规格、单位、保质期和建议安全库存；仅返回建议，不写入商品资料。',
+      filters: [`storeId=${context.storeId}`, `itemCount=${items.length}`],
+      sampleSize: items.length,
+      limitations: ['品牌和规格为规则建议，保存前需要人工确认实物包装、供应商和保质期。'],
+    };
+    if (!items.length) {
+      return {
+        status: 'no_data',
+        title: '商品元数据建议',
+        summary: '请提供需要补全的商品名称。',
+        data: { items: [], draftType: 'product_metadata_suggestion' },
+        evidence,
+        actions: [],
+      };
+    }
+    return {
+      status: 'success',
+      title: '商品元数据建议',
+      summary: `已生成 ${items.length} 个商品元数据建议，保存前需人工确认。`,
+      data: { items, draftType: 'product_metadata_suggestion', requiresConfirmation: true },
+      evidence,
+      actions: [{ label: '打开商品资料', action: 'inventory:product:open', riskLevel: 'low' }],
+    };
+  }
+
+  private parseInventoryDraftItems(text: string) {
+    return text
+      .split(/[\n；;，,]+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const quantityMatch = line.match(/(\d+(?:\.\d+)?)\s*(瓶|盒|支|个|套|片|包|件|ml|g|kg)?/i);
+        const priceMatch = line.match(/(?:单价|价格|¥|￥)\s*(\d+(?:\.\d+)?)/);
+        const quantity = quantityMatch ? Number(quantityMatch[1]) : 0;
+        const unit = quantityMatch?.[2] ?? undefined;
+        const productName = line
+          .replace(/(?:OCR|图片|识别|采购单|入库单|语音|转写|帮我|记录|请|入库|采购|出库|盘点|报废|领用|消耗|单价|价格|¥|￥|\d+(?:\.\d+)?\s*(瓶|盒|支|个|套|片|包|件|ml|g|kg)?)/gi, '')
+          .replace(/[：:、，,。.\-\s]+/g, '')
+          .replace(/\s+/g, '')
+          .trim();
+        return {
+          productName,
+          quantity,
+          unit,
+          unitPrice: priceMatch ? Number(priceMatch[1]) : undefined,
+        };
+      })
+      .filter((item) => item.productName && item.quantity > 0);
+  }
+
+  private buildProductMetadataSuggestion(productName: string, matchedProduct?: any) {
+    const name = String(productName ?? '').trim();
+    const isMask = /面膜|膜/.test(name);
+    const isEssence = /精华|原液|安瓶/.test(name);
+    const isCleanser = /洗面|洁面|清洁/.test(name);
+    const unit = matchedProduct?.unit ?? (isMask ? '片' : isEssence ? '瓶' : isCleanser ? '支' : '件');
+    const shelfLife = Number(matchedProduct?.shelfLife ?? (isMask ? 730 : isEssence ? 1095 : 730));
+    const safetyStock = Number(matchedProduct?.safetyStock ?? (isMask ? 30 : isEssence ? 10 : 8));
+    return {
+      brand: matchedProduct?.brand ?? this.inferBrand(name),
+      spec: matchedProduct?.spec ?? this.inferSpec(name),
+      unit,
+      shelfLife,
+      safetyStock,
+      sku: matchedProduct?.sku ?? this.slugSku(name),
+      confidence: matchedProduct ? 'high' : 'medium',
+      needsConfirmation: true,
+    };
+  }
+
+  private inferBrand(name: string) {
+    const match = name.match(/^([A-Za-z0-9\u4e00-\u9fa5]{2,8})(?:牌|品牌)?/);
+    return match?.[1] ?? '待确认品牌';
+  }
+
+  private inferSpec(name: string) {
+    const match = name.match(/(\d+(?:\.\d+)?\s*(?:ml|g|kg|片|支|瓶|盒|包|件))/i);
+    return match?.[1] ?? '待确认规格';
+  }
+
+  private slugSku(name: string) {
+    const compact = name.replace(/\s+/g, '').slice(0, 12).toUpperCase();
+    return `DRAFT-${Buffer.from(compact).toString('hex').slice(0, 10).toUpperCase()}`;
   }
 
   private async linkSupplierPurchaseOptions(
@@ -4546,11 +4911,22 @@ export class AgentToolRegistryService {
       uncoveredReservations.length ? `${uncoveredReservations.length} 条预约可能未被有效排班覆盖` : '',
       idleStaff.length ? `${idleStaff.length} 位美容师仍有空闲时段` : '',
     ].filter(Boolean);
+    const uncoveredReservationItems = uncoveredReservations.slice(0, limit).map((item: any) => ({
+      reservationId: item.id,
+      customerName: item.customer?.name,
+      projectName: item.project?.name,
+      beauticianName: item.beautician?.name,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      status: item.status,
+    }));
     return {
       status: 'success',
       title: '预约排班诊断',
       summary: `${summaryParts.join('；')}。`,
       data: {
+        columns: ['beauticianName', 'utilizationRateText', 'reservationCount', 'availableCount', 'busyCount', 'leaveCount'],
+        items: staffItems,
         kpis: {
           reservationCount: (reservations as any[]).length,
           arrivedCount,
@@ -4565,15 +4941,7 @@ export class AgentToolRegistryService {
         staffItems,
         peakSlots,
         idleStaff,
-        uncoveredReservations: uncoveredReservations.slice(0, limit).map((item: any) => ({
-          reservationId: item.id,
-          customerName: item.customer?.name,
-          projectName: item.project?.name,
-          beauticianName: item.beautician?.name,
-          startTime: item.startTime,
-          endTime: item.endTime,
-          status: item.status,
-        })),
+        uncoveredReservations: uncoveredReservationItems,
         requestedLimit: limit,
         consumedSlots: this.buildConsumedSlots(range, limit, {}),
       },
@@ -5224,7 +5592,7 @@ export class AgentToolRegistryService {
       evidence,
       actions: [
         { label: '查看订单明细', action: 'orders:open', riskLevel: 'low' },
-        { label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+        { label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' },
       ],
     };
   }
@@ -5433,7 +5801,7 @@ export class AgentToolRegistryService {
       evidence: result.evidence,
       actions: [
         { label: '查看订单明细', action: 'orders:open', riskLevel: 'low' },
-        { label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+        { label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' },
       ],
     };
   }
@@ -5635,7 +6003,7 @@ export class AgentToolRegistryService {
       evidence: result.evidence,
       actions: [
         { label: '查看员工管理', action: 'beauticians:open', riskLevel: 'low' },
-        { label: '查看提成记录', action: 'finance:commission:open', riskLevel: 'low' },
+        { label: '查看员工提成', action: 'finance:staff-commission:open', riskLevel: 'low' },
       ],
     };
   }
@@ -5718,7 +6086,7 @@ export class AgentToolRegistryService {
         limitations: ['报告为 Agent 草稿，不自动入账、不生成正式结算单、不替代人工财务复核。'],
       },
       actions: [
-        { label: '查看日结报表', action: 'finance:daily-settlement:open', riskLevel: 'low' },
+        { label: '查看收银对账', action: 'finance:reconciliation:open', riskLevel: 'low' },
         { label: '查看退款订单', action: 'orders:refunds:open', riskLevel: 'low' },
       ],
     };

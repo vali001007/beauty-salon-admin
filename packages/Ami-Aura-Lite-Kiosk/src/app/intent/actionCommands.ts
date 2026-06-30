@@ -22,10 +22,13 @@ export function businessQueryActionToCommand(action: string) {
   if (action.startsWith('marketing:draft:product:')) return '给这些商品创建营销活动草稿';
   if (action === 'business-query:order_revenue_analysis') return '今天订单收入怎么样';
   if (action === 'business-query:inventory_alert') return '哪些商品库存不足';
+  if (action === 'business-query:finance_today_transaction_list') return '列出今天所有收银、核销、办卡订单列表，支持打印操作';
   if (action === 'business-query:business_overview') return '今天经营概览';
   if (action === 'marketing:effects') return '最近活动转化怎么样';
   if (action === 'automation:summary') return '自动化执行复盘';
   if (action === 'purchase:draft:context') return '根据这些商品生成补货单草稿';
+  if (action === 'inventory.expiring.consume_plan.draft') return '根据临期库存生成消耗计划';
+  if (action === 'print:today_transactions') return '打印今天交易订单清单';
   if (action === 'business-query:project_material_margin') return '项目耗材毛利';
   if (action === 'scheduling:open') return '今天排班占用率怎么样';
   if (action === 'orders:open') return '今天订单收入怎么样';

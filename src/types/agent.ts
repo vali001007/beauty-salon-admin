@@ -308,6 +308,21 @@ export interface AgentQualityReport {
     evalPassed?: number;
     evalPassRate?: number | null;
   };
+  questionBank?: {
+    totalQuestions: number;
+    structuredQuestions: number;
+    coverageRate: number;
+    p0Cases: number;
+    conversationCases: number;
+    conversationTurns: number;
+    priorityPassRates: Array<{
+      priority: 'P0' | 'P1' | 'P2' | string;
+      total: number;
+      passed: number;
+      failed: number;
+      passRate?: number | null;
+    }>;
+  };
   personaBreakdown: Array<{
     name: string;
     runCount: number;
@@ -402,6 +417,127 @@ export interface AgentSchemaReadiness {
   groups: AgentSchemaReadinessGroup[];
   missingTables: string[];
   missingMigrations: string[];
+}
+
+export interface AgentKnowledgeGovernance {
+  schemaGraph: {
+    nodeCount: number;
+    relationCount: number;
+    storeScopedCount: number;
+    objects: Array<{
+      modelName: string;
+      objectType: string;
+      displayName: string;
+      storeScoped: boolean;
+      relationCount: number;
+      queryableFieldCount: number;
+    }>;
+  };
+  capabilityCatalog: {
+    total: number;
+    filtered: number;
+    items: Array<{
+      capabilityId: string;
+      businessQueryCapabilityId?: string;
+      displayName: string;
+      personaCodes: string[];
+      objectTypes: string[];
+      actions: string[];
+      outputKinds: string[];
+      riskLevel: string;
+      examples: string[];
+    }>;
+  };
+  evalReport?: {
+    generatedAt: string;
+    summary: {
+      total: number;
+      passed: number;
+      failed: number;
+      passRate: number;
+      routingAccuracy: number;
+      entityAccuracy: number;
+      actionAccuracy: number;
+      capabilityAccuracy: number;
+      outputContractAccuracy: number;
+      topFailureReasons: Array<{ reason: string; count: number }>;
+    };
+    gate?: {
+      level: 'p0' | 'p1' | 'p2' | string;
+      passed: boolean;
+      evaluatedTotal: number;
+      violations: string[];
+      actual: {
+        passRate: number;
+        failed: number;
+        routingAccuracy: number;
+        baselinePassRate?: number;
+      };
+    } | null;
+    failures: Array<{
+      id: string;
+      input: string;
+      failureReasons: string[];
+      expected: { capabilityId: string; personaCode: string; outputKinds: string[] };
+      actual: { capabilityId?: string; personaCodes: string[]; outputKinds: string[] };
+    }>;
+    improvementBacklog: Array<{
+      id: string;
+      input: string;
+      priority: string;
+      failureReasons: string[];
+      expectedCapabilityId: string;
+      actualCapabilityId?: string;
+      recommendation: string;
+    }>;
+  } | null;
+  entityDebug?: {
+    status: string;
+    query: string;
+    clarificationQuestion?: string | null;
+    candidates: Array<{
+      objectType: string;
+      entityId: string;
+      displayName: string;
+      confidence: number;
+      matchStrategy: string;
+      sourceModel: string;
+      evidence: string[];
+    }>;
+    entity?: {
+      objectType: string;
+      entityId: string;
+      displayName: string;
+      confidence: number;
+      matchStrategy: string;
+      sourceModel: string;
+    };
+  } | null;
+  legacyRules: {
+    scannedRuns: number;
+    legacyFallbackRuns: number;
+    usageByReason: Array<{ reason: string; count: number }>;
+    samples: Array<{
+      runId: number;
+      runNo: string;
+      question: string;
+      fallbackReason: string;
+      createdAt: string;
+    }>;
+    deprecationWindows?: {
+      latest: { label: string; runCount: number; legacyFallbackRuns: number };
+      previous: { label: string; runCount: number; legacyFallbackRuns: number };
+    };
+    retainedReasons?: Array<{ reason: string; latestCount: number; previousCount: number }>;
+    deprecationCandidates?: Array<{
+      reason: string;
+      latestCount: number;
+      previousCount: number;
+      candidate: boolean;
+      action: string;
+    }>;
+    deprecationPolicy: string[];
+  };
 }
 
 export interface AgentAutomationTriggerTemplate {

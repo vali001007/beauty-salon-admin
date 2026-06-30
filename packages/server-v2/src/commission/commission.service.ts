@@ -77,6 +77,7 @@ export type RecordAmiContributionParams = {
 const DEFAULT_AMI_BASE_FEE = 699;
 const BUSINESS_TIMEZONE_OFFSET_MINUTES = 8 * 60;
 const BUSINESS_DAY_MS = 24 * 60 * 60 * 1000;
+const PREPAID_ORDER_ITEM_TYPES = new Set(['recharge', 'card', 'open']);
 
 @Injectable()
 export class CommissionService {
@@ -210,8 +211,22 @@ export class CommissionService {
 
   private serializeSettlement(settlement: any) {
     if (!settlement) return settlement;
+    const settlementRecords = Array.isArray(settlement.settlementRecords)
+      ? settlement.settlementRecords.map((item: any) => ({
+          id: item.id,
+          settlementId: item.settlementId,
+          commissionRecordId: item.commissionRecordId,
+          amountSnapshot: this.toNumber(item.amountSnapshot),
+          statusSnapshot: item.statusSnapshot,
+          createdAt: item.createdAt,
+          commissionRecord: item.commissionRecord ? this.serializeRecord(item.commissionRecord) : undefined,
+        }))
+      : undefined;
+    const detailAmount = settlementRecords?.reduce((sum: number, item: any) => sum + this.toNumber(item.amountSnapshot), 0);
+    const freshness = this.getSettlementFreshness(settlement, settlementRecords ?? []);
+    const { _eligibleRecords, ...settlementPayload } = settlement;
     return {
-      ...settlement,
+      ...settlementPayload,
       projectAmount: this.toNumber(settlement.projectAmount),
       productAmount: this.toNumber(settlement.productAmount),
       cardSaleAmount: this.toNumber(settlement.cardSaleAmount),
@@ -220,10 +235,89 @@ export class CommissionService {
       totalAmount: this.toNumber(settlement.totalAmount),
       deductions: this.toNumber(settlement.deductions),
       netAmount: this.toNumber(settlement.netAmount),
+      detailCount: settlementRecords?.length,
+      detailAmount,
+      settlementRecords,
+      ...freshness,
       staffUserName: settlement.staffUser?.name ?? settlement.beautician?.name,
       beauticianName: settlement.beautician?.name,
       storeName: settlement.store?.name,
     };
+  }
+
+  private getSettlementFreshness(settlement: any, settlementRecords: any[]) {
+    if (settlement.status !== 'draft') {
+      return {
+        needsRegenerate: false,
+        regenerateReason: undefined,
+        regenerateDiffAmount: 0,
+        regenerateMissingRecordCount: 0,
+        regenerateChangedRecordCount: 0,
+      };
+    }
+
+    const eligibleRecords = Array.isArray(settlement._eligibleRecords) ? settlement._eligibleRecords : [];
+    if (!eligibleRecords.length && !settlementRecords.length) {
+      return {
+        needsRegenerate: false,
+        regenerateReason: undefined,
+        regenerateDiffAmount: 0,
+        regenerateMissingRecordCount: 0,
+        regenerateChangedRecordCount: 0,
+      };
+    }
+
+    const lockedIds = new Set(settlementRecords.map((item: any) => this.toNumber(item.commissionRecordId)).filter((id: number) => id > 0));
+    const eligibleById = new Map(eligibleRecords.map((record: any) => [this.toNumber(record.id), record]));
+    const missingRecordCount = eligibleRecords.filter((record: any) => !lockedIds.has(this.toNumber(record.id))).length;
+    let changedRecordCount = 0;
+
+    for (const item of settlementRecords) {
+      const recordId = this.toNumber(item.commissionRecordId);
+      const current = item.commissionRecord ?? eligibleById.get(recordId);
+      const amountChanged = current ? Math.round((this.toNumber(current.amount) - this.toNumber(item.amountSnapshot)) * 100) / 100 !== 0 : true;
+      const statusChanged = current ? (item.statusSnapshot ?? '') !== (current.status ?? '') : true;
+      if (amountChanged || statusChanged) changedRecordCount += 1;
+    }
+
+    const snapshotAmount = settlementRecords.reduce((sum: number, item: any) => sum + this.toNumber(item.amountSnapshot), 0);
+    const eligibleAmount = eligibleRecords.reduce((sum: number, item: any) => sum + this.toNumber(item.amount), 0);
+    const regenerateDiffAmount = Math.round((eligibleAmount - snapshotAmount) * 100) / 100;
+    const needsRegenerate = missingRecordCount > 0 || changedRecordCount > 0;
+    let regenerateReason: string | undefined;
+    if (missingRecordCount > 0 && changedRecordCount > 0) {
+      regenerateReason = `发现 ${missingRecordCount} 条新增可结算流水，且 ${changedRecordCount} 条锁定流水已变化，请重新生成结算单。`;
+    } else if (missingRecordCount > 0) {
+      regenerateReason = `发现 ${missingRecordCount} 条新增可结算流水，请重新生成结算单。`;
+    } else if (changedRecordCount > 0) {
+      regenerateReason = `${changedRecordCount} 条锁定流水金额或状态已变化，请重新生成结算单。`;
+    }
+
+    return {
+      needsRegenerate,
+      regenerateReason,
+      regenerateDiffAmount,
+      regenerateMissingRecordCount: missingRecordCount,
+      regenerateChangedRecordCount: changedRecordCount,
+    };
+  }
+
+  private async attachSettlementFreshness(settlements: any[]) {
+    const draftSettlements = settlements.filter((item) => item?.status === 'draft' && item.storeId && item.staffUserId && item.settleMonth);
+    await Promise.all(
+      draftSettlements.map(async (settlement) => {
+        settlement._eligibleRecords = await this.prisma.commissionRecord.findMany({
+          where: {
+            storeId: settlement.storeId,
+            staffUserId: settlement.staffUserId,
+            settleMonth: settlement.settleMonth,
+            status: { in: ['pending', 'confirmed'] },
+          },
+          select: { id: true, amount: true, status: true },
+        });
+      }),
+    );
+    return settlements;
   }
 
   private serializeCashierShift(shift: any) {
@@ -243,23 +337,162 @@ export class CommissionService {
 
   private serializeDailySettlement(settlement: any) {
     if (!settlement) return settlement;
+    const cardUsageRevenue = this.toNumber(settlement.cardUsageRevenue ?? settlement._cardUsageRevenue);
+    const totalRevenue = Math.round((this.toNumber(settlement.totalRevenue) + cardUsageRevenue) * 100) / 100;
+    const materialCost = this.toNumber(settlement.materialCost);
+    const commissionTotal = this.toNumber(settlement.commissionTotal);
+    const grossProfit = Math.round((totalRevenue - materialCost - commissionTotal) * 100) / 100;
+    const grossMargin = totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 10000) / 100 : 0;
+    const orderCount = this.toNumber(settlement.orderCount);
     return {
       ...settlement,
       settleDate: this.normalizeBusinessDateText(settlement.settleDate),
-      totalRevenue: this.toNumber(settlement.totalRevenue),
+      totalRevenue,
       cashRevenue: this.toNumber(settlement.cashRevenue),
       wechatRevenue: this.toNumber(settlement.wechatRevenue),
       alipayRevenue: this.toNumber(settlement.alipayRevenue),
       cardRevenue: this.toNumber(settlement.cardRevenue),
       balanceRevenue: this.toNumber(settlement.balanceRevenue),
       rechargeIncome: this.toNumber(settlement.rechargeIncome),
+      prepaidIncome: this.toNumber(settlement.prepaidIncome ?? settlement._prepaidIncome ?? settlement.rechargeIncome),
       refundAmount: this.toNumber(settlement.refundAmount),
-      avgTransaction: this.toNumber(settlement.avgTransaction),
-      materialCost: this.toNumber(settlement.materialCost),
-      grossProfit: this.toNumber(settlement.grossProfit),
-      grossMargin: this.toNumber(settlement.grossMargin),
-      commissionTotal: this.toNumber(settlement.commissionTotal),
+      avgTransaction: orderCount > 0 ? Math.round((totalRevenue / orderCount) * 100) / 100 : this.toNumber(settlement.avgTransaction),
+      materialCost,
+      grossProfit,
+      grossMargin,
+      commissionTotal,
+      cardUsageRevenue,
       storeName: settlement.store?.name,
+    };
+  }
+
+  private isPrepaidOrderItem(item: any) {
+    return PREPAID_ORDER_ITEM_TYPES.has(String(item?.itemType ?? ''));
+  }
+
+  private prepaidItemAmount(item: any) {
+    const netAmount = this.toNumber(item?.netAmount);
+    if (netAmount > 0) return netAmount;
+    const subtotal = this.toNumber(item?.subtotal);
+    if (subtotal > 0) return subtotal;
+    const quantity = this.toNumber(item?.quantity) || 1;
+    const unitPrice = this.toNumber(item?.unitPrice);
+    const discount = this.toNumber(item?.totalDiscountAmount ?? item?.discount ?? item?.discountAmount);
+    return Math.max(0, quantity * unitPrice - discount);
+  }
+
+  private prepaidIncomeFromOrder(order: any, fallbackAmount = 0) {
+    const prepaidItems = Array.isArray(order?.orderItems) ? order.orderItems.filter((item: any) => this.isPrepaidOrderItem(item)) : [];
+    if (!prepaidItems.length) return 0;
+    const itemTotal = prepaidItems.reduce((sum: number, item: any) => sum + this.prepaidItemAmount(item), 0);
+    return itemTotal > 0 ? itemTotal : this.toNumber(fallbackAmount);
+  }
+
+  private async attachDailyCardUsageRevenue(settlements: any[]) {
+    if (!settlements.length || !this.prisma.cardUsageRecord?.findMany) return settlements;
+
+    const storeIds = [...new Set(settlements.map((item) => this.toNumber(item.storeId)).filter((id) => id > 0))];
+    const dateTexts = [...new Set(settlements.map((item) => this.normalizeBusinessDateText(item.settleDate)).filter(Boolean))].sort();
+    if (!storeIds.length || !dateTexts.length) return settlements;
+
+    const rangeStart = this.getBusinessDayRange(dateTexts[0]).start;
+    const rangeEnd = this.getBusinessDayRange(dateTexts[dateTexts.length - 1]).end;
+    const records = await this.prisma.cardUsageRecord.findMany({
+      where: {
+        storeId: { in: storeIds },
+        verifiedAt: { gte: rangeStart, lt: rangeEnd },
+      },
+      select: { storeId: true, verifiedAt: true, recognizedAmount: true },
+    });
+    if (!Array.isArray(records)) return settlements;
+
+    const revenueByKey = new Map<string, number>();
+    for (const record of records) {
+      const storeId = this.toNumber(record.storeId);
+      if (storeId <= 0 || !record.verifiedAt) continue;
+      const key = `${storeId}:${this.normalizeBusinessDateText(record.verifiedAt)}`;
+      revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + this.toNumber(record.recognizedAmount));
+    }
+
+    for (const settlement of settlements) {
+      const key = `${this.toNumber(settlement.storeId)}:${this.normalizeBusinessDateText(settlement.settleDate)}`;
+      settlement._cardUsageRevenue = Math.round((revenueByKey.get(key) ?? 0) * 100) / 100;
+    }
+    return settlements;
+  }
+
+  private async attachDailyPrepaidIncome(settlements: any[]) {
+    if (!settlements.length || !this.prisma.productOrder?.findMany) return settlements;
+
+    const storeIds = [...new Set(settlements.map((item) => this.toNumber(item.storeId)).filter((id) => id > 0))];
+    const dateTexts = [...new Set(settlements.map((item) => this.normalizeBusinessDateText(item.settleDate)).filter(Boolean))].sort();
+    if (!storeIds.length || !dateTexts.length) return settlements;
+
+    const rangeStart = this.getBusinessDayRange(dateTexts[0]).start;
+    const rangeEnd = this.getBusinessDayRange(dateTexts[dateTexts.length - 1]).end;
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: { in: storeIds },
+        createdAt: { gte: rangeStart, lt: rangeEnd },
+        orderItems: { some: { itemType: { in: [...PREPAID_ORDER_ITEM_TYPES] } } },
+        OR: [
+          { status: { in: ['completed', 'paid', 'refunded'] } },
+          { paymentRecords: { some: { status: 'success' } } },
+        ],
+      },
+      include: {
+        orderItems: true,
+        paymentRecords: { where: { status: 'success' } },
+      },
+    });
+    if (!Array.isArray(orders) || !orders.length) return settlements;
+
+    const grouped = new Map<string, number>();
+    for (const order of orders) {
+      if (!order.createdAt) continue;
+      const paid = Array.isArray(order.paymentRecords) ? order.paymentRecords.reduce((sum: number, payment: any) => sum + this.toNumber(payment.amount), 0) : 0;
+      const orderAmount = paid > 0 ? paid : this.toNumber(order.netAmount ?? order.totalAmount);
+      const amount = this.prepaidIncomeFromOrder(order, orderAmount);
+      if (amount <= 0) continue;
+      const key = `${this.toNumber(order.storeId)}:${this.normalizeBusinessDateText(order.createdAt)}`;
+      grouped.set(key, this.toNumber(grouped.get(key)) + amount);
+    }
+
+    for (const settlement of settlements) {
+      const key = `${this.toNumber(settlement.storeId)}:${this.normalizeBusinessDateText(settlement.settleDate)}`;
+      settlement._prepaidIncome = this.toNumber(grouped.get(key));
+    }
+    return settlements;
+  }
+
+  private serializePaymentRecord(record: any) {
+    if (!record) return record;
+    return {
+      ...record,
+      amount: this.toNumber(record.amount),
+      orderNo: record.order?.orderNo,
+      checkoutGroupNo: record.order?.checkoutGroupNo,
+      orderKind: record.order?.orderKind,
+      source: record.order?.source,
+      customerName: record.order?.customerName ?? record.order?.customer?.name,
+      storeId: record.order?.storeId,
+      storeName: record.order?.store?.name,
+      paidAt: record.paidAt,
+    };
+  }
+
+  private serializeRefundRecord(record: any) {
+    if (!record) return record;
+    return {
+      ...record,
+      amount: this.toNumber(record.amount),
+      orderNo: record.order?.orderNo,
+      orderKind: record.order?.orderKind,
+      customerName: record.order?.customerName ?? record.order?.customer?.name,
+      storeId: record.order?.storeId,
+      storeName: record.order?.store?.name,
+      payMethod: record.order?.payMethod,
+      refundedAt: record.refundedAt,
     };
   }
 
@@ -324,6 +557,24 @@ export class CommissionService {
     const next = new Date(date);
     next.setDate(next.getDate() + days);
     return next;
+  }
+
+  private addBusinessDateText(dateText: string, days: number) {
+    const [year, month, day] = dateText.split('-').map(Number);
+    const next = new Date(Date.UTC(year, month - 1, day + days));
+    return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  private getBusinessDateTexts(dateFrom?: string, dateTo?: string) {
+    const fromText = this.normalizeBusinessDateText(dateFrom || new Date());
+    const toText = this.normalizeBusinessDateText(dateTo || dateFrom || new Date());
+    const items: string[] = [];
+    let current = fromText;
+    while (current <= toText && items.length < 62) {
+      items.push(current);
+      current = this.addBusinessDateText(current, 1);
+    }
+    return items;
   }
 
   private getYesterday(date = new Date()) {
@@ -1279,6 +1530,27 @@ export class CommissionService {
       where,
       include: { staffUser: { select: { id: true, name: true, username: true } }, beautician: { select: { id: true, name: true } } },
     });
+    const settlementWhere: any = { status: { in: ['confirmed', 'paid'] } };
+    if (storeId > 0) settlementWhere.storeId = storeId;
+    if (staffUserId > 0) settlementWhere.staffUserId = staffUserId;
+    if (beauticianId > 0) settlementWhere.beauticianId = beauticianId;
+    if (query.settleMonth) settlementWhere.settleMonth = query.settleMonth;
+    const settlementRecordWhere: any = { settlement: settlementWhere };
+    if (query.type) settlementRecordWhere.commissionRecord = { type: query.type };
+    const shouldLoadSettledAmount = !query.status || query.status === 'settled';
+    const settledSettlementRecords = shouldLoadSettledAmount
+      ? await this.prisma.commissionSettlementRecord.findMany({
+          where: settlementRecordWhere,
+          include: {
+            commissionRecord: {
+              include: {
+                staffUser: { select: { id: true, name: true, username: true } },
+                beautician: { select: { id: true, name: true } },
+              },
+            },
+          },
+        })
+      : [];
     const summaryByStaff = new Map<number, any>();
     const totals = { totalAmount: 0, pendingAmount: 0, confirmedAmount: 0, settledAmount: 0, count: records.length };
     for (const record of records) {
@@ -1286,7 +1558,6 @@ export class CommissionService {
       totals.totalAmount += amount;
       if (record.status === 'pending') totals.pendingAmount += amount;
       if (record.status === 'confirmed') totals.confirmedAmount += amount;
-      if (record.status === 'settled') totals.settledAmount += amount;
 
       const groupId = record.staffUserId ?? record.beauticianId ?? 0;
       const item = summaryByStaff.get(groupId) ?? {
@@ -1303,8 +1574,27 @@ export class CommissionService {
       item.totalAmount += amount;
       if (record.status === 'pending') item.pendingAmount += amount;
       if (record.status === 'confirmed') item.confirmedAmount += amount;
-      if (record.status === 'settled') item.settledAmount += amount;
       item.count += 1;
+      summaryByStaff.set(groupId, item);
+    }
+
+    for (const settlementRecord of settledSettlementRecords) {
+      const record = settlementRecord.commissionRecord;
+      const amount = this.toNumber(settlementRecord.amountSnapshot);
+      totals.settledAmount += amount;
+      const groupId = record?.staffUserId ?? record?.beauticianId ?? 0;
+      const item = summaryByStaff.get(groupId) ?? {
+        staffUserId: record?.staffUserId,
+        staffUserName: record?.staffUser?.name ?? record?.beautician?.name,
+        beauticianId: record?.beauticianId,
+        beauticianName: record?.beautician?.name,
+        totalAmount: 0,
+        pendingAmount: 0,
+        confirmedAmount: 0,
+        settledAmount: 0,
+        count: 0,
+      };
+      item.settledAmount += amount;
       summaryByStaff.set(groupId, item);
     }
 
@@ -1322,7 +1612,7 @@ export class CommissionService {
   ) {
     const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('提成流水不存在');
-    if (record.status === 'settled') throw new BadRequestException('已结算提成不能修改，请先撤销结算后再调整');
+    if (record.status === 'settled') throw new BadRequestException('已结算提成不能修改');
     if (record.status === 'cancelled') throw new BadRequestException('已取消提成不能修改');
 
     const data: any = {};
@@ -1429,6 +1719,7 @@ export class CommissionService {
         cardSaleAmount: 0,
         rechargeAmount: 0,
         otherAmount: 0,
+        records: [],
       };
       const amount = this.toNumber(record.amount);
       if (record.type === 'project') item.projectAmount += amount;
@@ -1436,12 +1727,24 @@ export class CommissionService {
       else if (record.type === 'card_sale') item.cardSaleAmount += amount;
       else if (record.type === 'recharge') item.rechargeAmount += amount;
       else item.otherAmount += amount;
+      item.records.push({
+        commissionRecordId: record.id,
+        amountSnapshot: amount,
+        statusSnapshot: record.status,
+      });
       grouped.set(staffUserId, item);
     }
 
     const settlements = [];
     for (const item of grouped.values()) {
       const totalAmount = item.projectAmount + item.productAmount + item.cardSaleAmount + item.rechargeAmount + item.otherAmount;
+      const existed = await this.prisma.commissionSettlement.findUnique({
+        where: { storeId_staffUserId_settleMonth: { storeId, staffUserId: item.staffUserId, settleMonth } },
+        select: { id: true, status: true },
+      });
+      if (existed && existed.status !== 'draft') {
+        throw new BadRequestException('已确认或已发放的结算单不能重新生成，请先处理差异流水');
+      }
       const settlement = await this.prisma.commissionSettlement.upsert({
         where: { storeId_staffUserId_settleMonth: { storeId, staffUserId: item.staffUserId, settleMonth } },
         create: {
@@ -1471,9 +1774,29 @@ export class CommissionService {
           store: { select: { id: true, name: true } },
           staffUser: { select: { id: true, name: true, username: true } },
           beautician: { select: { id: true, name: true } },
+          settlementRecords: true,
         },
       });
-      settlements.push(this.serializeSettlement(settlement));
+      await this.prisma.commissionSettlementRecord.deleteMany({ where: { settlementId: settlement.id } });
+      if (item.records.length) {
+        await this.prisma.commissionSettlementRecord.createMany({
+          data: item.records.map((record: any) => ({
+            settlementId: settlement.id,
+            commissionRecordId: record.commissionRecordId,
+            amountSnapshot: record.amountSnapshot,
+            statusSnapshot: record.statusSnapshot,
+          })),
+        });
+      }
+      settlements.push(
+        this.serializeSettlement({
+          ...settlement,
+          settlementRecords: item.records.map((record: any) => ({
+            ...record,
+            settlementId: settlement.id,
+          })),
+        }),
+      );
     }
     return { items: settlements, data: settlements, total: settlements.length, settleMonth };
   }
@@ -1500,6 +1823,7 @@ export class CommissionService {
           store: { select: { id: true, name: true } },
           staffUser: { select: { id: true, name: true, username: true } },
           beautician: { select: { id: true, name: true } },
+          settlementRecords: true,
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -1507,6 +1831,7 @@ export class CommissionService {
       }),
       this.prisma.commissionSettlement.count({ where }),
     ]);
+    await this.attachSettlementFreshness(items);
     const normalizedItems = items.map((item: any) => this.serializeSettlement(item));
     return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
   }
@@ -1524,9 +1849,11 @@ export class CommissionService {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
+        settlementRecords: true,
       },
       orderBy: [{ settleMonth: 'desc' }, { staffUserId: 'asc' }],
     });
+    await this.attachSettlementFreshness(items);
     const rows = items.map((item: any) => this.serializeSettlement(item));
     const content = this.buildCsv(rows, [
       { key: 'settleMonth', header: '月份' },
@@ -1560,32 +1887,55 @@ export class CommissionService {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
+        settlementRecords: {
+          include: {
+            commissionRecord: {
+              include: {
+                staffUser: { select: { id: true, name: true, username: true } },
+                beautician: { select: { id: true, name: true } },
+                store: { select: { id: true, name: true } },
+                order: { select: { id: true, orderNo: true, customerName: true } },
+                orderItem: { select: { id: true, name: true, itemType: true, itemId: true } },
+                cardUsageRecord: { select: { id: true, cardName: true, projectName: true } },
+                rule: { select: { id: true, name: true } },
+                assignment: { include: { rule: { select: { id: true, name: true } } } },
+              },
+            },
+          },
+          orderBy: { id: 'asc' },
+        },
       },
     });
     if (!settlement) throw new NotFoundException('结算单不存在');
+    await this.attachSettlementFreshness([settlement]);
     return this.serializeSettlement(settlement);
   }
 
   async confirmSettlement(id: number, confirmedBy?: number) {
-    await this.getSettlementById(id);
+    const existed = await this.getSettlementById(id);
+    if (existed.needsRegenerate) throw new BadRequestException(existed.regenerateReason ?? '结算单明细已变化，请重新生成后再确认');
+    const recordIds = Array.isArray(existed.settlementRecords)
+      ? existed.settlementRecords.map((item: any) => this.toNumber(item.commissionRecordId)).filter((recordId: number) => recordId > 0)
+      : [];
+    if (!recordIds.length) throw new BadRequestException('结算单缺少锁定明细，请重新生成后再确认');
+    const confirmedAt = new Date();
     const settlement = await this.prisma.commissionSettlement.update({
       where: { id },
-      data: { status: 'confirmed', confirmedAt: new Date(), confirmedBy },
+      data: { status: 'confirmed', confirmedAt, confirmedBy },
       include: {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
+        settlementRecords: true,
       },
     });
     if (!settlement.staffUserId) throw new BadRequestException('结算单缺少员工主体，无法确认');
     await this.prisma.commissionRecord.updateMany({
       where: {
-        storeId: settlement.storeId,
-        staffUserId: settlement.staffUserId,
-        settleMonth: settlement.settleMonth,
+        id: { in: recordIds },
         status: { in: ['pending', 'confirmed'] },
       },
-      data: { status: 'settled', settledAt: new Date() },
+      data: { status: 'settled', settledAt: confirmedAt },
     });
     return this.serializeSettlement(settlement);
   }
@@ -1768,6 +2118,285 @@ export class CommissionService {
     return this.serializeCashierShift(updated);
   }
 
+  async getPaymentRecords(query: {
+    page?: number | string;
+    pageSize?: number | string;
+    storeId?: number | string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    method?: string;
+  }) {
+    const page = Math.max(1, this.toNumber(query.page) || 1);
+    const pageSize = Math.max(1, this.toNumber(query.pageSize) || 20);
+    const where: any = {};
+    const storeId = this.toNumber(query.storeId);
+    if (query.status) where.status = query.status;
+    if (query.method) where.method = query.method;
+    if (query.dateFrom || query.dateTo) {
+      where.paidAt = {};
+      if (query.dateFrom) where.paidAt.gte = this.normalizeDay(query.dateFrom);
+      if (query.dateTo) where.paidAt.lt = this.addDays(this.normalizeDay(query.dateTo), 1);
+    }
+    if (storeId > 0) where.order = { storeId };
+
+    const [items, total] = await Promise.all([
+      this.prisma.paymentRecord.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNo: true,
+              checkoutGroupNo: true,
+              orderKind: true,
+              source: true,
+              customerName: true,
+              storeId: true,
+              store: { select: { id: true, name: true } },
+            },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { paidAt: 'desc' },
+      }),
+      this.prisma.paymentRecord.count({ where }),
+    ]);
+    const normalizedItems = items.map((item: any) => this.serializePaymentRecord(item));
+    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
+  }
+
+  async getRefundRecords(query: {
+    page?: number | string;
+    pageSize?: number | string;
+    storeId?: number | string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    method?: string;
+  }) {
+    const page = Math.max(1, this.toNumber(query.page) || 1);
+    const pageSize = Math.max(1, this.toNumber(query.pageSize) || 20);
+    const where: any = {};
+    const storeId = this.toNumber(query.storeId);
+    if (query.status) where.status = query.status;
+    if (query.dateFrom || query.dateTo) {
+      where.refundedAt = {};
+      if (query.dateFrom) where.refundedAt.gte = this.normalizeDay(query.dateFrom);
+      if (query.dateTo) where.refundedAt.lt = this.addDays(this.normalizeDay(query.dateTo), 1);
+    }
+    const orderWhere: any = {};
+    if (storeId > 0) orderWhere.storeId = storeId;
+    if (query.method) orderWhere.payMethod = query.method;
+    if (Object.keys(orderWhere).length) where.order = orderWhere;
+
+    const [items, total] = await Promise.all([
+      this.prisma.refundRecord.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNo: true,
+              orderKind: true,
+              customerName: true,
+              storeId: true,
+              payMethod: true,
+              store: { select: { id: true, name: true } },
+            },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { refundedAt: 'desc' },
+      }),
+      this.prisma.refundRecord.count({ where }),
+    ]);
+    const normalizedItems = items.map((item: any) => this.serializeRefundRecord(item));
+    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
+  }
+
+  async getReconciliationExceptions(query: {
+    page?: number | string;
+    pageSize?: number | string;
+    storeId?: number | string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    const page = Math.max(1, this.toNumber(query.page) || 1);
+    const pageSize = Math.max(1, this.toNumber(query.pageSize) || 50);
+    const storeId = this.asStoreId(query.storeId);
+    const dateTexts = this.getBusinessDateTexts(query.dateFrom, query.dateTo);
+    if (!dateTexts.length) return { items: [], data: [], total: 0, page, pageSize };
+
+    const rangeStart = this.getBusinessDayRange(dateTexts[0]).start;
+    const rangeEnd = this.getBusinessDayRange(dateTexts[dateTexts.length - 1]).end;
+
+    const [settlements, payments, refunds, shifts] = await Promise.all([
+      this.db().dailySettlement.findMany({
+        where: { storeId, settleDate: { gte: rangeStart, lt: rangeEnd } },
+        include: { store: { select: { id: true, name: true } } },
+        orderBy: { settleDate: 'desc' },
+      }),
+      this.prisma.paymentRecord.findMany({
+        where: {
+          status: 'success',
+          paidAt: { gte: rangeStart, lt: rangeEnd },
+          order: { storeId },
+        },
+        include: { order: { select: { id: true, orderNo: true, customerName: true, storeId: true } } },
+      }),
+      this.prisma.refundRecord.findMany({
+        where: {
+          status: { in: ['success', 'completed', 'refunded'] },
+          refundedAt: { gte: rangeStart, lt: rangeEnd },
+          order: { storeId },
+        },
+        include: { order: { select: { id: true, orderNo: true, customerName: true, storeId: true } } },
+      }),
+      this.db().cashierShift.findMany({
+        where: {
+          storeId,
+          startedAt: { gte: rangeStart, lt: rangeEnd },
+          status: { in: ['closed', 'reconciled'] },
+        },
+        include: {
+          store: { select: { id: true, name: true } },
+          device: { select: { id: true, name: true } },
+          operator: { select: { id: true, name: true } },
+        },
+        orderBy: { startedAt: 'desc' },
+      }),
+    ]);
+
+    const settlementByDate = new Map<string, any>();
+    for (const settlement of settlements) {
+      const date = this.normalizeBusinessDateText(settlement.settleDate);
+      const current = settlementByDate.get(date);
+      if (!current || new Date(settlement.updatedAt ?? settlement.settleDate).getTime() > new Date(current.updatedAt ?? current.settleDate).getTime()) {
+        settlementByDate.set(date, settlement);
+      }
+    }
+
+    const paymentByDate = new Map<string, number>();
+    for (const payment of payments) {
+      const paidAt = payment.paidAt ?? payment.createdAt;
+      if (!paidAt) continue;
+      const date = this.normalizeBusinessDateText(paidAt);
+      paymentByDate.set(date, (paymentByDate.get(date) ?? 0) + this.toNumber(payment.amount));
+    }
+
+    const refundByDate = new Map<string, number>();
+    const latestRefundByDate = new Map<string, any>();
+    for (const refund of refunds) {
+      const refundedAt = refund.refundedAt ?? refund.createdAt;
+      if (!refundedAt) continue;
+      const date = this.normalizeBusinessDateText(refundedAt);
+      refundByDate.set(date, (refundByDate.get(date) ?? 0) + this.toNumber(refund.amount));
+      const current = latestRefundByDate.get(date);
+      if (!current || new Date(refundedAt).getTime() > new Date(current.refundedAt ?? current.createdAt).getTime()) latestRefundByDate.set(date, refund);
+    }
+
+    const exceptions: any[] = [];
+    const pushException = (item: any) => {
+      exceptions.push({
+        id: `${item.type}:${item.date}:${item.sourceId ?? exceptions.length}`,
+        storeId,
+        ...item,
+      });
+    };
+
+    for (const date of dateTexts) {
+      const settlement = settlementByDate.get(date);
+      const paymentAmount = Math.round((paymentByDate.get(date) ?? 0) * 100) / 100;
+      const refundAmount = Math.round((refundByDate.get(date) ?? 0) * 100) / 100;
+      const expectedNet = Math.round((paymentAmount - refundAmount) * 100) / 100;
+      const hasFlow = paymentAmount > 0 || refundAmount > 0;
+
+      if (!settlement && hasFlow) {
+        pushException({
+          date,
+          type: 'missing_daily_settlement',
+          severity: 'high',
+          title: '缺少日结单',
+          detail: `当天已有支付 ${paymentAmount.toFixed(2)}、退款 ${refundAmount.toFixed(2)}，但未生成日结。`,
+          actionTarget: 'daily',
+          amountDiff: expectedNet,
+        });
+        continue;
+      }
+
+      if (!settlement) continue;
+
+      if (settlement.status !== 'confirmed') {
+        pushException({
+          date,
+          type: 'daily_unconfirmed',
+          severity: 'medium',
+          title: '日结未确认',
+          detail: '当天日结仍处于草稿状态，需要财务复核后确认。',
+          actionTarget: 'daily',
+          sourceId: settlement.id,
+        });
+      }
+
+      const settlementNet = Math.round(this.toNumber(settlement.totalRevenue) * 100) / 100;
+      const amountDiff = Math.round((settlementNet - expectedNet) * 100) / 100;
+      const settlementRefund = Math.round(this.toNumber(settlement.refundAmount) * 100) / 100;
+      const refundDiff = Math.round((settlementRefund - refundAmount) * 100) / 100;
+      if (Math.abs(amountDiff) >= 0.01 || Math.abs(refundDiff) >= 0.01) {
+        pushException({
+          date,
+          type: 'daily_amount_mismatch',
+          severity: 'high',
+          title: '日结金额与支付/退款流水不一致',
+          detail: `日结净收 ${settlementNet.toFixed(2)}，流水重算净收 ${expectedNet.toFixed(2)}；日结退款 ${settlementRefund.toFixed(2)}，退款流水 ${refundAmount.toFixed(2)}。`,
+          actionTarget: 'daily',
+          sourceId: settlement.id,
+          amountDiff,
+        });
+      }
+
+      const latestRefund = latestRefundByDate.get(date);
+      if (latestRefund && settlement.updatedAt && new Date(latestRefund.refundedAt ?? latestRefund.createdAt).getTime() > new Date(settlement.updatedAt).getTime()) {
+        pushException({
+          date,
+          type: 'refund_after_daily_settlement',
+          severity: 'medium',
+          title: '退款发生在日结刷新之后',
+          detail: `最新退款 ${latestRefund.refundNo ?? latestRefund.id} 晚于日结更新时间，需要刷新当天日结。`,
+          actionTarget: 'refunds',
+          sourceId: latestRefund.id,
+        });
+      }
+    }
+
+    for (const shift of shifts) {
+      const cashDiff = Math.round(this.toNumber(shift.cashDiff) * 100) / 100;
+      if (Math.abs(cashDiff) < 0.01) continue;
+      pushException({
+        date: this.normalizeBusinessDateText(shift.startedAt),
+        type: 'cash_shift_diff',
+        severity: Math.abs(cashDiff) >= 50 ? 'high' : 'medium',
+        title: '班次现金差异',
+        detail: `班次 ${shift.operator?.name ?? shift.device?.name ?? `#${shift.id}`} 现金差异 ${cashDiff.toFixed(2)}。`,
+        actionTarget: 'shifts',
+        sourceId: shift.id,
+        amountDiff: cashDiff,
+      });
+    }
+
+    const sorted = exceptions.sort((a, b) => {
+      const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+      const severityDiff = (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9);
+      if (severityDiff) return severityDiff;
+      return String(b.date).localeCompare(String(a.date));
+    });
+    const items = sorted.slice((page - 1) * pageSize, page * pageSize);
+    return { items, data: items, total: sorted.length, page, pageSize, summary: { high: sorted.filter((item) => item.severity === 'high').length, medium: sorted.filter((item) => item.severity === 'medium').length, low: sorted.filter((item) => item.severity === 'low').length } };
+  }
+
   async generateDailySettlement(storeIdInput: number | string | undefined, dateInput: string | Date) {
     const storeId = this.asStoreId(storeIdInput);
     const { start: dayStart, end: dayEnd, settleDate } = this.getBusinessDayRange(dateInput);
@@ -1799,12 +2428,14 @@ export class CommissionService {
     const paymentSummary = this.emptyPaymentSummary();
     let grossRevenue = 0;
     let rechargeIncome = 0;
+    let prepaidIncome = 0;
     const customers = new Set<number>();
     const allOrderItems: any[] = [];
     for (const order of orders) {
       const paid = order.paymentRecords.reduce((sum: number, payment: any) => sum + this.toNumber(payment.amount), 0);
       const orderAmount = paid > 0 ? paid : this.toNumber(order.totalAmount);
       grossRevenue += orderAmount;
+      prepaidIncome += this.prepaidIncomeFromOrder(order, orderAmount);
       if (order.customerId) customers.add(order.customerId);
       if (order.paymentRecords.length) {
         for (const payment of order.paymentRecords) this.addPayment(paymentSummary, payment.method, payment.amount);
@@ -1874,6 +2505,8 @@ export class CommissionService {
       },
       include: { store: { select: { id: true, name: true } } },
     });
+    (settlement as any)._prepaidIncome = Math.round(prepaidIncome * 100) / 100;
+    await this.attachDailyCardUsageRevenue([settlement]);
     return this.serializeDailySettlement(settlement);
   }
 
@@ -1947,9 +2580,12 @@ export class CommissionService {
         deduped.set(key, item);
       }
     }
-    const allItems = Array.from(deduped.values())
-      .sort((a, b) => this.normalizeBusinessDateText(b.settleDate).localeCompare(this.normalizeBusinessDateText(a.settleDate)))
-      .map((item: any) => this.serializeDailySettlement(item));
+    const dedupedItems = Array.from(deduped.values()).sort((a, b) => this.normalizeBusinessDateText(b.settleDate).localeCompare(this.normalizeBusinessDateText(a.settleDate)));
+    await Promise.all([
+      this.attachDailyCardUsageRevenue(dedupedItems),
+      this.attachDailyPrepaidIncome(dedupedItems),
+    ]);
+    const allItems = dedupedItems.map((item: any) => this.serializeDailySettlement(item));
     const normalizedItems = allItems.slice((page - 1) * pageSize, page * pageSize);
     return { items: normalizedItems, data: normalizedItems, total: allItems.length, page, pageSize };
   }

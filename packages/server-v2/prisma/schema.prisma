@@ -88,12 +88,16 @@ model Store {
   beauticianAvailabilities BeauticianAvailability[]
   beauticianTimeOffs       BeauticianTimeOff[]
   smartSchedulingRuns      SmartSchedulingRun[]
+  scheduleVersions         ScheduleVersion[]
   storeResources           StoreResource[]
   resourceBookings         ResourceBooking[]
   customerAppIdentities    CustomerAppIdentity[]
   customerAppEvents        CustomerAppEvent[]
   amiGlowDisplayConfigs    AmiGlowDisplayConfig[]
   terminalFollowUpTasks    TerminalFollowUpTask[]
+  gapOpportunities         AppointmentGapOpportunity[]
+  gapCandidates            AppointmentGapCandidate[]
+  gapOpportunityEvents     AppointmentGapOpportunityEvent[]
   operatingCosts           OperatingCost[]
   cardUsageRecords         CardUsageRecord[]
   cards                    Card[]
@@ -121,6 +125,7 @@ model User {
   refreshTokens       RefreshToken[]
   stockMovements      StockMovement[]
   smartSchedulingRuns SmartSchedulingRun[] @relation("SmartSchedulingRunCreatedBy")
+  publishedScheduleVersions ScheduleVersion[] @relation("ScheduleVersionPublishedBy")
   handledBalanceTransactions CustomerBalanceTransaction[] @relation("BalanceTransactionOperator")
   handledCustomerCards CustomerCard[] @relation("CustomerCardOperator")
   handledCardUsageRecords CardUsageRecord[] @relation("CardUsageOperator")
@@ -245,6 +250,8 @@ model Customer {
   customerAppIdentities CustomerAppIdentity[]
   terminalFollowUpTasks TerminalFollowUpTask[]
   customerAppEvents     CustomerAppEvent[]
+  gapCandidates         AppointmentGapCandidate[]
+  gapOpportunityEvents  AppointmentGapOpportunityEvent[]
 
   @@index([storeId])
   @@index([phone])
@@ -300,7 +307,7 @@ model Product {
   id                 Int       @id @default(autoincrement())
   storeId            Int
   categoryId         Int?
-  sku                String    @unique
+  sku                String
   name               String
   brand              String?
   spec               String?
@@ -338,6 +345,7 @@ model Product {
   @@index([status])
   @@index([miniappStatus])
   @@index([categoryId])
+  @@unique([storeId, sku])
 }
 
 model StockBatch {
@@ -546,6 +554,8 @@ model Project {
   description String?
   price       Decimal   @default(0)
   duration    Int       @default(60)
+  careCycleWeeks      Int?
+  treatmentCourseTimes Int?
   image       String?
   recommend   Boolean   @default(false)
   online      Boolean   @default(true)
@@ -563,6 +573,7 @@ model Project {
   reservations     Reservation[]
   beauticianSkills BeauticianProjectSkill[]
   cardUsageRecords CardUsageRecord[]
+  gapCandidates    AppointmentGapCandidate[]
 
   @@index([storeId])
   @@index([status])
@@ -1240,6 +1251,7 @@ model CommissionRecord {
   cardUsageRecord CardUsageRecord? @relation(fields: [cardUsageRecordId], references: [id], onDelete: SetNull)
   rule       CommissionRule? @relation(fields: [ruleId], references: [id])
   assignment CommissionRuleAssignment? @relation(fields: [assignmentId], references: [id])
+  settlementRecords CommissionSettlementRecord[]
 
   @@index([beauticianId, settleMonth])
   @@index([staffUserId, settleMonth])
@@ -1276,11 +1288,28 @@ model CommissionSettlement {
   store      Store      @relation(fields: [storeId], references: [id])
   staffUser  User?      @relation("CommissionSettlementStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
   beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  settlementRecords CommissionSettlementRecord[]
 
   @@unique([storeId, staffUserId, settleMonth])
   @@index([storeId, settleMonth])
   @@index([staffUserId])
   @@index([beauticianId])
+}
+
+model CommissionSettlementRecord {
+  id                 Int      @id @default(autoincrement())
+  settlementId       Int
+  commissionRecordId Int
+  amountSnapshot     Decimal  @default(0)
+  statusSnapshot     String?
+  createdAt          DateTime @default(now())
+
+  settlement       CommissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  commissionRecord CommissionRecord     @relation(fields: [commissionRecordId], references: [id], onDelete: Restrict)
+
+  @@unique([settlementId, commissionRecordId])
+  @@index([commissionRecordId])
+  @@index([settlementId])
 }
 
 model CashierShift {
@@ -1597,23 +1626,30 @@ model CardUsageRecord {
 // ─── Scheduling & Reservations ───────────────────────────────────────────────
 
 model Schedule {
-  id           Int      @id @default(autoincrement())
-  storeId      Int
-  beauticianId Int
-  date         DateTime
-  startTime    String
-  endTime      String
-  status       String   @default("available")
-  smartRunId   String?
-  createdAt    DateTime @default(now())
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  beauticianId      Int
+  date              DateTime
+  startTime         String
+  endTime           String
+  status            String   @default("available")
+  source            String   @default("manual")
+  locked            Boolean  @default(false)
+  versionId         Int?
+  optimizationRunId String?
+  smartRunId        String?
+  createdAt         DateTime @default(now())
 
   store      Store               @relation(fields: [storeId], references: [id])
   beautician Beautician          @relation(fields: [beauticianId], references: [id])
   smartRun   SmartSchedulingRun? @relation(fields: [smartRunId], references: [runId], onDelete: SetNull)
+  version    ScheduleVersion?    @relation(fields: [versionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, date])
   @@index([beauticianId, date])
   @@index([smartRunId])
+  @@index([versionId])
+  @@index([optimizationRunId])
 }
 
 model Reservation {
@@ -1647,19 +1683,25 @@ model Reservation {
 // ─── Terminal Devices ─────────────────────────────────────────────────────────
 
 model SchedulingRuleConfig {
-  id                Int      @id @default(autoincrement())
-  storeId           Int
-  businessStartTime String   @default("09:00")
-  businessEndTime   String   @default("20:00")
-  slotMinutes       Int      @default(60)
-  peakRules         Json?
-  maxDailyHours     Int?
-  maxWeeklyHours    Int?
-  minRestMinutes    Int?
-  defaultMinStaff   Int      @default(0)
-  status            String   @default("active")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                                  Int      @id @default(autoincrement())
+  storeId                             Int
+  businessStartTime                   String   @default("09:00")
+  businessEndTime                     String   @default("20:00")
+  slotMinutes                         Int      @default(60)
+  peakRules                           Json?
+  maxDailyHours                       Int?
+  maxWeeklyHours                      Int?
+  minRestMinutes                      Int?
+  defaultMinStaff                     Int      @default(0)
+  algorithmMode                       String   @default("balanced")
+  objectiveWeights                    Json?
+  allowReassignUnconfirmedReservation Boolean  @default(true)
+  allowReassignConfirmedReservation   Boolean  @default(false)
+  walkInBufferRules                   Json?
+  lockedAfterPublished                Boolean  @default(true)
+  status                              String   @default("active")
+  createdAt                           DateTime @default(now())
+  updatedAt                           DateTime @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
@@ -1708,26 +1750,63 @@ model BeauticianTimeOff {
 }
 
 model SmartSchedulingRun {
-  id                 Int       @id @default(autoincrement())
-  runId              String    @unique
-  storeId            Int
-  weekStart          DateTime
-  status             String    @default("preview")
-  inputSnapshot      Json
-  generatedSchedules Json
-  score              Int
-  warnings           Json?
-  createdById        Int?
-  confirmedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                         Int       @id @default(autoincrement())
+  runId                      String    @unique
+  storeId                    Int
+  weekStart                  DateTime
+  status                     String    @default("preview")
+  inputSnapshot              Json
+  generatedSchedules         Json
+  score                      Int
+  warnings                   Json?
+  algorithmVersion           String    @default("v2")
+  mode                       String    @default("balanced")
+  objectiveWeights           Json?
+  inputSummary               Json?
+  solutionSummary            Json?
+  alternatives               Json?
+  runtimeMs                  Int?
+  solverStatus               String    @default("feasible")
+  publishedScheduleVersionId Int?
+  createdById                Int?
+  confirmedAt                DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   store     Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdBy User? @relation("SmartSchedulingRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   schedules Schedule[]
+  publishedScheduleVersion ScheduleVersion? @relation("SmartSchedulingRunPublishedVersion", fields: [publishedScheduleVersionId], references: [id], onDelete: SetNull)
+  sourceScheduleVersions ScheduleVersion[] @relation("ScheduleVersionSourceRun")
 
   @@index([storeId, weekStart])
   @@index([status])
+  @@index([publishedScheduleVersionId])
+}
+
+model ScheduleVersion {
+  id                    Int       @id @default(autoincrement())
+  storeId               Int
+  weekStart             DateTime
+  status                String    @default("published")
+  sourceRunId           String?
+  publishedById         Int?
+  publishedAt           DateTime?
+  rollbackFromVersionId Int?
+  createdAt             DateTime  @default(now())
+
+  store               Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  publishedBy         User?   @relation("ScheduleVersionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  sourceRun           SmartSchedulingRun? @relation("ScheduleVersionSourceRun", fields: [sourceRunId], references: [runId], onDelete: SetNull)
+  publishedByRuns     SmartSchedulingRun[] @relation("SmartSchedulingRunPublishedVersion")
+  schedules           Schedule[]
+  rollbackFromVersion ScheduleVersion? @relation("ScheduleVersionRollback", fields: [rollbackFromVersionId], references: [id], onDelete: SetNull)
+  rollbackVersions    ScheduleVersion[] @relation("ScheduleVersionRollback")
+
+  @@index([storeId, weekStart])
+  @@index([status])
+  @@index([sourceRunId])
+  @@index([publishedById])
 }
 
 model BeauticianProjectSkill {
@@ -2345,6 +2424,7 @@ model TerminalFollowUpTask {
   order              ProductOrder?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   serviceTask        ServiceTask?    @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
   device             TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  gapCandidates      AppointmentGapCandidate[]
 
   @@index([storeId, status, dueAt])
   @@index([storeId, assigneeRole, status, dueAt])
@@ -2358,6 +2438,97 @@ model TerminalFollowUpTask {
   @@index([serviceTaskId])
   @@index([deviceId])
   @@index([deletedAt])
+}
+
+model AppointmentGapOpportunity {
+  id                     Int      @id @default(autoincrement())
+  storeId                Int
+  date                   DateTime
+  startTime              String
+  endTime                String
+  beauticianIds          Int[]
+  projectIds             Int[]
+  durationMinutes        Int
+  capacity               Int      @default(0)
+  bookedCount            Int      @default(0)
+  availableCapacity      Int      @default(0)
+  source                 String   @default("heatmap")
+  gapType                String   @default("available_capacity")
+  score                  Int      @default(0)
+  estimatedRevenue       Decimal  @default(0)
+  expectedFillRate       Decimal  @default(0)
+  candidateCount         Int      @default(0)
+  status                 String   @default("open")
+  confirmationDraftJson  Json?
+  payload                Json?
+  expiresAt              DateTime?
+  lastGeneratedAt        DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  store      Store                         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  candidates AppointmentGapCandidate[]
+  events     AppointmentGapOpportunityEvent[]
+
+  @@unique([storeId, date, startTime, endTime])
+  @@index([storeId, date])
+  @@index([storeId, status, date])
+  @@index([expiresAt])
+}
+
+model AppointmentGapCandidate {
+  id                 Int       @id @default(autoincrement())
+  opportunityId      Int
+  storeId            Int
+  customerId         Int
+  projectId          Int?
+  followUpTaskId     Int?
+  score              Int       @default(0)
+  expectedFillRate   Decimal   @default(0)
+  estimatedRevenue   Decimal   @default(0)
+  recommendedChannel String    @default("phone")
+  messageDraft       String?
+  reasonJson         Json?
+  riskJson           Json?
+  scoreBreakdown     Json?
+  status             String    @default("candidate")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  opportunity  AppointmentGapOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  store        Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer     Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project      Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  followUpTask TerminalFollowUpTask?     @relation(fields: [followUpTaskId], references: [id], onDelete: SetNull)
+  events       AppointmentGapOpportunityEvent[]
+
+  @@unique([opportunityId, customerId])
+  @@index([storeId, status])
+  @@index([customerId, status])
+  @@index([followUpTaskId])
+  @@index([projectId])
+}
+
+model AppointmentGapOpportunityEvent {
+  id            Int      @id @default(autoincrement())
+  opportunityId Int
+  candidateId   Int?
+  storeId       Int
+  customerId    Int?
+  eventType     String
+  note          String?
+  payload       Json?
+  createdAt     DateTime @default(now())
+
+  opportunity AppointmentGapOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  candidate   AppointmentGapCandidate?  @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  store       Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([opportunityId, createdAt])
+  @@index([candidateId])
+  @@index([storeId, eventType, createdAt])
+  @@index([customerId])
 }
 
 model CustomerBehaviorEvent {

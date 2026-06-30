@@ -842,6 +842,7 @@ describe('OperationProfitService', () => {
     prisma.cardUsageRecord.findMany.mockResolvedValue([]);
     prisma.card.findMany.mockResolvedValue([]);
     prisma.commissionRecord.aggregate.mockResolvedValue({ _sum: { amount: 120 } });
+    prisma.commissionRecord.findMany.mockResolvedValue([{ staffUserId: 701, beauticianId: 601, orderItemId: 81, amount: 120 }]);
 
     const service = new OperationProfitService(prisma as any);
     const result = await service.getBeauticianPerformance({ storeId: 1, from: '2026-06-01', to: '2026-06-30' });
@@ -871,6 +872,17 @@ describe('OperationProfitService', () => {
       commissionCost: 120,
       contributionProfit: 880,
       missingCostReasons: [],
+      serviceDetails: [
+        expect.objectContaining({
+          sourceType: 'order',
+          sourceLabel: '项目订单',
+          sourceNo: 'O50',
+          quantity: 2,
+          income: 1000,
+          commissionCost: 120,
+          contributionProfit: 880,
+        }),
+      ],
     });
   });
 });

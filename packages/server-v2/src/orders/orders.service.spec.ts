@@ -685,6 +685,7 @@ describe('OrdersService project order inventory consumption', () => {
       status: '已付款',
       paymentMethod: '微信',
       totalAmount: 400,
+      remark: '库存发布前验收-项目 BOM 扣减',
       items: [{ projectId: 101, projectName: 'Hydration', quantity: 2, unitPrice: 200, subtotal: 400 }],
     });
 
@@ -719,6 +720,7 @@ describe('OrdersService project order inventory consumption', () => {
         afterStock: 6,
         sourceType: 'project_order',
         sourceId: 501,
+        remark: expect.stringContaining('库存发布前验收-项目 BOM 扣减'),
       }),
     });
   });

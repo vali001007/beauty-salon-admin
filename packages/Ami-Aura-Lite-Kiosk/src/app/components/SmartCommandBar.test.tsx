@@ -12,7 +12,7 @@ const managerDefinition: RoleDefinition = {
   availableActions: ["manager.dashboard", "manager.staff", "manager.inventory"],
   quickActions: [
     { label: "经营", action: "manager.dashboard", icon: "BarChart3" },
-    { label: "员工", action: "manager.staff", icon: "Users" },
+    { label: "排班", action: "manager.staff", icon: "Users" },
     { label: "库存", action: "manager.inventory", icon: "PackageCheck" },
     { label: "预约", action: "reception.appointments", icon: "CalendarCheck" },
     { label: "核销", action: "operation.verify", icon: "CheckSquare" },
@@ -62,7 +62,7 @@ describe("SmartCommandBar", () => {
     });
 
     expect(container.textContent).toContain("经营");
-    expect(container.textContent).toContain("员工");
+    expect(container.textContent).toContain("排班");
     expect(container.textContent).toContain("库存");
     expect(container.textContent).toContain("收起");
 
@@ -76,7 +76,7 @@ describe("SmartCommandBar", () => {
 
     expect(container.textContent).toContain("快捷");
     expect(container.textContent).not.toContain("经营");
-    expect(container.textContent).not.toContain("员工");
+    expect(container.textContent).not.toContain("排班");
     expect(container.textContent).not.toContain("库存");
 
     expect(input).not.toBeNull();
@@ -88,7 +88,7 @@ describe("SmartCommandBar", () => {
     });
 
     expect(container.textContent).toContain("经营");
-    expect(container.textContent).toContain("员工");
+    expect(container.textContent).toContain("排班");
     expect(container.textContent).toContain("库存");
     expect(container.textContent).toContain("收起");
     expect(onCommand).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe("SmartCommandBar", () => {
     expect(container.textContent).not.toContain("哪些商品需要补货");
     expect(container.textContent).not.toContain("今天经营有什么风险");
     expect(container.textContent).not.toContain("第4个不展示");
-    expect(container.textContent).toContain("员工");
+    expect(container.textContent).toContain("排班");
     expect(container.textContent).toContain("核销");
     expect(container.textContent).toContain("收银");
     expect(container.textContent).toContain("办卡");

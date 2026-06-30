@@ -117,7 +117,7 @@ export async function realUpdateProduct(id: number, data: Partial<Product>): Pro
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
-export async function realGetProductsPaginated(params: PaginationParams & { categoryId?: number; status?: string; keyword?: string }): Promise<PaginatedResponse<Product>> {
+export async function realGetProductsPaginated(params: PaginationParams & { categoryId?: number; status?: string; keyword?: string; sellableOnly?: boolean }): Promise<PaginatedResponse<Product>> {
   const response = await apiClient.get<unknown, unknown>('/products/paginated', { params });
   return normalizePaginatedResponse<ApiProduct, Product>(response, normalizeProduct);
 }

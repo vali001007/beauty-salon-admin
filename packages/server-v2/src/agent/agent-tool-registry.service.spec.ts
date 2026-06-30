@@ -56,6 +56,7 @@ describe('AgentToolRegistryService', () => {
     };
     inventoryService = {
       getReplenishment: jest.fn(),
+      getTransferSuggestions: jest.fn(),
       createPurchaseOrder: jest.fn(),
     };
     terminalService = {
@@ -87,8 +88,12 @@ describe('AgentToolRegistryService', () => {
         'marketing.activity.draft',
         'customer.followup.task.draft',
         'inventory.replenishment.draft',
+        'inventory.purchase.intake.draft',
+        'inventory.stock.operation.draft',
+        'inventory.product.metadata.suggest',
         'inventory.consumption.trend',
         'inventory.project.bom.risk',
+        'inventory.transfer.suggestion',
         'inventory.expiring.clearance.draft',
         'supplier.purchase.link',
         'service.record.draft',
@@ -1422,6 +1427,132 @@ describe('AgentToolRegistryService', () => {
     });
   });
 
+  it('returns inventory transfer suggestions without creating transfer orders', async () => {
+    inventoryService.getTransferSuggestions.mockResolvedValue([
+      {
+        id: '1-2',
+        sku: 'SKU-001',
+        productName: '补水精华',
+        productId: 1,
+        fromStoreId: 1,
+        fromStoreName: '南山店',
+        toStoreId: 2,
+        toStoreName: '福田店',
+        sourceStock: 80,
+        targetStock: 2,
+        safetyStock: 10,
+        suggestedQty: 12,
+        unit: '瓶',
+        reason: '福田店库存 2，低于安全库存 10；南山店库存 80，可调拨 12瓶。',
+      },
+    ]);
+
+    const result = await service.execute(
+      'inventory.transfer.suggestion',
+      { question: '哪些门店适合调拨', limit: 10 },
+      { runId: 309, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('门店调拨建议');
+    expect(result.summary).toContain('南山店');
+    expect((result.data as any).items[0]).toMatchObject({
+      productName: '补水精华',
+      fromStoreName: '南山店',
+      toStoreName: '福田店',
+      suggestedQty: 12,
+    });
+    expect(result.evidence?.source).toEqual(['Product', 'Store']);
+    expect(result.actions?.[0]).toMatchObject({ action: 'inventory:transfer:open', riskLevel: 'low' });
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('creates purchase intake draft from OCR text without changing stock', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 301,
+        name: '玻尿酸精华',
+        sku: 'ESS-301',
+        unit: '瓶',
+        costPrice: 80,
+        shelfLife: 1095,
+        safetyStock: 10,
+        brand: '玻尿酸',
+        spec: '30ml',
+      },
+    ]);
+
+    const result = await service.execute(
+      'inventory.purchase.intake.draft',
+      { ocrText: '采购单：玻尿酸精华 12瓶 单价80；补水面膜 30片 单价8' },
+      { runId: 310, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('采购入库草稿');
+    expect((result.data as any)).toMatchObject({
+      draftType: 'purchase_intake',
+      status: 'pending_confirmation',
+      requiresConfirmation: true,
+    });
+    expect((result.data as any).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ productName: '玻尿酸精华', productId: 301, quantity: 12, unit: '瓶', matchStatus: 'matched_product' }),
+        expect.objectContaining({ productName: '补水面膜', quantity: 30, unit: '片', matchStatus: 'new_product_candidate' }),
+      ]),
+    );
+    expect(result.evidence?.limitations?.[0]).toContain('人工复核');
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('creates stock operation draft from voice text without changing stock', async () => {
+    const result = await service.execute(
+      'inventory.stock.operation.draft',
+      { voiceText: '语音记录：出库 玻尿酸精华 3瓶，补水面膜 10片' },
+      { runId: 311, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('库存操作草稿');
+    expect((result.data as any)).toMatchObject({
+      draftType: 'stock_operation',
+      operationType: 'manual_outbound',
+      status: 'pending_confirmation',
+      requiresConfirmation: true,
+    });
+    expect((result.data as any).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ productName: '玻尿酸精华', quantity: 3, unit: '瓶', adjustmentType: 'manual_outbound' }),
+        expect.objectContaining({ productName: '补水面膜', quantity: 10, unit: '片', adjustmentType: 'manual_outbound' }),
+      ]),
+    );
+    expect(result.evidence?.limitations?.[0]).toContain('必须人工确认');
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('suggests product metadata without writing product records', async () => {
+    const result = await service.execute(
+      'inventory.product.metadata.suggest',
+      { items: [{ name: '兰蔻精华 30ml' }, { name: '补水面膜' }] },
+      { runId: 312, storeId: 1, userId: 7, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('商品元数据建议');
+    expect((result.data as any)).toMatchObject({
+      draftType: 'product_metadata_suggestion',
+      requiresConfirmation: true,
+    });
+    expect((result.data as any).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ productName: '兰蔻精华 30ml', unit: '瓶', shelfLife: 1095, safetyStock: 10, spec: '30ml' }),
+        expect.objectContaining({ productName: '补水面膜', unit: '片', shelfLife: 730, safetyStock: 30 }),
+      ]),
+    );
+    expect(prisma.product.findMany).not.toHaveBeenCalled();
+    expect(inventoryService.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
   it('creates expiring inventory clearance draft without publishing campaigns or changing prices', async () => {
     prisma.stockBatch.findMany.mockResolvedValue([
       {
@@ -1814,7 +1945,7 @@ describe('AgentToolRegistryService', () => {
       source: ['ProductOrder', 'OrderItem', 'Product', 'ProjectBomItem', 'CommissionRecord', 'DailySettlement'],
       sampleSize: 5,
     });
-    expect(result.actions?.[1]).toMatchObject({ action: 'finance:daily-settlement:open', riskLevel: 'low' });
+    expect(result.actions?.[1]).toMatchObject({ action: 'finance:reconciliation:open', riskLevel: 'low' });
   });
 
   it('summarizes finance revenue with a finance-facing tool name', async () => {
@@ -1841,7 +1972,7 @@ describe('AgentToolRegistryService', () => {
     expect(result.title).toBe('财务收入汇总');
     expect(result.summary).toContain('收入汇总');
     expect((result.data as any).reportType).toBe('finance_revenue_summary');
-    expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'finance:daily-settlement:open' })]));
+    expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'finance:reconciliation:open' })]));
   });
 
   it('diagnoses finance profit through the stage 5 profit tool', async () => {
@@ -2631,6 +2762,19 @@ describe('AgentToolRegistryService', () => {
     expect((result.data as any).idleStaff[0]).toMatchObject({
       beauticianName: '唐伊',
       availableCount: 2,
+    });
+    expect((result.data as any).columns).toEqual([
+      'beauticianName',
+      'utilizationRateText',
+      'reservationCount',
+      'availableCount',
+      'busyCount',
+      'leaveCount',
+    ]);
+    expect((result.data as any).items[0]).toMatchObject({
+      beauticianName: '沈晴',
+      utilizationRateText: '100%',
+      reservationCount: 1,
     });
     expect(result.evidence).toMatchObject({
       source: ['Schedule', 'Reservation', 'Beautician'],

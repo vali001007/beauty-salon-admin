@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, ChevronDown, ChevronRight, Edit, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Calendar, ChevronDown, ChevronRight, Edit, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { getBomConsumptionRecords, getBomForecast, getBomList, updateBom } from '@/api/bom';
+import { getIndustryServiceTemplateBom, getIndustryServiceTemplates } from '@/api/industry';
 import { getProducts } from '@/api/product';
 import type { Product } from '@/types';
 import type { BOMItem, ConsumptionRecord, ForecastItem, Service } from '@/types/bom';
+import type { IndustryProjectBomItemTemplate, IndustryProjectBomTemplate, IndustryServiceTemplate } from '@/types/industry';
 
 type BomDraftItem = {
   rowId: number;
@@ -52,6 +54,75 @@ function getBomItemCost(item: BomDraftItem) {
   return Number(item.unitCost || 0) * Number(item.standardQty || 0);
 }
 
+function getBomCompleteness(items: BOMItem[]) {
+  if (!items.length) {
+    return {
+      label: '未配置',
+      detail: '不会自动扣耗材，也无法形成 BOM 标准成本',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    };
+  }
+  if (items.some((item) => item.productStatus === '停售' || item.productStatus === 'offline' || item.productStatus === 'inactive' || !item.productName)) {
+    return {
+      label: '商品已下架',
+      detail: 'BOM 中存在停售或无效耗材，服务扣减前需要替换',
+      className: 'border-red-200 bg-red-50 text-red-700',
+    };
+  }
+  if (items.some((item) => Number(item.costPrice ?? 0) <= 0)) {
+    return {
+      label: '缺成本',
+      detail: 'BOM 已配置，但耗材成本缺失会影响项目毛利',
+      className: 'border-orange-200 bg-orange-50 text-orange-700',
+    };
+  }
+  return {
+    label: '已配置',
+    detail: '可用于自动扣耗材和项目毛利核算',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  };
+}
+
+function formatReferenceCost(item: IndustryProjectBomItemTemplate) {
+  const min = item.productTemplate?.referenceCostMin;
+  const max = item.productTemplate?.referenceCostMax;
+  if (min == null && max == null) return '未配置';
+  if (min != null && max != null) return `${formatCurrency(min)}-${formatCurrency(max)}`;
+  return formatCurrency(Number(min ?? max ?? 0));
+}
+
+function findMatchedProduct(templateItem: IndustryProjectBomItemTemplate, products: Product[]) {
+  const template = templateItem.productTemplate;
+  const names = [template?.name, ...(template?.aliases ?? [])]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+  const standardCode = template?.standardProductCode ? String(template.standardProductCode).toLowerCase() : '';
+  return products.find((product) => {
+    const productName = String(product.name ?? '').toLowerCase();
+    const sku = String(product.sku ?? '').toLowerCase();
+    const nameMatched = names.some((name) => productName.includes(name) || name.includes(productName));
+    const skuMatched = Boolean(standardCode && sku === standardCode);
+    return skuMatched || nameMatched;
+  });
+}
+
+function toBomDraftItemFromIndustryTemplate(item: IndustryProjectBomItemTemplate, products: Product[]): BomDraftItem {
+  const matchedProduct = findMatchedProduct(item, products);
+  const template = item.productTemplate;
+  const referenceCostMin = Number(template?.referenceCostMin ?? 0);
+  const referenceCostMax = Number(template?.referenceCostMax ?? referenceCostMin);
+  const referenceCost = referenceCostMin || referenceCostMax ? (referenceCostMin + referenceCostMax) / 2 : 0;
+  return {
+    rowId: Date.now() + item.id,
+    productId: matchedProduct ? String(matchedProduct.id) : '',
+    productName: matchedProduct?.name ?? template?.name ?? `标准耗材 #${item.productTemplateId}`,
+    sku: matchedProduct?.sku ?? template?.standardProductCode ?? '',
+    standardQty: Number(item.standardQty || 1),
+    unit: item.unit || matchedProduct?.unit || template?.unit || '件',
+    unitCost: Number(matchedProduct?.costPrice ?? referenceCost),
+  };
+}
+
 export function ServiceConsumption() {
   const [activeTab, setActiveTab] = useState<'bom' | 'consumption' | 'forecast'>('bom');
   const [services, setServices] = useState<Service[]>([]);
@@ -66,6 +137,11 @@ export function ServiceConsumption() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [savingBom, setSavingBom] = useState(false);
   const [filterAbnormal, setFilterAbnormal] = useState(false);
+  const [industryTemplates, setIndustryTemplates] = useState<IndustryServiceTemplate[]>([]);
+  const [industryTemplatesLoading, setIndustryTemplatesLoading] = useState(false);
+  const [industryBomLoading, setIndustryBomLoading] = useState(false);
+  const [selectedIndustryTemplateId, setSelectedIndustryTemplateId] = useState('');
+  const [selectedIndustryBomTemplate, setSelectedIndustryBomTemplate] = useState<IndustryProjectBomTemplate | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -135,15 +211,56 @@ export function ServiceConsumption() {
     }
   };
 
+  const ensureIndustryTemplatesLoaded = async () => {
+    if (industryTemplates.length || industryTemplatesLoading) return;
+    setIndustryTemplatesLoading(true);
+    try {
+      const templates = await getIndustryServiceTemplates({ status: 'published' });
+      setIndustryTemplates(templates);
+    } catch {
+      toast.error('行业项目耗品模板加载失败，暂不能导入标准 BOM');
+    } finally {
+      setIndustryTemplatesLoading(false);
+    }
+  };
+
   const handleEditBOM = async (service: Service) => {
     setSelectedService(service);
     setBomDraftItems(service.bom.map((item) => toBomDraftItem(item, products)));
+    setSelectedIndustryTemplateId('');
+    setSelectedIndustryBomTemplate(null);
     setShowEditBOMDialog(true);
+    void ensureIndustryTemplatesLoaded();
     const productList = await ensureProductsLoaded();
     if (productList.length) {
       setBomDraftItems(service.bom.map((item) => toBomDraftItem(item, productList)));
     }
   };
+
+  useEffect(() => {
+    if (!showEditBOMDialog || !selectedIndustryTemplateId) {
+      setSelectedIndustryBomTemplate(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIndustryBomLoading(true);
+    setSelectedIndustryBomTemplate(null);
+    getIndustryServiceTemplateBom(Number(selectedIndustryTemplateId))
+      .then((template) => {
+        if (!cancelled) setSelectedIndustryBomTemplate(template);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('行业 BOM 明细加载失败');
+      })
+      .finally(() => {
+        if (!cancelled) setIndustryBomLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedIndustryTemplateId, showEditBOMDialog]);
 
   const handleAddBomItem = () => {
     setBomDraftItems((current) => [...current, createEmptyBomDraftItem()]);
@@ -166,6 +283,30 @@ export function ServiceConsumption() {
       unit: product?.unit ?? '',
       unitCost: Number(product?.costPrice ?? 0),
     });
+  };
+
+  const handleImportIndustryBom = async () => {
+    const items = selectedIndustryBomTemplate?.items ?? [];
+    if (!selectedIndustryTemplateId) {
+      toast.error('请先选择行业项目耗品模板');
+      return;
+    }
+    if (!items.length) {
+      toast.error('所选模板暂无可导入的 BOM 明细');
+      return;
+    }
+    if (bomDraftItems.length > 0 && !window.confirm('导入行业模板会覆盖当前 BOM 草稿，确认继续？')) {
+      return;
+    }
+    const productList = await ensureProductsLoaded();
+    const draftItems = items.map((item) => toBomDraftItemFromIndustryTemplate(item, productList));
+    setBomDraftItems(draftItems);
+    const unmappedCount = draftItems.filter((item) => !item.productId).length;
+    if (unmappedCount > 0) {
+      toast.warning(`已导入模板，仍有 ${unmappedCount} 个标准耗材需要映射本地商品`);
+    } else {
+      toast.success(`已导入 ${draftItems.length} 条行业 BOM 明细`);
+    }
   };
 
   const handleSaveBom = async () => {
@@ -206,6 +347,7 @@ export function ServiceConsumption() {
       setSelectedService(updatedService);
       setBomDraftItems(updatedService.bom.map((item) => toBomDraftItem(item, products)));
       setShowEditBOMDialog(false);
+      window.dispatchEvent(new window.CustomEvent('project-bom-updated', { detail: { projectId: updatedService.id } }));
       toast.success('BOM 已保存');
       await loadData();
     } catch (error) {
@@ -230,6 +372,11 @@ export function ServiceConsumption() {
     () => bomDraftItems.reduce((total, item) => total + getBomItemCost(item), 0),
     [bomDraftItems],
   );
+  const selectedIndustryTemplate = useMemo(
+    () => industryTemplates.find((template) => String(template.id) === selectedIndustryTemplateId),
+    [industryTemplates, selectedIndustryTemplateId],
+  );
+  const industryBomItems = selectedIndustryBomTemplate?.items ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -295,6 +442,16 @@ export function ServiceConsumption() {
                         <span className="text-sm font-medium text-blue-600">¥{service.price}</span>
                       </div>
                       <div className="text-xs text-gray-500 mt-1">BOM产品数: {service.bomCount}</div>
+                      <div className="mt-2">
+                        {(() => {
+                          const completeness = getBomCompleteness(service.bom);
+                          return (
+                            <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${completeness.className}`}>
+                              {completeness.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                   <Button
@@ -313,26 +470,34 @@ export function ServiceConsumption() {
                 {expandedServices.includes(service.id) && (
                   <div className="border-t border-gray-200 bg-gray-50 p-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-3">BOM明细</h4>
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-white">
-                          <TableHead>产品名称</TableHead>
-                          <TableHead>SKU</TableHead>
-                          <TableHead>标准用量</TableHead>
-                          <TableHead>单位</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {service.bom.map((item) => (
-                          <TableRow key={item.id} className="bg-white">
-                            <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
-                            <TableCell className="font-mono text-sm text-gray-600">{item.sku}</TableCell>
-                            <TableCell className="font-medium text-blue-600">{item.standardQty}</TableCell>
-                            <TableCell className="text-gray-600">{item.unit}</TableCell>
+                    {service.bom.length === 0 ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        当前项目未配置 BOM，服务完成后不会自动扣减耗材，项目毛利也会显示 BOM 缺口。
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-white">
+                            <TableHead>产品名称</TableHead>
+                            <TableHead>SKU</TableHead>
+                            <TableHead>标准用量</TableHead>
+                            <TableHead>单位</TableHead>
+                            <TableHead>状态</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {service.bom.map((item) => (
+                            <TableRow key={item.id} className="bg-white">
+                              <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
+                              <TableCell className="font-mono text-sm text-gray-600">{item.sku}</TableCell>
+                              <TableCell className="font-medium text-blue-600">{item.standardQty}</TableCell>
+                              <TableCell className="text-gray-600">{item.unit}</TableCell>
+                              <TableCell className="text-sm text-gray-600">{item.productStatus ?? '在售'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </div>
                 )}
               </div>
@@ -391,7 +556,7 @@ export function ServiceConsumption() {
             </TableHeader>
             <TableBody>
               {filteredConsumption.map((record) => (
-                <TableRow key={record.id} className={`hover:bg-blue-50/30 ${record.deviation > 20 ? 'bg-red-50' : ''}`}>
+                <TableRow key={record.id} className={`hover:bg-blue-50/30 ${Math.abs(record.deviation) > 20 ? 'bg-red-50' : ''}`}>
                   <TableCell>{record.date}</TableCell>
                   <TableCell className="font-mono text-sm text-gray-600">{record.orderNo || '-'}</TableCell>
                   <TableCell className="font-medium text-gray-800">{record.serviceName}</TableCell>
@@ -402,7 +567,7 @@ export function ServiceConsumption() {
                   <TableCell className="text-gray-600">{record.standardQty}</TableCell>
                   <TableCell className="font-medium">{record.actualQty}</TableCell>
                   <TableCell>
-                    <span className={`font-semibold ${record.deviation > 20 ? 'text-red-600' : 'text-gray-700'}`}>
+                    <span className={`font-semibold ${Math.abs(record.deviation) > 20 ? 'text-red-600' : 'text-gray-700'}`}>
                       {record.deviation > 0 ? '+' : ''}{record.deviation.toFixed(1)}%
                     </span>
                   </TableCell>
@@ -446,7 +611,12 @@ export function ServiceConsumption() {
                 <TableRow key={item.sku} className={`hover:bg-blue-50/30 ${item.shortage > 0 ? 'bg-orange-50' : ''}`}>
                   <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
                   <TableCell className="font-mono text-sm text-gray-600">{item.sku}</TableCell>
-                  <TableCell className="font-medium text-blue-600">{item.forecastConsumption}</TableCell>
+                  <TableCell>
+                    <div className="font-medium text-blue-600">{item.forecastConsumption}</div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      预约 {item.scheduledConsumption ?? 0} / 日均 {item.recentDailyConsumption ?? 0}
+                    </div>
+                  </TableCell>
                   <TableCell className={item.shortage > 0 ? 'text-orange-600 font-medium' : ''}>
                     {item.currentStock}
                   </TableCell>
@@ -503,6 +673,76 @@ export function ServiceConsumption() {
                     <div className="font-medium text-gray-800 mt-1">{formatCurrency(bomTotalCost)}</div>
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-900">从行业项目耗品标准库导入</h4>
+                    <p className="mt-1 text-xs text-blue-700">适合新项目快速套用标准耗材；未匹配到本地商品的行需要手动选择后才能保存。</p>
+                  </div>
+                  <Sparkles className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <select
+                    value={selectedIndustryTemplateId}
+                    onChange={(event) => setSelectedIndustryTemplateId(event.target.value)}
+                    disabled={industryTemplatesLoading || industryBomLoading || savingBom}
+                    className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
+                  >
+                    <option value="">
+                      {industryTemplatesLoading ? '正在加载行业模板...' : '选择已发布行业服务模板'}
+                    </option>
+                    {industryTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.category} / {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-100"
+                    onClick={handleImportIndustryBom}
+                    disabled={!selectedIndustryTemplateId || industryTemplatesLoading || industryBomLoading || savingBom}
+                  >
+                    {industryBomLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    导入模板
+                  </Button>
+                </div>
+                {selectedIndustryTemplate && (
+                  <div className="mt-3 grid gap-3 text-xs text-blue-900 md:grid-cols-3">
+                    <div>
+                      <div className="text-blue-500">模板</div>
+                      <div className="mt-1 font-medium">{selectedIndustryTemplate.name}</div>
+                    </div>
+                    <div>
+                      <div className="text-blue-500">BOM 明细</div>
+                      <div className="mt-1 font-medium">
+                        {industryBomLoading ? '加载中' : `${industryBomItems.length} 项`}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-blue-500">模板版本</div>
+                      <div className="mt-1 font-medium">v{selectedIndustryTemplate.version}</div>
+                    </div>
+                  </div>
+                )}
+                {industryBomItems.length > 0 && (
+                  <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-blue-100 bg-white">
+                    {industryBomItems.map((item) => (
+                      <div key={item.id} className="grid grid-cols-[1.4fr_0.7fr_0.7fr] gap-3 border-b border-blue-50 px-3 py-2 text-xs last:border-b-0">
+                        <div>
+                          <div className="font-medium text-gray-900">{item.productTemplate?.name ?? `标准耗材 #${item.productTemplateId}`}</div>
+                          <div className="mt-0.5 text-gray-500">
+                            {[item.productTemplate?.category, item.productTemplate?.recommendedSpec].filter(Boolean).join(' / ') || '未配置规格'}
+                          </div>
+                        </div>
+                        <div className="text-gray-700">{item.standardQty} {item.unit}</div>
+                        <div className="text-gray-700">{formatReferenceCost(item)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

@@ -247,7 +247,7 @@ export function AmiBilling() {
             </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            按月汇总 Ami 基础费、绩效提成、关联收入和 ROI，用于门店对账与平台收入追踪。
+            按月汇总 Ami 基础费、绩效费用、应付金额和账单状态；来源收入和 ROI 仅用于解释账单来源。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -283,20 +283,20 @@ export function AmiBilling() {
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div>
-              <CardDescription>Ami 关联收入</CardDescription>
+              <CardDescription>来源收入参考</CardDescription>
               <CardTitle className="mt-2 text-2xl">{money(summary.totals.revenueGenerated)}</CardTitle>
             </div>
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
               <BarChart3 className="h-5 w-5" />
             </div>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">由营销转化、续费、收银辅助等记录归集</CardContent>
+          <CardContent className="text-xs text-muted-foreground">由营销转化、续费、收银辅助等记录归集，仅作计费来源说明</CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div>
-              <CardDescription>Ami 总费用</CardDescription>
+              <CardDescription>门店应付金额</CardDescription>
               <CardTitle className="mt-2 text-2xl">{money(summary.totals.totalFee)}</CardTitle>
             </div>
             <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600">
@@ -304,14 +304,14 @@ export function AmiBilling() {
             </div>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            基础费 {money(summary.totals.baseFee)} / 提成费 {money(summary.totals.commissionFee)}
+            基础费 {money(summary.totals.baseFee)} / 绩效费 {money(summary.totals.commissionFee)}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div>
-              <CardDescription>整体 ROI</CardDescription>
+              <CardDescription>来源 ROI</CardDescription>
               <CardTitle className="mt-2 text-2xl">{formatRatio(summary.overallRoi)}</CardTitle>
             </div>
             <div className="rounded-lg bg-sky-500/10 p-2 text-sky-600">
@@ -319,7 +319,7 @@ export function AmiBilling() {
             </div>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            提成封顶利用率 {summary.totals.commissionCap ? formatPercent(summary.capUtilization) : '-'}
+            用于核对账单来源；封顶利用率 {summary.totals.commissionCap ? formatPercent(summary.capUtilization) : '-'}
           </CardContent>
         </Card>
       </section>
@@ -395,9 +395,9 @@ export function AmiBilling() {
                 <TableHead>门店</TableHead>
                 <TableHead className="text-right">基础费</TableHead>
                 <TableHead className="text-right">提成费</TableHead>
-                <TableHead className="text-right">总费用</TableHead>
-                <TableHead className="text-right">关联收入</TableHead>
-                <TableHead className="text-right">ROI</TableHead>
+                <TableHead className="text-right">应付金额</TableHead>
+                <TableHead className="text-right">来源收入</TableHead>
+                <TableHead className="text-right">来源 ROI</TableHead>
                 <TableHead className="text-right">记录数</TableHead>
                 <TableHead className="text-right">封顶</TableHead>
                 <TableHead>状态</TableHead>
@@ -479,18 +479,18 @@ export function AmiBilling() {
                       <div className="mt-1 font-semibold tabular-nums">{money(selectedBill.commissionFee)}</div>
                     </div>
                     <div className="rounded-md bg-muted/35 p-3">
-                      <div className="text-xs text-muted-foreground">总费用</div>
+                      <div className="text-xs text-muted-foreground">应付金额</div>
                       <div className="mt-1 font-semibold tabular-nums">{money(selectedBill.totalFee)}</div>
                     </div>
                     <div className="rounded-md bg-muted/35 p-3">
-                      <div className="text-xs text-muted-foreground">ROI</div>
+                      <div className="text-xs text-muted-foreground">来源 ROI</div>
                       <div className="mt-1 font-semibold tabular-nums">{formatRatio(selectedBill.roi)}</div>
                     </div>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-md border border-border p-3">
-                      <div className="text-xs text-muted-foreground">关联收入</div>
+                      <div className="text-xs text-muted-foreground">来源收入</div>
                       <div className="mt-1 font-medium tabular-nums">{money(selectedBill.revenueGenerated)}</div>
                     </div>
                     <div className="rounded-md border border-border p-3">
@@ -506,7 +506,7 @@ export function AmiBilling() {
                   </div>
 
                   <div>
-                    <div className="mb-3 text-sm font-medium">提成明细拆解</div>
+                    <div className="mb-3 text-sm font-medium">绩效来源说明</div>
                     <div className="space-y-3">
                       {selectedBreakdown.length ? (
                         selectedBreakdown.map((item) => {
@@ -528,7 +528,7 @@ export function AmiBilling() {
                                 />
                               </div>
                               <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-                                <span>关联收入 {money(item.revenueAmount)}</span>
+                                <span>来源收入 {money(item.revenueAmount)}</span>
                                 <span>工时 {item.workMinutes ?? 0} 分钟</span>
                               </div>
                             </div>
@@ -547,7 +547,7 @@ export function AmiBilling() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">历史账单对比</CardTitle>
-              <CardDescription>按最近 6 个月账单聚合，对比费用、收入和 ROI。</CardDescription>
+              <CardDescription>按最近 6 个月账单聚合，对比应付费用、来源收入和来源 ROI。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {historyRows.length ? (
@@ -571,7 +571,7 @@ export function AmiBilling() {
                         <div className="h-2 rounded-full bg-sky-500" style={{ width: `${Math.min(100, feeShare)}%` }} />
                       </div>
                       <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-                        <span>收入 {money(item.revenueGenerated)}</span>
+                        <span>来源收入 {money(item.revenueGenerated)}</span>
                         <span>
                           基础 {money(item.baseFee)} / 提成 {money(item.commissionFee)}
                         </span>

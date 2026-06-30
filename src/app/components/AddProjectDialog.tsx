@@ -55,6 +55,8 @@ function createInitialFormData(project?: Project | null) {
     name: project?.name ?? '',
     type: project?.type ?? '',
     duration: project?.duration ?? 60,
+    careCycleWeeks: project?.careCycleWeeks ?? '',
+    treatmentCourseTimes: project?.treatmentCourseTimes ?? '',
     price: project?.price ?? 0,
     discountPrice: 0,
     sortOrder: project?.sort ?? 0,
@@ -211,10 +213,10 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
     };
   }, [initialProject, open, selectedIndustryTemplateId]);
 
-  const handleNumberChange = (field: 'duration' | 'price' | 'discountPrice' | 'sortOrder', delta: number) => {
+  const handleNumberChange = (field: 'duration' | 'price' | 'discountPrice' | 'sortOrder' | 'treatmentCourseTimes', delta: number) => {
     setFormData(prev => ({
       ...prev,
-      [field]: Math.max(0, prev[field] + delta)
+      [field]: Math.max(0, Number(prev[field] || 0) + delta)
     }));
   };
 
@@ -383,6 +385,8 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
         type: formData.type || '面部护理',
         description: formData.summary,
         duration: formData.duration || 60,
+        careCycleWeeks: formData.careCycleWeeks === '' ? null : Number(formData.careCycleWeeks),
+        treatmentCourseTimes: formData.treatmentCourseTimes === '' ? null : Number(formData.treatmentCourseTimes),
         price: formData.price,
         storeName: initialProject?.storeName || 'Ami 全量演示门店',
         recommend: formData.isRecommended,
@@ -788,6 +792,66 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                     <Plus className="w-4 h-4 text-gray-600" />
                   </button>
                 </div>
+              </div>
+
+              {/* Care Cycle */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">护理周期（周）</label>
+                <select
+                  value={formData.careCycleWeeks}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      careCycleWeeks: e.target.value === '' ? '' : Number(e.target.value),
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">不设置周期</option>
+                  {Array.from({ length: 12 }, (_, index) => index + 1).map((week) => (
+                    <option key={week} value={week}>
+                      {week} 周
+                    </option>
+                  ))}
+                  <option value={16}>16 周</option>
+                  <option value={24}>24 周</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">用于后续复购提醒、空档推荐和护理计划建议。</p>
+              </div>
+
+              {/* Treatment Course Times */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">疗程次数</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleNumberChange('treatmentCourseTimes', -1)}
+                    className="w-8 h-9 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Minus className="w-4 h-4 text-gray-600" />
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.treatmentCourseTimes}
+                    placeholder="不设置"
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        treatmentCourseTimes: e.target.value === '' ? '' : Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleNumberChange('treatmentCourseTimes', 1)}
+                    className="w-8 h-9 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Plus className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">例如 6 次/10 次疗程，非疗程项目可留空。</p>
               </div>
 
               {/* Discount Price */}

@@ -1,4 +1,5 @@
 import { DEFAULT_AGENT_EVAL_CASES, P0_AGENT_EVAL_CASES, TERMINAL_ACCEPTANCE_AGENT_EVAL_CASES } from './agent-eval.cases.js';
+import { QUESTION_BANK_CONVERSATION_CASES } from './agent-eval-question-bank.js';
 import { AgentEvalService } from './agent-eval.service.js';
 import { AgentFieldScopeSanitizerService } from './agent-field-scope-sanitizer.service.js';
 import { AgentResponseSafetyService } from './agent-response-safety.service.js';
@@ -508,6 +509,55 @@ describe('AgentEvalService', () => {
     expect(result.failed).toBe(0);
   });
 
+  it('passes the question bank multi-turn conversation baseline cases', async () => {
+    const result = await service.runConversationCases(QUESTION_BANK_CONVERSATION_CASES);
+
+    expect(result.total).toBe(5);
+    expect(result.failureSamples).toEqual([]);
+    expect(result.failed).toBe(0);
+    expect(result.conversations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'qb-conv-consumption-list-priority-followup',
+          failedTurns: 0,
+        }),
+        expect.objectContaining({
+          id: 'qb-conv-customer-pronoun-benefit',
+          failedTurns: 0,
+        }),
+        expect.objectContaining({
+          id: 'qb-conv-missing-context-pronoun-clarify',
+          failedTurns: 0,
+        }),
+      ]),
+    );
+    expect(result.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'qb-conv-consumption-list-priority-followup:turn-2',
+          actual: expect.objectContaining({
+            firstTool: 'customer.priority.rank',
+            domain: 'customer',
+            filters: expect.objectContaining({
+              contextScope: 'previous_order_customer_consumption_list',
+              customerIds: [501, 502],
+            }),
+          }),
+        }),
+        expect.objectContaining({
+          id: 'qb-conv-customer-pronoun-benefit:turn-1',
+          actual: expect.objectContaining({
+            firstTool: 'reception.card.benefit.summary',
+            filters: expect.objectContaining({
+              customerId: 501,
+              customerName: '马美琳',
+            }),
+          }),
+        }),
+      ]),
+    );
+  });
+
   it('passes the T6.5 terminal acceptance question baseline cases', async () => {
     expect(TERMINAL_ACCEPTANCE_AGENT_EVAL_CASES.map((item) => item.input)).toEqual([
       '昨天有哪些消费的客户，列出清单',
@@ -610,6 +660,59 @@ describe('AgentEvalService', () => {
           expectedOutcome: expect.objectContaining({
             source: 'unit_test',
             originalCaseId: 'forced-failure',
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('persists failed conversation samples as draft regression cases when requested', async () => {
+    const prisma = {
+      agentEvalCase: {
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const persistService = new AgentEvalService(
+      planner,
+      registry,
+      new AgentFieldScopeSanitizerService(),
+      new AgentResponseSafetyService(),
+      skillRegistry,
+      prisma,
+    );
+
+    const result = await persistService.runConversationCases(
+      [
+        {
+          id: 'forced-conversation-failure',
+          scenario: '强制多轮失败样本',
+          role: 'manager',
+          turns: [
+            {
+              id: 'turn-1',
+              input: '优先联系哪些客户？',
+              expectedTool: 'wrong.tool',
+              expectedClarification: false,
+            },
+          ],
+        },
+      ],
+      { persistFailures: true, source: 'conversation_unit_test' },
+    );
+
+    expect(result.failed).toBe(1);
+    expect(result.savedFailureSamples).toBe(1);
+    expect(prisma.agentEvalCase.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          scenario: 'regression:强制多轮失败样本',
+          input: '优先联系哪些客户？',
+          role: 'manager',
+          expectedTool: 'wrong.tool',
+          status: 'draft',
+          expectedOutcome: expect.objectContaining({
+            source: 'conversation_unit_test',
+            originalCaseId: 'forced-conversation-failure:turn-1',
           }),
         }),
       ],

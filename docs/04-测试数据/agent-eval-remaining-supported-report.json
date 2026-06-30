@@ -1,0 +1,1262 @@
+{
+  "mode": "run",
+  "persona": "all",
+  "totalQuestions": 650,
+  "systemUnsupported": {
+    "total": 22,
+    "byPersona": {
+      "manager": 11,
+      "marketing": 1,
+      "reception": 5,
+      "beautician": 3,
+      "finance": 1,
+      "edge": 1
+    },
+    "byReason": {
+      "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。": 9,
+      "当前系统没有客户等待离店或现场排队流失记录业务闭环。": 1,
+      "当前系统有采购与供应链数据，但没有供应商涨价通知业务对象。": 1,
+      "当前系统支持终端运行诊断，但没有美容设备维保或故障业务闭环。": 1,
+      "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。": 5,
+      "当前系统没有员工离职交接或客户流失归因到离职带走的业务闭环。": 1,
+      "当前系统没有消防安全、税务、发票或纳税业务闭环。": 4
+    }
+  },
+  "alreadyTested": {
+    "total": 128,
+    "byCoverageStage": {
+      "p0_daily": 119,
+      "kiosk_e2e": 9
+    }
+  },
+  "remainingSupported": {
+    "total": 500,
+    "selected": 500,
+    "passed": 466,
+    "failed": 34,
+    "passRate": 0.932,
+    "byPersona": {
+      "manager": 71,
+      "marketing": 84,
+      "reception": 80,
+      "beautician": 83,
+      "inventory": 80,
+      "finance": 83,
+      "edge": 19
+    },
+    "bySupportStatus": {
+      "system_supported_testable": 471,
+      "system_supported_agent_gap": 29
+    }
+  },
+  "failureReasons": {
+    "missing_output_kind": 7,
+    "wrong_intent": 14,
+    "skill_missing": 25,
+    "route_error": 12,
+    "permission_error": 4
+  },
+  "systemUnsupportedList": [
+    {
+      "id": "qb-manager-customer-management-025",
+      "input": "最近有没有客户投诉或者表达不满",
+      "persona": "manager",
+      "sourceCategory": "客户管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-customer-management-033",
+      "input": "最近有没有客户因为等待时间长而离开",
+      "persona": "manager",
+      "sourceCategory": "客户管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户等待离店或现场排队流失记录业务闭环。"
+    },
+    {
+      "id": "qb-manager-customer-management-037",
+      "input": "帮我看一下客户满意度整体情况",
+      "persona": "manager",
+      "sourceCategory": "客户管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-staff-management-048",
+      "input": "哪个美容师的客诉最多，最近有没有",
+      "persona": "manager",
+      "sourceCategory": "员工管理",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-inventory-ops-076",
+      "input": "最近有没有收到供应商的涨价通知",
+      "persona": "manager",
+      "sourceCategory": "库存运营",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统有采购与供应链数据，但没有供应商涨价通知业务对象。"
+    },
+    {
+      "id": "qb-manager-risk-alert-085",
+      "input": "店里设备最近有没有什么问题",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统支持终端运行诊断，但没有美容设备维保或故障业务闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-090",
+      "input": "有没有客户最近投诉了但我还没处理",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-096",
+      "input": "最近有没有出现服务事故或皮肤过敏的情况",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-097",
+      "input": "这个月有没有收到很多差评或负面反馈",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-098",
+      "input": "最近有没有员工离职带走客户的风险",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有员工离职交接或客户流失归因到离职带走的业务闭环。"
+    },
+    {
+      "id": "qb-manager-risk-alert-099",
+      "input": "店里消防安全检查需要做吗",
+      "persona": "manager",
+      "sourceCategory": "风险预警",
+      "sourceSection": "一、店长经营 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-marketing-automation-touch-092",
+      "input": "我想自动收集每次服务后的客户满意度",
+      "persona": "marketing",
+      "sourceCategory": "自动化与触达规则",
+      "sourceSection": "二、营销增长 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-reception-customer-lookup-008",
+      "input": "她的皮肤有没有什么过敏或者特殊注意事项",
+      "persona": "reception",
+      "sourceCategory": "客户查询",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-reception-cashier-card-usage-059",
+      "input": "帮我开具今天消费的收据或发票",
+      "persona": "reception",
+      "sourceCategory": "收银与核销",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-reception-onsite-coordination-085",
+      "input": "这个客人说她过敏，之前记录了什么",
+      "persona": "reception",
+      "sourceCategory": "现场协调",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-reception-onsite-coordination-092",
+      "input": "这个客人要求开发票，我怎么操作",
+      "persona": "reception",
+      "sourceCategory": "现场协调",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-reception-onsite-coordination-095",
+      "input": "有客人说要投诉，我应该怎么处理",
+      "persona": "reception",
+      "sourceCategory": "现场协调",
+      "sourceSection": "三、前台接待 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-beautician-service-schedule-011",
+      "input": "下一个客人有没有皮肤过敏或者什么注意事项",
+      "persona": "beautician",
+      "sourceCategory": "今日服务安排",
+      "sourceSection": "四、美容师服务 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-beautician-care-advice-028",
+      "input": "这个客人有过敏史，做项目前我需要注意什么",
+      "persona": "beautician",
+      "sourceCategory": "客户护理建议",
+      "sourceSection": "四、美容师服务 Agent",
+      "reason": "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。"
+    },
+    {
+      "id": "qb-beautician-personal-performance-090",
+      "input": "我的客户满意度高不高",
+      "persona": "beautician",
+      "sourceCategory": "个人业绩",
+      "sourceSection": "四、美容师服务 Agent",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    },
+    {
+      "id": "qb-finance-finance-risk-compliance-081",
+      "input": "有没有税务方面需要注意的事项",
+      "persona": "finance",
+      "sourceCategory": "财务风险与合规",
+      "sourceSection": "六、财务风控 Agent",
+      "reason": "当前系统没有消防安全、税务、发票或纳税业务闭环。"
+    },
+    {
+      "id": "qb-edge-cross-domain-022",
+      "input": "有个客人投诉说效果差，我应该退款还是再给她做一次",
+      "persona": "edge",
+      "sourceCategory": "跨场景融合问题",
+      "sourceSection": "附：Edge Case 与多轮对话测试问题",
+      "reason": "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。"
+    }
+  ],
+  "agentGapList": [
+    {
+      "id": "qb-manager-business-overview-010",
+      "input": "今天退款有几笔，金额多少",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "finance.refund.discount.audit",
+        "capabilityId": "finance_refund_discount_audit",
+        "businessDomain": "afterSales",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-manager-business-overview-020",
+      "input": "今天储值卡消耗了多少，新充值了多少",
+      "persona": "manager",
+      "role": "manager",
+      "sourceCategory": "经营概览",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "finance.revenue.summary",
+        "capabilityId": "finance_revenue_summary",
+        "businessDomain": "memberCard",
+        "outputKinds": [
+          "text",
+          "kpi",
+          "table",
+          "chart",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-audience-analysis-012",
+      "input": "帮我把客户按消费金额分一下层",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "客群识别与分析",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "marketing.customer.segment.discover",
+        "capabilityId": "marketing_customer_segment_discover",
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text",
+          "table",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-campaign-planning-027",
+      "input": "我想推一个储值送赠品的活动，怎么设计",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "活动策划",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "finance.revenue.summary",
+        "capabilityId": "finance_revenue_summary",
+        "businessDomain": "marketing",
+        "outputKinds": [
+          "text",
+          "kpi",
+          "table",
+          "chart",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-content-generation-047",
+      "input": "帮我写一个活动通知，发给全体会员",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "话术与内容生成",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "marketing",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-benefit-roi-067",
+      "input": "送赠品和打折哪种方式效果更好",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "权益与投入产出",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-benefit-roi-078",
+      "input": "这个月发了多少优惠，有没有被滥用的情况",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "权益与投入产出",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-automation-touch-088",
+      "input": "帮我设置一个超过一定金额消费自动升级会员等级的规则",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "自动化与触达规则",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "beautician.repurchase.opportunity",
+        "capabilityId": "beautician_repurchase_opportunity",
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text",
+          "table",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-automation-touch-098",
+      "input": "能不能在员工空档时自动推送客户填满档期",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "自动化与触达规则",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "reservation",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-marketing-automation-touch-099",
+      "input": "我想在特定节日前三天自动准备活动方案",
+      "persona": "marketing",
+      "role": "manager",
+      "sourceCategory": "自动化与触达规则",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "marketing",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-reception-cashier-card-usage-068",
+      "input": "帮我打开核销界面，客人要用次卡",
+      "persona": "reception",
+      "role": "reception",
+      "sourceCategory": "收银与核销",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "card",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-reception-onsite-coordination-086",
+      "input": "帮我查一下我们店的停车指引或者位置信息",
+      "persona": "reception",
+      "role": "reception",
+      "sourceCategory": "现场协调",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "query",
+        "clarificationNeeded": false,
+        "firstTool": "reception.customer.lookup",
+        "capabilityId": "reception_customer_lookup",
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "action_card",
+          "kpi"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-schedule-014",
+      "input": "今天有没有安排我去做培训或其他任务",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "今日服务安排",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "query",
+        "clarificationNeeded": false,
+        "firstTool": "beautician.today.service.list",
+        "capabilityId": "beautician_today_service_list",
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text",
+          "kpi",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-care-advice-037",
+      "input": "这次服务完我应该推荐她预约哪个项目",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "客户护理建议",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "permission_error",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "reservation",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-care-advice-043",
+      "input": "她最近在家用什么护肤品，和我们的方案冲突吗",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "客户护理建议",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-care-advice-045",
+      "input": "她下次应该做什么，间隔多久比较合适",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "客户护理建议",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-055",
+      "input": "帮我记录一下客人这次的特殊需求",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-059",
+      "input": "帮我记录一下这次用的仪器参数",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-060",
+      "input": "客人护理结束后说想买一瓶精华，帮我记一下",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-063",
+      "input": "这次护理发现客人有一处皮肤问题，怎么记录和处理",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "analysis_and_recommendation",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-065",
+      "input": "这个客人今天对某个产品不满意，帮我记录一下",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "serviceQuality",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-066",
+      "input": "服务中我发现客户皮肤状态有明显变化，怎么记录",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-068",
+      "input": "这次服务完我应该推荐她做什么预约",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "permission_error",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "reservation",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-070",
+      "input": "帮我记录这次服务时长和具体操作步骤",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "draft",
+        "clarificationNeeded": false,
+        "firstTool": "service.record.draft",
+        "businessDomain": "staff",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-service-record-followup-073",
+      "input": "这次护理结束后需要给客人发什么跟进消息",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "服务记录与跟进",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "permission_error",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-personal-performance-080",
+      "input": "我这个月比上个月进步了多少",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "个人业绩",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-personal-performance-087",
+      "input": "有没有哪个客户最近好久没来了，我应该联系一下",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "个人业绩",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "permission_error",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "customer",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-beautician-personal-performance-088",
+      "input": "我这个月升单做得怎么样",
+      "persona": "beautician",
+      "role": "beautician",
+      "sourceCategory": "个人业绩",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-finance-refund-discount-065",
+      "input": "这个月因为退款损失了多少收入",
+      "persona": "finance",
+      "role": "manager",
+      "sourceCategory": "退款与折扣",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "finance.refund.discount.audit",
+        "capabilityId": "finance_refund_discount_audit",
+        "businessDomain": "afterSales",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-finance-refund-discount-074",
+      "input": "本月退款和上月比增加了多少",
+      "persona": "finance",
+      "role": "manager",
+      "sourceCategory": "退款与折扣",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "missing_output_kind"
+      ],
+      "actual": {
+        "intentType": "analysis_and_recommendation",
+        "clarificationNeeded": false,
+        "firstTool": "finance.refund.discount.audit",
+        "capabilityId": "finance_refund_discount_audit",
+        "businessDomain": "afterSales",
+        "outputKinds": [
+          "text",
+          "table",
+          "action_card",
+          "evidence"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "kpi",
+          "action_card"
+        ]
+      }
+    },
+    {
+      "id": "qb-edge-correction-038",
+      "input": "这个活动方案不合适，改一个思路",
+      "persona": "edge",
+      "role": "manager",
+      "sourceCategory": "否定与纠正测试",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "marketing",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-edge-correction-039",
+      "input": "不要给我建议了，就告诉我数据",
+      "persona": "edge",
+      "role": "manager",
+      "sourceCategory": "否定与纠正测试",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "analysis_and_recommendation",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-edge-correction-040",
+      "input": "这个结果不对，重新算一下",
+      "persona": "edge",
+      "role": "manager",
+      "sourceCategory": "否定与纠正测试",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "query",
+        "outputKinds": [
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    {
+      "id": "qb-edge-stress-050",
+      "input": "帮我把店里所有的问题都找出来，给我一个完整的改进方案",
+      "persona": "edge",
+      "role": "manager",
+      "sourceCategory": "极限与压力测试",
+      "supportStatus": "system_supported_testable",
+      "failureReasons": [
+        "wrong_intent",
+        "skill_missing",
+        "route_error"
+      ],
+      "actual": {
+        "intentType": "clarify",
+        "clarificationNeeded": true,
+        "businessDomain": "unknown",
+        "outputKinds": [
+          "text"
+        ]
+      },
+      "expected": {
+        "intentType": "draft",
+        "outputKinds": [
+          "text",
+          "evidence",
+          "table"
+        ]
+      }
+    }
+  ]
+}

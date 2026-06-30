@@ -39,8 +39,9 @@ describe('AgentObservabilityService', () => {
       { runId: 2, toolName: 'inventory.consumption.trend', status: 'failed', latencyMs: 6200 },
     ]);
     prisma.agentEvalRun.findMany.mockResolvedValue([
-      { id: 1, status: 'passed', score: 1 },
-      { id: 2, status: 'failed', score: 0.2 },
+      { id: 1, status: 'passed', score: 1, resultJson: { priority: 'P0' } },
+      { id: 2, status: 'failed', score: 0.2, resultJson: { priority: 'P0' } },
+      { id: 3, status: 'passed', score: 1, resultJson: { priority: 'P1' } },
     ]);
 
     const result = await service.getQualityReport({ storeId: 6, days: 7 });
@@ -52,8 +53,21 @@ describe('AgentObservabilityService', () => {
       feedbackCount: 2,
       adopted: 1,
       rejected: 1,
-      evalRunCount: 2,
-      evalPassed: 1,
+      evalRunCount: 3,
+      evalPassed: 2,
+    });
+    expect(result.questionBank).toMatchObject({
+      totalQuestions: 650,
+      structuredQuestions: 650,
+      coverageRate: 1,
+      p0Cases: 120,
+      conversationCases: 4,
+      conversationTurns: 5,
+      priorityPassRates: [
+        { priority: 'P0', total: 2, passed: 1, failed: 1, passRate: 0.5 },
+        { priority: 'P1', total: 1, passed: 1, failed: 0, passRate: 1 },
+        { priority: 'P2', total: 0, passed: 0, failed: 0, passRate: null },
+      ],
     });
     expect(result.personaBreakdown).toEqual(
       expect.arrayContaining([

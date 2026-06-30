@@ -69,6 +69,16 @@ const state = vi.hoisted(() => {
     serviceRecordFlowLoader: vi.fn(async () => ({ title: '服务记录', tasks: [], beauticianName: '沈晴' })),
     cashierFlowLoader: vi.fn(async () => ({ title: '收银', customers: [], catalog: [] })),
     cardVerificationFlowLoader: vi.fn(async () => ({ title: '核销', customers: [] })),
+    printDocumentsLoader: vi.fn(async () => ({
+      title: '今日可打印单据',
+      subtitle: 'Ami 全量演示门店',
+      summary: '今日共 3 张可打印单据：收银 1 单，核销 1 单，办卡 1 单。',
+      date: '2026-06-29',
+      generatedAt: '2026-06-29T10:00:00.000Z',
+      total: 3,
+      counts: { cashier: 1, cardUsage: 1, cardOrder: 1 },
+      items: [],
+    })),
     rechargeFlowLoader: vi.fn(async () => ({
       title: '会员充值',
       subtitle: 'Ami 全量演示门店',
@@ -173,6 +183,7 @@ vi.mock('../services/auraCoreService', () => ({
   getInventoryAlerts: state.inventoryAlertsLoader,
   getManagerDashboard: state.managerDashboardLoader,
   getOperationResult: vi.fn(),
+  getTodayPrintDocuments: state.printDocumentsLoader,
   prefetchAuraBootstrap: vi.fn(async () => undefined),
   getReceptionDashboard: state.receptionDashboardLoader,
   getRechargeFlow: state.rechargeFlowLoader,
@@ -531,6 +542,29 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
   });
 
+  it.each([
+    '老朋友回店护理礼活动链接发我',
+    '推荐近期营销活动',
+    '请列出10个需要紧急召回的客户',
+    '这个月营业额',
+    '近期有哪些临期库存产品',
+    '今天有哪些预约',
+  ])('routes semantic planner consistency question into Agent Runtime: %s', async (question) => {
+    const intent = await resolveCommandIntent({
+      command: question,
+      role: 'manager',
+      definition: definition('manager'),
+      source: 'text',
+    });
+
+    const result = await runMicroAppIntent(intent, question);
+
+    expect(intent.action).toBe('business.query');
+    expect(state.businessAgentLoader).toHaveBeenCalledTimes(1);
+    expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
+  });
+
   it('keeps inventory quick actions on the card flow', async () => {
     const intent = parseRuleIntent('manager.inventory', 'manager', definition('manager'), 'quick_action');
     const promise = runMicroAppIntent(intent, 'manager.inventory');
@@ -767,6 +801,32 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(result.messages[0]?.type).toBe('cashier');
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'cashier' });
     expect(state.cashierFlowLoader).toHaveBeenCalledTimes(1);
+    expect(state.businessAgentLoader).not.toHaveBeenCalled();
+  });
+
+  it('opens today printable documents from the print quick action', async () => {
+    const intent: AuraResolvedIntent = {
+      name: 'print.receipt',
+      role: 'reception',
+      action: 'operation.print',
+      source: 'quick_action',
+      confidence: 1,
+      slots: {},
+      missingSlots: [],
+      riskLevel: 'low',
+      requiresConfirmation: false,
+      showUserCommand: true,
+      loadingLabel: '正在加载今日可打印单据',
+    };
+
+    const result = await runMicroAppIntent(intent, '打印');
+
+    expect(result.messages[0]?.type).toBe('dashboard');
+    expect(result.messages[0]?.payload).toMatchObject({
+      kind: 'printDocuments',
+      data: { title: '今日可打印单据', counts: { cashier: 1, cardUsage: 1, cardOrder: 1 } },
+    });
+    expect(state.printDocumentsLoader).toHaveBeenCalledTimes(1);
     expect(state.businessAgentLoader).not.toHaveBeenCalled();
   });
 

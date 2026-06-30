@@ -686,7 +686,7 @@ export class IndustryService {
 
   private async resolveProductSku(tx: any, storeId: number, template: AnyRecord, overrideSku?: string) {
     const candidate = overrideSku?.trim() || `IND-${storeId}-${template.standardProductCode}`;
-    const existing = await tx.product.findUnique({ where: { sku: candidate } });
+    const existing = await tx.product.findFirst({ where: { sku: candidate, storeId } });
     if (!existing || (existing.storeId === storeId && !existing.deletedAt)) return candidate;
     return `IND-${storeId}-${template.standardProductCode}-${Date.now().toString(36).toUpperCase()}`;
   }

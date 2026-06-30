@@ -22,6 +22,7 @@ import type {
   AgentFeedbackFailureReport,
   AgentFeedbackRequest,
   AgentDailyArchiveItem,
+  AgentKnowledgeGovernance,
   AgentMemoryItem,
   AgentPersonaSummary,
   AgentQualityReport,
@@ -175,6 +176,13 @@ export async function getAgentQualityReport(params: { days?: number; personaCode
 
 export async function getAgentSchemaReadiness(): Promise<AgentSchemaReadiness> {
   return apiClient.get('/agent/schema-readiness');
+}
+
+export async function getAgentKnowledgeGovernance(params: {
+  capabilityId?: string;
+  q?: string;
+} = {}): Promise<AgentKnowledgeGovernance> {
+  return apiClient.get('/agent/knowledge/governance', { params });
 }
 
 // ─── Automation Engine ──────────────────────────────────────────────────────

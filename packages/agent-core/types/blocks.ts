@@ -6,6 +6,13 @@ export type AuraBlockAction = {
   riskLevel: AgentRiskLevel;
 };
 
+export type AuraClarificationOption = {
+  label: string;
+  value: string;
+  description?: string;
+  actionId?: string;
+};
+
 export type MetricTone = 'default' | 'warning' | 'critical' | 'success';
 
 export type AuraResponseBlock =
@@ -14,6 +21,44 @@ export type AuraResponseBlock =
   | { kind: 'kpi_card'; label: string; value: string; delta?: string; deltaType?: 'up' | 'down' | 'neutral'; unit?: string; hint?: string }
   | { kind: 'table'; columns: string[]; rows: string[][]; sortable?: boolean; caption?: string }
   | { kind: 'chart'; chartType: 'line' | 'bar' | 'pie' | 'funnel'; title: string; data: unknown; xKey?: string; yKeys?: string[] }
+  | {
+      kind: 'entity_resolution_badge';
+      objectType: string;
+      entityName: string;
+      confidence?: number;
+      sourceModel?: string;
+      matchStrategy?: string;
+      label?: string;
+    }
+  | {
+      kind: 'capability_trace';
+      title?: string;
+      capabilityId?: string;
+      queryTemplateId?: string;
+      action?: string;
+      executionPath?: string;
+      schemaPath?: string[];
+      confidence?: number;
+      fallbackReason?: string | null;
+      entity?: {
+        objectType?: string;
+        entityName?: string;
+        entityId?: string;
+        sourceModel?: string;
+        confidence?: number;
+      };
+    }
+  | {
+      kind: 'link_card';
+      title: string;
+      description?: string;
+      primaryUrl?: string;
+      miniappPath?: string;
+      qrCodeUrl?: string;
+      statusLabel?: string;
+      links?: Array<{ label: string; value: string; type?: 'url' | 'miniapp_path' | 'qr_code' | 'text' }>;
+      actions?: AuraBlockAction[];
+    }
   | { kind: 'customer_card'; customerId: string; name: string; vipLevel?: string; lastVisit?: string; suggestion?: string; actions?: AuraBlockAction[] }
   | {
       kind: 'opportunity_card';
@@ -96,9 +141,18 @@ export type AuraResponseBlock =
       reason?: string;
       actions?: AuraBlockAction[];
     }
+  | {
+      kind: 'clarification_card';
+      title: string;
+      question: string;
+      options: AuraClarificationOption[];
+      allowFreeText?: boolean;
+    }
   | { kind: 'confirm_action'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
   | { kind: 'action_card'; title: string; preview: string; actionId: string; riskLevel: AgentRiskLevel; impactSummary?: string }
   | { kind: 'alert'; level: 'warning' | 'critical' | 'info'; message: string; actionId?: string }
   | { kind: 'follow_up_chips'; suggestions: string[] }
   | { kind: 'document_preview'; title: string; content: string; downloadable?: boolean }
-  | { kind: 'evidence_panel'; sources: string[]; dateRange?: string; metricDefinition: string; limitations?: string[] };
+  | { kind: 'evidence_panel'; sources: string[]; dateRange?: string; metricDefinition: string; limitations?: string[] }
+  | { kind: 'data_gap'; title: string; message: string; missingData: string[]; nextSteps?: string[] }
+  | { kind: 'permission_notice'; title: string; message: string; allowedSummary?: string; actions?: AuraBlockAction[] };

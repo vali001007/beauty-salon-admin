@@ -14,8 +14,14 @@ export class ProjectsController {
   @Get('projects')
   @Permissions('core:store:projects')
   @ApiOperation({ summary: '获取项目列表' })
-  findAll(@Headers('x-store-id') storeId?: string) {
-    return this.projectsService.findAll(storeId ? +storeId : undefined);
+  findAll(
+    @Query('keyword') keyword?: string,
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+    @Query('sellableOnly') sellableOnly?: string,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.projectsService.findAll({ keyword, type, status, sellableOnly }, storeId ? +storeId : undefined);
   }
 
   @Get('projects/paginated')
@@ -26,10 +32,12 @@ export class ProjectsController {
     @Query('pageSize') pageSize?: number,
     @Query('keyword') keyword?: string,
     @Query('type') type?: string,
+    @Query('status') status?: string,
+    @Query('sellableOnly') sellableOnly?: string,
     @Headers('x-store-id') storeId?: string,
   ) {
     return this.projectsService.findPaginated(
-      { page: page ? +page : undefined, pageSize: pageSize ? +pageSize : undefined, keyword, type },
+      { page: page ? +page : undefined, pageSize: pageSize ? +pageSize : undefined, keyword, type, status, sellableOnly },
       storeId ? +storeId : undefined,
     );
   }

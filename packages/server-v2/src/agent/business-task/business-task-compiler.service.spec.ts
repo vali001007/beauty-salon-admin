@@ -208,6 +208,45 @@ describe('BusinessTaskCompilerService', () => {
     });
   });
 
+  it('compiles inventory transfer questions into the transfer suggestion tool', async () => {
+    const result = await service.compile({ message: '哪些门店适合调拨', role: 'manager' });
+
+    expect(result.task).toMatchObject({
+      domain: 'inventory',
+      metrics: ['stock_risk_score'],
+    });
+    expect(result.capabilityMatches[0]).toMatchObject({
+      capabilityId: 'inventory_supply_risk',
+      toolPlan: [{ tool: 'inventory.transfer.suggestion', args: expect.objectContaining({ question: '哪些门店适合调拨' }) }],
+    });
+  });
+
+  it('compiles OCR purchase order requests into the purchase intake draft tool', async () => {
+    const result = await service.compile({ message: '用图片采购单生成入库草稿', role: 'manager' });
+
+    expect(result.task).toMatchObject({
+      domain: 'inventory',
+      metrics: ['stock_risk_score'],
+    });
+    expect(result.capabilityMatches[0]).toMatchObject({
+      capabilityId: 'inventory_supply_risk',
+      toolPlan: [{ tool: 'inventory.purchase.intake.draft', args: expect.objectContaining({ question: '用图片采购单生成入库草稿' }) }],
+    });
+  });
+
+  it('compiles voice outbound requests into the stock operation draft tool', async () => {
+    const result = await service.compile({ message: '语音录入出库草稿', role: 'manager' });
+
+    expect(result.task).toMatchObject({
+      domain: 'inventory',
+      metrics: ['stock_risk_score'],
+    });
+    expect(result.capabilityMatches[0]).toMatchObject({
+      capabilityId: 'inventory_supply_risk',
+      toolPlan: [{ tool: 'inventory.stock.operation.draft', args: expect.objectContaining({ question: '语音录入出库草稿' }) }],
+    });
+  });
+
   it('compiles scheduling questions into reservation schedule diagnosis capability', async () => {
     const result = await service.compile({ message: '今天哪些美容师空闲', role: 'manager' });
 

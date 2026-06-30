@@ -193,8 +193,8 @@ export class SupplyPlatformController {
   @Post('procurement/orders/:id/receipts')
   @Permissions('core:inventory:purchase', 'core:supply:manage')
   @ApiOperation({ summary: '门店确认收货并入库' })
-  receiveOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: ReceiveProcurementOrderDto) {
-    return this.supplyPlatformService.receiveOrder(id, dto);
+  receiveOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: ReceiveProcurementOrderDto, @Req() req: SupplyPlatformRequest) {
+    return this.supplyPlatformService.receiveOrder(id, { ...dto, operatorId: (dto as any).operatorId ?? req.user?.id } as any);
   }
 
   @Get('settlements')

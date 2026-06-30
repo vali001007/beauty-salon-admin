@@ -1,0 +1,46 @@
+{
+  "mode": "plan-only",
+  "totalQuestions": 650,
+  "persona": "all",
+  "systemUnsupported": {
+    "total": 22,
+    "byPersona": {
+      "manager": 11,
+      "marketing": 1,
+      "reception": 5,
+      "beautician": 3,
+      "finance": 1,
+      "edge": 1
+    },
+    "byReason": {
+      "当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。": 9,
+      "当前系统没有客户等待离店或现场排队流失记录业务闭环。": 1,
+      "当前系统有采购与供应链数据，但没有供应商涨价通知业务对象。": 1,
+      "当前系统支持终端运行诊断，但没有美容设备维保或故障业务闭环。": 1,
+      "当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。": 5,
+      "当前系统没有员工离职交接或客户流失归因到离职带走的业务闭环。": 1,
+      "当前系统没有消防安全、税务、发票或纳税业务闭环。": 4
+    }
+  },
+  "alreadyTested": {
+    "p0_daily": 119,
+    "kiosk_e2e": 9
+  },
+  "remainingSupported": {
+    "total": 500,
+    "selected": 500,
+    "byPersona": {
+      "manager": 71,
+      "marketing": 84,
+      "reception": 80,
+      "beautician": 83,
+      "inventory": 80,
+      "finance": 83,
+      "edge": 19
+    },
+    "bySupportStatus": {
+      "system_supported_testable": 471,
+      "system_supported_agent_gap": 29
+    }
+  }
+}

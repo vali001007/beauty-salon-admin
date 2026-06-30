@@ -14,8 +14,10 @@ import type {
   getInventoryAlerts,
   getManagerDashboard,
   getOperationResult,
+  getTodayPrintDocuments,
   getReceptionDashboard,
   getRechargeFlow,
+  getRefundFlow,
   getRegistrationFlow,
   getServiceRecordFlow,
   getStaffSchedules,
@@ -34,12 +36,14 @@ export type AuraPayload =
   | { kind: "growth"; data: Awaited<ReturnType<typeof getCustomerGrowthCandidates>> }
   | { kind: "followUpTasks"; data: Awaited<ReturnType<typeof getFollowUpTasksView>> }
   | { kind: "inventory"; data: Awaited<ReturnType<typeof getInventoryAlerts>> }
+  | { kind: "printDocuments"; data: Awaited<ReturnType<typeof getTodayPrintDocuments>> }
   | { kind: "customer"; data: NonNullable<Awaited<ReturnType<typeof getCustomerCard>>> }
   | { kind: "cardVerification"; data: Awaited<ReturnType<typeof getCardVerificationFlow>> }
   | { kind: "cashier"; data: Awaited<ReturnType<typeof getCashierFlow>> }
   | { kind: "cardOpening"; data: Awaited<ReturnType<typeof getCardOpeningFlow>> }
   | { kind: "registration"; data: Awaited<ReturnType<typeof getRegistrationFlow>> }
   | { kind: "recharge"; data: Awaited<ReturnType<typeof getRechargeFlow>> }
+  | { kind: "refund"; data: Awaited<ReturnType<typeof getRefundFlow>> }
   | { kind: "serviceRecord"; data: Awaited<ReturnType<typeof getServiceRecordFlow>> }
   | { kind: "operation"; data: Awaited<ReturnType<typeof getOperationResult>> }
   | { kind: "automation"; data: Awaited<ReturnType<typeof createAutomationDraft>> }

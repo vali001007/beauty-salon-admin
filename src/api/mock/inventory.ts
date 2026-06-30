@@ -235,12 +235,16 @@ export async function mockCreatePurchaseOrder(data: PurchaseOrderFormData): Prom
 }
 
 export async function mockCreateTransfer(data: TransferFormData): Promise<TransferOrder> {
+  const formatStoreName = (storeId: number) => {
+    const stock = MOCK_STOCK.find((item) => item.storeName && item.id === Number(data.items?.[0]?.productId));
+    return stock?.storeName && storeId === Number(data.fromStoreId) ? stock.storeName : `门店 #${storeId}`;
+  };
   const newTransfer: TransferOrder = {
     id: Date.now(),
     orderNo: `TF-${new Date().toISOString().slice(0, 10)}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`,
-    fromStore: data.fromStore,
-    toStore: data.toStore,
-    productCount: 1,
+    fromStore: formatStoreName(data.fromStoreId),
+    toStore: formatStoreName(data.toStoreId),
+    productCount: data.items.length,
     status: '待确认',
     createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
   };

@@ -4,9 +4,11 @@ import type {
   MemberCardGiftPayload,
   MemberCardOpenPayload,
   MemberCardRechargePayload,
+  MemberCardRefundPayload,
   MemberCardTransaction,
   ProductOrder,
   ProductOrderCreatePayload,
+  ProductOrderRefundPayload,
   ProductOrderProfitDetail,
   ProjectOrderProfitDetail,
 } from '@/types';
@@ -31,6 +33,7 @@ import {
   realGiftMemberCard,
   realOpenMemberCard,
   realRechargeMemberCard,
+  realRefundMemberCard,
 } from './real/memberCard';
 
 export const getProductOrders: (params?: { status?: string; keyword?: string; storeId?: number }) => Promise<ProductOrder[]> =
@@ -51,7 +54,7 @@ export const updateProductOrder: (id: number, data: Partial<ProductOrder>) => Pr
 export const deleteProductOrder: (id: number) => Promise<void> =
   realDeleteProductOrder;
 
-export const refundProductOrder: (id: number) => Promise<ProductOrder> =
+export const refundProductOrder: (id: number, data?: ProductOrderRefundPayload) => Promise<ProductOrder> =
   realRefundProductOrder;
 
 export const getProjectOrders: (params?: { status?: string; keyword?: string; storeId?: number }) => Promise<ProductOrder[]> =
@@ -90,6 +93,9 @@ export const giftMemberCard: (id: number, data: MemberCardGiftPayload) => Promis
 
 export const deductMemberCard: (id: number, data: MemberCardDeductPayload) => Promise<MemberCardAccount> =
   realDeductMemberCard;
+
+export const refundMemberCard: (id: number, data: MemberCardRefundPayload) => Promise<MemberCardAccount> =
+  realRefundMemberCard;
 
 export const getMemberCardTransactions: (accountId: number) => Promise<MemberCardTransaction[]> =
   realGetMemberCardTransactions;

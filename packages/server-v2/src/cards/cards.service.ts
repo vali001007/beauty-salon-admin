@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
+import { deductStockItems } from '../common/inventory-stock-deduction.js';
 
 @Injectable()
 export class CardsService {
@@ -161,6 +162,7 @@ export class CardsService {
       times: number;
       recordId: number;
       cardName: string;
+      remark?: string;
     },
   ) {
     if (!params.storeId || !params.projectName || params.times <= 0) return;
@@ -179,48 +181,21 @@ export class CardsService {
       where: { projectId: project.id },
       select: { productId: true, standardQty: true },
     });
-    for (const bomItem of bomItems) {
-      const quantity = this.toNumber(bomItem.standardQty) * params.times;
-      if (quantity <= 0) continue;
-
-      const product = await tx.product.findFirst({
-        where: { id: bomItem.productId, storeId: params.storeId, deletedAt: null },
-      });
-      if (!product) continue;
-
-      const beforeStock = this.toNonNegativeStock(product.currentStock);
-      const appliedQty = Math.min(beforeStock, quantity);
-      const afterStock = beforeStock - appliedQty;
-      if (appliedQty <= 0) {
-        if (this.toNumber(product.currentStock) < 0) {
-          await tx.product.update({
-            where: { id: product.id },
-            data: { currentStock: 0 },
-          });
-        }
-        continue;
-      }
-      await tx.product.update({
-        where: { id: product.id },
-        data: { currentStock: afterStock },
-      });
-      await tx.stockMovement.create({
-        data: {
-          storeId: params.storeId,
-          productId: product.id,
-          movementNo: this.createStockMovementNo('SM'),
-          movementType: 'service_consume',
-          quantity: -appliedQty,
-          beforeStock,
-          afterStock,
-          unit: product.unit,
-          sourceType: 'card_usage',
-          sourceId: params.recordId,
-          sourceNo: params.cardName,
-          remark: this.buildInventoryShortageRemark(`次卡核销自动扣耗材：${project.name}`, quantity, appliedQty),
-        },
-      });
-    }
+    await deductStockItems(tx, {
+      storeId: params.storeId,
+      movementType: 'service_consume',
+      source: {
+        type: 'card_usage',
+        id: params.recordId,
+        no: params.cardName,
+        remark: params.remark ?? `次卡核销自动扣耗材：${project.name}`,
+      },
+      items: bomItems.map((bomItem: any) => ({
+        productId: bomItem.productId,
+        quantity: this.toNumber(bomItem.standardQty) * params.times,
+        remark: params.remark ?? `次卡核销自动扣耗材：${project.name}`,
+      })),
+    });
   }
 
   async findAll() {
@@ -332,6 +307,7 @@ export class CardsService {
     operatorId?: number;
     beauticianId?: number;
     deviceId?: number;
+    remark?: string;
   }) {
     const customerCardId = Number(data.customerCardId ?? data.cardOrderId ?? 0);
     const times = Number(data.times ?? data.consumedTimes ?? 1);
@@ -462,6 +438,7 @@ export class CardsService {
         times,
         recordId: record.id,
         cardName: customerCard.cardName,
+        remark: data.remark,
       });
 
       if (data.beauticianId && recognizedAmount > 0) {

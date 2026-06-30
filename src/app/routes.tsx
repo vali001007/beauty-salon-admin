@@ -54,6 +54,11 @@ const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManage
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
 const AgentAuditPage = lazyWithRetry(() => import('./pages/system/AgentAuditPage').then(m => ({ default: m.AgentAuditPage })), 'AgentAuditPage');
 const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
+const FinanceOverview = lazyWithRetry(() => import('./pages/finance/FinanceOverview').then(m => ({ default: m.FinanceOverview })), 'FinanceOverview');
+const CashierReconciliation = lazyWithRetry(() => import('./pages/finance/CashierReconciliation').then(m => ({ default: m.CashierReconciliation })), 'CashierReconciliation');
+const StaffCommissionWorkbench = lazyWithRetry(() => import('./pages/finance/StaffCommissionWorkbench').then(m => ({ default: m.StaffCommissionWorkbench })), 'StaffCommissionWorkbench');
+const ProfitWorkbench = lazyWithRetry(() => import('./pages/finance/ProfitWorkbench').then(m => ({ default: m.ProfitWorkbench })), 'ProfitWorkbench');
+const MemberAssets = lazyWithRetry(() => import('./pages/finance/MemberAssets').then(m => ({ default: m.MemberAssets })), 'MemberAssets');
 const CommissionRules = lazyWithRetry(() => import('./pages/finance/CommissionRules').then(m => ({ default: m.CommissionRules })), 'CommissionRules');
 const CommissionRecords = lazyWithRetry(() => import('./pages/finance/CommissionRecords').then(m => ({ default: m.CommissionRecords })), 'CommissionRecords');
 const MonthlySettlement = lazyWithRetry(() => import('./pages/finance/MonthlySettlement').then(m => ({ default: m.MonthlySettlement })), 'MonthlySettlement');
@@ -191,13 +196,18 @@ export const router = createBrowserRouter([
       { path: 'inventory/consumption', element: withGuard('core:inventory:consumption', ServiceConsumption) },
 
       // Finance
+      { path: 'finance', element: withGuard('core:finance:view', FinanceOverview) },
+      { path: 'finance/reconciliation', element: withGuard('core:finance:view', CashierReconciliation) },
+      { path: 'finance/staff-commission', element: withGuard('core:finance:view', StaffCommissionWorkbench) },
+      { path: 'finance/profit', element: withGuard('core:operation-profit:view', ProfitWorkbench) },
+      { path: 'finance/member-assets', element: withGuard('core:prepaid-liability:view', MemberAssets) },
       { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailySettlement) },
       { path: 'finance/commission-rules', element: withGuard('core:finance:manage', CommissionRules) },
       { path: 'finance/commission-records', element: withGuard('core:finance:view', CommissionRecords) },
       { path: 'finance/monthly-settlement', element: withGuard('core:finance:view', MonthlySettlement) },
       { path: 'finance/ami-performance', element: withGuard('core:finance:view', AmiPerformance) },
       { path: 'finance/ami-billing', element: withGuard('core:finance:view', AmiBilling) },
-      { path: 'finance/platform-revenue', element: withGuard('core:finance:view', PlatformRevenue) },
+      { path: 'finance/platform-revenue', element: withGuard('core:platform-revenue:view', PlatformRevenue) },
 
       // Operation Profit
       { path: 'operation-profit', element: <Navigate to="/operation-profit/overview" replace /> },

@@ -35,6 +35,44 @@ function ToggleSwitch({ checked }: { checked: boolean }) {
   );
 }
 
+function getProjectBomCompleteness(project: Project) {
+  const bom = project.bom ?? [];
+  if (!bom.length) {
+    return {
+      label: '未配置',
+      hint: '不会自动扣耗材',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
+    };
+  }
+  if (bom.some((item) => item.productStatus === '停售' || item.productStatus === 'offline' || item.productStatus === 'inactive' || !item.productName)) {
+    return {
+      label: '商品已下架',
+      hint: '需替换耗材',
+      className: 'bg-red-50 text-red-700 border-red-200',
+    };
+  }
+  if (bom.some((item) => Number(item.costPrice ?? 0) <= 0)) {
+    return {
+      label: '缺成本',
+      hint: `${bom.length} 项耗材`,
+      className: 'bg-orange-50 text-orange-700 border-orange-200',
+    };
+  }
+  return {
+    label: '已配置',
+    hint: `${bom.length} 项耗材`,
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  };
+}
+
+function formatProjectCarePlan(project: Project) {
+  const parts = [
+    project.careCycleWeeks ? `周期 ${project.careCycleWeeks} 周` : '',
+    project.treatmentCourseTimes ? `疗程 ${project.treatmentCourseTimes} 次` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' / ') : '-';
+}
+
 export function ProjectManagement() {
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -66,6 +104,12 @@ export function ProjectManagement() {
   useEffect(() => {
     loadProjectTypes();
   }, [loadProjectTypes]);
+
+  useEffect(() => {
+    const handleProjectBomUpdated = () => loadProjects();
+    window.addEventListener('project-bom-updated', handleProjectBomUpdated);
+    return () => window.removeEventListener('project-bom-updated', handleProjectBomUpdated);
+  }, [loadProjects]);
 
   useEffect(() => {
     setSelectedProjectIds((prev) => {
@@ -211,11 +255,13 @@ export function ProjectManagement() {
               <TableHead>所属门店</TableHead>
               <TableHead>项目类型</TableHead>
               <TableHead>项目价格</TableHead>
+              <TableHead>BOM完整度</TableHead>
               <TableHead className="text-center">是否推荐</TableHead>
               <TableHead className="text-center">线上展示</TableHead>
               <TableHead className="text-center">首页展示</TableHead>
               <TableHead className="text-center">状态</TableHead>
               <TableHead>项目时长</TableHead>
+              <TableHead>护理计划</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -245,6 +291,19 @@ export function ProjectManagement() {
                 <TableCell className="text-gray-600 align-middle">{project.storeName}</TableCell>
                 <TableCell className="text-gray-600 align-middle">{project.type}</TableCell>
                 <TableCell className="font-medium text-orange-500 align-middle">{project.price > 0 ? `¥${project.price.toFixed(2)}` : '-'}</TableCell>
+                <TableCell className="align-middle">
+                  {(() => {
+                    const completeness = getProjectBomCompleteness(project);
+                    return (
+                      <div>
+                        <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${completeness.className}`}>
+                          {completeness.label}
+                        </span>
+                        <div className="mt-1 text-xs text-gray-500">{completeness.hint}</div>
+                      </div>
+                    );
+                  })()}
+                </TableCell>
                 <TableCell className="text-center align-middle">
                   <StatusBadge active={project.recommend}>{project.recommend ? '是' : '否'}</StatusBadge>
                 </TableCell>
@@ -258,6 +317,7 @@ export function ProjectManagement() {
                   <ToggleSwitch checked={project.status} />
                 </TableCell>
                 <TableCell className="text-gray-600 align-middle">{project.duration} 分钟</TableCell>
+                <TableCell className="text-gray-600 align-middle">{formatProjectCarePlan(project)}</TableCell>
                 <TableCell className="text-right align-middle">
                   <div className="flex items-center justify-end gap-3">
                     <button className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 text-sm" onClick={() => openMarketingPageGenerator(project)}>

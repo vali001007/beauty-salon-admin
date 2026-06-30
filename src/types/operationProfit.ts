@@ -257,6 +257,7 @@ export interface PrepaidLiabilityRow {
   cashBalance?: number;
   giftBalance?: number;
   estimatedRemainingValue: number;
+  recognizedIncome?: number;
   expiryDate: string;
   lastUsedAt?: string;
   lastTransactionType?: string;
@@ -272,6 +273,8 @@ export interface PrepaidLiabilitySummary {
   balanceLiability: number;
   cashBalance: number;
   giftBalance: number;
+  cardRecognizedIncome?: number;
+  remainingTimes?: number;
   highRisk: number;
   mediumRisk: number;
 }
@@ -294,6 +297,21 @@ export interface BeauticianPerformanceRow {
   contributionProfit: number;
   repurchaseRate: number;
   missingCostReasons: MissingCostReason[];
+  serviceDetails?: BeauticianPerformanceServiceDetail[];
+}
+
+export interface BeauticianPerformanceServiceDetail {
+  id: string;
+  sourceType: 'order' | 'card_usage';
+  sourceLabel: string;
+  sourceNo?: string;
+  serviceName: string;
+  customerName?: string;
+  occurredAt?: string;
+  quantity: number;
+  income: number;
+  commissionCost: number;
+  contributionProfit: number;
 }
 
 export type OperationCostPage = PaginatedResponse<OperationCost>;

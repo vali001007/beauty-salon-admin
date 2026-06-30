@@ -25,6 +25,10 @@ import { AgentSchemaReadinessService } from './agent-schema-readiness.service.js
 import { QueryPlannerService } from '../semantic-query/query-planner.service.js';
 import { SemanticQueryExecutorService } from '../semantic-query/semantic-query-executor.service.js';
 import { ResponseComposerService } from '../semantic-query/response-composer.service.js';
+import { CapabilityCatalogService } from './knowledge/capability-catalog.service.js';
+import { EntityResolverService } from './knowledge/entity-resolver.service.js';
+import { SchemaGraphService } from './knowledge/schema-graph.service.js';
+import { readKnowledgeMapEvalReport } from './agent-eval-knowledge-map.js';
 
 @ApiTags('Agent')
 @ApiBearerAuth()
@@ -42,6 +46,9 @@ export class AgentController {
     private readonly observabilityService: AgentObservabilityService,
     private readonly automationService: AgentAutomationService,
     private readonly schemaReadinessService: AgentSchemaReadinessService,
+    private readonly capabilityCatalog: CapabilityCatalogService,
+    private readonly entityResolver: EntityResolverService,
+    private readonly schemaGraph: SchemaGraphService,
     private readonly queryPlanner?: QueryPlannerService,
     private readonly semanticQueryExecutor?: SemanticQueryExecutorService,
     private readonly responseComposer?: ResponseComposerService,
@@ -200,6 +207,80 @@ export class AgentController {
   @ApiOperation({ summary: '只读检查阶段 6/7 Agent 数据表迁移就绪状态' })
   schemaReadiness() {
     return this.schemaReadinessService.getStatus();
+  }
+
+  @Get('knowledge/governance')
+  @ApiOperation({ summary: '获取 Agent 语义底座治理摘要' })
+  async knowledgeGovernance(
+    @CurrentDevice() device: any,
+    @Query('capabilityId') capabilityId?: string,
+    @Query('q') query?: string,
+  ) {
+    const capabilities = this.capabilityCatalog
+      .list()
+      .filter((item) => !capabilityId || item.capabilityId === capabilityId || item.businessQueryCapabilityId === capabilityId);
+    const nodes = this.schemaGraph.listNodes();
+    const evalReport = readKnowledgeMapEvalReport();
+    const filteredFailures = (evalReport?.failures ?? []).filter((item) =>
+      !capabilityId ||
+      item.expected.capabilityId === capabilityId ||
+      item.expected.businessQueryCapabilityId === capabilityId ||
+      item.actual.capabilityId === capabilityId ||
+      item.actual.businessQueryCapabilityId === capabilityId,
+    );
+    const filteredBacklog = (evalReport?.improvementBacklog ?? []).filter((item) =>
+      !capabilityId || item.expectedCapabilityId === capabilityId || item.actualCapabilityId === capabilityId,
+    );
+    const entityDebug = query?.trim()
+      ? await this.entityResolver.resolve({
+          text: query.trim(),
+          storeId: device?.storeId ? Number(device.storeId) : undefined,
+          role: device?.role,
+          limit: 5,
+        })
+      : null;
+
+    return {
+      schemaGraph: {
+        nodeCount: nodes.length,
+        relationCount: nodes.reduce((sum, node) => sum + node.relations.length, 0),
+        storeScopedCount: nodes.filter((node) => node.storeScoped).length,
+        objects: nodes.slice(0, 30).map((node) => ({
+          modelName: node.modelName,
+          objectType: node.objectType,
+          displayName: node.displayName,
+          storeScoped: node.storeScoped,
+          relationCount: node.relations.length,
+          queryableFieldCount: node.fields.filter((field) => field.queryable).length,
+        })),
+      },
+      capabilityCatalog: {
+        total: this.capabilityCatalog.list().length,
+        filtered: capabilities.length,
+        items: capabilities.map((item) => ({
+          capabilityId: item.capabilityId,
+          businessQueryCapabilityId: item.businessQueryCapabilityId,
+          displayName: item.displayName,
+          personaCodes: item.personaCodes,
+          objectTypes: item.objectTypes,
+          actions: item.actions,
+          outputKinds: item.outputKinds,
+          riskLevel: item.riskLevel,
+          examples: item.examples.slice(0, 3),
+        })),
+      },
+      evalReport: evalReport
+        ? {
+            generatedAt: evalReport.generatedAt,
+            summary: evalReport.summary,
+            gate: evalReport.gate ?? null,
+            failures: filteredFailures.slice(0, 20),
+            improvementBacklog: filteredBacklog.slice(0, 20),
+          }
+        : null,
+      entityDebug,
+      legacyRules: await this.buildLegacyRuleGovernance(),
+    };
   }
 
   // ─── Automation Engine ───────────────────────────────────────────────────
@@ -800,6 +881,158 @@ export class AgentController {
         feedbackReason: body.comment ?? (body.adopted === false ? '用户标记无用' : body.adopted === true ? '用户标记有用' : undefined),
       },
     });
+  }
+
+  private async buildLegacyRuleGovernance() {
+    try {
+      const runs = await (this.prisma as any).agentRun.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+        select: {
+          id: true,
+          runNo: true,
+          userInput: true,
+          planJson: true,
+          resultJson: true,
+          createdAt: true,
+        },
+      });
+      const legacyRuns = (runs as any[]).filter((run) => this.stringifyJson(run.planJson).includes('legacy_fallback') || this.stringifyJson(run.resultJson).includes('legacy_fallback'));
+      const reasonCounts = new Map<string, number>();
+      for (const run of legacyRuns) {
+        const reason = this.extractFallbackReason(run.planJson) ?? this.extractFallbackReason(run.resultJson) ?? 'legacy_fallback';
+        reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+      }
+      const deprecationWindows = this.buildLegacyFallbackDeprecationWindows(runs as any[]);
+      const deprecationCandidates = this.buildLegacyFallbackDeprecationCandidates(deprecationWindows);
+      return {
+        scannedRuns: runs.length,
+        legacyFallbackRuns: legacyRuns.length,
+        usageByReason: [...reasonCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([reason, count]) => ({ reason, count })),
+        samples: legacyRuns.slice(0, 10).map((run) => ({
+          runId: Number(run.id),
+          runNo: String(run.runNo),
+          question: String(run.userInput ?? ''),
+          fallbackReason: this.extractFallbackReason(run.planJson) ?? this.extractFallbackReason(run.resultJson) ?? 'legacy_fallback',
+          createdAt: run.createdAt,
+        })),
+        deprecationWindows: {
+          latest: {
+            label: deprecationWindows.latest.label,
+            runCount: deprecationWindows.latest.runs.length,
+            legacyFallbackRuns: deprecationWindows.latest.legacyRuns.length,
+          },
+          previous: {
+            label: deprecationWindows.previous.label,
+            runCount: deprecationWindows.previous.runs.length,
+            legacyFallbackRuns: deprecationWindows.previous.legacyRuns.length,
+          },
+        },
+        retainedReasons: deprecationWindows.manifest
+          .map((reason) => ({
+            reason,
+            latestCount: deprecationWindows.latest.reasonCounts.get(reason) ?? 0,
+            previousCount: deprecationWindows.previous.reasonCounts.get(reason) ?? 0,
+          }))
+          .filter((item) => item.latestCount > 0 || item.previousCount > 0),
+        deprecationCandidates,
+        deprecationPolicy: [
+          '新增问题不得优先补旧关键词规则，必须先登记到 Capability Catalog 或实体字典。',
+          '连续两个版本窗口未命中的 legacy fallback 原因进入废弃候选。',
+          '仍需保留的 legacy fallback 必须写明 fallbackReason，并在评测失败时生成待补能力清单。',
+        ],
+      };
+    } catch {
+      return {
+        scannedRuns: 0,
+        legacyFallbackRuns: 0,
+        usageByReason: [],
+        samples: [],
+        deprecationWindows: {
+          latest: { label: 'latest', runCount: 0, legacyFallbackRuns: 0 },
+          previous: { label: 'previous', runCount: 0, legacyFallbackRuns: 0 },
+        },
+        retainedReasons: [],
+        deprecationCandidates: [],
+        deprecationPolicy: [
+          'AgentRun 表不可用时仅展示策略，迁移完成后自动统计 legacy fallback 使用次数。',
+        ],
+      };
+    }
+  }
+
+  private stringifyJson(value: unknown) {
+    try {
+      return JSON.stringify(value ?? {});
+    } catch {
+      return '';
+    }
+  }
+
+  private extractFallbackReason(value: unknown) {
+    const text = this.stringifyJson(value);
+    const match = text.match(/"fallbackReason"\s*:\s*"([^"]+)"/);
+    return match?.[1] ?? null;
+  }
+
+  private knownLegacyFallbackReasons() {
+    return [
+      'capability_not_found',
+      'business_query_capability_missing',
+      'capability_confidence_below_threshold',
+      'business_query_capability_not_implemented',
+      'business_query_role_not_allowed',
+      'required_entity_not_resolved',
+      'business_task_preparser_no_executable_plan',
+      'business_task_preparser_unavailable',
+      'legacy_rule_fallback',
+      'legacy_fallback',
+    ];
+  }
+
+  private buildLegacyFallbackDeprecationWindows(runs: any[]) {
+    const midpoint = Math.ceil(runs.length / 2);
+    const latestRuns = runs.slice(0, midpoint);
+    const previousRuns = runs.slice(midpoint);
+    const latest = this.summarizeLegacyFallbackWindow('latest', latestRuns);
+    const previous = this.summarizeLegacyFallbackWindow('previous', previousRuns);
+    const manifest = Array.from(
+      new Set([
+        ...this.knownLegacyFallbackReasons(),
+        ...latest.reasonCounts.keys(),
+        ...previous.reasonCounts.keys(),
+      ]),
+    ).sort();
+    return { latest, previous, manifest };
+  }
+
+  private summarizeLegacyFallbackWindow(label: string, runs: any[]) {
+    const legacyRuns = runs.filter((run) => this.stringifyJson(run.planJson).includes('legacy_fallback') || this.stringifyJson(run.resultJson).includes('legacy_fallback'));
+    const reasonCounts = new Map<string, number>();
+    for (const run of legacyRuns) {
+      const reason = this.extractFallbackReason(run.planJson) ?? this.extractFallbackReason(run.resultJson) ?? 'legacy_fallback';
+      reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+    }
+    return { label, runs, legacyRuns, reasonCounts };
+  }
+
+  private buildLegacyFallbackDeprecationCandidates(windows: ReturnType<typeof this.buildLegacyFallbackDeprecationWindows>) {
+    const hasTwoWindows = windows.latest.runs.length > 0 && windows.previous.runs.length > 0;
+    return windows.manifest
+      .map((reason) => {
+        const latestCount = windows.latest.reasonCounts.get(reason) ?? 0;
+        const previousCount = windows.previous.reasonCounts.get(reason) ?? 0;
+        return {
+          reason,
+          latestCount,
+          previousCount,
+          candidate: hasTwoWindows && latestCount === 0 && previousCount === 0,
+          action: hasTwoWindows && latestCount === 0 && previousCount === 0 ? 'move_to_deprecated_candidate' : 'retain_and_monitor',
+        };
+      })
+      .filter((item) => item.candidate);
   }
 
   private assertTerminalRuntimeEnabled(entrypoint?: string) {

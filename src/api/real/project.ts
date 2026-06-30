@@ -16,6 +16,7 @@ type ApiProjectBomItem = Partial<ProjectBomItem> & {
       sku?: string;
       unit?: string;
       costPrice?: number | string;
+      status?: string;
     };
 };
 
@@ -34,6 +35,7 @@ function normalizeProjectBomItem(item: ApiProjectBomItem): NonNullable<Project['
     standardQty: Number(item.standardQty ?? 0),
     unit: item.unit ?? item.product?.unit ?? '',
     costPrice: Number(item.costPrice ?? item.product?.costPrice ?? 0),
+    productStatus: item.productStatus ?? item.product?.status,
   };
 }
 
@@ -44,6 +46,8 @@ function normalizeProject(item: ApiProject): Project {
     description: item.description ?? '',
     type: typeof item.type === 'string' ? item.type : item.type?.name ?? '护理项目',
     duration: Number(item.duration ?? 0),
+    careCycleWeeks: item.careCycleWeeks == null ? null : Number(item.careCycleWeeks),
+    treatmentCourseTimes: item.treatmentCourseTimes == null ? null : Number(item.treatmentCourseTimes),
     price: Number(item.price ?? 0),
     storeName: item.storeName ?? item.store?.name ?? '',
     recommend: Boolean(item.recommend ?? false),
@@ -60,7 +64,7 @@ function normalizeProject(item: ApiProject): Project {
   };
 }
 
-export async function realGetProjects(params?: { keyword?: string; type?: string }): Promise<Project[]> {
+export async function realGetProjects(params?: { keyword?: string; type?: string; status?: string; sellableOnly?: boolean }): Promise<Project[]> {
   const response = await apiClient.get<unknown, unknown>('/projects', { params });
   return extractArray<ApiProject>(response).map(normalizeProject);
 }
@@ -99,7 +103,7 @@ export async function realDeleteProject(id: number): Promise<void> {
 
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
-export async function realGetProjectsPaginated(params: PaginationParams & { keyword?: string; type?: string }): Promise<PaginatedResponse<Project>> {
+export async function realGetProjectsPaginated(params: PaginationParams & { keyword?: string; type?: string; status?: string; sellableOnly?: boolean }): Promise<PaginatedResponse<Project>> {
   const response = await apiClient.get<unknown, unknown>('/projects/paginated', { params });
   return normalizePaginatedResponse<ApiProject, Project>(response, normalizeProject);
 }
@@ -139,6 +143,7 @@ export async function realGetReservationsPaginated(
     status?: string;
     startDate?: string;
     endDate?: string;
+    scope?: 'future' | 'history';
   },
 ): Promise<PaginatedResponse<any>> {
   const response = await apiClient.get<unknown, unknown>('/reservations/paginated', { params });

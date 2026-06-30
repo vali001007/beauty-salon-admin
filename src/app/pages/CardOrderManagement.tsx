@@ -491,15 +491,15 @@ export function CardOrderManagement() {
   };
 
   const handleVoid = async (order: CardOrder) => {
-    const confirmed = window.confirm(`确认作废并退卡「${order.cardName}」？系统会按未履约金额写入退款记录，并清空剩余次数。`);
+    const confirmed = window.confirm(`确认退款「${order.cardName}」？系统会按未履约金额写入退款记录，并清空剩余次数。`);
     if (!confirmed) return;
     setVoidSubmittingId(order.id);
     try {
-      const result = await voidCardOrder(order.customerCardId ?? order.id, { reason: '管理端次卡退卡作废' });
-      toast.success(`次卡已作废${result.refundAmount ? `，退款 ${formatCurrency(result.refundAmount)}` : ''}`);
+      const result = await voidCardOrder(order.customerCardId ?? order.id, { reason: '管理端次卡退款' });
+      toast.success(`次卡退款已处理${result.refundAmount ? `，退款 ${formatCurrency(result.refundAmount)}` : ''}`);
       refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : '次卡作废失败，请稍后重试';
+      const message = error instanceof Error ? error.message : '次卡退款失败，请稍后重试';
       toast.error(message);
     } finally {
       setVoidSubmittingId(null);
@@ -777,7 +777,7 @@ export function CardOrderManagement() {
                         onClick={() => void handleVoid(order)}
                         disabled={voidSubmittingId === order.id}
                       >
-                        {voidSubmittingId === order.id ? '处理中' : '作废'}
+                        {voidSubmittingId === order.id ? '处理中' : '退款'}
                       </button>
                     )}
                   </div>

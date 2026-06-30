@@ -1,12 +1,21 @@
-import type { StockItem, StockMovement, Batch, ExpiringProduct, ReplenishmentSuggestion, PurchaseOrder, TransferOrder } from '@/types';
-import type { InboundFormData, PurchaseOrderFormData, TransferFormData } from '@/schemas/inventory';
+import type { StockItem, StockMovement, Batch, ExpiringProduct, ExpirySummary, ReplenishmentSuggestion, PurchaseOrder, TransferOrder, TransferSuggestion } from '@/types';
+import type { InboundFormData, InventoryAdjustmentFormData, PurchaseOrderFormData, TransferFormData } from '@/schemas/inventory';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import apiClient from '../client';
 import { extractArray, normalizePaginatedResponse } from './response';
 
-type ApiStockItem = Partial<StockItem> & { name?: string; productName?: string; currentStock?: number | string; safetyStock?: number | string };
+type ApiStockItem = Partial<StockItem> & {
+  name?: string;
+  productName?: string;
+  currentStock?: number | string;
+  safetyStock?: number | string;
+  costPrice?: number | string;
+  category?: { id?: number; name?: string };
+};
 type ApiBatch = Partial<Batch> & { stock?: number | string; product?: { name?: string; sku?: string } };
 type ApiExpiringProduct = Partial<ExpiringProduct> & {
+  productId?: number | string;
+  storeId?: number | string;
   stock?: number | string;
   costAmount?: number | string;
   unitCost?: number | string;
@@ -15,10 +24,24 @@ type ApiExpiringProduct = Partial<ExpiringProduct> & {
   product?: {
     name?: string;
     sku?: string;
+    unit?: string | null;
+    retailPrice?: number | string;
     costPrice?: number | string;
+    supplier?: string | null;
+    storeId?: number | string;
+    category?: { name?: string };
     store?: { name?: string };
   };
   store?: { name?: string };
+};
+type ApiExpirySummary = Partial<ExpirySummary> & {
+  expiringBatchCount?: number | string;
+  urgentBatchCount?: number | string;
+  expiredBatchCount?: number | string;
+  expiringCostAmount?: number | string;
+  scrappedAmount?: number | string;
+  wastageTrend?: Array<{ month?: string; amount?: number | string }>;
+  categoryWastage?: Array<{ category?: string; percentage?: number | string; amount?: number | string }>;
 };
 type ApiStockMovement = Partial<StockMovement> & {
   store?: { id?: number; name?: string };
@@ -31,6 +54,27 @@ type ApiPurchaseOrder = Partial<Omit<PurchaseOrder, 'items' | 'totalAmount'>> & 
   items?: unknown;
   createdAt?: string;
   updatedAt?: string;
+};
+type ApiTransferOrder = Partial<Omit<TransferOrder, 'fromStore' | 'toStore' | 'status'>> & {
+  fromStoreId?: number | string;
+  toStoreId?: number | string;
+  status?: string;
+  reason?: string;
+  remark?: string;
+  items?: unknown;
+  fromStore?: string | { name?: string };
+  toStore?: string | { name?: string };
+  fromStoreName?: string;
+  toStoreName?: string;
+};
+type ApiTransferSuggestion = Partial<TransferSuggestion> & {
+  productId?: number | string;
+  fromStoreId?: number | string;
+  toStoreId?: number | string;
+  sourceStock?: number | string;
+  targetStock?: number | string;
+  safetyStock?: number | string;
+  suggestedQty?: number | string;
 };
 
 function normalizeStockItem(item: ApiStockItem): StockItem {
@@ -48,6 +92,9 @@ function normalizeStockItem(item: ApiStockItem): StockItem {
     availableStock,
     safetyStock,
     maxStock: Math.max(0, Number(item.maxStock ?? Math.max(safetyStock * 5, currentStock))),
+    categoryId: item.categoryId ?? item.category?.id ?? null,
+    categoryName: item.categoryName ?? item.category?.name ?? '',
+    costPrice: item.costPrice === undefined ? undefined : Number(item.costPrice),
     status,
     lastInboundDate: item.lastInboundDate ?? '',
     storeName: item.storeName ?? '',
@@ -95,6 +142,8 @@ function normalizeExpiringProduct(item: ApiExpiringProduct): ExpiringProduct {
 
   return {
     id: Number(item.id ?? 0),
+    productId: item.productId === undefined ? undefined : Number(item.productId),
+    storeId: item.storeId === undefined && item.product?.storeId === undefined ? undefined : Number(item.storeId ?? item.product?.storeId),
     urgency,
     productName: item.productName ?? item.product?.name ?? '',
     sku: item.sku ?? item.product?.sku ?? '',
@@ -103,7 +152,35 @@ function normalizeExpiringProduct(item: ApiExpiringProduct): ExpiringProduct {
     stock,
     costAmount: Number(item.costAmount ?? stock * unitCost),
     storeName: item.storeName ?? item.store?.name ?? item.product?.store?.name ?? '',
+    unit: item.unit ?? item.product?.unit ?? null,
+    retailPrice: item.retailPrice === undefined && item.product?.retailPrice === undefined ? undefined : Number(item.retailPrice ?? item.product?.retailPrice),
+    costPrice: unitCost,
+    supplier: item.supplier ?? item.product?.supplier ?? null,
+    categoryName: item.categoryName ?? item.product?.category?.name ?? null,
+    riskLevel: item.riskLevel,
+    suggestedAction: item.suggestedAction,
     suggestion,
+  };
+}
+
+function normalizeExpirySummary(item: ApiExpirySummary): ExpirySummary {
+  return {
+    period: item.period ?? '60d',
+    windowDays: Number(item.windowDays ?? 60),
+    expiringBatchCount: Number(item.expiringBatchCount ?? 0),
+    urgentBatchCount: Number(item.urgentBatchCount ?? 0),
+    expiredBatchCount: Number(item.expiredBatchCount ?? 0),
+    expiringCostAmount: Number(item.expiringCostAmount ?? 0),
+    scrappedAmount: Number(item.scrappedAmount ?? 0),
+    wastageTrend: (item.wastageTrend ?? []).map((entry) => ({
+      month: entry.month ?? '',
+      amount: Number(entry.amount ?? 0),
+    })),
+    categoryWastage: (item.categoryWastage ?? []).map((entry) => ({
+      category: entry.category ?? '未分类',
+      percentage: Number(entry.percentage ?? 0),
+      amount: Number(entry.amount ?? 0),
+    })),
   };
 }
 
@@ -144,6 +221,9 @@ function normalizePurchaseStatus(status: unknown): PurchaseOrder['status'] {
     review: '待审核',
     approved: '已审核',
     ordered: '已下单',
+    partial_received: '部分收货',
+    partialReceived: '部分收货',
+    '部分收货': '部分收货',
     received: '已收货',
     cancelled: '已取消',
     canceled: '已取消',
@@ -157,7 +237,7 @@ function getPurchasePayload(item: ApiPurchaseOrder) {
     : undefined;
   const rawItems = Array.isArray(item.items) ? item.items : Array.isArray(payload?.items) ? payload.items : [];
   const items = rawItems.map((raw, index) => {
-    const value = raw as { id?: number | string; productName?: string; sku?: string; quantity?: number | string; unitPrice?: number | string; subtotal?: number | string };
+    const value = raw as { id?: number | string; productName?: string; sku?: string; quantity?: number | string; receivedQty?: number | string; unitPrice?: number | string; subtotal?: number | string };
     const quantity = Number(value.quantity ?? 0);
     const unitPrice = Number(value.unitPrice ?? 0);
     return {
@@ -165,6 +245,7 @@ function getPurchasePayload(item: ApiPurchaseOrder) {
       productName: value.productName ?? '',
       sku: value.sku ?? '',
       quantity,
+      receivedQty: Number(value.receivedQty ?? 0),
       unitPrice,
       subtotal: Number(value.subtotal ?? quantity * unitPrice),
     };
@@ -189,7 +270,7 @@ function normalizePurchaseOrder(item: ApiPurchaseOrder): PurchaseOrder {
   };
 }
 
-export async function realGetStockItems(params?: { storeId?: number; status?: string; keyword?: string }): Promise<StockItem[]> {
+export async function realGetStockItems(params?: { storeId?: number; categoryId?: number; status?: string; keyword?: string }): Promise<StockItem[]> {
   const response = await apiClient.get<unknown, unknown>('/inventory/stock', { params });
   return extractArray<ApiStockItem>(response).map(normalizeStockItem);
 }
@@ -212,9 +293,14 @@ export async function realGetStockMovements(params?: {
   return normalizePaginatedResponse<ApiStockMovement, StockMovement>(response, normalizeStockMovement);
 }
 
-export async function realGetExpiringProducts(): Promise<ExpiringProduct[]> {
-  const response = await apiClient.get<unknown, unknown>('/inventory/expiring');
+export async function realGetExpiringProducts(params?: { period?: string }): Promise<ExpiringProduct[]> {
+  const response = await apiClient.get<unknown, unknown>('/inventory/expiring', { params });
   return extractArray<ApiExpiringProduct>(response).map(normalizeExpiringProduct);
+}
+
+export async function realGetExpirySummary(params?: { period?: string }): Promise<ExpirySummary> {
+  const response = await apiClient.get<unknown, unknown>('/inventory/expiring/summary', { params });
+  return normalizeExpirySummary(response as ApiExpirySummary);
 }
 
 export async function realGetReplenishmentSuggestions(): Promise<ReplenishmentSuggestion[]> {
@@ -230,12 +316,93 @@ export async function realCreateInbound(data: InboundFormData): Promise<Batch> {
   return apiClient.post('/inventory/inbound', data);
 }
 
+function normalizeTransferStatus(status: unknown): TransferOrder['status'] {
+  const value = String(status || '');
+  if (['待确认', '运输中', '已完成', '已取消'].includes(value)) {
+    return value as TransferOrder['status'];
+  }
+  const map: Record<string, TransferOrder['status']> = {
+    pending: '待确认',
+    confirmed: '待确认',
+    shipping: '运输中',
+    in_transit: '运输中',
+    completed: '已完成',
+    received: '已完成',
+    done: '已完成',
+    cancelled: '已取消',
+    canceled: '已取消',
+  };
+  return map[value] ?? '待确认';
+}
+
+function getTransferStoreName(value: ApiTransferOrder['fromStore'] | ApiTransferOrder['toStore'], fallback?: string) {
+  if (typeof value === 'string') return value;
+  return value?.name ?? fallback ?? '';
+}
+
+function normalizeTransferOrder(item: ApiTransferOrder): TransferOrder {
+  const rawItems = Array.isArray(item.items) ? item.items : [];
+  return {
+    id: Number(item.id),
+    orderNo: item.orderNo ?? '',
+    fromStore: getTransferStoreName(item.fromStore, item.fromStoreName),
+    toStore: getTransferStoreName(item.toStore, item.toStoreName),
+    productCount: Number(item.productCount ?? rawItems.length),
+    status: normalizeTransferStatus(item.status),
+    createdAt: item.createdAt ?? '',
+    reason: item.reason ?? item.remark,
+  };
+}
+
+function normalizeTransferSuggestion(item: ApiTransferSuggestion): TransferSuggestion {
+  return {
+    id: String(item.id ?? `${item.fromStoreId}-${item.toStoreId}-${item.sku}`),
+    sku: item.sku ?? '',
+    productName: item.productName ?? '',
+    productId: Number(item.productId ?? 0),
+    fromStoreId: Number(item.fromStoreId ?? 0),
+    fromStoreName: item.fromStoreName ?? '',
+    toStoreId: Number(item.toStoreId ?? 0),
+    toStoreName: item.toStoreName ?? '',
+    sourceStock: Number(item.sourceStock ?? 0),
+    targetStock: Number(item.targetStock ?? 0),
+    safetyStock: Number(item.safetyStock ?? 0),
+    suggestedQty: Number(item.suggestedQty ?? 0),
+    unit: item.unit ?? null,
+    reason: item.reason ?? '',
+  };
+}
+
+export async function realCreateInventoryAdjustment(data: InventoryAdjustmentFormData): Promise<StockMovement> {
+  return apiClient.post('/inventory/adjustments', data);
+}
+
 export async function realCreatePurchaseOrder(data: PurchaseOrderFormData): Promise<PurchaseOrder> {
-  return apiClient.post('/inventory/purchase-orders', data);
+  const response = await apiClient.post<unknown, unknown>('/inventory/purchase-orders', data);
+  return normalizePurchaseOrder(response as ApiPurchaseOrder);
+}
+
+export async function realUpdatePurchaseOrderStatus(id: number, status: PurchaseOrder['status']): Promise<PurchaseOrder> {
+  const response = await apiClient.patch<unknown, unknown>(`/inventory/purchase-orders/${id}/status`, { status });
+  return normalizePurchaseOrder(response as ApiPurchaseOrder);
+}
+
+export async function realReceivePurchaseOrder(id: number, data: {
+  items?: Array<{ sku: string; receivedQty: number; batchNo?: string; productionDate?: string; expiryDate?: string }>;
+  remark?: string;
+}): Promise<PurchaseOrder> {
+  const response = await apiClient.post<unknown, unknown>(`/inventory/purchase-orders/${id}/receive`, data);
+  return normalizePurchaseOrder(response as ApiPurchaseOrder);
 }
 
 export async function realCreateTransfer(data: TransferFormData): Promise<TransferOrder> {
-  return apiClient.post('/inventory/transfers', data);
+  const response = await apiClient.post<unknown, unknown>('/inventory/transfers', data);
+  return normalizeTransferOrder(response as ApiTransferOrder);
+}
+
+export async function realGetTransferSuggestions(): Promise<TransferSuggestion[]> {
+  const response = await apiClient.get<unknown, unknown>('/inventory/transfers/suggestions');
+  return extractArray<ApiTransferSuggestion>(response).map(normalizeTransferSuggestion);
 }
 
 export async function realCancelPurchaseOrder(id: number): Promise<void> {
@@ -246,7 +413,7 @@ export async function realCancelTransfer(id: number): Promise<void> {
   return apiClient.delete(`/inventory/transfers/${id}`);
 }
 
-export async function realGetStockItemsPaginated(params: PaginationParams & { storeId?: number; status?: string; keyword?: string }): Promise<PaginatedResponse<StockItem>> {
+export async function realGetStockItemsPaginated(params: PaginationParams & { storeId?: number; categoryId?: number; status?: string; keyword?: string }): Promise<PaginatedResponse<StockItem>> {
   const response = await apiClient.get<unknown, unknown>('/inventory/stock/paginated', { params });
   return normalizePaginatedResponse<ApiStockItem, StockItem>(response, normalizeStockItem);
 }
@@ -256,11 +423,12 @@ export async function realGetPurchaseOrdersPaginated(params: PaginationParams): 
   return normalizePaginatedResponse<ApiPurchaseOrder, PurchaseOrder>(response, normalizePurchaseOrder);
 }
 
-export async function realGetExpiringProductsPaginated(params: PaginationParams): Promise<PaginatedResponse<ExpiringProduct>> {
+export async function realGetExpiringProductsPaginated(params: PaginationParams & { period?: string }): Promise<PaginatedResponse<ExpiringProduct>> {
   const response = await apiClient.get<unknown, unknown>('/inventory/expiring/paginated', { params });
   return normalizePaginatedResponse<ApiExpiringProduct, ExpiringProduct>(response, normalizeExpiringProduct);
 }
 
 export async function realGetTransferOrdersPaginated(params: PaginationParams): Promise<PaginatedResponse<TransferOrder>> {
-  return apiClient.get('/inventory/transfers/paginated', { params });
+  const response = await apiClient.get<unknown, unknown>('/inventory/transfers/paginated', { params });
+  return normalizePaginatedResponse<ApiTransferOrder, TransferOrder>(response, normalizeTransferOrder);
 }

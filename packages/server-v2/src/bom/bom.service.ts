@@ -85,7 +85,9 @@ export class BomService {
                 select: {
                   id: true,
                   itemType: true,
+                  itemId: true,
                   name: true,
+                  quantity: true,
                   beauticianId: true,
                   payload: true,
                   beautician: { select: { name: true } },
@@ -131,6 +133,15 @@ export class BomService {
         this.resolveOrderServiceEmployee(order, orderProjectItem) ??
         '未记录';
       const actualQty = Math.abs(Number(movement.quantity ?? 0));
+      const projectId =
+        cardUsage?.projectId ??
+        task?.projectId ??
+        orderProjectItem?.itemId ??
+        undefined;
+      const serviceTimes =
+        this.toNumber(cardUsage?.times) ||
+        this.toNumber(orderProjectItem?.quantity) ||
+        1;
 
       return {
         id: movement.id,
@@ -154,6 +165,9 @@ export class BomService {
         beautician: serviceEmployee,
         storeName: movement.store?.name ?? consumption?.customer?.store?.name ?? '默认门店',
         productName: movement.product?.name ?? '未知商品',
+        productId: movement.productId ?? movement.product?.id,
+        projectId,
+        serviceTimes,
         standardQty: actualQty,
         actualQty,
         deviation: 0,
@@ -165,7 +179,7 @@ export class BomService {
       };
     });
 
-    if (movementRows.length) return movementRows;
+    if (movementRows.length) return this.enrichConsumptionRowsWithBomStandard(movementRows);
 
     const records = await this.prisma.consumptionRecord.findMany({
       include: { customer: { include: { store: true } } },
@@ -229,24 +243,139 @@ export class BomService {
   }
 
   async getForecast() {
+    const now = new Date();
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
     const products = await this.prisma.product.findMany({
       where: { deletedAt: null },
       orderBy: { currentStock: 'asc' },
       take: 100,
     });
 
+    const [reservations, serviceTasks, recentMovements] = await Promise.all([
+      this.prisma.reservation?.findMany
+        ? this.prisma.reservation.findMany({
+            where: {
+              date: { gte: now, lte: sevenDaysLater },
+              status: { notIn: ['cancelled', 'no_show', 'completed'] },
+            },
+            select: { projectId: true },
+          })
+        : [],
+      this.prisma.serviceTask?.findMany
+        ? this.prisma.serviceTask.findMany({
+            where: {
+              appointmentTime: { gte: now, lte: sevenDaysLater },
+              status: { notIn: ['cancelled', 'completed'] },
+            },
+            select: { projectId: true },
+          })
+        : [],
+      this.prisma.stockMovement?.findMany
+        ? this.prisma.stockMovement.findMany({
+            where: {
+              movementType: { in: ['service_consume', 'service_consumption'] },
+              quantity: { lt: 0 },
+              occurredAt: { gte: thirtyDaysAgo },
+            },
+            select: { productId: true, quantity: true },
+          })
+        : [],
+    ]);
+
+    const projectDemand = new Map<number, number>();
+    for (const item of [...reservations, ...serviceTasks] as any[]) {
+      const projectId = Number(item.projectId);
+      if (!projectId) continue;
+      projectDemand.set(projectId, (projectDemand.get(projectId) ?? 0) + 1);
+    }
+
+    const scheduledByProduct = new Map<number, number>();
+    if (projectDemand.size && this.prisma.projectBomItem?.findMany) {
+      const bomItems = await this.prisma.projectBomItem.findMany({
+        where: { projectId: { in: [...projectDemand.keys()] } },
+        select: { projectId: true, productId: true, standardQty: true },
+      });
+      for (const bomItem of bomItems as any[]) {
+        const multiplier = projectDemand.get(Number(bomItem.projectId)) ?? 0;
+        const productId = Number(bomItem.productId);
+        if (!productId || multiplier <= 0) continue;
+        scheduledByProduct.set(
+          productId,
+          (scheduledByProduct.get(productId) ?? 0) + this.toNumber(bomItem.standardQty) * multiplier,
+        );
+      }
+    }
+
+    const recentByProduct = new Map<number, number>();
+    for (const movement of recentMovements as any[]) {
+      const productId = Number(movement.productId);
+      if (!productId) continue;
+      recentByProduct.set(productId, (recentByProduct.get(productId) ?? 0) + Math.abs(this.toNumber(movement.quantity)));
+    }
+
     return products.map((product) => {
       const currentStock = Number(product.currentStock ?? 0);
-      const safetyStock = Number(product.safetyStock ?? 0);
-      const forecastConsumption = Math.max(safetyStock, Math.ceil(currentStock * 0.2));
+      const scheduledConsumption = scheduledByProduct.get(product.id) ?? 0;
+      const recentDailyConsumption = (recentByProduct.get(product.id) ?? 0) / 30;
+      const trendConsumption = recentDailyConsumption * 7;
+      const forecastConsumption = Math.ceil(scheduledConsumption + trendConsumption);
       return {
         productName: product.name,
         sku: product.sku,
         forecastConsumption,
+        scheduledConsumption: this.round(scheduledConsumption, 2),
+        recentDailyConsumption: this.round(recentDailyConsumption, 2),
         currentStock,
         shortage: Math.max(0, forecastConsumption - currentStock),
       };
     });
+  }
+
+  private async enrichConsumptionRowsWithBomStandard(rows: any[]) {
+    const projectIds = [...new Set(rows.map((row) => Number(row.projectId)).filter(Boolean))];
+    const productIds = [...new Set(rows.map((row) => Number(row.productId)).filter(Boolean))];
+    if (!projectIds.length || !productIds.length || !this.prisma.projectBomItem?.findMany) return rows;
+
+    const bomItems = await this.prisma.projectBomItem.findMany({
+      where: {
+        projectId: { in: projectIds },
+        productId: { in: productIds },
+      },
+      select: { projectId: true, productId: true, standardQty: true },
+    });
+    const standardByKey = new Map<string, number>();
+    for (const item of bomItems as any[]) {
+      standardByKey.set(`${item.projectId}:${item.productId}`, this.toNumber(item.standardQty));
+    }
+
+    return rows.map((row) => {
+      const perServiceStandardQty = standardByKey.get(`${row.projectId}:${row.productId}`) ?? 0;
+      const standardQty = perServiceStandardQty > 0
+        ? perServiceStandardQty * Math.max(1, this.toNumber(row.serviceTimes) || 1)
+        : row.standardQty;
+      const actualQty = this.toNumber(row.actualQty);
+      const deviation = standardQty > 0 ? ((actualQty - standardQty) / standardQty) * 100 : 0;
+      return {
+        ...row,
+        standardQty: this.round(standardQty, 4),
+        actualQty: this.round(actualQty, 4),
+        deviation: this.round(deviation, 1),
+        isAbnormal: Math.abs(deviation) > 20,
+      };
+    });
+  }
+
+  private round(value: number, precision = 2) {
+    const factor = 10 ** precision;
+    return Math.round((Number(value || 0) + Number.EPSILON) * factor) / factor;
+  }
+
+  private toNumber(value: unknown) {
+    if (value === null || value === undefined || value === '') return 0;
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : 0;
   }
 
   async createService(data: any) {
@@ -306,12 +435,13 @@ export class BomService {
   }
 
   private async replaceBomItems(projectId: number, items: BomItemInput[]) {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { storeId: true } });
     await this.prisma.projectBomItem.deleteMany({ where: { projectId } });
     for (const item of items) {
       const product = item.productId
         ? await this.prisma.product.findUnique({ where: { id: item.productId } })
         : item.sku
-          ? await this.prisma.product.findUnique({ where: { sku: item.sku } })
+          ? await this.prisma.product.findFirst({ where: { sku: item.sku, storeId: project?.storeId, deletedAt: null } })
           : null;
       if (!product) continue;
       await this.prisma.projectBomItem.create({
@@ -334,6 +464,7 @@ export class BomService {
       standardQty: Number(item.standardQty ?? 0),
       unit: item.unit ?? item.product?.unit ?? '',
       costPrice: Number(item.product?.costPrice ?? 0),
+      productStatus: item.product?.status,
     }));
     return {
       id: project.id,

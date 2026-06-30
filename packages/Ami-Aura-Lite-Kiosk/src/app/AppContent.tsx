@@ -14,6 +14,7 @@ import { CardVerificationFlowCard } from "./components/CardVerificationFlowCard"
 import { CashierFlowCard } from "./components/CashierFlowCard";
 import { CardOpeningFlowCard } from "./components/CardOpeningFlowCard";
 import { RechargeFlowCard } from "./components/RechargeFlowCard";
+import { RefundFlowCard } from "./components/RefundFlowCard";
 import { RegistrationFlowCard } from "./components/RegistrationFlowCard";
 import { ServiceRecordFlowCard } from "./components/ServiceRecordFlowCard";
 import {
@@ -26,6 +27,7 @@ import {
   InventoryAlertsCard,
   ManagerDashboardCard,
   OperationResultCard,
+  PrintDocumentsCard,
   ReceptionDashboardCard,
   StaffPerformanceCard,
 } from "./components/RoleDashboards";
@@ -34,6 +36,7 @@ import {
   confirmCardOpening,
   confirmCashierPayment,
   confirmRecharge,
+  confirmRefund,
   confirmRegistration,
   approveBusinessAgentAction,
   createAutomationDraft,
@@ -125,6 +128,7 @@ import type {
   MessageType,
   OperationResultData,
   RechargeConfirmInput,
+  RefundConfirmInput,
   RegistrationConfirmInput,
   Role,
   ServiceRecordConfirmInput,
@@ -134,7 +138,8 @@ import type {
 } from "./types";
 import type { AuraBootstrap } from "../../../../src/types/aura";
 
-type Payload = AuraPayload;
+type LoadingPayload = { kind: "agentThinking" };
+type Payload = AuraPayload | LoadingPayload;
 
 const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "cardVerification",
@@ -142,6 +147,7 @@ const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "cardOpening",
   "registration",
   "recharge",
+  "refund",
   "serviceRecord",
 ]);
 
@@ -200,6 +206,33 @@ function LoadingCard({ text }: { text: string }) {
       </div>
     </div>
   );
+}
+
+function AgentThinkingCard({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex min-w-0 items-start gap-2">
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[#2D1B69]/8 text-[#2D1B69]">
+          <Sparkles className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[#2D1B69]">Ami 智能问答</div>
+          <div className="mt-1 text-xs text-[#6F6678]">正在读取 Ami_Core 经营数据</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 rounded-xl bg-[#2D1B69]/5 px-4 py-3">
+        <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[#2D1B69]" />
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-[#1F1B2D]">{text}</div>
+          <div className="mt-1 text-xs text-[#6F6678]">Ami_Core 正在拉取最新门店数据</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function createLoadingMessage(text: string, stream: "flow" | "agent") {
+  return createMessage("loading", stream === "agent" ? { kind: "agentThinking" } : undefined, text);
 }
 
 function MessageBubble({ text }: { text: string }) {
@@ -1328,11 +1361,11 @@ export default function AppContent() {
         loadingTimer = window.setTimeout(() => {
           if (!isConversationEpochActive(epoch)) return;
           loadingMessageShown = true;
-          appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch, targetStream);
+          appendMessage(createLoadingMessage(intent.loadingLabel, targetStream), epoch, targetStream);
         }, 300);
       } else {
         loadingMessageShown = true;
-        appendMessage(createMessage("loading", undefined, intent.loadingLabel), epoch, targetStream);
+        appendMessage(createLoadingMessage(intent.loadingLabel, targetStream), epoch, targetStream);
       }
 
       const selectedPersonaCode = activePersonaCodeRef.current;
@@ -1419,6 +1452,12 @@ export default function AppContent() {
     appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
+  const handleRefundConfirm = async (input: RefundConfirmInput) => {
+    const epoch = getConversationEpoch();
+    const data = await confirmRefund(input);
+    appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
+  };
+
   const handleServiceRecordConfirm = async (input: ServiceRecordConfirmInput) => {
     const epoch = getConversationEpoch();
     const data = await submitServiceRecord(input);
@@ -1473,15 +1512,18 @@ export default function AppContent() {
     appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
-  const handleStructuredAction = async (action: string, mapper: (action: string) => string) => {
+  const handleStructuredAction = async (action: string, mapper: (action: string) => string, label?: string) => {
     const epoch = getConversationEpoch();
+    const command = mapper(action);
+    const displayText = label?.trim() || (command !== action ? command : "执行操作");
+    appendMessage(createMessage("query", { text: displayText }, "用户指令"), epoch);
+
     const actionResult = resolveTerminalActionResult(action);
     if (actionResult) {
       appendOperationResult(actionResult, epoch);
       return;
     }
 
-    const command = mapper(action);
     if (command === action && isInternalActionCode(action)) {
       appendOperationResult(buildUnsupportedInternalActionResult(), epoch);
       return;
@@ -1490,8 +1532,8 @@ export default function AppContent() {
     await handleCommand(command, "system");
   };
 
-  const handleBusinessQueryAction = (action: string) => handleStructuredAction(action, businessQueryActionToCommand);
-  const handleAgentResultAction = async (action: string) => {
+  const handleBusinessQueryAction = (action: string, label?: string) => handleStructuredAction(action, businessQueryActionToCommand, label);
+  const handleAgentResultAction = async (action: string, label?: string) => {
     const approvalAction = parseAgentApprovalAction(action);
     if (approvalAction?.decision === "approve") {
       await handleAgentApprovalApprove(approvalAction.approvalId);
@@ -1501,7 +1543,7 @@ export default function AppContent() {
       await handleAgentApprovalReject(approvalAction.approvalId);
       return;
     }
-    await handleStructuredAction(action, agentActionToCommand);
+    await handleStructuredAction(action, agentActionToCommand, label);
   };
 
   if (showLogin && !bootstrap) {
@@ -1573,6 +1615,10 @@ export default function AppContent() {
             }
 
             if (message.type === "loading") {
+              const payload = message.payload as { kind?: string } | undefined;
+              if (payload?.kind === "agentThinking") {
+                return <AgentThinkingCard key={key} text={message.title ?? "正在基于 Ami_Core 生成回答"} />;
+              }
               return <LoadingCard key={key} text={message.title ?? "正在加载"} />;
             }
 
@@ -1685,6 +1731,14 @@ export default function AppContent() {
                   </div>
                 );
               }
+              if (payload.kind === "printDocuments") {
+                return (
+                  <div key={key} className="grid gap-2">
+                    <QueryStatusLine title={message.title} />
+                    <PrintDocumentsCard data={payload.data} />
+                  </div>
+                );
+              }
               if (payload.kind === "businessQuery") {
                 return (
                   <div key={key} className="grid gap-2">
@@ -1764,6 +1818,13 @@ export default function AppContent() {
               const payload = message.payload as Payload | undefined;
               if (payload?.kind === "recharge") {
                 return <RechargeFlowCard key={key} data={payload.data} onConfirm={handleRechargeConfirm} />;
+              }
+            }
+
+            if (message.type === "refund") {
+              const payload = message.payload as Payload | undefined;
+              if (payload?.kind === "refund") {
+                return <RefundFlowCard key={key} data={payload.data} onConfirm={handleRefundConfirm} />;
               }
             }
 

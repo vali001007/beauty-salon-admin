@@ -2,9 +2,19 @@ import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
-const SMART_SCHEDULING_MODES = ['blank', 'copy_last_week_optimize', 'optimize_current'] as const;
+const SMART_SCHEDULING_MODES = [
+  'blank',
+  'copy_last_week_optimize',
+  'optimize_current',
+  'balanced',
+  'reservation_first',
+  'peak_first',
+  'cost_first',
+  'fairness_first',
+] as const;
 const SMART_SCHEDULING_OBJECTIVES = ['cover_reservations', 'cover_peak', 'fairness', 'reduce_staff'] as const;
 const SMART_SCHEDULE_STATUSES = ['available', 'busy', 'leave', 'normal'] as const;
+const SMART_OPTIMIZE_SCOPES = ['week', 'affected'] as const;
 
 type SmartSchedulingMode = (typeof SMART_SCHEDULING_MODES)[number];
 type SmartSchedulingObjective = (typeof SMART_SCHEDULING_OBJECTIVES)[number];
@@ -133,4 +143,37 @@ export class PublishSmartSchedulingDto extends EvaluateSmartSchedulingDto {
   @IsOptional()
   @IsString()
   runId?: string;
+
+  @ApiPropertyOptional({ example: 'recommended' })
+  @IsOptional()
+  @IsString()
+  selectedAlternativeId?: string;
+}
+
+export class OneClickSmartSchedulingDto extends PreviewSmartSchedulingDto {
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  generateAlternatives?: boolean;
+
+  @ApiPropertyOptional({ enum: SMART_OPTIMIZE_SCOPES, default: 'week' })
+  @IsOptional()
+  @IsString()
+  @IsIn(SMART_OPTIMIZE_SCOPES)
+  optimizeScope?: 'week' | 'affected';
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  respectPublishedLocks?: boolean;
+}
+
+export class RollbackSmartSchedulingDto extends PreviewSmartSchedulingDto {
+  @ApiProperty({ example: 12 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  targetVersionId: number;
 }

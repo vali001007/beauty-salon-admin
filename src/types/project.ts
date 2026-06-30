@@ -4,6 +4,8 @@ export interface Project {
   description?: string;
   type: string;
   duration: number;
+  careCycleWeeks?: number | null;
+  treatmentCourseTimes?: number | null;
   price: number;
   storeName: string;
   recommend: boolean;
@@ -23,4 +25,5 @@ export interface ProjectBomItem {
   standardQty: number;
   unit: string;
   costPrice?: number;
+  productStatus?: string;
 }

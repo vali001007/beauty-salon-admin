@@ -18,6 +18,7 @@ export type AuraAction =
   | 'operation.cashier'
   | 'operation.card'
   | 'operation.recharge'
+  | 'operation.refund'
   | 'operation.print'
   | 'operation.service-complete'
   | 'beautician.schedule'

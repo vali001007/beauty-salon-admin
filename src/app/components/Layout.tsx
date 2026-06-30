@@ -117,23 +117,16 @@ export const MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
-    title: '财务管理',
+    title: '财务中心',
     icon: WalletCards,
     path: '/finance',
     children: [
-      { title: '日结报表', path: '/finance/daily-settlement', icon: ClipboardList, permission: 'core:finance:view', group: '结算与对账' },
-      { title: '月度结算', path: '/finance/monthly-settlement', icon: WalletCards, permission: 'core:finance:view', group: '结算与对账' },
-      { title: '数字员工账单', path: '/finance/ami-billing', icon: WalletCards, permission: 'core:finance:view', group: '结算与对账' },
-      { title: '提成规则', path: '/finance/commission-rules', icon: Settings, permission: 'core:finance:manage', group: '提成与人效' },
-      { title: '提成明细', path: '/finance/commission-records', icon: BarChart3, permission: 'core:finance:view', group: '提成与人效' },
-      { title: '员工人效', path: '/operation-profit/beautician-performance', icon: Users, permission: 'core:beautician-performance:view', group: '提成与人效' },
-      { title: '数字员工绩效', path: '/finance/ami-performance', icon: BarChart3, permission: 'core:finance:view', group: '提成与人效' },
-      { title: '利润看板', path: '/operation-profit/overview', icon: LayoutGrid, permission: 'core:operation-profit:view', group: '经营利润' },
-      { title: '商品毛利', path: '/operation-profit/product-margins', icon: ShoppingBag, permission: 'core:product-margin:view', group: '经营利润' },
-      { title: '项目毛利', path: '/operation-profit/project-margins', icon: TrendingUp, permission: 'core:project-margin:view', group: '经营利润' },
-      { title: '会员卡（储值）履约', path: '/operation-profit/prepaid-liabilities', icon: WalletCards, permission: 'core:prepaid-liability:view', group: '经营利润' },
-      { title: '次卡履约', path: '/operation-profit/card-liabilities', icon: FileText, permission: 'core:prepaid-liability:view', group: '经营利润' },
-      { title: '成本配置', path: '/operation-profit/costs', icon: Settings, permission: 'core:operation-cost:view', group: '经营利润' },
+      { title: '财务首页', path: '/finance', icon: LayoutGrid, permission: 'core:finance:view', group: '总览' },
+      { title: '收银对账', path: '/finance/reconciliation', icon: ClipboardList, permission: 'core:finance:view', group: '结算与对账' },
+      { title: '员工提成', path: '/finance/staff-commission', icon: Users, permission: 'core:finance:view', group: '提成与人效' },
+      { title: '经营利润', path: '/finance/profit', icon: TrendingUp, permission: 'core:operation-profit:view', group: '经营利润' },
+      { title: '会员资产', path: '/finance/member-assets', icon: WalletCards, permission: 'core:prepaid-liability:view', group: '会员资产' },
+      { title: '数字员工账单', path: '/finance/ami-billing', icon: BarChart3, permission: 'core:finance:view', group: '数字员工' },
     ],
   },
   {
@@ -172,7 +165,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '权限管理', path: '/system/permissions', icon: Lock, permission: 'core:system:permissions' },
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
-      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:finance:view' },
+      { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
       { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
       { title: 'Agent 审计', path: '/system/agent-audit', icon: Sparkles, permission: 'core:system:view' },
     ],
@@ -267,16 +260,9 @@ export function Layout() {
               
               {openMenus[menu.path] && (
                 <div className="flex flex-col">
-                  {menu.children.map((child, index) => {
-                    const previousChild = menu.children[index - 1];
-                    const showGroupLabel = child.group && child.group !== previousChild?.group;
+                  {menu.children.map((child) => {
                     return (
                       <React.Fragment key={child.path}>
-                        {showGroupLabel && (
-                          <div className="pl-14 pr-6 pt-3 pb-1 text-[11px] font-semibold text-sidebar-foreground/50">
-                            {child.group}
-                          </div>
-                        )}
                         <NavLink
                           to={child.path}
                           className={({ isActive }) =>

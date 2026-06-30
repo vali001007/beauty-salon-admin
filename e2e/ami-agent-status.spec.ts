@@ -52,6 +52,54 @@ function personas() {
 }
 
 function agentRunFor(message: string) {
+  if (message.includes('老朋友回店护理礼')) {
+    return {
+      runId: 9104,
+      runNo: 'MGMT-LINK-CARD',
+      status: 'completed',
+      personaCode: 'marketing',
+      routeDecision: {
+        personaCode: 'marketing',
+        confidence: 0.91,
+        reason: '命中营销活动链接能力',
+        candidates: [{ personaCode: 'marketing', score: 0.91, matchedCapabilities: ['marketing.activity.link.lookup'] }],
+        clarificationNeeded: false,
+        clarificationQuestion: null,
+        deniedReason: null,
+        mode: 'auto',
+      },
+      answer: '已找到“老朋友回店护理礼”的活动链接，可直接复制发送给客户。',
+      renderedBlocks: [
+        {
+          kind: 'summary_text',
+          content: '已找到“老朋友回店护理礼”的活动链接，可直接复制发送给客户。',
+        },
+        {
+          kind: 'link_card',
+          title: '老朋友回店护理礼',
+          description: '活动已发布，链接来自 MarketingPage 真实推广页。',
+          primaryUrl: 'https://m.ami.example.com/m/old-friend-care',
+          miniappPath: '/pages/marketing/old-friend-care',
+          statusLabel: '已发布',
+          links: [
+            { label: '活动链接', value: 'https://m.ami.example.com/m/old-friend-care', type: 'url' },
+            { label: '小程序路径', value: '/pages/marketing/old-friend-care', type: 'miniapp_path' },
+          ],
+        },
+      ],
+      toolResults: [
+        {
+          status: 'success',
+          title: '营销活动链接',
+          summary: '已找到“老朋友回店护理礼”的活动链接。',
+          data: { items: [{ 活动名称: '老朋友回店护理礼', 活动链接: 'https://m.ami.example.com/m/old-friend-care' }] },
+        },
+      ],
+      actions: [],
+      evidence: { source: ['MarketingActivity', 'MarketingPage'], dateRange: '当前门店' },
+    };
+  }
+
   if (message.includes('无数据')) {
     return {
       runId: 9101,
@@ -278,11 +326,11 @@ async function loginAndOpenAmiAgent(page: Page) {
     window.localStorage.setItem('token', 'token-e2e');
   });
   await page.goto('/ami-agent');
-  await expect(page.getByPlaceholder('问 店长经营 Agent...')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByPlaceholder(/问 (洞悉美业·门店运营智能体|店长经营 Agent)\.\.\./)).toBeVisible({ timeout: 15_000 });
 }
 
 async function ask(page: Page, question: string) {
-  const input = page.getByPlaceholder('问 店长经营 Agent...');
+  const input = page.getByPlaceholder(/问 (洞悉美业·门店运营智能体|店长经营 Agent)\.\.\./);
   await input.fill(question);
   await input.press('Enter');
 }
@@ -303,6 +351,26 @@ test('管理端 /ami-agent 浏览器运行态区分 no_data、unsupported 和 fa
   await ask(page, '模拟失败库存风险');
   await expect(page.getByText('执行失败').last()).toBeVisible();
   await expect(page.getByText('库存数据加载失败。').last()).toBeVisible();
+});
+
+test('管理端 /ami-agent 默认入口自动分诊并渲染营销活动链接卡', async ({ page }) => {
+  await loginAndOpenAmiAgent(page);
+
+  const runRequest = page.waitForRequest((request) =>
+    request.url().includes('/api/agent/runs') && request.method() === 'POST',
+  );
+  await ask(page, '老朋友回店护理礼活动链接发我');
+  const payload = JSON.parse((await runRequest).postData() ?? '{}');
+
+  expect(payload).toMatchObject({
+    message: '老朋友回店护理礼活动链接发我',
+    entrypoint: 'ami-agent:auto',
+  });
+  expect(payload).not.toHaveProperty('personaCode');
+  await expect(page.getByText('由 营销增长 Agent 处理').last()).toBeVisible();
+  await expect(page.getByText('命中营销活动链接能力').last()).toBeVisible();
+  await expect(page.getByText('营销活动链接').last()).toBeVisible();
+  await expect(page.getByText('https://m.ami.example.com/m/old-friend-care').last()).toBeVisible();
 });
 
 test('管理端 /ami-agent 审计详情可查看 Kiosk terminalFacts 上下文快照', async ({ page }) => {

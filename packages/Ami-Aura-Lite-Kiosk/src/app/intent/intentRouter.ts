@@ -67,6 +67,7 @@ export function shouldDisplayUserCommand(intent: AuraResolvedIntent) {
     "operation.cashier",
     "operation.card",
     "operation.recharge",
+    "operation.refund",
     "operation.print",
     "operation.service-complete",
     "customer.followup",

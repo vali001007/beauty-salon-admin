@@ -103,7 +103,7 @@ export class AgentSkillsRegistryService {
       },
       outputContract: {
         requiredKinds: ['kpi', 'evidence'],
-        preferredKinds: ['kpi', 'table', 'evidence'],
+        preferredKinds: ['kpi', 'table', 'chart', 'evidence'],
         evidenceRequired: true,
         maxFollowUps: 3,
       },
@@ -282,9 +282,10 @@ export class AgentSkillsRegistryService {
         allowedRoles: ['manager'],
       },
       outputContract: {
-        requiredKinds: ['action_card'],
-        preferredKinds: ['action_card', 'evidence'],
+        requiredKinds: ['action_card', 'table', 'evidence_panel'],
+        preferredKinds: ['action_card', 'table', 'evidence_panel'],
         evidenceRequired: true,
+        approvalRequired: true,
         maxFollowUps: 3,
       },
       evalCases: [
@@ -428,9 +429,19 @@ export class AgentSkillsRegistryService {
           timeRange: task.timeRange?.preset ?? 'last_30_days',
           filters: task.filters,
         };
+        if (/(OCR|图片|识别|采购单|入库单).*(入库|采购|草稿)|(入库|采购|草稿).*(OCR|图片|识别|采购单|入库单)/.test(text)) {
+          return [{ tool: 'inventory.purchase.intake.draft', args: baseArgs }];
+        }
+        if (/(语音|口述|自然语言).*(出库|领用|盘点|报废|草稿)|(出库|领用|盘点|报废).*(语音|口述|自然语言|草稿)/.test(text)) {
+          return [{ tool: 'inventory.stock.operation.draft', args: baseArgs }];
+        }
+        if (/(商品|产品|SKU|品项).*(元数据|资料|品牌|规格|单位|保质期|安全库存|补全)|(元数据|资料|品牌|规格|单位|保质期|安全库存|补全).*(商品|产品|SKU|品项)/i.test(text)) {
+          return [{ tool: 'inventory.product.metadata.suggest', args: baseArgs }];
+        }
         if (/(生成|创建|新建|草稿|采购单).*(补货|采购)|(补货|采购).*(生成|创建|新建|草稿|采购单)/.test(text)) {
           return [{ tool: 'inventory.replenishment.draft', args: baseArgs }];
         }
+        if (/调拨|门店.*库存|库存.*门店|跨店/.test(text)) return [{ tool: 'inventory.transfer.suggestion', args: baseArgs }];
         if (/BOM|项目耗材|耗材保障|项目.*耗材/.test(text)) return [{ tool: 'inventory.project.bom.risk', args: baseArgs }];
         if (/(临期|过期).*(处理|清理|清仓|草稿|方案|建议)|(处理|清理|清仓|草稿|方案|建议).*(临期|过期)/.test(text)) {
           return [{ tool: 'inventory.expiring.clearance.draft', args: baseArgs }];
@@ -460,7 +471,7 @@ export class AgentSkillsRegistryService {
       },
       outputContract: {
         requiredKinds: ['table', 'evidence'],
-        preferredKinds: ['kpi', 'table', 'evidence'],
+        preferredKinds: ['kpi', 'table', 'chart', 'action_card', 'evidence'],
         evidenceRequired: true,
         maxFollowUps: 3,
       },

@@ -389,4 +389,55 @@ describe('SemanticQueryExecutorService', () => {
       conversionRateText: '+50%',
     });
   });
+
+  it('executes recent marketing activity list without querying non-existent activity storeId', async () => {
+    const updatedAt = new Date();
+    prisma.marketingActivity.findMany.mockResolvedValue([
+      {
+        id: 15,
+        title: '玻尿酸保湿精华限时到店搭赠',
+        status: 'draft',
+        publishStatus: null,
+        participants: 0,
+        conversion: '0%',
+        startDate: null,
+        endDate: null,
+        targetCustomers: '近期购买/适合该商品的会员客户',
+        discount: '限时到店搭赠',
+        publishedAt: null,
+        createdAt: updatedAt,
+        updatedAt,
+      },
+    ]);
+    prisma.marketingPage.findMany.mockResolvedValue([{ id: 901, activityId: 15, storeId: 1 }]);
+
+    const result = await service.execute(
+      basePlan({
+        capabilityId: 'marketing_activity_list',
+        templateId: 'marketing_activity_list',
+        originalQuestion: '推荐近期营销活动',
+        metrics: [{ key: 'marketing_activity_count', aggregation: 'count' }],
+        dimensions: ['campaignId', 'campaignName'],
+        outputShape: 'table',
+      }),
+    );
+
+    expect(prisma.marketingActivity.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.not.objectContaining({ storeId: expect.anything() }),
+        select: expect.objectContaining({ id: true, title: true, updatedAt: true }),
+      }),
+    );
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('近期营销活动');
+    expect(result.summary).toContain('玻尿酸保湿精华限时到店搭赠');
+    expect(result.rows[0]).toMatchObject({
+      campaignId: 15,
+      campaignName: '玻尿酸保湿精华限时到店搭赠',
+      publishStatus: '未发布',
+      offer: '限时到店搭赠',
+      pageCount: 1,
+    });
+    expect(result.auditEvidence.source).toEqual(['MarketingActivity', 'MarketingPage']);
+  });
 });

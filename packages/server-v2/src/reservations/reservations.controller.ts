@@ -26,6 +26,7 @@ export class ReservationsController {
     @Query('userName') userName?: string,
     @Query('projectName') projectName?: string,
     @Query('beauticianName') beauticianName?: string,
+    @Query('scope') scope?: string,
   ) {
     return this.reservationsService.findPaginated({
       page,
@@ -39,6 +40,7 @@ export class ReservationsController {
       userName,
       projectName,
       beauticianName,
+      scope,
     });
   }
 

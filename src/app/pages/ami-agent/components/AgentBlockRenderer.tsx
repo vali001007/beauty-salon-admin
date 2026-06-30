@@ -27,6 +27,8 @@ import {
   CheckCircle2,
   PackageCheck,
   Truck,
+  ExternalLink,
+  QrCode,
 } from 'lucide-react';
 import { groupBlocksForDisplay } from '@ami/agent-core';
 import type { AgentPhaseOutput, AuraResponseBlock } from '@/types/agent';
@@ -54,6 +56,13 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   lastOrderTimeText: '最近消费',
   paidAmount: '消费金额',
   paidAmountText: '消费金额',
+  amount: '金额',
+  totalAmount: '订单金额',
+  revenue: '实收金额',
+  refundAmount: '退款金额',
+  netAmount: '净额',
+  payMethod: '支付方式',
+  paymentMethod: '支付方式',
   orderCount: '订单数',
   customerCount: '客户数',
   salesAmount: '销售额',
@@ -65,6 +74,20 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   productName: '商品',
   projectName: '项目',
   cardName: '卡项',
+  activityId: '活动ID',
+  activityName: '活动名称',
+  campaignId: '活动ID',
+  campaignName: '活动名称',
+  publishStatus: '发布状态',
+  activityDateRange: '活动时间',
+  targetCustomers: '目标客户',
+  offer: '活动权益',
+  participants: '参与人数',
+  conversion: '转化率',
+  pageCount: '推广页数',
+  linkCount: '链接数',
+  publishedAt: '发布时间',
+  updatedAt: '更新时间',
   beauticianId: '员工ID',
   beauticianName: '员工姓名',
   levelName: '等级',
@@ -79,12 +102,89 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   completionRateText: '完成率',
   reservationCount: '预约数',
   completedReservationCount: '完成预约',
+  utilizationRateText: '占用率',
+  availableCount: '空闲时段',
+  busyCount: '忙碌时段',
+  leaveCount: '请假时段',
   reason: '原因',
   suggestion: '建议',
   severity: '风险等级',
   title: '标题',
   metricValue: '当前值',
   threshold: '阈值',
+  groupName: '分群',
+  segmentName: '分群',
+  customerSegment: '客户分群',
+  priority: '优先级',
+  priorityLevel: '优先级',
+  action: '动作',
+  suggestedAction: '建议动作',
+  recommendation: '建议',
+  orderId: '订单ID',
+  orderNo: '订单号',
+  checkoutGroupNo: '收银组号',
+  transactionType: '交易类型',
+  itemSummary: '项目/商品',
+  paymentCount: '支付记录',
+  refundCount: '退款记录',
+  createdAt: '创建时间',
+  printable: '可打印',
+  batchId: '批次ID',
+  batchNo: '批次号',
+  sku: 'SKU',
+  stock: '批次数量',
+  unit: '单位',
+  productionDate: '生产日期',
+  expiryDate: '有效期',
+  daysToExpire: '剩余天数',
+  currentStock: '当前库存',
+  safetyStock: '安全库存',
+};
+
+const TABLE_CELL_VALUE_LABELS: Record<string, Record<string, string>> = {
+  payMethod: {
+    wechat: '微信',
+    alipay: '支付宝',
+    card: '会员卡余额',
+    balance: '会员卡余额',
+    cash: '现金',
+    bank: '银行卡',
+    bank_card: '银行卡',
+    mixed: '组合支付',
+  },
+  paymentMethod: {
+    wechat: '微信',
+    alipay: '支付宝',
+    card: '会员卡余额',
+    balance: '会员卡余额',
+    cash: '现金',
+    bank: '银行卡',
+    bank_card: '银行卡',
+    mixed: '组合支付',
+  },
+  status: {
+    active: '启用',
+    inactive: '停用',
+    enabled: '启用',
+    disabled: '停用',
+    pending: '待处理',
+    completed: '已完成',
+    cancelled: '已取消',
+    refunded: '已退款',
+  },
+};
+
+const EVIDENCE_SOURCE_LABELS: Record<string, string> = {
+  ProductOrder: '订单',
+  OrderItem: '订单明细',
+  PaymentRecord: '收款记录',
+  RefundRecord: '退款记录',
+  Customer: '客户',
+  CustomerCard: '会员卡',
+  CardUsageRecord: '次卡核销',
+  CustomerBalanceTransaction: '会员卡余额流水',
+  CommissionRecord: '提成记录',
+  StockMovement: '库存流水',
 };
 
 /**
@@ -130,6 +230,12 @@ function SingleBlock({
       return <TableBlock columns={block.columns} rows={block.rows} sortable={block.sortable} caption={block.caption} />;
     case 'chart':
       return <ChartBlock chartType={block.chartType} title={block.title} data={block.data} xKey={block.xKey} yKeys={block.yKeys} />;
+    case 'entity_resolution_badge':
+      return <EntityResolutionBadge block={block} />;
+    case 'capability_trace':
+      return <CapabilityTraceBlock block={block} />;
+    case 'link_card':
+      return <LinkCardBlock block={block} onAction={onAction} />;
     case 'customer_card':
       return (
         <div className="rounded-lg border border-border bg-card p-3">
@@ -205,6 +311,8 @@ function SingleBlock({
       return <InventoryItemCard block={block} onAction={onAction} />;
     case 'supplier_purchase_card':
       return <SupplierPurchaseCard block={block} onAction={onAction} />;
+    case 'clarification_card':
+      return <ClarificationCard block={block} onCommand={onCommand} onAction={onAction} />;
     case 'confirm_action':
     case 'action_card':
       return (
@@ -231,6 +339,10 @@ function SingleBlock({
       );
     case 'alert':
       return <AlertBlock level={block.level} message={block.message} onAction={onAction} actionId={block.actionId} />;
+    case 'data_gap':
+      return <DataGapBlock block={block} />;
+    case 'permission_notice':
+      return <PermissionNoticeBlock block={block} onAction={onAction} />;
     case 'follow_up_chips':
       return (
         <div className="flex flex-wrap gap-2">
@@ -268,6 +380,210 @@ type CopyVariantsBlockData = Extract<AuraResponseBlock, { kind: 'copy_variants' 
 type ActivityDraftBlockData = Extract<AuraResponseBlock, { kind: 'activity_draft_card' }>;
 type InventoryItemBlockData = Extract<AuraResponseBlock, { kind: 'inventory_item_card' }>;
 type SupplierPurchaseBlockData = Extract<AuraResponseBlock, { kind: 'supplier_purchase_card' }>;
+type DataGapBlockData = Extract<AuraResponseBlock, { kind: 'data_gap' }>;
+type PermissionNoticeBlockData = Extract<AuraResponseBlock, { kind: 'permission_notice' }>;
+type EntityResolutionBadgeData = Extract<AuraResponseBlock, { kind: 'entity_resolution_badge' }>;
+type CapabilityTraceBlockData = Extract<AuraResponseBlock, { kind: 'capability_trace' }>;
+type LinkCardBlockData = Extract<AuraResponseBlock, { kind: 'link_card' }>;
+type ClarificationCardData = Extract<AuraResponseBlock, { kind: 'clarification_card' }>;
+
+function EntityResolutionBadge({ block }: { block: EntityResolutionBadgeData }) {
+  const confidence = typeof block.confidence === 'number' ? `${Math.round(block.confidence * 100)}%` : '';
+  return (
+    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3 py-1 text-xs text-violet-800">
+      <CheckCircle2 className="h-3.5 w-3.5" />
+      <span>{block.label ?? '已识别业务对象'}</span>
+      <span className="font-medium">{block.objectType} · {block.entityName}</span>
+      {confidence ? <span className="text-violet-500">{confidence}</span> : null}
+    </div>
+  );
+}
+
+function CapabilityTraceBlock({ block }: { block: CapabilityTraceBlockData }) {
+  const rows = [
+    block.capabilityId ? ['能力', block.capabilityId] : null,
+    block.queryTemplateId ? ['模板', block.queryTemplateId] : null,
+    block.action ? ['动作', block.action] : null,
+    block.executionPath ? ['路径', block.executionPath] : null,
+    typeof block.confidence === 'number' ? ['置信度', `${Math.round(block.confidence * 100)}%`] : null,
+    block.entity?.entityName
+      ? ['实体', `${block.entity.objectType ?? '业务对象'} · ${block.entity.entityName}`]
+      : null,
+    block.schemaPath?.length ? ['Schema Path', block.schemaPath.join(' → ')] : null,
+    block.fallbackReason ? ['Fallback', block.fallbackReason] : null,
+  ].filter(Boolean) as Array<[string, string]>;
+  if (!rows.length) return null;
+  return (
+    <details className="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 px-3 py-2 text-xs text-violet-900">
+      <summary className="cursor-pointer font-medium">{block.title ?? '能力命中调试'}</summary>
+      <div className="mt-2 grid gap-1.5">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[72px_1fr] gap-2">
+            <span className="text-violet-500">{label}</span>
+            <span className="break-all">{value}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function LinkCardBlock({
+  block,
+  onAction,
+}: {
+  block: LinkCardBlockData;
+  onAction?: (id: string, payload?: AgentActionPayload) => void;
+}) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const links = block.links?.length
+    ? block.links
+    : [
+        block.primaryUrl ? { label: '活动链接', value: block.primaryUrl, type: 'url' as const } : null,
+        block.miniappPath ? { label: '小程序路径', value: block.miniappPath, type: 'miniapp_path' as const } : null,
+        block.qrCodeUrl ? { label: '二维码', value: block.qrCodeUrl, type: 'qr_code' as const } : null,
+      ].filter(Boolean) as NonNullable<typeof block.links>;
+
+  const copyValue = async (value: string) => {
+    await navigator.clipboard?.writeText(value);
+    setCopied(value);
+    window.setTimeout(() => setCopied(null), 1400);
+  };
+
+  return (
+    <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs text-violet-700">营销活动链接</div>
+          <div className="mt-0.5 text-sm font-medium text-foreground">{block.title}</div>
+          {block.description ? <div className="mt-1 text-xs text-muted-foreground">{block.description}</div> : null}
+        </div>
+        {block.statusLabel ? <div className="rounded-full bg-white px-2 py-1 text-xs text-violet-700">{block.statusLabel}</div> : null}
+      </div>
+      <div className="mt-3 grid gap-2">
+        {links.map((link) => (
+          <div key={`${link.label}-${link.value}`} className="rounded-lg border border-violet-100 bg-white/80 px-3 py-2">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-violet-800">
+              {link.type === 'qr_code' ? <QrCode className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />}
+              {link.label}
+            </div>
+            <div className="break-all text-xs text-foreground">{link.value}</div>
+            <button
+              type="button"
+              onClick={() => void copyValue(link.value)}
+              className="mt-2 inline-flex items-center gap-1 rounded-full border border-violet-100 px-2 py-1 text-xs text-violet-800 hover:bg-violet-100"
+            >
+              {copied === link.value ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copied === link.value ? '已复制' : '复制'}
+            </button>
+          </div>
+        ))}
+      </div>
+      {block.actions?.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {block.actions.slice(0, 3).map((action) => (
+            <button
+              key={action.actionId}
+              type="button"
+              onClick={() => onAction?.(action.actionId)}
+              className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-muted transition-colors"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ClarificationCard({
+  block,
+  onCommand,
+  onAction,
+}: {
+  block: ClarificationCardData;
+  onCommand?: (s: string) => void;
+  onAction?: (id: string, payload?: AgentActionPayload) => void;
+}) {
+  const handleSelect = (option: ClarificationCardData['options'][number]) => {
+    if (option.actionId) {
+      onAction?.(option.actionId);
+      return;
+    }
+    onCommand?.(option.value);
+  };
+
+  return (
+    <div className="rounded-lg border border-violet-200 bg-violet-50/70 p-3">
+      <div className="text-xs font-medium text-violet-700">{block.title}</div>
+      <p className="mt-1 text-sm font-medium text-foreground">{block.question}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {block.options.slice(0, 4).map((option) => (
+          <button
+            key={`${option.label}-${option.value}`}
+            type="button"
+            onClick={() => handleSelect(option)}
+            className="rounded-lg border border-violet-100 bg-background px-3 py-2 text-left text-xs hover:bg-violet-50"
+          >
+            <span className="font-medium text-violet-900">{option.label}</span>
+            {option.description ? <span className="mt-0.5 block text-muted-foreground">{option.description}</span> : null}
+          </button>
+        ))}
+      </div>
+      {block.allowFreeText ? <div className="mt-2 text-xs text-muted-foreground">也可以继续输入补充条件。</div> : null}
+    </div>
+  );
+}
+
+function DataGapBlock({ block }: { block: DataGapBlockData }) {
+  return (
+    <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-3">
+      <div className="text-sm font-medium text-amber-900">{block.title}</div>
+      <p className="mt-1 text-xs leading-relaxed text-amber-800">{block.message}</p>
+      {block.missingData.length > 0 && (
+        <div className="mt-2 text-xs text-amber-800">缺少数据：{block.missingData.join('、')}</div>
+      )}
+      {block.nextSteps?.length ? (
+        <div className="mt-2 grid gap-1">
+          {block.nextSteps.slice(0, 3).map((step) => (
+            <div key={step} className="rounded bg-white/70 px-2 py-1 text-xs text-amber-900">{step}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PermissionNoticeBlock({
+  block,
+  onAction,
+}: {
+  block: PermissionNoticeBlockData;
+  onAction?: (id: string, payload?: AgentActionPayload) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3">
+      <div className="text-sm font-medium text-blue-950">{block.title}</div>
+      <p className="mt-1 text-xs leading-relaxed text-blue-900">{block.message}</p>
+      {block.allowedSummary ? <div className="mt-2 rounded bg-white/70 px-2 py-1 text-xs text-blue-900">{block.allowedSummary}</div> : null}
+      {block.actions?.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {block.actions.slice(0, 3).map((action) => (
+            <button
+              key={action.actionId}
+              type="button"
+              onClick={() => onAction?.(action.actionId)}
+              className="rounded-full border border-blue-200 bg-white px-3 py-1 text-xs text-blue-900 hover:bg-blue-100"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function CopyVariantsBlock({
   block,
@@ -665,6 +981,7 @@ function TableBlock({
 }) {
   const [sortState, setSortState] = useState<{ index: number; direction: 'asc' | 'desc' } | null>(null);
   const visibleColumns = normalizeTableColumns(columns, rows);
+  const sourceColumns = normalizeTableSourceColumns(columns, rows);
   const visibleRows = sortState
     ? [...rows].sort((a, b) => compareTableCells(a[sortState.index], b[sortState.index], sortState.direction))
     : rows;
@@ -708,7 +1025,7 @@ function TableBlock({
             visibleRows.map((row, ri) => (
               <tr key={ri} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                 {visibleColumns.map((_, ci) => (
-                  <td key={ci} className="px-3 py-2 text-foreground">{row[ci] ?? ''}</td>
+                  <td key={ci} className="px-3 py-2 text-foreground">{formatTableCellValue(sourceColumns[ci], row[ci])}</td>
                 ))}
               </tr>
             ))
@@ -726,14 +1043,52 @@ function TableBlock({
   );
 }
 
+function normalizeTableSourceColumns(columns: string[], rows: string[][]) {
+  const maxRowLength = Math.max(0, ...rows.map((row) => row.length));
+  const source = columns.length ? columns : Array.from({ length: maxRowLength }, (_, index) => String(index));
+  return source.map((column) => String(column ?? '').trim());
+}
+
 function normalizeTableColumns(columns: string[], rows: string[][]) {
   const maxRowLength = Math.max(0, ...rows.map((row) => row.length));
   const source = columns.length ? columns : Array.from({ length: maxRowLength }, (_, index) => String(index));
   return source.map((column, index) => {
     const label = String(column ?? '').trim();
-    if (!label || /^\d+$/.test(label)) return `字段 ${index + 1}`;
+    if (!label || /^\d+$/.test(label)) return inferTableColumnLabel(rows, index) ?? `业务字段 ${index + 1}`;
     return TABLE_COLUMN_LABELS[label] ?? label;
   });
+}
+
+function inferTableColumnLabel(rows: string[][], index: number) {
+  const samples = rows
+    .map((row) => String(row[index] ?? '').trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  if (!samples.length) return null;
+  if (samples.every((value) => /^(高|中|低|紧急|一般|低风险|中风险|高风险|紧急临期|临期关注|近期到期)$/.test(value))) return '优先级';
+  if (samples.every((value) => /^-?[\d,.]+(\.\d+)?\s*(人|位|个|条|笔|次|盒|瓶|支)?$/.test(value))) return inferQuantityLabel(samples);
+  if (samples.every((value) => /^[¥￥]\s?[\d,.]+/.test(value))) return '金额';
+  if (samples.every((value) => /^\d{4}[-/年]\d{1,2}[-/月]\d{1,2}/.test(value))) return '日期';
+  if (samples.some((value) => /客户|会员|顾客|沉睡|流失|复购|高价值|新客|老客/.test(value))) return '客户分群';
+  if (samples.some((value) => /发|推|生成|安排|联系|回访|召回|跟进|补货|处理|打印/.test(value))) return '建议动作';
+  if (index === 0) return '名称';
+  if (index === rows[0]?.length - 1) return '建议动作';
+  return null;
+}
+
+function inferQuantityLabel(samples: string[]) {
+  if (samples.every((value) => /人|位/.test(value))) return '人数';
+  if (samples.every((value) => /笔/.test(value))) return '笔数';
+  if (samples.every((value) => /次/.test(value))) return '次数';
+  return '数量';
+}
+
+function formatTableCellValue(column: string | undefined, value: unknown) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const key = String(column ?? '').trim();
+  const normalizedValue = text.toLowerCase();
+  return TABLE_CELL_VALUE_LABELS[key]?.[normalizedValue] ?? text;
 }
 
 export function AgentPhaseOutputRenderer({ phases }: { phases: AgentPhaseOutput[] }) {
@@ -990,7 +1345,7 @@ function EvidencePanel({
   return (
     <div className="rounded-lg border border-border/60 bg-muted/30">
       <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
-        <span>数据来源 · {sources.join('、')}</span>
+        <span>数据来源 · {sources.map(formatEvidenceSource).join('、')}</span>
         {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
       </button>
       {open && (
@@ -1002,4 +1357,8 @@ function EvidencePanel({
       )}
     </div>
   );
+}
+
+function formatEvidenceSource(source: string) {
+  return EVIDENCE_SOURCE_LABELS[source] ?? source;
 }

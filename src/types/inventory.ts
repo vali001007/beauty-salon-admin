@@ -7,6 +7,9 @@ export interface StockItem {
   availableStock: number;
   safetyStock: number;
   maxStock: number;
+  categoryId?: number | null;
+  categoryName?: string;
+  costPrice?: number;
   status: '正常' | '低库存' | '积压' | '缺货';
   lastInboundDate: string;
   storeName: string;
@@ -50,6 +53,8 @@ export interface Batch {
 
 export interface ExpiringProduct {
   id: number;
+  productId?: number;
+  storeId?: number;
   urgency: '临期' | '紧急' | '已过期';
   productName: string;
   sku: string;
@@ -69,6 +74,29 @@ export interface ExpiringProduct {
   suggestion: '促销' | '调拨' | '报废';
 }
 
+export interface ExpiryWastageTrendItem {
+  month: string;
+  amount: number;
+}
+
+export interface ExpiryCategoryWastageItem {
+  category: string;
+  percentage: number;
+  amount: number;
+}
+
+export interface ExpirySummary {
+  period: string;
+  windowDays: number;
+  expiringBatchCount: number;
+  urgentBatchCount: number;
+  expiredBatchCount: number;
+  expiringCostAmount: number;
+  scrappedAmount: number;
+  wastageTrend: ExpiryWastageTrendItem[];
+  categoryWastage: ExpiryCategoryWastageItem[];
+}
+
 export interface ReplenishmentSuggestion {
   id: number;
   productId?: number;
@@ -76,9 +104,13 @@ export interface ReplenishmentSuggestion {
   sku: string;
   currentStock: number;
   forecast7Days: number;
+  forecast30Days?: number;
+  dailyConsumption?: number;
   safetyStock: number;
   inTransit: number;
   inTransitQty?: number;
+  platformInTransit?: number;
+  manualInTransit?: number;
   suggestedQty: number;
   supplierId?: number;
   supplierName?: string;
@@ -102,7 +134,7 @@ export interface PurchaseOrder {
   storeName: string;
   productCount: number;
   totalAmount: number;
-  status: '草稿' | '待审核' | '已审核' | '已下单' | '已收货' | '已取消';
+  status: '草稿' | '待审核' | '已审核' | '已下单' | '部分收货' | '已收货' | '已取消';
   createDate: string;
   expectedDate: string;
   items?: PurchaseOrderItem[];
@@ -113,6 +145,7 @@ export interface PurchaseOrderItem {
   productName: string;
   sku: string;
   quantity: number;
+  receivedQty?: number;
   unitPrice: number;
   subtotal: number;
 }

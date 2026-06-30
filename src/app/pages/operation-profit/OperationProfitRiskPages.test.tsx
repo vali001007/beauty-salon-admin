@@ -58,13 +58,14 @@ describe('operation profit risk pages', () => {
       data: [],
       total: 1,
       page: 1,
-      pageSize: 100,
+      pageSize: 10,
       summary: {
         totalLiability: 3200,
         cardLiability: 0,
         balanceLiability: 3200,
         cashBalance: 2600,
         giftBalance: 600,
+        remainingTimes: 0,
         highRisk: 1,
         mediumRisk: 0,
       },
@@ -85,6 +86,21 @@ describe('operation profit risk pages', () => {
           contributionProfit: 4200,
           repurchaseRate: 0.35,
           missingCostReasons: ['missing_cost', 'missing_commission'],
+          serviceDetails: [
+            {
+              id: 'order-1001',
+              sourceType: 'order',
+              sourceLabel: '项目订单',
+              sourceNo: 'PO1001',
+              serviceName: '小气泡清洁护理',
+              customerName: '李女士',
+              occurredAt: '2026-06-30T10:00:00.000Z',
+              quantity: 1,
+              income: 600,
+              commissionCost: 48,
+              contributionProfit: 552,
+            },
+          ],
         },
       ],
       data: [],
@@ -110,6 +126,8 @@ describe('operation profit risk pages', () => {
       expect(apiMocks.getPrepaidLiabilities).toHaveBeenLastCalledWith(
         expect.objectContaining({
           storeId: 6,
+          page: 1,
+          pageSize: 10,
           riskOnly: true,
           type: 'balance',
         }),
@@ -122,6 +140,8 @@ describe('operation profit risk pages', () => {
       expect(apiMocks.getPrepaidLiabilities).toHaveBeenLastCalledWith(
         expect.objectContaining({
           storeId: 6,
+          page: 1,
+          pageSize: 10,
           riskOnly: false,
           type: 'balance',
         }),
@@ -151,13 +171,15 @@ describe('operation profit risk pages', () => {
       data: [],
       total: 1,
       page: 1,
-      pageSize: 100,
+      pageSize: 10,
       summary: {
         totalLiability: 3200,
         cardLiability: 3200,
         balanceLiability: 0,
         cashBalance: 0,
         giftBalance: 0,
+        cardRecognizedIncome: 1280,
+        remainingTimes: 8,
         highRisk: 1,
         mediumRisk: 0,
       },
@@ -171,6 +193,9 @@ describe('operation profit risk pages', () => {
     expect(screen.getAllByText('高风险').length).toBeGreaterThan(0);
     expect(screen.getByText('临期未消耗')).toBeInTheDocument();
     expect(screen.getByText('高剩余权益')).toBeInTheDocument();
+    expect(screen.getByText('已履约收入')).toBeInTheDocument();
+    expect(screen.getByText('次卡核销确认收入')).toBeInTheDocument();
+    expect(screen.getByText('¥1,280')).toBeInTheDocument();
     expect(screen.getAllByText('剩余次数').length).toBeGreaterThan(0);
     expect(screen.queryByText('储值余额')).not.toBeInTheDocument();
 
@@ -178,6 +203,8 @@ describe('operation profit risk pages', () => {
       expect(apiMocks.getPrepaidLiabilities).toHaveBeenLastCalledWith(
         expect.objectContaining({
           storeId: 6,
+          page: 1,
+          pageSize: 10,
           riskOnly: true,
           type: 'card',
         }),
@@ -190,6 +217,8 @@ describe('operation profit risk pages', () => {
       expect(apiMocks.getPrepaidLiabilities).toHaveBeenLastCalledWith(
         expect.objectContaining({
           storeId: 6,
+          page: 1,
+          pageSize: 10,
           riskOnly: false,
           type: 'card',
         }),
@@ -204,8 +233,15 @@ describe('operation profit risk pages', () => {
     expect(screen.getByText('Ami 门店')).toBeInTheDocument();
     expect(screen.getAllByText('¥6,000.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('¥4,200.00').length).toBeGreaterThan(0);
-    expect(screen.getByText('经营成本未录完整')).toBeInTheDocument();
-    expect(screen.getByText('提成记录缺失')).toBeInTheDocument();
+    expect(screen.queryByText('经营成本未录完整')).not.toBeInTheDocument();
+    expect(screen.queryByText('提成记录缺失')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /查看/ }));
+
+    expect(await screen.findByText('小气泡清洁护理')).toBeInTheDocument();
+    expect(screen.getByText('项目订单')).toBeInTheDocument();
+    expect(screen.getByText('PO1001')).toBeInTheDocument();
+    expect(screen.getByText('李女士')).toBeInTheDocument();
     expect(apiMocks.getBeauticianPerformance).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6 }));
   });
 });

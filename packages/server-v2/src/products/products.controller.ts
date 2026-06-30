@@ -39,10 +39,11 @@ export class ProductsController {
     @Query('keyword') keyword?: string,
     @Query('categoryId') categoryId?: string,
     @Query('status') status?: string,
+    @Query('sellableOnly') sellableOnly?: string,
     @Headers('x-store-id') storeId?: string,
   ) {
     return this.productsService.findPaginated(
-      { page, pageSize, keyword, categoryId: categoryId ? +categoryId : undefined, status },
+      { page, pageSize, keyword, categoryId: categoryId ? +categoryId : undefined, status, sellableOnly },
       storeId ? +storeId : undefined,
     );
   }

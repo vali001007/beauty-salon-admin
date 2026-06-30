@@ -2,6 +2,15 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TerminalDashboardCacheService } from '../terminal/terminal-dashboard-cache.service.js';
 
+const CANCELLED_RESERVATION_STATUSES = ['cancelled', 'canceled', 'voided', '已取消', '取消'];
+
+function addOneHour(time: string | null | undefined): string {
+  if (!time) return '00:00';
+  const [hour = '0', minute = '0'] = time.split(':');
+  const total = Number(hour) * 60 + Number(minute) + 60;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 @Injectable()
 export class SchedulingService {
   constructor(
@@ -10,21 +19,91 @@ export class SchedulingService {
   ) {}
 
   async findAll(storeId?: number, date?: string, beauticianId?: number, weekStart?: string) {
-    const where: any = {};
-    if (storeId) where.storeId = storeId;
-    if (beauticianId) where.beauticianId = beauticianId;
-    if (date) {
-      const start = new Date(date);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 1);
-      where.date = { gte: start, lt: end };
-    } else if (weekStart) {
-      const start = new Date(weekStart);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 7);
-      where.date = { gte: start, lt: end };
-    }
-    return this.prisma.schedule.findMany({ where, orderBy: { date: 'asc' } });
+    const dateRange = this.buildDateRange(date, weekStart);
+    const scheduleWhere: any = {};
+    if (storeId) scheduleWhere.storeId = storeId;
+    if (beauticianId) scheduleWhere.beauticianId = beauticianId;
+    if (dateRange) scheduleWhere.date = dateRange;
+
+    const reservationWhere: any = {
+      beauticianId: beauticianId ?? { not: null },
+      status: { notIn: CANCELLED_RESERVATION_STATUSES },
+    };
+    if (storeId) reservationWhere.storeId = storeId;
+    if (dateRange) reservationWhere.date = dateRange;
+
+    const [schedules, reservations] = await Promise.all([
+      this.prisma.schedule.findMany({
+        where: scheduleWhere,
+        select: {
+          id: true,
+          storeId: true,
+          beauticianId: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          status: true,
+          smartRunId: true,
+        },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.reservation.findMany({
+        where: reservationWhere,
+        select: {
+          id: true,
+          storeId: true,
+          customerId: true,
+          projectId: true,
+          beauticianId: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          status: true,
+          remark: true,
+          customer: {
+            select: {
+              name: true,
+              phone: true,
+            },
+          },
+          project: {
+            select: {
+              name: true,
+              duration: true,
+            },
+          },
+        },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    const reservationSchedules = reservations
+      .filter((reservation) => reservation.beauticianId)
+      .map((reservation) => ({
+        id: `reservation-${reservation.id}`,
+        storeId: reservation.storeId,
+        beauticianId: reservation.beauticianId,
+        date: reservation.date,
+        startTime: reservation.startTime,
+        endTime: reservation.endTime ?? addOneHour(reservation.startTime),
+        status: 'booked',
+        source: 'reservation',
+        reservationId: reservation.id,
+        reservationStatus: reservation.status,
+        customerId: reservation.customerId,
+        customerName: reservation.customer?.name,
+        customerPhone: reservation.customer?.phone,
+        projectId: reservation.projectId,
+        projectName: reservation.project?.name,
+        projectDuration: reservation.project?.duration,
+        remark: reservation.remark,
+      }));
+
+    return [...schedules, ...reservationSchedules].sort((a, b) => {
+      const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dateCompare !== 0) return dateCompare;
+      return String(a.startTime).localeCompare(String(b.startTime));
+    });
   }
 
   async save(
@@ -88,5 +167,21 @@ export class SchedulingService {
     }
     this.terminalDashboardCache.invalidate(resolvedStoreId, ['role', 'manager', 'staff-schedules']);
     return this.findAll(resolvedStoreId, undefined, resolvedBeauticianId, weekStart ?? schedules[0]?.date);
+  }
+
+  private buildDateRange(date?: string, weekStart?: string) {
+    if (date) {
+      const start = new Date(date);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 1);
+      return { gte: start, lt: end };
+    }
+    if (weekStart) {
+      const start = new Date(weekStart);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 7);
+      return { gte: start, lt: end };
+    }
+    return undefined;
   }
 }
