@@ -45,7 +45,7 @@ export const updateProduct: (id: number, data: Partial<Product>) => Promise<Prod
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import { realGetProductsPaginated } from './real/product';
 
-export const getProductsPaginated: (params: PaginationParams & { categoryId?: number; status?: string; keyword?: string }) => Promise<PaginatedResponse<Product>> =
+export const getProductsPaginated: (params: PaginationParams & { categoryId?: number; status?: string; keyword?: string; sellableOnly?: boolean }) => Promise<PaginatedResponse<Product>> =
   realGetProductsPaginated;
 
 import type { ImportResult } from '@/types/excel';

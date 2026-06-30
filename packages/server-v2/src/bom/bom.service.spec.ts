@@ -15,6 +15,7 @@ describe('BomService', () => {
         update: jest.fn(),
       },
       projectBomItem: {
+        findMany: jest.fn().mockResolvedValue([]),
         deleteMany: jest.fn(),
         create: jest.fn(),
       },
@@ -33,6 +34,9 @@ describe('BomService', () => {
       },
       serviceTask: {
         findMany: jest.fn(),
+      },
+      reservation: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
       consumptionRecord: {
         findMany: jest.fn(),
@@ -78,16 +82,68 @@ describe('BomService', () => {
     });
   });
 
-  it('returns material forecast with shortage calculation', async () => {
+  it('returns material forecast from upcoming appointments and recent consumption', async () => {
     prisma.product.findMany.mockResolvedValue([
-      { name: '补水精华', sku: 'SKU-001', currentStock: 2, safetyStock: 5 },
+      { id: 10, name: '补水精华', sku: 'SKU-001', currentStock: 2, safetyStock: 5 },
     ]);
+    prisma.reservation.findMany.mockResolvedValue([{ projectId: 1 }]);
+    prisma.serviceTask.findMany.mockResolvedValue([{ projectId: 1 }]);
+    prisma.projectBomItem.findMany.mockResolvedValue([{ projectId: 1, productId: 10, standardQty: 2 }]);
+    prisma.stockMovement.findMany.mockResolvedValue([{ productId: 10, quantity: -30 }]);
 
     const result = await service.getForecast();
 
     expect(result).toEqual([
-      { productName: '补水精华', sku: 'SKU-001', forecastConsumption: 5, currentStock: 2, shortage: 3 },
+      {
+        productName: '补水精华',
+        sku: 'SKU-001',
+        forecastConsumption: 11,
+        scheduledConsumption: 4,
+        recentDailyConsumption: 1,
+        currentStock: 2,
+        shortage: 9,
+      },
     ]);
+  });
+
+  it('marks consumption rows abnormal when actual usage deviates from project BOM standard', async () => {
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        id: 212,
+        productId: 88,
+        sourceType: 'card_usage',
+        sourceId: 436,
+        movementType: 'service_consume',
+        quantity: -3,
+        occurredAt: new Date('2026-06-14T02:59:13.706Z'),
+        remark: '次卡核销自动扣耗材：深层补水护理',
+        product: { id: 88, name: '玻尿酸保湿精华' },
+        store: { name: 'Ami 全量演示门店' },
+      },
+    ]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([
+      {
+        id: 436,
+        projectId: 20,
+        times: 2,
+        customerName: '李梦瑶',
+        projectName: '深层补水护理',
+        beautician: null,
+      },
+    ]);
+    prisma.productOrder.findMany.mockResolvedValue([]);
+    prisma.serviceTask.findMany.mockResolvedValue([]);
+    prisma.consumptionRecord.findMany.mockResolvedValue([]);
+    prisma.projectBomItem.findMany.mockResolvedValue([{ projectId: 20, productId: 88, standardQty: 1 }]);
+
+    const result = await service.getConsumptionRecords();
+
+    expect(result[0]).toEqual(expect.objectContaining({
+      standardQty: 2,
+      actualQty: 3,
+      deviation: 50,
+      isAbnormal: true,
+    }));
   });
 
   it('maps card usage stock movements to consumption rows', async () => {

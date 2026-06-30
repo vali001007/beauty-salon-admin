@@ -20,6 +20,7 @@ import { CustomerPicker } from '../components/CustomerPicker';
 import type { Beautician, Customer, Project } from '@/types';
 
 type ReservationStatus = 'pending' | 'confirmed' | 'checked_in' | 'completed' | 'cancelled' | 'no_show';
+type ReservationScope = 'future' | 'history';
 
 interface Reservation {
   id: string;
@@ -30,6 +31,8 @@ interface Reservation {
   beauticianId?: number;
   beauticianName: string;
   appointmentTime: string;
+  startTime?: string;
+  endTime?: string;
   status: ReservationStatus;
   createTime: string;
   customerPhone?: string;
@@ -54,8 +57,6 @@ const TIME_SLOTS = [
   { value: '09:00-10:00', label: '09:00~10:00', start: '09:00', end: '10:00' },
   { value: '10:00-11:00', label: '10:00~11:00', start: '10:00', end: '11:00' },
   { value: '11:00-12:00', label: '11:00~12:00', start: '11:00', end: '12:00' },
-  { value: '12:00-13:00', label: '12:00~13:00', start: '12:00', end: '13:00' },
-  { value: '13:00-14:00', label: '13:00~14:00', start: '13:00', end: '14:00' },
   { value: '14:00-15:00', label: '14:00~15:00', start: '14:00', end: '15:00' },
   { value: '15:00-16:00', label: '15:00~16:00', start: '15:00', end: '16:00' },
   { value: '16:00-17:00', label: '16:00~17:00', start: '16:00', end: '17:00' },
@@ -103,6 +104,38 @@ const createEmptyReservationForm = (): ReservationFormState => ({
   remark: '',
 });
 
+const BLOCKING_RESERVATION_STATUSES: ReservationStatus[] = ['pending', 'confirmed', 'checked_in'];
+
+const toMinutes = (time: string | undefined) => {
+  if (!time) return 0;
+  const [hour = '0', minute = '0'] = time.split(':');
+  return Number(hour) * 60 + Number(minute);
+};
+
+const getTimePart = (value: string | undefined) => {
+  if (!value) return '';
+  const matched = value.match(/(\d{2}:\d{2})/);
+  return matched?.[1] ?? '';
+};
+
+const addMinutesToTime = (time: string, minutes: number) => {
+  const total = toMinutes(time) + minutes;
+  const hour = String(Math.floor(total / 60)).padStart(2, '0');
+  const minute = String(total % 60).padStart(2, '0');
+  return `${hour}:${minute}`;
+};
+
+const rangesOverlap = (startA: string, endA: string, startB: string, endB: string) =>
+  toMinutes(startA) < toMinutes(endB) && toMinutes(startB) < toMinutes(endA);
+
+const isReservationBlockingSlot = (reservation: Reservation, slot: (typeof TIME_SLOTS)[number]) => {
+  if (!BLOCKING_RESERVATION_STATUSES.includes(reservation.status)) return false;
+  const startTime = reservation.startTime || getTimePart(reservation.appointmentTime);
+  const endTime = reservation.endTime || addMinutesToTime(startTime, 60);
+  if (!startTime || !endTime) return false;
+  return rangesOverlap(startTime, endTime, slot.start, slot.end);
+};
+
 export function ProjectReservation() {
   const [searchUser, setSearchUser] = useState('');
   const [searchProject, setSearchProject] = useState('');
@@ -110,6 +143,7 @@ export function ProjectReservation() {
   const [searchStatus, setSearchStatus] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [reservationScope, setReservationScope] = useState<ReservationScope>('future');
   const [viewReservation, setViewReservation] = useState<Reservation | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -121,6 +155,8 @@ export function ProjectReservation() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [beauticians, setBeauticians] = useState<Beautician[]>([]);
   const [beauticiansLoading, setBeauticiansLoading] = useState(false);
+  const [busyTimeSlots, setBusyTimeSlots] = useState<Set<string>>(() => new Set());
+  const [busyTimeSlotsLoading, setBusyTimeSlotsLoading] = useState(false);
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const stores = useStoreStore((state) => state.stores);
   const loadStores = useStoreStore((state) => state.loadStores);
@@ -137,8 +173,9 @@ export function ProjectReservation() {
       status: searchStatus || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
+      scope: reservationScope,
     }),
-    [searchUser, searchProject, searchBeautician, searchStatus, startDate, endDate],
+    [searchUser, searchProject, searchBeautician, searchStatus, startDate, endDate, reservationScope],
   );
   const {
     data: reservations,
@@ -263,6 +300,57 @@ export function ProjectReservation() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isCreateOpen || !createForm.appointmentDate || !createForm.beauticianId || !createForm.beauticianName) {
+      setBusyTimeSlots(new Set());
+      setBusyTimeSlotsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setBusyTimeSlotsLoading(true);
+    void getReservationsPaginated({
+      page: 1,
+      pageSize: 200,
+      storeName: currentStoreName || undefined,
+      beauticianName: createForm.beauticianName,
+      startDate: createForm.appointmentDate,
+      endDate: createForm.appointmentDate,
+      scope: 'future',
+    })
+      .then((response) => {
+        if (cancelled) return;
+        const sameBeauticianReservations = (response.items as Reservation[]).filter((reservation) => {
+          const sameStore = !currentStoreName || reservation.storeName === currentStoreName;
+          const sameDate = reservation.appointmentTime?.slice(0, 10) === createForm.appointmentDate;
+          const sameBeautician =
+            reservation.beauticianId === createForm.beauticianId ||
+            reservation.beauticianName === createForm.beauticianName;
+          return sameStore && sameDate && sameBeautician;
+        });
+        const busySlots = new Set(
+          TIME_SLOTS
+            .filter((slot) => sameBeauticianReservations.some((reservation) => isReservationBlockingSlot(reservation, slot)))
+            .map((slot) => slot.value),
+        );
+        setBusyTimeSlots(busySlots);
+        setCreateForm((current) => (current.timeSlot && busySlots.has(current.timeSlot) ? { ...current, timeSlot: '' } : current));
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setBusyTimeSlots(new Set());
+          toast.warning(error instanceof Error ? `员工预约占用加载失败：${error.message}` : '员工预约占用加载失败');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBusyTimeSlotsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [createForm.appointmentDate, createForm.beauticianId, createForm.beauticianName, currentStoreName, isCreateOpen]);
+
   const getStatusConfig = (status: Reservation['status']) => {
     const configs = {
       pending: { text: '待确认', color: 'bg-orange-100 text-orange-700 border-orange-300' },
@@ -275,6 +363,12 @@ export function ProjectReservation() {
     return configs[status] ?? configs.pending;
   };
 
+  const handleScopeChange = (scope: ReservationScope) => {
+    if (scope === reservationScope) return;
+    setReservationScope(scope);
+    setPage(1);
+  };
+
   const handleReset = () => {
     setSearchUser('');
     setSearchProject('');
@@ -282,6 +376,7 @@ export function ProjectReservation() {
     setSearchStatus('');
     setStartDate('');
     setEndDate('');
+    setPage(1);
   };
 
   const handleOpenCreate = () => {
@@ -356,6 +451,10 @@ export function ProjectReservation() {
     const selectedTimeSlot = TIME_SLOTS.find((slot) => slot.value === createForm.timeSlot);
     if (!selectedTimeSlot) {
       toast.warning('请选择预约时间段');
+      return;
+    }
+    if (createForm.beauticianId && busyTimeSlots.has(selectedTimeSlot.value)) {
+      toast.warning('该美容师当前时间段已有预约，请选择其他时间段');
       return;
     }
 
@@ -464,6 +563,29 @@ export function ProjectReservation() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+        <div className="flex rounded-md border border-gray-200 bg-gray-50 p-1">
+          {([
+            ['future', '未来预约'],
+            ['history', '历史预约'],
+          ] as const).map(([scope, label]) => (
+            <button
+              key={scope}
+              type="button"
+              onClick={() => handleScopeChange(scope)}
+              className={`rounded px-4 py-2 text-sm font-medium transition ${
+                reservationScope === scope ? 'bg-[#19594d] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="text-sm text-gray-500">
+          {reservationScope === 'future' ? '从今天开始，按预约时间由近到远排序' : '展示今天以前的预约记录，按时间倒序'}
+        </div>
+      </div>
+
       {/* Search Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="grid grid-cols-3 gap-x-6 gap-y-5">
@@ -537,7 +659,7 @@ export function ProjectReservation() {
 
         {/* Buttons */}
         <div className="flex items-center gap-3 mt-6">
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setPage(1)}>
             <Search className="w-4 h-4" /> 搜索
           </Button>
           <Button variant="outline" className="gap-2" onClick={handleReset}>
@@ -757,14 +879,21 @@ export function ProjectReservation() {
                   className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={createForm.timeSlot}
                   onChange={(event) => setCreateForm({ ...createForm, timeSlot: event.target.value })}
+                  disabled={busyTimeSlotsLoading}
                 >
-                  <option value="">请选择时间段</option>
-                  {TIME_SLOTS.map((slot) => (
-                    <option key={slot.value} value={slot.value}>
-                      {slot.label}
-                    </option>
-                  ))}
+                  <option value="">{busyTimeSlotsLoading ? '员工预约占用加载中...' : '请选择时间段'}</option>
+                  {TIME_SLOTS.map((slot) => {
+                    const isBusy = busyTimeSlots.has(slot.value);
+                    return (
+                      <option key={slot.value} value={slot.value} disabled={isBusy}>
+                        {slot.label}{isBusy ? '（已预约）' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
+                {createForm.beauticianId && createForm.appointmentDate && busyTimeSlots.size > 0 && (
+                  <div className="mt-1 text-xs text-gray-500">灰色时间段为该美容师已预约，不支持选择。</div>
+                )}
               </label>
             </div>
 

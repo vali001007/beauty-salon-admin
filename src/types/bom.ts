@@ -15,6 +15,7 @@ export interface BOMItem {
   standardQty: number;
   unit: string;
   costPrice?: number;
+  productStatus?: string;
 }
 
 export interface BomPayloadItem {
@@ -45,6 +46,8 @@ export interface ForecastItem {
   productName: string;
   sku: string;
   forecastConsumption: number;
+  scheduledConsumption?: number;
+  recentDailyConsumption?: number;
   currentStock: number;
   shortage: number;
 }

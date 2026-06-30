@@ -3,13 +3,21 @@ import { CheckCircle, PackageCheck, ShoppingCart, Sparkles, Loader2 } from 'luci
 import { Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Input } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { purchaseOrderSchema, type PurchaseOrderFormData } from '@/schemas/inventory';
-import { getReplenishmentSuggestions, getPurchaseOrdersPaginated, createPurchaseOrder, getStockMovements } from '@/api/inventory';
+import {
+  getReplenishmentSuggestions,
+  getPurchaseOrdersPaginated,
+  createPurchaseOrder,
+  updatePurchaseOrderStatus,
+  receivePurchaseOrder,
+  getStockMovements,
+} from '@/api/inventory';
 import { createProcurementOrder, getProcurementOrder, getProcurementOrders, receiveProcurementOrder } from '@/api/supplyPlatform';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import { toast } from 'sonner';
 import type { ReplenishmentSuggestion, PurchaseOrder, StockMovement } from '@/types';
 import type { ProcurementOrder, ProcurementOrderStatus } from '@/types/supplyPlatform';
+import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
 type PurchaseOrderDraft = PurchaseOrderFormData & {
   supplierId?: number;
@@ -24,6 +32,23 @@ type PurchaseOrderDraft = PurchaseOrderFormData & {
     unitPrice: number;
     sku: string;
   }>;
+};
+
+type UnifiedPurchaseOrder = {
+  id: string;
+  source: 'platform' | 'manual';
+  orderNo: string;
+  itemLabels: string[];
+  supplierName: string;
+  sourceLabel: string;
+  amount: number;
+  receivedSummary: string;
+  statusLabel: string;
+  statusClass: string;
+  createdAt?: string;
+  expectedDate?: string;
+  platformOrder?: ProcurementOrder;
+  manualOrder?: PurchaseOrder;
 };
 
 const OFFICIAL_SUPPLY_DISCOUNT_RATE = 0.8;
@@ -81,6 +106,83 @@ function getProcurementItemLabels(order: ProcurementOrder) {
   return order.items.map((item) => `${item.supplySku?.name || `SKU#${item.supplySkuId}`} × ${item.quantity}`);
 }
 
+function getManualPurchaseStatusColor(status: PurchaseOrder['status']) {
+  if (status === '已收货') return 'bg-emerald-100 text-emerald-700';
+  if (status === '部分收货') return 'bg-blue-100 text-blue-700';
+  if (status === '已下单' || status === '已审核') return 'bg-blue-100 text-blue-700';
+  if (status === '已取消') return 'bg-gray-100 text-gray-600';
+  if (status === '待审核') return 'bg-amber-100 text-amber-700';
+  return 'bg-slate-100 text-slate-700';
+}
+
+function toUnifiedPlatformOrder(order: ProcurementOrder): UnifiedPurchaseOrder {
+  const totalQty = order.items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
+  const receivedQty = order.items.reduce((sum, item) => sum + Number(item.receivedQty ?? 0), 0);
+  return {
+    id: `platform-${order.id}`,
+    source: 'platform',
+    orderNo: order.orderNo,
+    itemLabels: getProcurementItemLabels(order),
+    supplierName: order.supplier?.name || `供应商 #${order.supplierId}`,
+    sourceLabel: order.sourceType === 'replenishment' ? '智能补货-平台供货' : order.sourceType || '平台采购',
+    amount: Number(order.netAmount ?? order.totalAmount ?? 0),
+    receivedSummary: `${receivedQty}/${totalQty}`,
+    statusLabel: getProcurementStatusLabel(order.status),
+    statusClass: getProcurementStatusColor(order.status),
+    createdAt: order.createdAt,
+    expectedDate: order.expectedArrivalDate ?? undefined,
+    platformOrder: order,
+  };
+}
+
+function toUnifiedManualOrder(order: PurchaseOrder): UnifiedPurchaseOrder {
+  const totalQty = order.items?.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0) ?? 0;
+  const receivedQty = order.items?.reduce((sum, item) => sum + Number(item.receivedQty ?? 0), 0) ?? (order.status === '已收货' ? totalQty : 0);
+  return {
+    id: `manual-${order.id}`,
+    source: 'manual',
+    orderNo: order.orderNo,
+    itemLabels: getPurchaseOrderItemLabels(order),
+    supplierName: order.supplier || '手动采购',
+    sourceLabel: '智能补货-手动采购',
+    amount: Number(order.totalAmount ?? 0),
+    receivedSummary: `${receivedQty}/${totalQty}`,
+    statusLabel: order.status,
+    statusClass: getManualPurchaseStatusColor(order.status),
+    createdAt: order.createDate,
+    expectedDate: order.expectedDate,
+    manualOrder: order,
+  };
+}
+
+function getOrderTime(value?: string) {
+  const time = new Date(value ?? '').getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+async function getUnifiedPurchaseOrders(params: PaginationParams & { storeId?: number }): Promise<PaginatedResponse<UnifiedPurchaseOrder>> {
+  const page = Number(params.page ?? 1);
+  const pageSize = Number(params.pageSize ?? 10);
+  const fetchSize = page * pageSize;
+  const [platformOrders, manualOrders] = await Promise.all([
+    getProcurementOrders({ ...params, page: 1, pageSize: fetchSize }),
+    getPurchaseOrdersPaginated({ page: 1, pageSize: fetchSize }),
+  ]);
+  const combined = [
+    ...(platformOrders.items ?? []).map(toUnifiedPlatformOrder),
+    ...(manualOrders.items ?? []).map(toUnifiedManualOrder),
+  ].sort((a, b) => getOrderTime(b.createdAt) - getOrderTime(a.createdAt));
+  const start = (page - 1) * pageSize;
+  const items = combined.slice(start, start + pageSize);
+  return {
+    items,
+    data: items,
+    total: Number(platformOrders.total ?? 0) + Number(manualOrders.total ?? 0),
+    page,
+    pageSize,
+  };
+}
+
 export function PurchaseManagement() {
   const [activeTab, setActiveTab] = useState<'suggestions' | 'orders'>('suggestions');
   const [suggestions, setSuggestions] = useState<(ReplenishmentSuggestion & { checked: boolean })[]>([]);
@@ -95,6 +197,11 @@ export function PurchaseManagement() {
     return date.toISOString().split('T')[0];
   });
   const [selectedOrder, setSelectedOrder] = useState<ProcurementOrder | null>(null);
+  const [selectedManualOrder, setSelectedManualOrder] = useState<PurchaseOrder | null>(null);
+  const [showManualOrderDetail, setShowManualOrderDetail] = useState(false);
+  const [manualReceiveQty, setManualReceiveQty] = useState<Record<string, number>>({});
+  const [isUpdatingManualOrder, setIsUpdatingManualOrder] = useState(false);
+  const [isReceivingManualOrder, setIsReceivingManualOrder] = useState(false);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [loadingStockMovements, setLoadingStockMovements] = useState(false);
   const { currentStoreId, stores } = useStoreStore();
@@ -104,7 +211,7 @@ export function PurchaseManagement() {
   }, [currentStoreId, stores]);
 
   const ordersFilters = useMemo(() => ({ storeId: currentStoreId ?? undefined }), [currentStoreId]);
-  const { data: orders, total: ordersTotal, page: ordersPage, pageSize: ordersPageSize, loading: ordersLoading, setPage: setOrdersPage, setPageSize: setOrdersPageSize, refresh: refreshOrders } = usePagination<ProcurementOrder>(getProcurementOrders, ordersFilters);
+  const { data: orders, total: ordersTotal, page: ordersPage, pageSize: ordersPageSize, loading: ordersLoading, setPage: setOrdersPage, setPageSize: setOrdersPageSize, refresh: refreshOrders } = usePagination<UnifiedPurchaseOrder>(getUnifiedPurchaseOrders, ordersFilters);
 
   const loadData = useCallback(async () => {
     try {
@@ -229,6 +336,7 @@ export function PurchaseManagement() {
         })),
         ...manualDrafts.map((draft) => createPurchaseOrder({
           supplier: draft.supplier,
+          storeId: currentStoreId ?? 1,
           storeName: draft.storeName,
           expectedDate: draft.expectedDate,
           items: draft.items,
@@ -260,6 +368,78 @@ export function PurchaseManagement() {
       toast.error(err?.message || '平台订单详情加载失败');
     } finally {
       setLoadingOrderDetail(false);
+    }
+  };
+
+  const handleViewUnifiedOrder = async (order: UnifiedPurchaseOrder) => {
+    if (order.source === 'platform' && order.platformOrder) {
+      await handleViewOrder(order.platformOrder);
+      return;
+    }
+    if (order.manualOrder) {
+      setSelectedManualOrder(order.manualOrder);
+      setManualReceiveQty(Object.fromEntries((order.manualOrder.items ?? []).map((item) => [
+        item.sku,
+        Math.max(0, Number(item.quantity ?? 0) - Number(item.receivedQty ?? 0)),
+      ])));
+      setShowManualOrderDetail(true);
+    }
+  };
+
+  const handleManualStatusChange = async (status: PurchaseOrder['status']) => {
+    if (!selectedManualOrder) return;
+    if (status === '已取消' && !window.confirm(`确认取消手动采购单 ${selectedManualOrder.orderNo}？`)) return;
+    setIsUpdatingManualOrder(true);
+    try {
+      const updated = await updatePurchaseOrderStatus(selectedManualOrder.id, status);
+      setSelectedManualOrder(updated);
+      setManualReceiveQty(Object.fromEntries((updated.items ?? []).map((item) => [
+        item.sku,
+        Math.max(0, Number(item.quantity ?? 0) - Number(item.receivedQty ?? 0)),
+      ])));
+      refreshOrders();
+      toast.success(`手动采购单已更新为${updated.status}`);
+    } catch (err: any) {
+      toast.error(err?.message || '手动采购单状态更新失败');
+    } finally {
+      setIsUpdatingManualOrder(false);
+    }
+  };
+
+  const handleReceiveManualOrder = async () => {
+    if (!selectedManualOrder) return;
+    const items = (selectedManualOrder.items ?? [])
+      .map((item) => ({
+        sku: item.sku,
+        receivedQty: Math.min(
+          Math.max(0, Number(manualReceiveQty[item.sku] ?? 0)),
+          Math.max(0, Number(item.quantity ?? 0) - Number(item.receivedQty ?? 0)),
+        ),
+      }))
+      .filter((item) => item.receivedQty > 0);
+    if (!items.length) {
+      toast.error('请填写本次收货数量');
+      return;
+    }
+    if (!window.confirm(`确认本次收货 ${items.reduce((sum, item) => sum + item.receivedQty, 0)} 件？确认后将立即增加库存并写入采购入库流水。`)) return;
+
+    setIsReceivingManualOrder(true);
+    try {
+      const updated = await receivePurchaseOrder(selectedManualOrder.id, {
+        items,
+        remark: '采购管理手动采购单收货入库',
+      });
+      setSelectedManualOrder(updated);
+      setManualReceiveQty(Object.fromEntries((updated.items ?? []).map((item) => [
+        item.sku,
+        Math.max(0, Number(item.quantity ?? 0) - Number(item.receivedQty ?? 0)),
+      ])));
+      refreshOrders();
+      toast.success('手动采购单收货入库完成');
+    } catch (err: any) {
+      toast.error(err?.message || '手动采购单收货失败');
+    } finally {
+      setIsReceivingManualOrder(false);
     }
   };
 
@@ -388,7 +568,7 @@ export function PurchaseManagement() {
           )}
 
           {/* Suggestions Table */}
-          <Table>
+          <Table className="min-w-[1120px] table-fixed">
             <TableHeader>
               <TableRow className="bg-gray-50/80">
                 <TableHead className="w-12">
@@ -399,15 +579,15 @@ export function PurchaseManagement() {
                     onChange={(e) => toggleAll(e.target.checked)}
                   />
                 </TableHead>
-                <TableHead>产品名称</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>当前库存</TableHead>
-                <TableHead>预测需求(7天)</TableHead>
-                <TableHead>安全库存</TableHead>
-                <TableHead>在途数量</TableHead>
-                <TableHead>建议补货量</TableHead>
-                <TableHead>供货来源</TableHead>
-                <TableHead>预估金额</TableHead>
+                <TableHead className="w-[220px]">产品名称</TableHead>
+                <TableHead className="w-[170px]">SKU</TableHead>
+                <TableHead className="w-[90px]">当前库存</TableHead>
+                <TableHead className="w-[100px]">预测需求</TableHead>
+                <TableHead className="w-[90px]">安全库存</TableHead>
+                <TableHead className="w-[100px]">在途数量</TableHead>
+                <TableHead className="w-[120px]">建议补货量</TableHead>
+                <TableHead className="w-[150px]">供货来源</TableHead>
+                <TableHead className="w-[100px]">预估金额</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -421,14 +601,26 @@ export function PurchaseManagement() {
                       onChange={() => toggleSuggestion(item.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium text-gray-800">{item.productName}</TableCell>
+                  <TableCell className="font-medium text-gray-800" title={item.reason || item.productName}>
+                    <div className="whitespace-normal break-words leading-5">{item.productName}</div>
+                  </TableCell>
                   <TableCell className="font-mono text-sm text-gray-600">{item.sku}</TableCell>
                   <TableCell className={item.currentStock < item.safetyStock ? 'text-red-600 font-medium' : ''}>
                     {item.currentStock}
                   </TableCell>
-                  <TableCell className="text-blue-600 font-medium">{item.forecast7Days}</TableCell>
+                  <TableCell className="text-blue-600 font-medium">
+                    <div>{item.forecast7Days} / 7天</div>
+                    <div className="text-xs font-normal text-gray-500">{item.forecast30Days ?? 0} / 30天</div>
+                  </TableCell>
                   <TableCell>{item.safetyStock}</TableCell>
-                  <TableCell className="text-gray-600">{item.inTransit}</TableCell>
+                  <TableCell className="text-gray-600">
+                    <div>{item.inTransit}</div>
+                    {(item.platformInTransit || item.manualInTransit) ? (
+                      <div className="text-xs text-gray-400">
+                        平台 {item.platformInTransit ?? 0} / 手动 {item.manualInTransit ?? 0}
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>
                     <input
                       type="number"
@@ -481,7 +673,7 @@ export function PurchaseManagement() {
       {activeTab === 'orders' && (
         <>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-            平台供货订单由补货建议生成；库存管理只负责查状态和收货入库。供应商、商品、报价和结算维护迁移到供应链平台。
+            采购订单列表已合并平台供货订单和历史手动采购单；平台订单可继续查状态和收货入库，手动采购单状态流转将在下一阶段补齐。
           </div>
 
           {ordersLoading && (
@@ -499,6 +691,7 @@ export function PurchaseManagement() {
                 <TableHead>供应商</TableHead>
                 <TableHead>订单来源</TableHead>
                 <TableHead>总金额</TableHead>
+                <TableHead>收货进度</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>创建日期</TableHead>
                 <TableHead>预计交货日期</TableHead>
@@ -508,8 +701,8 @@ export function PurchaseManagement() {
             <TableBody>
               {orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-sm text-gray-500">
-                    暂无平台供货订单，可先从补货建议生成。
+                  <TableCell colSpan={10} className="py-10 text-center text-sm text-gray-500">
+                    暂无采购订单，可先从补货建议生成。
                   </TableCell>
                 </TableRow>
               ) : orders.map((order) => (
@@ -518,9 +711,9 @@ export function PurchaseManagement() {
                     {order.orderNo}
                   </TableCell>
                   <TableCell className="min-w-[180px] max-w-[260px]">
-                    {getProcurementItemLabels(order).length ? (
+                    {order.itemLabels.length ? (
                       <div className="space-y-1">
-                        {getProcurementItemLabels(order).map((label) => (
+                        {order.itemLabels.map((label) => (
                           <div key={`${order.orderNo}-${label}`} className="text-sm text-gray-700">
                             {label}
                           </div>
@@ -530,22 +723,29 @@ export function PurchaseManagement() {
                       <span className="text-sm text-gray-400">暂无明细</span>
                     )}
                   </TableCell>
-                  <TableCell>{order.supplier?.name || `供应商 #${order.supplierId}`}</TableCell>
-                  <TableCell>{order.sourceType === 'replenishment' ? '智能补货' : order.sourceType || '平台采购'}</TableCell>
-                  <TableCell className="font-medium text-gray-800">
-                    ¥{order.netAmount.toLocaleString()}
-                  </TableCell>
+                  <TableCell>{order.supplierName}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${getProcurementStatusColor(order.status)}`}>
-                      {getProcurementStatusLabel(order.status)}
+                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
+                      order.source === 'platform' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {order.sourceLabel}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-medium text-gray-800">
+                    ¥{order.amount.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm text-gray-700">{order.receivedSummary}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${order.statusClass}`}>
+                      {order.statusLabel}
                     </span>
                   </TableCell>
                   <TableCell>{formatDate(order.createdAt)}</TableCell>
-                  <TableCell>{formatDate(order.expectedArrivalDate)}</TableCell>
+                  <TableCell>{formatDate(order.expectedDate)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => void handleViewOrder(order)}
+                        onClick={() => void handleViewUnifiedOrder(order)}
                         className="text-blue-500 hover:text-blue-600 text-sm"
                       >
                         详情
@@ -694,6 +894,147 @@ export function PurchaseManagement() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Purchase Order Detail Dialog */}
+      <Dialog open={showManualOrderDetail} onOpenChange={setShowManualOrderDetail}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="manual-order-detail-description">
+          <DialogHeader>
+            <DialogTitle>手动采购单详情</DialogTitle>
+          </DialogHeader>
+          <span id="manual-order-detail-description" className="sr-only">查看历史手动采购单详细信息</span>
+
+          {selectedManualOrder && (
+            <div className="space-y-6 mt-4">
+              <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-sm text-gray-600">订单编号</div>
+                  <div className="font-mono text-sm font-medium text-gray-800 mt-1">
+                    {selectedManualOrder.orderNo}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">供应商</div>
+                  <div className="font-medium text-gray-800 mt-1">{selectedManualOrder.supplier}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">采购门店</div>
+                  <div className="font-medium text-gray-800 mt-1">{selectedManualOrder.storeName}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">状态</div>
+                  <div className="mt-1">
+                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${getManualPurchaseStatusColor(selectedManualOrder.status)}`}>
+                      {selectedManualOrder.status}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">创建日期</div>
+                  <div className="text-sm text-gray-800 mt-1">{formatDate(selectedManualOrder.createDate)}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">预计到货</div>
+                  <div className="text-sm text-gray-800 mt-1">{formatDate(selectedManualOrder.expectedDate)}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-800 mb-3">采购明细</h4>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/80">
+                      <TableHead>产品名称</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>数量</TableHead>
+                      <TableHead>已收</TableHead>
+                      <TableHead>本次收货</TableHead>
+                      <TableHead>单价</TableHead>
+                      <TableHead className="text-right">小计</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedManualOrder.items?.length ? (
+                      selectedManualOrder.items.map((item) => (
+                        <TableRow key={`${selectedManualOrder.orderNo}-${item.sku}`}>
+                          <TableCell>{item.productName}</TableCell>
+                          <TableCell className="font-mono text-sm">{item.sku}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.receivedQty ?? 0}</TableCell>
+                          <TableCell>
+                            {['已下单', '部分收货'].includes(selectedManualOrder.status) ? (
+                              <Input
+                                type="number"
+                                min={0}
+                                max={Math.max(0, Number(item.quantity ?? 0) - Number(item.receivedQty ?? 0))}
+                                className="h-8 w-24"
+                                value={manualReceiveQty[item.sku] ?? 0}
+                                onChange={(event) => setManualReceiveQty((prev) => ({
+                                  ...prev,
+                                  [item.sku]: Number(event.target.value) || 0,
+                                }))}
+                              />
+                            ) : (
+                              <span className="text-sm text-gray-400">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>¥{item.unitPrice.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">¥{item.subtotal.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-8 text-center text-sm text-gray-500">
+                          暂无采购明细
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4 flex justify-between gap-4">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  手动采购单按“提交审核 → 审核通过 → 确认下单 → 收货入库”流转；收货会创建批次、增加库存并写入采购入库流水。
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-600">采购金额</div>
+                  <div className="text-2xl font-semibold text-blue-600 mt-1">
+                    ¥{selectedManualOrder.totalAmount.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4">
+                {selectedManualOrder.status === '草稿' && (
+                  <Button variant="outline" onClick={() => void handleManualStatusChange('待审核')} disabled={isUpdatingManualOrder}>
+                    提交审核
+                  </Button>
+                )}
+                {selectedManualOrder.status === '待审核' && (
+                  <Button variant="outline" onClick={() => void handleManualStatusChange('已审核')} disabled={isUpdatingManualOrder}>
+                    审核通过
+                  </Button>
+                )}
+                {selectedManualOrder.status === '已审核' && (
+                  <Button variant="outline" onClick={() => void handleManualStatusChange('已下单')} disabled={isUpdatingManualOrder}>
+                    确认下单
+                  </Button>
+                )}
+                {!['已取消', '已收货'].includes(selectedManualOrder.status) && (
+                  <Button variant="outline" onClick={() => void handleManualStatusChange('已取消')} disabled={isUpdatingManualOrder || isReceivingManualOrder}>
+                    取消采购单
+                  </Button>
+                )}
+                {['已下单', '部分收货'].includes(selectedManualOrder.status) && (
+                  <Button onClick={() => void handleReceiveManualOrder()} disabled={isReceivingManualOrder || isUpdatingManualOrder}>
+                    {isReceivingManualOrder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    收货入库
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

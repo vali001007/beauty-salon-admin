@@ -46,7 +46,7 @@ export function ProductCatalogPicker({
   storeName,
   disabled,
   placeholder = '手工录入 / 选择商品',
-  emptyText = '未找到商品，可继续手工录入临时商品。',
+  emptyText = '未找到有售价的商品，可继续手工录入临时商品。',
   pageSize = 30,
   className,
 }: ProductCatalogPickerProps) {
@@ -77,6 +77,7 @@ export function ProductCatalogPicker({
           pageSize,
           keyword: keyword || undefined,
           status: 'active',
+          sellableOnly: true,
         })
           .then((response) => {
             if (requestSeq.current !== seq) return;

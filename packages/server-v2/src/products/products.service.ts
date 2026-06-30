@@ -22,17 +22,29 @@ export class ProductsService {
     return this.prisma.product.findMany({ where, include: { category: true, store: true }, orderBy: { createdAt: 'desc' } });
   }
 
-  async findPaginated(query: { page?: number; pageSize?: number; keyword?: string; categoryId?: number; status?: string }, storeId?: number) {
-    const { page = 1, pageSize = 20, keyword, categoryId, status } = query;
+  async findPaginated(query: { page?: number; pageSize?: number; keyword?: string; categoryId?: number; status?: string; sellableOnly?: boolean | string }, storeId?: number) {
+    const { page = 1, pageSize = 20, keyword, categoryId, status, sellableOnly } = query;
     const where: any = { deletedAt: null };
     if (storeId) where.storeId = storeId;
     if (categoryId) where.categoryId = categoryId;
     if (status) where.status = status;
-    if (keyword) {
+    if (sellableOnly === true || sellableOnly === 'true') {
       where.OR = [
+        { salePrice: { gt: 0 } },
+        { salePrice: null, retailPrice: { gt: 0 } },
+      ];
+    }
+    if (keyword) {
+      const keywordWhere = [
         { name: { contains: keyword, mode: 'insensitive' } },
         { sku: { contains: keyword, mode: 'insensitive' } },
       ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: keywordWhere }];
+        delete where.OR;
+      } else {
+        where.OR = keywordWhere;
+      }
     }
 
     const [items, total] = await Promise.all([

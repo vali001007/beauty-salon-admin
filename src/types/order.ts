@@ -354,7 +354,7 @@ export interface CardOrder {
   expiryDate: string;
 }
 
-export type MemberCardTransactionType = 'open' | 'recharge' | 'gift' | 'deduct';
+export type MemberCardTransactionType = 'open' | 'recharge' | 'gift' | 'deduct' | 'refund';
 
 export interface MemberCardAccount {
   id: number;
@@ -436,4 +436,15 @@ export interface MemberCardGiftPayload {
 export interface MemberCardDeductPayload {
   amount: number;
   remark?: string;
+}
+
+export interface MemberCardRefundPayload {
+  amount: number;
+  paymentMethod?: string;
+  remark?: string;
+}
+
+export interface ProductOrderRefundPayload {
+  amount?: number;
+  reason?: string;
 }

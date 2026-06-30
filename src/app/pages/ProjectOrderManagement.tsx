@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { BarChart3, Download, Eye, Loader2, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createProjectOrder, getProjectOrderProfit, getProjectOrdersPaginated } from '@/api/order';
+import { createProjectOrder, getProjectOrderProfit, getProjectOrdersPaginated, refundProductOrder } from '@/api/order';
 import { getProjects } from '@/api/project';
 import { getBeauticians } from '@/api/beautician';
 import { CustomerPicker } from '../components/CustomerPicker';
@@ -230,6 +230,7 @@ export function ProjectOrderManagement() {
   const [profitDetail, setProfitDetail] = useState<ProjectOrderProfitDetail | null>(null);
   const [profitLoading, setProfitLoading] = useState(false);
   const [profitError, setProfitError] = useState('');
+  const [refundSubmittingId, setRefundSubmittingId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -263,8 +264,8 @@ export function ProjectOrderManagement() {
 
   useEffect(() => {
     setLoadingProjects(true);
-    getProjects()
-      .then((items) => setProjects(items.filter((project) => project.status)))
+    getProjects({ status: 'active', sellableOnly: true })
+      .then((items) => setProjects(items.filter((project) => project.status && Number(project.price || 0) > 0)))
       .catch(() => toast.error('项目列表加载失败，请稍后重试'))
       .finally(() => setLoadingProjects(false));
   }, []);
@@ -352,6 +353,13 @@ export function ProjectOrderManagement() {
     if (hasPermission(deniedPermissions, 'core:project-order-profit:view') || hasPermission(deniedPermissions, '*')) return false;
     return hasPermission(permissions, '*') || roles.includes('super_admin') || roles.includes('store_manager');
   }, [currentUser]);
+  const canRefundOrder = useMemo(() => {
+    const roles = currentUser?.roles ?? [];
+    const permissions = currentUser?.permissions ?? [];
+    const deniedPermissions = currentUser?.deniedPermissions ?? [];
+    if (hasPermission(deniedPermissions, 'core:order:refund') || hasPermission(deniedPermissions, '*')) return false;
+    return hasPermission(permissions, '*') || hasPermission(permissions, 'core:order:refund') || roles.includes('super_admin') || roles.includes('store_manager');
+  }, [currentUser]);
 
   const getStatusColor = (status: ProductOrder['status']) => {
     switch (status) {
@@ -402,12 +410,16 @@ export function ProjectOrderManagement() {
       updateDraftItem(rowId, { projectId, projectName: '', projectType: '', duration: 60, unitPrice: 0 });
       return;
     }
+    const unitPrice = Number(project.price || 0);
+    if (unitPrice <= 0) {
+      toast.error('该项目档案未维护销售价，请先维护项目售价或手工录入单价');
+    }
     updateDraftItem(rowId, {
       projectId,
       projectName: project.name,
       projectType: project.type,
       duration: Number(project.duration || 60),
-      unitPrice: Number(project.price || 0),
+      unitPrice,
     });
   };
 
@@ -596,6 +608,35 @@ export function ProjectOrderManagement() {
     }
   };
 
+  const handleRefundOrder = async (order: ProductOrder) => {
+    const refundableAmount = Number(order.netAmount ?? order.totalAmount ?? 0);
+    if (refundableAmount <= 0) {
+      toast.error('该订单没有可退款金额');
+      return;
+    }
+    const amountText = window.prompt(`请输入退款金额，最大 ${formatCurrency(refundableAmount)}`, String(refundableAmount));
+    if (amountText === null) return;
+    const amount = Number(amountText);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > refundableAmount) {
+      toast.error('退款金额必须大于 0，且不能超过订单实收金额');
+      return;
+    }
+    const reason = window.prompt('请输入退款原因', '项目订单退款');
+    if (reason === null) return;
+    if (!window.confirm(`确认退款 ${formatCurrency(amount)}？退款后订单会进入已退款状态，并同步日结。`)) return;
+
+    setRefundSubmittingId(order.id);
+    try {
+      await refundProductOrder(order.id, { amount, reason: reason.trim() || '项目订单退款' });
+      toast.success('退款成功，已同步退款流水');
+      refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '退款失败，请稍后重试');
+    } finally {
+      setRefundSubmittingId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="text-sm text-gray-500">首页 / 订单管理 / 项目订单管理</div>
@@ -771,6 +812,15 @@ export function ProjectOrderManagement() {
                       >
                         <Eye className="h-3.5 w-3.5" /> 详情
                       </button>
+                      {canRefundOrder && !['已取消', '已退款'].includes(order.status) && (
+                        <button
+                          onClick={() => void handleRefundOrder(order)}
+                          disabled={refundSubmittingId === order.id}
+                          className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600 disabled:text-gray-300"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> {refundSubmittingId === order.id ? '退款中' : '退款'}
+                        </button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
