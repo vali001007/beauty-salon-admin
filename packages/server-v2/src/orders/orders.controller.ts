@@ -180,6 +180,13 @@ export class OrdersController {
     return this.ordersService.deductMemberCard(id, dto, userId);
   }
 
+  @Post('member-cards/:id/refund')
+  @Permissions('core:order:member-cards')
+  @ApiOperation({ summary: '会员卡余额退款' })
+  refundMemberCard(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @CurrentUser('id') userId?: number) {
+    return this.ordersService.refundMemberCard(id, dto, userId);
+  }
+
   @Get('member-cards/deduct-records/paginated')
   @Permissions('core:order:member-cards')
   @ApiOperation({ summary: '分页获取会员卡划扣流水' })

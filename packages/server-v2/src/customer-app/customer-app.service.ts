@@ -312,6 +312,7 @@ export class CustomerAppService {
       where: {
         storeId: project.storeId,
         status: 'active',
+        userId: { not: null },
         OR: [
           { projectSkills: { some: { projectId, certified: true } } },
           { projectSkills: { some: { projectId } } },

@@ -67,6 +67,10 @@ function uniqueSuffix() {
   return Date.now().toString(36).toUpperCase();
 }
 
+function createStockMovementNo(prefix = 'SM') {
+  return `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+
 async function findStore() {
   const storeId = argValue('storeId') ? Number(argValue('storeId')) : undefined;
   if (storeId) return prisma.store.findFirst({ where: { id: storeId, deletedAt: null } });
@@ -91,8 +95,180 @@ async function resolveCardProject(storeId: number, cardProject: any) {
   return project ? { ...cardProject, projectId: project.id, projectName: project.name } : cardProject;
 }
 
-async function buildActions(storeId: number): Promise<{ candidates: Record<string, unknown>; actions: SampleAction[] }> {
-  const [customer, beautician, customerCard, project, product, balanceAccount, terminalDevice] = await Promise.all([
+async function findProjectWithBomStock(storeId: number) {
+  const projects = await prisma.project.findMany({
+    where: { storeId, status: 'active', deletedAt: null, bomItems: { some: {} } },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      bomItems: {
+        select: {
+          productId: true,
+          standardQty: true,
+          product: { select: { id: true, name: true, currentStock: true, unit: true, deletedAt: true } },
+        },
+      },
+    },
+    orderBy: { id: 'asc' },
+    take: 50,
+  });
+  return (
+    projects.find((project: any) =>
+      project.bomItems.every((item: any) => money(item.product?.currentStock) >= Math.max(1, money(item.standardQty))),
+    ) ?? projects[0] ?? null
+  );
+}
+
+async function findProjectCommissionCandidate(storeId: number) {
+  const assignments = await prisma.commissionRuleAssignment.findMany({
+    where: {
+      storeId,
+      type: 'project',
+      status: 'active',
+      targetType: 'specific',
+      targetId: { not: null },
+      rule: { status: 'active' },
+    },
+    orderBy: { id: 'asc' },
+    take: 200,
+  });
+
+  let fallback: { project: any; beautician: any } | null = null;
+  for (const assignment of assignments) {
+    const [project, beautician] = await Promise.all([
+      prisma.project.findFirst({
+        where: { id: Number(assignment.targetId), storeId, status: 'active', deletedAt: null, bomItems: { some: {} } },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          bomItems: {
+            select: {
+              productId: true,
+              standardQty: true,
+              product: { select: { id: true, name: true, currentStock: true, unit: true, deletedAt: true } },
+            },
+          },
+        },
+      }),
+      prisma.beautician.findFirst({
+        where: { storeId, status: 'active', userId: Number(assignment.userId) },
+        select: { id: true, name: true, userId: true, levelId: true },
+      }),
+    ]);
+    if (!project || !beautician) continue;
+    fallback ??= { project, beautician };
+    const hasEnoughStock = project.bomItems.every((item: any) => money(item.product?.currentStock) >= Math.max(1, money(item.standardQty)));
+    if (hasEnoughStock) return { project, beautician };
+  }
+  return fallback;
+}
+
+async function findCustomerCardWithProject(storeId: number) {
+  const cards = await prisma.customerCard.findMany({
+    where: {
+      status: 'active',
+      remainingTimes: { gt: 1 },
+      expiryDate: { gt: new Date() },
+      customer: { storeId, deletedAt: null },
+    },
+    include: {
+      customer: { select: { id: true, name: true, phone: true } },
+      card: { select: { id: true, name: true, projects: true } },
+    },
+    orderBy: [{ remainingTimes: 'desc' }, { id: 'asc' }],
+    take: 50,
+  });
+
+  let fallback: { customerCard: any; cardProject: any } | null = null;
+  for (const customerCard of cards) {
+    const projects = Array.isArray(customerCard.card?.projects) ? customerCard.card.projects : [];
+    for (const rawProject of projects) {
+      const cardProject = await resolveCardProject(storeId, rawProject);
+      const projectId = Number(cardProject?.projectId ?? cardProject?.id);
+      if (!(projectId > 0)) continue;
+      fallback ??= { customerCard, cardProject };
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          bomItems: {
+            select: {
+              standardQty: true,
+              product: { select: { currentStock: true } },
+            },
+          },
+        },
+      });
+      if (project?.bomItems?.length && project.bomItems.every((item: any) => money(item.product?.currentStock) >= Math.max(1, money(item.standardQty)))) {
+        return { customerCard, cardProject };
+      }
+    }
+  }
+  return fallback;
+}
+
+async function ensureBomStockForProjectUses(storeId: number, projectUses: Map<number, number>) {
+  const preparations: Array<Record<string, unknown>> = [];
+  for (const [projectId, uses] of projectUses.entries()) {
+    if (!(projectId > 0) || uses <= 0) continue;
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, storeId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        bomItems: {
+          select: {
+            productId: true,
+            standardQty: true,
+            product: { select: { id: true, name: true, unit: true, currentStock: true, deletedAt: true } },
+          },
+        },
+      },
+    });
+    if (!project?.bomItems?.length) continue;
+
+    await prisma.$transaction(async (tx: any) => {
+      for (const item of project.bomItems) {
+        if (!item.product || item.product.deletedAt) continue;
+        const requiredQty = Math.max(1, money(item.standardQty)) * uses;
+        const beforeStock = money(item.product.currentStock);
+        if (beforeStock >= requiredQty) continue;
+        const topUpQty = requiredQty - beforeStock;
+        await tx.stockMovement.create({
+          data: {
+            storeId,
+            productId: item.product.id,
+            movementNo: createStockMovementNo('SM'),
+            movementType: 'stocktake_gain',
+            quantity: topUpQty,
+            beforeStock,
+            afterStock: requiredQty,
+            unit: item.product.unit,
+            sourceType: 'business_interface_acceptance',
+            sourceId: project.id,
+            sourceNo: `BIC-${uniqueSuffix()}`,
+            remark: `接口收敛验收样本补充BOM库存：${project.name}`,
+          },
+        });
+        await tx.product.update({ where: { id: item.product.id }, data: { currentStock: requiredQty } });
+        preparations.push({
+          projectId: project.id,
+          projectName: project.name,
+          productId: item.product.id,
+          productName: item.product.name,
+          beforeStock,
+          topUpQty,
+          afterStock: requiredQty,
+        });
+      }
+    });
+  }
+  return preparations;
+}
+
+async function buildActions(storeId: number): Promise<{ candidates: Record<string, unknown>; actions: SampleAction[]; prepareStock: (selectedKeys: Set<string>) => Promise<Array<Record<string, unknown>>> }> {
+  const [customer, fallbackBeautician, cardSelection, fallbackProject, projectCommissionCandidate, product, balanceAccount, terminalDevice] = await Promise.all([
     prisma.customer.findFirst({
       where: { storeId, deletedAt: null },
       select: { id: true, name: true, phone: true, source: true },
@@ -103,24 +279,9 @@ async function buildActions(storeId: number): Promise<{ candidates: Record<strin
       select: { id: true, name: true, userId: true, levelId: true },
       orderBy: { id: 'asc' },
     }),
-    prisma.customerCard.findFirst({
-      where: {
-        status: 'active',
-        remainingTimes: { gt: 0 },
-        expiryDate: { gt: new Date() },
-        customer: { storeId, deletedAt: null },
-      },
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        card: { select: { id: true, name: true, projects: true } },
-      },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.project.findFirst({
-      where: { storeId, status: 'active', deletedAt: null, bomItems: { some: {} } },
-      select: { id: true, name: true, price: true, bomItems: { select: { productId: true, standardQty: true }, take: 3 } },
-      orderBy: { id: 'asc' },
-    }),
+    findCustomerCardWithProject(storeId),
+    findProjectWithBomStock(storeId),
+    findProjectCommissionCandidate(storeId),
     prisma.product.findFirst({
       where: { storeId, status: 'active', deletedAt: null, currentStock: { gt: 0 } },
       select: { id: true, name: true, retailPrice: true, currentStock: true },
@@ -138,7 +299,10 @@ async function buildActions(storeId: number): Promise<{ candidates: Record<strin
     }),
   ]);
 
-  const cardProject = await resolveCardProject(storeId, firstCardProject(customerCard));
+  const beautician = projectCommissionCandidate?.beautician ?? fallbackBeautician;
+  const project = projectCommissionCandidate?.project ?? fallbackProject;
+  const customerCard = cardSelection?.customerCard ?? null;
+  const cardProject = cardSelection?.cardProject ?? await resolveCardProject(storeId, firstCardProject(customerCard));
   const cardProjectId = Number(cardProject?.projectId ?? cardProject?.id);
   const sampleCustomer = balanceAccount?.customer ?? customer;
   const suffix = uniqueSuffix();
@@ -202,6 +366,35 @@ async function buildActions(storeId: number): Promise<{ candidates: Record<strin
           },
           terminalDevice!.id,
         ),
+    },
+    {
+      key: 'admin-card-usage',
+      title: '管理端次卡核销样本',
+      canRun: Boolean(customerCard && cardProjectId > 0 && beautician),
+      missing: [
+        !customerCard ? 'active customerCard with at least 2 remainingTimes' : '',
+        !(cardProjectId > 0) ? 'card projectId' : '',
+        !beautician ? 'active beautician' : '',
+      ].filter(Boolean),
+      payload: {
+        customerCardId: customerCard?.id,
+        customerId: customerCard?.customerId,
+        projectId: cardProjectId > 0 ? cardProjectId : undefined,
+        projectName: cardProject?.projectName ?? cardProject?.name,
+        times: 1,
+        beauticianId: beautician?.id,
+        operatorId: beautician?.userId,
+      },
+      run: () =>
+        cardsService.verifyCardUsage({
+          customerCardId: customerCard!.id,
+          customerId: customerCard!.customerId,
+          projectId: cardProjectId,
+          projectName: cardProject?.projectName ?? cardProject?.name,
+          times: 1,
+          beauticianId: beautician!.id,
+          operatorId: beautician?.userId ?? undefined,
+        }),
     },
     {
       key: 'terminal-customer-create',
@@ -398,7 +591,20 @@ async function buildActions(storeId: number): Promise<{ candidates: Record<strin
     },
   ];
 
-  return { candidates, actions };
+  const prepareStock = (selectedKeys: Set<string>) => {
+    const projectUses = new Map<number, number>();
+    const addProjectUse = (projectId: number, uses = 1) => {
+      if (!(projectId > 0)) return;
+      projectUses.set(projectId, (projectUses.get(projectId) ?? 0) + uses);
+    };
+    if (selectedKeys.has('terminal-card-usage')) addProjectUse(cardProjectId, 1);
+    if (selectedKeys.has('admin-card-usage')) addProjectUse(cardProjectId, 1);
+    if (selectedKeys.has('admin-project-checkout')) addProjectUse(Number(project?.id), 1);
+    if (selectedKeys.has('terminal-mixed-checkout')) addProjectUse(Number(project?.id), 1);
+    return ensureBomStockForProjectUses(storeId, projectUses);
+  };
+
+  return { candidates, actions, prepareStock };
 }
 
 function serializeAction(action: SampleAction) {
@@ -423,7 +629,7 @@ async function main() {
   const store = await findStore();
   if (!store) throw new Error(`Store not found: ${argValue('storeId') ?? argValue('storeName') ?? DEFAULT_STORE_NAME}`);
 
-  const { candidates, actions } = await buildActions(store.id);
+  const { candidates, actions, prepareStock } = await buildActions(store.id);
   const selected = actions.filter((action) => !only.size || only.has(action.key));
   const plan = {
     mode: execute ? 'execute' : 'dry-run',
@@ -440,6 +646,10 @@ async function main() {
   if (!confirmed) throw new Error('Writing real samples requires --confirm-write-samples');
 
   const results: Array<Record<string, unknown>> = [];
+  const stockPreparation = await prepareStock(new Set(selected.map((action) => action.key)));
+  if (stockPreparation.length > 0) {
+    results.push({ key: 'acceptance-stock-preparation', status: 'created', movements: stockPreparation });
+  }
   for (const action of selected) {
     if (!action.canRun) {
       results.push({ key: action.key, status: 'skipped', missing: action.missing });

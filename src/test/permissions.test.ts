@@ -26,6 +26,7 @@ describe('permission catalog helpers', () => {
         'core:finance:view',
         'core:finance:manage',
         'core:finance:export',
+        'core:platform-revenue:view',
         'core:supply:view',
         'core:supply:manage',
         'core:supply:supplier',
@@ -37,14 +38,39 @@ describe('permission catalog helpers', () => {
     expect(normalizePermissionCode('supply:supplier')).toBe('core:supply:supplier');
   });
 
+  it('keeps inventory operation permissions separated from stock viewing', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        'core:inventory:stock',
+        'core:inventory:adjustment',
+        'core:inventory:stocktake',
+      ]),
+    );
+    expect(normalizePermissionCode('inventory:adjustment')).toBe('core:inventory:adjustment');
+    expect(normalizePermissionCode('inventory:stocktake')).toBe('core:inventory:stocktake');
+
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:inventory:adjustment')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:inventory:stocktake')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.inventory_manager, 'core:inventory:adjustment')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.inventory_manager, 'core:inventory:stocktake')).toBe(true);
+
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:inventory:stock')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:inventory:adjustment')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:inventory:stocktake')).toBe(false);
+  });
+
   it('keeps finance access scoped to admin roles', () => {
     expect(hasPermission(ROLE_PERMISSIONS.super_admin, 'core:finance:view')).toBe(true);
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:finance:view')).toBe(true);
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:finance:manage')).toBe(true);
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:supply:manage')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:platform-revenue:view')).toBe(false);
 
     expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:finance:view')).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:supply:manage')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:platform-revenue:view')).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:finance:view')).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.inventory_manager, 'core:finance:view')).toBe(false);
   });
@@ -86,33 +112,33 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:operation-profit:view')).toBe(false);
   });
 
-  it('keeps operation profit menu entries registered in the permission catalog', () => {
+  it('keeps finance center menu entries registered in the permission catalog', () => {
     const catalogCodes = new Set(PERMISSION_CATALOG.map((permission) => permission.code));
     const financeMenu = MENU_ITEMS.find((menu) => menu.path === '/finance');
-    const operationProfitChildren = financeMenu?.children.filter((child) => child.path.startsWith('/operation-profit'));
+    const systemMenu = MENU_ITEMS.find((menu) => menu.path === '/system');
 
     expect(MENU_ITEMS.find((menu) => menu.path === '/operation-profit')).toBeUndefined();
-    expect(operationProfitChildren?.map((child) => ({
+    expect(financeMenu?.children.map((child) => ({
       title: child.title,
       path: child.path,
       permission: child.permission,
       group: child.group,
     }))).toEqual([
-      { title: '员工人效', path: '/operation-profit/beautician-performance', permission: 'core:beautician-performance:view', group: '提成与人效' },
-      { title: '利润看板', path: '/operation-profit/overview', permission: 'core:operation-profit:view', group: '经营利润' },
-      { title: '商品毛利', path: '/operation-profit/product-margins', permission: 'core:product-margin:view', group: '经营利润' },
-      { title: '项目毛利', path: '/operation-profit/project-margins', permission: 'core:project-margin:view', group: '经营利润' },
-      { title: '会员卡（储值）履约', path: '/operation-profit/prepaid-liabilities', permission: 'core:prepaid-liability:view', group: '经营利润' },
-      { title: '次卡履约', path: '/operation-profit/card-liabilities', permission: 'core:prepaid-liability:view', group: '经营利润' },
-      { title: '成本配置', path: '/operation-profit/costs', permission: 'core:operation-cost:view', group: '经营利润' },
+      { title: '财务首页', path: '/finance', permission: 'core:finance:view', group: '总览' },
+      { title: '收银对账', path: '/finance/reconciliation', permission: 'core:finance:view', group: '结算与对账' },
+      { title: '员工提成', path: '/finance/staff-commission', permission: 'core:finance:view', group: '提成与人效' },
+      { title: '经营利润', path: '/finance/profit', permission: 'core:operation-profit:view', group: '经营利润' },
+      { title: '会员资产', path: '/finance/member-assets', permission: 'core:prepaid-liability:view', group: '会员资产' },
+      { title: '数字员工账单', path: '/finance/ami-billing', permission: 'core:finance:view', group: '数字员工' },
     ]);
-    expect(operationProfitChildren?.every((child) => catalogCodes.has(child.permission))).toBe(true);
+    expect(financeMenu?.children.every((child) => catalogCodes.has(child.permission))).toBe(true);
+    expect(systemMenu?.children.find((child) => child.path === '/finance/platform-revenue')?.permission).toBe('core:platform-revenue:view');
     expect(catalogCodes.has('core:project-order-profit:view')).toBe(true);
     expect(catalogCodes.has('core:product-order-profit:view')).toBe(true);
     expect(catalogCodes.has('core:card-order-profit:view')).toBe(true);
   });
 
-  it('keeps operation profit menu paths aligned with guarded routes', () => {
+  it('keeps finance center menu paths backed by guarded routes', () => {
     type RouteLike = {
       path?: string;
       children?: RouteLike[];
@@ -120,7 +146,22 @@ describe('permission catalog helpers', () => {
     };
 
     const financeMenu = MENU_ITEMS.find((menu) => menu.path === '/finance');
-    const operationProfitChildren = financeMenu?.children.filter((child) => child.path.startsWith('/operation-profit'));
+    const rootRoute = (router.routes as RouteLike[]).find((route) => route.path === '/');
+    const routePaths = new Set(rootRoute?.children?.map((route) => (route.path === 'finance' ? '/finance' : `/${route.path}`)) ?? []);
+
+    for (const child of financeMenu?.children ?? []) {
+      expect(routePaths.has(child.path)).toBe(true);
+    }
+    expect(routePaths.has('/finance/platform-revenue')).toBe(true);
+  });
+
+  it('keeps legacy operation profit routes available with their original permissions', () => {
+    type RouteLike = {
+      path?: string;
+      children?: RouteLike[];
+      handle?: { permission?: string };
+    };
+
     const rootRoute = (router.routes as RouteLike[]).find((route) => route.path === '/');
     const guardedRoutes = new Map(
       rootRoute?.children
@@ -128,18 +169,15 @@ describe('permission catalog helpers', () => {
         .map((route) => [`/${route.path}`, route.handle?.permission]) ?? [],
     );
 
-    expect(operationProfitChildren?.map((child) => [child.path, child.permission])).toEqual([
-      ['/operation-profit/beautician-performance', 'core:beautician-performance:view'],
+    expect(Array.from(guardedRoutes.entries())).toEqual([
       ['/operation-profit/overview', 'core:operation-profit:view'],
       ['/operation-profit/product-margins', 'core:product-margin:view'],
       ['/operation-profit/project-margins', 'core:project-margin:view'],
       ['/operation-profit/prepaid-liabilities', 'core:prepaid-liability:view'],
       ['/operation-profit/card-liabilities', 'core:prepaid-liability:view'],
+      ['/operation-profit/beautician-performance', 'core:beautician-performance:view'],
       ['/operation-profit/costs', 'core:operation-cost:view'],
     ]);
-    for (const child of operationProfitChildren ?? []) {
-      expect(guardedRoutes.get(child.path)).toBe(child.permission);
-    }
   });
 });
 

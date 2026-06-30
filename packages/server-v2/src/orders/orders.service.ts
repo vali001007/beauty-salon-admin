@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { DiscountAllocationService, type DiscountAllocationInput } from './discount-allocation.service.js';
+import { deductStockItems } from '../common/inventory-stock-deduction.js';
 
 @Injectable()
 export class OrdersService {
@@ -341,115 +342,6 @@ export class OrdersService {
     });
   }
 
-  private async createProjectBomStockMovement(
-    tx: any,
-    params: {
-      storeId: number;
-      productId: number;
-      quantity: number;
-      order: { id: number; orderNo?: string | null };
-      projectName?: string;
-      remark?: string;
-    },
-  ) {
-    if (!params.storeId || !params.productId || params.quantity <= 0) return;
-    const product = await tx.product.findFirst({
-      where: { id: params.productId, storeId: params.storeId, deletedAt: null },
-    });
-    if (!product) return;
-
-    const beforeStock = this.toNonNegativeStock(product.currentStock);
-    const appliedQty = Math.min(beforeStock, params.quantity);
-    const afterStock = beforeStock - appliedQty;
-    if (appliedQty <= 0) {
-      if (this.toNumber(product.currentStock) < 0) {
-        await tx.product.update({
-          where: { id: product.id },
-          data: { currentStock: 0 },
-        });
-      }
-      return;
-    }
-
-    await tx.product.update({
-      where: { id: product.id },
-      data: { currentStock: afterStock },
-    });
-
-    await tx.stockMovement.create({
-      data: {
-        storeId: params.storeId,
-        productId: product.id,
-        movementNo: this.createStockMovementNo('SM'),
-        movementType: 'service_consume',
-        quantity: -appliedQty,
-        beforeStock,
-        afterStock,
-        unit: product.unit,
-        sourceType: 'project_order',
-        sourceId: params.order.id,
-        sourceNo: params.order.orderNo,
-        remark: this.buildInventoryShortageRemark(
-          params.remark ?? (params.projectName ? `项目订单自动扣耗材：${params.projectName}` : '项目订单自动扣耗材'),
-          params.quantity,
-          appliedQty,
-        ),
-      },
-    });
-  }
-
-  private async createProductOrderStockMovement(
-    tx: any,
-    params: {
-      storeId: number;
-      productId: number;
-      quantity: number;
-      order: { id: number; orderNo?: string | null };
-      remark?: string;
-    },
-  ) {
-    if (!params.storeId || !params.productId || params.quantity <= 0) return;
-    const product = await tx.product.findFirst({
-      where: { id: params.productId, storeId: params.storeId, deletedAt: null },
-    });
-    if (!product) return;
-
-    const beforeStock = this.toNonNegativeStock(product.currentStock);
-    const appliedQty = Math.min(beforeStock, params.quantity);
-    const afterStock = beforeStock - appliedQty;
-    if (appliedQty <= 0) {
-      if (this.toNumber(product.currentStock) < 0) {
-        await tx.product.update({
-          where: { id: product.id },
-          data: { currentStock: 0 },
-        });
-      }
-      return;
-    }
-
-    await tx.product.update({
-      where: { id: product.id },
-      data: { currentStock: afterStock },
-    });
-
-    await tx.stockMovement.create({
-      data: {
-        storeId: params.storeId,
-        productId: product.id,
-        movementNo: this.createStockMovementNo('SM'),
-        movementType: 'sale_out',
-        quantity: -appliedQty,
-        beforeStock,
-        afterStock,
-        unit: product.unit,
-        sourceType: 'product_order',
-        sourceId: params.order.id,
-        sourceNo: params.order.orderNo,
-        remark: this.buildInventoryShortageRemark(params.remark ?? '商品订单自动扣库存', params.quantity, appliedQty),
-      },
-    });
-  }
-
   private async consumeProductItemsForOrder(
     tx: any,
     order: { id: number; orderNo?: string | null; storeId?: number | null },
@@ -470,15 +362,21 @@ export class OrdersService {
     });
     if (existed) return;
 
-    for (const item of productItems) {
-      await this.createProductOrderStockMovement(tx, {
-        storeId,
+    await deductStockItems(tx, {
+      storeId,
+      movementType: 'sale_out',
+      source: {
+        type: 'product_order',
+        id: order.id,
+        no: order.orderNo,
+        remark: remark ?? '商品订单自动扣库存',
+      },
+      items: productItems.map((item) => ({
         productId: Number(item.itemId ?? item.productId),
         quantity: this.toNumber(item.quantity ?? 1) || 1,
-        order,
-        remark,
-      });
-    }
+        remark: remark ?? '商品订单自动扣库存',
+      })),
+    });
   }
 
   private async consumeProjectBomForOrder(
@@ -512,19 +410,28 @@ export class OrdersService {
       bomByProject.set(bomItem.projectId, list);
     }
 
+    const deductionItems = [];
     for (const item of projectItems) {
       const multiplier = this.toNumber(item.quantity ?? 1) || 1;
       for (const bomItem of bomByProject.get(Number(item.itemId)) ?? []) {
-        await this.createProjectBomStockMovement(tx, {
-          storeId,
+        deductionItems.push({
           productId: bomItem.productId,
           quantity: this.toNumber(bomItem.standardQty) * multiplier,
-          order,
-          projectName: item.name,
-          remark,
+          remark: remark ?? (item.name ? `项目订单自动扣耗材：${item.name}` : '项目订单自动扣耗材'),
         });
       }
     }
+    await deductStockItems(tx, {
+      storeId,
+      movementType: 'service_consume',
+      source: {
+        type: 'project_order',
+        id: order.id,
+        no: order.orderNo,
+        remark: remark ?? '项目订单自动扣耗材',
+      },
+      items: deductionItems,
+    });
   }
 
   private toProductOrderItem(item: any, index: number) {
@@ -1656,6 +1563,7 @@ export class OrdersService {
       recharge: '充值',
       gift: '赠送',
       deduct: '划扣',
+      refund: '退款',
     };
     return labels[type] ?? type;
   }
@@ -2057,9 +1965,127 @@ export class OrdersService {
     });
   }
 
+  async refundMemberCard(id: number, data: any, operatorId?: number) {
+    const refundAmount = this.toNumber(data.amount);
+    if (refundAmount <= 0) throw new BadRequestException('退款金额必须大于 0');
+
+    const account = await this.prisma.customerBalanceAccount.findUnique({
+      where: { id },
+      include: { customer: true, store: true },
+    });
+    if (!account) throw new NotFoundException('会员卡不存在');
+    const cashBalance = this.toNumber(account.cashBalance);
+    if (refundAmount > cashBalance) throw new BadRequestException('退款金额不能大于储值现金余额');
+
+    const sourceTransactions = await this.prisma.customerBalanceTransaction.findMany({
+      where: {
+        accountId: id,
+        type: { in: ['open', 'recharge'] },
+        orderId: { not: null },
+      },
+      include: { order: { include: { refundRecords: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const refundedOrderIds = new Set<number>();
+    await this.prisma.$transaction(async (tx) => {
+      const cashBalanceBefore = this.toNumber(account.cashBalance);
+      const giftBalanceBefore = this.toNumber(account.giftBalance);
+      const cashBalanceAfter = cashBalanceBefore - refundAmount;
+
+      await tx.customerBalanceAccount.update({
+        where: { id },
+        data: { cashBalance: cashBalanceAfter, status: 'active' },
+      });
+      await tx.customerBalanceTransaction.create({
+        data: {
+          accountId: id,
+          customerId: account.customerId,
+          storeId: account.storeId,
+          transactionNo: this.createBalanceTransactionNo(),
+          type: 'refund',
+          amount: refundAmount,
+          giftAmount: 0,
+          cashBalanceBefore,
+          cashBalanceAfter,
+          giftBalanceBefore,
+          giftBalanceAfter: giftBalanceBefore,
+          paymentMethod: data.paymentMethod ? this.normalizePaymentMethod(data.paymentMethod) : undefined,
+          operatorId: this.toNumber(operatorId) || undefined,
+          remark: data.remark,
+        },
+      });
+
+      let remainingRefund = refundAmount;
+      for (const transaction of sourceTransactions) {
+        if (remainingRefund <= 0) break;
+        const order = transaction.order;
+        if (!order) continue;
+        const orderAmount = this.toNumber(order.netAmount ?? order.totalAmount);
+        const existingRefundAmount = (order.refundRecords ?? []).reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+        const orderRefundable = this.round(Math.max(0, orderAmount - existingRefundAmount));
+        if (orderRefundable <= 0) continue;
+        const allocatedRefund = this.round(Math.min(remainingRefund, orderRefundable));
+        await tx.refundRecord.create({
+          data: {
+            orderId: order.id,
+            refundNo: this.createRefundNo(),
+            amount: allocatedRefund,
+            reason: data.remark ?? '会员卡余额退款',
+            status: 'success',
+            refundedAt: new Date(),
+          },
+        });
+        await tx.productOrder.update({
+          where: { id: order.id },
+          data: { status: 'refunded', remark: data.remark ?? '会员卡余额退款' },
+        });
+        await this.reverseMarketingAttribution(tx, order.id, allocatedRefund);
+        await this.commissionService.reverseOrderCommissions(order.id, allocatedRefund, tx);
+        refundedOrderIds.add(order.id);
+        remainingRefund = this.round(remainingRefund - allocatedRefund);
+      }
+
+      if (account.customerId) {
+        await tx.customer.update({
+          where: { id: account.customerId },
+          data: { totalSpent: { decrement: refundAmount } },
+        });
+      }
+    });
+
+    const refreshedOrders = refundedOrderIds.size
+      ? await this.prisma.productOrder.findMany({ where: { id: { in: Array.from(refundedOrderIds) } } })
+      : [];
+    await Promise.all(refreshedOrders.map((order) => this.refreshDailySettlementForOrder(order, 'admin_member_card_refund')));
+
+    const updatedAccount = await this.prisma.customerBalanceAccount.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        store: { select: { id: true, name: true } },
+        transactions: {
+          include: {
+            operator: { select: { id: true, name: true, username: true } },
+            order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    return this.serializeMemberCardAccount(updatedAccount);
+  }
+
   private async adjustMemberCardBalance(
     id: number,
-    data: { amount: number; giftAmount: number; type: 'gift' | 'deduct'; remark?: string; operatorId?: number },
+    data: {
+      amount: number;
+      giftAmount: number;
+      type: 'gift' | 'deduct' | 'refund';
+      paymentMethod?: string;
+      remark?: string;
+      operatorId?: number;
+    },
   ) {
     const result = await this.prisma.$transaction(async (tx) => {
       const account = await tx.customerBalanceAccount.findUnique({
@@ -2071,7 +2097,7 @@ export class OrdersService {
       const cashBalanceBefore = this.toNumber(account.cashBalance);
       const giftBalanceBefore = this.toNumber(account.giftBalance);
       const cashBalanceAfter =
-        data.type === 'deduct' ? cashBalanceBefore - this.toNumber(data.amount) : cashBalanceBefore;
+        data.type === 'deduct' || data.type === 'refund' ? cashBalanceBefore - this.toNumber(data.amount) : cashBalanceBefore;
       const giftBalanceAfter =
         data.type === 'deduct'
           ? giftBalanceBefore - this.toNumber(data.giftAmount)
@@ -2099,7 +2125,7 @@ export class OrdersService {
           cashBalanceAfter,
           giftBalanceBefore,
           giftBalanceAfter,
-          paymentMethod: data.type === 'deduct' ? 'member_balance' : undefined,
+          paymentMethod: data.type === 'deduct' ? 'member_balance' : data.paymentMethod ? this.normalizePaymentMethod(data.paymentMethod) : undefined,
           operatorId: this.toNumber(data.operatorId) || undefined,
           remark: data.remark,
         },
@@ -2344,7 +2370,17 @@ export class OrdersService {
   private serializeCardOrder(item: any, usageRecords: any[] = []) {
     const sourceOrder = item.sourceOrder;
     const sourceOrderItem = item.sourceOrderItem;
-    const refundAmount = (sourceOrder?.refundRecords ?? []).reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+    const refundRecords = sourceOrder?.refundRecords ?? [];
+    const serializedRefundRecords = refundRecords.map((record: any) => ({
+      ...record,
+      amount: this.round(this.toNumber(record.amount)),
+    }));
+    const latestRefundRecord = [...serializedRefundRecords].sort((left: any, right: any) => {
+      const leftTime = new Date(left.refundedAt ?? left.createdAt ?? 0).getTime();
+      const rightTime = new Date(right.refundedAt ?? right.createdAt ?? 0).getTime();
+      return rightTime - leftTime;
+    })[0];
+    const refundAmount = serializedRefundRecords.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
     const recognizedAmount = usageRecords.reduce((sum: number, record: any) => {
       const amount = this.toNumber(record.recognizedAmount);
       return sum + (amount > 0 ? amount : this.toNumber(record.recognizedUnitValue) * this.toNumber(record.times));
@@ -2361,7 +2397,7 @@ export class OrdersService {
       cardId: item.cardId,
       customerCardId: item.id,
       sourceOrderId: item.sourceOrderId,
-      sourceOrderNo: sourceOrder?.orderNo,
+      sourceOrderNo: sourceOrder?.checkoutGroupNo ?? sourceOrder?.orderNo,
       sourceOrderItemId: item.sourceOrderItemId,
       totalTimes: item.totalTimes,
       remainingTimes: item.remainingTimes,
@@ -2369,6 +2405,8 @@ export class OrdersService {
       listAmount: this.round(this.toNumber(sourceOrderItem?.listAmount ?? item.card?.price)),
       discountAmount: this.round(this.toNumber(item.discountAmount ?? sourceOrderItem?.totalDiscountAmount)),
       refundAmount: this.round(refundAmount),
+      refundNo: latestRefundRecord?.refundNo,
+      refundRecords: serializedRefundRecords,
       recognizedAmount: this.round(recognizedAmount),
       cardProjects: this.buildCardOrderProjectSummary(item.card, item, usageRecords),
       purchaseTime: item.createdAt,
@@ -2461,7 +2499,7 @@ export class OrdersService {
 
     const nextStatus = data.status === undefined ? undefined : String(data.status);
     if (nextStatus && !['active', 'expired'].includes(nextStatus)) {
-      throw new BadRequestException('编辑只允许调整为已激活或已过期，退卡请使用作废功能');
+      throw new BadRequestException('编辑只允许调整为已激活或已过期，退卡请使用退款功能');
     }
     const expiryValue = data.expiryDate ?? data.expireTime;
     const updateData: any = {};
@@ -2491,7 +2529,8 @@ export class OrdersService {
     const item = await this.prisma.customerCard.findUnique({
       where: { id },
       include: {
-        customer: { select: { id: true } },
+        customer: { select: { id: true, name: true, phone: true } },
+        card: { select: { id: true, name: true, price: true, storeId: true } },
         sourceOrder: { include: { refundRecords: true } },
         usageRecords: true,
       },
@@ -2510,11 +2549,64 @@ export class OrdersService {
     const refundAmount = this.round(Math.max(0, Math.min(requestedRefundAmount, maxRefundAmount)));
     const reason = data?.reason ?? '次卡退卡作废';
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      if (item.sourceOrderId && refundAmount > 0) {
-        await tx.refundRecord.create({
+    const { updated, refundRecord, refundSourceOrder } = await this.prisma.$transaction(async (tx) => {
+      let refundRecord: any = null;
+      let sourceOrderId = item.sourceOrderId;
+      let refundSourceOrder: any = item.sourceOrder;
+
+      if (!sourceOrderId && refundAmount > 0) {
+        const recoveredOrder = await tx.productOrder.create({
           data: {
-            orderId: item.sourceOrderId,
+            orderNo: `COR${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+            checkoutGroupNo: `COR${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+            orderKind: 'card',
+            customerId: item.customerId,
+            customerName: item.customer?.name,
+            storeId: item.card?.storeId,
+            totalAmount: paidAmount,
+            listAmount: this.toNumber(item.card?.price ?? paidAmount),
+            totalDiscountAmount: this.toNumber(item.discountAmount),
+            netAmount: paidAmount,
+            discountSource: this.toNumber(item.discountAmount) > 0 ? 'item' : 'none',
+            allocationMethod: this.toNumber(item.discountAmount) > 0 ? 'direct' : 'none',
+            discountPayload: { recoveredFromCustomerCardId: item.id, recoveredReason: 'card_refund_without_source_order' },
+            status: 'refunded',
+            source: 'card_refund_recovery',
+            items: [{ itemType: 'card', itemId: item.cardId, quantity: 1, unitPrice: paidAmount, cardName: item.cardName }],
+            remark: reason,
+            createdAt: item.createdAt,
+          },
+        });
+        const recoveredOrderItem = await tx.orderItem.create({
+          data: {
+            orderId: recoveredOrder.id,
+            itemType: 'card',
+            itemId: item.cardId,
+            name: item.cardName,
+            quantity: 1,
+            unitPrice: paidAmount,
+            listAmount: this.toNumber(item.card?.price ?? paidAmount),
+            subtotal: paidAmount,
+            discount: this.toNumber(item.discountAmount),
+            totalDiscountAmount: this.toNumber(item.discountAmount),
+            netAmount: paidAmount,
+            discountSource: this.toNumber(item.discountAmount) > 0 ? 'item' : 'none',
+            allocationMethod: this.toNumber(item.discountAmount) > 0 ? 'direct' : 'none',
+            payload: { recoveredFromCustomerCardId: item.id },
+          },
+        });
+        await tx.customerCard.update({
+          where: { id },
+          data: { sourceOrderId: recoveredOrder.id, sourceOrderItemId: recoveredOrderItem.id },
+        });
+        sourceOrderId = recoveredOrder.id;
+        refundSourceOrder = recoveredOrder;
+      }
+
+      if (sourceOrderId && refundAmount > 0) {
+        refundRecord = await tx.refundRecord.create({
+          data: {
+            orderId: sourceOrderId,
             refundNo: this.createRefundNo(),
             amount: refundAmount,
             reason,
@@ -2523,11 +2615,11 @@ export class OrdersService {
           },
         });
         await tx.productOrder.update({
-          where: { id: item.sourceOrderId },
+          where: { id: sourceOrderId },
           data: { status: 'refunded', remark: reason },
         });
-        await this.reverseMarketingAttribution(tx, item.sourceOrderId, refundAmount);
-        await this.commissionService.reverseOrderCommissions(item.sourceOrderId, refundAmount, tx);
+        await this.reverseMarketingAttribution(tx, sourceOrderId, refundAmount);
+        await this.commissionService.reverseOrderCommissions(sourceOrderId, refundAmount, tx);
       }
       if (item.customerId && refundAmount > 0) {
         await tx.customer.update({
@@ -2535,18 +2627,26 @@ export class OrdersService {
           data: { totalSpent: { decrement: refundAmount } },
         });
       }
-      return tx.customerCard.update({
+      const updated = await tx.customerCard.update({
         where: { id },
         data: { status: 'voided', remainingTimes: 0 },
       });
+      return { updated, refundRecord, refundSourceOrder };
     });
 
-    if (item.sourceOrder) {
-      await this.refreshDailySettlementForOrder(item.sourceOrder, 'admin_card_order_void');
+    if (refundSourceOrder) {
+      await this.refreshDailySettlementForOrder(refundSourceOrder, 'admin_card_order_void');
     }
     return {
       ...(await this.findCardOrderById(id)),
       refundAmount,
+      refundNo: refundRecord?.refundNo,
+      refundRecord: refundRecord
+        ? {
+            ...refundRecord,
+            amount: this.round(this.toNumber(refundRecord.amount)),
+          }
+        : undefined,
       maxRefundAmount,
       recognizedAmount: this.round(recognizedAmount),
       status: updated.status,

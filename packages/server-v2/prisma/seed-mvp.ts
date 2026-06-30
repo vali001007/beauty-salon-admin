@@ -396,7 +396,7 @@ async function seedProducts(stores: Awaited<ReturnType<typeof ensureStores>>) {
   for (const store of stores) {
     for (const [index, product] of productCatalog.entries()) {
       const sku = `${product.sku}-S${store.id}`;
-      const existing = await prisma.product.findUnique({ where: { sku } });
+      const existing = await prisma.product.findFirst({ where: { storeId: store.id, sku } });
       const currentStock = index % 4 === 0 ? product.safetyStock - 8 : product.safetyStock + 35 + store.id * 3;
       if (existing) {
         productsByStoreSku.set(`${store.id}:${product.sku}`, existing);

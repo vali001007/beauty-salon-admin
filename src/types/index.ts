@@ -34,6 +34,8 @@ export type {
   MemberCardRechargePayload,
   MemberCardGiftPayload,
   MemberCardDeductPayload,
+  MemberCardRefundPayload,
+  ProductOrderRefundPayload,
 } from './order';
 export * from './marketing';
 export * from './marketing-page';

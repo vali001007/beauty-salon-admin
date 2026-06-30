@@ -330,8 +330,121 @@ async function resolveCardProject(storeId: number, cardProject: any) {
   return project ? { ...cardProject, projectId: project.id, projectName: project.name } : cardProject;
 }
 
+async function findProjectWithBomStock(storeId: number) {
+  const projects = await prisma.project.findMany({
+    where: { storeId, status: 'active', deletedAt: null, bomItems: { some: {} } },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      bomItems: {
+        select: {
+          productId: true,
+          standardQty: true,
+          product: { select: { id: true, name: true, currentStock: true, unit: true, deletedAt: true } },
+        },
+      },
+    },
+    orderBy: { id: 'asc' },
+    take: 50,
+  });
+  return (
+    projects.find((project: any) =>
+      project.bomItems.every((item: any) => money(item.product?.currentStock) >= Math.max(1, money(item.standardQty))),
+    ) ?? projects[0] ?? null
+  );
+}
+
+async function findProjectCommissionCandidate(storeId: number) {
+  const assignments = await prisma.commissionRuleAssignment.findMany({
+    where: {
+      storeId,
+      type: 'project',
+      status: 'active',
+      targetType: 'specific',
+      targetId: { not: null },
+      rule: { status: 'active' },
+    },
+    orderBy: { id: 'asc' },
+    take: 200,
+  });
+
+  let fallback: { project: any; beautician: any } | null = null;
+  for (const assignment of assignments) {
+    const [project, beautician] = await Promise.all([
+      prisma.project.findFirst({
+        where: { id: Number(assignment.targetId), storeId, status: 'active', deletedAt: null, bomItems: { some: {} } },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          bomItems: {
+            select: {
+              productId: true,
+              standardQty: true,
+              product: { select: { id: true, name: true, currentStock: true, unit: true, deletedAt: true } },
+            },
+          },
+        },
+      }),
+      prisma.beautician.findFirst({
+        where: { storeId, status: 'active', userId: Number(assignment.userId) },
+        select: { id: true, name: true, userId: true, levelId: true },
+      }),
+    ]);
+    if (!project || !beautician) continue;
+    fallback ??= { project, beautician };
+    const hasEnoughStock = project.bomItems.every((item: any) => money(item.product?.currentStock) >= Math.max(1, money(item.standardQty)));
+    if (hasEnoughStock) return { project, beautician };
+  }
+  return fallback;
+}
+
+async function findCustomerCardWithProject(storeId: number) {
+  const cards = await prisma.customerCard.findMany({
+    where: {
+      status: 'active',
+      remainingTimes: { gt: 1 },
+      expiryDate: { gt: new Date() },
+      customer: { storeId, deletedAt: null },
+    },
+    include: {
+      customer: { select: { id: true, name: true, phone: true } },
+      card: { select: { id: true, name: true, projects: true } },
+    },
+    orderBy: [{ remainingTimes: 'desc' }, { id: 'asc' }],
+    take: 50,
+  });
+
+  let fallback: { customerCard: any; cardProject: any } | null = null;
+  for (const customerCard of cards) {
+    const projects = Array.isArray(customerCard.card?.projects) ? customerCard.card.projects : [];
+    for (const rawProject of projects) {
+      const cardProject = await resolveCardProject(storeId, rawProject);
+      const projectId = Number(cardProject?.projectId ?? cardProject?.id);
+      if (!(projectId > 0)) continue;
+      fallback ??= { customerCard, cardProject };
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          bomItems: {
+            select: {
+              standardQty: true,
+              product: { select: { currentStock: true } },
+            },
+          },
+        },
+      });
+      if (project?.bomItems?.length && project.bomItems.every((item: any) => money(item.product?.currentStock) >= Math.max(1, money(item.standardQty)))) {
+        return { customerCard, cardProject };
+      }
+    }
+  }
+  return fallback;
+}
+
 async function buildSamplePlan(storeId: number): Promise<SamplePlan> {
-  const [customer, beautician, customerCard, project, product, balanceAccount, terminalDevice] = await Promise.all([
+  const [customer, fallbackBeautician, cardSelection, fallbackProject, projectCommissionCandidate, product, balanceAccount, terminalDevice] = await Promise.all([
     prisma.customer.findFirst({
       where: { storeId, deletedAt: null },
       select: { id: true, name: true, phone: true, source: true },
@@ -342,24 +455,9 @@ async function buildSamplePlan(storeId: number): Promise<SamplePlan> {
       select: { id: true, name: true, userId: true, levelId: true },
       orderBy: { id: 'asc' },
     }),
-    prisma.customerCard.findFirst({
-      where: {
-        status: 'active',
-        remainingTimes: { gt: 0 },
-        expiryDate: { gt: new Date() },
-        customer: { storeId, deletedAt: null },
-      },
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        card: { select: { id: true, name: true, projects: true } },
-      },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.project.findFirst({
-      where: { storeId, status: 'active', deletedAt: null, bomItems: { some: {} } },
-      select: { id: true, name: true, price: true, bomItems: { select: { productId: true, standardQty: true }, take: 3 } },
-      orderBy: { id: 'asc' },
-    }),
+    findCustomerCardWithProject(storeId),
+    findProjectWithBomStock(storeId),
+    findProjectCommissionCandidate(storeId),
     prisma.product.findFirst({
       where: { storeId, status: 'active', deletedAt: null, currentStock: { gt: 0 } },
       select: { id: true, name: true, retailPrice: true, currentStock: true },
@@ -377,7 +475,10 @@ async function buildSamplePlan(storeId: number): Promise<SamplePlan> {
     }),
   ]);
 
-  const cardProject = await resolveCardProject(storeId, firstCardProject(customerCard));
+  const beautician = projectCommissionCandidate?.beautician ?? fallbackBeautician;
+  const project = projectCommissionCandidate?.project ?? fallbackProject;
+  const customerCard = cardSelection?.customerCard ?? null;
+  const cardProject = cardSelection?.cardProject ?? await resolveCardProject(storeId, firstCardProject(customerCard));
   const cardProjectId = Number(cardProject?.projectId ?? cardProject?.id);
   const sampleCustomer = balanceAccount?.customer ?? customer;
   const candidates = {
@@ -415,6 +516,24 @@ async function buildSamplePlan(storeId: number): Promise<SamplePlan> {
       canRun: Boolean(customerCard && cardProjectId > 0 && beautician),
       missing: [
         !customerCard ? 'active customerCard with remainingTimes' : '',
+        !(cardProjectId > 0) ? 'card projectId' : '',
+        !beautician ? 'active beautician' : '',
+      ].filter(Boolean),
+      payload: {
+        customerCardId: customerCard?.id,
+        customerId: customerCard?.customerId,
+        projectId: cardProjectId > 0 ? cardProjectId : undefined,
+        projectName: cardProject?.projectName ?? cardProject?.name,
+        times: 1,
+        beauticianId: beautician?.id,
+      },
+    },
+    {
+      key: 'admin-card-usage',
+      title: '管理端次卡核销样本',
+      canRun: Boolean(customerCard && cardProjectId > 0 && beautician),
+      missing: [
+        !customerCard ? 'active customerCard with at least 2 remainingTimes' : '',
         !(cardProjectId > 0) ? 'card projectId' : '',
         !beautician ? 'active beautician' : '',
       ].filter(Boolean),

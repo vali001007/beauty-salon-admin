@@ -254,6 +254,9 @@ describe('API facades', () => {
 
   it('routes inventory transfer pagination to the real implementation', async () => {
     const realGetTransferOrdersPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateInventoryAdjustment = vi.fn(async (data) => ({ id: 1, ...data }));
+    const realGetExpirySummary = vi.fn(async (params) => ({ period: params.period, expiringBatchCount: 0 }));
+    const realGetTransferSuggestions = vi.fn(async () => [{ id: '1-2-SKU', sku: 'SKU' }]);
 
     vi.stubEnv('VITE_API_MODE', 'mock');
     vi.doMock('@/api/real/inventory', () => ({
@@ -261,11 +264,16 @@ describe('API facades', () => {
       realGetBatches: vi.fn(),
       realGetStockMovements: vi.fn(),
       realGetExpiringProducts: vi.fn(),
+      realGetExpirySummary,
       realGetReplenishmentSuggestions: vi.fn(),
       realGetPurchaseOrders: vi.fn(),
       realCreateInbound: vi.fn(),
+      realCreateInventoryAdjustment,
       realCreatePurchaseOrder: vi.fn(),
+      realUpdatePurchaseOrderStatus: vi.fn(),
+      realReceivePurchaseOrder: vi.fn(),
       realCreateTransfer: vi.fn(),
+      realGetTransferSuggestions,
       realCancelPurchaseOrder: vi.fn(),
       realCancelTransfer: vi.fn(),
       realGetStockItemsPaginated: vi.fn(),
@@ -278,7 +286,13 @@ describe('API facades', () => {
     const api = await import('@/api/inventory');
 
     await api.getTransferOrdersPaginated({ page: 1, pageSize: 10 });
+    await api.createInventoryAdjustment({ productId: 10, adjustmentType: 'manual_outbound', quantity: 2 });
+    await api.getExpirySummary({ period: '90d' });
+    await api.getTransferSuggestions();
     expect(realGetTransferOrdersPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(realCreateInventoryAdjustment).toHaveBeenCalledWith({ productId: 10, adjustmentType: 'manual_outbound', quantity: 2 });
+    expect(realGetExpirySummary).toHaveBeenCalledWith({ period: '90d' });
+    expect(realGetTransferSuggestions).toHaveBeenCalledTimes(1);
   });
 
   it('routes marketing automation calls to the real implementation', async () => {

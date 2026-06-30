@@ -440,7 +440,7 @@ export class DashboardService {
           'terminal:service:view',
           inProgressServices > 0 ? 'warning' : 'normal',
         ),
-        this.metric('myCommission', '我的提成', this.formatMoney(commissionAmount), '本月累计', 'slate', '/finance/commission-records', 'core:finance:view'),
+        this.metric('myCommission', '我的提成', this.formatMoney(commissionAmount), '本月累计', 'slate', '/finance/staff-commission', 'core:finance:view'),
       ],
       [
         this.todo(
@@ -613,7 +613,7 @@ export class DashboardService {
           stats.incomeHint,
           'rose',
           '/finance/platform-revenue',
-          'core:finance:view',
+          'core:platform-revenue:view',
         ),
         this.metric(
           'activeStores',
@@ -680,7 +680,7 @@ export class DashboardService {
           'normal',
           45,
           '/finance/platform-revenue',
-          'core:finance:view',
+          'core:platform-revenue:view',
           '查看平台收入',
         ),
       ],
@@ -690,7 +690,7 @@ export class DashboardService {
         basis: `异常事项 ${storeAlerts} 个，在线终端 ${stats.onlineTerminals}/${stats.totalTerminals} 台。`,
         action: storeAlerts > 0 ? '查看门店管理' : '查看平台收入',
         path: storeAlerts > 0 ? '/system/stores' : '/finance/platform-revenue',
-        permission: storeAlerts > 0 ? 'core:system:stores' : 'core:finance:view',
+        permission: storeAlerts > 0 ? 'core:system:stores' : 'core:platform-revenue:view',
       },
       stats,
       ranges.now,
@@ -1245,7 +1245,7 @@ export class DashboardService {
     return [
       this.action('stores', '门店管理', '/system/stores', 'Building2', 'core:system:stores', 'system'),
       this.action('roles', '角色权限', '/system/roles', 'Shield', 'core:system:roles', 'system'),
-      this.action('platformRevenue', '平台收入', '/finance/platform-revenue', 'BarChart3', 'core:finance:view', 'system'),
+      this.action('platformRevenue', '平台收入', '/finance/platform-revenue', 'BarChart3', 'core:platform-revenue:view', 'system'),
       this.action('devices', '终端设备', '/system/devices', 'Monitor', 'core:system:stores', 'system'),
     ];
   }
@@ -1256,7 +1256,7 @@ export class DashboardService {
       this.action('scheduling', '排班管理', '/stores/scheduling', 'Calendar', 'core:store:scheduling', 'management'),
       this.action('inventory', '库存管理', '/inventory/stock', 'PackageCheck', 'core:inventory:stock', 'management'),
       this.action('marketing', '营销工作台', '/customer-marketing/workbench', 'Sparkles', 'core:marketing:view'),
-      this.action('dailySettlement', '日结报表', '/finance/daily-settlement', 'ClipboardList', 'core:finance:view', 'analytics'),
+      this.action('dailySettlement', '收银对账', '/finance/reconciliation', 'ClipboardList', 'core:finance:view', 'analytics'),
     ];
   }
 
@@ -1276,7 +1276,7 @@ export class DashboardService {
       this.action('customerProfile', '客户画像', '/customers/profile', 'Users', 'core:customer:profile'),
       this.action('serviceRecord', '服务记录', '/orders/card-usage', 'FileText', 'terminal:service:view'),
       this.action('careAdvice', '护理建议', '/customers/script', 'HeartPulse', 'core:customer:script'),
-      this.action('commission', '提成明细', '/finance/commission-records', 'WalletCards', 'core:finance:view', 'analytics'),
+      this.action('commission', '员工提成', '/finance/staff-commission', 'WalletCards', 'core:finance:view', 'analytics'),
     ];
   }
 
