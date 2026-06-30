@@ -28,6 +28,8 @@ describe('SmartSchedulingService', () => {
   };
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-06-01T08:00:00+08:00'));
     prisma = {
       beautician: {
         findMany: jest.fn().mockResolvedValue(beauticians),
@@ -41,12 +43,46 @@ describe('SmartSchedulingService', () => {
       schedule: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      beauticianAvailability: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      beauticianTimeOff: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      storeResource: {
+        findMany: jest.fn().mockResolvedValue([{ id: 1, storeId: 1, type: 'room', status: 'active' }]),
+      },
+      resourceBooking: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      scheduleVersion: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      smartSchedulingRun: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+        upsert: jest.fn().mockResolvedValue({ runId: 'smart_1_20260608_001' }),
+      },
       schedulingRuleConfig: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
       beauticianProjectSkill: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      $transaction: jest.fn(async (callback: (tx: any) => Promise<any>) =>
+        callback({
+          scheduleVersion: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            create: jest.fn().mockResolvedValue({ id: 1, storeId: 1, weekStart: new Date(weekStart), status: 'published' }),
+          },
+          schedule: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createMany: jest.fn().mockResolvedValue({ count: 1 }),
+          },
+        }),
+      ),
     };
     schedulingService = {
       save: jest.fn().mockResolvedValue([]),
@@ -59,11 +95,16 @@ describe('SmartSchedulingService', () => {
     );
   });
 
-  it('generates a preview without saving schedules', async () => {
-    const result = await service.preview({
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('generates one-click alternatives without saving schedules', async () => {
+    const result = await service.oneClick({
       storeId: 1,
       weekStart,
-      mode: 'blank',
+      mode: 'balanced',
+      generateAlternatives: true,
       keepConfirmedReservations: true,
     });
 
@@ -82,6 +123,7 @@ describe('SmartSchedulingService', () => {
       ]),
     );
     expect(schedulingService.save).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('blocks publishing when a confirmed reservation overlaps leave', async () => {
@@ -104,39 +146,31 @@ describe('SmartSchedulingService', () => {
     expect(schedulingService.save).not.toHaveBeenCalled();
   });
 
-  it('keeps confirmed reservation slots when publishing manual adjustments', async () => {
-    schedulingService.save.mockImplementation(async (items: unknown[]) => items);
-
+  it('creates a schedule version and writes schedules when publishing', async () => {
     const result = await service.publish({
       storeId: 1,
       weekStart,
       schedules: [
         {
-          beauticianId: 2,
+          beauticianId: 1,
           date: weekStart,
-          startTime: '14:00',
-          endTime: '15:00',
+          startTime: '10:00',
+          endTime: '11:00',
           status: 'available',
         },
       ],
     });
 
     expect(result.runId).toMatch(/^smart_1_20260608_/);
-    expect(schedulingService.save).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          beauticianId: 1,
-          date: weekStart,
-          startTime: '10:00',
-          endTime: '11:00',
-          status: 'available',
-          smartRunId: expect.stringMatching(/^smart_1_20260608_/),
-        }),
-      ]),
-      1,
-      1,
-      weekStart,
-    );
+    expect(result.version).toEqual(expect.objectContaining({ id: 1, status: 'published' }));
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.smartSchedulingRun.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ publishedScheduleVersionId: 1 }),
+    }));
+    expect(prisma.scheduleVersion.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 1 },
+      data: expect.objectContaining({ sourceRunId: expect.stringMatching(/^smart_1_20260608_/) }),
+    }));
     expect(commissionService.recordAmiContribution).toHaveBeenCalledWith(
       expect.objectContaining({
         storeId: 1,
@@ -187,7 +221,7 @@ describe('SmartSchedulingService', () => {
     expect(schedulingService.save).not.toHaveBeenCalled();
   });
 
-  it('reports soft warnings when project skill does not match', async () => {
+  it('reports hard conflicts when configured project skill does not match', async () => {
     prisma.beauticianProjectSkill.findMany.mockResolvedValue([
       { beauticianId: 1, projectId: 100, skillLevel: 1, certified: false },
       { beauticianId: 2, projectId: 100, skillLevel: 3, certified: true },
@@ -207,13 +241,12 @@ describe('SmartSchedulingService', () => {
       ],
     });
 
-    expect(result.summary.hardConflictCount).toBe(0);
-    expect(result.summary.softWarningCount).toBeGreaterThan(0);
+    expect(result.summary.hardConflictCount).toBeGreaterThan(0);
     expect(result.conflicts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: 'skill_mismatch',
-          severity: 'soft',
+          severity: 'hard',
           beauticianId: 1,
           reservationId: 10,
         }),
@@ -222,20 +255,82 @@ describe('SmartSchedulingService', () => {
     expect(result.score).toBeLessThan(95);
   });
 
-  it('reports understaffed demand slots', async () => {
+  it('counts reservation-backed booked slots in demand slots', async () => {
     const result = await service.demand({ storeId: 1, weekStart });
 
-    expect(result.summary.underStaffedSlots).toBeGreaterThan(0);
+    expect(result.summary).toEqual(
+      expect.objectContaining({
+        highDemandSlots: expect.any(Number),
+        underStaffedSlots: expect.any(Number),
+        highLoadSlots: expect.any(Number),
+        lowLoadSlots: expect.any(Number),
+        matchedLoadSlots: expect.any(Number),
+      }),
+    );
     expect(result.slots).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           date: weekStart,
           startTime: '10:00',
           requiredStaff: 1,
-          scheduledStaff: 0,
+          scheduledStaff: 1,
+          expectedServiceDemand: 1,
+          requiredServiceCapacity: 1,
+          scheduledServiceCapacity: 1,
+          staffDelta: 0,
+          loadRatio: 1,
+          loadLevel: 'medium',
+          recommendedAction: 'keep',
         }),
       ]),
     );
+  });
+
+  it('marks overstaffed demand slots as low load and fill-gap action', async () => {
+    prisma.reservation.findMany.mockReset();
+    prisma.reservation.findMany.mockResolvedValue([]);
+    prisma.schedule.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 101,
+          storeId: 1,
+          beauticianId: 1,
+          date: new Date(`${weekStart}T09:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '10:00',
+          status: 'available',
+        },
+        {
+          id: 102,
+          storeId: 1,
+          beauticianId: 2,
+          date: new Date(`${weekStart}T09:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '10:00',
+          status: 'available',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.schedulingRuleConfig.findFirst.mockResolvedValueOnce({ defaultMinStaff: 1 });
+
+    const result = await service.demand({ storeId: 1, weekStart });
+
+    expect(result.slots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          date: weekStart,
+          startTime: '09:00',
+          requiredStaff: 1,
+          scheduledStaff: 2,
+          requiredServiceCapacity: 1,
+          scheduledServiceCapacity: 2,
+          staffDelta: 1,
+          loadLevel: 'low',
+          recommendedAction: 'fill_gap',
+        }),
+      ]),
+    );
+    expect(result.summary.lowLoadSlots).toBeGreaterThan(0);
   });
 
   it('uses historical reservations when calculating demand heatmap', async () => {
@@ -275,8 +370,15 @@ describe('SmartSchedulingService', () => {
           expectedReservations: 2,
           requiredStaff: 2,
           scheduledStaff: 0,
+          expectedServiceDemand: 2,
+          requiredServiceCapacity: 2,
+          scheduledServiceCapacity: 0,
+          staffDelta: -2,
+          loadLevel: 'high',
+          recommendedAction: 'add_staff',
         }),
       ]),
     );
+    expect(result.summary.highLoadSlots).toBeGreaterThan(0);
   });
 });

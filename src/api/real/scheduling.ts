@@ -39,13 +39,23 @@ const HOUR_SLOTS = [
 ];
 
 type ApiSchedule = {
-  id?: number;
+  id?: number | string;
   storeId?: number;
   beauticianId?: number;
   date?: string | Date;
   startTime?: string;
   endTime?: string;
   status?: string;
+  source?: string;
+  reservationId?: number;
+  reservationStatus?: string;
+  customerId?: number;
+  customerName?: string;
+  customerPhone?: string | null;
+  projectId?: number;
+  projectName?: string;
+  projectDuration?: number;
+  remark?: string | null;
 };
 
 function toDateKey(value: string | Date | undefined): string {
@@ -71,8 +81,28 @@ function toEndTime(time: string): string {
   return `${hour}:${minute}`;
 }
 
-function isAvailableStatus(status: string | undefined): boolean {
-  return !status || ['available', 'active', 'normal', '可预约', '空闲'].includes(status);
+function normalizeStatus(status: string | undefined): 'available' | 'booked' | 'leave' {
+  const value = String(status ?? '').toLowerCase();
+  if (['booked', 'reserved', 'reservation', '已预约'].includes(value)) return 'booked';
+  if (['leave', 'busy', 'off', '请假', '忙碌'].includes(value)) return 'leave';
+  return 'available';
+}
+
+function toReservationInfo(item: ApiSchedule | undefined): ScheduleSlot['reservationInfo'] | undefined {
+  if (!item?.reservationId) return undefined;
+  return {
+    id: item.reservationId,
+    status: item.reservationStatus,
+    customerId: item.customerId,
+    customerName: item.customerName,
+    customerPhone: item.customerPhone ?? undefined,
+    projectId: item.projectId,
+    projectName: item.projectName,
+    projectDuration: item.projectDuration,
+    remark: item.remark ?? undefined,
+    startTime: item.startTime,
+    endTime: item.endTime,
+  };
 }
 
 function normalizeSchedule(raw: unknown, beauticianId: number, weekStart: string): ScheduleSlot[][] {
@@ -93,12 +123,14 @@ function normalizeSchedule(raw: unknown, beauticianId: number, weekStart: string
         const end = toMinutes(item.endTime);
         return timeStart >= start && timeStart < end;
       });
+      const status = normalizeStatus(matched?.status);
 
       return {
         time,
         period: (toMinutes(time) < 12 ? '上午' : '下午') as ScheduleSlot['period'],
-        available: Boolean(matched && isAvailableStatus(matched.status)),
-        status: matched?.status,
+        available: status === 'available',
+        status,
+        reservationInfo: status === 'booked' ? toReservationInfo(matched) : undefined,
       };
     });
   });
@@ -118,8 +150,10 @@ function buildSchedulePayload(data: {
     return HOUR_SLOTS
       .map((slot) => {
         const sourceSlots = slot.sourceTimes.map((time) => daySlots.find((item) => item.time === time));
-        const blockedStatus = sourceSlots.find((item) => ['booked', 'leave', 'busy'].includes(String(item?.status)))?.status;
-        const status = blockedStatus ?? (sourceSlots.every((item) => item?.available) ? 'available' : '');
+        const hasBooked = sourceSlots.some((item) => normalizeStatus(item?.status) === 'booked');
+        const hasLeave = sourceSlots.some((item) => normalizeStatus(item?.status) === 'leave');
+        const allAvailable = sourceSlots.every((item) => item?.available || normalizeStatus(item?.status) === 'available');
+        const status = hasBooked ? '' : hasLeave ? 'leave' : allAvailable ? 'available' : '';
         if (!status) return null;
         return {
           beauticianId: data.beauticianId,
@@ -171,22 +205,30 @@ export type SmartScheduleItem = {
   date: string;
   startTime: string;
   endTime: string;
-  status: 'available' | 'normal' | 'busy' | 'leave' | string;
-  source?: 'existing' | 'generated' | 'reservation';
+  status: 'available' | 'booked' | 'leave' | string;
+  source?: 'existing' | 'generated' | 'reservation' | 'manual' | 'rollback';
+  reservationId?: number;
 };
+
+export type SmartSchedulingMode = 'balanced' | 'reservation_first' | 'peak_first' | 'cost_first' | 'fairness_first';
 
 export type SmartSchedulingOptions = {
   storeId?: number;
   runId?: string;
   createdById?: number;
   weekStart: string;
-  mode?: 'blank' | 'copy_last_week_optimize' | 'optimize_current';
+  mode?: 'blank' | 'copy_last_week_optimize' | 'optimize_current' | SmartSchedulingMode;
   objective?: 'cover_reservations' | 'cover_peak' | 'fairness' | 'reduce_staff';
   keepConfirmedReservations?: boolean;
   allowOverrideBusy?: boolean;
   allowOverrideLeave?: boolean;
   peakMinStaff?: Array<{ weekday: number; startTime: string; endTime: string; minStaff: number }>;
   schedules?: SmartScheduleItem[];
+  generateAlternatives?: boolean;
+  optimizeScope?: 'week' | 'affected';
+  respectPublishedLocks?: boolean;
+  selectedAlternativeId?: string;
+  targetVersionId?: number;
 };
 
 export type SmartSchedulingConflict = {
@@ -203,22 +245,78 @@ export type SmartSchedulingConflict = {
 export type SmartSchedulingSummary = {
   reservationCoverageRate: number;
   peakCoverageRate: number;
+  skillMatchRate?: number;
+  fairnessScore?: number;
+  estimatedLaborCost?: number;
   hardConflictCount: number;
   softWarningCount: number;
   scheduledSlots: number;
 };
 
+export type SmartSchedulingAlternative = {
+  id: string;
+  label: string;
+  mode: SmartSchedulingMode;
+  score: number;
+  summary: SmartSchedulingSummary;
+  schedules: SmartScheduleItem[];
+  conflicts: SmartSchedulingConflict[];
+  explanations: string[];
+};
+
+export type ScheduleVersion = {
+  id: number;
+  storeId: number;
+  weekStart: string;
+  status: string;
+  sourceRunId?: string | null;
+  publishedById?: number | null;
+  publishedAt?: string | null;
+  rollbackFromVersionId?: number | null;
+  createdAt?: string;
+};
+
 export type SmartSchedulingResult = {
   runId?: string;
   weekStart: string;
+  mode?: SmartSchedulingMode;
+  solverStatus?: 'optimal' | 'feasible' | 'timeout' | 'failed';
+  runtimeMs?: number;
   score: number;
   summary: SmartSchedulingSummary;
   schedules?: SmartScheduleItem[];
+  recommended?: SmartSchedulingAlternative;
+  alternatives?: SmartSchedulingAlternative[];
   warnings: SmartSchedulingConflict[];
   conflicts?: SmartSchedulingConflict[];
   explanations: string[];
   savedCount?: number;
+  version?: ScheduleVersion;
 };
+
+export type SmartSchedulingRunsResult = {
+  weekStart: string;
+  currentVersion?: ScheduleVersion | null;
+  runs: Array<{
+    id?: number;
+    runId: string;
+    status: string;
+    mode?: SmartSchedulingMode;
+    solverStatus?: string;
+    score?: number;
+    runtimeMs?: number;
+    generatedSchedules?: SmartScheduleItem[];
+    solutionSummary?: SmartSchedulingSummary;
+    alternatives?: SmartSchedulingAlternative[];
+    createdAt?: string;
+    confirmedAt?: string | null;
+    publishedScheduleVersionId?: number | null;
+  }>;
+  versions: ScheduleVersion[];
+};
+
+export type DemandLoadLevel = 'low' | 'medium' | 'high';
+export type DemandRecommendedAction = 'fill_gap' | 'keep' | 'add_staff';
 
 export type SchedulingDemandSlot = {
   date: string;
@@ -227,7 +325,14 @@ export type SchedulingDemandSlot = {
   expectedReservations: number;
   requiredStaff: number;
   scheduledStaff: number;
+  expectedServiceDemand?: number;
+  requiredServiceCapacity?: number;
+  scheduledServiceCapacity?: number;
   level: 'low' | 'medium' | 'high';
+  staffDelta?: number;
+  loadRatio?: number;
+  loadLevel?: DemandLoadLevel;
+  recommendedAction?: DemandRecommendedAction;
 };
 
 export type SchedulingDemandResult = {
@@ -236,7 +341,100 @@ export type SchedulingDemandResult = {
   summary: {
     highDemandSlots: number;
     underStaffedSlots: number;
+    highLoadSlots?: number;
+    lowLoadSlots?: number;
+    matchedLoadSlots?: number;
   };
+};
+
+export type GapCandidate = {
+  id: number;
+  opportunityId: number;
+  customerId: number;
+  customerName?: string;
+  customerPhone?: string;
+  projectId?: number;
+  projectName?: string;
+  followUpTaskId?: number;
+  preferredBeauticianId?: number | null;
+  preferredBeauticianUserId?: number | null;
+  preferredBeauticianName?: string | null;
+  score: number;
+  expectedFillRate: number;
+  estimatedRevenue: number;
+  recommendedChannel: string;
+  messageDraft?: string;
+  reasons?: string[];
+  risks?: string[];
+  scoreBreakdown?: Record<string, number | string | null | undefined>;
+  status: string;
+};
+
+export type GapOpportunity = {
+  id: number;
+  storeId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  beauticianIds: number[];
+  projectIds: number[];
+  durationMinutes: number;
+  capacity: number;
+  bookedCount: number;
+  availableCapacity: number;
+  source: string;
+  gapType: string;
+  score: number;
+  estimatedRevenue: number;
+  expectedFillRate: number;
+  candidateCount: number;
+  status: string;
+  confirmationDraft?: ConfirmationDraft | null;
+  expiresAt?: string;
+  candidates: GapCandidate[];
+};
+
+export type GapOpportunitySummary = {
+  opportunityCount: number;
+  openOpportunityCount: number;
+  availableCapacity: number;
+  candidateCount: number;
+  expectedRevenue: number;
+  averageFillRate: number;
+};
+
+export type GapOpportunityResult = {
+  weekStart: string;
+  generatedAt: string;
+  opportunities: GapOpportunity[];
+  summary: GapOpportunitySummary;
+};
+
+export type ConfirmationDraft = {
+  opportunityId: number;
+  candidateId: number;
+  customerId: number;
+  channel: string;
+  message: string;
+  status: 'draft' | string;
+  sent: boolean;
+  generatedAt: string;
+};
+
+export type BenefitDraft = {
+  opportunityId: number;
+  candidateId: number;
+  customerId: number;
+  channel: string;
+  benefitTitle: string;
+  benefitText: string;
+  projectName: string;
+  appointmentTime: string;
+  copy: string;
+  link: string;
+  status: 'draft' | string;
+  sent: boolean;
+  generatedAt: string;
 };
 
 export async function realGetSchedulePaginated(params: PaginationParams & { beauticianId?: number; weekStart?: string }): Promise<PaginatedResponse<any>> {
@@ -255,6 +453,10 @@ export async function realPreviewSmartSchedule(data: SmartSchedulingOptions): Pr
   return apiClient.post('/scheduling/smart/preview', data);
 }
 
+export async function realOneClickSmartSchedule(data: SmartSchedulingOptions): Promise<SmartSchedulingResult> {
+  return apiClient.post('/scheduling/smart/one-click', data);
+}
+
 export async function realEvaluateSmartSchedule(data: SmartSchedulingOptions): Promise<SmartSchedulingResult> {
   return apiClient.post('/scheduling/smart/evaluate', data);
 }
@@ -263,6 +465,49 @@ export async function realPublishSmartSchedule(data: SmartSchedulingOptions): Pr
   return apiClient.post('/scheduling/smart/publish', data);
 }
 
+export async function realRollbackSmartSchedule(data: SmartSchedulingOptions): Promise<SmartSchedulingResult> {
+  return apiClient.post('/scheduling/smart/rollback', data);
+}
+
+export async function realGetSmartSchedulingRuns(params: { weekStart: string }): Promise<SmartSchedulingRunsResult> {
+  return apiClient.get('/scheduling/smart/runs', { params });
+}
+
 export async function realGetSchedulingDemand(params: { weekStart: string }): Promise<SchedulingDemandResult> {
   return apiClient.get('/scheduling/demand', { params });
+}
+
+export async function realGetGapOpportunities(params: { weekStart: string }): Promise<GapOpportunityResult> {
+  return apiClient.get('/scheduling/gap-opportunities', { params });
+}
+
+export async function realRefreshGapCandidates(id: number, data: { limit?: number; projectIds?: number[]; channel?: string } = {}): Promise<GapCandidate[]> {
+  return apiClient.post(`/scheduling/gap-opportunities/${id}/candidates`, data);
+}
+
+export async function realCreateGapFollowUpTasks(
+  id: number,
+  data: {
+    candidateIds?: number[];
+    assigneeRole?: 'manager' | 'consultant' | 'reception';
+    assigneeUserId?: number;
+    assigneeBeauticianId?: number;
+    dueAt?: string;
+  },
+): Promise<{ items: Array<{ candidate: GapCandidate; task: unknown }> }> {
+  return apiClient.post(`/scheduling/gap-opportunities/${id}/follow-up-tasks`, data);
+}
+
+export async function realCreateGapConfirmationDraft(
+  id: number,
+  data: { candidateId?: number; channel?: string },
+): Promise<ConfirmationDraft> {
+  return apiClient.post(`/scheduling/gap-opportunities/${id}/confirmation-draft`, data);
+}
+
+export async function realCreateGapBenefitDraft(
+  id: number,
+  data: { candidateId?: number; channel?: string },
+): Promise<BenefitDraft> {
+  return apiClient.post(`/scheduling/gap-opportunities/${id}/benefit-draft`, data);
 }

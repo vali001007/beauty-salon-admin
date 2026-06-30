@@ -18,10 +18,11 @@ export class ReservationsService {
     userName?: string;
     projectName?: string;
     beauticianName?: string;
+    scope?: string;
   }) {
     const page = Number(query.page || 1);
     const pageSize = Number(query.pageSize || 20);
-    const { storeId, status, date, startDate, endDate, storeName, userName, projectName, beauticianName } = query;
+    const { storeId, status, date, startDate, endDate, storeName, userName, projectName, beauticianName, scope } = query;
     const where: any = {};
     if (storeId) where.storeId = storeId;
     if (status) where.status = status;
@@ -42,6 +43,18 @@ export class ReservationsService {
         where.date.lte = end;
       }
     }
+    const today = toBusinessDateOnly(new Date());
+    if (scope === 'future') {
+      where.date = where.date ?? {};
+      const currentGte = where.date.gte instanceof Date ? where.date.gte : null;
+      where.date.gte = currentGte && currentGte > today ? currentGte : today;
+    } else if (scope === 'history') {
+      where.date = where.date ?? {};
+      const beforeToday = new Date(today);
+      beforeToday.setMilliseconds(beforeToday.getMilliseconds() - 1);
+      const currentLte = where.date.lte instanceof Date ? where.date.lte : null;
+      where.date.lte = currentLte && currentLte < beforeToday ? currentLte : beforeToday;
+    }
     if (storeName) where.store = { name: { contains: storeName } };
     if (userName) where.customer = { name: { contains: userName } };
     if (projectName) where.project = { name: { contains: projectName } };
@@ -52,7 +65,9 @@ export class ReservationsService {
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { date: 'desc' },
+        orderBy: scope === 'future'
+          ? [{ date: 'asc' }, { startTime: 'asc' }, { id: 'asc' }]
+          : [{ date: 'desc' }, { startTime: 'desc' }, { id: 'desc' }],
         include: { store: true, customer: true, project: true, beautician: true },
       }),
       this.prisma.reservation.count({ where }),
@@ -91,7 +106,7 @@ export class ReservationsService {
   async confirm(id: number) {
     const reservation = await this.prisma.reservation.findUnique({ where: { id } });
     if (!reservation) throw new NotFoundException('预约不存在');
-    if (!['pending', 'confirmed'].includes(reservation.status)) throw new BadRequestException('当前预约状态不能确认');
+    if (!['pending', 'confirmed'].includes(this.getEffectiveStatus(reservation))) throw new BadRequestException('当前预约状态不能确认');
     const updated = await this.prisma.reservation.update({
       where: { id },
       data: { status: 'confirmed' },
@@ -103,7 +118,7 @@ export class ReservationsService {
   async checkIn(id: number) {
     const reservation = await this.prisma.reservation.findUnique({ where: { id } });
     if (!reservation) throw new NotFoundException('预约不存在');
-    if (!['pending', 'confirmed'].includes(reservation.status)) throw new BadRequestException('当前预约状态不能到店');
+    if (!['pending', 'confirmed'].includes(this.getEffectiveStatus(reservation))) throw new BadRequestException('当前预约状态不能到店');
     return this.prisma.reservation.update({
       where: { id },
       data: { status: 'checked_in', checkedInAt: new Date() },
@@ -114,7 +129,7 @@ export class ReservationsService {
   async cancel(id: number, reason?: string) {
     const reservation = await this.prisma.reservation.findUnique({ where: { id } });
     if (!reservation) throw new NotFoundException('预约不存在');
-    if (['completed', 'cancelled'].includes(reservation.status)) throw new BadRequestException('当前预约状态不能取消');
+    if (['completed', 'cancelled'].includes(this.getEffectiveStatus(reservation))) throw new BadRequestException('当前预约状态不能取消');
     const updated = await this.prisma.reservation.update({
       where: { id },
       data: { status: 'cancelled', remark: reason || reservation.remark },
@@ -206,6 +221,20 @@ export class ReservationsService {
     return date.toISOString();
   }
 
+  private getEffectiveStatus(reservation: any) {
+    const status = String(reservation.status || 'pending');
+    if (status === 'completed' && this.isFutureReservation(reservation)) {
+      return 'pending';
+    }
+    return status;
+  }
+
+  private isFutureReservation(reservation: any) {
+    const dateText = formatBusinessDate(reservation.date);
+    const appointment = new Date(`${dateText}T${reservation.startTime || '00:00'}:00`);
+    return !Number.isNaN(appointment.getTime()) && appointment.getTime() > Date.now();
+  }
+
   private mapReservation(reservation: any) {
     const dateText = formatBusinessDate(reservation.date);
     const appointmentTime = `${dateText} ${reservation.startTime || '00:00'}:00`;
@@ -229,7 +258,7 @@ export class ReservationsService {
       date: dateText,
       time: reservation.startTime || '',
       duration: projectDuration,
-      status: reservation.status,
+      status: this.getEffectiveStatus(reservation),
       remark: reservation.remark ?? '',
       createTime: createdAt,
       createdAt,
