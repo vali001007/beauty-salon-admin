@@ -36,6 +36,17 @@ This file provides concise guidance to Codex / coding agents when working in thi
 - L2/L3 闭环任务优先核对真实来源表和最新业务记录；构建通过不等于 typecheck、测试和真实 verify 都通过。
 - 最终回复默认给简短验收摘要：已完成、已验证、未验证/风险、建议下一步。
 
+## GitHub 与 Gitee 发布规则
+
+- GitHub 是主发布源：`origin` 固定指向 GitHub，`main` 默认跟踪 `origin/main`。
+- Gitee 仅作为额外同步远端：`gitee` 推荐使用 SSH 地址 `git@gitee.com:cocobao/mradmin.git`。
+- 不要把 Gitee 设置为 `main` 的 upstream，也不要把 `remote.pushDefault` 改成 `gitee`。
+- 发布 GitHub 时必须使用明确命令：`git push origin main`。
+- 同步到 Gitee 时不要覆盖既有 `dev_hhm` 分支，统一发布到独立分支：`git push gitee main:dev_hhm_from_github_main`。
+- 推送 Gitee 前先做只读检查：`git status --short --branch`、`git remote -v`、`git branch -vv`、`git ls-remote --heads gitee dev_hhm_from_github_main`。
+- 如果 Gitee 已有同名分支且出现 `non-fast-forward`，不要自动强推；先确认是否需要新建日期分支或由用户明确授权覆盖。
+- 只有用户明确授权“强制覆盖 Gitee 分支”时，才允许使用 `--force-with-lease`；禁止默认使用 `--force`。
+
 
 ## 核心命令
 
