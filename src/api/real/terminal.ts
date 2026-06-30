@@ -64,6 +64,7 @@ import type {
   TerminalCardOrder,
   TerminalCardOrderCreateRequest,
   TerminalPaymentCompleteRequest,
+  TerminalPrintableDocumentsResponse,
   TerminalPrintJob,
   TerminalPrintJobCreateRequest,
   TerminalPrintJobStatusUpdateRequest,
@@ -588,6 +589,10 @@ export async function realAdjustTerminalBalance(data: TerminalBalanceAdjustReque
 
 export async function realCreateTerminalPrintJob(data: TerminalPrintJobCreateRequest): Promise<TerminalPrintJob> {
   return apiClient.post('/terminal/print-jobs', data);
+}
+
+export async function realGetTerminalPrintableDocumentsToday(): Promise<TerminalPrintableDocumentsResponse> {
+  return apiClient.get('/terminal/print-documents/today');
 }
 
 export async function realGetTerminalPrintJobs(params?: {

@@ -9,8 +9,10 @@ import {
   getCustomersPaginated,
   getProjects,
   getProducts,
+  getCardOrdersPaginated,
   getProductOrders,
   getProductOrdersPaginated,
+  getProjectOrdersPaginated,
   getReservationsPaginated,
   getWeeklySchedules,
   getStockItemsPaginated,
@@ -54,6 +56,9 @@ import {
   createTerminalCashierOrder,
   createTerminalPrintJob,
   createTerminalRechargeOrder,
+  getTerminalPrintableDocumentsToday,
+  voidCardOrder,
+  refundProductOrder,
   createTerminalReservation,
   createTerminalServiceRecord,
   createTerminalSkinTest,
@@ -135,8 +140,12 @@ import type {
   InventoryAlertCardData,
   OperationReceiptData,
   OperationResultData,
+  PrintDocumentsData,
   RechargeConfirmInput,
   RechargeFlowData,
+  RefundConfirmInput,
+  RefundFlowData,
+  RefundOrderOption,
   RegistrationConfirmInput,
   RegistrationFlowData,
   RegistrationSkinAnalysisData,
@@ -2669,6 +2678,10 @@ export async function getManagerDashboard(): Promise<DashboardCardData> {
   const lowStock = stockItems.filter(isLowStock);
   const orders = filterByStoreName(asList<CoreSnapshot['orders'][number]>(ordersPage.data), storeName);
   const totalRevenue = sum(orders, (order) => order.totalAmount);
+  const orderCount = getTotal(ordersPage.data, orders.length);
+  const cashIncome = totalRevenue;
+  const grossProfit = totalRevenue;
+  const grossMargin = totalRevenue > 0 ? 100 : 0;
   const beauticians = asList<CoreSnapshot['beauticians'][number]>(beauticiansResult.data);
   const topBeautician = beauticians[0];
   const customers = asList<CoreSnapshot['customers'][number]>(customersPage.data);
@@ -2742,16 +2755,17 @@ export async function getManagerDashboard(): Promise<DashboardCardData> {
     subtitle: bootstrap.currentStore?.name ?? '当前门店',
     summary: `当前门店 ${bootstrap.currentStore?.name ?? '未选择门店'} 已接入 Ami_Core 数据，优先关注经营、风险和员工协同。`,
     kpis: [
-      { label: '客户总数', value: String(customerTotal) },
-      { label: '营业额', value: `￥${totalRevenue.toLocaleString()}` },
+      { label: '营业收入', value: `￥${totalRevenue.toLocaleString()}` },
+      { label: '现金收入', value: `￥${cashIncome.toLocaleString()}` },
+      { label: '毛利/毛利率', value: `￥${grossProfit.toLocaleString()} / ${grossMargin.toFixed(2)}%` },
       { label: '预约客户', value: String(todayReservations.length) },
       { label: '到店客户', value: String(arrivedReservations.length) },
-      { label: '活跃客户', value: String(activeCustomerTotal) },
+      { label: '订单', value: String(orderCount) },
     ],
     risks: managerRisks,
     highlights: [
-      `客户总数 ${customerTotal}，已接入当前门店数据`,
-      `营业额约 ￥${totalRevenue.toLocaleString()}`,
+      `营业收入约 ￥${totalRevenue.toLocaleString()}`,
+      `现金收入约 ￥${cashIncome.toLocaleString()}`,
       `今日预约客户 ${todayReservations.length} 位，到店 ${arrivedReservations.length} 位`,
     ],
     apiStatus,
@@ -3147,10 +3161,12 @@ function sortFollowUpTasks(items: TerminalFollowUpTask[]) {
 export async function getFollowUpTasksView(): Promise<FollowUpTasksCardData> {
   const { bootstrap, storeName } = await getAuraBootstrapSession();
   const assigneeRole = getTerminalFollowUpRole(bootstrap.currentRole);
+  const operatorId = getActiveOperatorParams()?.operatorId ?? bootstrap.currentUser?.id ?? undefined;
   const queryBase = {
     page: 1,
     pageSize: 20,
     assigneeRole,
+    ...(operatorId ? { operatorId } : {}),
   };
   const responses = await Promise.all([
     getTerminalFollowUpTasks({ ...queryBase, status: 'expired' }),
@@ -4067,6 +4083,218 @@ export async function getCashierFlow(): Promise<CashierFlowData> {
   return loadCachedBusinessFlow('operation.cashier', buildCashierFlow);
 }
 
+function getRefundOrderKindLabel(order: CoreSnapshot['orders'][number]) {
+  const kind = String(order.orderKind ?? '').toLowerCase();
+  if (kind === 'project') return '项目订单';
+  if (kind === 'mixed') return '综合订单';
+  return '商品订单';
+}
+
+function getRefundOrderItemSummary(order: CoreSnapshot['orders'][number]) {
+  const items = asList<any>(order.items).length ? asList<any>(order.items) : asList<any>(order.orderItems);
+  if (!items.length) return '未记录明细';
+  return items
+    .slice(0, 3)
+    .map((item) => {
+      const name = item.productName ?? item.name ?? '未命名明细';
+      const quantity = Number(item.quantity ?? 1);
+      const amount = toMoney(item.netAmount ?? item.subtotal ?? quantity * Number(item.unitPrice ?? 0));
+      return `${name} x${quantity} ￥${amount.toLocaleString()}`;
+    })
+    .join('；');
+}
+
+function toRefundOrderOption(order: CoreSnapshot['orders'][number]): RefundOrderOption | null {
+  if (['已取消', '已退款', 'cancelled', 'canceled', 'refunded'].includes(String(order.status))) return null;
+  const refundableAmount = toMoney(order.netAmount ?? order.totalAmount);
+  if (refundableAmount <= 0) return null;
+  return {
+    id: order.id,
+    orderNo: order.checkoutGroupNo ?? order.orderNo,
+    orderKind: order.orderKind ?? 'product',
+    kindLabel: getRefundOrderKindLabel(order),
+    customerName: order.customerName || '散客',
+    customerPhone: order.customerPhone,
+    storeName: order.storeName,
+    itemSummary: getRefundOrderItemSummary(order),
+    paymentMethod: order.paymentMethod ?? order.payMethod ?? '',
+    refundableAmount,
+    createdAt: order.completedAt ?? order.createdAt,
+  };
+}
+
+function toRefundCardOrderOption(order: any): RefundOrderOption | null {
+  if (['voided', 'refunded', '已作废', '已退款'].includes(String(order.status))) return null;
+  const refundableAmount = toMoney(
+    Number(order.refundAmount) > 0
+      ? 0
+      : order.actualPrice ?? order.amount ?? order.totalAmount ?? order.price,
+  );
+  if (refundableAmount <= 0) return null;
+  const projectSummary = asList<any>(order.cardProjects ?? order.projects)
+    .slice(0, 3)
+    .map((project) => {
+      const name = project.projectName ?? project.name ?? '次卡项目';
+      const remainCount = Number(project.remainCount ?? project.remainingTimes ?? project.totalCount ?? 0);
+      return remainCount > 0 ? `${name} 剩余${remainCount}次` : name;
+    })
+    .join('；');
+  return {
+    id: order.id,
+    orderNo: order.sourceOrderNo ?? order.orderNo ?? `CARD-${order.id}`,
+    orderKind: 'card',
+    kindLabel: '次卡开卡',
+    customerName: order.userName ?? order.customerName ?? '散客',
+    customerPhone: order.customerPhone,
+    storeName: order.storeName,
+    itemSummary: projectSummary || `${order.cardName ?? '次卡'} ${Number(order.totalTimes ?? 0)}次`,
+    paymentMethod: order.paymentMethod ?? '',
+    refundableAmount,
+    createdAt: order.purchaseTime ?? order.createdAt,
+  };
+}
+
+async function loadRefundPaginatedOrders<T>(
+  label: string,
+  loader: (page: number, pageSize: number) => Promise<unknown>,
+): Promise<T[]> {
+  const pageSize = 500;
+  const fallback = { items: [], data: [], total: 0, page: 1, pageSize };
+  const firstResult = await optionalCoreCall(label, () => loader(1, pageSize), fallback);
+  const firstData = firstResult.data as any;
+  const firstItems = asList<T>(firstData.items ?? firstData.data);
+  const total = Number(firstData.total ?? firstItems.length);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) return firstItems;
+
+  const restResults = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) => {
+      const page = index + 2;
+      return optionalCoreCall(`${label} 第${page}页`, () => loader(page, pageSize), fallback);
+    }),
+  );
+  return [
+    ...firstItems,
+    ...restResults.flatMap((result) => {
+      const data = result.data as any;
+      return asList<T>(data.items ?? data.data);
+    }),
+  ];
+}
+
+async function buildRefundFlow(): Promise<RefundFlowData> {
+  const { storeName } = await getAuraBootstrapSession();
+  const [productOrders, projectOrders, cardOrders] = await Promise.all([
+    loadRefundPaginatedOrders<CoreSnapshot['orders'][number]>('商品订单分页数据', (page, pageSize) =>
+      getProductOrdersPaginated({ page, pageSize }),
+    ),
+    loadRefundPaginatedOrders<CoreSnapshot['orders'][number]>('项目订单分页数据', (page, pageSize) =>
+      getProjectOrdersPaginated({ page, pageSize }),
+    ),
+    loadRefundPaginatedOrders<any>('次卡订单分页数据', (page, pageSize) => getCardOrdersPaginated({ page, pageSize })),
+  ]);
+  const orders = [
+    ...productOrders,
+    ...projectOrders,
+    ...cardOrders,
+  ]
+    .map((order) => (String((order as any).status) === 'active' && ((order as any).cardName || (order as any).sourceOrderNo)
+      ? toRefundCardOrderOption(order)
+      : toRefundOrderOption(order as CoreSnapshot['orders'][number])))
+    .filter((item): item is RefundOrderOption => Boolean(item))
+    .sort((left, right) => (right.createdAt || '').localeCompare(left.createdAt || ''));
+
+  return {
+    title: '订单退款',
+    subtitle: storeName || '当前门店',
+    source: 'Ami_Core 商品/项目历史订单',
+    generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm'),
+    orders,
+  };
+}
+
+export async function getRefundFlow(): Promise<RefundFlowData> {
+  return loadCachedBusinessFlow('operation.refund', buildRefundFlow);
+}
+
+function getLatestRefundRecord(refunded: any) {
+  const records = [
+    ...asList<any>(refunded?.refundRecords),
+    refunded?.refundRecord,
+  ].filter((record) => record && typeof record === 'object');
+  return records.sort((left, right) => {
+    const leftTime = new Date(left.refundedAt ?? left.createdAt ?? 0).getTime();
+    const rightTime = new Date(right.refundedAt ?? right.createdAt ?? 0).getTime();
+    return rightTime - leftTime;
+  })[0];
+}
+
+function getRefundPaymentMethod(refunded: any) {
+  const paymentRecords = asList<any>(refunded?.paymentRecords);
+  return refunded?.paymentMethod ?? refunded?.payMethod ?? paymentRecords[0]?.method;
+}
+
+function getRefundReceiptNo(refunded: any, latestRefundRecord: any, fallbackOrderId: string | number) {
+  return (
+    latestRefundRecord?.refundNo ??
+    refunded?.refundNo ??
+    refunded?.checkoutGroupNo ??
+    refunded?.orderNo ??
+    refunded?.sourceOrderNo ??
+    String(fallbackOrderId)
+  );
+}
+
+export async function confirmRefund(input: RefundConfirmInput): Promise<OperationResultData> {
+  if (!input.orderId) throw new Error('请选择要退款的历史订单');
+  if (input.amount <= 0) throw new Error('退款金额必须大于 0');
+  const isCardOrder = String(input.orderKind) === 'card';
+  const refunded = isCardOrder
+    ? await runWithAuraAuthRepair(() => voidCardOrder(input.orderId, { reason: input.reason || 'Ami Aura Lite 次卡退款' }))
+    : await runWithAuraAuthRepair(() =>
+        refundProductOrder(Number(input.orderId), {
+          amount: input.amount,
+          reason: input.reason || 'Ami Aura Lite 退款',
+        }),
+      );
+  invalidateCashierCaches();
+  invalidateBusinessFlowCache(['operation.refund']);
+  const latestRefundRecord = getLatestRefundRecord(refunded);
+  const actualRefundAmount = toMoney(latestRefundRecord?.amount ?? refunded.refundAmount ?? input.amount);
+  const refundReceiptNo = getRefundReceiptNo(refunded, latestRefundRecord, input.orderId);
+
+  return {
+    title: '退款完成',
+    subtitle: refunded.storeName,
+    status: 'success',
+    description: `${refunded.customerName || refunded.userName || '客户'} 的订单已退款 ${actualRefundAmount.toLocaleString()} 元。`,
+    nextSteps: ['刷新收银对账', '核对退款流水', '必要时打印退款凭证'],
+    receipt: {
+      sourceType: 'refund_order',
+      sourceId: Number(refunded.id ?? input.orderId) || undefined,
+      receiptNo: refundReceiptNo,
+      businessTitle: '退款凭证',
+      detailLabel: '退款明细',
+      storeName: refunded.storeName,
+      customerName: refunded.customerName || refunded.userName || '散客',
+      customerPhone: refunded.customerPhone,
+      paymentMethod: getRefundPaymentMethod(refunded),
+      items: [
+        {
+          name: input.reason || '订单退款',
+          quantity: 1,
+          unitPrice: actualRefundAmount,
+          subtotal: actualRefundAmount,
+        },
+      ],
+      subtotalAmount: actualRefundAmount,
+      discountAmount: 0,
+      paidAmount: actualRefundAmount,
+      createdAt: new Date().toISOString(),
+    },
+  };
+}
+
 export async function confirmCashierPayment(input: CashierConfirmInput): Promise<OperationResultData> {
   const customerName = input.customerName?.trim() || '';
   if (!customerName) throw new Error('未找到客户，无法收银');
@@ -4842,6 +5070,16 @@ export async function getInventoryAlerts(): Promise<InventoryAlertCardData> {
     apiStatus: getFallbackStatus([stockItems, alerts], '库存预警数据'),
   };
 }
+
+export async function getTodayPrintDocuments(): Promise<PrintDocumentsData> {
+  const data = await getTerminalPrintableDocumentsToday();
+  return {
+    ...data,
+    generatedAt: data.generatedAt || new Date().toISOString(),
+    items: Array.isArray(data.items) ? data.items : [],
+  };
+}
+
 export async function getOperationResult(action: string): Promise<OperationResultData> {
   const snapshot = await loadCoreSnapshot();
   const customer = snapshot.customers[0];

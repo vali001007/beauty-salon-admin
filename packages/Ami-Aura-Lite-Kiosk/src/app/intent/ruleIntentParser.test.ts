@@ -254,13 +254,13 @@ describe('parseRuleIntent', () => {
     const quickDefinition: RoleDefinition = {
       ...definition('manager'),
       quickActions: [
-        { label: '员工', action: 'manager.staff', icon: 'users' },
+        { label: '排班', action: 'manager.staff', icon: 'users' },
         { label: '客户增长', action: 'manager.customers', icon: 'sparkles' },
       ],
     };
 
     const staffIntent = await resolveCommandIntent({
-      command: '员工',
+      command: '排班',
       role: 'manager',
       definition: quickDefinition,
       source: 'quick_action',

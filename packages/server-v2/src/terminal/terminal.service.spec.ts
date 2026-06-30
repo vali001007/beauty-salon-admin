@@ -688,6 +688,48 @@ describe('TerminalService automation', () => {
     expect(result.summary.overdue).toBe(0);
   });
 
+  it('scopes terminal follow-up tasks by selected operator and bound beautician', async () => {
+    prisma.beautician.findFirst.mockResolvedValue({ id: 43 });
+    prisma.terminalFollowUpTask.findMany.mockResolvedValue([]);
+    prisma.terminalFollowUpTask.count.mockResolvedValue(0);
+    prisma.terminalFollowUpTask.groupBy.mockResolvedValue([]);
+
+    const result = await service.getFollowUpTasks(1, {
+      page: 1,
+      pageSize: 20,
+      assigneeRole: 'consultant',
+      operatorId: 32,
+      status: 'pending',
+    } as any);
+
+    expect(prisma.beautician.findFirst).toHaveBeenCalledWith({
+      where: { storeId: 1, userId: 32 },
+      select: { id: true },
+    });
+    expect(prisma.terminalFollowUpTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 1,
+          deletedAt: null,
+          assigneeRole: 'consultant',
+          status: 'pending',
+          AND: [{ OR: [{ assigneeUserId: 32 }, { assigneeBeauticianId: 43 }] }],
+        }),
+      }),
+    );
+    expect(prisma.terminalFollowUpTask.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 1,
+          deletedAt: null,
+          assigneeRole: 'consultant',
+          AND: [{ OR: [{ assigneeUserId: 32 }, { assigneeBeauticianId: 43 }] }],
+        }),
+      }),
+    );
+    expect(result.items).toEqual([]);
+  });
+
   it('returns actionable customer growth recommendations instead of generic wake-up copy', async () => {
     prisma.predictionRun = {
       findFirst: jest.fn().mockResolvedValue({ id: 66, storeId: 1, status: 'completed' }),
@@ -1821,6 +1863,79 @@ describe('TerminalService automation', () => {
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
   });
 
+  it('builds today printable documents from cashier, card usage and card orders', async () => {
+    const now = new Date('2026-06-29T10:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(now);
+    prisma.store = {
+      findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Ami 全量演示门店' }),
+    };
+    prisma.productOrder = {
+      findMany: jest
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 501,
+            orderNo: 'PO501',
+            customerName: '陈紫萱',
+            status: 'completed',
+            payMethod: 'wechat',
+            listAmount: 299,
+            totalDiscountAmount: 20,
+            netAmount: 279,
+            totalAmount: 279,
+            createdAt: new Date('2026-06-29T09:30:00.000Z'),
+            customer: { id: 10, name: '陈紫萱', phone: '13800000000' },
+            orderItems: [{ name: '深层补水护理', quantity: 1, unitPrice: 299, listAmount: 299, subtotal: 279, itemDiscountAmount: 20 }],
+            paymentRecords: [{ method: 'wechat', amount: 279, status: 'success' }],
+            sourceCustomerCards: [],
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 601,
+            orderNo: 'CO601',
+            customerName: '林晓',
+            status: 'completed',
+            payMethod: 'cash',
+            listAmount: 3680,
+            totalDiscountAmount: 400,
+            netAmount: 3280,
+            totalAmount: 3280,
+            createdAt: new Date('2026-06-29T09:10:00.000Z'),
+            customer: { id: 11, name: '林晓', phone: '13900000000' },
+            orderItems: [{ itemType: 'card', name: '抗衰管理 6 次卡', quantity: 1, unitPrice: 3280, listAmount: 3680, subtotal: 3280, itemDiscountAmount: 400 }],
+            paymentRecords: [{ method: 'cash', amount: 3280, status: 'success' }],
+            sourceCustomerCards: [{ operator: { id: 9, name: '周顾问', username: 'zhou' } }],
+          },
+        ]),
+    };
+    prisma.cardUsageRecord = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 66,
+          customerName: '马语嫣',
+          cardName: '补水护理 10 次卡',
+          projectName: '深层补水护理',
+          times: 1,
+          remainingTimes: 5,
+          recognizedAmount: 68,
+          verifiedAt: new Date('2026-06-29T09:20:00.000Z'),
+          customer: { id: 12, name: '马语嫣', phone: '13700000000' },
+          operator: { id: 8, name: '前台小艾', username: 'ai' },
+        },
+      ]),
+    };
+
+    const result = await service.getTodayPrintDocuments(1);
+
+    expect(result.summary).toContain('收银 1 单，核销 1 单，办卡 1 单');
+    expect(result.counts).toEqual({ cashier: 1, cardUsage: 1, cardOrder: 1 });
+    expect(result.items.map((item: any) => item.sourceType)).toEqual(['cashier_order', 'card_usage', 'card_order']);
+    expect(result.items[0].receipt).toEqual(expect.objectContaining({ receiptNo: 'PO501', paymentMethod: '微信' }));
+    expect(result.items[1].receipt).toEqual(expect.objectContaining({ receiptNo: 'CU000066', paymentMethod: '次卡核销' }));
+    expect(result.items[2].receipt).toEqual(expect.objectContaining({ businessTitle: '办卡小票', cashierName: '周顾问' }));
+  });
+
   it('rejects terminal checkout when the device has no open cashier shift', async () => {
     prisma.store = {
       findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Store A', shiftRequired: true }),
@@ -1867,7 +1982,7 @@ describe('TerminalService automation', () => {
     expect(prisma.cashierShift.findFirst).not.toHaveBeenCalled();
   });
 
-  it('adds Ami contribution KPIs to the manager dashboard', async () => {
+  it('uses real backend finance and reservation data for manager dashboard KPIs', async () => {
     const cache = new TerminalDashboardCacheService();
     terminalDashboardCache = {
       getKey: jest.fn((parts: Array<string | number | undefined | null>) => parts.join(':')),
@@ -1885,8 +2000,28 @@ describe('TerminalService automation', () => {
       findMany: jest.fn().mockResolvedValue([]),
     };
     prisma.productOrder = {
-      aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 68000 }, _count: 36 }),
       findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma.paymentRecord = {
+      findMany: jest.fn().mockResolvedValue([{ method: 'wechat', amount: 5000 }, { method: 'cash', amount: 1200 }]),
+    };
+    prisma.refundRecord = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma.commissionRecord = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma.dailySettlement = {
+      findUnique: jest.fn().mockResolvedValue({
+        totalRevenue: 68000,
+        cashRevenue: 1200,
+        wechatRevenue: 5000,
+        alipayRevenue: 3000,
+        cardRevenue: 800,
+        grossProfit: 42000,
+        grossMargin: 61.76,
+        orderCount: 36,
+      }),
     };
     prisma.reservation = {
       count: jest.fn().mockResolvedValueOnce(12).mockResolvedValueOnce(9),
@@ -1901,22 +2036,17 @@ describe('TerminalService automation', () => {
     prisma.schedule = {
       findMany: jest.fn().mockResolvedValue([]),
     };
-    commissionService.getAmiDashboard.mockResolvedValue({
-      revenueGenerated: 12000,
-      totalFee: 1800,
-      roi: 6.67,
-      recordCount: 8,
-    });
-
     const result = await service.getManagerDashboard(1);
 
-    expect(commissionService.getAmiDashboard).toHaveBeenCalledWith({ storeId: 1 });
-    expect(result.kpis).toEqual(
-      expect.arrayContaining([
-        { label: 'Ami关联收入 / 费用', value: '￥12,000', hint: '费用 ￥1,800 · 8 条贡献记录' },
-      ]),
-    );
-    expect(result.kpis).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Ami ROI' })]));
+    expect(result.kpis).toEqual([
+      { label: '营业收入', value: '￥68,000' },
+      { label: '现金收入', value: '￥10,000' },
+      { label: '毛利/毛利率', value: '￥42,000 / 61.76%' },
+      { label: '预约客户', value: '12' },
+      { label: '到店客户', value: '9' },
+      { label: '订单', value: '36' },
+    ]);
+    expect(commissionService.getAmiDashboard).not.toHaveBeenCalled();
   });
 
   it('serves repeated inventory alert dashboard calls from terminal dashboard cache', async () => {

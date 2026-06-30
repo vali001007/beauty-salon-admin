@@ -892,7 +892,7 @@ export interface TerminalRechargeOrder {
 }
 
 export interface TerminalPrintJobCreateRequest {
-  sourceType: 'cashier_order' | 'card_order' | 'recharge_order' | 'card_usage' | 'reservation' | 'custom';
+  sourceType: 'cashier_order' | 'card_order' | 'recharge_order' | 'card_usage' | 'refund_order' | 'reservation' | 'custom';
   sourceId?: number;
   title: string;
   content: string;
@@ -918,6 +918,64 @@ export interface TerminalPrintJob {
 export interface TerminalPrintJobStatusUpdateRequest {
   status: 'queued' | 'pending' | 'printing' | 'completed' | 'failed';
   errorMessage?: string;
+}
+
+export interface TerminalPrintableReceiptItem {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  listAmount?: number;
+  discountAmount?: number;
+  subtotal: number;
+}
+
+export interface TerminalPrintableReceipt {
+  sourceType: TerminalPrintJobCreateRequest['sourceType'];
+  sourceId?: number;
+  receiptNo: string;
+  businessTitle?: string;
+  detailLabel?: string;
+  storeName: string;
+  customerName: string;
+  customerPhone?: string;
+  cashierName?: string;
+  paymentMethod?: string;
+  items: TerminalPrintableReceiptItem[];
+  subtotalAmount: number;
+  discountAmount: number;
+  paidAmount: number;
+  createdAt: string;
+}
+
+export interface TerminalPrintableDocument {
+  id: string;
+  sourceType: 'cashier_order' | 'card_order' | 'card_usage';
+  sourceId: number;
+  receiptNo: string;
+  typeLabel: string;
+  title: string;
+  customerName: string;
+  customerPhone?: string;
+  amount: number;
+  status: string;
+  time: string;
+  description: string;
+  receipt: TerminalPrintableReceipt;
+}
+
+export interface TerminalPrintableDocumentsResponse {
+  title: string;
+  subtitle: string;
+  summary: string;
+  date: string;
+  generatedAt: string;
+  total: number;
+  counts: {
+    cashier: number;
+    cardUsage: number;
+    cardOrder: number;
+  };
+  items: TerminalPrintableDocument[];
 }
 
 export interface TerminalSkinMetric {
@@ -1105,6 +1163,7 @@ export interface TerminalFollowUpTaskQuery {
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'expired' | string;
   assigneeRole?: 'manager' | 'consultant' | 'reception' | string;
   assigneeUserId?: number;
+  operatorId?: number;
   customerId?: number;
   recommendationId?: number;
   keyword?: string;

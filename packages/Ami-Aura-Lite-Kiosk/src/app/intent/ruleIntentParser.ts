@@ -222,6 +222,10 @@ const RULE_KEYWORDS: Array<{ action: AuraAction; roles?: Role[]; keywords: strin
     keywords: ['充值', '充钱', '储值', '充会员卡', '余额充值'],
   },
   {
+    action: 'operation.refund',
+    keywords: ['退款', '退费', '退单', '订单退款', '售后退款'],
+  },
+  {
     action: 'operation.print',
     keywords: ['打印', '小票', '补打', '打票'],
   },
@@ -447,6 +451,8 @@ export function parseRuleIntent(command: string, role: Role, definition: RoleDef
   if (text.includes('办卡') || text.includes('开卡'))
     return withPermissionCheck('operation.card', role, definition, command, source, true);
   if (text.includes('充值')) return withPermissionCheck('operation.recharge', role, definition, command, source, true);
+  if (text.includes('退款') || text.includes('退费') || text.includes('退单'))
+    return withPermissionCheck('operation.refund', role, definition, command, source, true);
   if (text.includes('打印')) return withPermissionCheck('operation.print', role, definition, command, source, true);
   if (
     role === 'beautician' &&

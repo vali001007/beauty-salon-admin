@@ -229,6 +229,13 @@ export class QueryTerminalFollowUpTasksDto {
   @Min(1)
   assigneeUserId?: number;
 
+  @ApiPropertyOptional({ description: '终端当前选择的操作账号，用于匹配该账号及其绑定美容师的跟进任务' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  operatorId?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)

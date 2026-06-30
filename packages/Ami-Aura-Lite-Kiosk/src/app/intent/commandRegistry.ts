@@ -114,6 +114,15 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
     writeAction: true,
   },
   {
+    intent: 'order.refund',
+    action: 'operation.refund',
+    label: '退款',
+    loadingLabel: '正在准备订单退款',
+    riskLevel: 'high',
+    requiresConfirmation: true,
+    writeAction: true,
+  },
+  {
     intent: 'print.receipt',
     action: 'operation.print',
     label: '打印',

@@ -86,7 +86,7 @@ const roleDefinitions: Record<KioskRole, any> = {
     subtitle: '先看经营、风险和员工，再处理门店协同',
     quickActions: [
       { label: '经营', action: 'manager.dashboard', icon: 'BarChart3' },
-      { label: '员工', action: 'manager.staff', icon: 'Users' },
+      { label: '排班', action: 'manager.staff', icon: 'Users' },
       { label: '客户增长', action: 'manager.customers', icon: 'Sparkles' },
       { label: '客户跟进', action: 'customer.followup', icon: 'UserPlus' },
       { label: '库存', action: 'manager.inventory', icon: 'PackageCheck' },
@@ -610,6 +610,200 @@ function rechargeContext() {
   };
 }
 
+function coreNaturalLanguageResult(role: KioskRole, message: string) {
+  const coreCases: Array<{
+    match: RegExp;
+    runId: number;
+    answer: string;
+    title: string;
+    columns: string[];
+    rows: string[][];
+    source: string[];
+  }> = [
+    {
+      match: /这个月.*营业额|本月.*营收|本月.*营业额/,
+      runId: 9101,
+      answer: '本月营业额为 ￥263,794.10，现金收入 ￥221,580.00，订单 84 笔。',
+      title: '本月经营收入',
+      columns: ['指标', '数值', '口径'],
+      rows: [
+        ['营业收入', '￥263,794.10', '本月已完成订单'],
+        ['现金收入', '￥221,580.00', '现金/微信/支付宝实收'],
+        ['订单', '84 笔', '收银、核销、办卡订单合计'],
+      ],
+      source: ['订单', '支付记录'],
+    },
+    {
+      match: /昨天.*(消费|成交).*客户|昨日.*成交.*客户/,
+      runId: 9102,
+      answer: '昨天共有 3 位消费客户，优先关注马美琳和刘思琪的复购承接。',
+      title: '昨日消费客户清单',
+      columns: ['客户', '消费金额', '最近服务', '建议动作'],
+      rows: [
+        ['马美琳', '￥1,680', '水光护理', '安排 7 天复购回访'],
+        ['刘思琪', '￥980', '肩颈护理', '推荐疗程续购'],
+        ['陈悠然', '￥398', '深层清洁', '发送护理注意事项'],
+      ],
+      source: ['订单', '客户', '服务记录'],
+    },
+    {
+      match: /产品.*(快过期|临期)|临期.*产品|哪些.*临期/,
+      runId: 9103,
+      answer: '当前有 2 个临期库存批次，建议先做项目消耗或促销组合。',
+      title: '临期库存产品',
+      columns: ['产品', '批次', '剩余数量', '到期日'],
+      rows: [
+        ['舒缓修护精华', 'B202606', '6', '2026-07-15'],
+        ['水光补水面膜', 'B202607', '18', '2026-07-30'],
+      ],
+      source: ['库存批次', '产品'],
+    },
+    {
+      match: /这个月.*(谁|员工|美容师).*业绩.*(最好|最高)|本月.*表现.*好/,
+      runId: 9104,
+      answer: '本月业绩最好的是宋乔，销售额 ￥12,112.54，服务 18 次。',
+      title: '本月员工业绩排行',
+      columns: ['员工', '等级', '销售额', '服务次数'],
+      rows: [
+        ['宋乔', '明星顾问', '￥12,112.54', '18 次'],
+        ['沈晴', '初级美容师', '￥8,920.00', '14 次'],
+        ['顾然', '高级美容师', '￥7,680.00', '11 次'],
+      ],
+      source: ['员工', '订单明细', '服务任务'],
+    },
+    {
+      match: /(紧急|优先).*召回.*客户|需要.*召回.*客户/,
+      runId: 9105,
+      answer: '已列出 10 位需要紧急召回的客户，优先从高价值沉默客户开始。',
+      title: '紧急召回客户 Top10',
+      columns: ['客户', '会员等级', '未到店天数', '召回建议'],
+      rows: [
+        ['马美琳', '金卡会员', '76 天', '电话邀约复购护理'],
+        ['刘思琪', '银卡会员', '63 天', '发送专属回访券'],
+        ['胡静怡', '金卡会员', '58 天', '安排顾问跟进'],
+      ],
+      source: ['客户', '订单', '服务记录'],
+    },
+    {
+      match: /今天.*(所有)?预约.*列|今日.*预约.*清单/,
+      runId: 9106,
+      answer: '今天共有 4 条预约，其中 2 条已到店，2 条待确认。',
+      title: '今日预约清单',
+      columns: ['时间', '客户', '项目', '状态'],
+      rows: [
+        ['10:30', '李伟明', '深层补水护理', '已到店'],
+        ['14:00', '马美琳', '肩颈护理', '待确认'],
+        ['16:00', '陈悠然', '皮肤管理', '待确认'],
+      ],
+      source: ['预约', '排班'],
+    },
+    {
+      match: /今天.*(收银|核销|办卡).*订单.*列表|今日.*订单.*列表/,
+      runId: 9107,
+      answer: '今天共有 5 笔业务订单：收银 2 笔、核销 2 笔、办卡 1 笔，可继续打印明细。',
+      title: '今日业务订单列表',
+      columns: ['类型', '客户', '金额/次数', '操作'],
+      rows: [
+        ['收银', '李伟明', '￥398', '可打印'],
+        ['核销', '陈悠然', '1 次', '可打印'],
+        ['办卡', '马美琳', '￥2,680', '可打印'],
+      ],
+      source: ['订单', '核销记录', '卡项订单'],
+    },
+    {
+      match: /本月.*利润.*(下降|为什么)|毛利.*下降/,
+      runId: 9108,
+      answer: '本月利润率下降主要来自耗材成本上升和折扣增加，建议先复核高折扣订单。',
+      title: '利润下降原因',
+      columns: ['原因', '影响', '建议'],
+      rows: [
+        ['耗材成本上升', '毛利率下降 4.2%', '复核高消耗项目'],
+        ['折扣增加', '收入减少 ￥6,800', '收紧折扣审批'],
+      ],
+      source: ['订单', '成本', '折扣记录'],
+    },
+    {
+      match: /我今天.*几个客人|今天.*服务.*几个客人/,
+      runId: 9109,
+      answer:
+        role === 'beautician'
+          ? '你今天有 3 位预约客户，1 位已到店，2 位待服务。'
+          : '当前问题更适合美容师视角查看；店长可查看全店预约和员工排班。',
+      title: '我的今日客户',
+      columns: ['时间', '客户', '项目', '状态'],
+      rows: [
+        ['10:30', '李伟明', '深层补水护理', '已到店'],
+        ['14:00', '马美琳', '肩颈护理', '待服务'],
+        ['16:00', '陈悠然', '皮肤管理', '待服务'],
+      ],
+      source: ['预约', '美容师排班'],
+    },
+    {
+      match: /设置.*客户.*\d+天.*(自动提醒|提醒)|客户.*自动提醒/,
+      runId: 9110,
+      answer: '可以创建“45 天未到店自动提醒”草稿，发送前需要店长确认。',
+      title: '自动提醒规则草稿',
+      columns: ['规则', '触发条件', '执行方式'],
+      rows: [['45 天未到店提醒', '客户 45 天未到店', '生成待确认回访任务']],
+      source: ['客户', '自动化规则'],
+    },
+  ];
+
+  const matched = coreCases.find((item) => item.match.test(message));
+  if (!matched) return null;
+
+  return {
+    runId: matched.runId,
+    runNo: `E2E-CORE-${matched.runId}`,
+    status: 'completed',
+    plan: {
+      intentType: 'query',
+      goal: message,
+      toolPlan: [{ tool: 'business.query.ask', args: { question: message } }],
+      confidence: 0.9,
+      clarificationNeeded: false,
+    },
+    answer: matched.answer,
+    followUpSuggestions: ['查看明细', '生成跟进动作', '导出结果'],
+    renderedBlocks: [
+      {
+        kind: 'summary_text',
+        content: matched.answer,
+      },
+      {
+        kind: 'table',
+        title: matched.title,
+        columns: matched.columns,
+        rows: matched.rows,
+      },
+    ],
+    toolResults: [
+      {
+        status: 'success',
+        title: matched.title,
+        summary: matched.answer,
+        data: { items: matched.rows },
+        evidence: {
+          source: matched.source,
+          dateRange: 'E2E 固定样本',
+          metricDefinition: matched.title,
+          filters: ['当前门店'],
+          sampleSize: matched.rows.length,
+        },
+        actions: [{ label: '查看明细', action: 'agent:tool:detail', riskLevel: 'low' }],
+      },
+    ],
+    actions: [],
+    evidence: {
+      source: matched.source,
+      dateRange: 'E2E 固定样本',
+      metricDefinition: matched.title,
+      filters: ['当前门店'],
+      sampleSize: matched.rows.length,
+    },
+  };
+}
+
 function agentRunFor(role: KioskRole, message: string) {
   if (message.includes('中风险草稿审批')) {
     return {
@@ -757,6 +951,77 @@ function agentRunFor(role: KioskRole, message: string) {
       },
     };
   }
+
+  if (/老朋友回店护理礼.*(活动)?链接.*发我|回店护理礼.*链接/.test(message)) {
+    return {
+      runId: 9111,
+      runNo: 'E2E-LINK-CARD-9111',
+      status: 'completed',
+      plan: {
+        intentType: 'query',
+        goal: message,
+        toolPlan: [{ tool: 'business.query.ask', args: { question: message } }],
+        confidence: 0.92,
+        clarificationNeeded: false,
+      },
+      answer: '已找到“老朋友回店护理礼”的活动链接，可直接复制发送给客户。',
+      followUpSuggestions: ['查看活动数据', '复制小程序路径', '生成回访话术'],
+      renderedBlocks: [
+        {
+          kind: 'summary_text',
+          content: '已找到“老朋友回店护理礼”的活动链接，可直接复制发送给客户。',
+        },
+        {
+          kind: 'link_card',
+          title: '老朋友回店护理礼',
+          description: '活动已发布，链接来自 MarketingPage 真实推广页。',
+          primaryUrl: 'https://m.ami.example.com/m/old-friend-care',
+          miniappPath: '/pages/marketing/old-friend-care',
+          statusLabel: '已发布',
+          links: [
+            { label: '活动链接', value: 'https://m.ami.example.com/m/old-friend-care', type: 'url' },
+            { label: '小程序路径', value: '/pages/marketing/old-friend-care', type: 'miniapp_path' },
+          ],
+          actions: [{ label: '查看活动列表', actionId: 'marketing:activities:open', riskLevel: 'low' }],
+        },
+      ],
+      toolResults: [
+        {
+          status: 'success',
+          title: '营销活动链接',
+          summary: '已找到“老朋友回店护理礼”的活动链接。',
+          data: {
+            items: [
+              {
+                活动名称: '老朋友回店护理礼',
+                活动链接: 'https://m.ami.example.com/m/old-friend-care',
+                小程序路径: '/pages/marketing/old-friend-care',
+              },
+            ],
+          },
+          evidence: {
+            source: ['MarketingActivity', 'MarketingPage'],
+            dateRange: '当前门店',
+            metricDefinition: '营销活动链接查询',
+            filters: ['当前门店', '活动已发布'],
+            sampleSize: 1,
+          },
+          actions: [{ label: '查看活动列表', action: 'marketing:activities:open', riskLevel: 'low' }],
+        },
+      ],
+      actions: [],
+      evidence: {
+        source: ['MarketingActivity', 'MarketingPage'],
+        dateRange: '当前门店',
+        metricDefinition: '营销活动链接查询',
+        filters: ['当前门店', '活动已发布'],
+        sampleSize: 1,
+      },
+    };
+  }
+
+  const coreResult = coreNaturalLanguageResult(role, message);
+  if (coreResult) return coreResult;
 
   if (message.includes('财务毛利') && role !== 'manager') {
     return {
@@ -1251,13 +1516,15 @@ function routeDecisionFor(role: KioskRole, message: string) {
   const personaCode =
     role === 'beautician'
       ? 'beautician'
-      : /库存|临期|补货|采购/.test(text)
+      : /库存|临期|快过期|过期|补货|采购/.test(text)
         ? 'inventory'
         : /利润|财务|毛利|退款|折扣/.test(text)
           ? role === 'manager'
             ? 'finance'
             : 'reception'
-          : /营销|活动|召回|复购/.test(text)
+          : /营业额|营收|收入|流水|经营/.test(text)
+            ? 'manager'
+          : /营销|活动|召回|复购|自动提醒|自动化/.test(text)
             ? role === 'reception'
               ? 'marketing'
               : 'marketing'
@@ -1371,11 +1638,76 @@ test.describe('Ami Aura Lite 经营 Agent Browser Eval', () => {
     const agentRequests: KioskAgentRequest[] = [];
     await openKiosk(page, 'manager', agentRequests);
 
-    await page.getByRole('button', { name: '员工' }).click();
+    await page.getByRole('button', { name: '排班' }).click();
 
     await expect(page.getByRole('heading', { name: '员工排班' }).last()).toBeVisible();
-    await expect(page.locator('.rounded-tr-md', { hasText: /^员工$/ })).toHaveCount(0);
+    await expect(page.locator('.rounded-tr-md', { hasText: /^排班$/ })).toHaveCount(0);
     expect(agentRequests).toHaveLength(0);
+  });
+
+  test('10 条核心自然语言问题均进入 Agent 并展示自动分诊后的业务回答', async ({ page }) => {
+    const agentRequests: KioskAgentRequest[] = [];
+    await openKiosk(page, 'manager', agentRequests);
+
+    const coreCases = [
+      {
+        question: '老朋友回店护理礼活动链接发我',
+        answer: '已找到“老朋友回店护理礼”的活动链接',
+        badge: '由 营销增长 Agent 处理',
+        visibleTerm: 'https://m.ami.example.com/m/old-friend-care',
+      },
+      { question: '这个月营业额是多少', answer: '本月营业额为 ￥263,794.10', badge: '由 店长经营 Agent 处理', visibleTerm: '营业收入' },
+      { question: '昨天有哪些消费的客户，列出清单', answer: '昨天共有 3 位消费客户', badge: '由 前台接待 Agent 处理', visibleTerm: '马美琳' },
+      { question: '哪些产品快过期了', answer: '当前有 2 个临期库存批次', badge: '由 库存采购 Agent 处理', visibleTerm: '舒缓修护精华' },
+      { question: '这个月谁的业绩最好', answer: '本月业绩最好的是宋乔', badge: '由 店长经营 Agent 处理', visibleTerm: '宋乔' },
+      { question: '请列出10个需要紧急召回的客户', answer: '已列出 10 位需要紧急召回的客户', badge: '由 营销增长 Agent 处理', visibleTerm: '未到店天数' },
+      { question: '今天所有的预约给我列一下', answer: '今天共有 4 条预约', badge: '由 前台接待 Agent 处理', visibleTerm: '深层补水护理' },
+      { question: '今天所有收银、核销、办卡订单列表', answer: '今天共有 5 笔业务订单', badge: '由 前台接待 Agent 处理', visibleTerm: '可打印' },
+      { question: '本月利润为什么下降', answer: '本月利润率下降主要来自耗材成本上升', badge: '由 财务风控 Agent 处理', visibleTerm: '折扣增加' },
+      { question: '帮我设置客户45天没来自动提醒', answer: '可以创建“45 天未到店自动提醒”草稿', badge: '由 营销增长 Agent 处理', visibleTerm: '生成待确认回访任务' },
+    ];
+
+    for (const item of coreCases) {
+      await test.step(item.question, async () => {
+        await submitQuestion(page, item.question);
+        await expect(page.locator('.rounded-tr-md', { hasText: item.question })).toBeVisible();
+        await expect(page.getByText(item.answer).last()).toBeVisible();
+        await expect(page.getByText(item.visibleTerm).last()).toBeVisible();
+        await expect(page.getByText(item.badge).last()).toBeVisible();
+      });
+    }
+
+    await expect.poll(() => agentRequests.length).toBe(coreCases.length);
+    for (const [index, item] of coreCases.entries()) {
+      expect(agentRequests[index]).toMatchObject({
+        message: item.question,
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        personaCode: undefined,
+        operatorId: 101,
+      });
+    }
+  });
+
+  test('美容师核心自然语言问题按本人视角进入 Agent', async ({ page }) => {
+    const agentRequests: KioskAgentRequest[] = [];
+    await openKiosk(page, 'beautician', agentRequests);
+
+    await submitQuestion(page, '我今天有几个客人');
+
+    await expect(page.locator('.rounded-tr-md', { hasText: '我今天有几个客人' })).toBeVisible();
+    await expect(page.getByText('你今天有 3 位预约客户').last()).toBeVisible();
+    await expect(page.getByText('李伟明').last()).toBeVisible();
+    await expect(page.getByText('由 美容师服务 Agent 处理').last()).toBeVisible();
+    await expect.poll(() => agentRequests.length).toBe(1);
+    expect(agentRequests[0]).toMatchObject({
+      message: '我今天有几个客人',
+      role: 'beautician',
+      entrypoint: 'terminal:kiosk',
+      personaCode: undefined,
+      operatorId: 103,
+      method: 'create',
+    });
   });
 
   test('所有角色可通过客户跟进快捷入口查看并填写管理端下发任务', async ({ page }) => {

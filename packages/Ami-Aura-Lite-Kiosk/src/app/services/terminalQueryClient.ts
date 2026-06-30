@@ -59,6 +59,7 @@ export const TERMINAL_QUERY_TTL = {
   customerGrowth: 3 * 60_000,
   inventoryAlerts: 2 * 60_000,
   cashierContext: 10 * 60_000,
+  printDocuments: 30_000,
   cardVerificationContext: 3 * 60_000,
   customerSearch: 2 * 60_000,
 };

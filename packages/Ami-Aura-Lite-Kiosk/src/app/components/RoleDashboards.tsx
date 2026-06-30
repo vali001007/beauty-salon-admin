@@ -29,6 +29,7 @@ import type {
   InventoryAlertCardData,
   OperationResultData,
   OperationReceiptData,
+  PrintDocumentsData,
   StaffScheduleCardData,
 } from "../types";
 import type { BusinessQueryResponse } from "@/types/businessQuery";
@@ -381,20 +382,21 @@ function KpiTile({
 }
 
 function getManagerKpiIcon(label: string) {
-  if (label.includes("Ami")) return Sparkles;
-  if (label.includes("营业额")) return TrendingUp;
+  if (label.includes("营业") || label.includes("收入")) return TrendingUp;
+  if (label.includes("毛利")) return CreditCard;
   if (label.includes("预约")) return CalendarCheck;
   if (label.includes("到店")) return CheckCircle2;
-  if (label.includes("活跃")) return CreditCard;
+  if (label.includes("订单")) return CreditCard;
   return Users;
 }
 
 function getManagerKpiTone(label: string, value?: string): "purple" | "gold" | "green" | "red" {
-  if (label.includes("Ami")) return "green";
-  if (label.includes("营业额")) return "gold";
+  if (label.includes("营业")) return "gold";
+  if (label.includes("现金")) return "green";
+  if (label.includes("毛利")) return "green";
   if (label.includes("预约")) return "green";
   if (label.includes("到店")) return "purple";
-  if (label.includes("活跃")) return "green";
+  if (label.includes("订单")) return "purple";
   return "purple";
 }
 
@@ -620,6 +622,7 @@ function getReceiptSequenceLabel(receipt: OperationReceiptData) {
   if (receipt.sourceType === "card_usage") return "核销流水号";
   if (receipt.sourceType === "card_order") return "开卡流水号";
   if (receipt.sourceType === "recharge_order") return "充值流水号";
+  if (receipt.sourceType === "refund_order") return "退款流水号";
   return "收银流水号";
 }
 
@@ -886,6 +889,76 @@ function ReceiptInlineDetails({ receipt }: { receipt: OperationReceiptData }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export function PrintDocumentsCard({ data }: { data: PrintDocumentsData }) {
+  const [selectedReceipt, setSelectedReceipt] = React.useState<OperationReceiptData | undefined>();
+
+  return (
+    <CardShell title={data.title} subtitle={`${data.subtitle} · ${data.date}`}>
+      <div className="rounded-2xl border border-[#2D1B69]/10 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-[#1F1B2D]">{data.summary}</div>
+            <div className="mt-1 text-xs text-[#6F6678]">生成时间 {formatReceiptTime(data.generatedAt)}</div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-[#2D1B69]">
+            <span className="rounded-full bg-[#2D1B69]/6 px-3 py-1">收银 {data.counts.cashier}</span>
+            <span className="rounded-full bg-[#2D1B69]/6 px-3 py-1">核销 {data.counts.cardUsage}</span>
+            <span className="rounded-full bg-[#2D1B69]/6 px-3 py-1">办卡 {data.counts.cardOrder}</span>
+          </div>
+        </div>
+
+        {data.items.length ? (
+          <div className="mt-4 grid gap-2">
+            {data.items.map((item) => (
+              <div
+                key={item.id}
+                className="grid gap-3 rounded-2xl border border-[#E6E0EA] bg-[#FAF9F7] p-3 md:grid-cols-[88px_minmax(0,1fr)_120px_96px]"
+              >
+                <div className="flex items-start">
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#2D1B69] shadow-sm">{item.typeLabel}</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-[#1F1B2D]">{item.title}</div>
+                  <div className="mt-1 truncate text-xs text-[#6F6678]">
+                    {item.customerName || "散客"} · {formatReceiptTime(item.time)}
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-xs text-[#4C4658]">{item.description}</div>
+                </div>
+                <div className="min-w-0 md:text-right">
+                  <div className="text-xs text-[#6F6678]">{item.sourceType === "card_usage" ? "核销价值" : "实收"}</div>
+                  <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">{formatMoney(item.amount)}</div>
+                  <div className="mt-0.5 text-xs text-[#9B92A3]">{item.status}</div>
+                </div>
+                <div className="flex items-center md:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReceipt(item.receipt as OperationReceiptData)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#2D1B69] px-4 text-sm font-semibold text-white transition active:scale-[0.98]"
+                  >
+                    <Printer className="h-4 w-4" />
+                    打印
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-dashed border-[#D8CEDF] bg-[#FAF9F7] px-4 py-6 text-center text-sm text-[#6F6678]">
+            今日暂无收银、核销或办卡单据。
+          </div>
+        )}
+      </div>
+      <ReceiptPreviewDialog
+        receipt={selectedReceipt}
+        open={Boolean(selectedReceipt)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedReceipt(undefined);
+        }}
+      />
+    </CardShell>
   );
 }
 
@@ -3363,6 +3436,7 @@ const BUSINESS_QUERY_CAPABILITY_LABELS: Record<string, string> = {
   reservation_today: "今日预约",
   schedule_utilization: "排班利用率",
   order_revenue_analysis: "订单收入分析",
+  finance_today_transaction_list: "今日交易订单清单",
   card_expiry_risk: "卡项到期风险",
   card_usage_analysis: "卡项核销分析",
   member_balance_analysis: "会员卡余额分析",
@@ -3425,6 +3499,7 @@ const BUSINESS_EVIDENCE_SOURCE_LABELS: Record<string, string> = {
   RefundRecord: "退款记录",
   CommissionRecord: "提成记录",
   Inventory: "库存",
+  StockBatch: "库存批次",
   StockMovement: "库存流水",
   Supplier: "供应商",
   SupplierOrder: "供应商订单",

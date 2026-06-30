@@ -17,7 +17,7 @@ export const AURA_ROLE_SUBTITLES: Record<AuraRole, string> = {
 
 export const AURA_ACTION_META: Record<AuraAction, { label: string; icon: string }> = {
   'manager.dashboard': { label: '经营', icon: 'BarChart3' },
-  'manager.staff': { label: '员工', icon: 'Users' },
+  'manager.staff': { label: '排班', icon: 'Users' },
   'manager.customers': { label: '客户增长', icon: 'Sparkles' },
   'manager.inventory': { label: '库存', icon: 'PackageCheck' },
   'customer.followup': { label: '客户跟进', icon: 'UserPlus' },
@@ -28,6 +28,7 @@ export const AURA_ACTION_META: Record<AuraAction, { label: string; icon: string 
   'operation.cashier': { label: '收银', icon: 'CreditCard' },
   'operation.card': { label: '办卡', icon: 'Wallet' },
   'operation.recharge': { label: '充值', icon: 'Wallet' },
+  'operation.refund': { label: '退款', icon: 'RotateCcw' },
   'operation.print': { label: '打印', icon: 'Printer' },
   'operation.service-complete': { label: '服务记录', icon: 'FileText' },
   'beautician.schedule': { label: '我的预约', icon: 'CalendarCheck' },
@@ -50,6 +51,7 @@ export const AURA_ROLE_ACTIONS: Record<AuraRole, AuraAction[]> = {
     'operation.cashier',
     'operation.card',
     'operation.recharge',
+    'operation.refund',
     'operation.print',
   ],
   reception: [
@@ -61,6 +63,7 @@ export const AURA_ROLE_ACTIONS: Record<AuraRole, AuraAction[]> = {
     'operation.cashier',
     'operation.card',
     'operation.recharge',
+    'operation.refund',
     'operation.print',
     'business.query',
   ],
@@ -85,6 +88,7 @@ export const AURA_ROLE_PERMISSIONS: Record<AuraRole, string[]> = {
     'aura:cashier:create',
     'aura:card-order:create',
     'aura:recharge:create',
+    'aura:refund:create',
     'aura:inventory:read',
     'aura:staff:read',
   ],
@@ -97,6 +101,7 @@ export const AURA_ROLE_PERMISSIONS: Record<AuraRole, string[]> = {
     'aura:cashier:create',
     'aura:card-order:create',
     'aura:recharge:create',
+    'aura:refund:create',
   ],
   beautician: ['aura:beautician:view', 'aura:customer:read', 'aura:appointment:read', 'aura:service-record:create'],
 };

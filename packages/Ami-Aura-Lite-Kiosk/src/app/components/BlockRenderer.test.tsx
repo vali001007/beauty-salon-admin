@@ -88,7 +88,7 @@ describe('BlockRenderer', () => {
     expect(action!.compareDocumentPosition(followUp!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('does not render array index values as table headers', () => {
+  it('infers Chinese table headers when source columns are array indexes', () => {
     act(() => {
       root.render(
         <BlockRenderer
@@ -104,7 +104,9 @@ describe('BlockRenderer', () => {
     });
 
     const headers = Array.from(container.querySelectorAll('th')).map((node) => node.textContent);
-    expect(headers).toEqual(['字段 1', '字段 2', '字段 3', '字段 4']);
+    expect(headers).toEqual(['客户分群', '人数', '优先级', '建议动作']);
+    expect(headers).not.toContain('0');
+    expect(headers).not.toContain('字段 1');
     expect(container.textContent).toContain('沉睡客户（45-90天未到店）');
   });
 
@@ -127,5 +129,117 @@ describe('BlockRenderer', () => {
     expect(headers).toEqual(['员工ID', '员工姓名', '等级', '状态', '表现分', '表现等级']);
     expect(container.textContent).not.toContain('beauticianName');
     expect(container.textContent).toContain('宋乔');
+  });
+
+  it('renders order revenue field keys and payment values in Chinese', () => {
+    act(() => {
+      root.render(
+        <BlockRenderer
+          blocks={[
+            {
+              kind: 'table',
+              columns: ['payMethod', 'revenue', 'paidAmount', 'refundAmount', 'netAmount', 'orderCount'],
+              rows: [['wechat', '84265.67', '84265.67', '0', '84265.67', '101']],
+            },
+            {
+              kind: 'evidence_panel',
+              sources: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
+              metricDefinition: '按支付方式统计订单实收、退款和净额。',
+            },
+          ]}
+        />,
+      );
+    });
+
+    const headers = Array.from(container.querySelectorAll('th')).map((node) => node.textContent);
+    expect(headers).toEqual(['支付方式', '实收金额', '消费金额', '退款金额', '净额', '订单数']);
+    expect(container.textContent).toContain('微信');
+    expect(container.textContent).not.toContain('payMethod');
+    expect(container.textContent).not.toContain('wechat');
+    expect(container.textContent).toContain('数据来源 · 订单、收款记录、退款记录');
+  });
+
+  it('renders entity badge and marketing link card without falling back to a table', () => {
+    act(() => {
+      root.render(
+        <BlockRenderer
+          blocks={[
+            {
+              kind: 'entity_resolution_badge',
+              objectType: '营销活动',
+              entityName: '老朋友回店礼',
+              confidence: 0.92,
+              sourceModel: 'MarketingActivity',
+            },
+            {
+              kind: 'link_card',
+              title: '老朋友回店礼',
+              description: '推广页：老朋友回店礼 H5',
+              primaryUrl: 'https://example.com/old-friend',
+              miniappPath: '/pages/marketing/old-friend',
+              qrCodeUrl: 'https://example.com/old-friend.png',
+              statusLabel: '已发布',
+              links: [
+                { label: '活动链接', value: 'https://example.com/old-friend', type: 'url' },
+                { label: '小程序路径', value: '/pages/marketing/old-friend', type: 'miniapp_path' },
+                { label: '二维码', value: 'https://example.com/old-friend.png', type: 'qr_code' },
+              ],
+            },
+            {
+              kind: 'capability_trace',
+              capabilityId: 'marketing.activity.link.lookup',
+              queryTemplateId: 'marketing_activity_link_lookup',
+              action: 'get_link',
+              executionPath: 'business_query',
+              schemaPath: ['MarketingActivity', 'MarketingPage'],
+              confidence: 0.92,
+            },
+          ]}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('已识别业务对象');
+    expect(container.textContent).toContain('营销活动 · 老朋友回店礼');
+    expect(container.textContent).toContain('92%');
+    expect(container.textContent).toContain('营销活动链接');
+    expect(container.textContent).toContain('https://example.com/old-friend');
+    expect(container.textContent).toContain('/pages/marketing/old-friend');
+    expect(container.textContent).toContain('二维码');
+    expect(container.textContent).toContain('能力命中调试');
+    expect(container.textContent).toContain('marketing.activity.link.lookup');
+    expect(container.textContent).toContain('MarketingActivity → MarketingPage');
+    expect(container.querySelector('table')).toBeNull();
+  });
+
+  it('renders clarification cards and sends the selected option back as text', () => {
+    const selected: string[] = [];
+
+    act(() => {
+      root.render(
+        <BlockRenderer
+          blocks={[
+            {
+              kind: 'clarification_card',
+              title: '需要确认对象',
+              question: '你是指哪个回店礼活动？',
+              options: [
+                { label: '老朋友回店护理礼', value: '查询老朋友回店护理礼活动链接', description: '已发布推广页' },
+                { label: '老朋友回店礼', value: '查询老朋友回店礼活动链接', description: '草稿活动' },
+              ],
+              allowFreeText: true,
+            },
+          ]}
+          onCommand={(command) => selected.push(command)}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('需要确认对象');
+    expect(container.textContent).toContain('你是指哪个回店礼活动？');
+    expect(container.textContent).toContain('已发布推广页');
+    const option = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('老朋友回店护理礼'));
+    option?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(selected).toEqual(['查询老朋友回店护理礼活动链接']);
   });
 });

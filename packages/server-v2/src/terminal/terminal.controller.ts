@@ -426,6 +426,12 @@ export class TerminalOrderController {
     return this.terminalService.createPrintJob(storeId, dto);
   }
 
+  @Get('print-documents/today')
+  @ApiOperation({ summary: '今日可打印单据' })
+  getTodayPrintDocuments(@CurrentDevice('storeId') storeId: number) {
+    return this.terminalService.getTodayPrintDocuments(storeId);
+  }
+
   @Get('print-jobs')
   @ApiOperation({ summary: '打印任务队列' })
   listPrintJobs(@CurrentDevice('storeId') storeId: number, @Query() query: any) {
@@ -486,7 +492,7 @@ export class TerminalOrderController {
     @CurrentDevice('userId') userId: number | undefined,
     @Query() query: QueryTerminalFollowUpTasksDto,
   ) {
-    return this.terminalService.getFollowUpTasks(storeId, { ...query, assigneeUserId: query.assigneeUserId ?? userId });
+    return this.terminalService.getFollowUpTasks(storeId, { ...query, operatorId: query.operatorId ?? query.assigneeUserId ?? userId });
   }
 
   @Patch('follow-up-tasks/:id/start')

@@ -20,6 +20,7 @@ const NATURAL_LANGUAGE_BLOCKED_ACTIONS = new Set<AuraAction>([
   "operation.cashier",
   "operation.card",
   "operation.recharge",
+  "operation.refund",
   "operation.print",
   "operation.service-complete",
   "beautician.schedule",

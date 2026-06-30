@@ -19,6 +19,7 @@ export type AuraIntentName =
   | "cashier.checkout"
   | "card_order.create"
   | "recharge.create"
+  | "order.refund"
   | "customer.quick_create"
   | "beautician.schedule.view"
   | "beautician.commission.view"

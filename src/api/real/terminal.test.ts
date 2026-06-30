@@ -91,12 +91,12 @@ describe('terminal real API payload normalization', () => {
   it('routes terminal follow-up task queries and completion to task endpoints', async () => {
     const { realGetTerminalFollowUpTasks, realStartTerminalFollowUpTask, realCompleteTerminalFollowUpTask } = await import('./terminal');
 
-    await realGetTerminalFollowUpTasks({ page: 1, pageSize: 10, status: 'pending' });
+    await realGetTerminalFollowUpTasks({ page: 1, pageSize: 10, status: 'pending', operatorId: 32 });
     await realStartTerminalFollowUpTask(12);
     await realCompleteTerminalFollowUpTask(12, { resultType: 'contacted', result: '已电话沟通' });
 
     expect(apiClientMock.get).toHaveBeenCalledWith('/terminal/follow-up-tasks', {
-      params: { page: 1, pageSize: 10, status: 'pending' },
+      params: { page: 1, pageSize: 10, status: 'pending', operatorId: 32 },
     });
     expect(apiClientMock.patch).toHaveBeenCalledWith('/terminal/follow-up-tasks/12/start');
     expect(apiClientMock.patch).toHaveBeenCalledWith('/terminal/follow-up-tasks/12/complete', {
