@@ -10,6 +10,7 @@ type ApiStockItem = Partial<StockItem> & {
   currentStock?: number | string;
   safetyStock?: number | string;
   costPrice?: number | string;
+  supplier?: string | null;
   category?: { id?: number; name?: string };
 };
 type ApiBatch = Partial<Batch> & { stock?: number | string; product?: { name?: string; sku?: string } };
@@ -95,6 +96,7 @@ function normalizeStockItem(item: ApiStockItem): StockItem {
     categoryId: item.categoryId ?? item.category?.id ?? null,
     categoryName: item.categoryName ?? item.category?.name ?? '',
     costPrice: item.costPrice === undefined ? undefined : Number(item.costPrice),
+    supplier: item.supplier ?? null,
     status,
     lastInboundDate: item.lastInboundDate ?? '',
     storeName: item.storeName ?? '',
@@ -237,11 +239,12 @@ function getPurchasePayload(item: ApiPurchaseOrder) {
     : undefined;
   const rawItems = Array.isArray(item.items) ? item.items : Array.isArray(payload?.items) ? payload.items : [];
   const items = rawItems.map((raw, index) => {
-    const value = raw as { id?: number | string; productName?: string; sku?: string; quantity?: number | string; receivedQty?: number | string; unitPrice?: number | string; subtotal?: number | string };
+    const value = raw as { id?: number | string; productId?: number | string; productName?: string; sku?: string; quantity?: number | string; receivedQty?: number | string; unitPrice?: number | string; subtotal?: number | string };
     const quantity = Number(value.quantity ?? 0);
     const unitPrice = Number(value.unitPrice ?? 0);
     return {
       id: Number(value.id ?? index + 1),
+      productId: value.productId === undefined ? undefined : Number(value.productId),
       productName: value.productName ?? '',
       sku: value.sku ?? '',
       quantity,

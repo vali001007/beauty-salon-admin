@@ -354,7 +354,7 @@ describe('InventoryService terminal dashboard cache', () => {
         expectedDate: '2026-06-28',
         source: 'manual',
         items: [
-          { id: 1, productName: '眼周护理膜', sku: 'SKU-EYE', quantity: 1, receivedQty: 0, unitPrice: 8.8, subtotal: 8.8 },
+          { id: 1, productId: 10, productName: '眼周护理膜', sku: 'SKU-EYE', quantity: 1, receivedQty: 0, unitPrice: 8.8, subtotal: 8.8 },
         ],
       },
       createdAt: new Date('2026-06-28T00:00:00Z'),
@@ -366,7 +366,7 @@ describe('InventoryService terminal dashboard cache', () => {
       supplier: '库存验收供应商',
       status: '已审核',
       expectedDate: '2026-06-28',
-      items: [{ productName: '眼周护理膜', sku: 'SKU-EYE', quantity: 1, unitPrice: 8.8 }],
+      items: [{ productId: 10, productName: '眼周护理膜', sku: 'SKU-EYE', quantity: 1, unitPrice: 8.8 }],
     });
 
     expect(result).toEqual(expect.objectContaining({
@@ -386,6 +386,7 @@ describe('InventoryService terminal dashboard cache', () => {
           storeId: 2,
           storeName: 'Ami 全量演示门店',
           expectedDate: '2026-06-28',
+          items: [expect.objectContaining({ productId: 10, sku: 'SKU-EYE' })],
         }),
       }),
     });
@@ -488,6 +489,84 @@ describe('InventoryService terminal dashboard cache', () => {
       }),
     });
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(2, ['role', 'manager', 'inventory-alerts']);
+  });
+
+  it('receives legacy manual purchase orders by current store and product name when sku changed', async () => {
+    prisma.purchaseOrder.findUnique.mockResolvedValue({
+      id: 73,
+      orderNo: 'PUR73',
+      status: '已下单',
+      totalAmount: 168,
+      items: {
+        storeName: 'Ami 全量演示门店',
+        expectedDate: '2026-07-04',
+        items: [
+          { id: 1, productName: '玻尿酸保湿精华', sku: 'AMI-SKU-001-S6', quantity: 1, receivedQty: 0, unitPrice: 168, subtotal: 168 },
+        ],
+      },
+      createdAt: new Date('2026-06-28T00:00:00Z'),
+    });
+    prisma.product.findFirst.mockResolvedValueOnce(null);
+    prisma.product.findMany.mockResolvedValueOnce([{
+      id: 82,
+      storeId: 6,
+      sku: 'AMI-DEMO-FULL-SKU-001',
+      name: '玻尿酸保湿精华',
+      currentStock: 22,
+      unit: '瓶',
+    }]);
+    prisma.stockBatch.create.mockResolvedValue({ id: 802, productId: 82, batchNo: 'B-PUR73', stock: 1 });
+    prisma.stockMovement.create.mockResolvedValue({ id: 902, storeId: 6 });
+    prisma.purchaseOrder.update.mockResolvedValue({
+      id: 73,
+      orderNo: 'PUR73',
+      status: '已收货',
+      totalAmount: 168,
+      items: {
+        storeName: 'Ami 全量演示门店',
+        expectedDate: '2026-07-04',
+        items: [
+          { id: 1, productName: '玻尿酸保湿精华', sku: 'AMI-SKU-001-S6', quantity: 1, receivedQty: 1, unitPrice: 168, subtotal: 168 },
+        ],
+      },
+      createdAt: new Date('2026-06-28T00:00:00Z'),
+    });
+
+    const result = await service.receivePurchaseOrder(73, {
+      storeId: 6,
+      items: [{ sku: 'AMI-SKU-001-S6', receivedQty: 1, batchNo: 'B-PUR73' }],
+      remark: '采购管理手动采购单收货入库',
+    });
+
+    expect(result).toMatchObject({ id: 73, status: '已收货' });
+    expect(prisma.product.findFirst).toHaveBeenCalledWith({
+      where: {
+        sku: 'AMI-SKU-001-S6',
+        deletedAt: null,
+        storeId: 6,
+      },
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith({
+      where: {
+        name: '玻尿酸保湿精华',
+        storeId: 6,
+        deletedAt: null,
+      },
+      take: 2,
+      orderBy: { id: 'asc' },
+    });
+    expect(prisma.stockBatch.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productId: 82,
+        batchNo: 'B-PUR73',
+        stock: 1,
+      }),
+    });
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: { id: 82 },
+      data: { currentStock: 23 },
+    });
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(6, ['role', 'manager', 'inventory-alerts']);
   });
 
   it('summarizes expiring batches and real scrap movements', async () => {

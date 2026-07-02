@@ -4,6 +4,9 @@ export const inboundSchema = z.object({
   productId: z.number().int().positive('请选择产品'),
   batchNo: z.string().min(1, '批次号不能为空'),
   quantity: z.number().int().positive('入库数量必须为正整数'),
+  unitCost: z.number().min(0, '成本单价不能小于 0').optional(),
+  totalAmount: z.number().min(0, '订单总价不能小于 0').optional(),
+  supplier: z.string().optional(),
   productionDate: z.string().min(1, '请选择生产日期'),
   expiryDate: z.string().min(1, '请选择过期日期'),
 });
@@ -41,6 +44,7 @@ export const purchaseOrderSchema = z.object({
   expectedDate: z.string().min(1, '请选择预计到货日期'),
   items: z.array(
     z.object({
+      productId: z.number().int().positive('请选择产品').optional(),
       productName: z.string().min(1, '产品名称不能为空'),
       sku: z.string().min(1, 'SKU 不能为空'),
       quantity: z.number().int().positive('采购数量必须为正整数'),

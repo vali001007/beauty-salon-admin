@@ -38,6 +38,17 @@ function createBatchNo() {
   return `B-${new Date().toISOString().split('T')[0]}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
 }
 
+function createInboundDefaultValues(): Partial<InboundFormData> {
+  return {
+    productId: 0,
+    batchNo: createBatchNo(),
+    quantity: 1,
+    unitCost: 0,
+    totalAmount: 0,
+    supplier: '',
+  };
+}
+
 function flattenCategories(categories: Category[]): Category[] {
   return categories.flatMap((category) => [category, ...flattenCategories(category.children ?? [])]);
 }
@@ -101,12 +112,20 @@ export function StockManagement() {
   }), [currentStoreId, searchKeyword, selectedCategoryId, selectedStatus, selectedStoreId]);
   const { data: stocks, total, page, pageSize, loading, setPage, setPageSize, refresh } = usePagination<StockItemType>(getStockItemsPaginated, filters);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<InboundFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, watch, setValue } = useForm<InboundFormData>({
     resolver: zodResolver(inboundSchema),
-    defaultValues: {
-      batchNo: createBatchNo(),
-    },
+    defaultValues: createInboundDefaultValues(),
   });
+  const inboundProductId = watch('productId');
+  const inboundQuantity = watch('quantity');
+  const inboundUnitCost = watch('unitCost');
+  const selectedInboundProduct = stocks.find((stock) => stock.id === Number(inboundProductId));
+  const inboundTotalAmount = useMemo(() => {
+    const quantity = Number(inboundQuantity);
+    const unitCost = Number(inboundUnitCost);
+    if (!Number.isFinite(quantity) || !Number.isFinite(unitCost)) return 0;
+    return Math.round(quantity * unitCost * 100) / 100;
+  }, [inboundQuantity, inboundUnitCost]);
   const {
     register: registerOutbound,
     handleSubmit: handleSubmitOutbound,
@@ -147,6 +166,20 @@ export function StockManagement() {
   const normalizedStocktakeActual = Number.isFinite(Number(stocktakeActualStock)) ? Number(stocktakeActualStock) : 0;
   const stocktakeDiff = normalizedStocktakeActual - stocktakeBookStock;
   const stocktakeDiffAmount = stocktakeDiff * Number(selectedStocktakeProduct?.costPrice ?? 0);
+
+  useEffect(() => {
+    if (!selectedInboundProduct) {
+      setValue('unitCost', 0);
+      setValue('supplier', '');
+      return;
+    }
+    setValue('unitCost', Number(selectedInboundProduct.costPrice ?? 0), { shouldValidate: true });
+    setValue('supplier', selectedInboundProduct.supplier ?? '');
+  }, [selectedInboundProduct, setValue]);
+
+  useEffect(() => {
+    setValue('totalAmount', inboundTotalAmount, { shouldValidate: true });
+  }, [inboundTotalAmount, setValue]);
 
   useEffect(() => {
     if (!stores.length) {
@@ -261,7 +294,7 @@ export function StockManagement() {
       await createInbound(data);
       toast.success('入库成功');
       setShowInboundDialog(false);
-      reset({ batchNo: createBatchNo() });
+      reset(createInboundDefaultValues());
       refresh();
       if (selectedProduct?.id === data.productId) {
         await Promise.all([loadProductBatches(data.productId), loadProductMovements(data.productId)]);
@@ -273,7 +306,7 @@ export function StockManagement() {
 
   const handleCloseInbound = () => {
     setShowInboundDialog(false);
-    reset({ batchNo: createBatchNo() });
+    reset(createInboundDefaultValues());
   };
 
   const handleCloseOutbound = () => {
@@ -701,6 +734,38 @@ export function StockManagement() {
                 />
                 {errors.quantity && <p className="text-red-500 text-xs mt-1">{errors.quantity.message}</p>}
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">成本单价</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="自动读取商品成本价"
+                    {...register('unitCost', { valueAsNumber: true })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">选择产品后自动填入，可按本次入库成本修正</p>
+                  {errors.unitCost && <p className="text-red-500 text-xs mt-1">{errors.unitCost.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">订单总价</label>
+                  <Input
+                    value={inboundTotalAmount.toFixed(2)}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">按入库数量 x 成本单价自动计算</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+                <Input
+                  placeholder="选择产品后自动带出供应商"
+                  {...register('supplier')}
+                />
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -817,7 +882,6 @@ export function StockManagement() {
                 >
                   <option value="manual_outbound">手工出库</option>
                   <option value="scrap_out">报废出库</option>
-                  {canConfirmStocktake && <option value="stocktake_loss">盘点盘亏</option>}
                 </select>
                 {outboundErrors.adjustmentType && <p className="text-red-500 text-xs mt-1">{outboundErrors.adjustmentType.message}</p>}
               </div>
