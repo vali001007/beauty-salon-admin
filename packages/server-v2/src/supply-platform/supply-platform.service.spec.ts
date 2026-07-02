@@ -31,6 +31,17 @@ describe('SupplyPlatformService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      supplyCatalogMapping: {
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      industryProductTemplate: {
+        findFirst: jest.fn(),
+      },
       procurementOrder: {
         create: jest.fn(),
         findUnique: jest.fn(),
@@ -43,6 +54,7 @@ describe('SupplyPlatformService', () => {
       },
       product: {
         findFirst: jest.fn(),
+        findMany: jest.fn(),
         update: jest.fn(),
       },
       stockBatch: {
@@ -184,6 +196,103 @@ describe('SupplyPlatformService', () => {
         { id: 91, permissions: ['core:supply:supplier'], supplySupplierId: 8 },
       ),
     ).rejects.toThrow('供应商只能接单或拒单');
+  });
+
+  it('creates a preferred catalog mapping and clears old preferred mapping for the same store product', async () => {
+    prisma.supplySku.findFirst.mockResolvedValue({
+      id: 1001,
+      supplierId: 8,
+      name: 'Repair Mask',
+      status: 'active',
+      auditStatus: 'approved',
+      supplier: { id: 8, name: 'Supply A' },
+    });
+    prisma.product.findFirst.mockResolvedValue({ id: 101, storeId: 3, sku: 'LOCAL-101', name: 'Local Mask' });
+    prisma.industryProductTemplate.findFirst.mockResolvedValue({ id: 201, standardProductCode: 'STD-201', name: 'Standard Mask' });
+    prisma.supplyCatalogMapping.updateMany.mockResolvedValue({ count: 1 });
+    prisma.supplyCatalogMapping.create.mockImplementation(async ({ data }: any) => ({
+      id: 301,
+      ...data,
+      product: { id: 101, storeId: 3, sku: 'LOCAL-101', name: 'Local Mask' },
+      industryProductTemplate: { id: 201, standardProductCode: 'STD-201', name: 'Standard Mask' },
+      supplySku: {
+        id: 1001,
+        supplierId: 8,
+        name: 'Repair Mask',
+        status: 'active',
+        auditStatus: 'approved',
+        supplier: { id: 8, name: 'Supply A' },
+        quotes: [{ id: 401, status: 'active', auditStatus: 'approved', stockStatus: 'available' }],
+      },
+    }));
+
+    const result = await service.createMapping({
+      productId: 101,
+      standardProductTemplateId: 201,
+      supplySkuId: 1001,
+      isPreferred: true,
+    });
+
+    expect(prisma.supplyCatalogMapping.updateMany).toHaveBeenCalledWith({
+      where: { productId: 101, storeId: 3, isPreferred: true },
+      data: { isPreferred: false },
+    });
+    expect(prisma.supplyCatalogMapping.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ productId: 101, storeId: 3, supplySkuId: 1001, isPreferred: true }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({ purchasableStatus: 'available', latestQuote: expect.objectContaining({ id: 401 }) }));
+  });
+
+  it('blocks catalog mappings to unapproved supply SKUs', async () => {
+    prisma.supplySku.findFirst.mockResolvedValue({
+      id: 1001,
+      supplierId: 8,
+      name: 'Draft SKU',
+      status: 'draft',
+      auditStatus: 'draft',
+    });
+
+    await expect(service.createMapping({ productId: 101, supplySkuId: 1001, isPreferred: false })).rejects.toThrow(
+      '只能映射已审核通过且可用的供应链商品',
+    );
+  });
+
+  it('creates procurement orders from replenishment mappings with locked quote source', async () => {
+    prisma.store.findFirst.mockResolvedValue({ id: 3, name: 'Store A' });
+    prisma.product.findMany.mockResolvedValue([{ id: 101, storeId: 3, name: 'Local Mask' }]);
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
+      {
+        id: 301,
+        productId: 101,
+        supplySkuId: 1001,
+        isPreferred: true,
+        supplySku: {
+          id: 1001,
+          supplierId: 8,
+          name: 'Supply Mask',
+          quotes: [{ id: 2001, supplySkuId: 1001, supplierId: 8, price: 12, moq: 10, status: 'active', auditStatus: 'approved' }],
+        },
+      },
+    ]);
+    jest.spyOn(service, 'createOrder').mockResolvedValue({ id: 3001, supplierId: 8, sourceType: 'inventory_replenishment' } as any);
+
+    const result = await service.createOrdersFromReplenishment({
+      storeId: 3,
+      sourceNo: 'REP-1',
+      items: [{ productId: 101, mappingId: 301, supplySkuId: 1001, quoteId: 2001, quantity: 3 }],
+    });
+
+    expect(service.createOrder).toHaveBeenCalledWith({
+      storeId: 3,
+      supplierId: 8,
+      expectedArrivalDate: undefined,
+      sourceType: 'inventory_replenishment',
+      sourceNo: 'REP-1',
+      items: [{ productId: 101, supplySkuId: 1001, quoteId: 2001, quantity: 3 }],
+    });
+    expect(result).toEqual(expect.objectContaining({ total: 1, sourceType: 'inventory_replenishment' }));
   });
 
   it('creates supplier shipment and marks procurement order as shipped', async () => {

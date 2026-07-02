@@ -127,7 +127,7 @@ export class SupplyChainService {
           productId: item.productId,
           productName: item.product?.name ?? `产品 ${item.productId}`,
           sku: item.product?.sku ?? '',
-          unit: item.product?.unit ?? '',
+          unit: item.product?.specUnit ?? item.product?.unit ?? '',
           quantity: this.toNumber(item.quantity),
           unitPrice: this.toNumber(item.unitPrice),
           subtotal: this.toNumber(item.subtotal),
@@ -360,7 +360,7 @@ export class SupplyChainService {
                   id: true,
                   name: true,
                   sku: true,
-                  unit: true,
+                  unit: true, specUnit: true,
                   suppliers: { where: { isPrimary: true }, select: { moq: true, supplierId: true } },
                 },
               },
@@ -391,7 +391,7 @@ export class SupplyChainService {
                 id: true,
                 name: true,
                 sku: true,
-                unit: true,
+                unit: true, specUnit: true,
                 suppliers: { where: { isPrimary: true }, select: { moq: true, supplierId: true } },
               },
             },
@@ -449,7 +449,7 @@ export class SupplyChainService {
       include: {
         supplier: { select: { id: true, name: true } },
         store: { select: { id: true, name: true } },
-        items: { include: { product: { select: { id: true, name: true, sku: true, unit: true } } } },
+        items: { include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true } } } },
       },
     });
 
@@ -468,7 +468,7 @@ export class SupplyChainService {
       include: {
         supplier: { select: { id: true, name: true } },
         store: { select: { id: true, name: true } },
-        items: { include: { product: { select: { id: true, name: true, sku: true, unit: true } } } },
+        items: { include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true } } } },
       },
     });
     return this.toSupplierOrderView(order);
@@ -702,7 +702,7 @@ export class SupplyChainService {
         quantity: input.quantity,
         beforeStock,
         afterStock,
-        unit: product.unit,
+        unit: product.specUnit ?? product.unit,
         sourceType: 'supplier_order',
         sourceId: order.id,
         sourceNo: order.orderNo,

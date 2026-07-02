@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-07-02T15:06:59.248Z",
+  "scope": {
+    "storeId": 6,
+    "storeName": "Ami 全量演示门店"
+  },
+  "complete": false,
+  "counts": {
+    "activeMappings": 0,
+    "preferredMappings": 0,
+    "mappingsWithQuote": 0,
+    "replenishmentOrders": 0,
+    "procurementOrderItems": 0,
+    "shipments": 0,
+    "shipmentItems": 0,
+    "receivedOrders": 0,
+    "stockMovements": 0,
+    "settlements": 0
+  },
+  "gates": {
+    "mappingReady": false,
+    "replenishmentOrderReady": false,
+    "shipmentReady": false,
+    "receiptReady": false,
+    "settlementReady": false,
+    "latestOrderTraceable": false
+  },
+  "latestOrder": null,
+  "latestMovements": [],
+  "latestSettlement": null
+}

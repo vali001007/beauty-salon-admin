@@ -1,0 +1,10 @@
+{
+  "generatedAt": "2026-07-02T11:33:07.695Z",
+  "sourceReports": [
+    "docs/04-测试数据/agent-knowledge-scan-report.json",
+    "docs/04-测试数据/agent-eval-knowledge-map-report.json",
+    "docs/04-测试数据/agent-eval-remaining-supported-report.json"
+  ],
+  "total": 0,
+  "drafts": []
+}

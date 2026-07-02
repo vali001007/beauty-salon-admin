@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   AuditSupplyQuoteDto,
   AuditSupplySkuDto,
   CreateProcurementOrderDto,
+  CreateProcurementOrdersFromReplenishmentDto,
   CreateShipmentDto,
   CreateSupplierQualificationDto,
   CreateSupplyCatalogMappingDto,
@@ -12,10 +14,12 @@ import {
   CreateSupplySupplierDto,
   GenerateSupplySettlementDto,
   QueryProcurementOrdersDto,
+  QuerySupplyCatalogMappingsDto,
   QuerySupplyQuotesDto,
   QuerySupplySkusDto,
   QuerySupplySuppliersDto,
   ReceiveProcurementOrderDto,
+  UpdateSupplyCatalogMappingDto,
   UpdateProcurementOrderStatusDto,
   UpdateSupplyQuoteDto,
   UpdateSupplySkuDto,
@@ -80,6 +84,72 @@ export class SupplyPlatformService {
     if (quote.validFrom && quote.validFrom > now) return false;
     if (quote.validTo && quote.validTo < now) return false;
     return true;
+  }
+
+  private supplyMappingInclude() {
+    return {
+      product: { select: { id: true, sku: true, name: true, storeId: true, store: { select: { id: true, name: true } } } },
+      industryProductTemplate: { select: { id: true, standardProductCode: true, name: true, category: true } },
+      supplySku: {
+        include: {
+          supplier: { select: { id: true, name: true, status: true, qualificationStatus: true } },
+          quotes: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        },
+      },
+    } as const;
+  }
+
+  private mapCatalogMapping(item: any) {
+    const quotes = Array.isArray(item.supplySku?.quotes) ? item.supplySku.quotes : [];
+    const availableQuote = quotes.find((quote: any) => this.isQuoteAvailable(quote) && quote.stockStatus !== 'out_of_stock' && quote.stockStatus !== 'unavailable');
+    const latestQuote = availableQuote ?? quotes[0] ?? null;
+    const purchasableStatus = !item.supplySkuId
+      ? 'not_mapped'
+      : !latestQuote
+        ? 'mapped_no_quote'
+        : !availableQuote
+          ? 'quote_unavailable'
+          : 'available';
+    return {
+      ...item,
+      latestQuote,
+      purchasableStatus,
+      quoteCount: quotes.length,
+      supplySku: item.supplySku ? { ...item.supplySku, quotes: undefined } : item.supplySku,
+    };
+  }
+
+  private async ensureMappingReferences(dto: CreateSupplyCatalogMappingDto | UpdateSupplyCatalogMappingDto, current?: any) {
+    const nextSupplySkuId = dto.supplySkuId ?? current?.supplySkuId;
+    if (!nextSupplySkuId) throw new BadRequestException('供应链 SKU 不能为空');
+    const supplySku = await this.prisma.supplySku.findFirst({
+      where: { id: Number(nextSupplySkuId), deletedAt: null },
+      include: { supplier: true },
+    });
+    if (!supplySku) throw new NotFoundException('供应链商品不存在');
+    if (supplySku.status !== 'active' || supplySku.auditStatus !== 'approved') {
+      throw new BadRequestException('只能映射已审核通过且可用的供应链商品');
+    }
+
+    let product: any = current?.product ?? null;
+    const nextProductId = dto.productId ?? current?.productId;
+    if (nextProductId) {
+      product = await this.prisma.product.findFirst({ where: { id: Number(nextProductId), deletedAt: null } });
+      if (!product) throw new NotFoundException('本地商品不存在或已归档');
+    }
+
+    const nextTemplateId = dto.standardProductTemplateId ?? current?.standardProductTemplateId;
+    if (nextTemplateId) {
+      const template = await this.prisma.industryProductTemplate.findFirst({ where: { id: Number(nextTemplateId), deletedAt: null } });
+      if (!template) throw new NotFoundException('行业标准商品模板不存在或已归档');
+    }
+
+    const storeId = dto.storeId ?? current?.storeId ?? product?.storeId;
+    if (!nextProductId && !nextTemplateId) throw new BadRequestException('至少需要绑定门店商品或行业商品模板');
+    if ((dto.isPreferred ?? current?.isPreferred) && (!nextProductId || !storeId)) {
+      throw new BadRequestException('设置首选映射时必须绑定门店和本地商品');
+    }
+    return { supplySku, product, storeId };
   }
 
   private isSupplyManager(actor?: SupplyPlatformActor) {
@@ -386,19 +456,93 @@ export class SupplyPlatformService {
     });
   }
 
+  async findMappings(query: QuerySupplyCatalogMappingsDto) {
+    const { page, pageSize, skip } = this.page(query);
+    const where: any = {};
+    if (query.productId) where.productId = Number(query.productId);
+    if (query.storeId) where.storeId = Number(query.storeId);
+    if (query.supplySkuId) where.supplySkuId = Number(query.supplySkuId);
+    if (query.standardProductTemplateId) where.standardProductTemplateId = Number(query.standardProductTemplateId);
+    if (query.mappingStatus) where.mappingStatus = query.mappingStatus;
+    const keyword = this.text(query.keyword);
+    if (keyword) {
+      where.OR = [
+        { product: { name: { contains: keyword, mode: 'insensitive' } } },
+        { product: { sku: { contains: keyword, mode: 'insensitive' } } },
+        { industryProductTemplate: { name: { contains: keyword, mode: 'insensitive' } } },
+        { industryProductTemplate: { standardProductCode: { contains: keyword, mode: 'insensitive' } } },
+        { supplySku: { name: { contains: keyword, mode: 'insensitive' } } },
+        { supplySku: { supplier: { name: { contains: keyword, mode: 'insensitive' } } } },
+      ];
+    }
+    const [records, total] = await Promise.all([
+      this.prisma.supplyCatalogMapping.findMany({
+        where,
+        include: this.supplyMappingInclude(),
+        skip,
+        take: pageSize,
+        orderBy: [{ isPreferred: 'desc' }, { updatedAt: 'desc' }],
+      }),
+      this.prisma.supplyCatalogMapping.count({ where }),
+    ]);
+    const items = records.map((item) => this.mapCatalogMapping(item));
+    const filteredItems = query.purchasableStatus ? items.filter((item) => item.purchasableStatus === query.purchasableStatus) : items;
+    return { items: filteredItems, data: filteredItems, total, page, pageSize };
+  }
+
   async createMapping(dto: CreateSupplyCatalogMappingDto) {
-    await this.findSku(dto.supplySkuId);
-    if (!dto.productId && !dto.standardProductTemplateId) throw new BadRequestException('至少需要绑定门店商品或行业商品模板');
-    return this.prisma.supplyCatalogMapping.create({
-      data: {
-        supplySkuId: dto.supplySkuId,
-        productId: dto.productId,
-        storeId: dto.storeId,
-        standardProductTemplateId: dto.standardProductTemplateId,
-        mappingStatus: dto.mappingStatus ?? 'active',
-        isPreferred: dto.isPreferred ?? false,
-      },
+    const refs = await this.ensureMappingReferences(dto);
+    const createData = {
+      supplySkuId: Number(dto.supplySkuId),
+      productId: dto.productId ? Number(dto.productId) : undefined,
+      storeId: refs.storeId ? Number(refs.storeId) : undefined,
+      standardProductTemplateId: dto.standardProductTemplateId ? Number(dto.standardProductTemplateId) : undefined,
+      mappingStatus: dto.mappingStatus ?? 'active',
+      isPreferred: dto.isPreferred ?? false,
+    };
+    const record = await this.prisma.$transaction(async (tx) => {
+      if (createData.isPreferred && createData.productId && createData.storeId) {
+        await tx.supplyCatalogMapping.updateMany({
+          where: { productId: createData.productId, storeId: createData.storeId, isPreferred: true },
+          data: { isPreferred: false },
+        });
+      }
+      return tx.supplyCatalogMapping.create({
+        data: createData,
+        include: this.supplyMappingInclude(),
+      });
     });
+    return this.mapCatalogMapping(record);
+  }
+
+  async updateMapping(id: number, dto: UpdateSupplyCatalogMappingDto) {
+    const current = await this.prisma.supplyCatalogMapping.findFirst({ where: { id }, include: this.supplyMappingInclude() });
+    if (!current) throw new NotFoundException('供应链目录映射不存在');
+    const refs = await this.ensureMappingReferences(dto, current);
+    const nextProductId = dto.productId === undefined ? current.productId : dto.productId;
+    const nextStoreId = dto.storeId === undefined ? refs.storeId : dto.storeId;
+    const nextIsPreferred = dto.isPreferred === undefined ? current.isPreferred : dto.isPreferred;
+    const record = await this.prisma.$transaction(async (tx) => {
+      if (nextIsPreferred && nextProductId && nextStoreId) {
+        await tx.supplyCatalogMapping.updateMany({
+          where: { id: { not: id }, productId: Number(nextProductId), storeId: Number(nextStoreId), isPreferred: true },
+          data: { isPreferred: false },
+        });
+      }
+      return tx.supplyCatalogMapping.update({
+        where: { id },
+        data: this.clean({
+          supplySkuId: dto.supplySkuId,
+          productId: dto.productId,
+          storeId: nextStoreId,
+          standardProductTemplateId: dto.standardProductTemplateId,
+          mappingStatus: dto.mappingStatus,
+          isPreferred: dto.isPreferred,
+        }),
+        include: this.supplyMappingInclude(),
+      });
+    });
+    return this.mapCatalogMapping(record);
   }
 
   async findOrders(query: QueryProcurementOrdersDto, actor?: SupplyPlatformActor) {
@@ -436,6 +580,96 @@ export class SupplyPlatformService {
     if (!item) throw new NotFoundException('采购订单不存在');
     this.ensureManageOrOwnSupplier(actor, item.supplierId);
     return item;
+  }
+
+  async createOrdersFromReplenishment(dto: CreateProcurementOrdersFromReplenishmentDto) {
+    const store = await this.prisma.store.findFirst({ where: { id: dto.storeId, deletedAt: null } });
+    if (!store) throw new NotFoundException('门店不存在');
+    const productIds = [...new Set(dto.items.map((item) => Number(item.productId)))];
+    const products = await this.prisma.product.findMany({ where: { id: { in: productIds }, storeId: dto.storeId, deletedAt: null } });
+    const productMap = new Map(products.map((item) => [item.id, item]));
+    const mappingIds = [...new Set(dto.items.map((item) => item.mappingId).filter(Boolean) as number[])];
+    const now = new Date();
+    const mappingOrConditions: Prisma.SupplyCatalogMappingWhereInput[] = [
+      { productId: { in: productIds }, OR: [{ storeId: dto.storeId }, { storeId: null }] },
+    ];
+    if (mappingIds.length) {
+      mappingOrConditions.unshift({ id: { in: mappingIds } });
+    }
+    const mappings = await this.prisma.supplyCatalogMapping.findMany({
+      where: {
+        mappingStatus: 'active',
+        OR: mappingOrConditions,
+        supplySku: { status: 'active', auditStatus: 'approved', deletedAt: null },
+      },
+      include: {
+        supplySku: {
+          include: {
+            supplier: { select: { id: true, name: true } },
+            quotes: {
+              where: {
+                status: 'active',
+                auditStatus: 'approved',
+                deletedAt: null,
+                stockStatus: { notIn: ['out_of_stock', 'unavailable'] },
+                AND: [{ OR: [{ validFrom: null }, { validFrom: { lte: now } }] }, { OR: [{ validTo: null }, { validTo: { gte: now } }] }],
+              },
+              orderBy: [{ price: 'asc' }],
+            },
+          },
+        },
+      },
+      orderBy: [{ isPreferred: 'desc' }, { updatedAt: 'desc' }],
+    });
+    const mappingsById = new Map(mappings.map((item: any) => [item.id, item]));
+    const mappingsByProduct = new Map<number, any[]>();
+    for (const mapping of mappings as any[]) {
+      if (!mapping.productId) continue;
+      const list = mappingsByProduct.get(mapping.productId) ?? [];
+      list.push(mapping);
+      mappingsByProduct.set(mapping.productId, list);
+    }
+
+    const grouped = new Map<number, CreateProcurementOrderDto['items']>();
+    for (const input of dto.items) {
+      const product = productMap.get(Number(input.productId));
+      if (!product) throw new NotFoundException(`本地商品 ${input.productId} 不存在或不属于当前门店`);
+      const candidates = input.mappingId ? [mappingsById.get(Number(input.mappingId))].filter(Boolean) : (mappingsByProduct.get(product.id) ?? []);
+      const mapping: any = candidates.find((item: any) => {
+        if (item.productId && Number(item.productId) !== Number(product.id)) return false;
+        if (input.supplySkuId && Number(item.supplySkuId) !== Number(input.supplySkuId)) return false;
+        if (input.quoteId && !item.supplySku?.quotes?.some((quote: any) => Number(quote.id) === Number(input.quoteId))) return false;
+        return true;
+      });
+      if (!mapping) throw new BadRequestException(`${product.name} 尚未建立可用供应链映射`);
+      const quote = input.quoteId
+        ? mapping.supplySku?.quotes?.find((item: any) => Number(item.id) === Number(input.quoteId))
+        : mapping.supplySku?.quotes?.[0];
+      if (!quote || !this.isQuoteAvailable(quote)) throw new BadRequestException(`${product.name} 暂无可用平台报价`);
+      const supplierId = Number(mapping.supplySku.supplierId);
+      const list = grouped.get(supplierId) ?? [];
+      list.push({
+        productId: product.id,
+        supplySkuId: Number(mapping.supplySkuId),
+        quoteId: Number(quote.id),
+        quantity: Number(input.quantity),
+      });
+      grouped.set(supplierId, list);
+    }
+
+    const orders = await Promise.all(
+      [...grouped.entries()].map(([supplierId, items]) =>
+        this.createOrder({
+          storeId: dto.storeId,
+          supplierId,
+          expectedArrivalDate: dto.expectedArrivalDate,
+          sourceType: 'inventory_replenishment',
+          sourceNo: dto.sourceNo,
+          items,
+        }),
+      ),
+    );
+    return { items: orders, data: orders, total: orders.length, sourceType: 'inventory_replenishment' };
   }
 
   async createOrder(dto: CreateProcurementOrderDto) {
@@ -580,7 +814,7 @@ export class SupplyPlatformService {
             quantity: input.receivedQty,
             beforeStock,
             afterStock,
-            unit: product.unit,
+            unit: product.specUnit ?? product.unit,
             sourceType: 'supply_platform_order',
             sourceId: order.id,
             sourceNo: order.orderNo,

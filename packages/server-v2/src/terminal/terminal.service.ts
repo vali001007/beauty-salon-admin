@@ -5428,7 +5428,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         expiryDate: batch.expiryDate?.toISOString(),
         remainingDays,
         stock: this.toNumber(batch.stock),
-        unit: batch.product.unit,
+        unit: batch.product.specUnit ?? batch.product.unit,
         retailPrice: this.toNumber(batch.product.retailPrice),
         costPrice: this.toNumber(batch.product.costPrice),
         costAmount: this.toNumber(batch.stock) * this.toNumber(batch.product.costPrice),

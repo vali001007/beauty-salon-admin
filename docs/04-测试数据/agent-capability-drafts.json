@@ -1,0 +1,2167 @@
+{
+  "generatedAt": "2026-07-02T11:33:06.986Z",
+  "sourceReport": "docs/04-测试数据/agent-knowledge-scan-report.json",
+  "total": 120,
+  "drafts": [
+    {
+      "draftId": "api-get_agent_automations",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "agent_automations_apioperation",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /agent/automations",
+        "src\\agent\\agent.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_agent_automations_effects",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "agent_automations_effects_apioperation",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /agent/automations/effects",
+        "src\\agent\\agent.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_agent_automations_pending_approvals",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "agent_automations_pending_approvals_apioperation",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /agent/automations/pending-approvals",
+        "src\\agent\\agent.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_agent_automations_runs",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "agent_automations_runs_apioperation",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /agent/automations/runs",
+        "src\\agent\\agent.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_agent_automations_triggers",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "agent_automations_triggers_apioperation",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /agent/automations/triggers",
+        "src\\agent\\agent.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_beautician_levels",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "beautician_levels_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /beautician-levels",
+        "src\\beauticians\\beauticians.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_beauticians",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "beauticians_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /beauticians",
+        "src\\beauticians\\beauticians.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_beauticians_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "beauticians_id_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /beauticians/:id",
+        "src\\beauticians\\beauticians.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_beauticians_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "beauticians_paginated_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /beauticians/paginated",
+        "src\\beauticians\\beauticians.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_bom_services",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "bom_services_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /bom/services",
+        "src\\bom\\bom.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_bom_services_id_consumption",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "bom_services_id_consumption_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /bom/services/:id/consumption",
+        "src\\bom\\bom.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_cards",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "cards_permissions",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /cards",
+        "src\\cards\\cards.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_cards_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "cards_id_permissions",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /cards/:id",
+        "src\\cards\\cards.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_cards_sale_options",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "cards_sale_options_permissions",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /cards/sale-options",
+        "src\\cards\\cards.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_ami_bills",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_ami_bills_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/ami/bills",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_ami_bills_month",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_ami_bills_month_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/ami/bills/:month",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_ami_dashboard",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_ami_dashboard_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/ami/dashboard",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_ami_performance",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_ami_performance_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/ami/performance",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_daily_settlements",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_daily_settlements_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/daily-settlements",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_payment_records",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_payment_records_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/payment-records",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_platform_revenue",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_platform_revenue_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/platform/revenue",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_reconciliation_exceptions",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_reconciliation_exceptions_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/reconciliation-exceptions",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_records_beautician_summary",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_records_beautician_summary_apioperation",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/records/beautician-summary",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_records_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_records_paginated_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/records/paginated",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_records_summary",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_records_summary_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/records/summary",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_refund_records",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_refund_records_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/refund-records",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_rule_assignments",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_rule_assignments_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/rule-assignments",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_rules",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_rules_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/rules",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_rules_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_rules_id_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/rules/:id",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_settlements_export",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_settlements_export_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/settlements/export",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_settlements_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_settlements_id_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/settlements/:id",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_settlements_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_settlements_paginated_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/settlements/paginated",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_shifts_current",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_shifts_current_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/shifts/current",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_shifts_current",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_shifts_current_apioperation",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/shifts/current",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_shifts_history",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_shifts_history_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/shifts/history",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_commission_shifts_history",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "commission_shifts_history_apioperation",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /commission/shifts/history",
+        "src\\commission\\commission.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_admin_display_configs",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_admin_display_configs_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/admin/display-configs",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_admin_events",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_admin_events_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/admin/events",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_admin_events_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_admin_events_paginated_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/admin/events/paginated",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_contact",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_contact_apioperation",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/contact",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_home",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_home_apioperation",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/home",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_me",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_me_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/me",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_me_cards",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_me_cards_apibearerauth",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/me/cards",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_me_consumption_records",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_me_consumption_records_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/me/consumption-records",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_me_member_card",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_me_member_card_apibearerauth",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/me/member-card",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_me_reservations",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_me_reservations_apibearerauth",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/me/reservations",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_projects",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_projects_apioperation",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/projects",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_projects_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_projects_id_apioperation",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/projects/:id",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_projects_id_available_beauticians",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_projects_id_available_beauticians_apioperation",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/projects/:id/available-beauticians",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_reservations_availability",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_reservations_availability_apioperation",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/reservations/availability",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_skin_tests_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_skin_tests_id_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/skin-tests/:id",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customer_app_skin_tests_id_recommendations",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customer_app_skin_tests_id_recommendations_apibearerauth",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customer-app/skin-tests/:id/recommendations",
+        "src\\customer-app\\customer-app.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_card_portraits",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_card_portraits_permissions",
+      "suggestedPersona": "reception",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/card-portraits",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_consumption_records",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_consumption_records_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/consumption-records",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_consumption_records_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_consumption_records_paginated_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/consumption-records/paginated",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_health_profiles",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_health_profiles_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/health-profiles",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_id_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/:id",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_id_consumption_records_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_id_consumption_records_paginated_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/:id/consumption-records/paginated",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_id_health_profile",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_id_health_profile_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/:id/health-profile",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_id_profile",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_id_profile_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/:id/profile",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_miniapp_behavior_analysis",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_miniapp_behavior_analysis_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/miniapp-behavior-analysis",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_paginated_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/paginated",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_profile_analytics",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_profile_analytics_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/profile-analytics",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_profile_analytics_behavior",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_profile_analytics_behavior_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/profile-analytics/behavior",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_profile_analytics_overview",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_profile_analytics_overview_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/profile-analytics/overview",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_profile_analytics_prediction",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_profile_analytics_prediction_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/profile-analytics/prediction",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_profile_analytics_segment",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_profile_analytics_segment_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/profile-analytics/segment",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_profile_analytics_skin",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_profile_analytics_skin_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/profile-analytics/skin",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_customers_segment_count",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "customers_segment_count_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /customers/segment-count",
+        "src\\customers\\customers.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_dashboard_overview",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "dashboard_overview_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /dashboard/overview",
+        "src\\dashboard\\dashboard.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_dashboard_workbench",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "dashboard_workbench_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /dashboard/workbench",
+        "src\\dashboard\\dashboard.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_industry_bom_templates_servicetemplateid",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "industry_bom_templates_servicetemplateid_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /industry/bom-templates/:serviceTemplateId",
+        "src\\industry\\industry.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_industry_service_templates",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "industry_service_templates_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /industry/service-templates",
+        "src\\industry\\industry.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_industry_service_templates_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "industry_service_templates_id_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /industry/service-templates/:id",
+        "src\\industry\\industry.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_industry_service_templates_id_bom",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "industry_service_templates_id_bom_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /industry/service-templates/:id/bom",
+        "src\\industry\\industry.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_industry_service_templates_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "industry_service_templates_paginated_permissions",
+      "suggestedPersona": "beautician",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /industry/service-templates/paginated",
+        "src\\industry\\industry.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_batches",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_batches_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/batches",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_expiring",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_expiring_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/expiring",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_expiring_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_expiring_paginated_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/expiring/paginated",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_expiring_summary",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_expiring_summary_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/expiring/summary",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_purchase_orders",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_purchase_orders_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/purchase-orders",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_purchase_orders_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_purchase_orders_paginated_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/purchase-orders/paginated",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_replenishment",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_replenishment_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/replenishment",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_stock",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_stock_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/stock",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_stock_movements",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_stock_movements_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/stock-movements",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_stock_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_stock_paginated_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/stock/paginated",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_transfers_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_transfers_paginated_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/transfers/paginated",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_inventory_transfers_suggestions",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "inventory_transfers_suggestions_permissions",
+      "suggestedPersona": "inventory",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /inventory/transfers/suggestions",
+        "src\\inventory\\inventory.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_activities",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_activities_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/activities",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_activities_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_activities_id_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/activities/:id",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_effects",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_effects_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/effects",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_executions_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_executions_id_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/executions/:id",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_executions_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_executions_paginated_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/executions/paginated",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_rule_templates",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_rule_templates_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/rule-templates",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_rule_templates_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_rule_templates_id_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/rule-templates/:id",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_rule_templates_id_effects",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_rule_templates_id_effects_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/rule-templates/:id/effects",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_strategies_paginated",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_strategies_paginated_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/strategies/paginated",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_automation_trigger_options",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_automation_trigger_options_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/automation/trigger-options",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_effects_unified",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_effects_unified_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/effects/unified",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_follow_up_tasks",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_follow_up_tasks_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/follow-up-tasks",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_follow_up_tasks_summary",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_follow_up_tasks_summary_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/follow-up-tasks/summary",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_invitation_candidates",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_invitation_candidates_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/invitation-candidates",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages_attribution_summary",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_attribution_summary_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages/attribution/summary",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_id_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages/:id",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages_id_attribution",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_id_attribution_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages/:id/attribution",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages_id_effects",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_id_effects_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages/:id/effects",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages_id_events",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_id_events_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages/:id/events",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_pages_id_leads",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_pages_id_leads_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/pages/:id/leads",
+        "src\\marketing-pages\\marketing-pages.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_predictions_customers",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_predictions_customers_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/predictions/customers",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_predictions_customers_id",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_predictions_customers_id_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/predictions/customers/:id",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_predictions_latest",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_predictions_latest_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/predictions/latest",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_recommendations",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_recommendations_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/recommendations",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_recommendations_id_audience",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_recommendations_id_audience_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/recommendations/:id/audience",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_marketing_strategies_effects",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "marketing_strategies_effects_permissions",
+      "suggestedPersona": "marketing",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /marketing/strategies/effects",
+        "src\\marketing\\marketing.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_operation_costs",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "operation_costs_permissions",
+      "suggestedPersona": "manager",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /operation-costs",
+        "src\\operation-profit\\operation-costs.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_operation_profit_beautician_performance",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "operation_profit_beautician_performance_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /operation-profit/beautician-performance",
+        "src\\operation-profit\\operation-profit.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_operation_profit_overview",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "operation_profit_overview_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /operation-profit/overview",
+        "src\\operation-profit\\operation-profit.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    },
+    {
+      "draftId": "api-get_operation_profit_prepaid_liabilities",
+      "priority": "P3",
+      "source": "api_endpoint",
+      "suggestedCapabilityId": "operation_profit_prepaid_liabilities_permissions",
+      "suggestedPersona": "finance",
+      "suggestedTool": "business.query.ask",
+      "riskLevel": "low",
+      "evidence": [
+        "GET /operation-profit/prepaid-liabilities",
+        "src\\operation-profit\\operation-profit.controller.ts"
+      ],
+      "reason": "Get API 可作为 Agent 查询能力候选。",
+      "confirmationNeeded": [
+        "确认 API 返回字段口径",
+        "确认是否已有 BusinessQuery 能力覆盖"
+      ]
+    }
+  ]
+}

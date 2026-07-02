@@ -8,6 +8,7 @@ import {
   AuditSupplyQuoteDto,
   AuditSupplySkuDto,
   CreateProcurementOrderDto,
+  CreateProcurementOrdersFromReplenishmentDto,
   CreateShipmentDto,
   CreateSupplierQualificationDto,
   CreateSupplyCatalogMappingDto,
@@ -16,10 +17,12 @@ import {
   CreateSupplySupplierDto,
   GenerateSupplySettlementDto,
   QueryProcurementOrdersDto,
+  QuerySupplyCatalogMappingsDto,
   QuerySupplyQuotesDto,
   QuerySupplySkusDto,
   QuerySupplySuppliersDto,
   ReceiveProcurementOrderDto,
+  UpdateSupplyCatalogMappingDto,
   UpdateProcurementOrderStatusDto,
   UpdateSupplyQuoteDto,
   UpdateSupplySkuDto,
@@ -155,6 +158,27 @@ export class SupplyPlatformController {
     return this.supplyPlatformService.createMapping(dto);
   }
 
+  @Get('catalog-mappings')
+  @Permissions('core:supply:view', 'core:supply:manage', 'core:inventory:purchase')
+  @ApiOperation({ summary: '供应链目录映射列表' })
+  catalogMappings(@Query() query: QuerySupplyCatalogMappingsDto) {
+    return this.supplyPlatformService.findMappings(query);
+  }
+
+  @Post('catalog-mappings')
+  @Permissions('core:supply:manage', 'core:inventory:purchase')
+  @ApiOperation({ summary: '创建供应链目录映射' })
+  createCatalogMapping(@Body() dto: CreateSupplyCatalogMappingDto) {
+    return this.supplyPlatformService.createMapping(dto);
+  }
+
+  @Patch('catalog-mappings/:id')
+  @Permissions('core:supply:manage', 'core:inventory:purchase')
+  @ApiOperation({ summary: '更新供应链目录映射' })
+  updateCatalogMapping(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplyCatalogMappingDto) {
+    return this.supplyPlatformService.updateMapping(id, dto);
+  }
+
   @Get('procurement/orders')
   @Permissions('core:supply:view', 'core:supply:manage', 'core:supply:supplier', 'core:inventory:purchase')
   @ApiOperation({ summary: '供应链平台采购订单列表' })
@@ -174,6 +198,20 @@ export class SupplyPlatformController {
   @ApiOperation({ summary: '创建供应链平台采购订单' })
   createOrder(@Body() dto: CreateProcurementOrderDto) {
     return this.supplyPlatformService.createOrder(dto);
+  }
+
+  @Post('procurement-orders/from-replenishment')
+  @Permissions('core:inventory:purchase', 'core:supply:manage')
+  @ApiOperation({ summary: '从库存补货建议生成供应链平台采购订单' })
+  createOrdersFromReplenishment(@Body() dto: CreateProcurementOrdersFromReplenishmentDto) {
+    return this.supplyPlatformService.createOrdersFromReplenishment(dto);
+  }
+
+  @Post('procurement/orders/from-replenishment')
+  @Permissions('core:inventory:purchase', 'core:supply:manage')
+  @ApiOperation({ summary: '从库存补货建议生成供应链平台采购订单（兼容路径）' })
+  createOrdersFromReplenishmentCompat(@Body() dto: CreateProcurementOrdersFromReplenishmentDto) {
+    return this.supplyPlatformService.createOrdersFromReplenishment(dto);
   }
 
   @Patch('procurement/orders/:id/status')

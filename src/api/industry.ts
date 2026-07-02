@@ -1,6 +1,7 @@
 export {
   realAdoptIndustryProductTemplateAsProduct as adoptIndustryProductTemplateAsProduct,
   realAdoptIndustryServiceTemplateAsProject as adoptIndustryServiceTemplateAsProject,
+  realBatchAdoptIndustryProductTemplates as batchAdoptIndustryProductTemplates,
   realCreateIndustryAdoption as createIndustryAdoption,
   realCreateIndustryDataSource as createIndustryDataSource,
   realCreateIndustryKnowledgeItem as createIndustryKnowledgeItem,
@@ -13,6 +14,10 @@ export {
   realGetIndustryDataSources as getIndustryDataSources,
   realGetIndustryKnowledgeItems as getIndustryKnowledgeItems,
   realGetIndustryProductSupplyMappings as getIndustryProductSupplyMappings,
+  realGetIndustryProductTemplateChain as getIndustryProductTemplateChain,
+  realGetIndustryProductTemplateChainOperationalReport as getIndustryProductTemplateChainOperationalReport,
+  realGetIndustryProductTemplateChainOverview as getIndustryProductTemplateChainOverview,
+  realGetIndustryProductTemplateCoverage as getIndustryProductTemplateCoverage,
   realGetIndustryProductTemplates as getIndustryProductTemplates,
   realGetIndustryProductTemplatesPaginated as getIndustryProductTemplatesPaginated,
   realGetIndustrySalaryBenchmarks as getIndustrySalaryBenchmarks,
@@ -29,4 +34,5 @@ export {
   realUpdateIndustryProductTemplate as updateIndustryProductTemplate,
   realUpdateIndustrySalaryBenchmark as updateIndustrySalaryBenchmark,
   realUpdateIndustryServiceTemplate as updateIndustryServiceTemplate,
+  realLinkIndustryProductTemplateToProduct as linkIndustryProductTemplateToProduct,
 } from './real/industry';

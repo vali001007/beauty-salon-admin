@@ -116,6 +116,9 @@
 | POST | `/industry/bom-templates/{serviceTemplateId}/publish` | 发布行业项目 BOM 模板 |
 | GET | `/industry/product-templates/paginated` | 后台分页查询标准商品/耗品模板 |
 | GET | `/industry/product-templates` | 查询已发布标准商品/耗品模板，供 Ami_Core 采用 |
+| GET | `/industry/product-template-chain/overview` | 查询标准品到本地 SKU、BOM、库存、供应链、采购履约、销售扣耗的链路总览和断点 |
+| GET | `/industry/product-template-chain/operational-report` | 查询阶段 7.3 运营问题清单：未生成本地 SKU、无供应链映射、BOM 无库存、可平台采购低库存、只能手工采购低库存 |
+| GET | `/industry/product-templates/{id}/chain` | 查询单个标准品的链路明细、下游业务证据和推荐处理动作 |
 | GET | `/industry/product-templates/{id}` | 查询标准商品/耗品模板详情 |
 | POST | `/industry/product-templates` | 创建标准商品/耗品模板 |
 | PATCH | `/industry/product-templates/{id}` | 更新标准商品/耗品模板 |
@@ -217,6 +220,8 @@
 | GET | `/supply-platform/procurement/orders` | 查询平台采购订单，支持 `storeId`、`supplierId`、`status`、`keyword` |
 | GET | `/supply-platform/procurement/orders/{id}` | 查询平台采购订单详情 |
 | POST | `/supply-platform/procurement/orders` | Ami_Core 库存补货创建平台采购订单，下单锁定报价 |
+| POST | `/supply-platform/procurement-orders/from-replenishment` | 从补货建议创建平台采购订单，后端按映射、供应链 SKU 和有效报价复核并按供应商拆单 |
+| POST | `/supply-platform/procurement/orders/from-replenishment` | 补货建议创建平台采购订单兼容路径 |
 | PATCH | `/supply-platform/procurement/orders/{id}/status` | 更新采购订单状态 |
 | POST | `/supply-platform/procurement/orders/{id}/shipments` | 供应商发货，可部分发货 |
 | POST | `/supply-platform/procurement/orders/{id}/receipts` | 门店确认收货并写 `StockBatch`、`StockMovement`、`Product.currentStock` |
@@ -240,6 +245,27 @@
   ]
 }
 ```
+
+补货建议创建平台采购订单请求：
+
+```json
+{
+  "storeId": 1,
+  "expectedArrivalDate": "2026-06-28",
+  "sourceNo": "inventory-replenishment-20260628",
+  "items": [
+    {
+      "productId": 201,
+      "mappingId": 501,
+      "supplySkuId": 301,
+      "quoteId": 401,
+      "quantity": 6
+    }
+  ]
+}
+```
+
+补货建议创建成功后，平台订单 `sourceType` 固定为 `inventory_replenishment`；只有存在有效映射和有效报价的商品才会进入该接口，其余商品走手工采购单兜底。
 
 收货入库口径：
 

@@ -91,6 +91,8 @@ export interface BusinessQueryPlan {
 }
 
 export interface BusinessQueryContext {
+  forcedCapabilityId?: BusinessQueryCapabilityId;
+  forcedDomain?: BusinessQueryDomain;
   previousResponse?: {
     domain: BusinessQueryDomain | string;
     capability: BusinessQueryCapabilityId | string;

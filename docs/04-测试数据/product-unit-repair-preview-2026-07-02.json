@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-07-02T15:06:16.581Z",
+  "mode": "dry-run",
+  "scope": {
+    "storeId": 6,
+    "onlyBomItemIds": [],
+    "note": "仅修复服务 BOM 单位到产品规格单位，不修改历史库存流水、订单明细或库存主数量。"
+  },
+  "totals": {
+    "checkedBomItems": 71,
+    "repairableBomItems": 1,
+    "appliedBomItems": 0
+  },
+  "repairItems": [
+    {
+      "bomItemId": 353,
+      "projectId": 75,
+      "projectName": "亮肤淡斑管理",
+      "productId": 133,
+      "productName": "日间防晒乳",
+      "sku": "IND-6-STD-RETAIL-SUNSCREEN-001",
+      "currentUnit": "支",
+      "targetUnit": "ml",
+      "packageUnit": "支",
+      "standardQty": 0.05,
+      "currentStock": 101,
+      "action": "update_bom_unit_to_spec_unit"
+    }
+  ]
+}

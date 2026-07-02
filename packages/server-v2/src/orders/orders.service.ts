@@ -1129,7 +1129,7 @@ export class OrdersService {
               sourceId: order.id,
               movementType: 'sale_out',
             },
-            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
             orderBy: { occurredAt: 'asc' },
           })
         : Promise.resolve([]),
@@ -1219,7 +1219,7 @@ export class OrdersService {
         productId: movement.productId,
         productName: movement.product?.name ?? `商品#${movement.productId}`,
         quantity: this.round(quantity, 4),
-        unit: movement.unit ?? movement.product?.unit,
+        unit: movement.unit ?? movement.product?.specUnit ?? movement.product?.unit,
         costPrice: this.round(costPrice),
         costAmount: this.round(quantity * costPrice),
         occurredAt: movement.occurredAt,
@@ -1300,12 +1300,12 @@ export class OrdersService {
       projectIds.length
         ? this.prisma.projectBomItem.findMany({
             where: { projectId: { in: projectIds } },
-            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
           })
         : Promise.resolve([]),
       this.prisma.stockMovement.findMany({
         where: { sourceType: 'project_order', sourceId: order.id, movementType: { in: ['service_consume', 'service_consumption'] } },
-        include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+        include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
         orderBy: { occurredAt: 'asc' },
       }),
       this.prisma.commissionRecord.findMany({
@@ -1363,7 +1363,7 @@ export class OrdersService {
           projectId,
           productId: bomItem.productId,
           productName: bomItem.product?.name ?? `耗材#${bomItem.productId}`,
-          unit: bomItem.unit ?? bomItem.product?.unit,
+          unit: bomItem.unit ?? bomItem.product?.specUnit ?? bomItem.product?.unit,
           standardQty: this.round(standardQty, 4),
           quantity: this.round(totalQty, 4),
           costPrice: this.round(costPrice),
@@ -1405,7 +1405,7 @@ export class OrdersService {
         productId: movement.productId,
         productName: movement.product?.name ?? `耗材#${movement.productId}`,
         quantity: this.round(quantity, 4),
-        unit: movement.unit ?? movement.product?.unit,
+        unit: movement.unit ?? movement.product?.specUnit ?? movement.product?.unit,
         costPrice: this.round(costPrice),
         costAmount: this.round(quantity * costPrice),
         occurredAt: movement.occurredAt,
@@ -2963,7 +2963,7 @@ export class OrdersService {
       usageProjectIds.length
         ? this.prisma.projectBomItem.findMany({
             where: { projectId: { in: usageProjectIds } },
-            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
           })
         : Promise.resolve([]),
       usageRecordIds.length
@@ -2973,7 +2973,7 @@ export class OrdersService {
               sourceId: { in: usageRecordIds },
               movementType: { in: ['service_consume', 'service_consumption'] },
             },
-            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
             orderBy: { occurredAt: 'asc' },
           })
         : Promise.resolve([]),
@@ -3063,7 +3063,7 @@ export class OrdersService {
             productId: movement.productId,
             productName: movement.product?.name ?? `商品#${movement.productId}`,
             quantity: this.round(quantity, 4),
-            unit: movement.unit ?? movement.product?.unit,
+            unit: movement.unit ?? movement.product?.specUnit ?? movement.product?.unit,
             costPrice: this.round(costPrice),
             costAmount: this.round(quantity * costPrice),
             occurredAt: movement.occurredAt,
@@ -3164,7 +3164,7 @@ export class OrdersService {
       projectId
         ? this.prisma.projectBomItem.findMany({
             where: { projectId },
-            include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+            include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
           })
         : Promise.resolve([]),
       this.prisma.stockMovement.findMany({
@@ -3173,7 +3173,7 @@ export class OrdersService {
           sourceId: id,
           movementType: { in: ['service_consume', 'service_consumption'] },
         },
-        include: { product: { select: { id: true, name: true, unit: true, costPrice: true } } },
+        include: { product: { select: { id: true, name: true, unit: true, specUnit: true, costPrice: true } } },
         orderBy: { occurredAt: 'asc' },
       }),
     ]);
@@ -3241,7 +3241,7 @@ export class OrdersService {
           productId: movement.productId,
           productName: movement.product?.name ?? `商品#${movement.productId}`,
           quantity: this.round(quantity, 4),
-          unit: movement.unit ?? movement.product?.unit,
+          unit: movement.unit ?? movement.product?.specUnit ?? movement.product?.unit,
           costPrice: this.round(costPrice),
           costAmount: this.round(quantity * costPrice),
           occurredAt: movement.occurredAt,

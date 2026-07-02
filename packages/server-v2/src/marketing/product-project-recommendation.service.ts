@@ -421,8 +421,8 @@ export class ProductProjectRecommendationService {
         return this.buildCard({
           id: 2100 + index,
           recommendationType: 'product_expiry_clearance',
-          title: `${product.name} ${daysToExpiry} 天内临期，建议消化 ${gapQty} ${product.unit ?? '件'}`,
-          reason: `当前批次 ${batch.batchNo} 剩余 ${stock}${product.unit ?? ''}，按近 30 天销量预测到期前自然消化约 ${forecastSellThroughQty}${product.unit ?? ''}，存在 ${gapQty}${product.unit ?? ''} 缺口。`,
+          title: `${product.name} ${daysToExpiry} 天内临期，建议消化 ${gapQty} ${product.specUnit ?? product.unit ?? '件'}`,
+          reason: `当前批次 ${batch.batchNo} 剩余 ${stock}${product.specUnit ?? product.unit ?? ''}，按近 30 天销量预测到期前自然消化约 ${forecastSellThroughQty}${product.specUnit ?? product.unit ?? ''}，存在 ${gapQty}${product.specUnit ?? product.unit ?? ''} 缺口。`,
           targetLabel: `临期商品高匹配客户（${targetSnapshots.length}人）`,
           targetSnapshots,
           matchScore: Math.round(score),
@@ -458,7 +458,7 @@ export class ProductProjectRecommendationService {
               name: product.name,
               category: product.category?.name ?? product.category ?? '商品',
               price: this.toNumber(product.retailPrice),
-              reason: `批次 ${batch.batchNo} 临期，预计缺口 ${gapQty}${product.unit ?? ''}。`,
+              reason: `批次 ${batch.batchNo} 临期，预计缺口 ${gapQty}${product.specUnit ?? product.unit ?? ''}。`,
               confidence: 92,
             },
             ...relatedProjects.map((project: any) => ({
@@ -488,9 +488,9 @@ export class ProductProjectRecommendationService {
           },
           sourceSignals: ['stock_batch', 'product_sales_30d', 'project_bom', 'prediction_snapshot'],
           dataEvidence: [
-            `批次 ${batch.batchNo} 剩余 ${stock}${product.unit ?? ''}`,
+            `批次 ${batch.batchNo} 剩余 ${stock}${product.specUnit ?? product.unit ?? ''}`,
             `距离到期 ${daysToExpiry} 天`,
-            `预计自然消化 ${forecastSellThroughQty}${product.unit ?? ''}，缺口 ${gapQty}${product.unit ?? ''}`,
+            `预计自然消化 ${forecastSellThroughQty}${product.specUnit ?? product.unit ?? ''}，缺口 ${gapQty}${product.specUnit ?? product.unit ?? ''}`,
             `预计可避免损耗 ¥${Math.round(expectedLossAmount).toLocaleString()}`,
           ],
           riskWarnings,
@@ -758,8 +758,8 @@ export class ProductProjectRecommendationService {
           dataEvidence: [
             `默认补货周期 ${group.replenishmentDays} 天`,
             `命中客户 ${customerIds.length} 位`,
-            `当前库存 ${this.toNumber(group.product.currentStock)}${group.product.unit ?? ''}`,
-            `安全库存 ${this.toNumber(group.product.safetyStock)}${group.product.unit ?? ''}`,
+            `当前库存 ${this.toNumber(group.product.currentStock)}${group.product.specUnit ?? group.product.unit ?? ''}`,
+            `安全库存 ${this.toNumber(group.product.safetyStock)}${group.product.specUnit ?? group.product.unit ?? ''}`,
           ],
           riskWarnings: ['库存低于安全库存时不扩大营销曝光', '同客户同商品 14 天内最多触达 1 次'],
           predictionRunId: context.run?.id,

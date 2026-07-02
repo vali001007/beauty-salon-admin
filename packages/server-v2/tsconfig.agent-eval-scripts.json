@@ -8,6 +8,6 @@
     "incremental": false,
     "noEmit": true
   },
-  "include": ["prisma/agent-eval-*.ts", "src/**/*"],
+  "include": ["prisma/agent-eval-*.ts", "prisma/agent-knowledge-*.ts", "prisma/generate-schema-graph.ts", "src/**/*"],
   "exclude": ["node_modules", "dist", "dist-agent-eval-scripts", "src/**/*.spec.ts", "test/**/*"]
 }

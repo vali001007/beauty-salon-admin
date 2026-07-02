@@ -312,6 +312,9 @@ model Product {
   brand              String?
   spec               String?
   unit               String?
+  specQuantity       Decimal?
+  specUnit           String?
+  packageUnit        String?
   costPrice          Decimal   @default(0)
   retailPrice        Decimal   @default(0)
   shelfLife          Int?

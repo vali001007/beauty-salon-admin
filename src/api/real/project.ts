@@ -33,7 +33,7 @@ function normalizeProjectBomItem(item: ApiProjectBomItem): NonNullable<Project['
     productName: item.productName ?? item.product?.name ?? '',
     sku: item.sku ?? item.product?.sku ?? '',
     standardQty: Number(item.standardQty ?? 0),
-    unit: item.unit ?? item.product?.unit ?? '',
+    unit: item.unit ?? item.product?.specUnit ?? item.product?.unit ?? '',
     costPrice: Number(item.costPrice ?? item.product?.costPrice ?? 0),
     productStatus: item.productStatus ?? item.product?.status,
   };

@@ -242,6 +242,35 @@ describe('AgentSkillsRegistryService', () => {
     });
   });
 
+  it('routes industry product chain gap questions to the operational report tool', () => {
+    const plan = registry.match(
+      {
+        domain: 'inventory',
+        taskType: 'diagnosis',
+        objective: '哪些标准品还没有本地 SKU，哪些本地产品没有供应链映射，哪些 BOM 耗材没有库存',
+        entities: [{ type: 'inventory', value: '标准品链路', confidence: 0.72 }],
+        metrics: ['stock_risk_score', 'supplier_purchase_score'],
+        filters: {},
+        timeRange: { preset: 'last_30_days', label: '近30天' },
+        outputMode: 'card',
+        outputIntent: 'show_table',
+        riskLevel: 'low',
+        requiresApproval: false,
+        missingSlots: [],
+        confidence: 0.9,
+        actorRole: 'manager',
+      },
+      'manager',
+    );
+
+    expect(plan).toMatchObject({
+      skillId: 'inventory.supply.risk',
+      capabilityId: 'inventory_supply_risk',
+      toolPlan: [{ tool: 'industry.chain.operational.report' }],
+      outputContract: expect.objectContaining({ requiredKinds: ['table', 'evidence'] }),
+    });
+  });
+
   it('matches staff performance management for manager and beautician self questions', () => {
     const managerPlan = registry.match(
       {

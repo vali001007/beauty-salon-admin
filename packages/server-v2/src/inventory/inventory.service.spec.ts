@@ -125,6 +125,45 @@ describe('InventoryService terminal dashboard cache', () => {
     );
   });
 
+  it('falls back to primary supplier relation for stock supplier display', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 10,
+        name: '射频仪器导入凝胶',
+        sku: 'IND-6-STD-GEL-RF-001',
+        unit: '支',
+        costPrice: 50,
+        supplier: null,
+        currentStock: 100,
+        safetyStock: 10,
+        status: 'active',
+        suppliers: [{ supplier: { name: '核心耗材供应商' } }],
+      },
+    ]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.getStock({ storeId: 1 });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          supplier: true,
+          suppliers: {
+            where: { supplier: { status: 'active', deletedAt: null } },
+            select: { supplier: { select: { name: true } } },
+            orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
+            take: 1,
+          },
+        }),
+      }),
+    );
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        supplier: '核心耗材供应商',
+      }),
+    );
+  });
+
   it('keeps backward compatibility with legacy inbound stock field', async () => {
     prisma.product.findUnique.mockResolvedValue({
       id: 10,
@@ -912,5 +951,50 @@ describe('InventoryService terminal dashboard cache', () => {
       suggestedQty: 3,
       reason: expect.stringContaining('在途 15 已抵扣'),
     }));
+  });
+
+  it('does not generate platform purchase fields when a supply mapping has no available quote', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 12,
+        name: '修护精华',
+        sku: 'SKU-12',
+        currentStock: 0,
+        safetyStock: 10,
+        costPrice: 9,
+        minPurchaseQty: 0,
+        supplier: '本地供应商',
+        suppliers: [],
+      },
+    ]);
+    prisma.stockMovement.findMany.mockResolvedValue([]);
+    prisma.purchaseOrder.findMany.mockResolvedValue([]);
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
+      {
+        id: 301,
+        productId: 12,
+        isPreferred: true,
+        supplySku: {
+          id: 1001,
+          supplierId: 8,
+          name: '平台修护精华',
+          supplier: { id: 8, name: '平台供应商' },
+          quotes: [],
+        },
+      },
+    ]);
+
+    const result = await service.getReplenishment(1);
+
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        productId: 12,
+        supplier: '本地供应商',
+        availabilityStatus: 'platform_mapped_no_quote',
+        supplySkuId: undefined,
+        quoteId: undefined,
+        supplyPrice: 9,
+      }),
+    );
   });
 });

@@ -270,7 +270,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
               productId: product?.id ?? '',
               productName: product?.name ?? '',
               sku: product?.sku ?? '',
-              unit: product?.unit ?? item.unit,
+              unit: product?.specUnit ?? item.unit,
               unitCost: Number(product?.costPrice ?? 0),
             }
           : item,

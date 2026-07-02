@@ -887,7 +887,7 @@ export class OperationProfitService {
     const [projects, allProjectIds, total] = await Promise.all([
       this.prisma.project.findMany({
         where,
-        include: { type: true, bomItems: { include: { product: { select: { id: true, name: true, costPrice: true, unit: true } } } } },
+        include: { type: true, bomItems: { include: { product: { select: { id: true, name: true, costPrice: true, unit: true, specUnit: true } } } } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.project.findMany({

@@ -449,7 +449,7 @@ export class BomService {
           projectId,
           productId: product.id,
           standardQty: Number(item.standardQty ?? 1),
-          unit: item.unit ?? product.unit ?? '件',
+          unit: item.unit ?? product.specUnit ?? product.unit ?? '件',
         },
       });
     }
@@ -462,7 +462,7 @@ export class BomService {
       productName: item.product?.name ?? item.productName ?? '',
       sku: item.product?.sku ?? item.sku ?? '',
       standardQty: Number(item.standardQty ?? 0),
-      unit: item.unit ?? item.product?.unit ?? '',
+      unit: item.unit ?? item.product?.specUnit ?? item.product?.unit ?? '',
       costPrice: Number(item.product?.costPrice ?? 0),
       productStatus: item.product?.status,
     }));

@@ -337,7 +337,7 @@ export function buildProductMarketingPageDraft(
         description: `活动期 ${startDate} 至 ${endDate}，到店后由顾问确认适合你的护理搭配。`,
         validFrom: startDate,
         validTo: endDate,
-        highlights: [product.categoryName || '护理商品', product.spec || product.unit || '门店优选'].filter(Boolean),
+        highlights: [product.categoryName || '护理商品', product.spec || product.specUnit || '门店优选'].filter(Boolean),
       },
       {
         type: 'benefits',

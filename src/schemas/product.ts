@@ -3,8 +3,9 @@ import { z } from 'zod';
 export const productSchema = z.object({
   name: z.string().min(1, '产品名称不能为空'),
   brand: z.string().min(1, '品牌不能为空'),
-  spec: z.string().min(1, '规格不能为空'),
-  unit: z.enum(['瓶', '盒', '支', '个', '套'], { error: '请选择单位' }),
+  specQuantity: z.number().positive('规格数量必须大于 0'),
+  specUnit: z.string().min(1, '请选择规格单位'),
+  packageUnit: z.enum(['瓶', '盒', '支', '个', '套', '包'], { error: '请选择包装' }),
   costPrice: z.number().positive('成本价必须大于 0'),
   retailPrice: z.number().positive('零售价必须大于 0'),
   shelfLife: z.number().int().positive('保质期必须为正整数'),

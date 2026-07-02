@@ -522,10 +522,69 @@ export class BusinessQueryService {
       role: params.role,
       context: params.context as Record<string, unknown> | undefined,
     });
+    const forcedCapability = this.resolveForcedCapability(params.context);
+    if (forcedCapability) {
+      return this.forcedCapabilityPlan(params, forcedCapability, parsed?.task);
+    }
     if (parsed && parsed.task.domain !== 'unknown' && parsed.task.taskType !== 'clarify' && parsed.task.metrics.length) {
       return this.businessQueryPlanFromBusinessTask(parsed.task, params, params.role);
     }
     return this.legacyResolve(params, parsed ? 'business_task_preparser_no_executable_plan' : 'business_task_preparser_unavailable');
+  }
+
+  private resolveForcedCapability(context?: BusinessQueryContext): BusinessQueryCapabilityId | null {
+    const capabilityId = context?.forcedCapabilityId;
+    if (!capabilityId || capabilityId === 'unsupported') return null;
+    return getBusinessQueryCapability(capabilityId) ? capabilityId : null;
+  }
+
+  private forcedCapabilityPlan(
+    params: { question: string; storeId: number; role: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext },
+    capability: BusinessQueryCapabilityId,
+    task?: BusinessTask,
+  ): BusinessQueryPlan {
+    const capabilityDefinition = getBusinessQueryCapability(capability);
+    const domain = params.context?.forcedDomain ?? capabilityDefinition?.domain ?? this.businessQueryDomainFromTaskDomain(task?.domain ?? 'unknown');
+    const text = this.normalize(params.question);
+    const dateRange = this.resolveDateRange(text, capability);
+    const contextProductIds = this.extractContextProductIds(params.context);
+    const requestId = `bq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+    return {
+      requestId,
+      originalQuestion: params.question,
+      domain,
+      capability,
+      intent: 'query',
+      metrics: task?.metrics.length ? task.metrics : this.metricsForCapability(capability),
+      dimensions: task?.entities.length ? task.entities.map((entity) => entity.type).filter((item) => item !== 'metric') : this.dimensionsForCapability(capability),
+      filters: {
+        ...(task?.filters ?? {}),
+        storeId: params.storeId,
+        role: params.role,
+        operatorId: params.operatorId,
+        contextProductIds,
+        contextCapability: params.context?.previousResponse?.capability,
+        dateRange,
+        status: PAID_ORDER_STATUSES,
+      },
+      sort: task?.sort?.[0] ?? this.sortForCapability(capability),
+      limit: task?.limit ?? this.getDefaultLimit(capability),
+      needClarification: false,
+      clarificationQuestion: null,
+      plannerTrace: {
+        parserVersion: task ? 'business-task-preparser' : 'legacy-rule',
+        entityMatches: [],
+        actionIntent: task?.outputMode,
+        capabilityId: this.mapBusinessQueryCapabilityToUnifiedCapability(capability),
+        queryTemplateId: capability,
+        executionPath: 'knowledge_graph',
+        fallbackReason: 'forced_capability_from_skill',
+        schemaPath: [domain],
+        confidence: Math.max(task?.confidence ?? 0.5, 0.8),
+      },
+      fallbackReason: 'forced_capability_from_skill',
+    };
   }
 
   private legacyResolve(
@@ -855,7 +914,7 @@ export class BusinessQueryService {
     const products = productIds.length
       ? await this.prisma.product.findMany({
           where: { id: { in: productIds }, storeId, deletedAt: null },
-          select: { id: true, name: true, currentStock: true, safetyStock: true, unit: true },
+          select: { id: true, name: true, currentStock: true, safetyStock: true, unit: true, specUnit: true },
         })
       : [];
     const productById = new Map(products.map((item: any) => [Number(item.id), item]));
@@ -1180,7 +1239,7 @@ export class BusinessQueryService {
         name: true,
         price: true,
         duration: true,
-        bomItems: { select: { standardQty: true, unit: true, product: { select: { id: true, name: true, costPrice: true, unit: true } } } },
+        bomItems: { select: { standardQty: true, unit: true, product: { select: { id: true, name: true, costPrice: true, unit: true, specUnit: true } } } },
       },
       take: 500,
     });
@@ -1527,7 +1586,7 @@ export class BusinessQueryService {
     }
     const products = await this.prisma.product.findMany({
       where: { storeId, deletedAt: null, ...(contextProductIds.length ? { id: { in: contextProductIds } } : {}) },
-      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
+      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
       orderBy: { currentStock: 'asc' },
       take: 120,
     });
@@ -1538,7 +1597,7 @@ export class BusinessQueryService {
         sku: product.sku,
         currentStock: this.toNumber(product.currentStock),
         safetyStock: this.toNumber(product.safetyStock),
-        unit: product.unit,
+        unit: product.specUnit ?? product.unit,
         status: product.status,
         stockGap: this.toNumber(product.safetyStock) - this.toNumber(product.currentStock),
         stockEnough: this.toNumber(product.currentStock) > this.toNumber(product.safetyStock),
@@ -1583,7 +1642,7 @@ export class BusinessQueryService {
         stock: true,
         productionDate: true,
         expiryDate: true,
-        product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, status: true } },
+        product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, currentStock: true, safetyStock: true, status: true } },
       },
       orderBy: [{ expiryDate: 'asc' }, { stock: 'desc' }],
       take: Math.max(queryPlan.limit, 20),
@@ -1649,7 +1708,7 @@ export class BusinessQueryService {
     const [products, orderItems] = await Promise.all([
       this.prisma.product.findMany({
         where: { storeId, deletedAt: null },
-        select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
+        select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
         take: 1000,
       }),
       this.prisma.orderItem.findMany({
@@ -1690,7 +1749,7 @@ export class BusinessQueryService {
           sku: product.sku,
           currentStock,
           safetyStock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           salesQuantity: sales.salesQuantity,
           salesAmount: sales.salesAmount,
           orderCount: sales.orderIds.size,
@@ -3395,7 +3454,7 @@ export class BusinessQueryService {
           sku: true,
           currentStock: true,
           safetyStock: true,
-          unit: true,
+          unit: true, specUnit: true,
           costPrice: true,
           supplier: true,
           minPurchaseQty: true,
@@ -3444,7 +3503,7 @@ export class BusinessQueryService {
           currentStock,
           safetyStock,
           salesQuantity,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           suggestedQty,
           moq,
           leadDays: supplier?.leadDays ?? null,

@@ -6,6 +6,7 @@ import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 import {
   AdoptIndustryProductTemplateDto,
   AdoptIndustryServiceTemplateDto,
+  BatchAdoptIndustryProductTemplatesDto,
   CreateIndustryAdoptionDto,
   CreateIndustryDataSourceDto,
   CreateIndustryKnowledgeItemDto,
@@ -19,6 +20,7 @@ import {
   QueryIndustrySalaryDto,
   QueryIndustryServiceTemplatesDto,
   SaveIndustryBomTemplateDto,
+  LinkIndustryProductTemplateDto,
   UpdateIndustryDataSourceDto,
   UpdateIndustryKnowledgeItemDto,
   UpdateIndustryProductTemplateDto,
@@ -158,15 +160,47 @@ export class IndustryController {
   @Get('product-templates/paginated')
   @Permissions('core:industry:product-template', 'core:industry:view')
   @ApiOperation({ summary: '行业标准商品/耗品分页' })
-  productTemplatesPaginated(@Query() query: QueryIndustryProductTemplatesDto) {
-    return this.industryService.findProductTemplatesPaginated(query);
+  productTemplatesPaginated(@Query() query: QueryIndustryProductTemplatesDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.industryService.findProductTemplatesPaginated(query, this.storeIdFrom(storeHeader));
   }
 
   @Get('product-templates')
   @Permissions('core:industry:product-template', 'core:industry:view', 'core:goods:products', 'core:inventory:products')
   @ApiOperation({ summary: '已发布行业标准商品/耗品列表' })
-  productTemplates(@Query() query: QueryIndustryProductTemplatesDto) {
-    return this.industryService.findProductTemplates(query, true);
+  productTemplates(@Query() query: QueryIndustryProductTemplatesDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.industryService.findProductTemplates(query, true, this.storeIdFrom(storeHeader));
+  }
+
+  @Get('product-templates/adoption-coverage')
+  @Permissions('core:industry:product-template', 'core:industry:view', 'core:industry:adoption')
+  @ApiOperation({ summary: '行业标准品采用覆盖率' })
+  productTemplateAdoptionCoverage(@Query() query: QueryIndustryProductTemplatesDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.industryService.productTemplateAdoptionCoverage(query, this.storeIdFrom(storeHeader));
+  }
+
+  @Get('product-template-chain/overview')
+  @Permissions('core:industry:product-template', 'core:industry:view', 'core:inventory:products')
+  @ApiOperation({ summary: '行业标准品到本地库存、采购、BOM 和销售链路总览' })
+  productTemplateChainOverview(@Query() query: QueryIndustryProductTemplatesDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.industryService.productTemplateChainOverview(query, this.storeIdFrom(storeHeader));
+  }
+
+  @Get('product-template-chain/operational-report')
+  @Permissions('core:industry:product-template', 'core:industry:view', 'core:inventory:products')
+  @ApiOperation({ summary: '行业标准品链路运营问题清单' })
+  productTemplateChainOperationalReport(@Query() query: QueryIndustryProductTemplatesDto, @Headers('x-store-id') storeHeader?: string) {
+    return this.industryService.productTemplateChainOperationalReport(query, this.storeIdFrom(storeHeader));
+  }
+
+  @Get('product-templates/:id/chain')
+  @Permissions('core:industry:product-template', 'core:industry:view', 'core:inventory:products')
+  @ApiOperation({ summary: '行业标准品单品链路明细' })
+  productTemplateChainDetail(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: QueryIndustryProductTemplatesDto,
+    @Headers('x-store-id') storeHeader?: string,
+  ) {
+    return this.industryService.productTemplateChainDetail(id, query, this.storeIdFrom(storeHeader));
   }
 
   @Get('product-templates/:id')
@@ -206,6 +240,27 @@ export class IndustryController {
     @Headers('x-store-id') storeHeader?: string,
   ) {
     return this.industryService.adoptProductTemplateAsProduct(id, dto, this.storeIdFrom(storeHeader));
+  }
+
+  @Post('product-templates/batch-adopt-products')
+  @Permissions('core:goods:products', 'core:inventory:products', 'core:industry:adoption')
+  @ApiOperation({ summary: '批量采用行业标准品创建门店商品' })
+  batchAdoptProductTemplates(
+    @Body() dto: BatchAdoptIndustryProductTemplatesDto,
+    @Headers('x-store-id') storeHeader?: string,
+  ) {
+    return this.industryService.batchAdoptProductTemplates(dto, this.storeIdFrom(storeHeader));
+  }
+
+  @Post('product-templates/:id/link-product')
+  @Permissions('core:goods:products', 'core:inventory:products', 'core:industry:adoption')
+  @ApiOperation({ summary: '将行业标准品映射到已有门店商品' })
+  linkProductTemplateToProduct(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: LinkIndustryProductTemplateDto,
+    @Headers('x-store-id') storeHeader?: string,
+  ) {
+    return this.industryService.linkProductTemplateToProduct(id, dto, this.storeIdFrom(storeHeader));
   }
 
   @Get('knowledge/items/paginated')

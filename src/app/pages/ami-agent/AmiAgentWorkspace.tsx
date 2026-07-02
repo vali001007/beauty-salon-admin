@@ -15,6 +15,7 @@ import type {
   AgentEvalSummary,
   AgentFeedbackFailureReport,
   AgentKnowledgeGovernance,
+  AgentKnowledgeGovernanceReportSummary,
   AgentSchemaReadiness,
   AgentPhaseOutput,
   AgentRunDetail,
@@ -109,6 +110,9 @@ export function AmiAgentWorkspace() {
   const [knowledgeGovernance, setKnowledgeGovernance] = useState<AgentKnowledgeGovernance | null>(null);
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
   const [knowledgeCapabilityId, setKnowledgeCapabilityId] = useState('');
+  const [knowledgePersonaCode, setKnowledgePersonaCode] = useState('');
+  const [knowledgeRiskLevel, setKnowledgeRiskLevel] = useState('');
+  const [knowledgeDomain, setKnowledgeDomain] = useState('');
   const [knowledgeDebugText, setKnowledgeDebugText] = useState('');
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -275,6 +279,9 @@ export function AmiAgentWorkspace() {
     try {
       setKnowledgeGovernance(await getAgentKnowledgeGovernance({
         capabilityId: knowledgeCapabilityId.trim() || undefined,
+        personaCode: knowledgePersonaCode || undefined,
+        riskLevel: knowledgeRiskLevel || undefined,
+        domain: knowledgeDomain.trim() || undefined,
         q: knowledgeDebugText.trim() || undefined,
       }));
     } catch (error) {
@@ -282,7 +289,7 @@ export function AmiAgentWorkspace() {
     } finally {
       setKnowledgeLoading(false);
     }
-  }, [knowledgeCapabilityId, knowledgeDebugText]);
+  }, [knowledgeCapabilityId, knowledgeDebugText, knowledgeDomain, knowledgePersonaCode, knowledgeRiskLevel]);
 
   useEffect(() => {
     if (activeTab === 'audit') void loadAuditPanel();
@@ -616,8 +623,14 @@ export function AmiAgentWorkspace() {
           data={knowledgeGovernance}
           loading={knowledgeLoading}
           capabilityId={knowledgeCapabilityId}
+          personaCode={knowledgePersonaCode}
+          riskLevel={knowledgeRiskLevel}
+          domain={knowledgeDomain}
           debugText={knowledgeDebugText}
           onCapabilityIdChange={setKnowledgeCapabilityId}
+          onPersonaCodeChange={setKnowledgePersonaCode}
+          onRiskLevelChange={setKnowledgeRiskLevel}
+          onDomainChange={setKnowledgeDomain}
           onDebugTextChange={setKnowledgeDebugText}
           onRefresh={loadKnowledgePanel}
         />
@@ -1196,16 +1209,28 @@ function AgentKnowledgeGovernanceTab({
   data,
   loading,
   capabilityId,
+  personaCode,
+  riskLevel,
+  domain,
   debugText,
   onCapabilityIdChange,
+  onPersonaCodeChange,
+  onRiskLevelChange,
+  onDomainChange,
   onDebugTextChange,
   onRefresh,
 }: {
   data: AgentKnowledgeGovernance | null;
   loading: boolean;
   capabilityId: string;
+  personaCode: string;
+  riskLevel: string;
+  domain: string;
   debugText: string;
   onCapabilityIdChange: (value: string) => void;
+  onPersonaCodeChange: (value: string) => void;
+  onRiskLevelChange: (value: string) => void;
+  onDomainChange: (value: string) => void;
   onDebugTextChange: (value: string) => void;
   onRefresh: () => void;
 }) {
@@ -1247,12 +1272,86 @@ function AgentKnowledgeGovernanceTab({
           查询
         </button>
       </div>
+      <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <label className="block text-xs text-muted-foreground">
+          Persona
+          <select
+            value={personaCode}
+            onChange={(event) => onPersonaCodeChange(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          >
+            <option value="">全部</option>
+            <option value="manager">店长经营</option>
+            <option value="marketing">营销增长</option>
+            <option value="reception">前台接待</option>
+            <option value="beautician">美容师服务</option>
+            <option value="inventory">库存采购</option>
+            <option value="finance">财务风控</option>
+          </select>
+        </label>
+        <label className="block text-xs text-muted-foreground">
+          风险 / 优先级
+          <select
+            value={riskLevel}
+            onChange={(event) => onRiskLevelChange(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          >
+            <option value="">全部</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+            <option value="P0">P0</option>
+            <option value="P1">P1</option>
+            <option value="P2">P2</option>
+          </select>
+        </label>
+        <label className="block text-xs text-muted-foreground">
+          业务域
+          <input
+            value={domain}
+            onChange={(event) => onDomainChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onRefresh();
+            }}
+            placeholder="例如 marketing / inventory / finance"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          />
+        </label>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MiniMetric label="Schema 节点" value={String(data?.schemaGraph.nodeCount ?? 0)} />
         <MiniMetric label="Schema 关系" value={String(data?.schemaGraph.relationCount ?? 0)} />
         <MiniMetric label="能力目录" value={`${data?.capabilityCatalog.filtered ?? 0}/${data?.capabilityCatalog.total ?? 0}`} />
         <MiniMetric label="Eval 通过率" value={formatPercent(data?.evalReport?.summary.passRate)} />
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        <AuditSection title="自动扫描门禁" count={data?.knowledgeReports?.scan?.gate?.warnings.length ?? 0}>
+          {data?.knowledgeReports?.scan ? (
+            <>
+              <TimelineRow
+                title={`Schema ${data.knowledgeReports.scan.schema.generatedModelCount}/${data.knowledgeReports.scan.schema.schemaModelCount}`}
+                subtitle={`门禁 ${data.knowledgeReports.scan.gate?.passed ? '通过' : '未通过'} · 阻断 ${data.knowledgeReports.scan.gate?.blockers.length ?? 0} · 提醒 ${data.knowledgeReports.scan.gate?.warnings.length ?? 0}`}
+              />
+              <TimelineRow
+                title="API / 页面候选"
+                subtitle={`Endpoint ${data.knowledgeReports.scan.api.endpoints} · real API ${data.knowledgeReports.scan.api.realApiMethods} · 页面 ${data.knowledgeReports.scan.frontend.routes.length}`}
+              />
+              <TimelineRow
+                title="Agent 覆盖缺口"
+                subtitle={`Skill ${data.knowledgeReports.scan.agent.missingSkillMappings.length} · Eval ${data.knowledgeReports.scan.agent.missingEvalCases.length} · Tool ${data.knowledgeReports.scan.agent.missingToolRegistryMappings.length}`}
+              />
+              {data.knowledgeReports.scan.gate?.warnings.slice(0, 4).map((item) => (
+                <TimelineRow key={item} title="提醒项" subtitle={item} />
+              ))}
+            </>
+          ) : (
+            <EmptyPanelText text="暂无自动扫描报告。先运行 agent:knowledge:scan。" />
+          )}
+        </AuditSection>
+        <GovernanceReportPanel title="知识治理日报" report={data?.knowledgeReports?.daily ?? null} />
+        <GovernanceReportPanel title="知识治理周报" report={data?.knowledgeReports?.weekly ?? null} />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-3">
@@ -1352,6 +1451,64 @@ function AgentKnowledgeGovernanceTab({
       </div>
     </div>
   );
+}
+
+function GovernanceReportPanel({
+  title,
+  report,
+}: {
+  title: string;
+  report: AgentKnowledgeGovernanceReportSummary | null;
+}) {
+  return (
+    <AuditSection title={title} count={report?.agentCapabilityGaps.length ?? 0}>
+      {report ? (
+        <>
+          <TimelineRow
+            title={`${report.summary?.gatePassed ? '门禁通过' : '门禁未通过'} · ${report.mode ?? 'unknown'}`}
+            subtitle={`阻断 ${report.summary?.blockerCount ?? 0} · 提醒 ${report.summary?.warningCount ?? 0} · P0 ${formatPercent(report.summary?.p0PassRate ?? undefined)}`}
+          />
+          <TimelineRow
+            title="核心缺口"
+            subtitle={`业务对象 ${report.summary?.missingBusinessObjectMappings ?? 0} · 中文名 ${report.summary?.missingDisplayNames ?? 0} · Skill ${report.summary?.missingSkillMappings ?? 0} · Eval ${report.summary?.missingEvalCases ?? 0}`}
+          />
+          <TimelineRow
+            title="运行态"
+            subtitle={`legacy fallback ${report.summary?.legacyFallbackRuns ?? 0} · reason ${report.summary?.fallbackReasonCount ?? 0} · ${report.markdownPath}`}
+          />
+          <button
+            type="button"
+            onClick={() => downloadGovernanceMarkdown(report)}
+            disabled={!report.markdownContent}
+            className="w-fit rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            导出 Markdown
+          </button>
+          {report.agentCapabilityGaps.slice(0, 5).map((item) => (
+            <TimelineRow key={`${item.type}-${item.key}`} title={`${item.priority} · ${item.key}`} subtitle={item.reason} />
+          ))}
+          {report.reviewChecklist.slice(0, 3).map((item) => (
+            <TimelineRow key={item} title="Review" subtitle={item} />
+          ))}
+        </>
+      ) : (
+        <EmptyPanelText text={`暂无${title}。先运行 ${title.includes('日') ? 'agent:knowledge:daily' : 'agent:knowledge:weekly'}。`} />
+      )}
+    </AuditSection>
+  );
+}
+
+function downloadGovernanceMarkdown(report: AgentKnowledgeGovernanceReportSummary) {
+  if (!report.markdownContent) return;
+  const blob = new Blob([report.markdownContent], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = report.markdownPath.split('/').pop() ?? 'agent-knowledge-governance-report.md';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function AgentQualityTab({

@@ -193,7 +193,7 @@ export function SupplierManagement({ defaultTab = 'suppliers' }: { defaultTab?: 
         productId: item.productId,
         name: item.productName,
         sku: item.sku ?? '',
-        unit: products.find((product) => product.id === item.productId)?.unit ?? '',
+        unit: products.find((product) => product.id === item.productId)?.specUnit ?? '',
         price: Number(item.supplyPrice ?? 0),
         moq: item.moq ?? products.find((product) => product.id === item.productId)?.minPurchaseQty ?? null,
       }));
@@ -202,7 +202,7 @@ export function SupplierManagement({ defaultTab = 'suppliers' }: { defaultTab?: 
       productId: product.id,
       name: product.name,
       sku: product.sku,
-      unit: product.unit,
+      unit: product.specUnit ?? '',
       price: Number(product.costPrice ?? 0),
       moq: product.minPurchaseQty ?? null,
     }));

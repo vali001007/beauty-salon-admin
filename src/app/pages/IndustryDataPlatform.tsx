@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ElementType } from 'react';
-import { BookOpen, CheckCircle2, Database, Edit, FileText, Loader2, Package, Plus, RefreshCw, Save, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, Database, Edit, FileText, GitBranch, Link2, Loader2, Package, Plus, RefreshCw, Save, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
 import {
+  batchAdoptIndustryProductTemplates,
   createIndustryDataSource,
   createIndustryKnowledgeItem,
   createIndustryProductTemplate,
@@ -15,9 +16,14 @@ import {
   getIndustryDataSources,
   getIndustryKnowledgeItems,
   getIndustryBomTemplate,
+  getIndustryProductTemplateChain,
+  getIndustryProductTemplateChainOperationalReport,
+  getIndustryProductTemplateChainOverview,
   getIndustryProductTemplatesPaginated,
+  getIndustryProductTemplateCoverage,
   getIndustrySalaryBenchmarks,
   getIndustryServiceTemplatesPaginated,
+  linkIndustryProductTemplateToProduct,
   publishIndustryBomTemplate,
   publishIndustryProductTemplate,
   publishIndustryServiceTemplate,
@@ -28,6 +34,8 @@ import {
   updateIndustrySalaryBenchmark,
   updateIndustryServiceTemplate,
 } from '@/api/industry';
+import { getProductsPaginated } from '@/api/product';
+import { createSupplyCatalogMapping, getSupplyCatalogMappings, getSupplySkus, updateSupplyCatalogMapping } from '@/api/supplyPlatform';
 import type {
   IndustryAdoptionRecord,
   IndustryBomItemPayload,
@@ -36,16 +44,32 @@ import type {
   IndustryDataSourcePayload,
   IndustryKnowledgeItem,
   IndustryKnowledgePayload,
+  IndustryChainOperationalReport,
   IndustryProductTemplate,
+  IndustryProductTemplateChainDetail,
+  IndustryProductTemplateChainItem,
+  IndustryProductTemplateChainOverview,
+  IndustryProductTemplateCoverage,
   IndustryProductTemplatePayload,
   IndustrySalaryBenchmark,
   IndustrySalaryPayload,
   IndustryServiceTemplate,
   IndustryServiceTemplatePayload,
+  Product,
+  SupplyCatalogMapping,
+  SupplySku,
 } from '@/types';
 
-type IndustryTab = 'services' | 'products' | 'bom' | 'knowledge' | 'salary' | 'sources' | 'adoptions' | 'supply';
+type IndustryTab = 'services' | 'products' | 'chain' | 'bom' | 'knowledge' | 'salary' | 'sources' | 'adoptions' | 'supply';
 type EditorKind = 'service' | 'product' | 'bom' | 'knowledge' | 'salary' | 'source';
+type SupplyMappingDraft = {
+  id?: number;
+  standardProductTemplateId: string;
+  productId: string;
+  supplySkuId: string;
+  mappingStatus: string;
+  isPreferred: boolean;
+};
 
 type IndustryDataPlatformProps = {
   defaultTab?: IndustryTab;
@@ -89,6 +113,32 @@ const statusLabels: Record<string, string> = {
   mapped: '已映射',
   mapping_error: '映射异常',
   available: '可用',
+  adopted: '已采用',
+  unadopted: '未采用',
+  invalid: '采用失效',
+  mapped_no_quote: '报价缺失',
+  quote_unavailable: '报价不可用',
+  missing: '未打通',
+  broken: '链路异常',
+  ready: '已打通',
+  blocked: '被阻断',
+  empty: '暂无流水',
+  missing_quote: '缺报价',
+  ordered: '已下单',
+  received: '已收货',
+  ready_no_order: '可下单',
+  manual_purchase: '手工采购',
+  active: '启用',
+  disabled: '停用',
+};
+
+const chainStepLabels: Record<string, string> = {
+  adoption: '本地 SKU',
+  bom: 'BOM',
+  inventory: '库存',
+  supply: '供应链',
+  procurement: '采购履约',
+  salesService: '销售/扣耗',
 };
 
 const domainLabels: Record<string, string> = {
@@ -121,13 +171,20 @@ function formatDuration(template: IndustryServiceTemplate) {
 
 function statusBadge(status?: string | null) {
   const value = status || 'draft';
-  const isGood = value === 'published' || value === 'approved' || value === 'available' || value === 'mapped';
-  const isMuted = value === 'draft' || value === 'not_connected' || value === 'not_mapped';
+  const isGood = value === 'published' || value === 'approved' || value === 'available' || value === 'mapped' || value === 'ready' || value === 'received';
+  const isMuted = value === 'draft' || value === 'not_connected' || value === 'not_mapped' || value === 'missing' || value === 'empty';
   return (
     <Badge variant={isGood ? 'default' : isMuted ? 'secondary' : 'outline'} className="whitespace-nowrap">
       {statusLabels[value] ?? value}
     </Badge>
   );
+}
+
+function formatChainDate(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toISOString().slice(0, 10);
 }
 
 function sectionTitle(icon: ElementType, title: string, description: string) {
@@ -339,10 +396,35 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
   const [bomItemsDraft, setBomItemsDraft] = useState<BomItemDraft[]>([]);
   const [services, setServices] = useState<IndustryServiceTemplate[]>([]);
   const [products, setProducts] = useState<IndustryProductTemplate[]>([]);
+  const [productCoverage, setProductCoverage] = useState<IndustryProductTemplateCoverage | null>(null);
+  const [chainOverview, setChainOverview] = useState<IndustryProductTemplateChainOverview | null>(null);
+  const [chainOperationalReport, setChainOperationalReport] = useState<IndustryChainOperationalReport | null>(null);
+  const [chainDetail, setChainDetail] = useState<IndustryProductTemplateChainDetail | null>(null);
+  const [chainDetailLoading, setChainDetailLoading] = useState(false);
+  const [adoptionStatusFilter, setAdoptionStatusFilter] = useState('');
+  const [selectedProductTemplateIds, setSelectedProductTemplateIds] = useState<number[]>([]);
+  const [batchAdopting, setBatchAdopting] = useState(false);
+  const [linkingTemplate, setLinkingTemplate] = useState<IndustryProductTemplate | null>(null);
+  const [linkProductKeyword, setLinkProductKeyword] = useState('');
+  const [linkProductOptions, setLinkProductOptions] = useState<Product[]>([]);
+  const [selectedLinkProductId, setSelectedLinkProductId] = useState<number | null>(null);
+  const [linkProductsLoading, setLinkProductsLoading] = useState(false);
+  const [linkProductSubmitting, setLinkProductSubmitting] = useState(false);
   const [knowledge, setKnowledge] = useState<IndustryKnowledgeItem[]>([]);
   const [salary, setSalary] = useState<IndustrySalaryBenchmark[]>([]);
   const [sources, setSources] = useState<IndustryDataSource[]>([]);
   const [adoptions, setAdoptions] = useState<IndustryAdoptionRecord[]>([]);
+  const [supplyMappings, setSupplyMappings] = useState<SupplyCatalogMapping[]>([]);
+  const [supplySkus, setSupplySkus] = useState<SupplySku[]>([]);
+  const [localProducts, setLocalProducts] = useState<Product[]>([]);
+  const [supplyMappingDialogOpen, setSupplyMappingDialogOpen] = useState(false);
+  const [supplyMappingDraft, setSupplyMappingDraft] = useState<SupplyMappingDraft>({
+    standardProductTemplateId: '',
+    productId: '',
+    supplySkuId: '',
+    mappingStatus: 'active',
+    isPreferred: false,
+  });
 
   const summary = useMemo(() => {
     const publishedServices = services.filter((item) => item.status === 'published').length;
@@ -360,26 +442,53 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
     setLoading(true);
     try {
       const params = { page: 1, pageSize: 50, keyword: keyword || undefined };
-      const [serviceResult, productResult, knowledgeResult, salaryResult, sourceResult, adoptionResult] = await Promise.all([
+      const productParams = { ...params, adoptionStatus: adoptionStatusFilter || undefined };
+      const [
+        serviceResult,
+        productResult,
+        coverageResult,
+        chainResult,
+        operationalReportResult,
+        knowledgeResult,
+        salaryResult,
+        sourceResult,
+        adoptionResult,
+        mappingResult,
+        supplySkuResult,
+        localProductResult,
+      ] = await Promise.all([
         getIndustryServiceTemplatesPaginated(params),
-        getIndustryProductTemplatesPaginated(params),
+        getIndustryProductTemplatesPaginated(productParams),
+        getIndustryProductTemplateCoverage({ keyword: keyword || undefined }),
+        getIndustryProductTemplateChainOverview({ page: 1, pageSize: 50, keyword: keyword || undefined }),
+        getIndustryProductTemplateChainOperationalReport({ keyword: keyword || undefined }),
         getIndustryKnowledgeItems(params),
         getIndustrySalaryBenchmarks(params),
         getIndustryDataSources(params),
         getIndustryAdoptions({ page: 1, pageSize: 30 }),
+        getSupplyCatalogMappings({ page: 1, pageSize: 50, keyword: keyword || undefined }),
+        getSupplySkus({ page: 1, pageSize: 100, status: 'active', auditStatus: 'approved' }),
+        getProductsPaginated({ page: 1, pageSize: 100, status: 'active', keyword: keyword || undefined }),
       ]);
       setServices(serviceResult.items);
       setProducts(productResult.items);
+      setProductCoverage(coverageResult.coverage);
+      setChainOverview(chainResult);
+      setChainOperationalReport(operationalReportResult);
+      setSelectedProductTemplateIds((prev) => prev.filter((id) => productResult.items.some((item) => item.id === id)));
       setKnowledge(knowledgeResult.items);
       setSalary(salaryResult.items);
       setSources(sourceResult.items);
       setAdoptions(adoptionResult.items);
+      setSupplyMappings(mappingResult.items);
+      setSupplySkus(supplySkuResult.items);
+      setLocalProducts(localProductResult.items);
     } catch (err: any) {
       toast.error(err?.message || '行业数据加载失败');
     } finally {
       setLoading(false);
     }
-  }, [keyword]);
+  }, [adoptionStatusFilter, keyword]);
 
   useEffect(() => {
     loadData();
@@ -473,6 +582,180 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
     } catch (err: any) {
       toast.error(err?.message || '发布标准商品/耗品失败');
     }
+  };
+
+  const toggleProductTemplateSelection = (id: number, checked: boolean) => {
+    setSelectedProductTemplateIds((prev) => checked ? [...new Set([...prev, id])] : prev.filter((item) => item !== id));
+  };
+
+  const toggleCurrentProductTemplatePage = (checked: boolean) => {
+    setSelectedProductTemplateIds(checked ? products.map((item) => item.id) : []);
+  };
+
+  const handleBatchAdoptProducts = async () => {
+    if (!selectedProductTemplateIds.length) {
+      toast.error('请先选择要采用的标准品');
+      return;
+    }
+    setBatchAdopting(true);
+    try {
+      const preview = await batchAdoptIndustryProductTemplates({
+        productTemplateIds: selectedProductTemplateIds,
+        categoryStrategy: 'template_category',
+        defaultSafetyStock: 0,
+        defaultMinPurchaseQty: 0,
+        dryRun: true,
+      });
+      const message = `将创建 ${preview.createCount} 个本地产品，跳过 ${preview.skipCount} 个，冲突 ${preview.conflictCount} 个。是否继续？`;
+      if (!window.confirm(message)) return;
+      const result = await batchAdoptIndustryProductTemplates({
+        productTemplateIds: selectedProductTemplateIds,
+        categoryStrategy: 'template_category',
+        defaultSafetyStock: 0,
+        defaultMinPurchaseQty: 0,
+        dryRun: false,
+      });
+      toast.success(`批量采用完成：创建 ${result.createCount}，跳过 ${result.skipCount}，冲突 ${result.conflictCount}`);
+      setSelectedProductTemplateIds([]);
+      loadData();
+    } catch (err: any) {
+      toast.error(err?.message || '批量采用失败');
+    } finally {
+      setBatchAdopting(false);
+    }
+  };
+
+  const loadLinkProductOptions = async (keywordValue = linkProductKeyword) => {
+    setLinkProductsLoading(true);
+    try {
+      const result = await getProductsPaginated({
+        page: 1,
+        pageSize: 50,
+        keyword: keywordValue || undefined,
+      });
+      setLinkProductOptions(result.items);
+    } catch (err: any) {
+      toast.error(err?.message || '本地产品加载失败');
+    } finally {
+      setLinkProductsLoading(false);
+    }
+  };
+
+  const openLinkProductDialog = async (template: IndustryProductTemplate) => {
+    setLinkingTemplate(template);
+    setLinkProductKeyword(template.name);
+    setSelectedLinkProductId(null);
+    await loadLinkProductOptions(template.name);
+  };
+
+  const closeLinkProductDialog = () => {
+    setLinkingTemplate(null);
+    setLinkProductKeyword('');
+    setLinkProductOptions([]);
+    setSelectedLinkProductId(null);
+  };
+
+  const handleLinkProduct = async () => {
+    if (!linkingTemplate || !selectedLinkProductId) {
+      toast.error('请选择要映射的本地产品');
+      return;
+    }
+    setLinkProductSubmitting(true);
+    try {
+      await linkIndustryProductTemplateToProduct(linkingTemplate.id, {
+        productId: selectedLinkProductId,
+        reason: '行业标准品映射到已有本地产品',
+      });
+      toast.success('标准品已映射到本地产品');
+      closeLinkProductDialog();
+      loadData();
+    } catch (err: any) {
+      toast.error(err?.message || '映射本地产品失败');
+    } finally {
+      setLinkProductSubmitting(false);
+    }
+  };
+
+  const openSupplyMappingDialog = (mapping?: SupplyCatalogMapping) => {
+    setSupplyMappingDraft({
+      id: mapping?.id,
+      standardProductTemplateId: mapping?.standardProductTemplateId ? String(mapping.standardProductTemplateId) : '',
+      productId: mapping?.productId ? String(mapping.productId) : '',
+      supplySkuId: mapping?.supplySkuId ? String(mapping.supplySkuId) : '',
+      mappingStatus: mapping?.mappingStatus || 'active',
+      isPreferred: Boolean(mapping?.isPreferred),
+    });
+    setSupplyMappingDialogOpen(true);
+  };
+
+  const closeSupplyMappingDialog = () => {
+    setSupplyMappingDialogOpen(false);
+    setSupplyMappingDraft({
+      standardProductTemplateId: '',
+      productId: '',
+      supplySkuId: '',
+      mappingStatus: 'active',
+      isPreferred: false,
+    });
+  };
+
+  const updateSupplyMappingDraft = (field: keyof SupplyMappingDraft, value: string | boolean) => {
+    setSupplyMappingDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveSupplyMapping = async () => {
+    const supplySkuId = Number(supplyMappingDraft.supplySkuId);
+    const productId = numberOrUndefined(supplyMappingDraft.productId);
+    const standardProductTemplateId = numberOrUndefined(supplyMappingDraft.standardProductTemplateId);
+    if (!supplySkuId) {
+      toast.error('请选择供应链 SKU');
+      return;
+    }
+    if (!productId && !standardProductTemplateId) {
+      toast.error('请选择标准品或本地产品');
+      return;
+    }
+    setSaving(true);
+    try {
+      const selectedProduct = localProducts.find((item) => item.id === productId);
+      const payload = {
+        supplySkuId,
+        productId,
+        storeId: selectedProduct?.storeId,
+        standardProductTemplateId,
+        mappingStatus: supplyMappingDraft.mappingStatus || 'active',
+        isPreferred: supplyMappingDraft.isPreferred,
+      };
+      if (supplyMappingDraft.id) {
+        await updateSupplyCatalogMapping(supplyMappingDraft.id, payload);
+        toast.success('供应链映射已更新');
+      } else {
+        await createSupplyCatalogMapping(payload);
+        toast.success('供应链映射已创建');
+      }
+      closeSupplyMappingDialog();
+      loadData();
+    } catch (err: any) {
+      toast.error(err?.message || '保存供应链映射失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openChainDetail = async (item: IndustryProductTemplateChainItem) => {
+    setChainDetailLoading(true);
+    try {
+      const detail = await getIndustryProductTemplateChain(item.productTemplateId);
+      setChainDetail(detail);
+    } catch (err: any) {
+      toast.error(err?.message || '链路明细加载失败');
+    } finally {
+      setChainDetailLoading(false);
+    }
+  };
+
+  const closeChainDetail = () => {
+    setChainDetail(null);
   };
 
   const handlePublishBom = async (serviceTemplateId: number) => {
@@ -818,6 +1101,283 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
     </Dialog>
   );
 
+  const renderLinkProductDialog = () => (
+    <Dialog open={Boolean(linkingTemplate)} onOpenChange={(open) => {
+      if (!open && !linkProductSubmitting) closeLinkProductDialog();
+    }}>
+      <DialogContent className="max-h-[86vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>映射已有本地产品</DialogTitle>
+          <DialogDescription>
+            建立标准品与门店本地 SKU 的来源关系，不会改库存数量和价格。
+          </DialogDescription>
+        </DialogHeader>
+        {linkingTemplate && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+              <div className="text-sm text-gray-500">行业标准品</div>
+              <div className="mt-1 font-medium text-gray-900">{linkingTemplate.name}</div>
+              <div className="mt-1 text-xs text-gray-500">{linkingTemplate.standardProductCode}</div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={linkProductKeyword}
+                onChange={(event) => setLinkProductKeyword(event.target.value)}
+                placeholder="搜索本地产品名称或 SKU"
+                className="w-80"
+              />
+              <Button variant="outline" className="gap-2" onClick={() => loadLinkProductOptions()} disabled={linkProductsLoading}>
+                {linkProductsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                搜索
+              </Button>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">选择</TableHead>
+                  <TableHead>本地产品</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>规格</TableHead>
+                  <TableHead>包装</TableHead>
+                  <TableHead>供应商</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {linkProductOptions.map((product) => (
+                  <TableRow key={product.id} className={selectedLinkProductId === product.id ? 'bg-blue-50' : undefined}>
+                    <TableCell>
+                      <input
+                        type="radio"
+                        checked={selectedLinkProductId === product.id}
+                        onChange={() => setSelectedLinkProductId(product.id)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{product.name}</div>
+                      <div className="text-xs text-gray-500">{product.categoryName || '-'}</div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-gray-600">{product.sku}</TableCell>
+                    <TableCell>{product.spec || '-'}</TableCell>
+                    <TableCell>{product.packageUnit || '-'}</TableCell>
+                    <TableCell>{product.supplier || '-'}</TableCell>
+                  </TableRow>
+                ))}
+                {!linkProductOptions.length && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-gray-500">
+                      {linkProductsLoading ? '加载中...' : '暂无可选本地产品'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
+              <Button variant="outline" onClick={closeLinkProductDialog} disabled={linkProductSubmitting}>
+                取消
+              </Button>
+              <Button onClick={handleLinkProduct} disabled={linkProductSubmitting || !selectedLinkProductId} className="gap-2">
+                {linkProductSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                确认映射
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  const renderSupplyMappingDialog = () => (
+    <Dialog open={supplyMappingDialogOpen} onOpenChange={(open) => {
+      if (!open && !saving) closeSupplyMappingDialog();
+    }}>
+      <DialogContent className="max-h-[86vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{supplyMappingDraft.id ? '编辑供应链目录映射' : '新增供应链目录映射'}</DialogTitle>
+          <DialogDescription>
+            绑定标准品/本地产品与已审核通过的供应商 SKU，设置首选后同店同商品其它映射会自动取消首选。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="标准品">
+            <select
+              className={inputClass}
+              value={supplyMappingDraft.standardProductTemplateId}
+              onChange={(event) => updateSupplyMappingDraft('standardProductTemplateId', event.target.value)}
+            >
+              <option value="">不绑定标准品</option>
+              {products.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}（{item.standardProductCode}）
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="本地产品">
+            <select
+              className={inputClass}
+              value={supplyMappingDraft.productId}
+              onChange={(event) => updateSupplyMappingDraft('productId', event.target.value)}
+            >
+              <option value="">不绑定本地产品</option>
+              {localProducts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}（{item.sku}）
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="供应链 SKU" required>
+            <select
+              className={inputClass}
+              value={supplyMappingDraft.supplySkuId}
+              onChange={(event) => updateSupplyMappingDraft('supplySkuId', event.target.value)}
+            >
+              <option value="">请选择已审核 SKU</option>
+              {supplySkus.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.supplier?.name || `供应商 #${item.supplierId}`}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="映射状态">
+            <select
+              className={inputClass}
+              value={supplyMappingDraft.mappingStatus}
+              onChange={(event) => updateSupplyMappingDraft('mappingStatus', event.target.value)}
+            >
+              <option value="active">启用</option>
+              <option value="disabled">停用</option>
+            </select>
+          </Field>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={supplyMappingDraft.isPreferred}
+              onChange={(event) => updateSupplyMappingDraft('isPreferred', event.target.checked)}
+            />
+            设为该门店商品的首选供货 SKU
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
+          <Button variant="outline" onClick={closeSupplyMappingDialog} disabled={saving}>
+            取消
+          </Button>
+          <Button onClick={handleSaveSupplyMapping} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            保存映射
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const renderChainDetailDialog = () => (
+    <Dialog open={Boolean(chainDetail)} onOpenChange={(open) => {
+      if (!open) closeChainDetail();
+    }}>
+      <DialogContent className="max-h-[86vh] max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>标准品链路明细</DialogTitle>
+          <DialogDescription>
+            只读展示该标准品从行业模板到本地库存、采购履约和销售扣耗的业务证据。
+          </DialogDescription>
+        </DialogHeader>
+        {chainDetail ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+              <div className="text-sm text-gray-500">行业标准品</div>
+              <div className="mt-1 font-medium text-gray-900">{chainDetail.item.name}</div>
+              <div className="mt-1 text-xs text-gray-500">{chainDetail.item.standardProductCode}</div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              {Object.entries(chainStepLabels).map(([key, label]) => (
+                <div key={key} className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                  <div className="text-xs text-gray-500">{label}</div>
+                  <div className="mt-2">{statusBadge(chainDetail.item.statuses[key as keyof typeof chainDetail.item.statuses])}</div>
+                </div>
+              ))}
+            </div>
+
+            {chainDetail.item.blockers.length ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="font-medium">当前断点</div>
+                <div className="mt-1">{chainDetail.item.blockers.join('；')}</div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">本地产品</div>
+                <div className="mt-2 text-sm text-gray-600">
+                  {chainDetail.localProduct
+                    ? `${chainDetail.localProduct.name}（${chainDetail.localProduct.sku}），当前库存 ${chainDetail.localProduct.currentStock}`
+                    : '暂无有效本地产品'}
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">业务计数</div>
+                <div className="mt-2 text-sm text-gray-600">
+                  标准 BOM {chainDetail.item.counters.industryBomItemCount}，门店 BOM {chainDetail.item.counters.localBomItemCount}，
+                  库存流水 {chainDetail.item.counters.stockMovementCount}，采购单 {chainDetail.item.counters.procurementOrderCount}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">最近库存流水</div>
+                <div className="mt-2 space-y-1 text-sm text-gray-600">
+                  {chainDetail.stockMovements.slice(0, 5).map((row: any) => (
+                    <div key={row.id}>
+                      {row.movementType} · {Number(row.quantity ?? 0)} {row.unit || ''} · {formatChainDate(row.occurredAt)}
+                    </div>
+                  ))}
+                  {!chainDetail.stockMovements.length ? <div>暂无库存流水</div> : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">最近采购履约</div>
+                <div className="mt-2 space-y-1 text-sm text-gray-600">
+                  {chainDetail.procurementItems.slice(0, 5).map((row: any) => (
+                    <div key={row.id}>
+                      {row.order?.orderNo || `采购项 #${row.id}`} · {row.order?.status || '-'} · 收货 {Number(row.receivedQty ?? 0)}/{Number(row.quantity ?? 0)}
+                    </div>
+                  ))}
+                  {!chainDetail.procurementItems.length ? <div>暂无采购履约记录</div> : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">供应链映射</div>
+                <div className="mt-2 space-y-1 text-sm text-gray-600">
+                  {chainDetail.supplyMappings.slice(0, 5).map((row: any) => (
+                    <div key={row.id}>
+                      {row.supplySku?.name || `SKU #${row.supplySkuId}`} · {row.supplySku?.supplier?.name || '-'} · {row.mappingStatus}
+                    </div>
+                  ))}
+                  {!chainDetail.supplyMappings.length ? <div>暂无供应链映射</div> : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">销售与扣耗</div>
+                <div className="mt-2 text-sm text-gray-600">
+                  商品销售明细 {chainDetail.item.counters.productOrderItemCount} 条，服务扣耗流水 {chainDetail.item.counters.serviceConsumptionCount} 条。
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
@@ -825,7 +1385,7 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">行业数据平台</h1>
             <p className="mt-1 text-sm text-gray-500">
-              维护可被 Ami_Core 采用的服务项目、标准 BOM、标准商品/耗品、薪酬和知识库。首期不接真实供应商报价。
+              维护可被 Ami_Core 采用的服务项目、标准 BOM、标准商品/耗品、薪酬、知识库和供应链映射。
             </p>
           </div>
           <Button variant="outline" className="gap-2" onClick={loadData} disabled={loading}>
@@ -858,17 +1418,21 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
       </div>
 
       {renderEditorDialog()}
+      {renderLinkProductDialog()}
+      {renderSupplyMappingDialog()}
+      {renderChainDetailDialog()}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as IndustryTab)} className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-gray-100 p-1 md:grid-cols-4 lg:grid-cols-8">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-gray-100 p-1 md:grid-cols-4 lg:grid-cols-9">
           <TabsTrigger value="services">服务模板</TabsTrigger>
           <TabsTrigger value="products">标准品</TabsTrigger>
+          <TabsTrigger value="chain">链路总览</TabsTrigger>
           <TabsTrigger value="bom">项目 BOM</TabsTrigger>
           <TabsTrigger value="knowledge">知识库</TabsTrigger>
           <TabsTrigger value="salary">薪酬</TabsTrigger>
           <TabsTrigger value="sources">数据源</TabsTrigger>
           <TabsTrigger value="adoptions">采用记录</TabsTrigger>
-          <TabsTrigger value="supply">供应链预留</TabsTrigger>
+          <TabsTrigger value="supply">供应链映射</TabsTrigger>
         </TabsList>
 
         <TabsContent value="services" className="space-y-4">
@@ -926,17 +1490,58 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
         <TabsContent value="products" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {sectionTitle(Package, '标准商品/耗品', '标准品只做行业配置，不绑定供应商 SKU 和实时报价。')}
-            <Button className="gap-2" onClick={() => openProductEditor()}>
-              <Plus className="h-4 w-4" />
-              新增标准品
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" onClick={handleBatchAdoptProducts} disabled={batchAdopting || !selectedProductTemplateIds.length}>
+                {batchAdopting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                批量采用
+              </Button>
+              <Button className="gap-2" onClick={() => openProductEditor()}>
+                <Plus className="h-4 w-4" />
+                新增标准品
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-6">
+            {[
+              ['标准品总数', productCoverage?.total ?? 0],
+              ['已发布', productCoverage?.published ?? 0],
+              ['已采用', productCoverage?.adopted ?? 0],
+              ['未采用', productCoverage?.unadopted ?? 0],
+              ['采用失效', productCoverage?.invalid ?? 0],
+              ['可采购', productCoverage?.available ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-xl font-semibold text-gray-900">{value}</div>
+                <div className="mt-1 text-xs text-gray-500">{label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <select className={inputClass} value={adoptionStatusFilter} onChange={(event) => setAdoptionStatusFilter(event.target.value)}>
+              <option value="">全部采用状态</option>
+              <option value="unadopted">未采用</option>
+              <option value="adopted">已采用</option>
+              <option value="invalid">失效采用</option>
+              <option value="unmapped_supply">未映射供应链</option>
+              <option value="available">可采购</option>
+            </select>
+            <span className="text-sm text-gray-500">已选择 {selectedProductTemplateIds.length} 个标准品</span>
           </div>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    checked={products.length > 0 && selectedProductTemplateIds.length === products.length}
+                    onChange={(event) => toggleCurrentProductTemplatePage(event.target.checked)}
+                  />
+                </TableHead>
                 <TableHead>标准品</TableHead>
                 <TableHead>分类</TableHead>
                 <TableHead>规格/单位</TableHead>
+                <TableHead>采用状态</TableHead>
+                <TableHead>本地 SKU</TableHead>
                 <TableHead>参考成本</TableHead>
                 <TableHead>供应链映射</TableHead>
                 <TableHead>状态</TableHead>
@@ -947,13 +1552,25 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
               {products.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selectedProductTemplateIds.includes(item.id)}
+                      onChange={(event) => toggleProductTemplateSelection(item.id, event.target.checked)}
+                    />
+                  </TableCell>
+                  <TableCell>
                     <div className="font-medium">{item.name}</div>
                     <div className="text-xs text-gray-500">{item.standardProductCode}</div>
                   </TableCell>
                   <TableCell>{item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</TableCell>
                   <TableCell>{item.recommendedSpec || '-'} / {item.unit || '-'}</TableCell>
+                  <TableCell>{statusBadge(item.adoptionSummary?.status ?? 'unadopted')}</TableCell>
+                  <TableCell>
+                    <div className="text-sm text-gray-700">{item.adoptionSummary?.localProductName || '-'}</div>
+                    <div className="text-xs text-gray-500">{item.adoptionSummary?.localProductSku || ''}</div>
+                  </TableCell>
                   <TableCell>{formatMoneyRange(item.referenceCostMin, item.referenceCostMax)}</TableCell>
-                  <TableCell>{statusBadge(item.futureSupplyMappingStatus)}</TableCell>
+                  <TableCell>{statusBadge(item.supplySummary?.status ?? item.futureSupplyMappingStatus)}</TableCell>
                   <TableCell>{statusBadge(item.status)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -967,12 +1584,218 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
                           发布
                         </Button>
                       )}
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openLinkProductDialog(item)}>
+                        <Package className="h-4 w-4" />
+                        映射
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </TabsContent>
+
+        <TabsContent value="chain" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {sectionTitle(GitBranch, '标准品链路总览', '从行业标准品追踪到本地 SKU、BOM、库存、供应链采购和销售扣耗。')}
+            <Button variant="outline" className="gap-2" onClick={loadData} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              刷新链路
+            </Button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-6">
+            {[
+              ['标准品', chainOverview?.summary.total ?? 0],
+              ['已采用 SKU', chainOverview?.summary.adopted ?? 0],
+              ['BOM 已关联', chainOverview?.summary.bomLinked ?? 0],
+              ['库存有记录', chainOverview?.summary.inventoryReady ?? 0],
+              ['供应可采购', chainOverview?.summary.supplyAvailable ?? 0],
+              ['采购已收货', chainOverview?.summary.procurementReceived ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                <div className="text-xl font-semibold text-gray-900">{value}</div>
+                <div className="mt-1 text-xs text-gray-500">{label}</div>
+              </div>
+            ))}
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>标准品</TableHead>
+                <TableHead>本地 SKU</TableHead>
+                <TableHead>BOM</TableHead>
+                <TableHead>库存</TableHead>
+                <TableHead>供应链</TableHead>
+                <TableHead>采购履约</TableHead>
+                <TableHead>销售/扣耗</TableHead>
+                <TableHead>断点</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(chainOverview?.items ?? []).map((item) => (
+                <TableRow key={item.productTemplateId}>
+                  <TableCell>
+                    <div className="font-medium">{item.name}</div>
+                    <div className="text-xs text-gray-500">{item.standardProductCode}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {statusBadge(item.statuses.adoption)}
+                      <span className="text-xs text-gray-500">{item.adoption.localProductSku || '-'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {statusBadge(item.statuses.bom)}
+                      <span className="text-xs text-gray-500">
+                        标准 {item.counters.industryBomItemCount} / 门店 {item.counters.localBomItemCount}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {statusBadge(item.statuses.inventory)}
+                      <span className="text-xs text-gray-500">
+                        库存 {item.localProduct?.currentStock ?? '-'} / 流水 {item.counters.stockMovementCount}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {statusBadge(item.statuses.supply)}
+                      <span className="text-xs text-gray-500">
+                        映射 {item.counters.supplyMappingCount} / 报价 {item.counters.availableQuoteCount}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {statusBadge(item.statuses.procurement)}
+                      <span className="text-xs text-gray-500">
+                        单 {item.counters.procurementOrderCount} / 收 {item.counters.receivedQty}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {statusBadge(item.statuses.salesService)}
+                      <span className="text-xs text-gray-500">
+                        销售 {item.counters.productOrderItemCount} / 扣耗 {item.counters.serviceConsumptionCount}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-xs text-sm text-gray-700">{item.nextAction}</div>
+                    <div className="mt-1 text-xs text-gray-500">最近 {formatChainDate(item.latestActivityAt)}</div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => openChainDetail(item)} disabled={chainDetailLoading}>
+                      明细
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!chainOverview?.items?.length ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                    暂无链路数据。
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+          <div className="space-y-3">
+            {sectionTitle(FileText, '运营问题清单', '面向 Agent 和运营报表的只读证据表，直接回答链路缺口。')}
+            <div className="grid gap-3 md:grid-cols-5">
+              {[
+                ['未生成 SKU', chainOperationalReport?.summary.missingLocalSku ?? 0],
+                ['无供应链映射', chainOperationalReport?.summary.productsMissingSupplyMapping ?? 0],
+                ['BOM 无库存', chainOperationalReport?.summary.bomProductsWithoutStock ?? 0],
+                ['可平台采购低库存', chainOperationalReport?.summary.lowStockPlatformPurchasable ?? 0],
+                ['只能手工采购', chainOperationalReport?.summary.lowStockManualOnly ?? 0],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+                  <div className="text-xl font-semibold text-gray-900">{value}</div>
+                  <div className="mt-1 text-xs text-gray-500">{label}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-3 xl:grid-cols-2">
+              <div className="rounded-lg border border-gray-100 bg-white p-4">
+                <div className="text-sm font-medium text-gray-900">未生成本地 SKU 的标准品</div>
+                <div className="mt-3 space-y-2">
+                  {(chainOperationalReport?.missingLocalSku ?? []).slice(0, 6).map((item) => (
+                    <div key={item.productTemplateId} className="flex items-start justify-between gap-3 border-b border-gray-50 pb-2 text-sm last:border-b-0">
+                      <div>
+                        <div className="font-medium text-gray-800">{item.name}</div>
+                        <div className="text-xs text-gray-500">{item.standardProductCode}</div>
+                      </div>
+                      <span className="max-w-48 text-right text-xs text-gray-500">{item.nextAction}</span>
+                    </div>
+                  ))}
+                  {!chainOperationalReport?.missingLocalSku?.length ? <div className="text-sm text-gray-500">暂无。</div> : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-white p-4">
+                <div className="text-sm font-medium text-gray-900">无供应链映射的本地产品</div>
+                <div className="mt-3 space-y-2">
+                  {(chainOperationalReport?.productsMissingSupplyMapping ?? []).slice(0, 6).map((item) => (
+                    <div key={item.productId} className="flex items-start justify-between gap-3 border-b border-gray-50 pb-2 text-sm last:border-b-0">
+                      <div>
+                        <div className="font-medium text-gray-800">{item.name}</div>
+                        <div className="text-xs text-gray-500">{item.sku}</div>
+                      </div>
+                      <span className="text-xs text-gray-500">库存 {item.currentStock} / 安全 {item.safetyStock}</span>
+                    </div>
+                  ))}
+                  {!chainOperationalReport?.productsMissingSupplyMapping?.length ? <div className="text-sm text-gray-500">暂无。</div> : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-white p-4">
+                <div className="text-sm font-medium text-gray-900">BOM 无库存耗材</div>
+                <div className="mt-3 space-y-2">
+                  {(chainOperationalReport?.bomProductsWithoutStock ?? []).slice(0, 6).map((item) => (
+                    <div key={item.bomItemId} className="flex items-start justify-between gap-3 border-b border-gray-50 pb-2 text-sm last:border-b-0">
+                      <div>
+                        <div className="font-medium text-gray-800">{item.productName}</div>
+                        <div className="text-xs text-gray-500">{item.projectName}</div>
+                      </div>
+                      <span className="text-xs text-gray-500">库存 {item.currentStock}，用量 {item.standardQty}{item.unit}</span>
+                    </div>
+                  ))}
+                  {!chainOperationalReport?.bomProductsWithoutStock?.length ? <div className="text-sm text-gray-500">暂无。</div> : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-white p-4">
+                <div className="text-sm font-medium text-gray-900">低库存采购分流</div>
+                <div className="mt-3 space-y-2">
+                  {(chainOperationalReport?.lowStockPlatformPurchasable ?? []).slice(0, 3).map((item) => (
+                    <div key={`platform-${item.productId}`} className="flex items-start justify-between gap-3 border-b border-gray-50 pb-2 text-sm">
+                      <div>
+                        <div className="font-medium text-gray-800">{item.name}</div>
+                        <div className="text-xs text-gray-500">{item.supplierName} · ¥{item.price.toFixed(2)}</div>
+                      </div>
+                      {statusBadge('ready_no_order')}
+                    </div>
+                  ))}
+                  {(chainOperationalReport?.lowStockManualOnly ?? []).slice(0, 3).map((item) => (
+                    <div key={`manual-${item.productId}`} className="flex items-start justify-between gap-3 border-b border-gray-50 pb-2 text-sm last:border-b-0">
+                      <div>
+                        <div className="font-medium text-gray-800">{item.name}</div>
+                        <div className="text-xs text-gray-500">{item.sku}</div>
+                      </div>
+                      {statusBadge('manual_purchase')}
+                    </div>
+                  ))}
+                  {!(chainOperationalReport?.lowStockPlatformPurchasable?.length || chainOperationalReport?.lowStockManualOnly?.length) ? (
+                    <div className="text-sm text-gray-500">暂无低库存采购建议。</div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="bom" className="space-y-4">
@@ -1184,28 +2007,72 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
         </TabsContent>
 
         <TabsContent value="supply" className="space-y-4">
-          {sectionTitle(Package, '供应链预留映射', '首期只保留未来映射键，不展示真实供应商、SKU、报价和库存。')}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {sectionTitle(Link2, '供应链目录映射', '维护标准品、本地产品与供应商 SKU 的真实映射，供采购建议和平台采购单使用。')}
+            <Button className="gap-2" onClick={() => openSupplyMappingDialog()}>
+              <Plus className="h-4 w-4" />
+              新增映射
+            </Button>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>标准品</TableHead>
-                <TableHead>供应链类目</TableHead>
-                <TableHead>规格映射键</TableHead>
+                <TableHead>本地产品</TableHead>
+                <TableHead>供应商 SKU</TableHead>
+                <TableHead>报价</TableHead>
                 <TableHead>状态</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((item) => (
+              {supplyMappings.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
-                    <div className="font-medium">{item.name}</div>
-                    <div className="text-xs text-gray-500">{item.standardProductCode}</div>
+                    <div className="font-medium">{item.industryProductTemplate?.name || '-'}</div>
+                    <div className="text-xs text-gray-500">{item.industryProductTemplate?.standardProductCode || '-'}</div>
                   </TableCell>
-                  <TableCell>{item.supplyCategoryCode || '-'}</TableCell>
-                  <TableCell>{item.preferredSpecKey || '-'}</TableCell>
-                  <TableCell>{statusBadge(item.futureSupplyMappingStatus)}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{item.product?.name || '-'}</div>
+                    <div className="text-xs text-gray-500">
+                      {item.product?.sku || '-'}{item.product?.store?.name ? ` · ${item.product.store.name}` : ''}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{item.supplySku?.name || `SKU #${item.supplySkuId}`}</div>
+                    <div className="text-xs text-gray-500">{item.supplySku?.supplier?.name || '-'}</div>
+                  </TableCell>
+                  <TableCell>
+                    {item.latestQuote ? (
+                      <div>
+                        <div className="font-medium">¥{item.latestQuote.price.toFixed(2)}</div>
+                        <div className="text-xs text-gray-500">MOQ {item.latestQuote.moq} · {item.latestQuote.leadDays ?? '-'} 天</div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-500">暂无报价</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {statusBadge(item.mappingStatus)}
+                      {statusBadge(item.purchasableStatus)}
+                      {item.isPreferred ? <Badge variant="default">首选</Badge> : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => openSupplyMappingDialog(item)}>
+                      编辑
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
+              {!supplyMappings.length ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-gray-500">
+                    暂无供应链目录映射。当前商品还不能从采购建议直接生成平台采购单。
+                  </TableCell>
+                </TableRow>
+              ) : null}
             </TableBody>
           </Table>
         </TabsContent>
@@ -1220,6 +2087,10 @@ export function IndustryServiceTemplates() {
 
 export function IndustryProductTemplates() {
   return <IndustryDataPlatform defaultTab="products" />;
+}
+
+export function IndustryProductChainOverview() {
+  return <IndustryDataPlatform defaultTab="chain" />;
 }
 
 export function IndustryBomTemplates() {

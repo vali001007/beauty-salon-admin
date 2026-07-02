@@ -41,7 +41,7 @@ function toBomDraftItem(item: BOMItem, products: Product[]): BomDraftItem {
     productName: item.productName,
     sku: item.sku,
     standardQty: Number(item.standardQty || 1),
-    unit: item.unit || matchedProduct?.unit || '',
+    unit: item.unit || matchedProduct?.specUnit || '',
     unitCost: Number(item.costPrice ?? matchedProduct?.costPrice ?? 0),
   };
 }
@@ -118,7 +118,7 @@ function toBomDraftItemFromIndustryTemplate(item: IndustryProjectBomItemTemplate
     productName: matchedProduct?.name ?? template?.name ?? `标准耗材 #${item.productTemplateId}`,
     sku: matchedProduct?.sku ?? template?.standardProductCode ?? '',
     standardQty: Number(item.standardQty || 1),
-    unit: item.unit || matchedProduct?.unit || template?.unit || '件',
+    unit: item.unit || matchedProduct?.specUnit || template?.unit || '件',
     unitCost: Number(matchedProduct?.costPrice ?? referenceCost),
   };
 }
@@ -280,7 +280,7 @@ export function ServiceConsumption() {
       productId,
       productName: product?.name ?? '',
       sku: product?.sku ?? '',
-      unit: product?.unit ?? '',
+      unit: product?.specUnit ?? '',
       unitCost: Number(product?.costPrice ?? 0),
     });
   };

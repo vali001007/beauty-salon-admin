@@ -1,5 +1,7 @@
 import { Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import { CurrentDevice } from '../terminal/decorators/current-device.decorator.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -215,10 +217,19 @@ export class AgentController {
     @CurrentDevice() device: any,
     @Query('capabilityId') capabilityId?: string,
     @Query('q') query?: string,
+    @Query('personaCode') personaCode?: string,
+    @Query('riskLevel') riskLevel?: string,
+    @Query('domain') domain?: string,
   ) {
+    const normalizedPersona = personaCode?.trim();
+    const normalizedRisk = riskLevel?.trim();
+    const normalizedDomain = domain?.trim().toLowerCase();
     const capabilities = this.capabilityCatalog
       .list()
-      .filter((item) => !capabilityId || item.capabilityId === capabilityId || item.businessQueryCapabilityId === capabilityId);
+      .filter((item) => !capabilityId || item.capabilityId === capabilityId || item.businessQueryCapabilityId === capabilityId)
+      .filter((item) => !normalizedPersona || item.personaCodes.includes(normalizedPersona as any))
+      .filter((item) => !normalizedRisk || item.riskLevel === normalizedRisk)
+      .filter((item) => !normalizedDomain || this.stringifyJson([item.displayName, item.description, item.objectTypes, item.actions]).toLowerCase().includes(normalizedDomain));
     const nodes = this.schemaGraph.listNodes();
     const evalReport = readKnowledgeMapEvalReport();
     const filteredFailures = (evalReport?.failures ?? []).filter((item) =>
@@ -278,9 +289,97 @@ export class AgentController {
             improvementBacklog: filteredBacklog.slice(0, 20),
           }
         : null,
+      knowledgeReports: this.readKnowledgeGovernanceReports({ personaCode: normalizedPersona, riskLevel: normalizedRisk, domain: normalizedDomain }),
       entityDebug,
       legacyRules: await this.buildLegacyRuleGovernance(),
     };
+  }
+
+  private readKnowledgeGovernanceReports(filters: { personaCode?: string; riskLevel?: string; domain?: string }) {
+    const docsDir = this.resolveKnowledgeDocsDir();
+    const scan = this.readJsonReport(resolve(docsDir, 'agent-knowledge-scan-report.json'));
+    const daily = this.readJsonReport(resolve(docsDir, 'agent-knowledge-daily-governance-report.json'));
+    const weekly = this.readJsonReport(resolve(docsDir, 'agent-knowledge-weekly-governance-report.json'));
+    return {
+      scan: scan
+        ? {
+            generatedAt: scan.generatedAt ?? null,
+            gate: scan.gate ?? null,
+            schema: {
+              schemaModelCount: scan.schema?.schemaModelCount ?? 0,
+              generatedModelCount: scan.schema?.generatedModelCount ?? 0,
+              missingBusinessObjectMappings: this.asArray(scan.schema?.missingBusinessObjectMappings).slice(0, 30),
+              missingDisplayNames: this.asArray(scan.schema?.missingDisplayNames).slice(0, 30),
+            },
+            api: {
+              endpoints: this.asArray(scan.api?.endpoints).length,
+              dtoFieldCandidates: this.asArray(scan.api?.dtoFieldCandidates).length,
+              realApiMethods: this.asArray(scan.api?.realApiMethods).length,
+            },
+            frontend: {
+              routes: this.filterReportItems(this.asArray(scan.frontend?.routes), filters).slice(0, 30),
+            },
+            agent: {
+              missingSkillMappings: this.asArray(scan.agent?.missingSkillMappings).slice(0, 50),
+              missingEvalCases: this.asArray(scan.agent?.missingEvalCases).slice(0, 50),
+              missingExecutionMappings: this.asArray(scan.agent?.missingExecutionMappings),
+              missingToolRegistryMappings: this.asArray(scan.agent?.missingToolRegistryMappings),
+            },
+          }
+        : null,
+      daily: this.toGovernanceReportSummary(daily, 'agent-knowledge-daily-governance-report.md', filters),
+      weekly: this.toGovernanceReportSummary(weekly, 'agent-knowledge-weekly-governance-report.md', filters),
+    };
+  }
+
+  private toGovernanceReportSummary(report: any, markdownFile: string, filters: { personaCode?: string; riskLevel?: string; domain?: string }) {
+    if (!report) return null;
+    const markdownPath = resolve(this.resolveKnowledgeDocsDir(), markdownFile);
+    return {
+      generatedAt: report.generatedAt ?? null,
+      mode: report.mode ?? null,
+      summary: report.summary ?? null,
+      businessDictionaryCandidates: this.filterReportItems(this.asArray(report.businessDictionaryCandidates), filters).slice(0, 30),
+      agentCapabilityGaps: this.filterReportItems(this.asArray(report.agentCapabilityGaps), filters).slice(0, 30),
+      evalFailureTop: this.filterReportItems(this.asArray(report.evalFailureTop), filters).slice(0, 20),
+      legacyFallback: report.legacyFallback ?? null,
+      reviewChecklist: this.asArray(report.reviewChecklist).slice(0, 20),
+      markdownPath: `docs/04-测试数据/${markdownFile}`,
+      markdownContent: this.readTextReport(markdownPath),
+    };
+  }
+
+  private resolveKnowledgeDocsDir() {
+    const candidates = [resolve(process.cwd(), '../../docs/04-测试数据'), resolve(process.cwd(), 'docs/04-测试数据')];
+    return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+  }
+
+  private filterReportItems<T>(items: T[], filters: { personaCode?: string; riskLevel?: string; domain?: string }): T[] {
+    return items.filter((item: any) => {
+      const text = this.stringifyJson(item).toLowerCase();
+      if (filters.personaCode && !text.includes(filters.personaCode.toLowerCase())) return false;
+      if (filters.riskLevel && item?.priority !== filters.riskLevel && item?.riskLevel !== filters.riskLevel && !text.includes(filters.riskLevel.toLowerCase())) return false;
+      if (filters.domain && !text.includes(filters.domain.toLowerCase())) return false;
+      return true;
+    });
+  }
+
+  private readJsonReport(path: string) {
+    try {
+      if (!existsSync(path)) return null;
+      return JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  private readTextReport(path: string) {
+    try {
+      if (!existsSync(path)) return null;
+      return readFileSync(path, 'utf8');
+    } catch {
+      return null;
+    }
   }
 
   // ─── Automation Engine ───────────────────────────────────────────────────
@@ -1047,6 +1146,10 @@ export class AgentController {
 
   private asObject(value: unknown): Record<string, any> | null {
     return typeof value === 'object' && value !== null ? (value as Record<string, any>) : null;
+  }
+
+  private asArray(value: unknown): any[] {
+    return Array.isArray(value) ? value : [];
   }
 
   private toJsonObject(value: Record<string, unknown>) {

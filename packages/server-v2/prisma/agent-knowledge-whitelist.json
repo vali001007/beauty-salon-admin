@@ -1,0 +1,47 @@
+{
+  "description": "Agent knowledge governance whitelist. Keep entries empty by default. Every entry must include kind, target, reason, and owner; optional expiresAt is an ISO date.",
+  "entries": [
+    {
+      "kind": "business_object_mapping",
+      "target": "AgentDefinition",
+      "reason": "Agent 治理内部定义对象，仅供系统管理员和研发审计使用，不进入门店经营问答。",
+      "owner": "agent-governance"
+    },
+    {
+      "kind": "business_object_mapping",
+      "target": "AgentEvalCase",
+      "reason": "Agent 评测内部对象，用于回归治理，不作为门店用户可查询业务对象。",
+      "owner": "agent-governance"
+    },
+    {
+      "kind": "business_object_mapping",
+      "target": "AgentPersona",
+      "reason": "Agent persona 配置对象，仅用于路由和治理台配置，不进入普通业务问答。",
+      "owner": "agent-governance"
+    },
+    {
+      "kind": "business_object_mapping",
+      "target": "IndustryDataSource",
+      "reason": "行业数据源配置对象，属于后台治理配置，不直接暴露给门店业务 Agent。",
+      "owner": "agent-governance"
+    },
+    {
+      "kind": "business_object_mapping",
+      "target": "RefreshToken",
+      "reason": "认证令牌对象，包含敏感登录态，必须保持 internalOnly，不允许进入 Agent 业务查询。",
+      "owner": "security"
+    },
+    {
+      "kind": "business_object_mapping",
+      "target": "Role",
+      "reason": "权限角色配置对象，只允许系统管理视角查看，不进入门店经营问答。",
+      "owner": "security"
+    },
+    {
+      "kind": "business_object_mapping",
+      "target": "UserRole",
+      "reason": "用户角色关联对象，只作为权限校验证据，不进入普通业务查询候选。",
+      "owner": "security"
+    }
+  ]
+}

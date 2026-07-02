@@ -7,6 +7,7 @@ describe('AgentToolRegistryService', () => {
   let inventoryService: jest.Mocked<any>;
   let terminalService: jest.Mocked<any>;
   let smartSchedulingService: jest.Mocked<any>;
+  let industryService: jest.Mocked<any>;
   let service: AgentToolRegistryService;
 
   beforeEach(() => {
@@ -65,6 +66,9 @@ describe('AgentToolRegistryService', () => {
     smartSchedulingService = {
       preview: jest.fn(),
     };
+    industryService = {
+      productTemplateChainOperationalReport: jest.fn(),
+    };
     service = new AgentToolRegistryService(
       prisma,
       businessQueryService,
@@ -72,6 +76,7 @@ describe('AgentToolRegistryService', () => {
       inventoryService,
       terminalService,
       smartSchedulingService,
+      industryService,
     );
   });
 
@@ -93,6 +98,7 @@ describe('AgentToolRegistryService', () => {
         'inventory.product.metadata.suggest',
         'inventory.consumption.trend',
         'inventory.project.bom.risk',
+        'industry.chain.operational.report',
         'inventory.transfer.suggestion',
         'inventory.expiring.clearance.draft',
         'supplier.purchase.link',
@@ -135,6 +141,7 @@ describe('AgentToolRegistryService', () => {
     expect(service.list().find((tool) => tool.name === 'finance.report.draft')?.consumedSlots).toEqual(['timeRange']);
     expect(service.list().find((tool) => tool.name === 'product.sales.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
     expect(service.list().find((tool) => tool.name === 'inventory.risk.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
+    expect(service.list().find((tool) => tool.name === 'industry.chain.operational.report')?.consumedSlots).toEqual(['limit']);
     expect(service.list().find((tool) => tool.name === 'staff.performance.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
     for (const toolName of [
       'schedule.diagnose',
@@ -195,6 +202,56 @@ describe('AgentToolRegistryService', () => {
     expect(prisma.product.findMany).not.toHaveBeenCalled();
     expect(prisma.stockBatch.findMany).not.toHaveBeenCalled();
     expect(prisma.orderItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns industry chain operational report with evidence and handling actions', async () => {
+    industryService.productTemplateChainOperationalReport.mockResolvedValue({
+      storeId: 6,
+      generatedAt: '2026-07-02T12:00:00.000Z',
+      summary: {
+        publishedTemplates: 34,
+        validAdoptions: 9,
+        missingLocalSku: 25,
+        activeProducts: 45,
+        productsMissingSupplyMapping: 45,
+        bomProductsWithoutStock: 13,
+        lowStockProducts: 0,
+        lowStockPlatformPurchasable: 0,
+        lowStockManualOnly: 0,
+      },
+      missingLocalSku: [{ productTemplateId: 1, name: '标准精华', nextAction: '批量采用' }],
+      productsMissingSupplyMapping: [{ productId: 10, name: '玻尿酸保湿精华', sku: 'SKU-001' }],
+      bomProductsWithoutStock: [{ bomItemId: 20, projectName: '补水护理', productName: '棉片', currentStock: 0 }],
+      lowStockPlatformPurchasable: [],
+      lowStockManualOnly: [],
+    });
+
+    const result = await service.execute(
+      'industry.chain.operational.report',
+      { question: '哪些标准品还没有本地 SKU，哪些产品没有供应链映射', limit: 5 },
+      { runId: 33, storeId: 6, userId: 7, role: 'manager' },
+    );
+
+    expect(industryService.productTemplateChainOperationalReport).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6, page: 1, pageSize: 50 }),
+      6,
+    );
+    expect(result).toMatchObject({
+      status: 'success',
+      title: '标准品到库存采购链路运营报表',
+      data: expect.objectContaining({
+        requestedLimit: 5,
+        totalIssueCount: 83,
+      }),
+      evidence: expect.objectContaining({
+        sourceTables: expect.arrayContaining(['IndustryProductTemplate', 'SupplyCatalogMapping', 'ProjectBomItem']),
+      }),
+      actions: expect.arrayContaining([
+        expect.objectContaining({ action: 'industry:product-template-chain:open' }),
+        expect.objectContaining({ action: 'industry:supply-mappings:open' }),
+      ]),
+    });
+    expect((result.data as any).items.missingLocalSku).toHaveLength(1);
   });
 
   it('ranks customer follow-up priorities with evidence without creating tasks', async () => {

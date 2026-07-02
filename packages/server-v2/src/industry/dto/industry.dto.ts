@@ -189,6 +189,12 @@ export class UpdateIndustryServiceTemplateDto extends PartialType(CreateIndustry
 export class QueryIndustryProductTemplatesDto extends IndustryPaginationDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  storeId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   category?: string;
 
@@ -201,6 +207,11 @@ export class QueryIndustryProductTemplatesDto extends IndustryPaginationDto {
   @IsOptional()
   @IsString()
   futureSupplyMappingStatus?: string;
+
+  @ApiPropertyOptional({ description: '按门店采用状态筛选：unadopted/adopted/invalid/unmapped_supply/available' })
+  @IsOptional()
+  @IsString()
+  adoptionStatus?: string;
 }
 
 export class CreateIndustryProductTemplateDto {
@@ -414,6 +425,22 @@ export class AdoptIndustryProductTemplateDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  specQuantity?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  specUnit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  packageUnit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   costPrice?: number;
 
   @ApiPropertyOptional()
@@ -433,6 +460,92 @@ export class AdoptIndustryProductTemplateDto {
   @Type(() => Number)
   @IsNumber()
   safetyStock?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  supplier?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  minPurchaseQty?: number;
+}
+
+export class BatchAdoptIndustryProductTemplatesDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  storeId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  adoptedByUserId?: number;
+
+  @ApiProperty({ type: [Number] })
+  @IsArray()
+  @Type(() => Number)
+  productTemplateIds: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryStrategy?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  defaultSafetyStock?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  defaultMinPurchaseQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  defaultSupplier?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  overwriteExisting?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
+}
+
+export class LinkIndustryProductTemplateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  storeId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  adoptedByUserId?: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  productId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }
 
 export class IndustryProductTemplateMappingDto {

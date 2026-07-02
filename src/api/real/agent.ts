@@ -181,6 +181,9 @@ export async function getAgentSchemaReadiness(): Promise<AgentSchemaReadiness> {
 export async function getAgentKnowledgeGovernance(params: {
   capabilityId?: string;
   q?: string;
+  personaCode?: string;
+  riskLevel?: string;
+  domain?: string;
 } = {}): Promise<AgentKnowledgeGovernance> {
   return apiClient.get('/agent/knowledge/governance', { params });
 }

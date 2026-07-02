@@ -73,7 +73,7 @@ async function createStockMovement(
       quantity: params.quantity,
       beforeStock: params.beforeStock,
       afterStock: params.afterStock,
-      unit: params.product.unit,
+      unit: params.product.specUnit ?? params.product.unit,
       sourceType: params.source.type,
       sourceId: params.source.id,
       sourceNo: params.source.no ?? undefined,

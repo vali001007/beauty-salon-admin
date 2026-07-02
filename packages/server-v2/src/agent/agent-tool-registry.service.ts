@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BusinessQueryService } from '../business-query/business-query.service.js';
+import { IndustryService } from '../industry/industry.service.js';
 import { MarketingService } from '../marketing/marketing.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { TerminalService } from '../terminal/terminal.service.js';
@@ -62,6 +63,7 @@ export class AgentToolRegistryService {
     private readonly inventoryService: InventoryService,
     private readonly terminalService: TerminalService,
     private readonly smartSchedulingService: SmartSchedulingService,
+    private readonly industryService: IndustryService,
   ) {
     this.register({
       name: 'customer.priority.rank',
@@ -259,6 +261,20 @@ export class AgentToolRegistryService {
       maxRows: 3000,
       timeoutMs: 10_000,
       execute: (args, context) => this.diagnoseProjectBomInventoryRisk(args, context),
+    });
+
+    this.register({
+      name: 'industry.chain.operational.report',
+      description: '查询行业标准品到本地 SKU、供应链映射、BOM 库存和采购承接的链路断点清单',
+      riskLevel: 'low',
+      allowedRoles: ['manager'],
+      requiredPermissions: ['core:industry:view', 'core:inventory:view'],
+      requiresApproval: false,
+      outputKinds: ['kpi', 'table', 'action_card', 'evidence_panel'],
+      consumedSlots: ['limit'],
+      maxRows: 2000,
+      timeoutMs: 10_000,
+      execute: (args, context) => this.getIndustryChainOperationalReport(args, context),
     });
 
     this.register({
@@ -2755,7 +2771,7 @@ export class AgentToolRegistryService {
     const products = productIds.length
       ? await (this.prisma as any).product.findMany({
           where: { id: { in: productIds }, storeId: context.storeId, deletedAt: null },
-          select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true },
+          select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true },
         })
       : [];
     const productById = new Map((products as any[]).map((item) => [Number(item.id), item]));
@@ -2897,7 +2913,7 @@ export class AgentToolRegistryService {
     const now = new Date();
     const products = await (this.prisma as any).product.findMany({
       where: { storeId: context.storeId, deletedAt: null },
-      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
+      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
       take: 1000,
     });
     const productIds = (products as any[]).map((product) => Number(product.id)).filter(Boolean);
@@ -2974,10 +2990,10 @@ export class AgentToolRegistryService {
               ? '生成补货采购草稿，确认在途库存和供应商交期后再执行。'
               : '保持常规巡检。';
         const reasonParts = [
-          stockGap > 0 ? `低于安全库存 ${this.formatQuantity(stockGap, product.unit)}` : '',
-          projectedGap14d > 0 ? `按近 30 天销量预计 14 天缺口 ${this.formatQuantity(projectedGap14d, product.unit)}` : '',
-          expiry.expiringStock > 0 ? `90 天内临期 ${this.formatQuantity(expiry.expiringStock, product.unit)}` : '',
-          sales.quantity > 0 ? `近 30 天销量 ${this.formatQuantity(sales.quantity, product.unit)}` : '',
+          stockGap > 0 ? `低于安全库存 ${this.formatQuantity(stockGap, product.specUnit ?? product.unit)}` : '',
+          projectedGap14d > 0 ? `按近 30 天销量预计 14 天缺口 ${this.formatQuantity(projectedGap14d, product.specUnit ?? product.unit)}` : '',
+          expiry.expiringStock > 0 ? `90 天内临期 ${this.formatQuantity(expiry.expiringStock, product.specUnit ?? product.unit)}` : '',
+          sales.quantity > 0 ? `近 30 天销量 ${this.formatQuantity(sales.quantity, product.specUnit ?? product.unit)}` : '',
         ].filter(Boolean);
         return {
           productId,
@@ -2985,7 +3001,7 @@ export class AgentToolRegistryService {
           sku: product.sku,
           currentStock,
           safetyStock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           status: product.status,
           stockGap,
           dailySales: Number(dailySales.toFixed(2)),
@@ -3086,7 +3102,7 @@ export class AgentToolRegistryService {
         occurredAt: { gte: range.start, lt: range.end },
         quantity: { lt: 0 },
       },
-      include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, costPrice: true } } },
+      include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, currentStock: true, safetyStock: true, costPrice: true } } },
       orderBy: { occurredAt: 'desc' },
       take: 3000,
     });
@@ -3100,7 +3116,7 @@ export class AgentToolRegistryService {
           productId,
           productName: movement.product?.name ?? `商品${productId}`,
           sku: movement.product?.sku,
-          unit: movement.product?.unit,
+          unit: movement.product?.specUnit ?? movement.product?.unit,
           currentStock: this.toNumber(movement.product?.currentStock),
           safetyStock: this.toNumber(movement.product?.safetyStock),
           costPrice: this.toNumber(movement.product?.costPrice),
@@ -3194,7 +3210,7 @@ export class AgentToolRegistryService {
     const projects = await (this.prisma as any).project.findMany({
       where: { storeId: context.storeId, deletedAt: null, status: { not: 'deleted' } },
       include: {
-        bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, costPrice: true } } } },
+        bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, currentStock: true, safetyStock: true, costPrice: true } } } },
       },
       take: 1000,
     });
@@ -3234,7 +3250,7 @@ export class AgentToolRegistryService {
             productId: product.id,
             productName: product.name,
             sku: product.sku,
-            unit: bom.unit ?? product.unit,
+            unit: bom.unit ?? product.specUnit ?? product.unit,
             standardQty,
             currentStock,
             safetyStock,
@@ -3242,7 +3258,7 @@ export class AgentToolRegistryService {
             projected14dNeed,
             shortage,
             riskScore,
-            reason: shortage > 0 ? `按项目服务量预计 14 天缺口 ${this.formatQuantity(shortage, bom.unit ?? product.unit)}` : belowSafety > 0 ? `低于安全库存 ${this.formatQuantity(belowSafety, bom.unit ?? product.unit)}` : '耗材保障正常',
+            reason: shortage > 0 ? `按项目服务量预计 14 天缺口 ${this.formatQuantity(shortage, bom.unit ?? product.specUnit ?? product.unit)}` : belowSafety > 0 ? `低于安全库存 ${this.formatQuantity(belowSafety, bom.unit ?? product.specUnit ?? product.unit)}` : '耗材保障正常',
           };
         });
         const missingBom = bomItems.length === 0;
@@ -3356,6 +3372,93 @@ export class AgentToolRegistryService {
     };
   }
 
+  private async getIndustryChainOperationalReport(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+    const report = await this.industryService.productTemplateChainOperationalReport(
+      { page: 1, pageSize: Math.max(limit, 50), storeId: context.storeId } as any,
+      context.storeId,
+    );
+    const summary = (report as any).summary ?? {};
+    const missingLocalSku = ((report as any).missingLocalSku ?? []).slice(0, limit);
+    const productsMissingSupplyMapping = ((report as any).productsMissingSupplyMapping ?? []).slice(0, limit);
+    const bomProductsWithoutStock = ((report as any).bomProductsWithoutStock ?? []).slice(0, limit);
+    const lowStockPlatformPurchasable = ((report as any).lowStockPlatformPurchasable ?? []).slice(0, limit);
+    const lowStockManualOnly = ((report as any).lowStockManualOnly ?? []).slice(0, limit);
+    const issueCount =
+      this.toNumber(summary.missingLocalSku) +
+      this.toNumber(summary.productsMissingSupplyMapping) +
+      this.toNumber(summary.bomProductsWithoutStock) +
+      this.toNumber(summary.lowStockPlatformPurchasable) +
+      this.toNumber(summary.lowStockManualOnly);
+    const topIssue =
+      this.toNumber(summary.missingLocalSku) > 0
+        ? `有 ${summary.missingLocalSku} 个标准品未生成有效本地 SKU`
+        : this.toNumber(summary.productsMissingSupplyMapping) > 0
+          ? `有 ${summary.productsMissingSupplyMapping} 个本地产品缺供应链映射`
+          : this.toNumber(summary.bomProductsWithoutStock) > 0
+            ? `有 ${summary.bomProductsWithoutStock} 个 BOM 耗材当前无库存`
+            : this.toNumber(summary.lowStockManualOnly) > 0
+              ? `有 ${summary.lowStockManualOnly} 个低库存商品只能手工采购`
+              : this.toNumber(summary.lowStockPlatformPurchasable) > 0
+                ? `有 ${summary.lowStockPlatformPurchasable} 个低库存商品可生成平台采购单`
+                : '当前标准品到库存采购链路没有明显断点';
+    const evidence: AgentEvidence = {
+      source: ['IndustryService.productTemplateChainOperationalReport'],
+      sourceTables: [
+        'IndustryProductTemplate',
+        'IndustryProductAdoption',
+        'Product',
+        'ProjectBomItem',
+        'SupplyCatalogMapping',
+        'SupplyQuote',
+        'ProcurementOrder',
+        'StockMovement',
+      ],
+      metricDefinition:
+        '行业标准品链路运营报表 = 已发布标准品到本地 SKU、供应链映射/报价、BOM 库存、低库存采购承接的断点清单；只读查询，不创建采购单、不改库存。',
+      filters: ['storeId=当前门店', 'IndustryProductTemplate.status=published', 'Product.deletedAt is null', `limit=${limit}`],
+      sampleSize:
+        missingLocalSku.length +
+        productsMissingSupplyMapping.length +
+        bomProductsWithoutStock.length +
+        lowStockPlatformPurchasable.length +
+        lowStockManualOnly.length,
+      limitations: ['低库存判断沿用当前安全库存规则；供应链可采购需存在 active/approved 且有效期内报价。'],
+    };
+
+    return {
+      status: issueCount > 0 ? 'success' : 'no_data',
+      title: '标准品到库存采购链路运营报表',
+      summary:
+        issueCount > 0
+          ? `${topIssue}；本地 SKU、供应链映射、BOM 库存和采购承接明细已输出证据表。`
+          : topIssue,
+      data: {
+        summary,
+        items: {
+          missingLocalSku,
+          productsMissingSupplyMapping,
+          bomProductsWithoutStock,
+          lowStockPlatformPurchasable,
+          lowStockManualOnly,
+        },
+        requestedLimit: limit,
+        totalIssueCount: issueCount,
+        generatedAt: (report as any).generatedAt,
+        consumedSlots: { limit },
+      },
+      evidence,
+      actions: [
+        { label: '查看链路总览', action: 'industry:product-template-chain:open', riskLevel: 'low' },
+        { label: '处理供应链映射', action: 'industry:supply-mappings:open', riskLevel: 'low' },
+        { label: '查看库存采购', action: 'inventory:purchase:open', riskLevel: 'low' },
+      ],
+    };
+  }
+
   private async createExpiringInventoryClearanceDraft(
     args: Record<string, unknown>,
     context: AgentToolExecutionContext,
@@ -3366,7 +3469,7 @@ export class AgentToolRegistryService {
     const end = new Date(now.getTime() + horizonDays * DAY_MS);
     const batches = await (this.prisma as any).stockBatch.findMany({
       where: { stock: { gt: 0 }, expiryDate: { gte: now, lte: end }, product: { storeId: context.storeId, deletedAt: null } },
-      include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, retailPrice: true, costPrice: true } } },
+      include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, currentStock: true, safetyStock: true, retailPrice: true, costPrice: true } } },
       orderBy: { expiryDate: 'asc' },
       take: 1000,
     });
@@ -3387,7 +3490,7 @@ export class AgentToolRegistryService {
           batchId: batch.id,
           batchNo: batch.batchNo,
           stock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           expiryDate: this.formatDate(new Date(batch.expiryDate)),
           daysToExpiry,
           retailPrice,
@@ -3443,7 +3546,7 @@ export class AgentToolRegistryService {
     const products = productNames.length
       ? await (this.prisma as any).product.findMany({
           where: { storeId: context.storeId, deletedAt: null, OR: productNames.map((name) => ({ name: { contains: name } })) },
-          select: { id: true, name: true, sku: true, unit: true, costPrice: true, shelfLife: true, safetyStock: true, brand: true, spec: true },
+          select: { id: true, name: true, sku: true, unit: true, specUnit: true, costPrice: true, shelfLife: true, safetyStock: true, brand: true, spec: true },
           take: 100,
         })
       : [];
@@ -3662,7 +3765,7 @@ export class AgentToolRegistryService {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
     const products = await (this.prisma as any).product.findMany({
       where: { storeId: context.storeId, deletedAt: null },
-      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, supplier: true, minPurchaseQty: true, unit: true },
+      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, supplier: true, minPurchaseQty: true, unit: true, specUnit: true },
       take: 1000,
     });
     const productIds = (products as any[]).map((product) => Number(product.id)).filter(Boolean);
@@ -3691,7 +3794,7 @@ export class AgentToolRegistryService {
           sku: product.sku,
           currentStock: this.toNumber(product.currentStock),
           safetyStock: this.toNumber(product.safetyStock),
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           suggestedQty,
           supplierName: primary?.supplier?.name ?? product.supplier ?? '未绑定供应商',
           supplierId: primary?.supplierId ?? null,
@@ -3756,7 +3859,7 @@ export class AgentToolRegistryService {
         safetyStock: true,
         retailPrice: true,
         costPrice: true,
-        unit: true,
+        unit: true, specUnit: true,
         status: true,
       },
       take: 1000,
@@ -3837,9 +3940,9 @@ export class AgentToolRegistryService {
                 ? '增长搭售'
                 : '会员权益';
         const reasonParts = [
-          currentStock > safetyStock ? `库存高于安全库存 ${this.formatQuantity(currentStock - safetyStock, product.unit)}` : '',
-          sales.quantity > 0 ? `近 30 天销售 ${this.formatQuantity(sales.quantity, product.unit)}` : '近 30 天销量较少',
-          expiry.expiringStock > 0 ? `90 天内临期库存 ${this.formatQuantity(expiry.expiringStock, product.unit)}` : '',
+          currentStock > safetyStock ? `库存高于安全库存 ${this.formatQuantity(currentStock - safetyStock, product.specUnit ?? product.unit)}` : '',
+          sales.quantity > 0 ? `近 30 天销售 ${this.formatQuantity(sales.quantity, product.specUnit ?? product.unit)}` : '近 30 天销量较少',
+          expiry.expiringStock > 0 ? `90 天内临期库存 ${this.formatQuantity(expiry.expiringStock, product.specUnit ?? product.unit)}` : '',
           retailPrice > costPrice ? `毛利率约 ${this.formatPercent(marginRate)}` : '',
         ].filter(Boolean);
         const riskWarnings = [
@@ -3855,7 +3958,7 @@ export class AgentToolRegistryService {
           fitScore,
           currentStock,
           safetyStock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           salesQuantity: sales.quantity,
           salesAmount: sales.amount,
           orderCount: sales.orderIds.size,
@@ -4140,7 +4243,7 @@ export class AgentToolRegistryService {
             id: true,
             name: true,
             duration: true,
-            bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true } } } },
+            bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true } } } },
           },
         },
         beautician: { select: { id: true, name: true } },
@@ -4351,7 +4454,7 @@ export class AgentToolRegistryService {
             id: true,
             name: true,
             duration: true,
-            bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true } } } },
+            bomItems: { include: { product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true } } } },
           },
         },
         beautician: { select: { id: true, name: true, status: true } },
@@ -4448,7 +4551,7 @@ export class AgentToolRegistryService {
           productId: item.productId,
           productName: item.product?.name,
           standardQty: this.toNumber(item.standardQty),
-          unit: item.unit ?? item.product?.unit,
+          unit: item.unit ?? item.product?.specUnit ?? item.product?.unit,
         })),
         recommendedSteps: [
           '服务前确认客户今日肤感、作息、近期是否有过敏或不适。',
@@ -4986,7 +5089,7 @@ export class AgentToolRegistryService {
         price: true,
         duration: true,
         status: true,
-        bomItems: { select: { standardQty: true, unit: true, product: { select: { id: true, name: true, costPrice: true, unit: true } } } },
+        bomItems: { select: { standardQty: true, unit: true, product: { select: { id: true, name: true, costPrice: true, unit: true, specUnit: true } } } },
       },
       take: 1000,
     });
@@ -6678,10 +6781,10 @@ export class AgentToolRegistryService {
     if (!productIds.length) return new Map<number, { name?: string; unit?: string; costPrice: number }>();
     const products = await (this.prisma as any).product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, name: true, unit: true, costPrice: true },
+      select: { id: true, name: true, unit: true, specUnit: true, costPrice: true },
       take: 3000,
     });
-    return new Map((products as any[]).map((product) => [Number(product.id), { name: product.name, unit: product.unit, costPrice: this.toNumber(product.costPrice) }]));
+    return new Map((products as any[]).map((product) => [Number(product.id), { name: product.name, unit: product.specUnit ?? product.unit, costPrice: this.toNumber(product.costPrice) }]));
   }
 
   private async resolveProjectUnitCostMap(...itemGroups: any[][]) {
@@ -6976,7 +7079,7 @@ export class AgentToolRegistryService {
       sku: item.product?.sku,
       standardQty: this.toNumber(item.standardQty),
       actualQty: this.toNumber(item.standardQty),
-      unit: item.unit ?? item.product?.unit,
+      unit: item.unit ?? item.product?.specUnit ?? item.product?.unit,
     }));
     const customerName = task.customer?.name ?? `客户${task.customerId}`;
     const projectName = task.project?.name ?? `项目${task.projectId}`;

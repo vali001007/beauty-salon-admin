@@ -19,7 +19,7 @@ const PRODUCT_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'sku', header: 'SKU编码', width: 18 },
   { key: 'brand', header: '品牌', width: 15 },
   { key: 'spec', header: '规格', width: 12 },
-  { key: 'unit', header: '单位', width: 8 },
+  { key: 'packageUnit', header: '包装', width: 8 },
   { key: 'costPrice', header: '成本价', width: 10 },
   { key: 'retailPrice', header: '零售价', width: 10 },
   { key: 'shelfLife', header: '保质期(天)', width: 12 },
@@ -31,7 +31,7 @@ const PRODUCT_IMPORT_COLUMNS: ExportColumn[] = [
   { key: 'name', header: '产品名称', width: 20 },
   { key: 'brand', header: '品牌', width: 15 },
   { key: 'spec', header: '规格', width: 12 },
-  { key: 'unit', header: '单位', width: 8 },
+  { key: 'packageUnit', header: '包装', width: 8 },
   { key: 'costPrice', header: '成本价', width: 10 },
   { key: 'retailPrice', header: '零售价', width: 10 },
   { key: 'shelfLife', header: '保质期(天)', width: 12 },
@@ -39,8 +39,49 @@ const PRODUCT_IMPORT_COLUMNS: ExportColumn[] = [
 ];
 
 const PRODUCT_IMPORT_SAMPLE = [
-  { name: '示例产品', brand: '示例品牌', spec: '30ml', unit: '瓶', costPrice: 100, retailPrice: 200, shelfLife: 730, supplier: '示例供应商' },
+  { name: '示例产品', brand: '示例品牌', spec: '30ml', packageUnit: '瓶', costPrice: 100, retailPrice: 200, shelfLife: 730, supplier: '示例供应商' },
 ];
+
+const SPEC_UNIT_OPTIONS = ['ml', 'g', '片', '支', '个', '套', '包'];
+
+function parseProductSpec(spec?: string | null) {
+  const value = String(spec ?? '').trim();
+  const match = value.match(/^(\d+(?:\.\d+)?)\s*([^\d\s/]+)(?:\/.*)?$/);
+  if (!match) {
+    return { specQuantity: 1, specUnit: value || 'ml' };
+  }
+  return { specQuantity: Number(match[1]), specUnit: match[2] || 'ml' };
+}
+
+function formatSpecQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(/\.?0+$/, '');
+}
+
+function buildProductSpec(quantity: number, unit: string) {
+  return `${formatSpecQuantity(quantity)}${unit.trim()}`;
+}
+
+function getIndustrySourceLabel(product: Product) {
+  const source = product.industrySource;
+  if (!source) return { text: '手工创建', className: 'bg-gray-100 text-gray-600' };
+  if (source.adoptionStatus && source.adoptionStatus !== 'active') {
+    return { text: '映射失效', className: 'bg-red-100 text-red-700' };
+  }
+  return { text: '行业标准品', className: 'bg-blue-100 text-blue-700' };
+}
+
+function getSupplyMappingLabel(product: Product) {
+  const status = product.supplyMapping?.availabilityStatus ?? 'not_mapped';
+  if (status === 'available') return { text: '可采购', className: 'bg-green-100 text-green-700' };
+  if (status === 'mapped_no_quote') return { text: '报价缺失', className: 'bg-amber-100 text-amber-700' };
+  if (status === 'quote_unavailable') return { text: '报价不可用', className: 'bg-orange-100 text-orange-700' };
+  return { text: '未映射', className: 'bg-gray-100 text-gray-600' };
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  return new Date(value).toISOString().slice(0, 10);
+}
 
 function formatMoneyRange(min?: number | null, max?: number | null) {
   if (min == null && max == null) return '未配置';
@@ -81,7 +122,9 @@ export function ProductManagement() {
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      unit: '瓶',
+      specQuantity: 30,
+      specUnit: 'ml',
+      packageUnit: '瓶',
     },
   });
 
@@ -109,8 +152,10 @@ export function ProductManagement() {
   const onSubmit = async (data: ProductFormData) => {
     try {
       const category = flatCategories.find((item) => item.id === data.categoryId);
+      const { specQuantity, specUnit, ...rest } = data;
       const payload = {
-        ...data,
+        ...rest,
+        spec: buildProductSpec(specQuantity, specUnit),
         categoryName: category?.name ?? '',
         status: editingProduct?.status ?? '在售',
       } as Omit<Product, 'id' | 'sku'>;
@@ -132,12 +177,12 @@ export function ProductManagement() {
   const handleCloseDialog = () => {
     setShowAddDialog(false);
     setEditingProduct(null);
-    reset({ unit: '瓶' } as Partial<ProductFormData>);
+    reset({ specQuantity: 30, specUnit: 'ml', packageUnit: '瓶' } as Partial<ProductFormData>);
   };
 
   const openCreateDialog = () => {
     setEditingProduct(null);
-    reset({ unit: '瓶' } as Partial<ProductFormData>);
+    reset({ specQuantity: 30, specUnit: 'ml', packageUnit: '瓶' } as Partial<ProductFormData>);
     setShowAddDialog(true);
   };
 
@@ -152,12 +197,14 @@ export function ProductManagement() {
   };
 
   const openEditDialog = (product: Product) => {
+    const parsedSpec = parseProductSpec(product.spec);
     setEditingProduct(product);
     reset({
       name: product.name,
       brand: product.brand,
-      spec: product.spec,
-      unit: product.unit,
+      specQuantity: product.specQuantity ?? parsedSpec.specQuantity,
+      specUnit: product.specUnit ?? parsedSpec.specUnit,
+      packageUnit: product.packageUnit ?? '瓶',
       costPrice: product.costPrice,
       retailPrice: product.retailPrice,
       shelfLife: product.shelfLife,
@@ -180,6 +227,9 @@ export function ProductManagement() {
       setUpdatingStatusId(null);
     }
   };
+
+  const handleImportProductRows = (rows: Record<string, any>[]) =>
+    importProducts(rows.map((row) => ({ ...row, 包装: row['包装'] ?? row['单位'], 单位: row['单位'] ?? row['包装'] })));
 
   const handleAdoptIndustryProduct = async () => {
     if (!selectedIndustryProductTemplate) {
@@ -273,13 +323,15 @@ export function ProductManagement() {
                 <TableHead className="w-20">缩略图</TableHead>
                 <TableHead>产品名称</TableHead>
                 <TableHead>SKU编码</TableHead>
+                <TableHead>来源</TableHead>
                 <TableHead>品牌</TableHead>
                 <TableHead>规格</TableHead>
-                <TableHead>单位</TableHead>
+                <TableHead>包装</TableHead>
                 <TableHead>成本价</TableHead>
                 <TableHead>零售价</TableHead>
                 <TableHead>保质期</TableHead>
                 <TableHead>供应商</TableHead>
+                <TableHead>供货状态</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -287,6 +339,11 @@ export function ProductManagement() {
             <TableBody>
               {products.map((product) => (
                 <TableRow key={product.id} className="hover:bg-blue-50/30">
+                  {(() => {
+                    const sourceLabel = getIndustrySourceLabel(product);
+                    const mappingLabel = getSupplyMappingLabel(product);
+                    return (
+                    <>
                   <TableCell>
                     <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-purple-100 rounded overflow-hidden flex items-center justify-center">
                       {product.image ? (
@@ -298,13 +355,23 @@ export function ProductManagement() {
                   </TableCell>
                   <TableCell className="font-medium text-gray-800">{product.name}</TableCell>
                   <TableCell className="font-mono text-sm text-gray-600">{product.sku}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${sourceLabel.className}`}>
+                      {sourceLabel.text}
+                    </span>
+                  </TableCell>
                   <TableCell>{product.brand}</TableCell>
                   <TableCell>{product.spec}</TableCell>
-                  <TableCell>{product.unit}</TableCell>
+                  <TableCell>{product.packageUnit || '-'}</TableCell>
                   <TableCell className="text-gray-700">¥{product.costPrice}</TableCell>
                   <TableCell className="font-medium text-gray-800">¥{product.retailPrice}</TableCell>
                   <TableCell>{product.shelfLife}天</TableCell>
                   <TableCell className="text-sm text-gray-600">{product.supplier}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${mappingLabel.className}`}>
+                      {mappingLabel.text}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <span
                       className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
@@ -355,6 +422,9 @@ export function ProductManagement() {
                       </button>
                     </div>
                   </TableCell>
+                    </>
+                    );
+                  })()}
                 </TableRow>
               ))}
             </TableBody>
@@ -420,28 +490,44 @@ export function ProductManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   规格 <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  placeholder="如：30ml、10片/盒"
-                  {...register('spec')}
-                />
-                {errors.spec && <p className="text-red-500 text-xs mt-1">{errors.spec.message}</p>}
+                <div className="grid grid-cols-[1fr_120px] gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="如：30"
+                    {...register('specQuantity', { valueAsNumber: true })}
+                  />
+                  <select
+                    className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
+                    {...register('specUnit')}
+                  >
+                    {SPEC_UNIT_OPTIONS.map((unit) => (
+                      <option key={unit} value={unit}>{unit}</option>
+                    ))}
+                  </select>
+                </div>
+                {(errors.specQuantity || errors.specUnit) && (
+                  <p className="text-red-500 text-xs mt-1">{errors.specQuantity?.message || errors.specUnit?.message}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  单位 <span className="text-red-500">*</span>
+                  包装 <span className="text-red-500">*</span>
                 </label>
                 <select
                   className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md"
-                  {...register('unit')}
+                  {...register('packageUnit')}
                 >
                   <option value="瓶">瓶</option>
                   <option value="盒">盒</option>
                   <option value="支">支</option>
                   <option value="个">个</option>
                   <option value="套">套</option>
+                  <option value="包">包</option>
                 </select>
-                {errors.unit && <p className="text-red-500 text-xs mt-1">{errors.unit.message}</p>}
+                {errors.packageUnit && <p className="text-red-500 text-xs mt-1">{errors.packageUnit.message}</p>}
               </div>
 
               <div>
@@ -576,6 +662,53 @@ export function ProductManagement() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 text-sm">
+                <div>
+                  <div className="text-gray-500">来源</div>
+                  <div className="mt-1 font-medium text-gray-800">{getIndustrySourceLabel(viewingProduct).text}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">来源标准编码</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.industrySource?.standardProductCode || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">来源模板</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.industrySource?.templateName || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">采用时间</div>
+                  <div className="mt-1 font-medium text-gray-800">{formatDate(viewingProduct.industrySource?.adoptedAt)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">供应链映射</div>
+                  <div className="mt-1 font-medium text-gray-800">{getSupplyMappingLabel(viewingProduct).text}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">供应链 SKU</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.supplyMapping?.supplySkuId || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">平台供应商</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.supplyMapping?.supplierName || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">最近报价</div>
+                  <div className="mt-1 font-medium text-gray-800">
+                    {viewingProduct.supplyMapping?.latestQuotePrice != null ? `¥${viewingProduct.supplyMapping.latestQuotePrice}` : '-'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500">起订量</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.supplyMapping?.moq ?? '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">交期</div>
+                  <div className="mt-1 font-medium text-gray-800">
+                    {viewingProduct.supplyMapping?.leadDays != null ? `${viewingProduct.supplyMapping.leadDays} 天` : '-'}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <div className="text-gray-500">分类</div>
@@ -590,8 +723,8 @@ export function ProductManagement() {
                   <div className="mt-1 font-medium text-gray-800">{viewingProduct.spec || '-'}</div>
                 </div>
                 <div>
-                  <div className="text-gray-500">单位</div>
-                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.unit || '-'}</div>
+                  <div className="text-gray-500">包装</div>
+                  <div className="mt-1 font-medium text-gray-800">{viewingProduct.packageUnit || '-'}</div>
                 </div>
                 <div>
                   <div className="text-gray-500">成本价</div>
@@ -723,8 +856,8 @@ export function ProductManagement() {
         onOpenChange={setShowImportDialog}
         title="批量导入产品"
         columns={PRODUCT_IMPORT_COLUMNS}
-        requiredColumns={['产品名称', '品牌', '规格', '单位', '成本价', '零售价', '供应商']}
-        onImport={importProducts}
+        requiredColumns={['产品名称', '品牌', '规格', '包装', '成本价', '零售价', '供应商']}
+        onImport={handleImportProductRows}
         onSuccess={refresh}
       />
     </div>
