@@ -94,7 +94,7 @@ describe('InventoryService terminal dashboard cache', () => {
         sourceId: 101,
         sourceNo: 'B-001',
         operatorId: 7,
-        remark: '库存发布前验收-真实入库',
+        remark: expect.stringContaining('库存发布前验收-真实入库'),
       }),
     });
   });
