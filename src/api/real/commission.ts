@@ -328,6 +328,8 @@ export interface DailySettlement {
   grossProfit: number;
   grossMargin: number;
   commissionTotal: number;
+  memberBalanceCashDeduct?: number;
+  memberBalanceGiftDeduct?: number;
   status: DailySettlementStatus;
   confirmedAt?: string;
   summary?: Record<string, number>;

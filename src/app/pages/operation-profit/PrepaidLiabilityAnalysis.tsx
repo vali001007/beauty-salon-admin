@@ -151,12 +151,26 @@ function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
           balanceLiability: sum.balanceLiability + (row.liabilityType === 'balance' ? row.estimatedRemainingValue : 0),
           cashBalance: sum.cashBalance + Number(row.cashBalance ?? 0),
           giftBalance: sum.giftBalance + Number(row.giftBalance ?? 0),
+          balanceCashConsumed: sum.balanceCashConsumed,
+          balanceGiftConsumed: sum.balanceGiftConsumed,
           cardRecognizedIncome: sum.cardRecognizedIncome + (row.liabilityType !== 'balance' ? Number(row.recognizedIncome ?? 0) : 0),
           remainingTimes: sum.remainingTimes + Number(row.remainingTimes ?? 0),
           highRisk: sum.highRisk + (row.riskLevel === 'high' ? 1 : 0),
           mediumRisk: sum.mediumRisk + (row.riskLevel === 'medium' ? 1 : 0),
         }),
-        { totalLiability: 0, cardLiability: 0, balanceLiability: 0, cashBalance: 0, giftBalance: 0, cardRecognizedIncome: 0, remainingTimes: 0, highRisk: 0, mediumRisk: 0 },
+        {
+          totalLiability: 0,
+          cardLiability: 0,
+          balanceLiability: 0,
+          cashBalance: 0,
+          giftBalance: 0,
+          balanceCashConsumed: 0,
+          balanceGiftConsumed: 0,
+          cardRecognizedIncome: 0,
+          remainingTimes: 0,
+          highRisk: 0,
+          mediumRisk: 0,
+        },
       ),
     [rows],
   );
@@ -192,11 +206,13 @@ function PrepaidLiabilityPage({ mode }: { mode: LiabilityPageMode }) {
       </div>
 
       {mode === 'balance' ? (
-        <section className="grid grid-cols-5 gap-2">
+        <section className="grid gap-2 md:grid-cols-7">
           <CompactMetricCard label="储值" value={String(total)} hint={`每页 ${DEFAULT_PAGE_SIZE} 条`} />
           <CompactMetricCard label="余额" value={compactMoney(summary.balanceLiability)} />
           <CompactMetricCard label="现金" value={compactMoney(summary.cashBalance)} />
           <CompactMetricCard label="赠送" value={compactMoney(summary.giftBalance)} />
+          <CompactMetricCard label="本金消耗" value={compactMoney(summary.balanceCashConsumed)} />
+          <CompactMetricCard label="赠送消耗" value={compactMoney(summary.balanceGiftConsumed)} />
           <CompactMetricCard label="风险" value={String(highRiskCount)} hint={`中危 ${mediumRiskCount}`} />
         </section>
       ) : (

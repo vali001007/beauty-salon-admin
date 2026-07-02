@@ -273,6 +273,8 @@ export interface PrepaidLiabilitySummary {
   balanceLiability: number;
   cashBalance: number;
   giftBalance: number;
+  balanceCashConsumed?: number;
+  balanceGiftConsumed?: number;
   cardRecognizedIncome?: number;
   remainingTimes?: number;
   highRisk: number;
