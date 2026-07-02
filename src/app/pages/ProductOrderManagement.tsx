@@ -677,11 +677,11 @@ export function ProductOrderManagement() {
             <TableRow className="bg-gray-50/80">
               <TableHead>订单编号</TableHead>
               <TableHead>客户</TableHead>
-              <TableHead>门店</TableHead>
               <TableHead>订单明细</TableHead>
               <TableHead>明细数</TableHead>
               <TableHead>订单金额</TableHead>
               <TableHead>支付方式</TableHead>
+              <TableHead>门店</TableHead>
               <TableHead>来源</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>下单时间</TableHead>
@@ -703,7 +703,6 @@ export function ProductOrderManagement() {
                     <div className="font-medium text-gray-800">{order.customerName || '散客'}</div>
                     <div className="text-xs text-gray-500">{order.customerPhone || '-'}</div>
                   </TableCell>
-                  <TableCell className="text-sm text-gray-600">{order.storeName || '-'}</TableCell>
                   <TableCell className="min-w-44 max-w-64">
                     {items.length ? (
                       <div className="space-y-1">
@@ -736,6 +735,7 @@ export function ProductOrderManagement() {
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">{order.paymentMethod}</TableCell>
+                  <TableCell className="text-sm text-gray-600">{order.storeName || '-'}</TableCell>
                   <TableCell className="text-sm text-gray-600">{order.source === 'terminal' ? 'Ami Aura Lite' : '管理端'}</TableCell>
                   <TableCell>
                     <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${getStatusColor(order.status)}`}>
@@ -1151,6 +1151,27 @@ export function ProductOrderManagement() {
                   </div>
                 )}
               </div>
+
+              {selectedOrder.memberBalanceDeduction && (
+                <div className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/50 p-4 text-sm md:grid-cols-4">
+                  <div>
+                    <div className="text-gray-500">本金划扣</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.cashAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">赠送划扣</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.giftAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">划扣后现金余额</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.cashBalanceAfter)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">划扣后赠送余额</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.giftBalanceAfter)}</div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <h4 className="mb-3 font-medium text-gray-800">订单明细</h4>

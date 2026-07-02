@@ -172,6 +172,7 @@ function normalizeProductOrder(item: ApiProductOrder): ProductOrder {
     paymentRecords: item.paymentRecords,
     refundRecords: item.refundRecords,
     marketingAttributions: item.marketingAttributions,
+    memberBalanceDeduction: item.memberBalanceDeduction,
   };
 }
 

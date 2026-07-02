@@ -145,6 +145,27 @@ export class OrdersService {
     return map[method || ''] || method || 'cash';
   }
 
+  private normalizePaymentInputs(payments: any[] | undefined, paidAmount: number, fallbackMethod: string) {
+    const amount = this.round(Math.max(0, this.toNumber(paidAmount)));
+    const normalized = Array.isArray(payments)
+      ? payments
+          .map((payment) => ({
+            method: this.normalizePaymentMethod(payment?.paymentMethod ?? payment?.method),
+            amount: this.round(Math.max(0, this.toNumber(payment?.amount))),
+            transactionNo: payment?.transactionNo,
+          }))
+          .filter((payment) => payment.amount > 0)
+      : [];
+
+    if (!normalized.length) return [{ method: fallbackMethod, amount, transactionNo: undefined }];
+
+    const total = this.round(normalized.reduce((sum, payment) => sum + payment.amount, 0));
+    const diff = this.round(amount - total);
+    if (Math.abs(diff) > 0.01) throw new BadRequestException('组合支付金额必须等于订单实收金额');
+    if (Math.abs(diff) > 0 && normalized.length) normalized[normalized.length - 1].amount = this.round(normalized[normalized.length - 1].amount + diff);
+    return normalized;
+  }
+
   private normalizeOrderItems(items: any[] = []) {
     return items.map((item) => {
       const quantity = this.toNumber(item.quantity ?? item.qty ?? 1) || 1;
@@ -487,6 +508,68 @@ export class OrdersService {
     };
   }
 
+  private toCents(value: unknown) {
+    return Math.round(this.toNumber(value) * 100);
+  }
+
+  private fromCents(value: number) {
+    return this.round(value / 100);
+  }
+
+  private allocateMemberBalanceDeduction(amount: unknown, cashBalanceBefore: unknown, giftBalanceBefore: unknown) {
+    const amountCents = this.toCents(amount);
+    const cashCents = Math.max(0, this.toCents(cashBalanceBefore));
+    const giftCents = Math.max(0, this.toCents(giftBalanceBefore));
+    const totalCents = cashCents + giftCents;
+    if (amountCents <= 0) throw new BadRequestException('会员卡划扣金额必须大于 0');
+    if (amountCents > totalCents) throw new BadRequestException('会员卡余额不足');
+
+    let cashDeductCents = 0;
+    let giftDeductCents = 0;
+    if (cashCents <= 0) {
+      giftDeductCents = amountCents;
+    } else if (giftCents <= 0) {
+      cashDeductCents = amountCents;
+    } else {
+      cashDeductCents = Math.round((amountCents * cashCents) / totalCents);
+      giftDeductCents = amountCents - cashDeductCents;
+      if (cashDeductCents > cashCents) {
+        const overflow = cashDeductCents - cashCents;
+        cashDeductCents = cashCents;
+        giftDeductCents += overflow;
+      }
+      if (giftDeductCents > giftCents) {
+        const overflow = giftDeductCents - giftCents;
+        giftDeductCents = giftCents;
+        cashDeductCents += overflow;
+      }
+    }
+
+    return {
+      cashDeduct: this.fromCents(cashDeductCents),
+      giftDeduct: this.fromCents(giftDeductCents),
+      cashBalanceAfter: this.fromCents(cashCents - cashDeductCents),
+      giftBalanceAfter: this.fromCents(giftCents - giftDeductCents),
+    };
+  }
+
+  private serializeMemberBalanceDeduction(transaction: any) {
+    if (!transaction) return undefined;
+    const cashAmount = this.toNumber(transaction.amount);
+    const giftAmount = this.toNumber(transaction.giftAmount);
+    return {
+      transactionId: transaction.id,
+      transactionNo: transaction.transactionNo,
+      totalAmount: this.round(cashAmount + giftAmount),
+      cashAmount,
+      giftAmount,
+      cashBalanceBefore: this.toNumber(transaction.cashBalanceBefore),
+      cashBalanceAfter: this.toNumber(transaction.cashBalanceAfter),
+      giftBalanceBefore: this.toNumber(transaction.giftBalanceBefore),
+      giftBalanceAfter: this.toNumber(transaction.giftBalanceAfter),
+    };
+  }
+
   private serializeProductOrder(order: any, scopeItemType?: string) {
     const rawItems = Array.isArray(order.orderItems) && order.orderItems.length
       ? order.orderItems
@@ -494,6 +577,11 @@ export class OrdersService {
         ? order.items
         : [];
     const payment = Array.isArray(order.paymentRecords) ? order.paymentRecords[0] : undefined;
+    const memberBalanceDeduction = this.serializeMemberBalanceDeduction(
+      Array.isArray(order.balanceTransactions)
+        ? order.balanceTransactions.find((item: any) => item.type === 'deduct' && item.paymentMethod === 'member_balance')
+        : undefined,
+    );
     const items = rawItems
       .map((item: any, index: number) => this.toProductOrderItem(item, index))
       .filter((item: any) => !scopeItemType || String(item.itemType).toLowerCase() === scopeItemType);
@@ -522,6 +610,7 @@ export class OrdersService {
       discountPayload: order.discountPayload,
       paymentMethod: order.payMethod ?? payment?.method ?? 'cash',
       payMethod: order.payMethod ?? payment?.method,
+      memberBalanceDeduction,
       createdAt: order.createdAt,
       completedAt: payment?.paidAt ?? undefined,
     };
@@ -799,13 +888,77 @@ export class OrdersService {
 
     const cashBalanceBefore = this.toNumber(account.cashBalance);
     const giftBalanceBefore = this.toNumber(account.giftBalance);
-    const availableTotal = cashBalanceBefore + giftBalanceBefore;
-    if (amount > availableTotal) throw new BadRequestException('会员卡余额不足');
+    const allocation = this.allocateMemberBalanceDeduction(amount, cashBalanceBefore, giftBalanceBefore);
 
-    const giftDeduct = Math.min(giftBalanceBefore, amount);
-    const cashDeduct = amount - giftDeduct;
-    const cashBalanceAfter = cashBalanceBefore - cashDeduct;
-    const giftBalanceAfter = giftBalanceBefore - giftDeduct;
+    await tx.customerBalanceAccount.update({
+      where: { id: account.id },
+      data: {
+        cashBalance: allocation.cashBalanceAfter,
+        giftBalance: allocation.giftBalanceAfter,
+        status: 'active',
+      },
+    });
+
+    return tx.customerBalanceTransaction.create({
+      data: {
+        accountId: account.id,
+        customerId: order.customerId,
+        storeId: order.storeId,
+        orderId: order.id,
+        transactionNo: this.createBalanceTransactionNo(),
+        type: 'deduct',
+        amount: allocation.cashDeduct,
+        giftAmount: allocation.giftDeduct,
+        cashBalanceBefore,
+        cashBalanceAfter: allocation.cashBalanceAfter,
+        giftBalanceBefore,
+        giftBalanceAfter: allocation.giftBalanceAfter,
+        paymentMethod: 'member_balance',
+        remark: remark || `订单 ${order.orderNo} 会员卡划扣`,
+      },
+    });
+  }
+
+  private async restoreMemberBalanceForOrderRefund(
+    tx: any,
+    order: any,
+    refundAmount: number,
+    refundableAmount: number,
+    remainingRefundableAmount: number,
+    reason?: string,
+  ) {
+    if (!order?.id || !order.customerId || !order.storeId || refundAmount <= 0 || refundableAmount <= 0) return;
+
+    const originalTransactions = await tx.customerBalanceTransaction.findMany({
+      where: { orderId: order.id, type: 'deduct', paymentMethod: 'member_balance' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!originalTransactions.length) return;
+
+    const restoredTransactions = await tx.customerBalanceTransaction.findMany({
+      where: { orderId: order.id, type: 'refund', paymentMethod: 'member_balance' },
+    });
+    const originalCash = this.round(originalTransactions.reduce((sum: number, item: any) => sum + this.toNumber(item.amount), 0));
+    const originalGift = this.round(originalTransactions.reduce((sum: number, item: any) => sum + this.toNumber(item.giftAmount), 0));
+    const restoredCash = this.round(restoredTransactions.reduce((sum: number, item: any) => sum + this.toNumber(item.amount), 0));
+    const restoredGift = this.round(restoredTransactions.reduce((sum: number, item: any) => sum + this.toNumber(item.giftAmount), 0));
+    const remainingCash = this.round(Math.max(0, originalCash - restoredCash));
+    const remainingGift = this.round(Math.max(0, originalGift - restoredGift));
+    if (remainingCash <= 0 && remainingGift <= 0) return;
+
+    const isFinalRefund = this.round(refundAmount) >= this.round(remainingRefundableAmount);
+    const ratio = Math.min(1, Math.max(0, refundAmount / refundableAmount));
+    const cashRestore = isFinalRefund ? remainingCash : Math.min(remainingCash, this.round(originalCash * ratio));
+    const giftRestore = isFinalRefund ? remainingGift : Math.min(remainingGift, this.round(originalGift * ratio));
+    if (cashRestore <= 0 && giftRestore <= 0) return;
+
+    const accountId = originalTransactions[0].accountId;
+    const account = await tx.customerBalanceAccount.findUnique({ where: { id: accountId } });
+    if (!account) return;
+    const cashBalanceBefore = this.toNumber(account.cashBalance);
+    const giftBalanceBefore = this.toNumber(account.giftBalance);
+    const cashBalanceAfter = this.round(cashBalanceBefore + cashRestore);
+    const giftBalanceAfter = this.round(giftBalanceBefore + giftRestore);
 
     await tx.customerBalanceAccount.update({
       where: { id: account.id },
@@ -815,7 +968,6 @@ export class OrdersService {
         status: 'active',
       },
     });
-
     await tx.customerBalanceTransaction.create({
       data: {
         accountId: account.id,
@@ -823,15 +975,15 @@ export class OrdersService {
         storeId: order.storeId,
         orderId: order.id,
         transactionNo: this.createBalanceTransactionNo(),
-        type: 'deduct',
-        amount: cashDeduct,
-        giftAmount: giftDeduct,
+        type: 'refund',
+        amount: cashRestore,
+        giftAmount: giftRestore,
         cashBalanceBefore,
         cashBalanceAfter,
         giftBalanceBefore,
         giftBalanceAfter,
         paymentMethod: 'member_balance',
-        remark: remark || `订单 ${order.orderNo} 会员卡划扣`,
+        remark: reason || `订单 ${order.orderNo} 会员卡划扣退款恢复`,
       },
     });
   }
@@ -872,6 +1024,10 @@ export class OrdersService {
           orderItems: { include: this.orderItemInclude },
           paymentRecords: true,
           refundRecords: true,
+          balanceTransactions: {
+            where: { type: 'deduct', paymentMethod: 'member_balance' },
+            orderBy: { createdAt: 'desc' },
+          },
           marketingAttributions: true,
         },
         skip: (page - 1) * pageSize,
@@ -898,6 +1054,10 @@ export class OrdersService {
         orderItems: { include: this.orderItemInclude },
         paymentRecords: true,
         refundRecords: true,
+        balanceTransactions: {
+          where: { type: 'deduct', paymentMethod: 'member_balance' },
+          orderBy: { createdAt: 'desc' },
+        },
         marketingAttributions: true,
         recommendationEvents: true,
       },
@@ -915,6 +1075,10 @@ export class OrdersService {
         orderItems: { include: this.orderItemInclude },
         paymentRecords: true,
         refundRecords: true,
+        balanceTransactions: {
+          where: { type: 'deduct', paymentMethod: 'member_balance' },
+          orderBy: { createdAt: 'desc' },
+        },
         marketingAttributions: true,
         recommendationEvents: true,
       },
@@ -1362,25 +1526,28 @@ export class OrdersService {
         });
       }
 
-        if (this.isPaidLikeStatus(status)) {
-          const paidAmount = this.toNumber(data.paidAmount ?? totalAmount);
-          if (payMethod === 'member_balance') {
-            await this.deductMemberBalanceForOrder(tx, order, paidAmount, data.remark);
+      if (this.isPaidLikeStatus(status)) {
+        const paidAmount = this.toNumber(data.paidAmount ?? totalAmount);
+        const paymentInputs = this.normalizePaymentInputs(data.payments, paidAmount, payMethod);
+        for (const payment of paymentInputs) {
+          if (payment.method === 'member_balance') {
+            await this.deductMemberBalanceForOrder(tx, order, payment.amount, data.remark);
           }
+        }
 
-          await this.consumeProductItemsForOrder(tx, order, orderItems, data.remark);
-          await this.consumeProjectBomForOrder(tx, order, orderItems, data.remark);
+        await this.consumeProductItemsForOrder(tx, order, orderItems, data.remark);
+        await this.consumeProjectBomForOrder(tx, order, orderItems, data.remark);
 
-          await tx.paymentRecord.create({
-            data: {
-              orderId: order.id,
-              paymentNo: this.createPaymentNo(),
-              method: payMethod,
-              amount: paidAmount,
+        await tx.paymentRecord.createMany({
+          data: paymentInputs.map((payment) => ({
+            orderId: order.id,
+            paymentNo: this.createPaymentNo(),
+            method: payment.method,
+            amount: payment.amount,
             status: 'success',
-            transactionNo: data.transactionNo,
+            transactionNo: payment.transactionNo ?? data.transactionNo,
             paidAt: data.paidAt ? new Date(data.paidAt) : new Date(),
-          },
+          })),
         });
 
         if (order.customerId) {
@@ -1406,6 +1573,10 @@ export class OrdersService {
           orderItems: { include: this.orderItemInclude },
           paymentRecords: true,
           refundRecords: true,
+          balanceTransactions: {
+            where: { type: 'deduct', paymentMethod: 'member_balance' },
+            orderBy: { createdAt: 'desc' },
+          },
           marketingAttributions: true,
         },
       }).then((createdOrder) => this.serializeProductOrder(createdOrder));
@@ -1515,8 +1686,13 @@ export class OrdersService {
     const order = await this.findProductOrderById(id);
     const reason = typeof reasonOrDto === 'string' ? reasonOrDto : reasonOrDto?.reason;
     const refundableAmount = this.toNumber((order as any).netAmount ?? order.totalAmount);
-    const amount = typeof reasonOrDto === 'object' ? this.toNumber(reasonOrDto.amount ?? refundableAmount) : refundableAmount;
-    if (amount > refundableAmount) throw new BadRequestException('退款金额不能大于订单实收金额');
+    const refundedAmount = Array.isArray((order as any).refundRecords)
+      ? (order as any).refundRecords.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0)
+      : 0;
+    const remainingRefundableAmount = this.round(Math.max(0, refundableAmount - refundedAmount));
+    const amount = typeof reasonOrDto === 'object' ? this.toNumber(reasonOrDto.amount ?? remainingRefundableAmount) : remainingRefundableAmount;
+    if (amount <= 0) throw new BadRequestException('退款金额必须大于 0');
+    if (amount > remainingRefundableAmount) throw new BadRequestException('退款金额不能大于订单剩余可退金额');
 
     const refundedOrder = await this.prisma.$transaction(async (tx) => {
       await tx.refundRecord.create({
@@ -1541,16 +1717,26 @@ export class OrdersService {
           data: { totalSpent: { decrement: amount } },
         });
       }
+      await this.restoreMemberBalanceForOrderRefund(tx, order, amount, refundableAmount, remainingRefundableAmount, reason);
       await this.reverseMarketingAttribution(tx, id, amount);
       await this.commissionService.reverseOrderCommissions(id, amount, tx);
 
       return tx.productOrder.findUnique({
         where: { id },
-        include: { orderItems: { include: this.orderItemInclude }, paymentRecords: true, refundRecords: true, marketingAttributions: true },
+        include: {
+          orderItems: { include: this.orderItemInclude },
+          paymentRecords: true,
+          refundRecords: true,
+          balanceTransactions: {
+            where: { type: 'deduct', paymentMethod: 'member_balance' },
+            orderBy: { createdAt: 'desc' },
+          },
+          marketingAttributions: true,
+        },
       });
     });
     await this.refreshDailySettlementForOrder(refundedOrder, 'admin_order_refund');
-    return refundedOrder;
+    return this.serializeProductOrder(refundedOrder);
   }
 
   private createBalanceTransactionNo() {
@@ -1946,23 +2132,66 @@ export class OrdersService {
   }
 
   async deductMemberCard(id: number, data: any, operatorId?: number) {
-    const deductAmount = this.toNumber(data.amount);
-    if (deductAmount <= 0) throw new BadRequestException('划扣金额必须大于 0');
+    const items = Array.isArray(data.items) ? this.normalizeOrderItems(data.items) : [];
+    if (!items.length) throw new BadRequestException('请选择会员卡划扣项目或商品明细');
+    const invalidItem = items.find(
+      (item) =>
+        !['project', 'product'].includes(String(item.itemType)) ||
+        !String(item.name ?? '').trim() ||
+        this.toNumber(item.quantity) <= 0 ||
+        this.toNumber(item.unitPrice) < 0 ||
+        !this.toNumber(item.beauticianId),
+    );
+    if (invalidItem) throw new BadRequestException('会员卡划扣明细需包含项目/商品、次数/数量、单价和服务人员');
+    const deductAmount = this.round(items.reduce((sum, item) => sum + this.toNumber(item.netAmount ?? item.subtotal), 0));
+    if (deductAmount <= 0) throw new BadRequestException('划扣明细金额必须大于 0');
+    if (data.amount !== undefined && Math.abs(this.round(this.toNumber(data.amount) - deductAmount)) > 0.01) {
+      throw new BadRequestException('划扣金额必须等于明细合计');
+    }
 
-    const account = await this.prisma.customerBalanceAccount.findUnique({ where: { id } });
-    if (!account) throw new NotFoundException('会员卡不存在');
-    const availableTotal = this.toNumber(account.cashBalance) + this.toNumber(account.giftBalance);
-    if (deductAmount > availableTotal) throw new BadRequestException('会员卡余额不足');
-
-    const giftDeduct = Math.min(this.toNumber(account.giftBalance), deductAmount);
-    const cashDeduct = deductAmount - giftDeduct;
-    return this.adjustMemberCardBalance(id, {
-      amount: cashDeduct,
-      giftAmount: giftDeduct,
-      type: 'deduct',
-      remark: data.remark,
-      operatorId,
+    const account = await this.prisma.customerBalanceAccount.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        store: { select: { id: true, name: true } },
+      },
     });
+    if (!account) throw new NotFoundException('会员卡不存在');
+    const order = await this.createProductOrder({
+      orderNo: data.orderNo,
+      checkoutGroupNo: data.checkoutGroupNo,
+      customerId: account.customerId,
+      customerName: account.customer?.name,
+      storeId: account.storeId,
+      storeName: account.store?.name,
+      status: 'completed',
+      payMethod: 'member_balance',
+      paymentMethod: 'member_balance',
+      paidAmount: deductAmount,
+      source: 'admin_member_card_deduct',
+      remark: data.remark || '会员卡划扣',
+      dailySettlementSource: 'admin_member_card_deduct',
+      items: items.map((item) => ({
+        ...item,
+        subtotal: this.round(this.toNumber(item.subtotal ?? item.quantity * item.unitPrice)),
+        netAmount: this.round(this.toNumber(item.netAmount ?? item.subtotal ?? item.quantity * item.unitPrice)),
+      })),
+    });
+    const updatedAccount = await this.prisma.customerBalanceAccount.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        store: { select: { id: true, name: true } },
+        transactions: {
+          include: {
+            operator: { select: { id: true, name: true, username: true } },
+            order: { select: { id: true, orderNo: true, checkoutGroupNo: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    return { ...this.serializeMemberCardAccount(updatedAccount), lastOrderNo: order.orderNo };
   }
 
   async refundMemberCard(id: number, data: any, operatorId?: number) {
@@ -1992,10 +2221,11 @@ export class OrdersService {
       const cashBalanceBefore = this.toNumber(account.cashBalance);
       const giftBalanceBefore = this.toNumber(account.giftBalance);
       const cashBalanceAfter = cashBalanceBefore - refundAmount;
+      const giftBalanceAfter = 0;
 
       await tx.customerBalanceAccount.update({
         where: { id },
-        data: { cashBalance: cashBalanceAfter, status: 'active' },
+        data: { cashBalance: cashBalanceAfter, giftBalance: giftBalanceAfter, status: 'active' },
       });
       await tx.customerBalanceTransaction.create({
         data: {
@@ -2009,7 +2239,7 @@ export class OrdersService {
           cashBalanceBefore,
           cashBalanceAfter,
           giftBalanceBefore,
-          giftBalanceAfter: giftBalanceBefore,
+          giftBalanceAfter,
           paymentMethod: data.paymentMethod ? this.normalizePaymentMethod(data.paymentMethod) : undefined,
           operatorId: this.toNumber(operatorId) || undefined,
           remark: data.remark,

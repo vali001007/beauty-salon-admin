@@ -533,6 +533,11 @@ export async function realCreateTerminalCashierOrder(
     discountSource: data.discountSource,
     promotionId: data.promotionId,
     couponId: data.couponId,
+    payments: extractArray<NonNullable<TerminalCashierOrderCreateRequest['payments']>[number]>(data.payments).map((payment) => ({
+      paymentMethod: payment.paymentMethod,
+      amount: payment.amount,
+      transactionNo: payment.transactionNo,
+    })),
     items: extractArray<TerminalCashierOrderCreateRequest['items'][number]>(data.items).map((item) => ({
       itemId: item.itemId ?? 0,
       itemType: item.itemType,

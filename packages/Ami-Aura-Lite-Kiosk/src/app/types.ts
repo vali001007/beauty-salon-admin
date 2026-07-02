@@ -311,7 +311,13 @@ export interface CashierConfirmInput {
   allocationMethod?: 'price_ratio' | 'manual';
   discountSource?: 'order' | 'package' | 'promotion' | 'coupon' | 'manual';
   paymentMethod: TerminalPaymentMethod;
+  payments?: Array<{
+    paymentMethod: TerminalPaymentMethod;
+    amount: number;
+  }>;
 }
+
+export interface CashierReceiptMemberBalanceDeduction extends MemberBalanceDeduction {}
 
 export interface CustomerSelectItem {
   id: number;
@@ -327,6 +333,18 @@ export interface CustomerSelectItem {
   memberCardDeductLabel?: string;
   isAppointedToday: boolean;
   appointmentTime?: string;
+}
+
+export interface MemberBalanceDeduction {
+  transactionId?: number;
+  transactionNo?: string;
+  totalAmount: number;
+  cashAmount: number;
+  giftAmount: number;
+  cashBalanceBefore: number;
+  cashBalanceAfter: number;
+  giftBalanceBefore: number;
+  giftBalanceAfter: number;
 }
 
 // ─── AuraResponseBlock 结构化输出协议 ────────────────────────────────────────
@@ -550,6 +568,7 @@ export interface OperationReceiptData {
   customerPhone?: string;
   cashierName?: string;
   paymentMethod?: string;
+  memberBalanceDeduction?: MemberBalanceDeduction;
   items: OperationReceiptItem[];
   subtotalAmount: number;
   discountAmount: number;

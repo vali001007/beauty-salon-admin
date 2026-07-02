@@ -28,9 +28,22 @@ export function canUseMemberBalanceDeduct(customer: MemberBalanceDeductCustomer 
   return balance >= receivable;
 }
 
+export type MemberBalanceDeductStatus = 'full' | 'partial' | 'empty';
+
+export function getMemberBalanceDeductStatus(customer: MemberBalanceDeductCustomer | null | undefined, receivable = 0): MemberBalanceDeductStatus {
+  const balance = getMemberBalanceDeductBalance(customer);
+  if (balance <= 0) return 'empty';
+  if (receivable > 0 && balance < receivable) return 'partial';
+  return 'full';
+}
+
+export function canSelectMemberBalanceDeduct(customer: MemberBalanceDeductCustomer | null | undefined) {
+  return getMemberBalanceDeductBalance(customer) > 0;
+}
+
 export function getMemberBalanceDeductLabel(customer: MemberBalanceDeductCustomer | null | undefined, receivable = 0) {
   const balance = getMemberBalanceDeductBalance(customer);
   if (balance > 0 && balance < receivable) return `余额不足 ￥${balance.toLocaleString()}`;
   if (balance > 0) return `储值余额 ￥${balance.toLocaleString()}`;
-  return customer?.memberCardDeductLabel ?? "该客户暂无可划扣会员卡";
+  return customer?.memberCardDeductLabel ?? "无储值";
 }

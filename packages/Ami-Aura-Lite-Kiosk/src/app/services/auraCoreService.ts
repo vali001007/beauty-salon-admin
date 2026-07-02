@@ -3436,17 +3436,10 @@ function getCustomerMemberCardDeductMeta(customer: CoreSnapshot['customers'][num
     record.balance,
     cashBalance + giftBalance,
   );
-  const activeCardsCount = getActiveCustomerCardCount(customer);
-
   return {
-    enabled: totalBalance > 0 || activeCardsCount > 0,
+    enabled: totalBalance > 0,
     balance: totalBalance,
-    label:
-      totalBalance > 0
-        ? `储值余额 ￥${totalBalance.toLocaleString()}`
-        : activeCardsCount > 0
-          ? `${activeCardsCount} 张可用会员卡`
-          : '暂无可划扣会员卡',
+    label: totalBalance > 0 ? `储值余额 ￥${totalBalance.toLocaleString()}` : '无储值',
   };
 }
 
@@ -3465,16 +3458,10 @@ function getActiveCustomerCardCount(customer: CoreSnapshot['customers'][number])
 
 function getContextCustomerDeductMeta(customer: TerminalContextCustomer) {
   const totalBalance = readNumericValue(customer.totalBalance, customer.cashBalance, customer.giftBalance);
-  const activeCardsCount = readNumericValue(customer.activeCustomerCardsCount);
   return {
-    enabled: totalBalance > 0 || activeCardsCount > 0,
+    enabled: totalBalance > 0,
     balance: totalBalance,
-    label:
-      totalBalance > 0
-        ? `储值余额 ￥${totalBalance.toLocaleString()}`
-        : activeCardsCount > 0
-          ? `${activeCardsCount} 张可用会员卡`
-          : '暂无可划扣会员卡',
+    label: totalBalance > 0 ? `储值余额 ￥${totalBalance.toLocaleString()}` : '无储值',
   };
 }
 
@@ -4328,6 +4315,7 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
       allocationMethod: input.allocationMethod,
       discountSource: input.discountSource,
       paymentMethod: input.paymentMethod,
+      payments: input.payments,
       remark:
         discountAmount > 0 ? `Ami Aura Lite 收银优惠 ￥${discountAmount.toLocaleString()}` : 'Ami Aura Lite 收银开单',
     }),
@@ -4339,9 +4327,14 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
           completeTerminalPayment(order.id, {
             paymentMethod: input.paymentMethod,
             paidAmount,
-          }),
-        );
+        }),
+      );
   invalidateCashierCaches();
+  const paymentSummaryText = asList<NonNullable<CashierConfirmInput['payments']>[number]>(input.payments).length
+    ? asList<NonNullable<CashierConfirmInput['payments']>[number]>(input.payments)
+        .map((payment) => `${payment.paymentMethod} ￥${toMoney(payment.amount).toLocaleString()}`)
+        .join(' + ')
+    : input.paymentMethod;
 
   return {
     title: '收银完成',
@@ -4357,7 +4350,8 @@ export async function confirmCashierPayment(input: CashierConfirmInput): Promise
       customerName: customer.name,
       customerPhone: customer.phone,
       cashierName: snapshot.user?.name ?? snapshot.user?.username,
-      paymentMethod: input.paymentMethod,
+      paymentMethod: paymentSummaryText,
+      memberBalanceDeduction: paid.memberBalanceDeduction,
       items: asList<typeof paid.items[number]>(paid.items).map((item) => ({
         name: item.name,
         quantity: item.quantity,

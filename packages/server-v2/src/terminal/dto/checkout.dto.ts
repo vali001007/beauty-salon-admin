@@ -58,6 +58,21 @@ export class CheckoutItemDto {
   beauticianName?: string;
 }
 
+export class CheckoutPaymentDto {
+  @ApiProperty({ description: '支付方式', example: 'member_balance' })
+  @IsString()
+  paymentMethod: string;
+
+  @ApiProperty({ description: '本支付方式金额' })
+  @IsNumber()
+  amount: number;
+
+  @ApiPropertyOptional({ description: '第三方交易号' })
+  @IsOptional()
+  @IsString()
+  transactionNo?: string;
+}
+
 export class CheckoutDto {
   @ApiPropertyOptional({ description: '客户ID' })
   @IsOptional()
@@ -82,6 +97,13 @@ export class CheckoutDto {
   @ApiProperty({ description: '支付方式', example: 'wechat' })
   @IsString()
   payMethod: string;
+
+  @ApiPropertyOptional({ description: '组合支付明细', type: [CheckoutPaymentDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CheckoutPaymentDto)
+  payments?: CheckoutPaymentDto[];
 
   @ApiPropertyOptional({ description: '优惠金额' })
   @IsOptional()

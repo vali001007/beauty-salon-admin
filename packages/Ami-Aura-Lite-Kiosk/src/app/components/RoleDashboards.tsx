@@ -664,6 +664,10 @@ function buildReceiptContent(receipt: OperationReceiptData) {
     monetary ? `优惠: ${formatMoney(receipt.discountAmount)}` : "",
     monetary ? `实收: ${formatMoney(receipt.paidAmount)}` : "",
     receipt.paymentMethod ? `支付: ${receipt.paymentMethod}` : "",
+    receipt.memberBalanceDeduction ? `本金划扣: ${formatMoney(receipt.memberBalanceDeduction.cashAmount)}` : "",
+    receipt.memberBalanceDeduction ? `赠送划扣: ${formatMoney(receipt.memberBalanceDeduction.giftAmount)}` : "",
+    receipt.memberBalanceDeduction ? `划扣后现金余额: ${formatMoney(receipt.memberBalanceDeduction.cashBalanceAfter)}` : "",
+    receipt.memberBalanceDeduction ? `划扣后赠送余额: ${formatMoney(receipt.memberBalanceDeduction.giftBalanceAfter)}` : "",
     "------------------------------",
     "感谢惠顾，欢迎下次光临",
   ];
@@ -803,6 +807,26 @@ function ReceiptPreviewDialog({
                     <span>{receipt.paymentMethod}</span>
                   </div>
                 ) : null}
+                {receipt.memberBalanceDeduction ? (
+                  <div className="mt-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-[#6F6678]">
+                    <div className="flex justify-between">
+                      <span>本金划扣</span>
+                      <span>{formatMoney(receipt.memberBalanceDeduction.cashAmount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>赠送划扣</span>
+                      <span>{formatMoney(receipt.memberBalanceDeduction.giftAmount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>划扣后现金余额</span>
+                      <span>{formatMoney(receipt.memberBalanceDeduction.cashBalanceAfter)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>划扣后赠送余额</span>
+                      <span>{formatMoney(receipt.memberBalanceDeduction.giftBalanceAfter)}</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -888,6 +912,14 @@ function ReceiptInlineDetails({ receipt }: { receipt: OperationReceiptData }) {
           </div>
         </div>
       </div>
+      {receipt.memberBalanceDeduction ? (
+        <div className="mt-2 grid gap-1 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-[#1F1B2D] md:grid-cols-4">
+          <div>本金划扣 {formatMoney(receipt.memberBalanceDeduction.cashAmount)}</div>
+          <div>赠送划扣 {formatMoney(receipt.memberBalanceDeduction.giftAmount)}</div>
+          <div>现金余额 {formatMoney(receipt.memberBalanceDeduction.cashBalanceAfter)}</div>
+          <div>赠送余额 {formatMoney(receipt.memberBalanceDeduction.giftBalanceAfter)}</div>
+        </div>
+      ) : null}
     </div>
   );
 }

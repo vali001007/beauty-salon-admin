@@ -109,6 +109,114 @@ describe('OrdersService marketing page attribution', () => {
   });
 });
 
+describe('OrdersService member balance allocation', () => {
+  let service: OrdersService;
+
+  beforeEach(() => {
+    service = new OrdersService({} as PrismaService, {} as any);
+  });
+
+  it('allocates deduction by cash and gift balance ratio', () => {
+    expect((service as any).allocateMemberBalanceDeduction(120, 1000, 200)).toEqual({
+      cashDeduct: 100,
+      giftDeduct: 20,
+      cashBalanceAfter: 900,
+      giftBalanceAfter: 180,
+    });
+  });
+
+  it('deducts from cash only when there is no gift balance', () => {
+    expect((service as any).allocateMemberBalanceDeduction(120, 1000, 0)).toEqual({
+      cashDeduct: 120,
+      giftDeduct: 0,
+      cashBalanceAfter: 880,
+      giftBalanceAfter: 0,
+    });
+  });
+
+  it('deducts from gift only when there is no cash balance', () => {
+    expect((service as any).allocateMemberBalanceDeduction(120, 0, 200)).toEqual({
+      cashDeduct: 0,
+      giftDeduct: 120,
+      cashBalanceAfter: 0,
+      giftBalanceAfter: 80,
+    });
+  });
+
+  it('keeps cents balanced for decimal amounts', () => {
+    const result = (service as any).allocateMemberBalanceDeduction(99.99, 333.33, 66.67);
+    expect(result.cashDeduct + result.giftDeduct).toBeCloseTo(99.99, 2);
+    expect(result.cashBalanceAfter).toBeGreaterThanOrEqual(0);
+    expect(result.giftBalanceAfter).toBeGreaterThanOrEqual(0);
+  });
+
+  it('rejects deduction when member balance is insufficient', () => {
+    expect(() => (service as any).allocateMemberBalanceDeduction(120, 80, 20)).toThrow('会员卡余额不足');
+  });
+
+  it('creates a member-balance paid order for manual member card deduction items', async () => {
+    const prisma = {
+      customerBalanceAccount: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 9,
+            customerId: 7,
+            storeId: 3,
+            customer: { id: 7, name: '张三', phone: '13800000000' },
+            store: { id: 3, name: 'Ami 门店' },
+          })
+          .mockResolvedValueOnce({
+            id: 9,
+            customerId: 7,
+            storeId: 3,
+            cashBalance: 900,
+            giftBalance: 180,
+            customer: { id: 7, name: '张三', phone: '13800000000' },
+            store: { id: 3, name: 'Ami 门店' },
+            transactions: [],
+            createdAt: new Date('2026-07-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+          }),
+      },
+    };
+    service = new OrdersService(prisma as any, {} as any);
+    const createProductOrder = jest.spyOn(service, 'createProductOrder').mockResolvedValue({ id: 66, orderNo: 'PO-DEDUCT-1' } as any);
+
+    await service.deductMemberCard(9, {
+      remark: '护理消费',
+      items: [
+        {
+          itemType: 'project',
+          itemId: 12,
+          name: '小气泡清洁护理',
+          quantity: 1,
+          unitPrice: 120,
+          subtotal: 120,
+          netAmount: 120,
+          beauticianId: 5,
+          beauticianName: '唐伊',
+        },
+      ],
+    });
+
+    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
+      customerId: 7,
+      storeId: 3,
+      status: 'completed',
+      payMethod: 'member_balance',
+      paidAmount: 120,
+      source: 'admin_member_card_deduct',
+      items: [expect.objectContaining({ itemType: 'project', itemId: 12, beauticianId: 5, netAmount: 120 })],
+    }));
+  });
+
+  it('rejects manual member card deduction without paid content items', async () => {
+    service = new OrdersService({} as PrismaService, {} as any);
+    await expect(service.deductMemberCard(9, { amount: 120 })).rejects.toThrow('请选择会员卡划扣项目或商品明细');
+  });
+});
+
 describe('OrdersService card order sales user', () => {
   function createService(operatorUser: any = null) {
     const customerCardCreate = jest.fn().mockResolvedValue({
@@ -346,7 +454,7 @@ describe('OrdersService card order sales user', () => {
     });
     expect(customerBalanceAccountUpdate).toHaveBeenCalledWith({
       where: { id: 301 },
-      data: { cashBalance: 220, giftBalance: 0, status: 'active' },
+      data: { cashBalance: 188.57, giftBalance: 31.43, status: 'active' },
     });
     expect(customerBalanceTransactionCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -354,12 +462,12 @@ describe('OrdersService card order sales user', () => {
         storeId: 1,
         orderId: 701,
         type: 'deduct',
-        amount: 2780,
-        giftAmount: 500,
+        amount: 2811.43,
+        giftAmount: 468.57,
         cashBalanceBefore: 3000,
-        cashBalanceAfter: 220,
+        cashBalanceAfter: 188.57,
         giftBalanceBefore: 500,
-        giftBalanceAfter: 0,
+        giftBalanceAfter: 31.43,
         paymentMethod: 'member_balance',
         remark: '会员卡余额开卡',
       }),
@@ -579,6 +687,9 @@ describe('OrdersService refunds', () => {
         findUnique: jest.fn().mockResolvedValue(refundedOrder),
       },
       customer: { update: jest.fn() },
+      customerBalanceTransaction: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     const prisma: any = {
       productOrder: { findUnique: jest.fn().mockResolvedValue(order) },
@@ -605,6 +716,109 @@ describe('OrdersService refunds', () => {
     expect(commissionService.reverseOrderCommissions).toHaveBeenCalledWith(501, 680, tx);
     expect(commissionService.generateDailySettlement).toHaveBeenCalledWith(1, createdAt);
     expect(result).toEqual(expect.objectContaining({ id: 501, status: 'refunded' }));
+  });
+
+  it('restores original member balance deduction split when order is refunded', async () => {
+    const service = new OrdersService({} as PrismaService, {} as any);
+    const tx = {
+      customerBalanceTransaction: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ id: 1, accountId: 301, amount: 100, giftAmount: 20 }])
+          .mockResolvedValueOnce([{ id: 2, accountId: 301, amount: 50, giftAmount: 10 }]),
+        create: jest.fn(),
+      },
+      customerBalanceAccount: {
+        findUnique: jest.fn().mockResolvedValue({ id: 301, cashBalance: 900, giftBalance: 180 }),
+        update: jest.fn(),
+      },
+    };
+
+    await (service as any).restoreMemberBalanceForOrderRefund(
+      tx,
+      { id: 501, orderNo: 'PO501', customerId: 12, storeId: 1 },
+      60,
+      120,
+      60,
+      '顾客退款',
+    );
+
+    expect(tx.customerBalanceAccount.update).toHaveBeenCalledWith({
+      where: { id: 301 },
+      data: { cashBalance: 950, giftBalance: 190, status: 'active' },
+    });
+    expect(tx.customerBalanceTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: 301,
+        customerId: 12,
+        storeId: 1,
+        orderId: 501,
+        type: 'refund',
+        amount: 50,
+        giftAmount: 10,
+        cashBalanceBefore: 900,
+        cashBalanceAfter: 950,
+        giftBalanceBefore: 180,
+        giftBalanceAfter: 190,
+        paymentMethod: 'member_balance',
+      }),
+    });
+  });
+
+  it('clears gift balance without refunding it when member card is refunded', async () => {
+    const account = {
+      id: 301,
+      customerId: 12,
+      storeId: 1,
+      cashBalance: 1000,
+      giftBalance: 200,
+      customer: { id: 12, name: '罗雅婷' },
+      store: { id: 1, name: 'Ami 全量演示门店' },
+    };
+    const tx = {
+      customerBalanceAccount: { update: jest.fn() },
+      customerBalanceTransaction: { create: jest.fn() },
+      customer: { update: jest.fn() },
+    };
+    const prisma: any = {
+      customerBalanceAccount: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(account)
+          .mockResolvedValueOnce({
+            ...account,
+            cashBalance: 880,
+            giftBalance: 0,
+            transactions: [],
+          }),
+      },
+      customerBalanceTransaction: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      productOrder: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const service = new OrdersService(prisma as PrismaService, { reverseOrderCommissions: jest.fn() } as any);
+
+    await service.refundMemberCard(301, { amount: 120, remark: '退卡退款' }, 9);
+
+    expect(tx.customerBalanceAccount.update).toHaveBeenCalledWith({
+      where: { id: 301 },
+      data: { cashBalance: 880, giftBalance: 0, status: 'active' },
+    });
+    expect(tx.customerBalanceTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'refund',
+        amount: 120,
+        giftAmount: 0,
+        cashBalanceBefore: 1000,
+        cashBalanceAfter: 880,
+        giftBalanceBefore: 200,
+        giftBalanceAfter: 0,
+      }),
+    });
   });
 });
 
@@ -670,6 +884,7 @@ describe('OrdersService project order inventory consumption', () => {
       },
       paymentRecord: {
         create: jest.fn(),
+        createMany: jest.fn(),
       },
     };
     prisma = {
@@ -883,10 +1098,12 @@ describe('OrdersService project order inventory consumption', () => {
         }),
       ],
     });
-    expect(tx.paymentRecord.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        amount: 90,
-      }),
+    expect(tx.paymentRecord.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          amount: 90,
+        }),
+      ]),
     });
   });
 
