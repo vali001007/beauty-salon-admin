@@ -178,8 +178,17 @@ export class InventoryController {
   @Post('purchase-orders/:id/receive')
   @Permissions('core:inventory:purchase')
   @ApiOperation({ summary: '手动采购单收货入库' })
-  receivePurchaseOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Req() req: any) {
-    return this.inventoryService.receivePurchaseOrder(id, { ...dto, operatorId: dto.operatorId ?? req.user?.id });
+  receivePurchaseOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @Req() req: any,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.inventoryService.receivePurchaseOrder(id, {
+      ...dto,
+      storeId: dto.storeId ?? (storeId ? Number(storeId) : undefined),
+      operatorId: dto.operatorId ?? req.user?.id,
+    });
   }
 
   @Get('transfers/suggestions')

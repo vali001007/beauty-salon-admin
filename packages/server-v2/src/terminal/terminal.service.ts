@@ -130,6 +130,27 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return Number(value);
   }
 
+  private roundMoney(value: number) {
+    return Math.round(value * 100) / 100;
+  }
+
+  private aggregateMemberBalanceDeductions(orders: any[]) {
+    const deductions = orders.map((order) => order?.memberBalanceDeduction).filter(Boolean);
+    if (!deductions.length) return undefined;
+    const latest = deductions[deductions.length - 1];
+    return {
+      transactionId: deductions[0].transactionId,
+      transactionNo: deductions.map((item: any) => item.transactionNo).filter(Boolean).join(' / ') || undefined,
+      totalAmount: this.roundMoney(deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.totalAmount), 0)),
+      cashAmount: this.roundMoney(deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.cashAmount), 0)),
+      giftAmount: this.roundMoney(deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.giftAmount), 0)),
+      cashBalanceBefore: this.toNumber(deductions[0].cashBalanceBefore),
+      cashBalanceAfter: this.toNumber(latest.cashBalanceAfter),
+      giftBalanceBefore: this.toNumber(deductions[0].giftBalanceBefore),
+      giftBalanceAfter: this.toNumber(latest.giftBalanceAfter),
+    };
+  }
+
   private toNonNegativeStock(value: unknown): number {
     const stock = this.toNumber(value);
     return Number.isFinite(stock) ? Math.max(0, stock) : 0;
@@ -1370,6 +1391,48 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       netAmount,
       totalAmount: netAmount,
     };
+  }
+
+  private normalizeCheckoutPayments(payments: any[] | undefined, totalAmount: number, fallbackMethod: string) {
+    const amount = this.roundMoney(Math.max(0, this.toNumber(totalAmount)));
+    const normalized = Array.isArray(payments)
+      ? payments
+          .map((payment) => ({
+            method: this.getPaymentMethod(payment?.paymentMethod ?? payment?.method),
+            amount: this.roundMoney(Math.max(0, this.toNumber(payment?.amount))),
+            transactionNo: payment?.transactionNo,
+          }))
+          .filter((payment) => payment.amount > 0)
+      : [];
+
+    if (!normalized.length) return [{ method: fallbackMethod, amount, transactionNo: undefined }];
+
+    const paidTotal = this.roundMoney(normalized.reduce((sum, payment) => sum + payment.amount, 0));
+    if (Math.abs(this.roundMoney(paidTotal - amount)) > 0.01) {
+      throw new BadRequestException('组合支付金额必须等于订单实收金额');
+    }
+    return normalized;
+  }
+
+  private allocateCheckoutPaymentsToGroups(payments: Array<{ method: string; amount: number; transactionNo?: string }>, summaries: Array<{ netAmount: number }>) {
+    const remainingPayments = payments.map((payment) => ({ ...payment }));
+    return summaries.map((summary) => {
+      let remainingAmount = this.roundMoney(Math.max(0, this.toNumber(summary.netAmount)));
+      const groupPayments: Array<{ paymentMethod: string; amount: number; transactionNo?: string }> = [];
+
+      for (const payment of remainingPayments) {
+        if (remainingAmount <= 0) break;
+        if (payment.amount <= 0) continue;
+        const amount = this.roundMoney(Math.min(payment.amount, remainingAmount));
+        if (amount <= 0) continue;
+        groupPayments.push({ paymentMethod: payment.method, amount, transactionNo: payment.transactionNo });
+        payment.amount = this.roundMoney(payment.amount - amount);
+        remainingAmount = this.roundMoney(remainingAmount - amount);
+      }
+
+      if (remainingAmount > 0.01) throw new BadRequestException('组合支付金额不足');
+      return groupPayments;
+    });
   }
 
   private groupCheckoutItemsByKind(items: any[]) {
@@ -4185,20 +4248,25 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       beauticianId: item.beauticianId ?? (this.toNumber(resolvedDtoItems[index]?.beauticianId ?? dto.beauticianId) || undefined),
     }));
     const itemGroups = this.groupCheckoutItemsByKind(allocatedItems);
+    const groupSummaries = itemGroups.map((group) => this.summarizeCheckoutItems(group.items));
+    const checkoutPayments = this.normalizeCheckoutPayments(dto.payments, totalAmount, paymentMethod);
+    const groupPayments = this.allocateCheckoutPaymentsToGroups(checkoutPayments, groupSummaries);
     const checkoutGroupNo = `PO${Date.now().toString(36).toUpperCase()}`;
-    const shouldLoadCustomer = paymentMethod === 'member_balance' || !dto.customerName;
+    const shouldLoadCustomer = checkoutPayments.some((payment) => payment.method === 'member_balance') || !dto.customerName;
     const customer =
       dto.customerId && shouldLoadCustomer ? await this.prisma.customer.findUnique({ where: { id: dto.customerId } }) : null;
     const customerName = customer?.name ?? dto.customerName;
     const customerPhone = customer?.phone ?? dto.customerPhone;
-    if (paymentMethod === 'member_balance' && !customer) {
+    if (checkoutPayments.some((payment) => payment.method === 'member_balance') && !customer) {
       throw new BadRequestException('会员余额支付必须选择客户');
     }
 
     const ordersService = this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
     const createdOrders: any[] = [];
-    for (const group of itemGroups) {
-      const summary = this.summarizeCheckoutItems(group.items);
+    for (const [index, group] of itemGroups.entries()) {
+      const summary = groupSummaries[index];
+      const payments = groupPayments[index] ?? [];
+      const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
       const orderNo =
         itemGroups.length > 1
           ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}`
@@ -4212,8 +4280,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         customerPhone,
         storeId,
         status: 'completed',
-        payMethod: paymentMethod,
-        paymentMethod,
+        payMethod: orderPayMethod,
+        paymentMethod: orderPayMethod,
+        payments,
         paidAmount: summary.netAmount,
         source: 'terminal',
         preAllocatedDiscount: true,
@@ -4301,6 +4370,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       discountPayload: allocation.order.discountPayload,
       status: 'completed',
       paymentMethod,
+      memberBalanceDeduction: this.aggregateMemberBalanceDeductions(result.orders),
       createdAt: this.toIso(result.order.createdAt) || new Date().toISOString(),
       paidAt: this.toIso(result.order.createdAt) || new Date().toISOString(),
       completedAt: this.toIso(result.order.updatedAt ?? result.order.createdAt) || new Date().toISOString(),

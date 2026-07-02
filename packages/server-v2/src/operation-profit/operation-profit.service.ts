@@ -1280,6 +1280,16 @@ export class OperationProfitService {
         riskReasons,
       };
     });
+    const balanceConsumption =
+      type === 'card'
+        ? { _sum: { amount: 0, giftAmount: 0 } }
+        : await this.prisma.customerBalanceTransaction.aggregate({
+            where: {
+              type: 'deduct',
+              ...(storeId ? { storeId } : {}),
+            },
+            _sum: { amount: true, giftAmount: true },
+          });
 
     const rows = [...cardRows, ...balanceRows].sort((a, b) => this.toNumber(b.estimatedRemainingValue) - this.toNumber(a.estimatedRemainingValue));
     const keywordFiltered = keyword
@@ -1299,6 +1309,8 @@ export class OperationProfitService {
       ),
       cashBalance: this.round(filtered.reduce((sum, row: any) => sum + this.toNumber(row.cashBalance), 0)),
       giftBalance: this.round(filtered.reduce((sum, row: any) => sum + this.toNumber(row.giftBalance), 0)),
+      balanceCashConsumed: this.round(this.toNumber(balanceConsumption._sum.amount)),
+      balanceGiftConsumed: this.round(this.toNumber(balanceConsumption._sum.giftAmount)),
       cardRecognizedIncome: this.round(
         filtered.filter((row) => row.liabilityType === 'card').reduce((sum, row: any) => sum + this.toNumber(row.recognizedIncome), 0),
       ),

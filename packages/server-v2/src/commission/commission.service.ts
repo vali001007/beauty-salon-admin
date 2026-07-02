@@ -362,6 +362,8 @@ export class CommissionService {
       grossMargin,
       commissionTotal,
       cardUsageRevenue,
+      memberBalanceCashDeduct: this.toNumber(settlement.summary?.memberBalanceCashDeduct),
+      memberBalanceGiftDeduct: this.toNumber(settlement.summary?.memberBalanceGiftDeduct),
       storeName: settlement.store?.name,
     };
   }
@@ -608,6 +610,8 @@ export class CommissionService {
       card: 0,
       member_balance: 0,
       customer_card: 0,
+      memberBalanceCashDeduct: 0,
+      memberBalanceGiftDeduct: 0,
       other: 0,
       refund: 0,
       total: 0,
@@ -2446,6 +2450,17 @@ export class CommissionService {
       const hasRecharge = order.orderItems.some((item: any) => item.itemType === 'recharge');
       if (hasRecharge) rechargeIncome += orderAmount;
     }
+    const orderIds = orders.map((order) => this.toNumber(order.id)).filter((id) => id > 0);
+    const memberBalanceDeducts = orderIds.length
+      ? await this.prisma.customerBalanceTransaction.findMany({
+          where: { orderId: { in: orderIds }, type: 'deduct', paymentMethod: 'member_balance' },
+          select: { amount: true, giftAmount: true },
+        })
+      : [];
+    paymentSummary.memberBalanceCashDeduct =
+      Math.round(memberBalanceDeducts.reduce((sum: number, item: any) => sum + this.toNumber(item.amount), 0) * 100) / 100;
+    paymentSummary.memberBalanceGiftDeduct =
+      Math.round(memberBalanceDeducts.reduce((sum: number, item: any) => sum + this.toNumber(item.giftAmount), 0) * 100) / 100;
     const refundAmount = refunds.reduce((sum: number, refund: any) => sum + this.toNumber(refund.amount), 0);
     paymentSummary.refund = refundAmount;
 

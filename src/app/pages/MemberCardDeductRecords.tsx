@@ -13,8 +13,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'customerName', header: '客户', width: 14 },
   { key: 'customerPhone', header: '手机号', width: 16 },
   { key: 'storeName', header: '门店', width: 22 },
-  { key: 'amount', header: '现金余额划扣', width: 14 },
-  { key: 'giftAmount', header: '赠送余额划扣', width: 14 },
+  { key: 'amount', header: '本金划扣', width: 14 },
+  { key: 'giftAmount', header: '赠送划扣', width: 14 },
   { key: 'orderNo', header: '关联订单', width: 20 },
   { key: 'remark', header: '备注', width: 24 },
   { key: 'createdAt', header: '划扣时间', width: 20 },
@@ -109,8 +109,8 @@ export function MemberCardDeductRecords() {
                 <TableHead>客户</TableHead>
                 <TableHead>门店</TableHead>
                 <TableHead>划扣合计</TableHead>
-                <TableHead>现金余额</TableHead>
-                <TableHead>赠送余额</TableHead>
+                <TableHead>本金划扣</TableHead>
+                <TableHead>赠送划扣</TableHead>
                 <TableHead>余额变化</TableHead>
                 <TableHead>关联订单</TableHead>
                 <TableHead>备注</TableHead>

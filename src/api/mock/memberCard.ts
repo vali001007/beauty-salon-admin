@@ -177,6 +177,44 @@ function getMemberCardOrThrow(id: number) {
   return account;
 }
 
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function allocateMemberBalanceDeduction(amount: number, cashBalanceBefore: number, giftBalanceBefore: number) {
+  const amountCents = Math.round(amount * 100);
+  const cashCents = Math.max(0, Math.round(cashBalanceBefore * 100));
+  const giftCents = Math.max(0, Math.round(giftBalanceBefore * 100));
+  const totalCents = cashCents + giftCents;
+  if (amountCents > totalCents) throw new Error('会员卡余额不足');
+
+  let cashDeductCents = 0;
+  let giftDeductCents = 0;
+  if (cashCents <= 0) {
+    giftDeductCents = amountCents;
+  } else if (giftCents <= 0) {
+    cashDeductCents = amountCents;
+  } else {
+    cashDeductCents = Math.round((amountCents * cashCents) / totalCents);
+    giftDeductCents = amountCents - cashDeductCents;
+    if (cashDeductCents > cashCents) {
+      const overflow = cashDeductCents - cashCents;
+      cashDeductCents = cashCents;
+      giftDeductCents += overflow;
+    }
+    if (giftDeductCents > giftCents) {
+      const overflow = giftDeductCents - giftCents;
+      giftDeductCents = giftCents;
+      cashDeductCents += overflow;
+    }
+  }
+
+  return {
+    cashDeduct: roundMoney(cashDeductCents / 100),
+    giftDeduct: roundMoney(giftDeductCents / 100),
+  };
+}
+
 function createMemberCardTransaction(
   account: MemberCardAccount,
   type: MemberCardTransaction['type'],
@@ -298,20 +336,28 @@ export async function mockGiftMemberCard(id: number, data: MemberCardGiftPayload
 
 export async function mockDeductMemberCard(id: number, data: MemberCardDeductPayload): Promise<MemberCardAccount> {
   const account = getMemberCardOrThrow(id);
-  const deductAmount = Math.max(0, Number(data.amount || 0));
-  if (deductAmount <= 0) throw new Error('划扣金额必须大于 0');
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (!items.length) throw new Error('请选择会员卡划扣项目或商品明细');
+  if (items.some((item) => !item.name || item.quantity <= 0 || item.unitPrice < 0 || !item.beauticianId)) {
+    throw new Error('会员卡划扣明细需包含项目/商品、次数/数量、单价和服务人员');
+  }
+  const deductAmount = Math.round(items.reduce((sum, item) => sum + Number(item.netAmount ?? item.subtotal ?? item.quantity * item.unitPrice), 0) * 100) / 100;
+  if (deductAmount <= 0) throw new Error('划扣明细金额必须大于 0');
+  if (data.amount !== undefined && Math.abs(Math.round((Number(data.amount || 0) - deductAmount) * 100) / 100) > 0.01) {
+    throw new Error('划扣金额必须等于明细合计');
+  }
   if (deductAmount > account.availableBalance + account.giftBalance) throw new Error('会员卡余额不足');
 
   const beforeCash = account.availableBalance;
   const beforeGift = account.giftBalance;
-  const giftDeduct = Math.min(account.giftBalance, deductAmount);
-  const cashDeduct = deductAmount - giftDeduct;
+  const { cashDeduct, giftDeduct } = allocateMemberBalanceDeduction(deductAmount, beforeCash, beforeGift);
   account.giftBalance -= giftDeduct;
   account.availableBalance -= cashDeduct;
   account.totalConsumed += deductAmount;
   account.remark = data.remark || account.remark;
   account.updatedAt = new Date().toISOString();
-  createMemberCardTransaction(account, 'deduct', cashDeduct, giftDeduct, 'member_balance', data.remark, beforeCash, beforeGift);
+  const itemSummary = items.map((item) => `${item.name} x${item.quantity}`).join('，');
+  createMemberCardTransaction(account, 'deduct', cashDeduct, giftDeduct, 'member_balance', data.remark || itemSummary, beforeCash, beforeGift);
   return account;
 }
 

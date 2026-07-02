@@ -190,6 +190,7 @@ export class InventoryService {
       const unitPrice = this.toNumber(raw.unitPrice);
       return {
         id: Number(raw.id ?? index + 1),
+        ...(Number(raw.productId) > 0 ? { productId: Number(raw.productId) } : {}),
         productName: raw.productName ?? '',
         sku: raw.sku ?? '',
         quantity,
@@ -212,6 +213,45 @@ export class InventoryService {
       expectedDate: payload?.expectedDate ?? '',
       items,
     };
+  }
+
+  private async findPurchaseOrderProduct(tx: any, item: { productId?: number; sku?: string; productName?: string }, storeId?: number) {
+    const productId = Number(item.productId);
+    if (Number.isInteger(productId) && productId > 0) {
+      const product = await tx.product.findFirst({
+        where: {
+          id: productId,
+          deletedAt: null,
+          ...(storeId ? { storeId } : {}),
+        },
+      });
+      if (product) return product;
+    }
+
+    const sku = String(item.sku ?? '').trim();
+    if (sku) {
+      const product = await tx.product.findFirst({
+        where: {
+          sku,
+          deletedAt: null,
+          ...(storeId ? { storeId } : {}),
+        },
+      });
+      if (product) return product;
+    }
+
+    const productName = String(item.productName ?? '').trim();
+    if (!productName || !storeId) return null;
+    const products = await tx.product.findMany({
+      where: {
+        name: productName,
+        storeId,
+        deletedAt: null,
+      },
+      take: 2,
+      orderBy: { id: 'asc' },
+    });
+    return products.length === 1 ? products[0] : null;
   }
 
   async getStock(query: {
@@ -242,6 +282,7 @@ export class InventoryService {
       sku: true,
       unit: true,
       costPrice: true,
+      supplier: true,
       currentStock: true,
       safetyStock: true,
       status: true,
@@ -430,6 +471,9 @@ export class InventoryService {
     batchNo: string;
     quantity?: number | string;
     stock?: number | string;
+    unitCost?: number | string;
+    totalAmount?: number | string;
+    supplier?: string;
     productionDate?: string;
     expiryDate?: string;
     remark?: string;
@@ -453,6 +497,21 @@ export class InventoryService {
 
       const beforeStock = this.toNonNegativeStock(product.currentStock);
       const afterStock = beforeStock + quantity;
+      const rawUnitCost = data.unitCost;
+      const unitCost = rawUnitCost === undefined || rawUnitCost === null || rawUnitCost === ''
+        ? this.toNumber(product.costPrice)
+        : this.toNumber(rawUnitCost);
+      const rawTotalAmount = data.totalAmount;
+      const totalAmount = rawTotalAmount === undefined || rawTotalAmount === null || rawTotalAmount === ''
+        ? unitCost * quantity
+        : this.toNumber(rawTotalAmount);
+      const supplier = String(data.supplier ?? product.supplier ?? '').trim();
+      const costRemark = [
+        Number.isFinite(unitCost) ? `成本单价 ¥${unitCost.toFixed(2)}` : null,
+        Number.isFinite(totalAmount) ? `订单总价 ¥${totalAmount.toFixed(2)}` : null,
+        supplier ? `供应商 ${supplier}` : null,
+      ].filter(Boolean).join('；');
+      const remark = [data.remark, costRemark].filter(Boolean).join('；');
 
       const existingBatch = await tx.stockBatch.findFirst({
         where: { productId, batchNo },
@@ -496,7 +555,7 @@ export class InventoryService {
           sourceId: batch.id,
           sourceNo: batchNo,
           ...(data.operatorId ? { operatorId: Number(data.operatorId) } : {}),
-          remark: data.remark,
+          remark,
         },
       });
 
@@ -667,6 +726,7 @@ export class InventoryService {
     const orderNo = `PUR${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
     const items: Array<{
       id: number;
+      productId?: number;
       productName: string;
       sku: string;
       quantity: number;
@@ -678,6 +738,7 @@ export class InventoryService {
       const unitPrice = this.toNumber(item.unitPrice);
       return {
         id: Number(item.id ?? index + 1),
+        ...(Number(item.productId) > 0 ? { productId: Number(item.productId) } : {}),
         productName: item.productName ?? '',
         sku: item.sku ?? '',
         quantity,
@@ -739,6 +800,7 @@ export class InventoryService {
   async receivePurchaseOrder(id: number, data: {
     items?: Array<{ sku?: string; receivedQty?: number | string; batchNo?: string; productionDate?: string; expiryDate?: string }>;
     remark?: string;
+    storeId?: number | string;
     operatorId?: number | string;
   }) {
     const affectedStoreIds = new Set<number>();
@@ -752,7 +814,7 @@ export class InventoryService {
       }
 
       const { payload, items } = this.getPurchaseOrderPayload(order);
-      const payloadStoreId = payload?.storeId ? Number(payload.storeId) : undefined;
+      const payloadStoreId = payload?.storeId ? Number(payload.storeId) : data.storeId ? Number(data.storeId) : undefined;
       if (!items.length) throw new BadRequestException('采购单没有可收货明细');
 
       const requestedBySku = new Map<string, { receivedQty: number; batchNo?: string; productionDate?: string; expiryDate?: string }>();
@@ -780,13 +842,7 @@ export class InventoryService {
           continue;
         }
 
-        const product = await tx.product.findFirst({
-          where: {
-            sku: item.sku,
-            deletedAt: null,
-            ...(payloadStoreId ? { storeId: payloadStoreId } : {}),
-          },
-        });
+        const product = await this.findPurchaseOrderProduct(tx, item, payloadStoreId);
         if (!product) throw new BadRequestException(`SKU ${item.sku} 未找到本地商品，无法收货入库`);
 
         const beforeStock = this.toNonNegativeStock(product.currentStock);

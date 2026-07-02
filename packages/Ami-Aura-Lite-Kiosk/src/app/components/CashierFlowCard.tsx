@@ -4,7 +4,12 @@ import type { CashierConfirmInput, CashierCustomer, CashierFlowData, CashierOrde
 import type { TerminalCashierShift } from "@/types/terminal";
 import { cn } from "./ui/utils";
 import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
-import { canUseMemberBalanceDeduct, getMemberBalanceDeductLabel } from "./memberBalanceDeduct";
+import {
+  canSelectMemberBalanceDeduct,
+  getMemberBalanceDeductBalance,
+  getMemberBalanceDeductLabel,
+  getMemberBalanceDeductStatus,
+} from "./memberBalanceDeduct";
 
 type CatalogItem = CashierFlowData["catalog"][number];
 type CartItem = {
@@ -64,6 +69,8 @@ const PAYMENT_METHODS: Array<{
   { value: MEMBER_CARD_PAYMENT_METHOD, label: "会员卡划扣", requiresMemberCard: true },
 ];
 
+const MEMBER_BALANCE_FALLBACK_PAYMENT_METHODS = PAYMENT_METHODS.filter((method) => !method.requiresMemberCard);
+
 const DISCOUNT_MODE_OPTIONS: Array<{
   value: NonNullable<CashierConfirmInput["discountMode"]>;
   label: string;
@@ -91,6 +98,7 @@ export function CashierFlowCard({
   const [discountRate, setDiscountRate] = useState("");
   const [packagePrice, setPackagePrice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<CashierConfirmInput["paymentMethod"]>("微信");
+  const [memberBalanceFallbackPaymentMethod, setMemberBalanceFallbackPaymentMethod] = useState<CashierConfirmInput["paymentMethod"]>("微信");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shift, setShift] = useState<TerminalCashierShift | null>(null);
@@ -121,8 +129,13 @@ export function CashierFlowCard({
           ? Math.max(0, subtotal - Math.min(subtotal, Math.max(0, Number(packagePrice) || 0)))
           : 0;
   const receivable = Math.max(0, subtotal - discount);
-  const canUseMemberCardDeduct = canUseMemberBalanceDeduct(selectedCustomer, receivable);
+  const canSelectMemberCardDeduct = canSelectMemberBalanceDeduct(selectedCustomer);
+  const memberCardDeductStatus = getMemberBalanceDeductStatus(selectedCustomer, receivable);
+  const memberCardDeductBalance = getMemberBalanceDeductBalance(selectedCustomer);
   const memberCardDeductLabel = getMemberBalanceDeductLabel(selectedCustomer, receivable);
+  const memberCardDeductAmount = Math.min(receivable, memberCardDeductBalance);
+  const memberCardRemainingAmount = Math.max(0, receivable - memberCardDeductAmount);
+  const isMemberBalancePartialPayment = paymentMethod === MEMBER_CARD_PAYMENT_METHOD && memberCardDeductStatus === "partial";
   const requireOpenShift = Boolean(loadShiftStatus);
   const isShiftOpen = !requireOpenShift || shift?.status === "open";
   const shiftHint = shiftLoading ? "正在确认当前收银班次..." : "当前未开班，请先在前台工作台开班后再收银。";
@@ -145,10 +158,10 @@ export function CashierFlowCard({
   }, [loadShiftStatus]);
 
   useEffect(() => {
-    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canUseMemberCardDeduct) {
+    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canSelectMemberCardDeduct) {
       setPaymentMethod("微信");
     }
-  }, [canUseMemberCardDeduct, paymentMethod]);
+  }, [canSelectMemberCardDeduct, paymentMethod]);
 
   const addItem = () => {
     if (!catalog.length) return;
@@ -226,9 +239,18 @@ export function CashierFlowCard({
       setError("请为每条收费明细选择服务员工，用于提成归属");
       return;
     }
-    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canUseMemberCardDeduct) {
-      setError("该客户暂无可划扣会员卡，请更换支付方式");
+    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD && !canSelectMemberCardDeduct) {
+      setError("该客户暂无储值余额，请更换支付方式");
       return;
+    }
+    const payments: CashierConfirmInput["payments"] = [];
+    if (paymentMethod === MEMBER_CARD_PAYMENT_METHOD) {
+      if (memberCardDeductAmount > 0) {
+        payments.push({ paymentMethod: MEMBER_CARD_PAYMENT_METHOD as CashierConfirmInput["paymentMethod"], amount: memberCardDeductAmount });
+      }
+      if (memberCardRemainingAmount > 0) {
+        payments.push({ paymentMethod: memberBalanceFallbackPaymentMethod, amount: memberCardRemainingAmount });
+      }
     }
     setLoading(true);
     setError(null);
@@ -255,6 +277,7 @@ export function CashierFlowCard({
         allocationMethod: "price_ratio",
         discountSource: discountMode === "package_price" ? "package" : discountMode === "none" ? "order" : "manual",
         paymentMethod,
+        payments: payments.length ? payments : undefined,
       });
       setStep(3);
     } catch (err) {
@@ -531,7 +554,14 @@ export function CashierFlowCard({
               <span className="text-sm font-medium text-[#6F6678]">支付方式</span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {PAYMENT_METHODS.map((method) => {
-                  const disabled = method.requiresMemberCard && !canUseMemberCardDeduct;
+                  const isMemberBalanceMethod = Boolean(method.requiresMemberCard);
+                  const disabled = isMemberBalanceMethod && !canSelectMemberCardDeduct;
+                  const memberHint =
+                    memberCardDeductStatus === "full"
+                      ? "足额可付"
+                      : memberCardDeductStatus === "partial"
+                        ? "余额不足，可组合支付"
+                        : "无储值，置灰不可付";
                   return (
                     <button
                       key={method.value}
@@ -540,21 +570,43 @@ export function CashierFlowCard({
                         if (!disabled) setPaymentMethod(method.value);
                       }}
                       disabled={disabled}
-                      title={method.requiresMemberCard ? memberCardDeductLabel : method.label}
+                      title={isMemberBalanceMethod ? `${memberHint} · ${memberCardDeductLabel}` : method.label}
                       className={cn(
                         "min-h-12 rounded-xl border px-2 py-2 text-sm font-medium leading-tight transition",
-                        paymentMethod === method.value ? "border-[#2D1B69] bg-[#2D1B69] text-white" : "border-black/10 bg-white text-[#1F1B2D]",
+                        paymentMethod === method.value
+                          ? "border-[#2D1B69] bg-[#2D1B69] text-white"
+                          : isMemberBalanceMethod && memberCardDeductStatus === "partial"
+                            ? "border-amber-300 bg-amber-50 text-amber-800"
+                            : "border-black/10 bg-white text-[#1F1B2D]",
                         disabled && "cursor-not-allowed border-black/5 bg-black/[0.03] text-[#9B92A3]",
                       )}
                     >
                       <span>{method.label}</span>
-                      {method.requiresMemberCard ? (
-                        <span className="mt-0.5 block text-[10px] font-normal opacity-70">{canUseMemberCardDeduct ? memberCardDeductLabel : "无卡置灰"}</span>
+                      {isMemberBalanceMethod ? (
+                        <span className="mt-0.5 block text-[10px] font-normal opacity-70">{memberHint}</span>
                       ) : null}
                     </button>
                   );
                 })}
               </div>
+              {isMemberBalancePartialPayment ? (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                  <div className="font-medium">
+                    会员余额先付 ￥{memberCardDeductAmount.toLocaleString()}，剩余 ￥{memberCardRemainingAmount.toLocaleString()} 请选择补足方式。
+                  </div>
+                  <select
+                    value={memberBalanceFallbackPaymentMethod}
+                    onChange={(event) => setMemberBalanceFallbackPaymentMethod(event.target.value as CashierConfirmInput["paymentMethod"])}
+                    className="mt-2 h-10 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm text-[#1F1B2D] outline-none focus:border-amber-400"
+                  >
+                    {MEMBER_BALANCE_FALLBACK_PAYMENT_METHODS.map((method) => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </div>
           </div>
 

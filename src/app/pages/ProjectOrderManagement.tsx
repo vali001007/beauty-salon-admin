@@ -1192,6 +1192,27 @@ export function ProjectOrderManagement() {
                 )}
               </div>
 
+              {selectedOrder.memberBalanceDeduction && (
+                <div className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/50 p-4 text-sm md:grid-cols-4">
+                  <div>
+                    <div className="text-gray-500">本金划扣</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.cashAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">赠送划扣</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.giftAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">划扣后现金余额</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.cashBalanceAfter)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">划扣后赠送余额</div>
+                    <div className="mt-1 font-semibold text-gray-900">{formatCurrency(selectedOrder.memberBalanceDeduction.giftBalanceAfter)}</div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <h4 className="mb-3 font-medium text-gray-800">项目明细</h4>
                 <Table>

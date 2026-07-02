@@ -781,6 +781,11 @@ export interface TerminalCashierOrderCreateRequest {
   promotionId?: number;
   couponId?: number;
   paymentMethod?: '\u73b0\u91d1' | '\u5fae\u4fe1' | '\u652f\u4ed8\u5b9d' | '\u94f6\u884c\u5361' | '\u6b21\u5361\u62b5\u6263' | '\u4f1a\u5458\u4f59\u989d' | 'cash' | 'wechat' | 'alipay' | 'card' | 'customer_card' | 'member_balance';
+  payments?: Array<{
+    paymentMethod: TerminalCashierOrderCreateRequest['paymentMethod'];
+    amount: number;
+    transactionNo?: string;
+  }>;
   remark?: string;
 }
 
@@ -807,6 +812,17 @@ export interface TerminalCashierOrder {
   allocationMethod?: string;
   status: 'pending_payment' | 'paid' | 'completed' | 'cancelled' | 'refunded';
   paymentMethod?: string;
+  memberBalanceDeduction?: {
+    transactionId?: number;
+    transactionNo?: string;
+    totalAmount: number;
+    cashAmount: number;
+    giftAmount: number;
+    cashBalanceBefore: number;
+    cashBalanceAfter: number;
+    giftBalanceBefore: number;
+    giftBalanceAfter: number;
+  };
   createdAt: string;
   paidAt?: string;
   completedAt?: string;

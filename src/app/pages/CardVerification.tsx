@@ -241,7 +241,9 @@ export function CardVerification() {
       <Table>
         <TableHeader>
           <TableRow className="bg-gray-50/80">
-            <TableHead>次卡/客户</TableHead>
+            <TableHead>流水号</TableHead>
+            <TableHead>客户名称</TableHead>
+            <TableHead>次卡名称</TableHead>
             <TableHead>所属门店</TableHead>
             <TableHead>使用项目</TableHead>
             <TableHead>本次核销</TableHead>
@@ -255,14 +257,14 @@ export function CardVerification() {
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={9} className="h-40 text-center text-gray-500">
+              <TableCell colSpan={11} className="h-40 text-center text-gray-500">
                 <Loader2 className="mr-2 inline h-5 w-5 animate-spin text-blue-500" />
                 正在加载次卡核销记录...
               </TableCell>
             </TableRow>
           ) : records.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="h-40 text-center text-gray-500">
+              <TableCell colSpan={11} className="h-40 text-center text-gray-500">
                 暂无次卡核销记录，请调整筛选条件
               </TableCell>
             </TableRow>
@@ -273,14 +275,15 @@ export function CardVerification() {
               const totalTimes = getTotalTimes(record);
               return (
                 <TableRow key={record.id} className="hover:bg-blue-50/30">
+                  <TableCell className="font-medium text-blue-600">{record.id}</TableCell>
                   <TableCell>
-                    <div className="font-medium text-gray-800">{record.cardName || '-'}</div>
+                    <div className="font-medium text-gray-800">{getCustomerName(record)}</div>
                     <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
                       <UserRound className="h-3.5 w-3.5" />
-                      {getCustomerName(record)}
-                      {record.customerPhone ? ` · ${record.customerPhone}` : ''}
+                      {record.customerPhone || '-'}
                     </div>
                   </TableCell>
+                  <TableCell className="font-medium text-gray-800">{record.cardName || '-'}</TableCell>
                   <TableCell>{record.storeName || '-'}</TableCell>
                   <TableCell className="max-w-[180px] whitespace-normal">{record.projectName || '-'}</TableCell>
                   <TableCell>

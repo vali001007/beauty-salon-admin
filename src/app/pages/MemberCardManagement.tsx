@@ -11,6 +11,8 @@ import {
   rechargeMemberCard,
   refundMemberCard,
 } from '@/api/order';
+import { getBeauticians } from '@/api/beautician';
+import { getProducts } from '@/api/product';
 import { getProjects } from '@/api/project';
 import { getStores } from '@/api/store';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/UI';
@@ -18,9 +20,20 @@ import { CustomerPicker } from '../components/CustomerPicker';
 import { PaymentMethodSelector, type PaymentMethodOption } from '../components/PaymentMethodSelector';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
-import type { Customer, MemberCardAccount, MemberCardTransaction, Project, Store } from '@/types';
+import type { Beautician, Customer, MemberCardAccount, MemberCardTransaction, Product, Project, Store } from '@/types';
 
 type FormMode = 'open' | 'recharge' | 'gift' | 'deduct' | 'refund';
+type DeductItemType = 'project' | 'product';
+type MemberCardDeductDraftItem = {
+  rowId: number;
+  itemType: DeductItemType;
+  itemId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  beauticianId: string;
+  beauticianName: string;
+};
 
 const PAYMENT_METHODS: PaymentMethodOption[] = [
   { value: 'cash', label: '现金支付' },
@@ -52,6 +65,7 @@ const initialForm = {
   rechargeAmount: '0.00',
   giftAmount: '0.00',
   giftProjects: [] as string[],
+  deductItems: [] as MemberCardDeductDraftItem[],
   paymentMethod: 'cash',
   remark: '',
 };
@@ -135,6 +149,19 @@ function AmountStepper({
 
 function uniqueProjectNames(projects: string[]) {
   return Array.from(new Set(projects.map((project) => project.trim()).filter(Boolean)));
+}
+
+function createDeductDraftItem(itemType: DeductItemType = 'project'): MemberCardDeductDraftItem {
+  return {
+    rowId: Date.now() + Math.floor(Math.random() * 1000),
+    itemType,
+    itemId: '',
+    name: '',
+    quantity: 1,
+    unitPrice: 0,
+    beauticianId: '',
+    beauticianName: '',
+  };
 }
 
 function GiftProjectPicker({
@@ -255,6 +282,8 @@ export function MemberCardManagement() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [beauticians, setBeauticians] = useState<Beautician[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('open');
   const [selectedAccount, setSelectedAccount] = useState<MemberCardAccount | null>(null);
@@ -282,6 +311,18 @@ export function MemberCardManagement() {
         setProjects([]);
         toast.error('项目数据加载失败，请稍后重试');
       });
+    getProducts({ status: 'active' })
+      .then(setProducts)
+      .catch(() => {
+        setProducts([]);
+        toast.error('商品数据加载失败，请稍后重试');
+      });
+    getBeauticians()
+      .then(setBeauticians)
+      .catch(() => {
+        setBeauticians([]);
+        toast.error('员工数据加载失败，请稍后重试');
+      });
   }, [loadGlobalStores]);
 
   const storeOptions = useMemo(
@@ -299,6 +340,34 @@ export function MemberCardManagement() {
         : DEMO_GIFT_PROJECTS,
     [projects],
   );
+  const selectedAccountStoreName = selectedAccount?.storeName?.trim();
+  const selectableDeductProjects = useMemo(
+    () =>
+      projects.filter(
+        (project) =>
+          project.status !== false &&
+          (!selectedAccountStoreName || !project.storeName || project.storeName === selectedAccountStoreName),
+      ),
+    [projects, selectedAccountStoreName],
+  );
+  const selectableDeductProducts = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          product.status !== '停售' &&
+          (!selectedAccountStoreName || !product.storeName || product.storeName === selectedAccountStoreName),
+      ),
+    [products, selectedAccountStoreName],
+  );
+  const selectableBeauticians = useMemo(
+    () =>
+      beauticians.filter(
+        (beautician) =>
+          beautician.status === '在职' &&
+          (!selectedAccountStoreName || !beautician.storeName || beautician.storeName === selectedAccountStoreName),
+      ),
+    [beauticians, selectedAccountStoreName],
+  );
   const currentStore = useMemo(() => {
     if (!currentStoreId) return null;
     return (
@@ -315,10 +384,71 @@ export function MemberCardManagement() {
     setForm({
       ...initialForm,
       customerId: account ? String(account.customerId) : '',
+      deductItems: mode === 'deduct' ? [createDeductDraftItem()] : [],
     });
     setCustomerSearch('');
     setSelectedCustomer(null);
   };
+
+  const updateDeductItem = (rowId: number, patch: Partial<MemberCardDeductDraftItem>) => {
+    setForm((prev) => ({
+      ...prev,
+      deductItems: prev.deductItems.map((item) => (item.rowId === rowId ? { ...item, ...patch } : item)),
+    }));
+  };
+
+  const addDeductItem = () => {
+    setForm((prev) => ({ ...prev, deductItems: [...prev.deductItems, createDeductDraftItem()] }));
+  };
+
+  const removeDeductItem = (rowId: number) => {
+    setForm((prev) => ({
+      ...prev,
+      deductItems: prev.deductItems.length <= 1 ? prev.deductItems : prev.deductItems.filter((item) => item.rowId !== rowId),
+    }));
+  };
+
+  const handleDeductItemTypeChange = (rowId: number, itemType: DeductItemType) => {
+    updateDeductItem(rowId, { itemType, itemId: '', name: '', unitPrice: 0 });
+  };
+
+  const handleDeductCatalogSelect = (rowId: number, itemId: string) => {
+    const current = form.deductItems.find((item) => item.rowId === rowId);
+    if (!current) return;
+    if (!itemId) {
+      updateDeductItem(rowId, { itemId: '', name: '', unitPrice: 0 });
+      return;
+    }
+    if (current.itemType === 'project') {
+      const project = selectableDeductProjects.find((item) => String(item.id) === itemId);
+      updateDeductItem(rowId, {
+        itemId,
+        name: project?.name ?? '',
+        unitPrice: Number(project?.price ?? 0),
+      });
+      return;
+    }
+    const product = selectableDeductProducts.find((item) => String(item.id) === itemId);
+    updateDeductItem(rowId, {
+      itemId,
+      name: product?.name ?? '',
+      unitPrice: Number(product?.salePrice ?? product?.retailPrice ?? 0),
+    });
+  };
+
+  const handleDeductBeauticianSelect = (rowId: number, beauticianId: string) => {
+    const beautician = selectableBeauticians.find((item) => String(item.id) === beauticianId);
+    updateDeductItem(rowId, { beauticianId, beauticianName: beautician?.name ?? '' });
+  };
+
+  const deductTotal = useMemo(
+    () =>
+      form.deductItems.reduce(
+        (sum, item) => sum + Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.unitPrice || 0)),
+        0,
+      ),
+    [form.deductItems],
+  );
 
   const closeForm = () => {
     setIsFormOpen(false);
@@ -369,8 +499,29 @@ export function MemberCardManagement() {
         await giftMemberCard(selectedAccount.id, { giftAmount, remark: form.remark });
         toast.success('赠送成功');
       } else if (formMode === 'deduct' && selectedAccount) {
-        if (rechargeAmount <= 0) throw new Error('划扣金额必须大于 0');
-        await deductMemberCard(selectedAccount.id, { amount: rechargeAmount, remark: form.remark });
+        const validItems = form.deductItems
+          .map((item) => {
+            const quantity = Math.max(0, Number(item.quantity || 0));
+            const unitPrice = Math.max(0, Number(item.unitPrice || 0));
+            const subtotal = Math.round(quantity * unitPrice * 100) / 100;
+            return {
+              itemType: item.itemType,
+              itemId: item.itemId ? Number(item.itemId) : undefined,
+              name: item.name.trim(),
+              quantity,
+              unitPrice,
+              subtotal,
+              netAmount: subtotal,
+              beauticianId: Number(item.beauticianId || 0),
+              beauticianName: item.beauticianName,
+            };
+          })
+          .filter((item) => item.name && item.quantity > 0 && item.unitPrice >= 0);
+        if (!validItems.length) throw new Error('请添加至少一项划扣项目或商品');
+        if (validItems.some((item) => !item.beauticianId)) throw new Error('每条划扣明细都需要选择服务人员');
+        const totalAmount = Math.round(validItems.reduce((sum, item) => sum + item.subtotal, 0) * 100) / 100;
+        if (totalAmount <= 0) throw new Error('划扣明细金额必须大于 0');
+        await deductMemberCard(selectedAccount.id, { amount: totalAmount, items: validItems, remark: form.remark });
         toast.success('划扣成功');
       } else if (formMode === 'refund' && selectedAccount) {
         if (rechargeAmount <= 0) throw new Error('退款金额必须大于 0');
@@ -588,7 +739,7 @@ export function MemberCardManagement() {
 
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
-          <div className="w-full max-w-[560px] rounded-lg border border-border bg-card shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+          <div className={`w-full rounded-lg border border-border bg-card shadow-[0_24px_80px_rgba(15,23,42,0.18)] ${formMode === 'deduct' ? 'max-w-[960px]' : 'max-w-[560px]'}`}>
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div className="flex items-center gap-2 text-base font-semibold">
                 <WalletCards className="h-5 w-5 text-primary" />
@@ -652,13 +803,117 @@ export function MemberCardManagement() {
                 </div>
               )}
 
-              {(formMode === 'open' || formMode === 'recharge' || formMode === 'deduct' || formMode === 'refund') && (
+              {(formMode === 'open' || formMode === 'recharge' || formMode === 'refund') && (
                 <AmountStepper
-                  label={formMode === 'deduct' ? '划扣金额(元)' : formMode === 'refund' ? '退款金额(元)' : '充值金额(元)'}
+                  label={formMode === 'refund' ? '退款金额(元)' : '充值金额(元)'}
                   value={form.rechargeAmount}
                   onChange={(value) => setForm((prev) => ({ ...prev, rechargeAmount: value }))}
                   required
                 />
+              )}
+
+              {formMode === 'deduct' && (
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">划扣明细</div>
+                      <div className="mt-1 text-xs text-muted-foreground">选择商品/项目和服务人员，系统按明细合计执行会员卡划扣。</div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addDeductItem}>
+                      <Plus className="h-4 w-4" />
+                      添加明细
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-border bg-background">
+                    <div className="grid min-w-[850px] grid-cols-[92px_1.25fr_1fr_82px_100px_116px_42px] gap-2 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                      <span>类型</span>
+                      <span>项目/商品</span>
+                      <span>服务人员</span>
+                      <span>次数/数量</span>
+                      <span>单价</span>
+                      <span>小计</span>
+                      <span />
+                    </div>
+                    <div className="divide-y divide-border">
+                      {form.deductItems.map((item) => {
+                        const subtotal = Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.unitPrice || 0));
+                        const catalogOptions = item.itemType === 'project' ? selectableDeductProjects : selectableDeductProducts;
+                        return (
+                          <div key={item.rowId} className="grid min-w-[850px] grid-cols-[92px_1.25fr_1fr_82px_100px_116px_42px] gap-2 px-3 py-3">
+                            <select
+                              value={item.itemType}
+                              onChange={(event) => handleDeductItemTypeChange(item.rowId, event.target.value as DeductItemType)}
+                              className="h-10 rounded-lg border border-input bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                            >
+                              <option value="project">项目</option>
+                              <option value="product">商品</option>
+                            </select>
+                            <select
+                              value={item.itemId}
+                              onChange={(event) => handleDeductCatalogSelect(item.rowId, event.target.value)}
+                              className="h-10 min-w-0 rounded-lg border border-input bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                            >
+                              <option value="">{item.itemType === 'project' ? '请选择项目' : '请选择商品'}</option>
+                              {catalogOptions.map((catalogItem) => (
+                                <option key={catalogItem.id} value={catalogItem.id}>
+                                  {catalogItem.name}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={item.beauticianId}
+                              onChange={(event) => handleDeductBeauticianSelect(item.rowId, event.target.value)}
+                              className="h-10 min-w-0 rounded-lg border border-input bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                            >
+                              <option value="">请选择服务人员</option>
+                              {selectableBeauticians.map((beautician) => (
+                                <option key={beautician.id} value={beautician.id}>
+                                  {beautician.name}
+                                </option>
+                              ))}
+                            </select>
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={item.quantity}
+                              onChange={(event) => updateDeductItem(item.rowId, { quantity: Math.max(1, Number(event.target.value || 1)) })}
+                              className="h-10"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(event) => updateDeductItem(item.rowId, { unitPrice: Math.max(0, Number(event.target.value || 0)) })}
+                              className="h-10"
+                            />
+                            <div className="flex h-10 items-center rounded-lg bg-muted/60 px-3 text-sm font-semibold text-foreground">
+                              {formatCurrency(subtotal)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeDeductItem(item.rowId)}
+                              disabled={form.deductItems.length <= 1}
+                              className="flex h-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                              title="删除明细"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <div className="text-muted-foreground">
+                      可用总余额 {formatCurrency((selectedAccount?.availableBalance ?? 0) + (selectedAccount?.giftBalance ?? 0))}
+                    </div>
+                    <div className="font-semibold text-foreground">
+                      划扣合计 {formatCurrency(deductTotal)}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {(formMode === 'open' || formMode === 'recharge' || formMode === 'gift') && (

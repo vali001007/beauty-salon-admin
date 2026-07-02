@@ -10,6 +10,7 @@ export interface StockItem {
   categoryId?: number | null;
   categoryName?: string;
   costPrice?: number;
+  supplier?: string | null;
   status: '正常' | '低库存' | '积压' | '缺货';
   lastInboundDate: string;
   storeName: string;
@@ -142,6 +143,7 @@ export interface PurchaseOrder {
 
 export interface PurchaseOrderItem {
   id: number;
+  productId?: number;
   productName: string;
   sku: string;
   quantity: number;

@@ -262,6 +262,7 @@ export function PurchaseManagement() {
       };
       const itemAmount = getSuggestionAmount(suggestion);
       existing.items.push({
+        productId: suggestion.productId ?? suggestion.id,
         productName: suggestion.productName,
         sku: suggestion.sku,
         quantity: suggestion.suggestedQty,

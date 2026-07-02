@@ -85,8 +85,6 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: ShoppingBag,
     path: '/goods',
     children: [
-      { title: '产品类型', path: '/goods/types', icon: LayoutGrid, permission: 'core:goods:types' },
-      { title: '产品管理', path: '/inventory/products', icon: ShoppingBag, permission: 'core:inventory:products' },
       { title: '商品管理', path: '/goods/products', icon: ShoppingBag, permission: 'core:goods:products' },
       { title: '次卡管理', path: '/goods/cards', icon: FileText, permission: 'core:goods:cards' },
     ],
@@ -99,9 +97,9 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '商品订单管理', path: '/orders/products', icon: FileText, permission: 'core:order:products' },
       { title: '项目订单管理', path: '/orders/projects', icon: FileText, permission: 'core:order:projects' },
       { title: '会员卡管理', path: '/orders/member-cards', icon: FileText, permission: 'core:order:member-cards' },
-      { title: '会员卡划扣记录', path: '/orders/member-card-deducts', icon: FileText, permission: 'core:order:member-cards' },
-      { title: '次卡开卡管理', path: '/orders/card-orders', icon: FileText, permission: 'core:order:card-orders' },
-      { title: '次卡核销管理', path: '/orders/card-usage', icon: FileText, permission: 'core:order:card-usage' },
+      { title: '会员卡划扣流水', path: '/orders/member-card-deducts', icon: FileText, permission: 'core:order:member-cards' },
+      { title: '次卡订单管理', path: '/orders/card-orders', icon: FileText, permission: 'core:order:card-orders' },
+      { title: '次卡核销流水', path: '/orders/card-usage', icon: FileText, permission: 'core:order:card-usage' },
     ],
   },
   {
@@ -109,6 +107,8 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: Package,
     path: '/inventory',
     children: [
+      { title: '产品类型', path: '/goods/types', icon: LayoutGrid, permission: 'core:goods:types' },
+      { title: '产品管理', path: '/inventory/products', icon: ShoppingBag, permission: 'core:inventory:products' },
       { title: '库存管理', path: '/inventory/stock', icon: Package, permission: 'core:inventory:stock' },
       { title: '采购管理', path: '/inventory/purchase', icon: ShoppingCart, permission: 'core:inventory:purchase' },
       { title: '过期管理', path: '/inventory/expiry', icon: AlertTriangle, permission: 'core:inventory:expiry' },
@@ -121,7 +121,6 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: WalletCards,
     path: '/finance',
     children: [
-      { title: '财务首页', path: '/finance', icon: LayoutGrid, permission: 'core:finance:view', group: '总览' },
       { title: '收银对账', path: '/finance/reconciliation', icon: ClipboardList, permission: 'core:finance:view', group: '结算与对账' },
       { title: '员工提成', path: '/finance/staff-commission', icon: Users, permission: 'core:finance:view', group: '提成与人效' },
       { title: '经营利润', path: '/finance/profit', icon: TrendingUp, permission: 'core:operation-profit:view', group: '经营利润' },

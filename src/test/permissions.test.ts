@@ -124,7 +124,6 @@ describe('permission catalog helpers', () => {
       permission: child.permission,
       group: child.group,
     }))).toEqual([
-      { title: '财务首页', path: '/finance', permission: 'core:finance:view', group: '总览' },
       { title: '收银对账', path: '/finance/reconciliation', permission: 'core:finance:view', group: '结算与对账' },
       { title: '员工提成', path: '/finance/staff-commission', permission: 'core:finance:view', group: '提成与人效' },
       { title: '经营利润', path: '/finance/profit', permission: 'core:operation-profit:view', group: '经营利润' },

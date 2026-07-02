@@ -1,6 +1,18 @@
 export type ProductOrderStatus = '待付款' | '已付款' | '已完成' | '已取消' | '已退款';
 export type ProductOrderPaymentMethod = '现金' | '微信' | '支付宝' | '银行卡' | '会员卡划扣';
 
+export interface MemberBalanceDeduction {
+  transactionId?: number;
+  transactionNo?: string;
+  totalAmount: number;
+  cashAmount: number;
+  giftAmount: number;
+  cashBalanceBefore: number;
+  cashBalanceAfter: number;
+  giftBalanceBefore: number;
+  giftBalanceAfter: number;
+}
+
 export interface ProductOrder {
   id: number;
   orderNo: string;
@@ -35,6 +47,7 @@ export interface ProductOrder {
   paymentRecords?: PaymentRecord[];
   refundRecords?: RefundRecord[];
   marketingAttributions?: MarketingAttribution[];
+  memberBalanceDeduction?: MemberBalanceDeduction;
 }
 
 export interface ProductOrderItem {
@@ -433,8 +446,21 @@ export interface MemberCardGiftPayload {
   remark?: string;
 }
 
+export interface MemberCardDeductItemPayload {
+  itemType: 'project' | 'product';
+  itemId?: number;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal?: number;
+  netAmount?: number;
+  beauticianId: number;
+  beauticianName?: string;
+}
+
 export interface MemberCardDeductPayload {
   amount: number;
+  items: MemberCardDeductItemPayload[];
   remark?: string;
 }
 

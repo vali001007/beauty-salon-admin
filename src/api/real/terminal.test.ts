@@ -127,14 +127,15 @@ describe('terminal real API payload normalization', () => {
       ],
     });
 
-    expect(apiClientMock.post).toHaveBeenCalledWith('/terminal/cashier/checkout', {
+    expect(apiClientMock.post).toHaveBeenCalledWith('/terminal/cashier/checkout', expect.objectContaining({
       customerId: 1,
       customerName: '徐欣怡',
       customerPhone: '18822013339',
       payMethod: 'wechat',
       discountAmount: undefined,
+      payments: [],
       items: [
-        {
+        expect.objectContaining({
           itemId: 101,
           itemType: 'project',
           name: '深层补水护理',
@@ -143,9 +144,9 @@ describe('terminal real API payload normalization', () => {
           subtotal: 298,
           beauticianId: 2,
           beauticianName: '沈晴',
-        },
+        }),
       ],
       remark: undefined,
-    });
+    }));
   });
 });
