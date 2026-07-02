@@ -146,9 +146,11 @@ describe('OperationCostSettings', () => {
 
     expect(apiMocks.createOperationCost).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText('金额'), { target: { value: '1000' } });
-    fireEvent.change(screen.getByLabelText('日期'), { target: { value: '2026-07-01' } });
-    fireEvent.click(screen.getByRole('button', { name: '新增成本' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('金额'), { target: { value: '1000' } });
+    fireEvent.change(within(dialog).getByLabelText('月份'), { target: { value: '2026-07' } });
+    fireEvent.change(within(dialog).getByLabelText('日期'), { target: { value: '2026-08-01' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '新增成本' }));
 
     expect(apiMocks.createOperationCost).not.toHaveBeenCalled();
   });
