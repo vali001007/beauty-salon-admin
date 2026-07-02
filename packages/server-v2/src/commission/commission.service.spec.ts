@@ -15,6 +15,7 @@ describe('CommissionService', () => {
       beautician: { findFirst: jest.fn() },
       projectBomItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
+      customerBalanceTransaction: { findMany: jest.fn() },
       store: { findMany: jest.fn(), count: jest.fn() },
       paymentRecord: { findMany: jest.fn(), count: jest.fn() },
       refundRecord: { findMany: jest.fn(), count: jest.fn() },
@@ -85,6 +86,7 @@ describe('CommissionService', () => {
       },
     };
     prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.customerBalanceTransaction.findMany.mockResolvedValue([]);
     prisma.commissionSettlementRecord.findMany.mockResolvedValue([]);
     service = new CommissionService(prisma);
   });
