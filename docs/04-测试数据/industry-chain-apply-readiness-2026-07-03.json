@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-07-03T07:23:38.094Z",
+  "store": {
+    "id": 6,
+    "name": "Ami 全量演示门店"
+  },
+  "parameters": {
+    "strategy": "mark-invalid",
+    "quantity": null,
+    "skipLowStockSample": false
+  },
+  "brokenAdoptions": [],
+  "bomUnitRepairs": [],
+  "supplyFlowImpact": {
+    "product": {
+      "id": 82,
+      "name": "玻尿酸保湿精华",
+      "sku": "AMI-DEMO-FULL-SKU-001",
+      "currentStock": 133,
+      "currentSafetyStock": 143,
+      "movementUnit": "ml"
+    },
+    "existingObjects": {
+      "supplierId": 1,
+      "supplySkuId": 1,
+      "quoteId": 1,
+      "mappingId": 1,
+      "procurementOrderId": 1,
+      "shipmentCount": 1,
+      "stockMovementCount": 1,
+      "settlementId": 1
+    },
+    "plannedWrites": {
+      "supplier": "update status/rates to active approved",
+      "supplySku": "update status/auditStatus to active approved",
+      "quote": "update quote to active approved available",
+      "mapping": "update mapping active preferred",
+      "procurementOrder": "reuse latest flow order if present",
+      "shipment": "reuse existing shipment",
+      "stockInbound": "skip because inbound movement exists",
+      "lowStockSample": "set safetyStock to 143 after receipt",
+      "settlement": "upsert current month settlement"
+    },
+    "expectedStock": {
+      "quantity": 5,
+      "before": 133,
+      "increment": 0,
+      "after": 133,
+      "targetSafetyStockAfterReceipt": 143
+    }
+  },
+  "applyCommands": [
+    "npm.cmd --prefix packages/server-v2 run industry-chain:baseline -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run product-unit:audit -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run industry-chain:repair -- --strategy=mark-invalid --store-id=6 --apply --yes",
+    "npm.cmd --prefix packages/server-v2 run product-unit:repair -- --store-id=6 --apply --yes",
+    "npm.cmd --prefix packages/server-v2 run supply-platform:mvp-flow -- --storeId=6",
+    "npm.cmd --prefix packages/server-v2 run supply-platform:fulfillment-readiness -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run supply-platform:mvp-flow:verify -- --storeId=6",
+    "npm.cmd --prefix packages/server-v2 run industry-chain:sample-gate:strict -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run industry-chain:completion-gate:strict -- --store-id=6"
+  ],
+  "guard": {
+    "strict": true,
+    "pass": true,
+    "limits": {
+      "maxBrokenAdoptions": 1,
+      "maxBomUnitRepairs": 1,
+      "maxStockIncrement": 20
+    },
+    "failures": []
+  }
+}

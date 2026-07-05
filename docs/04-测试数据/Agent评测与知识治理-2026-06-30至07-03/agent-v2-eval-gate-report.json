@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-07-03 14:50:16 Asia/Shanghai",
+  "source": {
+    "evalDrafts": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.json",
+    "governance": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-governance-report.json"
+  },
+  "summary": {
+    "totalQuestions": 650,
+    "p0Questions": 103,
+    "p0Unmapped": 0,
+    "p0PermissionNeedsReview": 0,
+    "p0ContractNotPass": 0,
+    "p0WrongRouteRisk": 0,
+    "highRiskAutoPublish": 0,
+    "inferredPermission": 50,
+    "pass": true
+  },
+  "gates": [
+    {
+      "gate": "P0 问题错路由率",
+      "expected": "0 个能力缺失或语义错路由",
+      "actual": "0 / 103",
+      "pass": true
+    },
+    {
+      "gate": "P0 支持问题契约",
+      "expected": "全部 pass",
+      "actual": "0 个未通过",
+      "pass": true
+    },
+    {
+      "gate": "P0 权限确认",
+      "expected": "全部 allow",
+      "actual": "0 个需要复核",
+      "pass": true
+    },
+    {
+      "gate": "高风险自动发布",
+      "expected": "0 个",
+      "actual": "0 个样例",
+      "pass": true
+    },
+    {
+      "gate": "候选草稿权限绑定",
+      "expected": "自动生成草稿进入治理待办，不阻断已发布能力门禁",
+      "actual": "50 个候选草稿需补权限",
+      "pass": true
+    }
+  ],
+  "samples": {
+    "p0Unmapped": [],
+    "p0PermissionNeedsReview": [],
+    "p0ContractNotPass": [],
+    "p0WrongRouteRisk": []
+  }
+}

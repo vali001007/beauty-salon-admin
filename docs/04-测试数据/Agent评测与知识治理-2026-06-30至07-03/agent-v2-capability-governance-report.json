@@ -1,0 +1,1703 @@
+{
+  "generatedAt": "2026-07-03 14:49:06 Asia/Shanghai",
+  "scanner": "agent-v2-capability-draft-generator",
+  "policy": "直接写入、删除、发券、下发必须审批或阻断；其他只读、指标、趋势、详情、诊断、草稿类能力可自动发布，但必须有权限、证据包和字段策略。",
+  "counts": {
+    "prismaModels": 126,
+    "dtoClasses": 177,
+    "controllerEndpoints": 600,
+    "controllerEndpointsWithPermissions": 283,
+    "frontendRoutes": 72,
+    "capabilityDrafts": 592,
+    "evalDrafts": 650,
+    "unmappedEval": 418
+  },
+  "distributions": {
+    "byReleaseStrategy": {
+      "auto_publish": 327,
+      "approval_required": 258,
+      "write_blocked": 7
+    },
+    "byDomain": {
+      "customer": 67,
+      "finance": 253,
+      "industry": 75,
+      "inventory": 36,
+      "marketing": 77,
+      "order": 47,
+      "store": 37
+    },
+    "byFailureCategory": {
+      "能力缺失": 418,
+      "待验证": 159,
+      "权限缺失": 73
+    }
+  },
+  "gates": {
+    "missingPermission": [],
+    "inferredPermission": [
+      {
+        "capabilityId": "customer.customer.app.contact.records.list",
+        "displayName": "客户 customer app / contact记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.display.configs.records.list",
+        "displayName": "客户 admin / display configs记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.home.records.list",
+        "displayName": "客户 customer app / home记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.cards.records.list",
+        "displayName": "客户 me / cards记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.consumption.records.records.list",
+        "displayName": "客户 me / consumption records记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.member.card.records.list",
+        "displayName": "客户 me / member card记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.records.list",
+        "displayName": "客户 customer app / me记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.reservations.records.list",
+        "displayName": "客户 me / reservations记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.projects.id.detail",
+        "displayName": "客户 projects / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.projects.records.list",
+        "displayName": "客户 customer app / projects记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.reservations.availability.records.list",
+        "displayName": "客户 reservations / availability记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.skin.tests.id.detail",
+        "displayName": "客户 skin tests / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.skin.tests.id.recommendations.detail",
+        "displayName": "客户 :id / recommendations详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.marketing.page.context",
+        "displayName": "客户 customer marketing页面语义",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认页面对应业务对象",
+          "确认是否已有后端 API 支撑",
+          "确认权限码与字段策略"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.card.portraits.records.list",
+        "displayName": "客户 customers / card portraits记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.consumption.records.records.list",
+        "displayName": "客户 customers / consumption records记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.health.profiles.records.list",
+        "displayName": "客户 customers / health profiles记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.id.health.profile.detail",
+        "displayName": "客户 :id / health profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.id.profile.detail",
+        "displayName": "客户 :id / profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.page.context",
+        "displayName": "客户 customers页面语义",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认页面对应业务对象",
+          "确认是否已有后端 API 支撑",
+          "确认权限码与字段策略"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.profile.analytics.prediction.records.list",
+        "displayName": "客户 profile analytics / prediction记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.profile.analytics.records.list",
+        "displayName": "客户 customers / profile analytics记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.records.list",
+        "displayName": "客户 customers记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.marketing.predictions.customers.id.detail",
+        "displayName": "客户 customers / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.customer.growth.records.list",
+        "displayName": "客户 devices / customer growth记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.customer.select.records.list",
+        "displayName": "客户 devices / customer select记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.customers.records.list",
+        "displayName": "客户 devices / customers记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.behavior.profile.detail",
+        "displayName": "客户 :id / behavior profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.consumption.records.detail",
+        "displayName": "客户 consumption records / paginated详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.health.profile.detail",
+        "displayName": "客户 :id / health profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.profile.detail",
+        "displayName": "客户 :id / profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.approvals.records.list",
+        "displayName": "财务 agent / approvals记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.capability.candidates.records.list",
+        "displayName": "财务 agent / capability candidates记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.daily.archives.trend",
+        "displayName": "财务 agent / daily archives趋势分析",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.evals.default.records.list",
+        "displayName": "财务 evals / default记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.evals.p0.records.list",
+        "displayName": "财务 evals / p0记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.evals.skills.records.list",
+        "displayName": "财务 evals / skills记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.feedback.failures.records.list",
+        "displayName": "财务 feedback / failures记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.knowledge.governance.records.list",
+        "displayName": "财务 knowledge / governance记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.memories.records.list",
+        "displayName": "财务 agent / memories记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.personas.all.records.list",
+        "displayName": "财务 personas / all记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.personas.code.records.list",
+        "displayName": "财务 personas / :code记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.personas.records.list",
+        "displayName": "财务 agent / personas记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.quality.report.metric",
+        "displayName": "财务 agent / quality report指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.runs.id.detail",
+        "displayName": "财务 runs / :id详情查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.runs.id.detail.detail",
+        "displayName": "财务 :id / detail详情查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.runs.records.list",
+        "displayName": "财务 agent / runs记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.schema.readiness.records.list",
+        "displayName": "财务 agent / schema readiness记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.tools.records.list",
+        "displayName": "财务 agent / tools记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.agent.v2.capability.center.drafts.capabilityid.records.list",
+        "displayName": "财务 drafts / :capabilityId记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      }
+    ],
+    "missingDto": [
+      {
+        "capabilityId": "customer.customer.app.contact.records.list",
+        "displayName": "客户 customer app / contact记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.cards.records.list",
+        "displayName": "客户 me / cards记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.member.card.records.list",
+        "displayName": "客户 me / member card记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.me.records.list",
+        "displayName": "客户 customer app / me记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.projects.id.detail",
+        "displayName": "客户 projects / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customer.app.skin.tests.id.detail",
+        "displayName": "客户 skin tests / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.consumption.records.records.list",
+        "displayName": "客户 customers / consumption records记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.health.profiles.records.list",
+        "displayName": "客户 customers / health profiles记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.id.detail",
+        "displayName": "客户 customers / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.id.health.profile.detail",
+        "displayName": "客户 :id / health profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.id.profile.detail",
+        "displayName": "客户 :id / profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.miniapp.behavior.analysis.records.list",
+        "displayName": "客户 customers / miniapp behavior analysis记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.profile.analytics.overview.metric",
+        "displayName": "客户 profile analytics / overview指标查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.profile.analytics.records.list",
+        "displayName": "客户 customers / profile analytics记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.profile.analytics.segment.records.list",
+        "displayName": "客户 profile analytics / segment记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.profile.analytics.skin.records.list",
+        "displayName": "客户 profile analytics / skin记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.records.list",
+        "displayName": "客户 customers记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.customers.segment.count.records.list",
+        "displayName": "客户 customers / segment count记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.marketing.predictions.customers.id.detail",
+        "displayName": "客户 customers / :id详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.marketing.predictions.customers.records.list",
+        "displayName": "客户 predictions / customers记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.customer.growth.records.list",
+        "displayName": "客户 devices / customer growth记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.customers.records.list",
+        "displayName": "客户 devices / customers记录查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.behavior.profile.detail",
+        "displayName": "客户 :id / behavior profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.consumption.records.detail",
+        "displayName": "客户 consumption records / paginated详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.health.profile.detail",
+        "displayName": "客户 :id / health profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "customer.terminal.devices.id.profile.detail",
+        "displayName": "客户 :id / profile详情查询",
+        "domain": "customer",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.ai.audit.logs.records.list",
+        "displayName": "财务 audit logs / paginated记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.auth.csrf.token.records.list",
+        "displayName": "财务 auth / csrf token记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.business.query.capabilities.records.list",
+        "displayName": "财务 business query / capabilities记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.cards.id.detail",
+        "displayName": "财务 cards / :id详情查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.cards.records.list",
+        "displayName": "财务 cards记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.cards.sale.options.records.list",
+        "displayName": "财务 cards / sale options记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.commission.ami.bills.month.records.list",
+        "displayName": "财务 bills / :month记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.commission.rules.id.detail",
+        "displayName": "财务 rules / :id详情查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.commission.settlements.id.metric",
+        "displayName": "财务 settlements / :id指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.dashboard.overview.metric",
+        "displayName": "财务 dashboard / overview指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.dashboard.workbench.metric",
+        "displayName": "财务 dashboard / workbench指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.health.records.list",
+        "displayName": "财务 health记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.operation.costs.records.list",
+        "displayName": "财务 operation costs记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.operation.profit.beautician.performance.metric",
+        "displayName": "财务 operation profit / beautician performance指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.operation.profit.overview.metric",
+        "displayName": "财务 operation profit / overview指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.operation.profit.prepaid.liabilities.metric",
+        "displayName": "财务 operation profit / prepaid liabilities指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.operation.profit.product.margins.metric",
+        "displayName": "财务 operation profit / product margins指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.operation.profit.project.margins.metric",
+        "displayName": "财务 operation profit / project margins指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.orders.product.id.profit.metric",
+        "displayName": "财务 :id / profit指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.orders.project.id.profit.metric",
+        "displayName": "财务 :id / profit指标查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.products.id.detail",
+        "displayName": "财务 products / :id详情查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约"
+        ]
+      },
+      {
+        "capabilityId": "finance.products.records.list",
+        "displayName": "财务 products记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.reservations.id.detail",
+        "displayName": "财务 reservations / :id详情查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      },
+      {
+        "capabilityId": "finance.reservations.records.list",
+        "displayName": "财务 reservations / paginated记录查询",
+        "domain": "finance",
+        "releaseStrategy": "auto_publish",
+        "riskLevel": "low",
+        "confirmationNeeded": [
+          "确认业务对象口径",
+          "确认权限码",
+          "确认字段脱敏策略",
+          "确认接口入参 DTO 或请求契约",
+          "权限码来自领域推断，需绑定真实 controller 或 route 权限"
+        ]
+      }
+    ],
+    "missingModel": [],
+    "highRiskAutoPublish": [],
+    "unmappedEval": [
+      {
+        "id": "q001",
+        "question": "今天店里情况怎么样，给我来个总结",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q002",
+        "question": "今天营业额到多少了",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q003",
+        "question": "今天来了几个客人，现在还有几个在店",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q004",
+        "question": "今天和昨天比营业额差多少",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q005",
+        "question": "本周跟上周比，哪天差距最大",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q006",
+        "question": "这个月目标完成率多少了，还差多远",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q007",
+        "question": "今天客单价多少，跟平时比怎么样",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q008",
+        "question": "今天有没有什么异常情况我需要知道",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q009",
+        "question": "现在店里哪些美容师在忙，哪些空着",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q011",
+        "question": "这个月跟上个月比收入差多少",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q012",
+        "question": "今天新客老客各来了几个",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q013",
+        "question": "现在几点了，下午还有几个预约",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q014",
+        "question": "今天哪个项目做得最多",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q015",
+        "question": "今天最大的一笔消费是多少",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q016",
+        "question": "今天折扣优惠送出去多少钱",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate"
+      },
+      {
+        "id": "q018",
+        "question": "这周有没有哪天特别差，为什么",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate"
+      },
+      {
+        "id": "q021",
+        "question": "最近哪些老客好久没来了，帮我列一下",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q022",
+        "question": "上个月新来了多少新客，转化了多少",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q028",
+        "question": "帮我看一下今天到店客人的画像，主要是什么年龄段",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q029",
+        "question": "我们的老客回头率大概是多少",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q038",
+        "question": "这个月新客主要来自什么渠道",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      },
+      {
+        "id": "q041",
+        "question": "这个月谁的业绩最好",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q042",
+        "question": "哪个美容师接的客人最多",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q044",
+        "question": "有没有员工这周业绩明显下滑",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q046",
+        "question": "各美容师今天的排班情况，有没有空档",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q047",
+        "question": "今天谁请假了，有没有影响接待",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q048",
+        "question": "哪个美容师的客诉最多，最近有没有",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q049",
+        "question": "新员工试用期表现怎么样",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q050",
+        "question": "帮我看一下各美容师的服务次数对比",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q051",
+        "question": "今天谁服务了几个客人",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q052",
+        "question": "哪个员工这个月进步最快",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q053",
+        "question": "有没有员工最近很长时间没有新客了",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q056",
+        "question": "有没有员工到期转正需要我处理",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q057",
+        "question": "最近有没有员工出现迟到早退",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q058",
+        "question": "哪个美容师的升单能力最强",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q059",
+        "question": "帮我看一下员工这周的工作饱和度",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "store.unmapped.eval_candidate"
+      },
+      {
+        "id": "q063",
+        "question": "这个月耗材用了多少，正常吗",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q064",
+        "question": "最近卖得最好的产品是什么",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q065",
+        "question": "有什么产品积压太久了",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q066",
+        "question": "下次采购需要补什么货",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q068",
+        "question": "有没有哪个项目因为缺耗材没法做",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q070",
+        "question": "最近采购了什么，花了多少钱",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q071",
+        "question": "有没有产品快断货但还没采购的",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q073",
+        "question": "哪些耗材消耗速度最快",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q074",
+        "question": "现在仓库里护肤品还有多少",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q075",
+        "question": "有没有产品卖出去的价格低于成本的",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q076",
+        "question": "最近有没有收到供应商的涨价通知",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q077",
+        "question": "这个月退货了多少，原因是什么",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q080",
+        "question": "帮我生成一份补货建议",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate"
+      },
+      {
+        "id": "q083",
+        "question": "这周预约爽约率高不高",
+        "roleGroup": "店长经营 Agent",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate"
+      }
+    ]
+  },
+  "recommendations": [
+    "优先把领域推断权限替换为后端 @Permissions 或前端 route permission，避免自动发布依赖弱口径。",
+    "对缺 DTO 的接口补充入参契约或标记为只读无参，减少工具调用参数幻觉。",
+    "未映射题目需要按领域批量归并为新能力或明确标记为闲聊/暂不支持。",
+    "自动发布候选风险分布可接受。"
+  ]
+}

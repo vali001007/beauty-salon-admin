@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-07-03T00:33:26.124Z",
+  "generatedAtLocal": "2026-07-03 08:33:26 Asia/Shanghai",
+  "businessDate": "2026-07-03",
+  "storeId": "6",
+  "complete": true,
+  "evidenceSummary": {
+    "md": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-evidence-summary-post-apply-verify-2026-07-03.md",
+    "json": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-evidence-summary-post-apply-verify-2026-07-03.json"
+  },
+  "completionAudit": {
+    "md": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-completion-audit-post-apply-verify-2026-07-03.md",
+    "json": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-completion-audit-post-apply-verify-2026-07-03.json"
+  },
+  "results": [
+    {
+      "id": "sample-gate",
+      "name": "样本级闭环闸门",
+      "status": 0,
+      "signal": null,
+      "ok": true,
+      "scriptPath": "prisma/industry-chain-sample-gate.ts",
+      "args": [
+        "--strict",
+        "--store-id=6"
+      ],
+      "error": null,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ enable debugging { debug: true }\n样本级闸门报告生成完成：D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-sample-gate-2026-07-03.md\n总状态：已完成\n通过 10，未通过 0，待关注 0\n",
+      "stderrTail": "(node:24596) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "completion-gate",
+      "name": "完成度闸门",
+      "status": 0,
+      "signal": null,
+      "ok": true,
+      "scriptPath": "prisma/industry-chain-completion-gate.ts",
+      "args": [
+        "--strict",
+        "--store-id=6"
+      ],
+      "error": null,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌁ auth for agents [www.vestauth.com]\n完成度闸门报告生成完成：D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-completion-gate-2026-07-03.md\n总状态：已完成\n通过 10，未通过 0，待关注 0，当前无样本 0\n",
+      "stderrTail": "(node:16632) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "evidence-summary",
+      "name": "收口证据汇总",
+      "status": 0,
+      "signal": null,
+      "ok": true,
+      "scriptPath": "prisma/industry-chain-evidence-summary.ts",
+      "args": [
+        "--strict",
+        "--mode=apply",
+        "--out-md=../../docs/04-测试数据/industry-chain-evidence-summary-post-apply-verify-2026-07-03.md",
+        "--out-json=../../docs/04-测试数据/industry-chain-evidence-summary-post-apply-verify-2026-07-03.json"
+      ],
+      "error": null,
+      "stdoutTail": "Wrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-evidence-summary-post-apply-verify-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-evidence-summary-post-apply-verify-2026-07-03.json\ndeliverableReady=true\n",
+      "stderrTail": "(node:12028) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "completion-audit",
+      "name": "完成定义逐条审计",
+      "status": 0,
+      "signal": null,
+      "ok": true,
+      "scriptPath": "prisma/industry-chain-completion-audit.ts",
+      "args": [
+        "--strict",
+        "--mode=apply",
+        "--evidence-report=industry-chain-evidence-summary-post-apply-verify",
+        "--out-md=../../docs/04-测试数据/industry-chain-completion-audit-post-apply-verify-2026-07-03.md",
+        "--out-json=../../docs/04-测试数据/industry-chain-completion-audit-post-apply-verify-2026-07-03.json"
+      ],
+      "error": null,
+      "stdoutTail": "Wrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-completion-audit-post-apply-verify-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-completion-audit-post-apply-verify-2026-07-03.json\nallProven=true\n",
+      "stderrTail": "(node:14484) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n"
+    }
+  ]
+}

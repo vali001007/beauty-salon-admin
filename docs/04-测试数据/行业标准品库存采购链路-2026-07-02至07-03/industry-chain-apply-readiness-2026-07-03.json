@@ -1,0 +1,94 @@
+{
+  "generatedAt": "2026-07-03T00:32:46.244Z",
+  "store": {
+    "id": 6,
+    "name": "Ami 全量演示门店"
+  },
+  "parameters": {
+    "strategy": "mark-invalid",
+    "quantity": null,
+    "skipLowStockSample": false
+  },
+  "brokenAdoptions": [
+    {
+      "adoptionId": 22,
+      "productTemplateId": 22,
+      "oldLocalProductId": 136,
+      "adoptionType": "product",
+      "plannedAction": "clear localProductId and mark payload.chainStatus=invalid"
+    }
+  ],
+  "bomUnitRepairs": [
+    {
+      "bomItemId": 353,
+      "projectId": 75,
+      "projectName": "亮肤淡斑管理",
+      "productId": 133,
+      "productName": "日间防晒乳",
+      "sku": "IND-6-STD-RETAIL-SUNSCREEN-001",
+      "currentUnit": "支",
+      "targetUnit": "ml",
+      "packageUnit": "支",
+      "plannedAction": "update ProjectBomItem.unit to Product.specUnit"
+    }
+  ],
+  "supplyFlowImpact": {
+    "product": {
+      "id": 82,
+      "name": "玻尿酸保湿精华",
+      "sku": "AMI-DEMO-FULL-SKU-001",
+      "currentStock": 128,
+      "currentSafetyStock": 45,
+      "movementUnit": "ml"
+    },
+    "existingObjects": {
+      "supplierId": null,
+      "supplySkuId": null,
+      "quoteId": null,
+      "mappingId": null,
+      "procurementOrderId": null,
+      "shipmentCount": 0,
+      "stockMovementCount": 0,
+      "settlementId": null
+    },
+    "plannedWrites": {
+      "supplier": "create supply supplier",
+      "supplySku": "create supply sku",
+      "quote": "create active quote",
+      "mapping": "create preferred mapping",
+      "procurementOrder": "create procurement order and item",
+      "shipment": "create shipment and shipment item",
+      "stockInbound": "create stock batch, increment product stock, write stock movement",
+      "lowStockSample": "set safetyStock to 143 after receipt",
+      "settlement": "create current month settlement"
+    },
+    "expectedStock": {
+      "quantity": 5,
+      "before": 128,
+      "increment": 5,
+      "after": 133,
+      "targetSafetyStockAfterReceipt": 143
+    }
+  },
+  "applyCommands": [
+    "npm.cmd --prefix packages/server-v2 run industry-chain:baseline -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run product-unit:audit -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run industry-chain:repair -- --strategy=mark-invalid --store-id=6 --apply --yes",
+    "npm.cmd --prefix packages/server-v2 run product-unit:repair -- --store-id=6 --apply --yes",
+    "npm.cmd --prefix packages/server-v2 run supply-platform:mvp-flow -- --storeId=6",
+    "npm.cmd --prefix packages/server-v2 run supply-platform:fulfillment-readiness -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run supply-platform:mvp-flow:verify -- --storeId=6",
+    "npm.cmd --prefix packages/server-v2 run industry-chain:sample-gate:strict -- --store-id=6",
+    "npm.cmd --prefix packages/server-v2 run industry-chain:completion-gate:strict -- --store-id=6"
+  ],
+  "guard": {
+    "strict": true,
+    "pass": true,
+    "limits": {
+      "maxBrokenAdoptions": 1,
+      "maxBomUnitRepairs": 1,
+      "maxStockIncrement": 20
+    },
+    "failures": []
+  }
+}
