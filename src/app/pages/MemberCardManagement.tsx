@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CreditCard, Gift, Loader2, Minus, MinusCircle, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
+import { Loader2, Minus, Plus, ReceiptText, RotateCcw, Search, Trash2, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 import { isRealApi } from '@/api/mode';
 import {
@@ -674,18 +674,6 @@ export function MemberCardManagement() {
                 <TableCell>{dateText(account.createdAt)}</TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-3 whitespace-nowrap text-sm">
-                    <button className="inline-flex items-center gap-1 text-[#1890ff] hover:text-[#096dd9]" onClick={() => openForm('recharge', account)}>
-                      <CreditCard className="h-4 w-4" />
-                      充值
-                    </button>
-                    <button className="inline-flex items-center gap-1 text-[#52c41a] hover:text-[#389e0d]" onClick={() => openForm('gift', account)}>
-                      <Gift className="h-4 w-4" />
-                      赠送
-                    </button>
-                    <button className="inline-flex items-center gap-1 text-[#ff4d4f] hover:text-[#cf1322]" onClick={() => openForm('deduct', account)}>
-                      <MinusCircle className="h-4 w-4" />
-                      划扣
-                    </button>
                     <button
                       className="inline-flex items-center gap-1 text-red-500 hover:text-red-600 disabled:text-gray-300"
                       onClick={() => openForm('refund', account)}

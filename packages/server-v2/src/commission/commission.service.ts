@@ -893,7 +893,7 @@ export class CommissionService {
         include: { store: { select: { id: true, name: true } } },
         orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
       }),
-      this.prisma.supplierSettlement.findMany({
+      this.prisma.supplySettlement.findMany({
         where: settleMonthWhere,
         include: { supplier: { select: { id: true, name: true } } },
         orderBy: [{ settleMonth: 'asc' }, { supplierId: 'asc' }],

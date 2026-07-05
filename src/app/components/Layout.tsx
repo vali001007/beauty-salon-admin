@@ -6,7 +6,7 @@ import {
   MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
   Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
-  Database, BookOpen, CheckCircle2,
+  Database, BookOpen, CheckCircle2, ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -133,10 +133,7 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: PackagePlus,
     path: '/supply-platform',
     children: [
-      { title: '平台 MVP', path: '/supply-platform', icon: PackagePlus, permission: 'core:supply:view' },
-      { title: '过渡供应商后台', path: '/supply-chain/suppliers', icon: Building2, permission: 'core:supply:view' },
-      { title: '过渡采购订单', path: '/supply-chain/orders', icon: ShoppingCart, permission: 'core:supply:view' },
-      { title: '过渡供应商结算', path: '/supply-chain/settlements', icon: WalletCards, permission: 'core:supply:view' },
+      { title: '供应链工作台', path: '/supply-platform', icon: PackagePlus, permission: 'core:supply:view' },
     ],
   },
   {
@@ -151,7 +148,6 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '服务知识库', path: '/industry/knowledge', icon: BookOpen, permission: 'core:industry:knowledge' },
       { title: '数据源管理', path: '/industry/data-sources', icon: Database, permission: 'core:industry:data-source' },
       { title: '采用记录', path: '/industry/adoptions', icon: CheckCircle2, permission: 'core:industry:adoption' },
-      { title: '供应链预留映射', path: '/industry/supply-mappings', icon: PackagePlus, permission: 'core:industry:supply-mapping' },
     ],
   },
   {
@@ -167,6 +163,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
       { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
       { title: 'Agent 审计', path: '/system/agent-audit', icon: Sparkles, permission: 'core:system:view' },
+      { title: 'Agent 能力中心', path: '/system/agent-capabilities', icon: ShieldCheck, permission: 'core:system:view' },
     ],
   },
 ];

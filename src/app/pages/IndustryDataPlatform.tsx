@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ElementType } from 'react';
-import { BookOpen, CheckCircle2, Database, Edit, FileText, GitBranch, Link2, Loader2, Package, Plus, RefreshCw, Save, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, Database, Edit, FileText, GitBranch, Loader2, Package, Plus, RefreshCw, Save, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -35,7 +35,6 @@ import {
   updateIndustryServiceTemplate,
 } from '@/api/industry';
 import { getProductsPaginated } from '@/api/product';
-import { createSupplyCatalogMapping, getSupplyCatalogMappings, getSupplySkus, updateSupplyCatalogMapping } from '@/api/supplyPlatform';
 import type {
   IndustryAdoptionRecord,
   IndustryBomItemPayload,
@@ -56,20 +55,10 @@ import type {
   IndustryServiceTemplate,
   IndustryServiceTemplatePayload,
   Product,
-  SupplyCatalogMapping,
-  SupplySku,
 } from '@/types';
 
-type IndustryTab = 'services' | 'products' | 'chain' | 'bom' | 'knowledge' | 'salary' | 'sources' | 'adoptions' | 'supply';
+type IndustryTab = 'services' | 'products' | 'chain' | 'bom' | 'knowledge' | 'salary' | 'sources' | 'adoptions';
 type EditorKind = 'service' | 'product' | 'bom' | 'knowledge' | 'salary' | 'source';
-type SupplyMappingDraft = {
-  id?: number;
-  standardProductTemplateId: string;
-  productId: string;
-  supplySkuId: string;
-  mappingStatus: string;
-  isPreferred: boolean;
-};
 
 type IndustryDataPlatformProps = {
   defaultTab?: IndustryTab;
@@ -169,6 +158,14 @@ function formatDuration(template: IndustryServiceTemplate) {
   return `${min ?? max} 分钟`;
 }
 
+function formatCareCourse(template: IndustryServiceTemplate) {
+  const parts = [
+    template.careCycleWeeks ? `周期 ${template.careCycleWeeks} 周` : '',
+    template.treatmentCourseTimes ? `疗程 ${template.treatmentCourseTimes} 次` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' / ') : '-';
+}
+
 function statusBadge(status?: string | null) {
   const value = status || 'draft';
   const isGood = value === 'published' || value === 'approved' || value === 'available' || value === 'mapped' || value === 'ready' || value === 'received';
@@ -257,6 +254,8 @@ function makeServiceDraft(item?: IndustryServiceTemplate): FormDraft {
     subCategory: item?.subCategory ?? '',
     recommendedDurationMin: item?.recommendedDurationMin?.toString() ?? '',
     recommendedDurationMax: item?.recommendedDurationMax?.toString() ?? '',
+    careCycleWeeks: item?.careCycleWeeks?.toString() ?? '',
+    treatmentCourseTimes: item?.treatmentCourseTimes?.toString() ?? '',
     referencePriceMin: item?.referencePriceMin?.toString() ?? '',
     referencePriceMax: item?.referencePriceMax?.toString() ?? '',
     targetCustomers: splitList(item?.targetCustomers),
@@ -414,17 +413,7 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
   const [salary, setSalary] = useState<IndustrySalaryBenchmark[]>([]);
   const [sources, setSources] = useState<IndustryDataSource[]>([]);
   const [adoptions, setAdoptions] = useState<IndustryAdoptionRecord[]>([]);
-  const [supplyMappings, setSupplyMappings] = useState<SupplyCatalogMapping[]>([]);
-  const [supplySkus, setSupplySkus] = useState<SupplySku[]>([]);
   const [localProducts, setLocalProducts] = useState<Product[]>([]);
-  const [supplyMappingDialogOpen, setSupplyMappingDialogOpen] = useState(false);
-  const [supplyMappingDraft, setSupplyMappingDraft] = useState<SupplyMappingDraft>({
-    standardProductTemplateId: '',
-    productId: '',
-    supplySkuId: '',
-    mappingStatus: 'active',
-    isPreferred: false,
-  });
 
   const summary = useMemo(() => {
     const publishedServices = services.filter((item) => item.status === 'published').length;
@@ -453,8 +442,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
         salaryResult,
         sourceResult,
         adoptionResult,
-        mappingResult,
-        supplySkuResult,
         localProductResult,
       ] = await Promise.all([
         getIndustryServiceTemplatesPaginated(params),
@@ -466,8 +453,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
         getIndustrySalaryBenchmarks(params),
         getIndustryDataSources(params),
         getIndustryAdoptions({ page: 1, pageSize: 30 }),
-        getSupplyCatalogMappings({ page: 1, pageSize: 50, keyword: keyword || undefined }),
-        getSupplySkus({ page: 1, pageSize: 100, status: 'active', auditStatus: 'approved' }),
         getProductsPaginated({ page: 1, pageSize: 100, status: 'active', keyword: keyword || undefined }),
       ]);
       setServices(serviceResult.items);
@@ -480,8 +465,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
       setSalary(salaryResult.items);
       setSources(sourceResult.items);
       setAdoptions(adoptionResult.items);
-      setSupplyMappings(mappingResult.items);
-      setSupplySkus(supplySkuResult.items);
       setLocalProducts(localProductResult.items);
     } catch (err: any) {
       toast.error(err?.message || '行业数据加载失败');
@@ -676,72 +659,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
     }
   };
 
-  const openSupplyMappingDialog = (mapping?: SupplyCatalogMapping) => {
-    setSupplyMappingDraft({
-      id: mapping?.id,
-      standardProductTemplateId: mapping?.standardProductTemplateId ? String(mapping.standardProductTemplateId) : '',
-      productId: mapping?.productId ? String(mapping.productId) : '',
-      supplySkuId: mapping?.supplySkuId ? String(mapping.supplySkuId) : '',
-      mappingStatus: mapping?.mappingStatus || 'active',
-      isPreferred: Boolean(mapping?.isPreferred),
-    });
-    setSupplyMappingDialogOpen(true);
-  };
-
-  const closeSupplyMappingDialog = () => {
-    setSupplyMappingDialogOpen(false);
-    setSupplyMappingDraft({
-      standardProductTemplateId: '',
-      productId: '',
-      supplySkuId: '',
-      mappingStatus: 'active',
-      isPreferred: false,
-    });
-  };
-
-  const updateSupplyMappingDraft = (field: keyof SupplyMappingDraft, value: string | boolean) => {
-    setSupplyMappingDraft((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSaveSupplyMapping = async () => {
-    const supplySkuId = Number(supplyMappingDraft.supplySkuId);
-    const productId = numberOrUndefined(supplyMappingDraft.productId);
-    const standardProductTemplateId = numberOrUndefined(supplyMappingDraft.standardProductTemplateId);
-    if (!supplySkuId) {
-      toast.error('请选择供应链 SKU');
-      return;
-    }
-    if (!productId && !standardProductTemplateId) {
-      toast.error('请选择标准品或本地产品');
-      return;
-    }
-    setSaving(true);
-    try {
-      const selectedProduct = localProducts.find((item) => item.id === productId);
-      const payload = {
-        supplySkuId,
-        productId,
-        storeId: selectedProduct?.storeId,
-        standardProductTemplateId,
-        mappingStatus: supplyMappingDraft.mappingStatus || 'active',
-        isPreferred: supplyMappingDraft.isPreferred,
-      };
-      if (supplyMappingDraft.id) {
-        await updateSupplyCatalogMapping(supplyMappingDraft.id, payload);
-        toast.success('供应链映射已更新');
-      } else {
-        await createSupplyCatalogMapping(payload);
-        toast.success('供应链映射已创建');
-      }
-      closeSupplyMappingDialog();
-      loadData();
-    } catch (err: any) {
-      toast.error(err?.message || '保存供应链映射失败');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const openChainDetail = async (item: IndustryProductTemplateChainItem) => {
     setChainDetailLoading(true);
     try {
@@ -781,6 +698,8 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
           subCategory: draft.subCategory?.trim(),
           recommendedDurationMin: numberOrUndefined(draft.recommendedDurationMin),
           recommendedDurationMax: numberOrUndefined(draft.recommendedDurationMax),
+          careCycleWeeks: numberOrUndefined(draft.careCycleWeeks),
+          treatmentCourseTimes: numberOrUndefined(draft.treatmentCourseTimes),
           referencePriceMin: numberOrUndefined(draft.referencePriceMin),
           referencePriceMax: numberOrUndefined(draft.referencePriceMax),
           targetCustomers: parseList(draft.targetCustomers),
@@ -954,6 +873,8 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
             <Field label="建议频次"><Input value={draft.recommendedFrequency || ''} onChange={(e) => updateDraft('recommendedFrequency', e.target.value)} /></Field>
             <Field label="最短时长"><Input type="number" value={draft.recommendedDurationMin || ''} onChange={(e) => updateDraft('recommendedDurationMin', e.target.value)} /></Field>
             <Field label="最长时长"><Input type="number" value={draft.recommendedDurationMax || ''} onChange={(e) => updateDraft('recommendedDurationMax', e.target.value)} /></Field>
+            <Field label="护理周期（周）"><Input type="number" min="1" value={draft.careCycleWeeks || ''} onChange={(e) => updateDraft('careCycleWeeks', e.target.value)} /></Field>
+            <Field label="疗程次数"><Input type="number" min="1" value={draft.treatmentCourseTimes || ''} onChange={(e) => updateDraft('treatmentCourseTimes', e.target.value)} /></Field>
             <Field label="数据源 ID"><Input type="number" value={draft.sourceId || ''} onChange={(e) => updateDraft('sourceId', e.target.value)} /></Field>
             <Field label="参考价下限"><Input type="number" value={draft.referencePriceMin || ''} onChange={(e) => updateDraft('referencePriceMin', e.target.value)} /></Field>
             <Field label="参考价上限"><Input type="number" value={draft.referencePriceMax || ''} onChange={(e) => updateDraft('referencePriceMax', e.target.value)} /></Field>
@@ -1189,92 +1110,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
     </Dialog>
   );
 
-  const renderSupplyMappingDialog = () => (
-    <Dialog open={supplyMappingDialogOpen} onOpenChange={(open) => {
-      if (!open && !saving) closeSupplyMappingDialog();
-    }}>
-      <DialogContent className="max-h-[86vh] max-w-4xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{supplyMappingDraft.id ? '编辑供应链目录映射' : '新增供应链目录映射'}</DialogTitle>
-          <DialogDescription>
-            绑定标准品/本地产品与已审核通过的供应商 SKU，设置首选后同店同商品其它映射会自动取消首选。
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="标准品">
-            <select
-              className={inputClass}
-              value={supplyMappingDraft.standardProductTemplateId}
-              onChange={(event) => updateSupplyMappingDraft('standardProductTemplateId', event.target.value)}
-            >
-              <option value="">不绑定标准品</option>
-              {products.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}（{item.standardProductCode}）
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="本地产品">
-            <select
-              className={inputClass}
-              value={supplyMappingDraft.productId}
-              onChange={(event) => updateSupplyMappingDraft('productId', event.target.value)}
-            >
-              <option value="">不绑定本地产品</option>
-              {localProducts.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}（{item.sku}）
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="供应链 SKU" required>
-            <select
-              className={inputClass}
-              value={supplyMappingDraft.supplySkuId}
-              onChange={(event) => updateSupplyMappingDraft('supplySkuId', event.target.value)}
-            >
-              <option value="">请选择已审核 SKU</option>
-              {supplySkus.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} · {item.supplier?.name || `供应商 #${item.supplierId}`}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="映射状态">
-            <select
-              className={inputClass}
-              value={supplyMappingDraft.mappingStatus}
-              onChange={(event) => updateSupplyMappingDraft('mappingStatus', event.target.value)}
-            >
-              <option value="active">启用</option>
-              <option value="disabled">停用</option>
-            </select>
-          </Field>
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              checked={supplyMappingDraft.isPreferred}
-              onChange={(event) => updateSupplyMappingDraft('isPreferred', event.target.checked)}
-            />
-            设为该门店商品的首选供货 SKU
-          </label>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
-          <Button variant="outline" onClick={closeSupplyMappingDialog} disabled={saving}>
-            取消
-          </Button>
-          <Button onClick={handleSaveSupplyMapping} disabled={saving} className="gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            保存映射
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-
   const renderChainDetailDialog = () => (
     <Dialog open={Boolean(chainDetail)} onOpenChange={(open) => {
       if (!open) closeChainDetail();
@@ -1419,11 +1254,10 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
 
       {renderEditorDialog()}
       {renderLinkProductDialog()}
-      {renderSupplyMappingDialog()}
       {renderChainDetailDialog()}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as IndustryTab)} className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-gray-100 p-1 md:grid-cols-4 lg:grid-cols-9">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-gray-100 p-1 md:grid-cols-4 lg:grid-cols-8">
           <TabsTrigger value="services">服务模板</TabsTrigger>
           <TabsTrigger value="products">标准品</TabsTrigger>
           <TabsTrigger value="chain">链路总览</TabsTrigger>
@@ -1432,7 +1266,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
           <TabsTrigger value="salary">薪酬</TabsTrigger>
           <TabsTrigger value="sources">数据源</TabsTrigger>
           <TabsTrigger value="adoptions">采用记录</TabsTrigger>
-          <TabsTrigger value="supply">供应链映射</TabsTrigger>
         </TabsList>
 
         <TabsContent value="services" className="space-y-4">
@@ -1449,6 +1282,7 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
                 <TableHead>模板</TableHead>
                 <TableHead>分类</TableHead>
                 <TableHead>建议时长</TableHead>
+                <TableHead>周期/疗程</TableHead>
                 <TableHead>参考价</TableHead>
                 <TableHead>BOM</TableHead>
                 <TableHead>状态</TableHead>
@@ -1464,6 +1298,7 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
                   </TableCell>
                   <TableCell>{item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</TableCell>
                   <TableCell>{formatDuration(item)}</TableCell>
+                  <TableCell>{formatCareCourse(item)}</TableCell>
                   <TableCell>{formatMoneyRange(item.referencePriceMin, item.referencePriceMax)}</TableCell>
                   <TableCell>{item.bomTemplates?.[0]?.items?.length ?? 0} 项</TableCell>
                   <TableCell>{statusBadge(item.status)}</TableCell>
@@ -2005,77 +1840,6 @@ export function IndustryDataPlatform({ defaultTab = 'services' }: IndustryDataPl
             </TableBody>
           </Table>
         </TabsContent>
-
-        <TabsContent value="supply" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {sectionTitle(Link2, '供应链目录映射', '维护标准品、本地产品与供应商 SKU 的真实映射，供采购建议和平台采购单使用。')}
-            <Button className="gap-2" onClick={() => openSupplyMappingDialog()}>
-              <Plus className="h-4 w-4" />
-              新增映射
-            </Button>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>标准品</TableHead>
-                <TableHead>本地产品</TableHead>
-                <TableHead>供应商 SKU</TableHead>
-                <TableHead>报价</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {supplyMappings.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div className="font-medium">{item.industryProductTemplate?.name || '-'}</div>
-                    <div className="text-xs text-gray-500">{item.industryProductTemplate?.standardProductCode || '-'}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{item.product?.name || '-'}</div>
-                    <div className="text-xs text-gray-500">
-                      {item.product?.sku || '-'}{item.product?.store?.name ? ` · ${item.product.store.name}` : ''}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{item.supplySku?.name || `SKU #${item.supplySkuId}`}</div>
-                    <div className="text-xs text-gray-500">{item.supplySku?.supplier?.name || '-'}</div>
-                  </TableCell>
-                  <TableCell>
-                    {item.latestQuote ? (
-                      <div>
-                        <div className="font-medium">¥{item.latestQuote.price.toFixed(2)}</div>
-                        <div className="text-xs text-gray-500">MOQ {item.latestQuote.moq} · {item.latestQuote.leadDays ?? '-'} 天</div>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-500">暂无报价</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {statusBadge(item.mappingStatus)}
-                      {statusBadge(item.purchasableStatus)}
-                      {item.isPreferred ? <Badge variant="default">首选</Badge> : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => openSupplyMappingDialog(item)}>
-                      编辑
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!supplyMappings.length ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-gray-500">
-                    暂无供应链目录映射。当前商品还不能从采购建议直接生成平台采购单。
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </TabsContent>
       </Tabs>
     </div>
   );
@@ -2111,8 +1875,4 @@ export function IndustryDataSources() {
 
 export function IndustryAdoptions() {
   return <IndustryDataPlatform defaultTab="adoptions" />;
-}
-
-export function IndustrySupplyMappings() {
-  return <IndustryDataPlatform defaultTab="supply" />;
 }

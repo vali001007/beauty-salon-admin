@@ -110,6 +110,14 @@ export async function realGetProjectsPaginated(params: PaginationParams & { keyw
 
 type ApiReservation = Record<string, any>;
 
+function inferReservationSource(item: ApiReservation) {
+  const remark = String(item.remark ?? '');
+  const source = String(item.source ?? item.channel ?? '');
+  if (/ami[_\s-]?glow[_\s-]?h5|Ami Glow H5|h5/i.test(`${source} ${remark}`)) return 'Ami Glow H5';
+  if (/Ami Glow|ami[_\s-]?glow/i.test(`${source} ${remark}`)) return 'Ami Glow';
+  return item.sourceLabel ?? item.channel ?? '管理端';
+}
+
 function normalizeReservation(item: ApiReservation) {
   const customerName = item.userName ?? item.customerName ?? item.customer?.name ?? '';
   const projectName = item.projectName ?? item.project?.name ?? '';
@@ -131,6 +139,7 @@ function normalizeReservation(item: ApiReservation) {
     appointmentTime,
     status: item.status ?? 'pending',
     createTime: item.createTime ?? item.createdAt ?? '',
+    sourceLabel: inferReservationSource(item),
   };
 }
 

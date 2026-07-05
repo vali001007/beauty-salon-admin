@@ -878,8 +878,10 @@ describe('OrdersService project order inventory consumption', () => {
         findMany: jest.fn().mockResolvedValue([{ projectId: 101, productId: 301, standardQty: 2, unit: '支' }]),
       },
       product: {
-        findMany: jest.fn().mockResolvedValue([{ id: 301, costPrice: 18 }]),
-        findFirst: jest.fn().mockResolvedValue({ id: 301, storeId: 1, currentStock: 10, unit: '支' }),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 301, costPrice: 18, specQuantity: 30, specUnit: 'ml', packageUnit: '瓶', unit: '瓶' },
+        ]),
+        findFirst: jest.fn().mockResolvedValue({ id: 301, storeId: 1, currentStock: 10, unit: '瓶', specUnit: 'ml', packageUnit: '瓶' }),
         update: jest.fn().mockResolvedValue({ id: 301 }),
       },
       paymentRecord: {
@@ -978,7 +980,7 @@ describe('OrdersService project order inventory consumption', () => {
 
     expect(tx.product.findMany).toHaveBeenCalledWith({
       where: { id: { in: [301] }, storeId: 1, deletedAt: null },
-      select: { id: true, costPrice: true },
+      select: { id: true, costPrice: true, specQuantity: true, specUnit: true, packageUnit: true, unit: true },
     });
     expect(tx.orderItem.createMany).toHaveBeenCalledWith({
       data: [
@@ -993,6 +995,11 @@ describe('OrdersService project order inventory consumption', () => {
             productCostAmount: 54,
             costSource: 'product_master',
             costCapturedAt: expect.any(String),
+            unit: '瓶',
+            packageUnit: '瓶',
+            specUnit: 'ml',
+            specQuantity: 30,
+            salesUnitSource: 'product.packageUnit',
           }),
         }),
       ],
@@ -1009,6 +1016,7 @@ describe('OrdersService project order inventory consumption', () => {
         quantity: -3,
         beforeStock: 10,
         afterStock: 7,
+        unit: '瓶',
         sourceType: 'product_order',
         sourceId: 501,
       }),

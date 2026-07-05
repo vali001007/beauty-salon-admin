@@ -14,7 +14,7 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter }) as any;
 
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 const flowKey = 'supply-platform-mvp-flow';
 
 function argValue(name: string, fallback?: string) {
@@ -253,6 +253,7 @@ function applyCommands(storeId: number, strategy: string, quantity?: string) {
     `npm.cmd --prefix packages/server-v2 run supply-platform:mvp-flow -- ${mvpArgs.join(' ')}`.trim(),
     `npm.cmd --prefix packages/server-v2 run supply-platform:fulfillment-readiness -- --store-id=${storeId}`,
     `npm.cmd --prefix packages/server-v2 run supply-platform:mvp-flow:verify -- ${mvpArgs.join(' ')}`.trim(),
+    `npm.cmd --prefix packages/server-v2 run industry-chain:sample-gate:strict -- --store-id=${storeId}`,
     `npm.cmd --prefix packages/server-v2 run industry-chain:completion-gate:strict -- --store-id=${storeId}`,
   ];
 }

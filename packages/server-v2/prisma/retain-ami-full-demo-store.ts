@@ -82,9 +82,9 @@ async function collectPlan() {
   const orderIds = await collectIds(prisma.productOrder, {
     OR: [{ storeId: idIn(deleteStoreIds) }, { customerId: idIn(customerIds) }],
   });
-  const supplierIds = await collectIds(prisma.supplier, { storeId: idIn(deleteStoreIds) });
-  const supplierOrderIds = await collectIds(prisma.supplierOrder, {
-    OR: [{ storeId: idIn(deleteStoreIds) }, { supplierId: idIn(supplierIds) }],
+  const procurementOrderIds = await collectIds(prisma.procurementOrder, { storeId: idIn(deleteStoreIds) });
+  const supplyCatalogMappingIds = await collectIds(prisma.supplyCatalogMapping, {
+    OR: [{ storeId: idIn(deleteStoreIds) }, { productId: idIn(productIds) }],
   });
   const marketingPageIds = await collectIds(prisma.marketingPage, { storeId: idIn(deleteStoreIds) });
   const marketingPageLeadIds = await collectIds(prisma.marketingPageLead, {
@@ -148,8 +148,8 @@ async function collectPlan() {
     devices: { id: idIn(deviceIds) },
     tasks: { id: idIn(taskIds) },
     orders: { id: idIn(orderIds) },
-    suppliers: { id: idIn(supplierIds) },
-    supplierOrders: { id: idIn(supplierOrderIds) },
+    procurementOrders: { id: idIn(procurementOrderIds) },
+    supplyCatalogMappings: { id: idIn(supplyCatalogMappingIds) },
     marketingPages: { id: idIn(marketingPageIds) },
     marketingPageLeads: { id: idIn(marketingPageLeadIds) },
     customerAppIdentities: { id: idIn(customerAppIdentityIds) },
@@ -264,15 +264,11 @@ async function collectPlan() {
   addCount(counts, 'AiAuditLog', await count(prisma.aiAuditLog, {
     OR: [{ storeId: idIn(deleteStoreIds) }, { deviceId: idIn(deviceIds) }, { userId: idIn(globalUserIds) }],
   }));
-  addCount(counts, 'Supplier', await count(prisma.supplier, where.suppliers));
-  addCount(counts, 'ProductSupplier', await count(prisma.productSupplier, {
-    OR: [{ productId: idIn(productIds) }, { supplierId: idIn(supplierIds) }],
+  addCount(counts, 'SupplyCatalogMapping', await count(prisma.supplyCatalogMapping, where.supplyCatalogMappings));
+  addCount(counts, 'ProcurementOrder', await count(prisma.procurementOrder, where.procurementOrders));
+  addCount(counts, 'ProcurementOrderItem', await count(prisma.procurementOrderItem, {
+    OR: [{ orderId: idIn(procurementOrderIds) }, { productId: idIn(productIds) }],
   }));
-  addCount(counts, 'SupplierOrder', await count(prisma.supplierOrder, where.supplierOrders));
-  addCount(counts, 'SupplierOrderItem', await count(prisma.supplierOrderItem, {
-    OR: [{ orderId: idIn(supplierOrderIds) }, { productId: idIn(productIds) }],
-  }));
-  addCount(counts, 'SupplierSettlement', await count(prisma.supplierSettlement, { supplierId: idIn(supplierIds) }));
   addCount(counts, 'TransferOrder', await count(prisma.transferOrder, {
     OR: [{ fromStoreId: idIn(deleteStoreIds) }, { toStoreId: idIn(deleteStoreIds) }],
   }));
@@ -315,8 +311,8 @@ async function collectPlan() {
       deviceIds,
       taskIds,
       orderIds,
-      supplierIds,
-      supplierOrderIds,
+      procurementOrderIds,
+      supplyCatalogMappingIds,
       marketingPageIds,
       marketingPageLeadIds,
       customerAppIdentityIds,
@@ -449,15 +445,8 @@ async function applyCleanup(plan: Awaited<ReturnType<typeof collectPlan>>) {
   await del('StockMovement', () => prisma.stockMovement.deleteMany({
     where: { OR: [{ storeId: idIn(ids.deleteStoreIds) }, { productId: idIn(ids.productIds) }, { operatorId: idIn(ids.globalUserIds) }] },
   }), deleted);
-  await del('SupplierSettlement', () => prisma.supplierSettlement.deleteMany({ where: { supplierId: idIn(ids.supplierIds) } }), deleted);
-  await del('SupplierOrderItem', () => prisma.supplierOrderItem.deleteMany({
-    where: { OR: [{ orderId: idIn(ids.supplierOrderIds) }, { productId: idIn(ids.productIds) }] },
-  }), deleted);
-  await del('SupplierOrder', () => prisma.supplierOrder.deleteMany({ where: where.supplierOrders }), deleted);
-  await del('ProductSupplier', () => prisma.productSupplier.deleteMany({
-    where: { OR: [{ productId: idIn(ids.productIds) }, { supplierId: idIn(ids.supplierIds) }] },
-  }), deleted);
-  await del('Supplier', () => prisma.supplier.deleteMany({ where: where.suppliers }), deleted);
+  await del('SupplyCatalogMapping', () => prisma.supplyCatalogMapping.deleteMany({ where: where.supplyCatalogMappings }), deleted);
+  await del('ProcurementOrder', () => prisma.procurementOrder.deleteMany({ where: where.procurementOrders }), deleted);
   await del('ProjectBomItem', () => prisma.projectBomItem.deleteMany({
     where: { OR: [{ projectId: idIn(ids.projectIds) }, { productId: idIn(ids.productIds) }] },
   }), deleted);

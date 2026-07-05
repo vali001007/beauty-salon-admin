@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 const apply = process.argv.includes('--apply');
 const yes = process.argv.includes('--yes');
 const mode = apply && yes ? 'apply' : 'dry-run';
@@ -18,6 +18,7 @@ const scriptFiles: Record<string, string> = {
   'supply-platform:fulfillment-readiness': 'prisma/supply-platform-fulfillment-readiness.ts',
   'industry-chain:sample-gate': 'prisma/industry-chain-sample-gate.ts',
   'industry-chain:completion-gate': 'prisma/industry-chain-completion-gate.ts',
+  'industry-chain:evidence-summary': 'prisma/industry-chain-evidence-summary.ts',
 };
 
 function argValue(name: string, fallback?: string) {
@@ -37,6 +38,20 @@ function optionalArg(name: string) {
 
 function ensureOutput(path: string) {
   mkdirSync(dirname(path), { recursive: true });
+}
+
+function shanghaiTimestamp(date = new Date()) {
+  const value = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date);
+  return `${value.replace(',', '')} Asia/Shanghai`;
 }
 
 function table(headers: string[], rows: Array<Array<string | number | boolean | null | undefined>>) {
@@ -67,6 +82,7 @@ type ApplyPreviewStep = {
 type StepResult = Step & {
   command: string;
   status: 'passed' | 'failed' | 'skipped';
+  failureType: 'none' | 'db_timeout' | 'script_error' | 'missing_script';
   exitCode: number | null;
   attempts: number;
   stdoutTail: string;
@@ -76,6 +92,14 @@ type StepResult = Step & {
 function tail(value: string, max = 2400) {
   const normalized = String(value ?? '').trim();
   return normalized.length > max ? normalized.slice(normalized.length - max) : normalized;
+}
+
+function classifyFailure(stderr: string, stdout: string): StepResult['failureType'] {
+  const output = `${stderr}\n${stdout}`;
+  if (/P1008|SocketTimeout|timeout exceeded|Connection terminated due to connection timeout|Operation has timed out/i.test(output)) {
+    return 'db_timeout';
+  }
+  return 'script_error';
 }
 
 function sleep(ms: number) {
@@ -101,6 +125,7 @@ function runStep(step: Step): StepResult {
       ...step,
       command,
       status: 'skipped',
+      failureType: 'none',
       exitCode: null,
       attempts: 0,
       stdoutTail: 'dry-run 模式跳过真实写库步骤。',
@@ -114,6 +139,7 @@ function runStep(step: Step): StepResult {
       ...step,
       command,
       status: 'failed',
+      failureType: 'missing_script',
       exitCode: null,
       attempts: 0,
       stdoutTail: '',
@@ -131,6 +157,7 @@ function runStep(step: Step): StepResult {
       encoding: 'utf8',
       env: {
         ...process.env,
+        DATABASE_POOL_MAX: process.env.DATABASE_POOL_MAX || '1',
         DATABASE_CONNECTION_TIMEOUT_MS: process.env.DATABASE_CONNECTION_TIMEOUT_MS || '30000',
       },
       stdio: 'pipe',
@@ -144,6 +171,8 @@ function runStep(step: Step): StepResult {
     ...step,
     command,
     status: result?.status === 0 ? 'passed' : 'failed',
+    failureType:
+      result?.status === 0 ? 'none' : classifyFailure(result?.stderr || result?.error?.message || '', result?.stdout ?? ''),
     exitCode: result?.status ?? null,
     attempts,
     stdoutTail: tail(result?.stdout ?? ''),
@@ -271,6 +300,8 @@ function buildApplySteps(storeId: string, strategy: string, mvpArgs: string[], r
 
 function renderMarkdown(result: {
   generatedAt: string;
+  generatedAtLocal: string;
+  businessDate: string;
   mode: string;
   applyAllowed: boolean;
   applyPreview: ApplyPreviewStep[];
@@ -282,7 +313,11 @@ function renderMarkdown(result: {
   const failed = result.steps.filter((step) => step.status === 'failed');
   return `# 行业标准品到库存采购 BOM 销售链路收口编排报告
 
-生成时间：${result.generatedAt}
+业务日期：${result.businessDate}
+
+生成时间（北京时间）：${result.generatedAtLocal}
+
+生成时间（UTC）：${result.generatedAt}
 
 模式：${result.mode}
 
@@ -295,11 +330,12 @@ applyAllowed：${result.applyAllowed}
 ## 1. 步骤汇总
 
 ${table(
-  ['步骤', '类型', '结果', '尝试', '退出码', '命令'],
+  ['步骤', '类型', '结果', '失败类型', '尝试', '退出码', '命令'],
   result.steps.map((step) => [
     step.title,
     step.writes ? '写库' : '只读/预览',
     step.status,
+    step.failureType,
     step.attempts,
     step.exitCode ?? '-',
     step.command,
@@ -308,7 +344,7 @@ ${table(
 
 ## 2. 失败步骤
 
-${failed.length ? failed.map((step) => `- ${step.title}：${step.stderrTail || step.stdoutTail || '无输出'}`).join('\n') : '暂无。'}
+${failed.length ? failed.map((step) => `- ${step.title}（${step.failureType}）：${step.stderrTail || step.stdoutTail || '无输出'}`).join('\n') : '暂无。'}
 
 ## 3. 最终业务闸门
 
@@ -338,6 +374,7 @@ ${result.steps
     (step) => `### ${step.id}. ${step.title}
 
 - 结果：${step.status}
+- 失败类型：${step.failureType}
 - 尝试：${step.attempts}
 - 命令：\`${step.command}\`
 
@@ -482,8 +519,11 @@ async function main() {
   const executionReady = results.every((step) => !step.requiredForCompletion || step.status === 'passed');
   const completionGate = readCompletionGate();
   const businessComplete = completionGate.available && completionGate.complete;
+  const generatedAt = new Date();
   const result = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: generatedAt.toISOString(),
+    generatedAtLocal: shanghaiTimestamp(generatedAt),
+    businessDate: today,
     mode,
     applyAllowed: mode === 'apply',
     executionReady,
@@ -505,11 +545,22 @@ async function main() {
   writeFileSync(paths.md, renderMarkdown(result), 'utf8');
   writeFileSync(paths.json, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 
+  const evidenceSummaryResult = runStep({
+    id: 'post',
+    title: '收口证据汇总',
+    script: 'industry-chain:evidence-summary',
+    args: [`--mode=${mode}`],
+    writes: false,
+    requiredForCompletion: false,
+  });
+
   console.log(`Wrote ${paths.md}`);
   console.log(`Wrote ${paths.json}`);
+  console.log(`evidenceSummary=${evidenceSummaryResult.status} ${evidenceSummaryResult.command}`);
   console.log(`mode=${mode} executionReady=${executionReady} businessComplete=${businessComplete}`);
 
   if (!executionReady) process.exitCode = 2;
+  if (evidenceSummaryResult.status === 'failed') process.exitCode = 2;
   if (mode === 'apply' && !businessComplete) process.exitCode = 2;
 }
 

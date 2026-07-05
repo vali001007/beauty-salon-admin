@@ -45,6 +45,14 @@ type CacheableMicroAppConfig<T> = {
   toResult: (data: T) => MicroAppRunResult;
 };
 
+type TerminalAgentEngine = 'agent_v1' | 'agent_v2';
+
+type RunMicroAppIntentOptions = {
+  businessQueryContext?: BusinessQueryContext;
+  agentContext?: Record<string, unknown>;
+  agentEngine?: TerminalAgentEngine;
+};
+
 export function toTerminalDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -340,7 +348,7 @@ export function isCacheableMicroAppAction(action?: string | null) {
 export async function runMicroAppIntent(
   intent: AuraResolvedIntent,
   command: string,
-  options: { businessQueryContext?: BusinessQueryContext; agentContext?: Record<string, unknown> } = {},
+  options: RunMicroAppIntentOptions = {},
 ): Promise<MicroAppRunResult> {
   const action = intent.action;
 
@@ -413,7 +421,11 @@ export async function runMicroAppIntent(
         aiStream: { role: intent.role, command },
       };
     }
-    const context = options.agentContext ?? (options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : undefined);
+    const context = {
+      ...(options.agentContext ?? {}),
+      ...(options.agentEngine ? { agentEngine: options.agentEngine } : {}),
+      ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
+    };
     const data = await runBusinessAgent(command, intent.role, context);
     return {
       messages: [{ type: 'dashboard', payload: { kind: 'agentRun', data: data as AgentRunResult } }],

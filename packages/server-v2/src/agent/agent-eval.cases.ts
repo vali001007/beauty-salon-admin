@@ -692,7 +692,7 @@ export const CORE_AGENT_EVAL_CASES: AgentEvalCaseDefinition[] = [
     expectedRoleToolAllowed: true,
   },
   {
-    id: 'supply-chain-diagnosis-001',
+    id: 'supply-platform-diagnosis-001',
     scenario: '供应链诊断',
     input: '哪个供应商供货慢',
     role: 'manager',
@@ -1408,7 +1408,7 @@ const GENERATED_AGENT_EVAL_TEMPLATES: AgentEvalTemplate[] = [
     ],
   },
   {
-    idPrefix: 'matrix-supply-chain',
+    idPrefix: 'matrix-supply-platform',
     scenario: '供应链诊断矩阵',
     role: 'manager',
     expectedTool: 'supply_chain.diagnose',

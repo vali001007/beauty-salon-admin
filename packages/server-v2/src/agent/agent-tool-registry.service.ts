@@ -1215,23 +1215,23 @@ export class AgentToolRegistryService {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
     const range = this.resolveDateRange(args.timeRange ?? 'last_30_days');
     const [suppliers, orders, settlements] = await Promise.all([
-      (this.prisma as any).supplier.findMany({
-        where: { OR: [{ storeId: context.storeId }, { storeId: null }], deletedAt: null },
-        select: { id: true, name: true, category: true, status: true, paymentTerms: true, rebateRate: true },
+      (this.prisma as any).supplySupplier.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, categories: true, status: true, paymentTerms: true, rebateRate: true },
         take: 1000,
       }),
-      (this.prisma as any).supplierOrder.findMany({
-        where: { storeId: context.storeId, orderedAt: { gte: range.start, lt: range.end } },
+      (this.prisma as any).procurementOrder.findMany({
+        where: { storeId: context.storeId, createdAt: { gte: range.start, lt: range.end } },
         include: {
-          supplier: { select: { id: true, name: true, category: true, status: true } },
+          supplier: { select: { id: true, name: true, categories: true, status: true } },
           items: { select: { quantity: true, receivedQty: true, subtotal: true } },
         },
-        orderBy: { orderedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: 2000,
       }),
-      (this.prisma as any).supplierSettlement.findMany({
-        where: { supplier: { OR: [{ storeId: context.storeId }, { storeId: null }] }, createdAt: { gte: range.start, lt: range.end } },
-        include: { supplier: { select: { id: true, name: true, category: true, status: true } } },
+      (this.prisma as any).supplySettlement.findMany({
+        where: { createdAt: { gte: range.start, lt: range.end } },
+        include: { supplier: { select: { id: true, name: true, categories: true, status: true } } },
         orderBy: { createdAt: 'desc' },
         take: 1000,
       }),
@@ -1268,7 +1268,7 @@ export class AgentToolRegistryService {
         {
           supplierId: id,
           supplierName: supplier?.name ?? `供应商 ${id}`,
-          category: supplier?.category,
+          category: Array.isArray(supplier?.categories) ? supplier.categories.join('、') : null,
           status: supplier?.status,
           orderCount: 0,
           pendingOrderCount: 0,
@@ -1295,7 +1295,7 @@ export class AgentToolRegistryService {
       if (!target) continue;
       const status = String(order.status || '');
       const receivedAt = order.receivedAt ? new Date(order.receivedAt) : null;
-      const orderedAt = order.orderedAt ? new Date(order.orderedAt) : null;
+      const orderedAt = order.acceptedAt ? new Date(order.acceptedAt) : order.createdAt ? new Date(order.createdAt) : null;
       const orderItems = Array.isArray(order.items) ? order.items : [];
       target.orderCount += 1;
       target.totalAmount += this.toNumber(order.totalAmount);
@@ -1358,10 +1358,10 @@ export class AgentToolRegistryService {
       .slice(0, limit);
 
     const evidence: AgentEvidence = {
-      source: ['Supplier', 'SupplierOrder', 'SupplierOrderItem', 'SupplierSettlement'],
+      source: ['SupplySupplier', 'ProcurementOrder', 'ProcurementOrderItem', 'SupplySettlement'],
       dateRange: `${this.formatDate(range.start)} 至 ${this.formatDate(range.end)}`,
       metricDefinition: '供应链诊断 = 查询周期内供应商采购单、到货、交付周期、结算金额和超期未到货风险的只读聚合。',
-      filters: ['storeId=当前门店或全局供应商', 'Supplier.deletedAt is null', 'SupplierOrder.orderedAt=查询周期', `limit=${limit}`],
+      filters: ['ProcurementOrder.storeId=当前门店', 'SupplySupplier.deletedAt is null', 'ProcurementOrder.createdAt=查询周期', `limit=${limit}`],
       sampleSize: (suppliers as any[]).length + (orders as any[]).length + (settlements as any[]).length,
       limitations: ['本工具只做供应链履约和结算诊断，不自动创建采购单、不改库存、不发起付款。'],
     };
@@ -3770,9 +3770,25 @@ export class AgentToolRegistryService {
     });
     const productIds = (products as any[]).map((product) => Number(product.id)).filter(Boolean);
     const links = productIds.length
-      ? await (this.prisma as any).productSupplier.findMany({
-          where: { productId: { in: productIds }, supplier: { OR: [{ storeId: context.storeId }, { storeId: null }], deletedAt: null, status: 'active' } },
-          include: { supplier: { select: { id: true, name: true, category: true, status: true, paymentTerms: true, phone: true } } },
+      ? await (this.prisma as any).supplyCatalogMapping.findMany({
+          where: {
+            productId: { in: productIds },
+            mappingStatus: 'active',
+            OR: [{ storeId: context.storeId }, { storeId: null }],
+            supplySku: { deletedAt: null, status: 'active', auditStatus: 'approved' },
+          },
+          include: {
+            supplySku: {
+              include: {
+                supplier: { select: { id: true, name: true, status: true, paymentTerms: true, phone: true } },
+                quotes: {
+                  where: { deletedAt: null, status: 'active', auditStatus: 'approved', stockStatus: { notIn: ['out_of_stock', 'unavailable'] } },
+                  orderBy: [{ price: 'asc' }],
+                  take: 1,
+                },
+              },
+            },
+          },
           take: 2000,
         })
       : [];
@@ -3785,8 +3801,9 @@ export class AgentToolRegistryService {
     }
     const items = (products as any[])
       .map((product) => {
-        const options = (linkByProduct.get(Number(product.id)) ?? []).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || this.toNumber(a.supplyPrice) - this.toNumber(b.supplyPrice));
+        const options = (linkByProduct.get(Number(product.id)) ?? []).sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred));
         const primary = options[0];
+        const quote = primary?.supplySku?.quotes?.[0];
         const suggestedQty = Math.max(this.toNumber(product.minPurchaseQty), Math.max(0, this.toNumber(product.safetyStock) - this.toNumber(product.currentStock)));
         return {
           productId: product.id,
@@ -3796,25 +3813,25 @@ export class AgentToolRegistryService {
           safetyStock: this.toNumber(product.safetyStock),
           unit: product.specUnit ?? product.unit,
           suggestedQty,
-          supplierName: primary?.supplier?.name ?? product.supplier ?? '未绑定供应商',
-          supplierId: primary?.supplierId ?? null,
-          supplyPrice: primary ? this.toNumber(primary.supplyPrice) : null,
-          supplyPriceText: primary ? this.formatMoney(this.toNumber(primary.supplyPrice)) : null,
-          moq: primary?.moq ?? product.minPurchaseQty ?? null,
-          leadDays: primary?.leadDays ?? null,
-          paymentTerms: primary?.supplier?.paymentTerms ?? null,
+          supplierName: primary?.supplySku?.supplier?.name ?? product.supplier ?? '未绑定平台供应商',
+          supplierId: primary?.supplySku?.supplierId ?? null,
+          supplyPrice: quote ? this.toNumber(quote.price) : null,
+          supplyPriceText: quote ? this.formatMoney(this.toNumber(quote.price)) : null,
+          moq: quote?.moq ?? product.minPurchaseQty ?? null,
+          leadDays: quote?.leadDays ?? null,
+          paymentTerms: primary?.supplySku?.supplier?.paymentTerms ?? null,
           optionCount: options.length,
-          status: primary ? 'linked' : 'missing_supplier_link',
-          reason: primary ? `已绑定 ${options.length} 个供应商，优先 ${primary.supplier?.name}。` : '未绑定结构化供应商，需先维护供应商或采购映射。',
+          status: primary && quote ? 'linked' : primary ? 'mapped_no_quote' : 'missing_supplier_link',
+          reason: primary && quote ? `已绑定 ${options.length} 个平台供货映射，优先 ${primary.supplySku?.supplier?.name}。` : primary ? '已建立平台映射但暂无有效报价。' : '未绑定平台供货映射，需先维护商品映射。',
         };
       })
       .filter((item) => item.status === 'missing_supplier_link' || item.currentStock <= item.safetyStock || item.suggestedQty > 0)
       .sort((a, b) => Number(a.status === 'missing_supplier_link') - Number(b.status === 'missing_supplier_link') || b.suggestedQty - a.suggestedQty)
       .slice(0, limit);
     const evidence: AgentEvidence = {
-      source: ['Product', 'ProductSupplier', 'Supplier'],
-      metricDefinition: '供应商采购链接 = 商品库存 + 商品供应商映射 + 供货价/起订量/交期；只返回采购建议，不创建采购单。',
-      filters: ['storeId=当前门店', 'Product.deletedAt is null', 'Supplier.status=active', `limit=${limit}`],
+      source: ['Product', 'SupplyCatalogMapping', 'SupplySku', 'SupplyQuote', 'SupplySupplier'],
+      metricDefinition: '供应商采购链接 = 商品库存 + 平台商品映射 + 有效报价/起订量/交期；只返回采购建议，不创建采购单。',
+      filters: ['storeId=当前门店', 'Product.deletedAt is null', 'SupplyCatalogMapping.mappingStatus=active', 'SupplyQuote.status=active', `limit=${limit}`],
       sampleSize: (products as any[]).length + (links as any[]).length,
       limitations: ['未接入外部供应链实时价格和真实下单链接；正式采购仍需生成采购草稿并审批。'],
     };
@@ -3822,7 +3839,7 @@ export class AgentToolRegistryService {
       return {
         status: 'no_data',
         title: '供应商采购链接',
-        summary: '当前没有低库存或缺少供应商链接的商品。',
+        summary: '当前没有低库存或缺少平台供货映射的商品。',
         data: { items: [], requestedLimit: limit, consumedSlots: { limit } },
         evidence,
         actions: [],
@@ -3836,7 +3853,7 @@ export class AgentToolRegistryService {
       evidence,
       actions: [
         { label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' },
-        { label: '维护供应商', action: 'inventory:supplier:open', riskLevel: 'low' },
+        { label: '维护供应链映射', action: 'supply-platform:mapping:open', riskLevel: 'low' },
       ],
     };
   }
@@ -4158,7 +4175,7 @@ export class AgentToolRegistryService {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 30);
     const suggestions = (await this.inventoryService.getReplenishment(context.storeId)).slice(0, limit);
     const evidence: AgentEvidence = {
-      source: ['Product', 'ProductSupplier', 'PurchaseOrder'],
+      source: ['Product', 'SupplyCatalogMapping', 'SupplyQuote', 'PurchaseOrder'],
       metricDefinition:
         '补货采购草稿 = currentStock <= safetyStock 的商品按安全库存缺口和最小采购量计算建议采购量；审批通过后仅创建草稿采购单。',
       filters: ['storeId=当前门店', 'Product.deletedAt is null', 'currentStock <= safetyStock', `limit=${limit}`],
@@ -4211,7 +4228,7 @@ export class AgentToolRegistryService {
       },
       evidence: {
         ...evidence,
-        source: ['AgentApproval', 'Product', 'ProductSupplier', 'PurchaseOrder'],
+        source: ['AgentApproval', 'Product', 'SupplyCatalogMapping', 'SupplyQuote', 'PurchaseOrder'],
         filters: [...evidence.filters, `runId=${context.runId}`, 'status=草稿'],
       },
       actions: [

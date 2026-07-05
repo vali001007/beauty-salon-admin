@@ -20,7 +20,6 @@ import { MarketingModule } from './marketing/marketing.module.js';
 import { MarketingPagesModule } from './marketing-pages/marketing-pages.module.js';
 import { PromotionsModule } from './promotions/promotions.module.js';
 import { CommissionModule } from './commission/commission.module.js';
-import { SupplyChainModule } from './supply-chain/supply-chain.module.js';
 import { SupplyPlatformModule } from './supply-platform/supply-platform.module.js';
 import { IndustryModule } from './industry/industry.module.js';
 import { AiModule } from './ai/ai.module.js';
@@ -31,6 +30,7 @@ import { BomModule } from './bom/bom.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { BusinessQueryModule } from './business-query/business-query.module.js';
 import { AgentModule } from './agent/agent.module.js';
+import { AgentV2Module } from './agent-v2/agent-v2.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
@@ -57,7 +57,6 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     MarketingPagesModule,
     PromotionsModule,
     CommissionModule,
-    SupplyChainModule,
     SupplyPlatformModule,
     IndustryModule,
     AiModule,
@@ -66,6 +65,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     DashboardModule,
     BusinessQueryModule,
     AgentModule,
+    AgentV2Module,
     OperationProfitModule,
     BomModule,
     HealthModule,

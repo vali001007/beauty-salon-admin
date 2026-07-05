@@ -1,6 +1,8 @@
 import {
   appendAgentMessage,
+  appendAgentV2Message,
   createAgentRun,
+  createAgentV2Run,
   submitAgentFeedback,
 } from '@/api';
 import type {
@@ -22,6 +24,7 @@ export interface TerminalAgentContextInput {
   personaCode?: string | null;
   sourceAction?: string | null;
   source?: string | null;
+  agentEngine?: 'agent_v1' | 'agent_v2' | null;
   context?: Record<string, unknown>;
 }
 
@@ -39,10 +42,13 @@ export interface TerminalAgentFeedbackInput {
 function buildTerminalAgentContext(input: TerminalAgentContextInput): {
   context: Record<string, unknown>;
   personaCode?: TerminalAgentPersonaCode;
+  agentEngine: 'agent_v1' | 'agent_v2';
 } {
   const contextTerminal = (input.context?.terminal ?? {}) as Record<string, unknown>;
   const contextPersonaCode =
     typeof contextTerminal.personaCode === 'string' ? contextTerminal.personaCode : undefined;
+  const contextAgentEngine = input.context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
+  const agentEngine = input.agentEngine ?? contextAgentEngine;
   const personaCode = input.personaCode
     ? resolveTerminalPersona(input.role, input.personaCode)
     : contextPersonaCode
@@ -54,13 +60,16 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
     sourceAction: input.sourceAction ?? undefined,
     source: input.source ?? undefined,
     command: input.command,
+    agentEngine,
     ...(personaCode ? { personaCode } : {}),
   };
 
   return {
     personaCode,
+    agentEngine,
     context: {
       ...(input.context ?? {}),
+      agentEngine,
       terminal: {
         ...(((input.context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
         ...terminalContext,
@@ -71,7 +80,7 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
 
 export async function createTerminalAgentRun(input: TerminalAgentContextInput): Promise<AgentRunResultV2> {
   const operatorId = getActiveTerminalOperatorParams()?.operatorId ?? null;
-  const { context, personaCode } = buildTerminalAgentContext(input);
+  const { context, personaCode, agentEngine } = buildTerminalAgentContext(input);
   const payload: AgentCreateRunRequest = {
     message: input.command,
     role: toTerminalAgentRole(input.role),
@@ -81,7 +90,7 @@ export async function createTerminalAgentRun(input: TerminalAgentContextInput): 
     context,
   };
 
-  return runWithAuraAuthRepair(() => createAgentRun(payload));
+  return runWithAuraAuthRepair(() => (agentEngine === 'agent_v2' ? createAgentV2Run(payload) : createAgentRun(payload)));
 }
 
 export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): Promise<AgentRunResultV2> {
@@ -89,7 +98,7 @@ export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): 
 
   const runId = input.activeRunId;
   const operatorId = getActiveTerminalOperatorParams()?.operatorId ?? null;
-  const { context, personaCode } = buildTerminalAgentContext(input);
+  const { context, personaCode, agentEngine } = buildTerminalAgentContext(input);
   const payload: AgentAppendMessageRequest = {
     message: input.command,
     role: toTerminalAgentRole(input.role),
@@ -99,7 +108,9 @@ export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): 
     context,
   };
 
-  return runWithAuraAuthRepair(() => appendAgentMessage(runId, payload));
+  return runWithAuraAuthRepair(() =>
+    agentEngine === 'agent_v2' ? appendAgentV2Message(runId, payload) : appendAgentMessage(runId, payload),
+  );
 }
 
 export async function submitTerminalAgentFeedback(input: TerminalAgentFeedbackInput): Promise<void> {

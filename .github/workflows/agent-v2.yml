@@ -1,0 +1,56 @@
+name: Agent V2 Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  agent-v2:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/server-v2
+    env:
+      DATABASE_URL: "postgresql://test:test@localhost:5432/test"
+      JWT_SECRET: "ci-test-secret"
+      JWT_REFRESH_SECRET: "ci-test-refresh-secret"
+      AGENT_CAPABILITY_DECISION_V2: "true"
+      AGENT_V2_EVAL_STRICT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            packages/server-v2/package-lock.json
+      - name: Install root dependencies
+        run: npm ci
+        working-directory: .
+      - name: Install API dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Run Agent V2 unit tests
+        run: >
+          npm run test -- --runTestsByPath
+          src/agent-v2/agent-v2-runtime.service.spec.ts
+          src/agent-v2/capability-center/agent-v2-capability-center.service.spec.ts
+          src/agent-v2/capability/agent-v2-capability-decision.service.spec.ts
+          src/agent-v2/contracts/agent-v2-answer-contract-validator.service.spec.ts
+          src/agent-v2/policy/agent-v2-policy-gateway.service.spec.ts
+          src/agent-v2/tools/agent-v2-business-record-query.service.spec.ts
+          src/agent-v2/tools/agent-v2-business-metric-query.service.spec.ts
+          src/agent-v2/tools/agent-v2-business-trend-query.service.spec.ts
+          src/agent-v2/tools/agent-v2-business-detail-query.service.spec.ts
+          src/agent-v2/tools/agent-v2-business-action-draft.service.spec.ts
+          src/agent-v2/tools/agent-v2-navigation.service.spec.ts
+      - name: Generate Agent V2 capability drafts
+        run: npm run agent-v2:capability-drafts
+      - name: Run Agent V2 strict eval gate
+        run: npm run agent-v2:eval-gate:strict
+      - name: Build API
+        run: npm run build

@@ -13,7 +13,7 @@ const dryRun = !verifyOnly && (!apply || !confirmed || process.argv.includes('--
 const lowStockSampleEnabled = !process.argv.includes('--skip-low-stock-sample');
 const FLOW_KEY = 'supply-platform-mvp-flow';
 const DEFAULT_STORE_NAME = 'Ami 全量演示门店';
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,

@@ -18,7 +18,7 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:customer:export')).toBe(false);
   });
 
-  it('registers financial and supply-chain permission codes', () => {
+  it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 
     expect(codes).toEqual(

@@ -14,7 +14,7 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter }) as any;
 
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
 function argValue(name: string) {
   const prefix = `--${name}=`;

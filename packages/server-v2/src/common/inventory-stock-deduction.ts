@@ -9,6 +9,7 @@ export type StockDeductionItem = {
   productId: number;
   quantity: number;
   batchId?: number;
+  unit?: string;
   remark?: string;
 };
 
@@ -59,6 +60,7 @@ async function createStockMovement(
     beforeStock: number;
     afterStock: number;
     source: StockDeductionSource;
+    unit?: string;
     remark: string;
     operatorId?: number;
   },
@@ -73,7 +75,7 @@ async function createStockMovement(
       quantity: params.quantity,
       beforeStock: params.beforeStock,
       afterStock: params.afterStock,
-      unit: params.product.specUnit ?? params.product.unit,
+      unit: params.unit ?? params.product.specUnit ?? params.product.unit,
       sourceType: params.source.type,
       sourceId: params.source.id,
       sourceNo: params.source.no ?? undefined,
@@ -144,6 +146,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
         beforeStock: runningBeforeStock,
         afterStock,
         source: params.source,
+        unit: params.item.unit,
         operatorId: params.operatorId,
         remark: baseRemark,
       }));
@@ -162,6 +165,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
       beforeStock: runningBeforeStock,
       afterStock,
       source: params.source,
+      unit: params.item.unit,
       operatorId: params.operatorId,
       remark: outbound ? appendNoBatchRemark(baseRemark) : baseRemark,
     }));

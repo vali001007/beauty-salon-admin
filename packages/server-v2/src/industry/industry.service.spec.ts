@@ -11,6 +11,8 @@ describe('IndustryService adoption', () => {
     referencePriceMax: 398,
     recommendedDurationMin: 45,
     recommendedDurationMax: 60,
+    careCycleWeeks: 4,
+    treatmentCourseTimes: 6,
     recommendedFrequency: '2-4 周一次',
     sellingPoints: ['补水', '舒缓'],
     status: 'published',
@@ -128,6 +130,13 @@ describe('IndustryService adoption', () => {
         name: '补水精华液',
         costPrice: 2,
         retailPrice: 148,
+      }),
+    });
+    expect(tx.project.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        duration: 60,
+        careCycleWeeks: 4,
+        treatmentCourseTimes: 6,
       }),
     });
     expect(tx.projectBomItem.create).toHaveBeenCalledWith({

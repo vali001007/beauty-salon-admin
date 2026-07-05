@@ -46,6 +46,12 @@ import {
   submitAgentFeedback,
   updateAgentPersona,
 } from '@/api/real/agent';
+import {
+  appendAgentV2Message,
+  createAgentV2Run,
+  getAgentV2RunDetail,
+  getAgentV2RunsPaginated,
+} from '@/api/real/agentV2';
 import { useStoreStore } from '@/stores/storeStore';
 import { useAuthStore } from '@/stores/authStore';
 import { AgentBlockRenderer, AgentPhaseOutputRenderer } from './components/AgentBlockRenderer';
@@ -58,6 +64,13 @@ interface ConversationMessage extends AgentConversationMessage {
 }
 
 type AgentWorkspaceTab = 'debug' | 'audit' | 'approvals' | 'personas' | 'eval' | 'quality' | 'knowledge';
+type AgentRuntimeMode = 'agent_v1' | 'agent_v2';
+
+const AGENT_RUNTIME_MODE_STORAGE_KEY = 'ami.agent.workspace.runtimeMode';
+const AGENT_RUNTIME_OPTIONS: Array<{ value: AgentRuntimeMode; label: string; description: string }> = [
+  { value: 'agent_v1', label: 'Agent V1', description: '旧工具链' },
+  { value: 'agent_v2', label: 'Agent V2', description: '能力目录' },
+];
 
 const AGENT_WORKSPACE_TABS: Array<{ key: AgentWorkspaceTab; label: string; description: string }> = [
   { key: 'debug', label: '对话调试', description: '验证 Persona、Planner、工具调用和富输出' },
@@ -73,6 +86,15 @@ type AgentActionPayload = {
   args?: Record<string, unknown>;
 };
 
+function resolveAgentRuntimeMode(value: string | null | undefined): AgentRuntimeMode {
+  return value === 'agent_v2' ? 'agent_v2' : 'agent_v1';
+}
+
+function getStoredAgentRuntimeMode(): AgentRuntimeMode {
+  if (typeof window === 'undefined') return 'agent_v1';
+  return resolveAgentRuntimeMode(window.localStorage.getItem(AGENT_RUNTIME_MODE_STORAGE_KEY));
+}
+
 // ─── Main Workspace ───────────────────────────────────────────────────────────
 
 export function AmiAgentWorkspace() {
@@ -80,6 +102,7 @@ export function AmiAgentWorkspace() {
   const currentStoreId = useStoreStore((s) => s.currentStoreId);
   const user = useAuthStore((s) => s.user);
   const agentRole = useMemo(() => resolveAgentRole(user?.roles), [user?.roles]);
+  const [agentRuntimeMode, setAgentRuntimeMode] = useState<AgentRuntimeMode>(getStoredAgentRuntimeMode);
 
   const [input, setInput] = useState('');
   const [memories, setMemories] = useState<AgentMemoryItem[]>([]);
@@ -139,13 +162,22 @@ export function AmiAgentWorkspace() {
     [personas],
   );
 
+  const agentRuntimeContext = useMemo(
+    () => ({
+      ...(showPersonaDebug ? { debugTrace: true } : {}),
+      agentEngine: agentRuntimeMode,
+      architecture: agentRuntimeMode,
+    }),
+    [agentRuntimeMode, showPersonaDebug],
+  );
+
   const conversationApi = useMemo(
     () => ({
-      createRun: createAgentRun,
-      appendMessage: appendAgentMessage,
+      createRun: agentRuntimeMode === 'agent_v2' ? createAgentV2Run : createAgentRun,
+      appendMessage: agentRuntimeMode === 'agent_v2' ? appendAgentV2Message : appendAgentMessage,
       submitFeedback: submitAgentFeedback,
     }),
-    [],
+    [agentRuntimeMode],
   );
   const {
     messages,
@@ -159,7 +191,7 @@ export function AmiAgentWorkspace() {
     role: agentRole,
     entrypoint: showPersonaDebug ? `ami-agent:${activePersona?.code ?? 'manager'}` : 'ami-agent:auto',
     personaCode: showPersonaDebug ? activePersona?.code ?? 'manager' : undefined,
-    context: showPersonaDebug ? { debugTrace: true } : undefined,
+    context: agentRuntimeContext,
     formatError: formatAgentError,
     mapAgentResult: (result) => {
       const displayModel = getAgentResultDisplayModel(result);
@@ -217,10 +249,27 @@ export function AmiAgentWorkspace() {
     void loadInsightPanel();
   }, [loadInsightPanel]);
 
+  const handleAgentRuntimeModeChange = useCallback(
+    (mode: AgentRuntimeMode) => {
+      if (mode === agentRuntimeMode) return;
+      setAgentRuntimeMode(mode);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(AGENT_RUNTIME_MODE_STORAGE_KEY, mode);
+      }
+      resetConversation();
+      setInput('');
+      setAuditRuns([]);
+      setAuditRunDetail(null);
+    },
+    [agentRuntimeMode, resetConversation],
+  );
+
   const loadAuditPanel = useCallback(async () => {
     setAuditLoading(true);
     try {
-      const result = await getAgentRunsPaginated({
+      const listRuns = agentRuntimeMode === 'agent_v2' ? getAgentV2RunsPaginated : getAgentRunsPaginated;
+      const getRunDetail = agentRuntimeMode === 'agent_v2' ? getAgentV2RunDetail : getAgentRunDetail;
+      const result = await listRuns({
         page: 1,
         pageSize: 20,
         ...(auditEntrypoint ? { entrypoint: auditEntrypoint } : {}),
@@ -232,7 +281,7 @@ export function AmiAgentWorkspace() {
       setAuditRuns(result.items);
       const firstRun = result.items[0];
       if (firstRun) {
-        setAuditRunDetail(await getAgentRunDetail(firstRun.id));
+        setAuditRunDetail(await getRunDetail(firstRun.id));
       } else {
         setAuditRunDetail(null);
       }
@@ -243,7 +292,7 @@ export function AmiAgentWorkspace() {
     } finally {
       setAuditLoading(false);
     }
-  }, [auditEntrypoint, auditKeyword, auditPersonaCode, auditRole, auditStatus]);
+  }, [agentRuntimeMode, auditEntrypoint, auditKeyword, auditPersonaCode, auditRole, auditStatus]);
 
   const loadApprovalsPanel = useCallback(async () => {
     setApprovalsLoading(true);
@@ -371,7 +420,7 @@ export function AmiAgentWorkspace() {
   const handleSelectAuditRun = async (runId: number) => {
     setAuditLoading(true);
     try {
-      setAuditRunDetail(await getAgentRunDetail(runId));
+      setAuditRunDetail(await (agentRuntimeMode === 'agent_v2' ? getAgentV2RunDetail(runId) : getAgentRunDetail(runId)));
     } catch (error) {
       console.warn(error);
     } finally {
@@ -447,7 +496,12 @@ export function AmiAgentWorkspace() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col overflow-hidden bg-background">
-      <AgentWorkspaceTabs activeTab={activeTab} onChange={setActiveTab} />
+      <AgentWorkspaceTabs
+        activeTab={activeTab}
+        agentRuntimeMode={agentRuntimeMode}
+        onAgentRuntimeModeChange={handleAgentRuntimeModeChange}
+        onChange={setActiveTab}
+      />
 
       {activeTab === 'debug' ? (
         <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -641,9 +695,13 @@ export function AmiAgentWorkspace() {
 
 function AgentWorkspaceTabs({
   activeTab,
+  agentRuntimeMode,
+  onAgentRuntimeModeChange,
   onChange,
 }: {
   activeTab: AgentWorkspaceTab;
+  agentRuntimeMode: AgentRuntimeMode;
+  onAgentRuntimeModeChange: (mode: AgentRuntimeMode) => void;
   onChange: (tab: AgentWorkspaceTab) => void;
 }) {
   return (
@@ -654,6 +712,27 @@ function AgentWorkspaceTabs({
           <p className="mt-0.5 text-xs text-muted-foreground">
             统一管理调试、审计、审批、Persona、评测和质量闭环。
           </p>
+        </div>
+        <div className="flex shrink-0 rounded-lg border border-border bg-muted p-1">
+          {AGENT_RUNTIME_OPTIONS.map((option) => {
+            const active = agentRuntimeMode === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onAgentRuntimeModeChange(option.value)}
+                className={[
+                  'min-w-[86px] rounded-md px-3 py-1.5 text-left text-xs transition-colors',
+                  active
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+                ].join(' ')}
+              >
+                <span className="block font-semibold">{option.label}</span>
+                <span className="block text-[10px]">{option.description}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="flex min-w-0 gap-2 overflow-x-auto">

@@ -100,6 +100,8 @@ export interface IndustryServiceTemplate {
   targetStoreTypes?: string[];
   recommendedDurationMin?: number | null;
   recommendedDurationMax?: number | null;
+  careCycleWeeks?: number | null;
+  treatmentCourseTimes?: number | null;
   referencePriceMin?: number | null;
   referencePriceMax?: number | null;
   targetCustomers?: string[];
@@ -213,6 +215,8 @@ export interface IndustryAdoptProjectPayload {
   typeName?: string;
   price?: number;
   duration?: number;
+  careCycleWeeks?: number;
+  treatmentCourseTimes?: number;
   status?: string;
   adoptBom?: boolean;
   createMissingProducts?: boolean;

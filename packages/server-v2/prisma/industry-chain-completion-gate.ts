@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from 'dotenv';
-import { mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 
 config({ path: resolve(import.meta.dirname, '..', '.env') });
@@ -14,7 +14,7 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter }) as any;
 
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
 type GateStatus = 'pass' | 'fail' | 'warning' | 'not_applicable';
 
@@ -70,6 +70,38 @@ function table(headers: string[], rows: Array<Array<string | number>>) {
 
 function distinctNumbers(values: Array<unknown>) {
   return [...new Set(values.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))];
+}
+
+function unitAuditPath() {
+  return resolve(process.cwd(), `../../docs/04-测试数据/product-unit-consistency-audit-${today}.json`);
+}
+
+function readUnitAuditSummary() {
+  const path = unitAuditPath();
+  if (!existsSync(path)) {
+    return {
+      available: false,
+      path,
+      salesUnitEvidenceSummary: null,
+      error: '文件不存在',
+    };
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    return {
+      available: true,
+      path,
+      salesUnitEvidenceSummary: parsed.salesUnitEvidenceSummary ?? null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      available: false,
+      path,
+      salesUnitEvidenceSummary: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 async function resolveStore() {
@@ -330,11 +362,16 @@ async function main() {
   );
 
   const store = await resolveStore();
+  const unitAuditSummary = readUnitAuditSummary();
   const [adoption, unitHealth, counts] = await Promise.all([
     adoptionHealth(store.id),
     productUnitHealth(store.id),
     collectCounts(store.id),
   ]);
+  const salesEvidence: any = unitAuditSummary.salesUnitEvidenceSummary;
+  const salesUnitEvidenceText = salesEvidence
+    ? `；抽样销售明细 ${salesEvidence.sampledOrderItems ?? '-'} 条，订单明细未固化单位 ${salesEvidence.payloadUnitMissing ?? '-'} 条，可关联销售出库 ${salesEvidence.linkedSaleOutOrderItems ?? '-'} 条，其中按包装单位落库 ${salesEvidence.saleOutUsesPackageUnit ?? '-'} 条、按规格单位落库 ${salesEvidence.saleOutUsesSpecUnit ?? '-'} 条`
+    : `；单位巡检销售证据${unitAuditSummary.available ? '缺少 salesUnitEvidenceSummary' : `不可用：${unitAuditSummary.error}`}`;
 
   const gates: Gate[] = [
     {
@@ -407,8 +444,11 @@ async function main() {
       id: '8',
       requirement: '商品销售能生成销售出库库存流水',
       status: counts.saleOutboundMovements > 0 ? 'pass' : 'fail',
-      evidence: `商品销售/商品订单来源出库流水 ${counts.saleOutboundMovements} 条`,
-      nextAction: '继续补销售明细包装/规格单位口径证据，避免销售侧单位解释不清。',
+      evidence: `商品销售/商品订单来源出库流水 ${counts.saleOutboundMovements} 条${salesUnitEvidenceText}`,
+      nextAction:
+        salesEvidence?.payloadUnitMissing > 0
+          ? '新增订单写入已固化 packageUnit 到 OrderItem.payload；当前不回填历史订单，继续用巡检跟踪新旧数据差异。'
+          : '保持商品销售出库回归测试覆盖。',
     },
     {
       id: '9',
@@ -464,6 +504,7 @@ async function main() {
     counts,
     adoption,
     unitHealth,
+    unitAuditSummary,
     gates,
     blockingItems,
   };

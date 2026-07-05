@@ -81,8 +81,6 @@ model Store {
   amiPerformanceRecords    AmiPerformanceRecord[]
   marketingRuleTemplates   MarketingRuleTemplate[]
   amiMonthlyBills          AmiMonthlyBill[]
-  suppliers                Supplier[]
-  supplierOrders           SupplierOrder[]
   procurementOrders        ProcurementOrder[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
   beauticianAvailabilities BeauticianAvailability[]
@@ -339,8 +337,6 @@ model Product {
   batches        StockBatch[]
   bomItems       ProjectBomItem[]
   stockMovements StockMovement[]
-  suppliers      ProductSupplier[]
-  supplierItems  SupplierOrderItem[]
   supplyMappings SupplyCatalogMapping[]
   procurementItems ProcurementOrderItem[]
 
@@ -365,117 +361,6 @@ model StockBatch {
 
   @@index([productId])
   @@index([expiryDate])
-}
-
-model Supplier {
-  id           Int       @id @default(autoincrement())
-  storeId      Int?
-  name         String
-  contactName  String?
-  phone        String?
-  email        String?
-  address      String?
-  category     String?
-  rebateRate   Decimal?
-  paymentTerms String?
-  status       String    @default("active")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
-
-  store       Store?               @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  products    ProductSupplier[]
-  orders      SupplierOrder[]
-  settlements SupplierSettlement[]
-
-  @@index([storeId])
-  @@index([status])
-  @@index([category])
-  @@index([name])
-}
-
-model ProductSupplier {
-  id          Int      @id @default(autoincrement())
-  productId   Int
-  supplierId  Int
-  supplyPrice Decimal  @default(0)
-  moq         Int?
-  leadDays    Int?
-  isPrimary   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-
-  @@unique([productId, supplierId])
-  @@index([supplierId])
-  @@index([productId, isPrimary])
-}
-
-model SupplierOrder {
-  id           Int       @id @default(autoincrement())
-  orderNo      String    @unique
-  supplierId   Int
-  storeId      Int
-  totalAmount  Decimal   @default(0)
-  platformFee  Decimal   @default(0)
-  rebateAmount Decimal   @default(0)
-  netAmount    Decimal   @default(0)
-  status       String    @default("pending")
-  orderedAt    DateTime  @default(now())
-  receivedAt   DateTime?
-  settledAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  supplier Supplier            @relation(fields: [supplierId], references: [id])
-  store    Store               @relation(fields: [storeId], references: [id])
-  items    SupplierOrderItem[]
-
-  @@index([supplierId, status])
-  @@index([storeId])
-  @@index([status])
-  @@index([orderedAt])
-}
-
-model SupplierOrderItem {
-  id          Int     @id @default(autoincrement())
-  orderId     Int
-  productId   Int
-  quantity    Int
-  unitPrice   Decimal @default(0)
-  subtotal    Decimal @default(0)
-  receivedQty Int?
-
-  order   SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product       @relation(fields: [productId], references: [id])
-
-  @@index([orderId])
-  @@index([productId])
-}
-
-model SupplierSettlement {
-  id             Int       @id @default(autoincrement())
-  supplierId     Int
-  settleMonth    String
-  orderCount     Int       @default(0)
-  totalAmount    Decimal   @default(0)
-  rebateAmount   Decimal   @default(0)
-  platformFee    Decimal   @default(0)
-  netPayable     Decimal   @default(0)
-  status         String    @default("draft")
-  confirmedAt    DateTime?
-  paidAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  supplier Supplier @relation(fields: [supplierId], references: [id])
-
-  @@unique([supplierId, settleMonth])
-  @@index([supplierId])
-  @@index([settleMonth])
-  @@index([status])
 }
 
 model PurchaseOrder {
@@ -647,6 +532,8 @@ model IndustryServiceTemplate {
   targetStoreTypes       Json?
   recommendedDurationMin Int?
   recommendedDurationMax Int?
+  careCycleWeeks         Int?
+  treatmentCourseTimes   Int?
   referencePriceMin      Decimal?
   referencePriceMax      Decimal?
   targetCustomers        Json?
@@ -977,6 +864,18 @@ model SupplySettlement {
   @@index([supplierId])
   @@index([settleMonth])
   @@index([status])
+}
+
+model SupplyLegacyMigrationMap {
+  id          Int      @id @default(autoincrement())
+  legacyModel String
+  legacyId    Int
+  targetModel String
+  targetId    Int
+  createdAt   DateTime @default(now())
+
+  @@unique([legacyModel, legacyId, targetModel])
+  @@index([targetModel, targetId])
 }
 
 model IndustryProjectBomTemplate {
@@ -3175,4 +3074,158 @@ model AgentAutomationEffect {
   @@index([customerId])
   @@index([status])
   @@map("agent_automation_effects")
+}
+
+// ─── Agent V2 Capability Center（能力候选、审核与发布）────────────────────────
+
+model AgentCapabilityDraft {
+  id                 Int       @id @default(autoincrement())
+  capabilityId       String    @unique
+  status             String    @default("draft")
+  source             String    @default("auto_scan_draft")
+  displayName        String
+  displayNameZh      String?
+  description        String?
+  domain             String
+  businessObject     String
+  actionCodes        Json?
+  personaCodes       Json?
+  releaseStrategy    String    @default("approval_required")
+  riskLevel          String    @default("low")
+  permissionSource   String?
+  permissionCodes    Json?
+  sourceModels       Json?
+  sourceApis         Json?
+  sourceDtos         Json?
+  sourceRoutes       Json?
+  outputKinds        Json?
+  executorJson       Json?
+  storeScope         String?
+  fieldPoliciesJson  Json?
+  triggerKeywords    Json?
+  examples           Json?
+  negativeExamples   Json?
+  boundaryNotes      Json?
+  governanceIssues   Json?
+  scannerFingerprint String?
+  reviewedBy         Int?
+  reviewedAt         DateTime?
+  publishedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([domain])
+  @@index([riskLevel])
+  @@index([releaseStrategy])
+  @@index([updatedAt])
+  @@map("agent_capability_drafts")
+}
+
+model AgentCapabilityReview {
+  id           Int      @id @default(autoincrement())
+  draftId      Int?
+  capabilityId String
+  decision     String
+  comment      String?
+  changesJson  Json?
+  reviewerId   Int?
+  createdAt    DateTime @default(now())
+
+  @@index([draftId])
+  @@index([capabilityId])
+  @@index([decision])
+  @@index([reviewerId])
+  @@map("agent_capability_reviews")
+}
+
+model AgentCapabilityManifestVersion {
+  id                    Int      @id @default(autoincrement())
+  version               String   @unique
+  status                String   @default("draft")
+  source                String   @default("capability_center")
+  title                 String?
+  summary               String?
+  itemCount             Int      @default(0)
+  autoPublishedCount    Int      @default(0)
+  approvalRequiredCount Int      @default(0)
+  writeBlockedCount     Int      @default(0)
+  evalReportJson        Json?
+  publishedBy           Int?
+  publishedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  items AgentCapabilityManifestItem[]
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("agent_capability_manifest_versions")
+}
+
+model AgentCapabilityManifestItem {
+  id              Int      @id @default(autoincrement())
+  versionId       Int
+  capabilityId    String
+  status          String   @default("enabled")
+  source          String   @default("capability_center")
+  releaseStrategy String
+  riskLevel       String
+  permissionCodes Json?
+  manifestJson    Json
+  draftId         Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  version AgentCapabilityManifestVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, capabilityId])
+  @@index([capabilityId])
+  @@index([status])
+  @@index([releaseStrategy])
+  @@index([riskLevel])
+  @@map("agent_capability_manifest_items")
+}
+
+model AgentCapabilityPublishRun {
+  id              Int       @id @default(autoincrement())
+  runNo           String    @unique
+  status          String
+  sourceVersionId Int?
+  targetVersionId Int?
+  requestedBy     Int?
+  inputJson       Json?
+  resultJson      Json?
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([status])
+  @@index([requestedBy])
+  @@index([startedAt])
+  @@map("agent_capability_publish_runs")
+}
+
+model AgentToolQueryKeyRegistry {
+  id                  Int      @id @default(autoincrement())
+  queryKey            String   @unique
+  toolName            String
+  domain              String
+  businessObject      String?
+  status              String   @default("draft")
+  source              String   @default("auto_scan")
+  requiredPermissions Json?
+  sourceModels        Json?
+  sourceApis          Json?
+  outputKinds         Json?
+  implementationRef   String?
+  validationJson      Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([toolName])
+  @@index([domain])
+  @@index([status])
+  @@map("agent_tool_query_key_registry")
 }

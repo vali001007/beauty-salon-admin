@@ -1220,6 +1220,8 @@ export class IndustryService {
           description: this.buildServiceTemplateDescription(template),
           price: dto.price ?? this.averageRange(template.referencePriceMin, template.referencePriceMax),
           duration: dto.duration ?? template.recommendedDurationMax ?? template.recommendedDurationMin ?? 60,
+          careCycleWeeks: dto.careCycleWeeks ?? template.careCycleWeeks,
+          treatmentCourseTimes: dto.treatmentCourseTimes ?? template.treatmentCourseTimes,
           status: dto.status ?? 'active',
           online: true,
           recommend: false,

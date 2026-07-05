@@ -67,10 +67,25 @@ export class CustomerAppCreateReservationDto {
   @IsString()
   channel?: string;
 
+  @ApiPropertyOptional({ description: '来源端，如 ami_glow、ami_glow_h5' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
   @ApiPropertyOptional({ description: '活动 ID' })
   @IsOptional()
   @IsInt()
   promotionId?: number;
+
+  @ApiPropertyOptional({ description: '营销活动或外部 campaign ID' })
+  @IsOptional()
+  @IsString()
+  campaignId?: string;
+
+  @ApiPropertyOptional({ description: '员工分享来源 ID' })
+  @IsOptional()
+  @IsInt()
+  staffId?: number;
 
   @ApiPropertyOptional({ description: '幂等键' })
   @IsOptional()

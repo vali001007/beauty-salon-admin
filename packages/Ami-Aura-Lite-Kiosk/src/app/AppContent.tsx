@@ -140,6 +140,7 @@ import type { AuraBootstrap } from "../../../../src/types/aura";
 
 type LoadingPayload = { kind: "agentThinking" };
 type Payload = AuraPayload | LoadingPayload;
+type TerminalAgentEngine = "agent_v1" | "agent_v2";
 
 const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "cardVerification",
@@ -152,6 +153,16 @@ const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
 ]);
 
 const PERSONA_REFRESH_INTERVAL_MS = 60_000;
+const TERMINAL_AGENT_ENGINE_STORAGE_KEY = "ami.aura.agent.runtimeMode";
+
+function resolveTerminalAgentEngine(value: string | null | undefined): TerminalAgentEngine {
+  return value === "agent_v2" ? "agent_v2" : "agent_v1";
+}
+
+function getStoredTerminalAgentEngine(): TerminalAgentEngine {
+  if (typeof window === "undefined") return "agent_v1";
+  return resolveTerminalAgentEngine(window.localStorage.getItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY));
+}
 
 function createMessage(
   type: MessageType,
@@ -605,6 +616,7 @@ export default function AppContent() {
   const [showLogin, setShowLogin] = useState(false);
   const [currentRole, setCurrentRole] = useState<Role>("reception");
   const [activePersonaCode, setActivePersonaCode] = useState<TerminalAgentPersonaCode>(getDefaultTerminalPersona("reception"));
+  const [agentEngine, setAgentEngine] = useState<TerminalAgentEngine>(getStoredTerminalAgentEngine);
   const [agentPersonas, setAgentPersonas] = useState<AgentPersonaSummary[]>(BUILTIN_AGENT_PERSONAS);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -654,6 +666,7 @@ export default function AppContent() {
   const messagesRef = useRef<Message[]>(combinedMessages);
   const currentRoleRef = useRef<Role>(currentRole);
   const activePersonaCodeRef = useRef<TerminalAgentPersonaCode>(activePersonaCode);
+  const agentEngineRef = useRef<TerminalAgentEngine>(agentEngine);
   const currentOperatorIdRef = useRef<number | null>(currentOperatorId);
   const conversationEpochRef = useRef(0);
   const refreshAgentPersonas = useCallback(async (isActive: () => boolean = () => true) => {
@@ -678,6 +691,10 @@ export default function AppContent() {
   useEffect(() => {
     activePersonaCodeRef.current = activePersonaCode;
   }, [activePersonaCode]);
+
+  useEffect(() => {
+    agentEngineRef.current = agentEngine;
+  }, [agentEngine]);
 
   useEffect(() => {
     currentOperatorIdRef.current = currentOperatorId;
@@ -724,10 +741,30 @@ export default function AppContent() {
     return conversationEpochRef.current;
   };
 
-  const clearAllMessages = () => {
+  const clearAllMessages = useCallback(() => {
     setMessages([]);
     clearAgentMessages();
-  };
+  }, [clearAgentMessages]);
+
+  const handleAgentEngineChange = useCallback(
+    (nextEngine: TerminalAgentEngine) => {
+      if (nextEngine === agentEngineRef.current) return;
+      agentEngineRef.current = nextEngine;
+      setAgentEngine(nextEngine);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY, nextEngine);
+      }
+      advanceConversationEpoch();
+      clearAllMessages();
+      setConversationContext(createConversationContext(currentRoleRef.current, undefined));
+      setLoading(false);
+      setAgentLoading(false);
+      setSuppressBlockingLoading(false);
+      setLoadingText("正在接入 Ami_Core");
+      setError(null);
+    },
+    [clearAllMessages, setAgentLoading],
+  );
 
   const appendMessage = (message: Message, epoch = getConversationEpoch(), stream: "flow" | "agent" = "flow") => {
     if (!isConversationEpochActive(epoch)) return;
@@ -1369,21 +1406,26 @@ export default function AppContent() {
       }
 
       const selectedPersonaCode = activePersonaCodeRef.current;
+      const selectedAgentEngine = agentEngineRef.current;
       const terminalFacts = buildTerminalFactContext(messagesRef.current, {
         store: bootstrap?.currentStore ?? session?.store ?? null,
         operator: bootstrap?.currentUser ?? session?.user ?? null,
         device: {
           entrypoint: "terminal:kiosk",
           role: currentRoleRef.current,
+          agentEngine: selectedAgentEngine,
           ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
         },
       });
 
       const result = await runMicroAppIntent(intent, command, {
+        agentEngine: selectedAgentEngine,
         agentContext: {
           ...(getLatestAgentContext() ?? {}),
+          agentEngine: selectedAgentEngine,
           terminalFacts,
           terminal: {
+            agentEngine: selectedAgentEngine,
             ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
           },
         },
@@ -1564,10 +1606,12 @@ export default function AppContent() {
         currentRole={currentRole}
         currentUserId={currentOperatorId}
         availableUsers={availableUsers}
+        agentEngine={agentEngine}
         switchingStore={switchingStore}
         switchingUser={switchingUser}
         onStoreChange={handleStoreChange}
         onUserChange={handleUserChange}
+        onAgentEngineChange={handleAgentEngineChange}
         onHistory={() => setShowConversationHistory(true)}
         onLock={handleLock}
         onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() })}

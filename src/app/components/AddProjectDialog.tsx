@@ -91,6 +91,15 @@ function formatIndustryDuration(template?: IndustryServiceTemplate) {
   return `${min ?? max} 分钟`;
 }
 
+function formatIndustryCareCourse(template?: IndustryServiceTemplate) {
+  if (!template) return '';
+  const parts = [
+    template.careCycleWeeks ? `周期 ${template.careCycleWeeks} 周` : '',
+    template.treatmentCourseTimes ? `疗程 ${template.treatmentCourseTimes} 次` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' / ') : '未配置';
+}
+
 function getBomItemCost(item: BomDraftItem) {
   return Number(item.unitCost || 0) * Number(item.standardQty || 0);
 }
@@ -577,7 +586,7 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                   </button>
                 </div>
                 {selectedIndustryTemplate && (
-                  <div className="mt-3 grid gap-3 text-xs text-blue-900 md:grid-cols-4">
+                  <div className="mt-3 grid gap-3 text-xs text-blue-900 md:grid-cols-5">
                     <div>
                       <div className="text-blue-500">参考售价</div>
                       <div className="mt-1 font-medium">{formatIndustryPriceRange(selectedIndustryTemplate)}</div>
@@ -585,6 +594,10 @@ export function AddProjectDialog({ open, onClose, initialProject }: AddProjectDi
                     <div>
                       <div className="text-blue-500">建议时长</div>
                       <div className="mt-1 font-medium">{formatIndustryDuration(selectedIndustryTemplate)}</div>
+                    </div>
+                    <div>
+                      <div className="text-blue-500">周期/疗程</div>
+                      <div className="mt-1 font-medium">{formatIndustryCareCourse(selectedIndustryTemplate)}</div>
                     </div>
                     <div>
                       <div className="text-blue-500">BOM 状态</div>

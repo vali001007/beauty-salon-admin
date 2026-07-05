@@ -127,9 +127,13 @@ describe('API facades', () => {
     const realGetSupplyQuotes = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
     const realCreateSupplyQuote = vi.fn(async (data) => ({ id: 3, status: 'draft', auditStatus: 'draft', ...data }));
     const realAuditSupplyQuote = vi.fn(async (id, data) => ({ id, supplySkuId: 2, supplierId: 1, ...data }));
+    const realGetSupplyCatalogMappings = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateSupplyCatalogMapping = vi.fn(async (data) => ({ id: 7, mappingStatus: 'mapped', purchasableStatus: 'available', ...data }));
+    const realUpdateSupplyCatalogMapping = vi.fn(async (id, data) => ({ id, mappingStatus: 'mapped', purchasableStatus: 'available', ...data }));
     const realGetProcurementOrders = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
     const realGetProcurementOrder = vi.fn(async (id) => ({ id, orderNo: 'SP-1', storeId: 1, supplierId: 1, status: 'shipped', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, sourceType: 'replenishment', items: [], shipments: [] }));
     const realCreateProcurementOrder = vi.fn(async (data) => ({ id: 4, orderNo: 'SP-2', status: 'pending_supplier_confirm', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, items: [], ...data }));
+    const realCreateProcurementOrdersFromReplenishment = vi.fn(async (data) => [{ id: 8, orderNo: 'SP-8', status: 'draft', totalAmount: 0, platformFee: 0, rebateAmount: 0, netAmount: 0, items: [], ...data }]);
     const realUpdateProcurementOrderStatus = vi.fn(async (id, status) => ({ id, status }));
     const realCreateSupplierShipment = vi.fn(async (id, data) => ({ id: 5, orderId: id, supplierId: 1, shipmentNo: 'SH-1', status: 'shipped', items: [], ...data }));
     const realReceiveProcurementOrder = vi.fn(async (id, data) => ({ id, orderNo: 'SP-1', storeId: 1, supplierId: 1, status: 'received', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, sourceType: 'replenishment', items: [], shipments: [], receipt: data }));
@@ -147,9 +151,13 @@ describe('API facades', () => {
       realGetSupplyQuotes,
       realCreateSupplyQuote,
       realAuditSupplyQuote,
+      realGetSupplyCatalogMappings,
+      realCreateSupplyCatalogMapping,
+      realUpdateSupplyCatalogMapping,
       realGetProcurementOrders,
       realGetProcurementOrder,
       realCreateProcurementOrder,
+      realCreateProcurementOrdersFromReplenishment,
       realUpdateProcurementOrderStatus,
       realCreateSupplierShipment,
       realReceiveProcurementOrder,
@@ -170,9 +178,13 @@ describe('API facades', () => {
     await api.getSupplyQuotes({ supplierId: 1, availableOnly: true });
     await api.createSupplyQuote({ supplySkuId: 2, supplierId: 1, price: 88 });
     await api.auditSupplyQuote(3, { auditStatus: 'approved', status: 'active' });
+    await api.getSupplyCatalogMappings({ page: 1, pageSize: 10, storeId: 1 });
+    await api.createSupplyCatalogMapping({ supplySkuId: 2, storeId: 1, productId: 10 });
+    await api.updateSupplyCatalogMapping(7, { purchasableStatus: 'available' });
     await api.getProcurementOrders({ page: 1, pageSize: 10, storeId: 1 });
     await api.getProcurementOrder(4);
     await api.createProcurementOrder({ storeId: 1, supplierId: 1, items: [{ supplySkuId: 2, quantity: 1 }] });
+    await api.createProcurementOrdersFromReplenishment({ storeId: 1, productIds: [10] });
     await api.updateProcurementOrderStatus(4, 'accepted');
     await api.createSupplierShipment(4, { items: [{ orderItemId: 1, supplySkuId: 2, shippedQty: 1 }] });
     await api.receiveProcurementOrder(4, { items: [{ shipmentItemId: 1, receivedQty: 1 }] });
@@ -189,9 +201,13 @@ describe('API facades', () => {
     expect(realGetSupplyQuotes).toHaveBeenCalledWith({ supplierId: 1, availableOnly: true });
     expect(realCreateSupplyQuote).toHaveBeenCalledWith({ supplySkuId: 2, supplierId: 1, price: 88 });
     expect(realAuditSupplyQuote).toHaveBeenCalledWith(3, { auditStatus: 'approved', status: 'active' });
+    expect(realGetSupplyCatalogMappings).toHaveBeenCalledWith({ page: 1, pageSize: 10, storeId: 1 });
+    expect(realCreateSupplyCatalogMapping).toHaveBeenCalledWith({ supplySkuId: 2, storeId: 1, productId: 10 });
+    expect(realUpdateSupplyCatalogMapping).toHaveBeenCalledWith(7, { purchasableStatus: 'available' });
     expect(realGetProcurementOrders).toHaveBeenCalledWith({ page: 1, pageSize: 10, storeId: 1 });
     expect(realGetProcurementOrder).toHaveBeenCalledWith(4);
     expect(realCreateProcurementOrder).toHaveBeenCalledWith({ storeId: 1, supplierId: 1, items: [{ supplySkuId: 2, quantity: 1 }] });
+    expect(realCreateProcurementOrdersFromReplenishment).toHaveBeenCalledWith({ storeId: 1, productIds: [10] });
     expect(realUpdateProcurementOrderStatus).toHaveBeenCalledWith(4, 'accepted');
     expect(realCreateSupplierShipment).toHaveBeenCalledWith(4, { items: [{ orderItemId: 1, supplySkuId: 2, shippedQty: 1 }] });
     expect(realReceiveProcurementOrder).toHaveBeenCalledWith(4, { items: [{ shipmentItemId: 1, receivedQty: 1 }] });

@@ -5,9 +5,12 @@ import type { BusinessQueryContext } from '@/types/businessQuery';
 import type { AgentRunResult } from '@/types/agent';
 import { appendTerminalAgentMessage, createTerminalAgentRun } from './agentRuntimeService';
 
+type TerminalAgentEngine = 'agent_v1' | 'agent_v2';
+
 export interface TerminalAgentAdapterOptions {
   businessQueryContext?: BusinessQueryContext;
   agentContext?: Record<string, unknown>;
+  agentEngine?: TerminalAgentEngine;
 }
 
 export function isTerminalAgentRuntimeEnabled(): boolean {
@@ -29,8 +32,10 @@ export function shouldUseTerminalAgentRuntime(intent: AuraResolvedIntent): boole
 }
 
 function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentAdapterOptions): Record<string, unknown> {
+  const agentEngine = options.agentEngine ?? (options.agentContext?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1');
   return {
     ...(options.agentContext ?? {}),
+    agentEngine,
     ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     intent: {
       name: intent.name,
@@ -57,6 +62,7 @@ export async function runTerminalAgentIntent(
 ): Promise<MicroAppRunResult> {
   const context = buildAdapterContext(intent, options);
   const previousRunId = getPreviousRunId(options);
+  const agentEngine = options.agentEngine ?? (context.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1');
   const data: AgentRunResult = previousRunId
     ? await appendTerminalAgentMessage({
         activeRunId: previousRunId,
@@ -64,6 +70,7 @@ export async function runTerminalAgentIntent(
         role,
         sourceAction: intent.action ?? null,
         source: intent.source,
+        agentEngine,
         context,
       })
     : await createTerminalAgentRun({
@@ -71,6 +78,7 @@ export async function runTerminalAgentIntent(
         role,
         sourceAction: intent.action ?? null,
         source: intent.source,
+        agentEngine,
         context,
       });
 

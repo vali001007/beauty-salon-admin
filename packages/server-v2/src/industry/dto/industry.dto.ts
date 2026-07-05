@@ -141,6 +141,20 @@ export class CreateIndustryServiceTemplateDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  careCycleWeeks?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  treatmentCourseTimes?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   referencePriceMin?: number;
 
@@ -594,6 +608,20 @@ export class AdoptIndustryServiceTemplateDto {
   @Type(() => Number)
   @IsInt()
   duration?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  careCycleWeeks?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  treatmentCourseTimes?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -13,7 +13,7 @@ describe('AgentToolRegistryService', () => {
   beforeEach(() => {
     prisma = {
       product: { findMany: jest.fn() },
-      productSupplier: { findMany: jest.fn() },
+      supplyCatalogMapping: { findMany: jest.fn() },
       project: { findMany: jest.fn() },
       orderItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
@@ -32,9 +32,9 @@ describe('AgentToolRegistryService', () => {
       cardUsageRecord: { findMany: jest.fn() },
       customerBalanceAccount: { findMany: jest.fn() },
       customerBalanceTransaction: { findMany: jest.fn() },
-      supplier: { findMany: jest.fn() },
-      supplierOrder: { findMany: jest.fn() },
-      supplierSettlement: { findMany: jest.fn() },
+      supplySupplier: { findMany: jest.fn() },
+      procurementOrder: { findMany: jest.fn() },
+      supplySettlement: { findMany: jest.fn() },
       marketingPage: { findMany: jest.fn() },
       marketingPageEvent: { findMany: jest.fn() },
       promotion: { findMany: jest.fn() },
@@ -717,20 +717,21 @@ describe('AgentToolRegistryService', () => {
   });
 
   it('diagnoses supply chain delivery and settlement without falling back to business query', async () => {
-    prisma.supplier.findMany.mockResolvedValue([
-      { id: 601, name: '华东耗材', category: '耗材', status: 'active', paymentTerms: '月结' },
-      { id: 602, name: '本地用品', category: '用品', status: 'active', paymentTerms: '现结' },
+    prisma.supplySupplier.findMany.mockResolvedValue([
+      { id: 601, name: '华东耗材', categories: ['耗材'], status: 'active', paymentTerms: '月结' },
+      { id: 602, name: '本地用品', categories: ['用品'], status: 'active', paymentTerms: '现结' },
     ]);
-    prisma.supplierOrder.findMany.mockResolvedValue([
+    prisma.procurementOrder.findMany.mockResolvedValue([
       {
         id: 701,
         supplierId: 601,
         totalAmount: 3000,
         netAmount: 2800,
         status: 'received',
-        orderedAt: new Date(Date.now() - 6 * 86_400_000),
+        createdAt: new Date(Date.now() - 6 * 86_400_000),
+        acceptedAt: new Date(Date.now() - 6 * 86_400_000),
         receivedAt: new Date(Date.now() - 2 * 86_400_000),
-        supplier: { id: 601, name: '华东耗材', category: '耗材', status: 'active' },
+        supplier: { id: 601, name: '华东耗材', categories: ['耗材'], status: 'active' },
         items: [{ quantity: 20, receivedQty: 20, subtotal: 3000 }],
       },
       {
@@ -739,20 +740,21 @@ describe('AgentToolRegistryService', () => {
         totalAmount: 1200,
         netAmount: 1200,
         status: 'pending',
-        orderedAt: new Date(Date.now() - 10 * 86_400_000),
+        createdAt: new Date(Date.now() - 10 * 86_400_000),
+        acceptedAt: null,
         receivedAt: null,
-        supplier: { id: 602, name: '本地用品', category: '用品', status: 'active' },
+        supplier: { id: 602, name: '本地用品', categories: ['用品'], status: 'active' },
         items: [{ quantity: 10, receivedQty: 0, subtotal: 1200 }],
       },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       {
         id: 801,
         supplierId: 602,
         netPayable: 1200,
         totalAmount: 1200,
         status: 'draft',
-        supplier: { id: 602, name: '本地用品', category: '用品', status: 'active' },
+        supplier: { id: 602, name: '本地用品', categories: ['用品'], status: 'active' },
       },
     ]);
 
@@ -772,7 +774,7 @@ describe('AgentToolRegistryService', () => {
       unpaidSettlementCount: 1,
     });
     expect(result.evidence).toMatchObject({
-      source: ['Supplier', 'SupplierOrder', 'SupplierOrderItem', 'SupplierSettlement'],
+      source: ['SupplySupplier', 'ProcurementOrder', 'ProcurementOrderItem', 'SupplySettlement'],
       sampleSize: 5,
     });
     expect(businessQueryService.ask).not.toHaveBeenCalled();
@@ -1642,15 +1644,15 @@ describe('AgentToolRegistryService', () => {
     prisma.product.findMany.mockResolvedValue([
       { id: 301, name: '补水面膜', sku: 'P301', currentStock: 2, safetyStock: 10, supplier: '旧供应商', minPurchaseQty: 5, unit: '片' },
     ]);
-    prisma.productSupplier.findMany.mockResolvedValue([
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
       {
         productId: 301,
-        supplierId: 601,
-        supplyPrice: 12,
-        moq: 10,
-        leadDays: 3,
-        isPrimary: true,
-        supplier: { id: 601, name: '华东耗材', category: '耗材', status: 'active', paymentTerms: '月结', phone: '13800000000' },
+        isPreferred: true,
+        supplySku: {
+          supplierId: 601,
+          supplier: { id: 601, name: '华东耗材', status: 'active', paymentTerms: '月结', phone: '13800000000' },
+          quotes: [{ price: 12, moq: 10, leadDays: 3 }],
+        },
       },
     ]);
 

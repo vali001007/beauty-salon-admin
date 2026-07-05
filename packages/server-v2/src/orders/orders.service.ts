@@ -339,19 +339,32 @@ export class OrdersService {
         ...(storeId ? { storeId } : {}),
         deletedAt: null,
       },
-      select: { id: true, costPrice: true },
+      select: { id: true, costPrice: true, specQuantity: true, specUnit: true, packageUnit: true, unit: true },
     });
-    const costByProductId = new Map(products.map((product: any) => [product.id, this.toNumber(product.costPrice)]));
+    const productById = new Map<number, any>(products.map((product: any) => [Number(product.id), product]));
     const capturedAt = new Date().toISOString();
 
     return items.map((item) => {
       if (!this.isProductOrderItemType(item.itemType) || !item.itemId) return item;
-      const costPrice = this.toNumber(costByProductId.get(Number(item.itemId)));
+      const product = productById.get(Number(item.itemId));
+      const costPrice = this.toNumber(product?.costPrice);
       const quantity = this.toNumber(item.quantity ?? 1) || 1;
+      const packageUnit = String(product?.packageUnit ?? product?.unit ?? '').trim();
+      const specUnit = String(product?.specUnit ?? '').trim();
+      const unitSnapshot = Object.fromEntries(
+        Object.entries({
+          unit: packageUnit || specUnit || undefined,
+          packageUnit: packageUnit || undefined,
+          specUnit: specUnit || undefined,
+          specQuantity: this.toNumber(product?.specQuantity) || undefined,
+          salesUnitSource: packageUnit ? 'product.packageUnit' : specUnit ? 'product.specUnit' : undefined,
+        }).filter(([, value]) => value !== undefined && value !== ''),
+      );
       return {
         ...item,
         payload: {
           ...(item.payload && typeof item.payload === 'object' ? item.payload : {}),
+          ...unitSnapshot,
           costPrice,
           productCostPrice: costPrice,
           costAmount: costPrice * quantity,
@@ -366,7 +379,7 @@ export class OrdersService {
   private async consumeProductItemsForOrder(
     tx: any,
     order: { id: number; orderNo?: string | null; storeId?: number | null },
-    items: Array<{ itemType?: string; itemId?: number | null; productId?: number | null; quantity?: unknown }>,
+    items: Array<{ itemType?: string; itemId?: number | null; productId?: number | null; quantity?: unknown; payload?: any }>,
     remark?: string,
   ) {
     const storeId = this.toNumber(order.storeId);
@@ -395,6 +408,7 @@ export class OrdersService {
       items: productItems.map((item) => ({
         productId: Number(item.itemId ?? item.productId),
         quantity: this.toNumber(item.quantity ?? 1) || 1,
+        unit: item.payload?.packageUnit ?? item.payload?.unit,
         remark: remark ?? '商品订单自动扣库存',
       })),
     });
@@ -1494,7 +1508,7 @@ export class OrdersService {
           status,
           payMethod,
           source: data.source ?? 'admin',
-          items: this.toJson(items),
+          items: this.toJson(orderItems),
           remark: data.remark,
         },
       });

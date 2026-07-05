@@ -81,7 +81,7 @@ describe('CommissionService', () => {
         count: jest.fn(),
         findUnique: jest.fn(),
       },
-      supplierSettlement: {
+      supplySettlement: {
         findMany: jest.fn(),
       },
     };
@@ -2170,7 +2170,7 @@ describe('CommissionService', () => {
         store: { id: 12, name: 'Store B' },
       },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       {
         id: 10,
         supplierId: 21,
@@ -2199,7 +2199,7 @@ describe('CommissionService', () => {
       include: { store: { select: { id: true, name: true } } },
       orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
     });
-    expect(prisma.supplierSettlement.findMany).toHaveBeenCalledWith({
+    expect(prisma.supplySettlement.findMany).toHaveBeenCalledWith({
       where: { settleMonth: '2026-06' },
       include: { supplier: { select: { id: true, name: true } } },
       orderBy: [{ settleMonth: 'asc' }, { supplierId: 'asc' }],
@@ -2266,7 +2266,7 @@ describe('CommissionService', () => {
       { id: 1, storeId: 11, settleMonth: '2026-05', baseFee: 500, commissionFee: 100, store: { id: 11, name: 'Store A' } },
       { id: 2, storeId: 12, settleMonth: '2026-06', baseFee: 700, commissionFee: 150, store: { id: 12, name: 'Store B' } },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       { id: 10, supplierId: 21, settleMonth: '2026-05', orderCount: 2, rebateAmount: 300, platformFee: 100, supplier: { id: 21, name: 'Supplier A' } },
       { id: 11, supplierId: 22, settleMonth: '2026-06', orderCount: 3, rebateAmount: 400, platformFee: 250, supplier: { id: 22, name: 'Supplier B' } },
     ]);
@@ -2279,7 +2279,7 @@ describe('CommissionService', () => {
         where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] } },
       }),
     );
-    expect(prisma.supplierSettlement.findMany).toHaveBeenCalledWith(
+    expect(prisma.supplySettlement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] } },
       }),
@@ -2307,7 +2307,7 @@ describe('CommissionService', () => {
       { id: 1, storeId: 11, settleMonth: '2026-01', baseFee: 600, commissionFee: 100, store: { id: 11, name: 'Store A' } },
       { id: 2, storeId: 12, settleMonth: '2026-12', baseFee: 700, commissionFee: 200, store: { id: 12, name: 'Store B' } },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       { id: 10, supplierId: 21, settleMonth: '2026-12', orderCount: 4, rebateAmount: 300, platformFee: 100, supplier: { id: 21, name: 'Supplier A' } },
     ]);
     prisma.store.count.mockResolvedValue(2);

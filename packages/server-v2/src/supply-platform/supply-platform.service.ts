@@ -851,14 +851,14 @@ export class SupplyPlatformService {
     const groups = new Map<number, typeof orders>();
     for (const order of orders) groups.set(order.supplierId, [...(groups.get(order.supplierId) ?? []), order]);
     const items = await this.prisma.$transaction(
-      [...groups.entries()].map(([supplierId, supplierOrders]) => {
-        const totalAmount = supplierOrders.reduce((sum, order) => sum + this.toNumber(order.totalAmount), 0);
-        const rebateAmount = supplierOrders.reduce((sum, order) => sum + this.toNumber(order.rebateAmount), 0);
-        const platformFee = supplierOrders.reduce((sum, order) => sum + this.toNumber(order.platformFee), 0);
+      [...groups.entries()].map(([supplierId, procurementOrders]) => {
+        const totalAmount = procurementOrders.reduce((sum, order) => sum + this.toNumber(order.totalAmount), 0);
+        const rebateAmount = procurementOrders.reduce((sum, order) => sum + this.toNumber(order.rebateAmount), 0);
+        const platformFee = procurementOrders.reduce((sum, order) => sum + this.toNumber(order.platformFee), 0);
         return this.prisma.supplySettlement.upsert({
           where: { supplierId_settleMonth: { supplierId, settleMonth: dto.settleMonth } },
-          update: { orderCount: supplierOrders.length, totalAmount, rebateAmount, platformFee, netPayable: Math.max(0, totalAmount - rebateAmount - platformFee) },
-          create: { supplierId, settleMonth: dto.settleMonth, orderCount: supplierOrders.length, totalAmount, rebateAmount, platformFee, netPayable: Math.max(0, totalAmount - rebateAmount - platformFee) },
+          update: { orderCount: procurementOrders.length, totalAmount, rebateAmount, platformFee, netPayable: Math.max(0, totalAmount - rebateAmount - platformFee) },
+          create: { supplierId, settleMonth: dto.settleMonth, orderCount: procurementOrders.length, totalAmount, rebateAmount, platformFee, netPayable: Math.max(0, totalAmount - rebateAmount - platformFee) },
           include: { supplier: true },
         });
       }),

@@ -3458,14 +3458,21 @@ export class BusinessQueryService {
           costPrice: true,
           supplier: true,
           minPurchaseQty: true,
-          suppliers: {
-            where: { supplier: { status: 'active', deletedAt: null } },
+          supplyMappings: {
+            where: { storeId, mappingStatus: 'active', supplySku: { supplier: { status: 'active', deletedAt: null } } },
             select: {
-              supplyPrice: true,
-              moq: true,
-              leadDays: true,
-              isPrimary: true,
-              supplier: { select: { id: true, name: true, paymentTerms: true } },
+              isPreferred: true,
+              supplySku: {
+                select: {
+                  supplier: { select: { id: true, name: true, paymentTerms: true } },
+                  quotes: {
+                    where: { status: 'active', auditStatus: 'approved', deletedAt: null },
+                    orderBy: [{ validFrom: 'desc' }, { id: 'desc' }],
+                    take: 1,
+                    select: { id: true, price: true, moq: true, leadDays: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -3486,40 +3493,42 @@ export class BusinessQueryService {
     }
     const items = (products as any[])
       .map((product) => {
-        const supplier = [...(product.suppliers ?? [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))[0];
+        const mapping = [...(product.supplyMappings ?? [])].sort((a: any, b: any) => Number(b.isPreferred) - Number(a.isPreferred))[0];
+        const supplier = mapping?.supplySku?.supplier;
+        const quote = mapping?.supplySku?.quotes?.[0];
         const currentStock = this.toNumber(product.currentStock);
         const safetyStock = this.toNumber(product.safetyStock);
         const salesQuantity = salesByProduct.get(Number(product.id)) ?? 0;
         const suggestedBase = Math.max(0, safetyStock - currentStock, Math.ceil((salesQuantity / 30) * 14) - currentStock);
-        const moq = Number(supplier?.moq ?? product.minPurchaseQty ?? 0);
+        const moq = Number(quote?.moq ?? product.minPurchaseQty ?? 0);
         const suggestedQty = moq > 0 ? Math.max(suggestedBase, moq) : suggestedBase;
-        const supplyPrice = this.toNumber(supplier?.supplyPrice ?? product.costPrice);
+        const supplyPrice = this.toNumber(quote?.price ?? product.costPrice);
         return {
           productId: product.id,
           productName: product.name,
           sku: product.sku,
-          supplierId: supplier?.supplier?.id,
-          supplierName: supplier?.supplier?.name ?? product.supplier ?? '未配置供应商',
+          supplierId: supplier?.id,
+          supplierName: supplier?.name ?? product.supplier ?? '未配置供应商',
           currentStock,
           safetyStock,
           salesQuantity,
           unit: product.specUnit ?? product.unit,
           suggestedQty,
           moq,
-          leadDays: supplier?.leadDays ?? null,
+          leadDays: quote?.leadDays ?? null,
           supplyPrice,
           estimatedAmount: suggestedQty * supplyPrice,
-          priorityScore: suggestedBase * 10 + salesQuantity + (supplier?.isPrimary ? 5 : 0),
+          priorityScore: suggestedBase * 10 + salesQuantity + (mapping?.isPreferred ? 5 : 0),
         };
       })
       .filter((item) => item.suggestedQty > 0)
       .sort((a, b) => b.priorityScore - a.priorityScore)
       .slice(0, queryPlan.limit);
     const evidence = this.buildEvidence({
-      source: ['Product', 'ProductSupplier', 'Supplier', 'OrderItem'],
-      metricDefinition: '供应链采购建议 = 补货需求结合主供应商、供货价、起订量和交期生成采购优先级。',
+      source: ['Product', 'SupplyCatalogMapping', 'SupplyQuote', 'SupplySupplier', 'OrderItem'],
+      metricDefinition: '供应链采购建议 = 补货需求结合平台供货映射、供货价、起订量和交期生成采购优先级。',
       dateRange: this.formatRange(start, end),
-      filters: ['storeId=当前门店', 'Supplier.status=active', 'OrderItem.itemType=product'],
+      filters: ['storeId=当前门店', 'SupplyCatalogMapping.mappingStatus=active', 'OrderItem.itemType=product'],
       sampleSize: products.length + orderItems.length,
       limitations: ['仅生成采购建议，不自动创建采购单；未配置供应商的商品会标记为未配置供应商。'],
     });

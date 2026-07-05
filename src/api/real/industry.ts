@@ -262,6 +262,8 @@ function normalizeServiceTemplate(item: ApiRecord): IndustryServiceTemplate {
     targetStoreTypes: toArray(item.targetStoreTypes),
     recommendedDurationMin: toNullableNumber(item.recommendedDurationMin),
     recommendedDurationMax: toNullableNumber(item.recommendedDurationMax),
+    careCycleWeeks: toNullableNumber(item.careCycleWeeks),
+    treatmentCourseTimes: toNullableNumber(item.treatmentCourseTimes),
     referencePriceMin: toNullableNumber(item.referencePriceMin),
     referencePriceMax: toNullableNumber(item.referencePriceMax),
     targetCustomers: toArray(item.targetCustomers),

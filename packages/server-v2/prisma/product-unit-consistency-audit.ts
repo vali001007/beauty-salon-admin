@@ -14,7 +14,7 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter }) as any;
 
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
 function argValue(name: string) {
   const prefix = `--${name}=`;
@@ -47,11 +47,41 @@ function payloadUnit(payload: unknown) {
   return text(record.unit ?? record.specUnit ?? record.packageUnit);
 }
 
+function unitRelation(unit: unknown, product: { specUnit?: unknown; packageUnit?: unknown } | null | undefined) {
+  if (!text(unit)) return 'missing';
+  if (product?.specUnit && unitEqual(unit, product.specUnit)) return 'spec';
+  if (product?.packageUnit && unitEqual(unit, product.packageUnit)) return 'package';
+  return 'other';
+}
+
+function relationLabel(relation: string) {
+  const labels: Record<string, string> = {
+    missing: '缺单位',
+    spec: '规格单位',
+    package: '包装单位',
+    other: '其他单位',
+    no_movement: '无销售出库流水',
+  };
+  return labels[relation] ?? relation;
+}
+
+function countBy<T>(items: T[], keyGetter: (item: T) => string) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = keyGetter(item);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([key, count]) => ({ key, count }))
+    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+}
+
 async function resolveStore(storeId: number) {
   if (!storeId) return null;
-  const store = await prisma.store.findFirst({ where: { id: storeId }, select: { id: true, name: true } });
-  if (!store) throw new Error(`未找到门店：${storeId}`);
-  return store;
+  return {
+    id: storeId,
+    name: argValue('store-name') ?? (storeId === 6 ? 'Ami 全量演示门店' : `门店 ${storeId}`),
+  };
 }
 
 async function main() {
@@ -64,38 +94,59 @@ async function main() {
   const outMd = resolve(process.cwd(), argValue('out-md') ?? `../../docs/04-测试数据/product-unit-consistency-audit-${today}.md`);
   const outJson = resolve(process.cwd(), argValue('out-json') ?? `../../docs/04-测试数据/product-unit-consistency-audit-${today}.json`);
 
-  const [products, bomItems, stockMovements, orderItems] = await Promise.all([
-    prisma.product.findMany({
-      where: productWhere,
-      select: { id: true, sku: true, name: true, specQuantity: true, specUnit: true, packageUnit: true, unit: true },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.projectBomItem.findMany({
-      where: store ? { project: projectWhere } : {},
-      include: {
-        project: { select: { id: true, name: true } },
-        product: { select: { id: true, sku: true, name: true, specUnit: true, packageUnit: true, unit: true } },
-      },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.stockMovement.findMany({
-      where: stockMovementWhere,
-      include: { product: { select: { id: true, sku: true, name: true, specUnit: true, packageUnit: true, unit: true } } },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.orderItem.findMany({
-      where: {
-        itemType: { in: ['product', 'goods', 'retail_product'] },
-        itemId: { not: null },
-        ...(store ? { order: productOrderWhere } : {}),
-      },
-      select: { id: true, orderId: true, itemType: true, itemId: true, name: true, quantity: true, payload: true },
-      orderBy: { id: 'desc' },
-      take: 200,
-    }),
-  ]);
+  const products = await prisma.product.findMany({
+    where: productWhere,
+    select: { id: true, sku: true, name: true, specQuantity: true, specUnit: true, packageUnit: true, unit: true },
+    orderBy: { id: 'asc' },
+  });
+  const bomItems = await prisma.projectBomItem.findMany({
+    where: store ? { project: projectWhere } : {},
+    include: {
+      project: { select: { id: true, name: true } },
+      product: { select: { id: true, sku: true, name: true, specUnit: true, packageUnit: true, unit: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
+  const stockMovements = await prisma.stockMovement.findMany({
+    where: stockMovementWhere,
+    include: { product: { select: { id: true, sku: true, name: true, specUnit: true, packageUnit: true, unit: true } } },
+    orderBy: { id: 'asc' },
+  });
+  const orderItems = await prisma.orderItem.findMany({
+    where: {
+      itemType: { in: ['product', 'goods', 'retail_product'] },
+      itemId: { not: null },
+      ...(store ? { order: productOrderWhere } : {}),
+    },
+    select: { id: true, orderId: true, itemType: true, itemId: true, name: true, quantity: true, payload: true },
+    orderBy: { id: 'desc' },
+    take: 200,
+  });
 
   const productMap = new Map(products.map((product: any) => [product.id, product]));
+  const saleOutMovementsByOrderProduct = new Map<string, any[]>();
+  for (const movement of stockMovements) {
+    if (
+      ['sale_out', 'sales_out', 'sales_outbound', 'product_sale'].includes(String(movement.movementType ?? '')) ||
+      movement.sourceType === 'product_order'
+    ) {
+      const key = `${Number(movement.sourceId ?? 0)}:${Number(movement.productId ?? 0)}`;
+      const existing = saleOutMovementsByOrderProduct.get(key) ?? [];
+      existing.push(movement);
+      saleOutMovementsByOrderProduct.set(key, existing);
+    }
+  }
+
+  const movementUnitRelationSummary = countBy(stockMovements, (movement: any) =>
+    [movement.movementType ?? '-', movement.sourceType ?? '-', unitRelation(movement.unit, movement.product)].join('|'),
+  ).map((item) => {
+    const [movementType, sourceType, relation] = item.key.split('|');
+    return { movementType, sourceType, relation, count: item.count };
+  });
+
+  const saleOutMovementUnitSummary = movementUnitRelationSummary.filter((item) =>
+    ['sale_out', 'sales_out', 'sales_outbound', 'product_sale'].includes(item.movementType) || item.sourceType === 'product_order',
+  );
   const productFieldIssues = products
     .filter((product: any) => !product.specQuantity || !text(product.specUnit) || !text(product.packageUnit))
     .map((product: any) => ({
@@ -147,7 +198,19 @@ async function main() {
     .map((item: any) => {
       const product = productMap.get(Number(item.itemId));
       const unit = payloadUnit(item.payload);
-      const needsDecision = product && text(product.specUnit) && text(product.packageUnit) && (!unit || unitEqual(unit, product.specUnit));
+      const relatedMovements = saleOutMovementsByOrderProduct.get(`${Number(item.orderId)}:${Number(item.itemId)}`) ?? [];
+      const movementRelations = [...new Set(relatedMovements.map((movement: any) => unitRelation(movement.unit, movement.product)))];
+      const payloadRelation = unitRelation(unit, product);
+      const movementRelationText = movementRelations.length
+        ? movementRelations.map((relation) => relationLabel(relation)).join(' / ')
+        : relationLabel('no_movement');
+      const hasPackageMovement = movementRelations.includes('package');
+      const hasSpecMovement = movementRelations.includes('spec');
+      const needsDecision =
+        product &&
+        text(product.specUnit) &&
+        text(product.packageUnit) &&
+        (!unit || payloadRelation === 'spec' || (!relatedMovements.length && payloadRelation !== 'package'));
       return {
         orderItemId: item.id,
         orderId: item.orderId,
@@ -156,15 +219,52 @@ async function main() {
         sku: product?.sku ?? '',
         quantity: String(item.quantity ?? ''),
         payloadUnit: unit,
+        payloadUnitRelation: payloadRelation,
+        saleOutMovementCount: relatedMovements.length,
+        saleOutMovementUnits: [...new Set(relatedMovements.map((movement: any) => text(movement.unit)).filter(Boolean))].join(' / '),
+        saleOutMovementRelation: movementRelationText,
         productSpecUnit: product?.specUnit ?? '',
         packageUnit: product?.packageUnit ?? '',
         needsDecision,
-        suggestion: needsDecision
-          ? '商品销售建议明确按包装销售还是按规格库存扣减；当前记录缺少包装/换算证据。'
-          : '当前样本未发现明显销售单位风险。',
+        suggestion: !unit && hasPackageMovement
+          ? '订单明细未存单位，但关联销售出库流水按包装单位落库；建议后续订单 payload 固化 packageUnit。'
+          : hasSpecMovement
+            ? '销售出库流水按规格单位落库，需确认是否已按规格库存扣减。'
+            : needsDecision
+              ? '商品销售建议明确按包装销售还是按规格库存扣减；当前记录缺少包装/换算证据。'
+              : '当前样本未发现明显销售单位风险。',
       };
     })
     .filter((item) => item.needsDecision);
+
+  const salesUnitEvidence = orderItems.map((item: any) => {
+    const product = productMap.get(Number(item.itemId));
+    const unit = payloadUnit(item.payload);
+    const relatedMovements = saleOutMovementsByOrderProduct.get(`${Number(item.orderId)}:${Number(item.itemId)}`) ?? [];
+    const movementRelations = relatedMovements.map((movement: any) => unitRelation(movement.unit, movement.product));
+    return {
+      orderItemId: item.id,
+      orderId: item.orderId,
+      productName: product?.name ?? item.name,
+      sku: product?.sku ?? '',
+      payloadUnit: unit,
+      payloadUnitRelation: unitRelation(unit, product),
+      saleOutMovementCount: relatedMovements.length,
+      saleOutMovementRelation: movementRelations.length ? [...new Set(movementRelations)].join('/') : 'no_movement',
+    };
+  });
+
+  const salesUnitEvidenceSummary = {
+    sampledOrderItems: orderItems.length,
+    payloadUnitMissing: salesUnitEvidence.filter((item) => !item.payloadUnit).length,
+    linkedSaleOutOrderItems: salesUnitEvidence.filter((item) => item.saleOutMovementCount > 0).length,
+    noLinkedSaleOutOrderItems: salesUnitEvidence.filter((item) => item.saleOutMovementCount === 0).length,
+    saleOutUsesPackageUnit: salesUnitEvidence.filter((item) => item.saleOutMovementRelation.includes('package')).length,
+    saleOutUsesSpecUnit: salesUnitEvidence.filter((item) => item.saleOutMovementRelation.includes('spec')).length,
+    saleOutUsesOtherOrMissingUnit: salesUnitEvidence.filter(
+      (item) => item.saleOutMovementRelation.includes('other') || item.saleOutMovementRelation.includes('missing'),
+    ).length,
+  };
 
   const result = {
     checkedAt: new Date().toISOString(),
@@ -179,15 +279,19 @@ async function main() {
       movementUnitIssueCount: movementUnitIssues.length,
       salesUnitDecisionIssueCount: salesUnitIssues.length,
     },
+    movementUnitRelationSummary,
+    saleOutMovementUnitSummary,
+    salesUnitEvidenceSummary,
     productFieldIssues,
     bomUnitIssues,
     movementUnitIssues,
     salesUnitIssues,
     recommendation: [
-      '短期保持库存主数量口径不变，新增写入统一带 product.specUnit。',
+      '短期保持库存主数量口径不变；服务扣耗新增写入带 product.specUnit，商品销售新增写入带 product.packageUnit。',
       '商品销售页面文案使用包装，服务 BOM 和服务扣耗页面使用规格单位。',
-      '历史流水只输出异常清单，不自动批量修改。',
-      '中期新增包装换算字段后，再决定是否把库存主数量切换为最小规格单位。',
+    '历史流水只输出异常清单，不自动批量修改。',
+      '新增商品订单写入已要求把 packageUnit 固化到 OrderItem.payload，形成可审计证据；历史订单不自动回填。',
+    '中期新增包装换算字段后，再决定是否把库存主数量切换为最小规格单位。',
     ],
   };
 
@@ -211,6 +315,28 @@ ${table(
     ['库存流水单位缺失或不一致', result.totals.movementUnitIssueCount],
     ['商品销售单位口径待确认', result.totals.salesUnitDecisionIssueCount],
   ],
+)}
+
+### 1.1 销售口径证据汇总
+
+${table(
+  ['检查项', '数量'],
+  [
+    ['抽样商品销售明细', result.salesUnitEvidenceSummary.sampledOrderItems],
+    ['订单明细未固化单位', result.salesUnitEvidenceSummary.payloadUnitMissing],
+    ['可关联销售出库流水的订单明细', result.salesUnitEvidenceSummary.linkedSaleOutOrderItems],
+    ['未关联销售出库流水的订单明细', result.salesUnitEvidenceSummary.noLinkedSaleOutOrderItems],
+    ['销售出库按包装单位落库', result.salesUnitEvidenceSummary.saleOutUsesPackageUnit],
+    ['销售出库按规格单位落库', result.salesUnitEvidenceSummary.saleOutUsesSpecUnit],
+    ['销售出库单位缺失/其他', result.salesUnitEvidenceSummary.saleOutUsesOtherOrMissingUnit],
+  ],
+)}
+
+### 1.2 库存流水单位关系 Top 20
+
+${table(
+  ['流水类型', '来源', '单位关系', '数量'],
+  result.movementUnitRelationSummary.slice(0, 20).map((item) => [item.movementType, item.sourceType, relationLabel(item.relation), item.count]),
 )}
 
 ## 2. 产品字段缺失
@@ -237,8 +363,20 @@ ${movementUnitIssues.length ? table(
 ## 5. 商品销售单位口径待确认
 
 ${salesUnitIssues.length ? table(
-  ['订单明细ID', '订单ID', '产品', 'SKU', '数量', '订单单位', '规格单位', '包装', '建议'],
-  salesUnitIssues.slice(0, 80).map((item) => [item.orderItemId, item.orderId, item.productName, item.sku, item.quantity, item.payloadUnit, item.productSpecUnit, item.packageUnit, item.suggestion]),
+  ['订单明细ID', '订单ID', '产品', 'SKU', '数量', '订单单位', '销售出库单位', '销售出库关系', '规格单位', '包装', '建议'],
+  salesUnitIssues.slice(0, 80).map((item) => [
+    item.orderItemId,
+    item.orderId,
+    item.productName,
+    item.sku,
+    item.quantity,
+    item.payloadUnit,
+    item.saleOutMovementUnits,
+    item.saleOutMovementRelation,
+    item.productSpecUnit,
+    item.packageUnit,
+    item.suggestion,
+  ]),
 ) : '抽样商品销售明细未发现明显单位口径风险。'}
 
 ## 6. 建议

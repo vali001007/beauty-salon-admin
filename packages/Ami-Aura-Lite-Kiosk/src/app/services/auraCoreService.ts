@@ -43,8 +43,10 @@ import {
   analyzeSkinPhoto,
   askBusinessQuery,
   appendAgentMessage,
+  appendAgentV2Message,
   approveAgentApproval,
   createAgentRun,
+  createAgentV2Run,
   rejectAgentApproval,
   cancelTerminalReservation,
   confirmTerminalReservation,
@@ -1728,14 +1730,20 @@ function resolveAgentPersonaCode(role: Role, context?: Record<string, unknown>):
     : undefined;
 }
 
+function resolveAgentEngine(context?: Record<string, unknown>): 'agent_v1' | 'agent_v2' {
+  return context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
+}
+
 export async function runBusinessAgent(
   command: string,
   role: Role,
   context?: Record<string, unknown>,
 ): Promise<AgentRunResult> {
   const personaCode = resolveAgentPersonaCode(role, context);
+  const agentEngine = resolveAgentEngine(context);
+  const runApi = agentEngine === 'agent_v2' ? createAgentV2Run : createAgentRun;
   return runWithAuraAuthRepair(() =>
-    createAgentRun({
+    runApi({
       message: command,
       role: toAgentRole(role),
       entrypoint: 'terminal:kiosk',
@@ -1743,11 +1751,13 @@ export async function runBusinessAgent(
       operatorId: getActiveOperatorParams()?.operatorId ?? null,
       context: {
         ...(context ?? {}),
+        agentEngine,
         terminal: {
           ...(((context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
           entrypoint: 'terminal:kiosk',
           role,
           command,
+          agentEngine,
           ...(personaCode ? { personaCode } : {}),
         },
       },
@@ -1762,8 +1772,10 @@ export async function appendBusinessAgentMessage(
   context?: Record<string, unknown>,
 ): Promise<AgentRunResult> {
   const personaCode = resolveAgentPersonaCode(role, context);
+  const agentEngine = resolveAgentEngine(context);
+  const appendApi = agentEngine === 'agent_v2' ? appendAgentV2Message : appendAgentMessage;
   return runWithAuraAuthRepair(() =>
-    appendAgentMessage(runId, {
+    appendApi(runId, {
       message: command,
       role: toAgentRole(role),
       entrypoint: 'terminal:kiosk',
@@ -1771,12 +1783,14 @@ export async function appendBusinessAgentMessage(
       operatorId: getActiveOperatorParams()?.operatorId ?? null,
       context: {
         ...(context ?? {}),
+        agentEngine,
         terminal: {
           ...(((context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
           entrypoint: 'terminal:kiosk',
           role,
           command,
           previousRunId: runId,
+          agentEngine,
           ...(personaCode ? { personaCode } : {}),
         },
       },

@@ -14,7 +14,7 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter }) as any;
 
-const today = new Date().toISOString().slice(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 const REPLENISHMENT_SOURCE_TYPES = ['inventory_replenishment', 'replenishment', 'supply-platform-mvp-flow'];
 
 function argValue(name: string) {

@@ -1162,17 +1162,7 @@ export class InventoryService {
     const where: any = { deletedAt: null };
     if (storeId) where.storeId = storeId;
 
-    const products = await this.prisma.product.findMany({
-      where,
-      include: {
-        suppliers: {
-          where: { supplier: { status: 'active', deletedAt: null } },
-          include: { supplier: { select: { id: true, name: true } } },
-          orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
-          take: 1,
-        },
-      },
-    });
+    const products = await this.prisma.product.findMany({ where });
 
     const productIds = products.map((product) => product.id);
     const thirtyDaysAgo = new Date();
@@ -1238,7 +1228,6 @@ export class InventoryService {
 
     const suggestions = products
       .map((product) => {
-        const primarySupplier = product.suppliers?.[0];
         const platformMapping = mappingByProduct.get(product.id);
         const platformSku = platformMapping?.supplySku;
         const platformQuote = platformSku?.quotes?.[0];
@@ -1248,8 +1237,8 @@ export class InventoryService {
         const platformInTransit = platformInTransitByProduct.get(product.id) ?? 0;
         const manualInTransit = manualInTransitBySku.get(product.sku) ?? 0;
         const inTransit = platformInTransit + manualInTransit;
-        const moq = platformAvailable ? platformQuote?.moq : primarySupplier?.moq ?? product.minPurchaseQty ?? null;
-        const leadDays = platformAvailable ? platformQuote?.leadDays : primarySupplier?.leadDays ?? null;
+        const moq = platformAvailable ? platformQuote?.moq : product.minPurchaseQty ?? null;
+        const leadDays = platformAvailable ? platformQuote?.leadDays : null;
         const consumption = consumptionByProduct.get(product.id) ?? { consumed7Days: 0, consumed30Days: 0 };
         const decision = this.buildReplenishmentDecision({
           currentStock,
@@ -1260,16 +1249,14 @@ export class InventoryService {
           moq,
           leadDays,
         });
-        const supplyPrice = Number(platformAvailable ? platformQuote?.price : primarySupplier?.supplyPrice ?? product.costPrice ?? 0);
-        const supplierId = platformAvailable ? platformSku?.supplierId : primarySupplier?.supplierId;
-        const supplierName = platformAvailable ? platformSku?.supplier?.name : primarySupplier?.supplier?.name ?? product.supplier ?? '默认供应商';
+        const supplyPrice = Number(platformAvailable ? platformQuote?.price : product.costPrice ?? 0);
+        const supplierId = platformAvailable ? platformSku?.supplierId : undefined;
+        const supplierName = platformAvailable ? platformSku?.supplier?.name : product.supplier ?? '手动采购';
         const availabilityStatus = platformAvailable
           ? 'platform_available'
           : platformMapping
             ? 'platform_mapped_no_quote'
-            : primarySupplier
-              ? 'legacy_supplier_available'
-              : 'manual_purchase';
+            : 'manual_purchase';
         const reasonParts = [
           `当前库存 ${currentStock}`,
           `安全库存 ${safetyStock}`,

@@ -14,6 +14,7 @@ import {
   CustomerAppBindPhoneDto,
   CustomerAppCreateReservationDto,
   CustomerAppEventDto,
+  CustomerAppH5GuestDto,
   CustomerAppHomeQueryDto,
   CustomerAppPaginationDto,
   CustomerAppProjectQueryDto,
@@ -28,6 +29,45 @@ export class CustomerAppService {
     private jwtService: JwtService,
     private aiService: AiService,
   ) {}
+
+  async h5Guest(dto: CustomerAppH5GuestDto) {
+    const storeId = dto.storeId ?? (await this.getDefaultStoreId());
+    const openid = this.resolveH5GuestOpenid(dto.sessionId);
+    const identity = await this.prisma.customerAppIdentity.upsert({
+      where: { storeId_openid: { storeId, openid } },
+      create: {
+        storeId,
+        openid,
+        nickname: dto.nickname || 'H5客户',
+        bindStatus: 'unbound',
+        source: 'ami_glow_h5',
+        lastLoginAt: new Date(),
+      },
+      update: {
+        nickname: dto.nickname || 'H5客户',
+        source: 'ami_glow_h5',
+        lastLoginAt: new Date(),
+      },
+      include: { customer: { include: { store: true, healthProfile: true } } },
+    });
+    const customer = identity.customer;
+    const payload = this.buildTokenPayload({
+      openid,
+      identityId: identity.id,
+      customerId: customer?.id,
+      storeId: customer?.storeId ?? storeId,
+      phone: customer?.phone ?? undefined,
+      nickname: identity.nickname ?? dto.nickname ?? 'H5客户',
+      avatarUrl: identity.avatarUrl ?? undefined,
+    });
+
+    return {
+      token: await this.signToken(payload),
+      openid,
+      bindStatus: customer ? 'bound' : 'unbound',
+      customer: customer ? this.mapCustomer(customer) : null,
+    };
+  }
 
   async wechatLogin(dto: CustomerAppWechatLoginDto) {
     const openid = this.resolveDevelopmentOpenid(dto.code);
@@ -414,11 +454,14 @@ export class CustomerAppService {
 
     const appointment = this.combineDateAndTime(dto.date, dto.startTime);
     const endTime = dto.endTime || selectedSlot.endTime;
+    const sourceLabel = dto.source === 'ami_glow_h5' || dto.channel?.includes('h5') ? 'Ami Glow H5' : 'Ami Glow';
     const remarkParts = [
       dto.remark,
-      '来源：Ami Glow',
+      `来源：${sourceLabel}`,
       dto.channel ? `渠道：${dto.channel}` : undefined,
       dto.promotionId ? `活动ID：${dto.promotionId}` : undefined,
+      dto.campaignId ? `Campaign：${dto.campaignId}` : undefined,
+      dto.staffId ? `员工ID：${dto.staffId}` : undefined,
       dto.idempotencyKey ? `幂等键：${dto.idempotencyKey}` : undefined,
     ].filter(Boolean);
 
@@ -443,6 +486,7 @@ export class CustomerAppService {
         eventType: 'miniapp_reservation_success',
         storeId: dto.storeId,
         channel: dto.channel,
+        source: dto.source,
         targetType: 'project',
         targetId: String(dto.projectId),
         payload: { reservationId: created.id, promotionId: dto.promotionId },
@@ -455,6 +499,7 @@ export class CustomerAppService {
           eventType: 'promotion_reserved',
           storeId: dto.storeId,
           channel: dto.channel,
+          source: dto.source,
           targetType: 'promotion',
           targetId: String(dto.promotionId),
           payload: { reservationId: created.id, projectId: dto.projectId },
@@ -465,7 +510,7 @@ export class CustomerAppService {
     return this.mapReservation(created);
   }
 
-  async claimPromotion(user: CustomerAppTokenPayload, promotionId: number, dto: { storeId?: number; channel?: string; sessionId?: string } = {}) {
+  async claimPromotion(user: CustomerAppTokenPayload, promotionId: number, dto: { storeId?: number; channel?: string; source?: string; sessionId?: string } = {}) {
     const storeId = dto.storeId ?? user.storeId;
     const customer = await this.requireCustomer(user.customerId, storeId);
     const now = new Date();
@@ -516,6 +561,7 @@ export class CustomerAppService {
         storeId: customer.storeId,
         sessionId: dto.sessionId,
         channel: dto.channel ?? 'miniapp',
+        source: dto.source,
         targetType: 'promotion',
         targetId: String(promotion.id),
         payload: {
@@ -763,6 +809,7 @@ export class CustomerAppService {
   async recordEvent(user: Partial<CustomerAppTokenPayload> | undefined, dto: CustomerAppEventDto) {
     const storeId = dto.storeId ?? user?.storeId;
     const customerId = user?.customerId;
+    const source = dto.source || 'ami_glow';
     if (storeId) {
       const metadataJson = this.buildEventMetadata(user, dto);
       await this.prisma.customerAppEvent.create({
@@ -774,6 +821,7 @@ export class CustomerAppService {
           sessionId: dto.sessionId ?? user?.openid,
           eventType: dto.eventType,
           channel: dto.channel,
+          source,
           targetType: dto.targetType,
           targetId: dto.targetId,
           metadataJson,
@@ -928,7 +976,7 @@ export class CustomerAppService {
 
   private buildEventMetadata(user: Partial<CustomerAppTokenPayload> | undefined, dto: CustomerAppEventDto) {
     const metadataJson: Prisma.InputJsonObject = {
-      source: 'ami_glow',
+      source: dto.source || 'ami_glow',
       ...(dto.channel ? { channel: dto.channel } : {}),
       ...(user?.openid ? { openid: user.openid } : {}),
       ...(dto.payload ? { payload: dto.payload as Prisma.InputJsonObject } : {}),
@@ -1147,6 +1195,12 @@ export class CustomerAppService {
 
   private resolveDevelopmentOpenid(code: string) {
     return code.startsWith('openid:') ? code.slice('openid:'.length) : `dev_${Buffer.from(code).toString('base64url').slice(0, 24)}`;
+  }
+
+  private resolveH5GuestOpenid(sessionId: string) {
+    const normalized = sessionId.trim();
+    if (!normalized) throw new BadRequestException('H5 会话不能为空');
+    return `h5_${Buffer.from(normalized).toString('base64url').slice(0, 48)}`;
   }
 
   private async findCustomerByWechatOrStore(openid: string, storeId?: number) {
