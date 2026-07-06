@@ -15,6 +15,7 @@ type ApiProjectBomItem = Partial<ProjectBomItem> & {
       name?: string;
       sku?: string;
       unit?: string;
+      specUnit?: string | null;
       costPrice?: number | string;
       status?: string;
     };

@@ -63,6 +63,7 @@ const OBJECT_HINT_TERMS: Record<BusinessObjectType, string[]> = {
   InventoryProduct: ['库存商品', '商品', '产品', 'SKU', 'sku', '耗材'],
   Project: ['服务项目', '护理项目', '项目', '服务', '疗程', '加项'],
   Beautician: ['美容师', '员工', '店员', '顾问', '技师'],
+  StaffEfficiency: ['人效', '员工人效', '员工效率', '员工表现', '表现排行', '服务完成率', '员工业绩'],
   Order: ['订单', '单号', '流水', '收银', '付款', '支付', '退款', '退费', '办卡', '充值', '核销'],
   MemberCard: ['卡项', '会员卡', '次卡', '疗程卡', '权益卡', '卡'],
   Reservation: ['预约', '项目预约', '到店', '约客', '约定时间'],

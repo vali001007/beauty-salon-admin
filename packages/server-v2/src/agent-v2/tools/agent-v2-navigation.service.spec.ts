@@ -45,6 +45,22 @@ describe('AgentV2NavigationService', () => {
     });
   });
 
+  it('resolves navigation targets from manifest queryKey', async () => {
+    const result = await service.execute(
+      { queryKey: 'navigation.card-usage.open' },
+      { runId: 1, storeId: 1, userId: 1, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.data).toMatchObject({
+      capabilityId: 'navigation.card-usage.open',
+      queryKey: 'navigation.card-usage.open',
+      sourceApis: ['operation.verify', '/orders/card-usage'],
+      writeScope: 'none',
+    });
+    expect(result.evidence?.metricDefinition).toContain('operation.verify / /orders/card-usage');
+  });
+
   it('rejects unknown navigation capability', async () => {
     const result = await service.execute(
       { capabilityId: 'navigation.unknown.open' },

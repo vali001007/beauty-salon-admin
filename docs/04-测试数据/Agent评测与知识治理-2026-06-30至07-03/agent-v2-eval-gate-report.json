@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-03 14:50:16 Asia/Shanghai",
+  "generatedAt": "2026-07-06 08:03:42 Asia/Shanghai",
   "source": {
     "evalDrafts": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.json",
     "governance": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-governance-report.json"
@@ -15,7 +15,107 @@
     "inferredPermission": 50,
     "pass": true
   },
+  "metrics": {
+    "p0Accuracy": 1,
+    "p0RuntimeAccuracy": {
+      "status": "measured",
+      "value": 1,
+      "sampleCount": 103,
+      "scope": "offline_runtime_plan",
+      "numerator": 103,
+      "denominator": 103,
+      "unit": "ratio"
+    },
+    "p0Consistency": {
+      "status": "measured",
+      "value": 1,
+      "sampleCount": 515,
+      "scope": "offline_runtime_plan_repeatability",
+      "numerator": 103,
+      "denominator": 103,
+      "repetitions": 5,
+      "unit": "ratio"
+    },
+    "p0FallbackCoverage": 1,
+    "p0FallbackCount": 0,
+    "p0MaxAllowedFallbackCount": 2,
+    "mutualExclusionAccuracy": 1,
+    "mutualExclusionRiskCount": 0,
+    "latencyP99Ms": {
+      "status": "measured",
+      "value": 8.25,
+      "sampleCount": 515,
+      "scope": "offline_runtime_plan",
+      "unit": "ms"
+    },
+    "cacheHitRate": {
+      "status": "measured",
+      "value": 0.8,
+      "sampleCount": 515,
+      "scope": "intent_extraction_cache",
+      "numerator": 412,
+      "denominator": 515,
+      "repetitions": 5,
+      "unit": "ratio"
+    },
+    "kgLegacyDiffRate": {
+      "status": "measured",
+      "value": 0.2039,
+      "sampleCount": 103,
+      "scope": "kg_only_vs_legacy_regex_plan",
+      "numerator": 21,
+      "denominator": 103,
+      "unit": "ratio"
+    },
+    "preferredLegacyFallbackRate": {
+      "status": "measured",
+      "value": 0,
+      "sampleCount": 515,
+      "scope": "kg_llm_preferred_final_engine",
+      "numerator": 0,
+      "denominator": 515,
+      "unit": "ratio"
+    },
+    "highRiskAutoPublish": 0,
+    "unauthorizedEvidenceCount": 0
+  },
   "gates": [
+    {
+      "gate": "P0 正确率",
+      "expected": ">= 98%",
+      "actual": "100.0%（103 / 103）",
+      "pass": true
+    },
+    {
+      "gate": "P0 运行时正确率",
+      "expected": ">= 98%",
+      "actual": "100.0%（103 / 103）",
+      "pass": true
+    },
+    {
+      "gate": "P0 同题稳定性",
+      "expected": ">= 99%",
+      "actual": "100.0%（103 / 103，每题 5 次）",
+      "pass": true
+    },
+    {
+      "gate": "P0 降级数量",
+      "expected": "最多 2 题",
+      "actual": "0 / 2",
+      "pass": true
+    },
+    {
+      "gate": "LLM 降级覆盖 P0",
+      "expected": ">= 85%",
+      "actual": "100.0%（103 / 103）",
+      "pass": true
+    },
+    {
+      "gate": "互斥正确率",
+      "expected": "100%",
+      "actual": "100.0%（风险 0）",
+      "pass": true
+    },
     {
       "gate": "P0 问题错路由率",
       "expected": "0 个能力缺失或语义错路由",
@@ -41,6 +141,24 @@
       "pass": true
     },
     {
+      "gate": "延迟 P99",
+      "expected": "<= 800ms",
+      "actual": "8.25ms（样本 515）",
+      "pass": true
+    },
+    {
+      "gate": "缓存命中率",
+      "expected": ">= 50%",
+      "actual": "80.0%（412 / 515）",
+      "pass": true
+    },
+    {
+      "gate": "越权证据",
+      "expected": "0 个",
+      "actual": "0 个",
+      "pass": true
+    },
+    {
       "gate": "候选草稿权限绑定",
       "expected": "自动生成草稿进入治理待办，不阻断已发布能力门禁",
       "actual": "50 个候选草稿需补权限",
@@ -51,6 +169,157 @@
     "p0Unmapped": [],
     "p0PermissionNeedsReview": [],
     "p0ContractNotPass": [],
-    "p0WrongRouteRisk": []
+    "p0WrongRouteRisk": [],
+    "runtimeMismatches": [],
+    "runtimeUnstable": [],
+    "kgLegacyDiffs": [
+      {
+        "id": "q061",
+        "question": "现在哪些产品库存不够了",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q067",
+        "question": "现在库存金额大概多少",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q079",
+        "question": "库存的周转率怎么样",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q060",
+        "question": "这个客人要退款，原因是项目没做完，怎么处理",
+        "expectedCapabilityId": "finance.refund.metric",
+        "kgCapabilityId": "finance.refund.metric",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q002",
+        "question": "帮我看一下库存整体情况",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q005",
+        "question": "精华液现在库存还有多少",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q006",
+        "question": "帮我看一下所有低于安全库存的产品",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q011",
+        "question": "这个月库存消耗和上个月比有没有异常",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q012",
+        "question": "帮我看一下补水系列产品的库存",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q015",
+        "question": "哪些产品的安全库存线设得不合理",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q019",
+        "question": "现在门店和仓库的库存加起来有多少",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q024",
+        "question": "最贵的那几样耗材现在库存怎么样",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q040",
+        "question": "帮我查一下我们的库存损耗率高不高",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q068",
+        "question": "我们的库存周转目标是多少天，达到了吗",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q070",
+        "question": "帮我设置一个当某产品低于安全库存就提醒我的规则",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q080",
+        "question": "如果接待量增加20%，库存够用吗",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q053",
+        "question": "最近退款原因主要是什么",
+        "expectedCapabilityId": "finance.refund.metric",
+        "kgCapabilityId": "finance.refund.metric",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q054",
+        "question": "哪个美容师的退款率最高",
+        "expectedCapabilityId": "finance.refund.metric",
+        "kgCapabilityId": "finance.refund.metric",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q060",
+        "question": "退款走了什么审批流程，合规吗",
+        "expectedCapabilityId": "finance.refund.metric",
+        "kgCapabilityId": "finance.refund.metric",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q013",
+        "question": "库存低的产品有哪些？（然后）帮我生成补货清单",
+        "expectedCapabilityId": "inventory.bom.consumption.records.records.list",
+        "kgCapabilityId": "inventory.bom.consumption.records.records.list",
+        "legacyCapabilityId": null
+      },
+      {
+        "id": "q022",
+        "question": "有个客人投诉说效果差，我应该退款还是再给她做一次",
+        "expectedCapabilityId": "finance.refund.metric",
+        "kgCapabilityId": "finance.refund.metric",
+        "legacyCapabilityId": null
+      }
+    ]
   }
 }

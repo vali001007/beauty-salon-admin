@@ -7,6 +7,7 @@ export type BusinessObjectType =
   | 'InventoryProduct'
   | 'Project'
   | 'Beautician'
+  | 'StaffEfficiency'
   | 'Order'
   | 'MemberCard'
   | 'Reservation'

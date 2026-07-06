@@ -59,6 +59,12 @@ export class AgentV2AnswerContractValidatorService {
     if (this.requiresReasoningEvidence(question) && !input.toolResults.some((result) => this.hasEvidenceLimitations(result))) {
       errors.push('reasoning_answer_missing_limitations');
     }
+    if (input.toolResults.some((result) => this.hasTableData(result) && !this.hasFieldPolicyAudit(result))) {
+      warnings.push('table_output_missing_field_policy_audit');
+    }
+    if (input.toolResults.some((result) => this.hasGenericQueryTrace(result) && !this.hasTraceableStoreFilter(result))) {
+      warnings.push('generic_query_trace_missing_store_filter');
+    }
     if (capabilityId === 'inventory.scrap.records.list' && /临期|风险|可能|预计/.test(input.answer)) {
       warnings.push('answer_may_mix_scrap_records_with_risk_language');
     }
@@ -135,6 +141,30 @@ export class AgentV2AnswerContractValidatorService {
       const data = this.asObject(result.data);
       return Boolean(this.asObject(data?.chart));
     });
+  }
+
+  private hasTableData(result: AgentToolResult) {
+    const data = this.asObject(result.data);
+    return Array.isArray(data?.items) || Array.isArray(data?.rows);
+  }
+
+  private hasFieldPolicyAudit(result: AgentToolResult) {
+    const data = this.asObject(result.data);
+    return Boolean(this.asObject(data?.fieldPolicyApplied) || this.asObject(data?.evidencePolicyApplied));
+  }
+
+  private hasGenericQueryTrace(result: AgentToolResult) {
+    const data = this.asObject(result.data);
+    const queryTrace = this.asObject(data?.queryTrace);
+    return queryTrace?.engine === 'generic_query_engine';
+  }
+
+  private hasTraceableStoreFilter(result: AgentToolResult) {
+    const data = this.asObject(result.data);
+    const queryTrace = this.asObject(data?.queryTrace);
+    const where = this.asObject(queryTrace?.where);
+    const filters = Array.isArray(queryTrace?.filters) ? queryTrace.filters.map(String) : [];
+    return where?.storeId !== undefined || filters.some((item) => item.includes('storeId='));
   }
 
   private hasActionCardLikeOutput(input: AgentV2AnswerContractValidationInput) {

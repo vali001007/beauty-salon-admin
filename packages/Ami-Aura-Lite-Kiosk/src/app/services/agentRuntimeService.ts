@@ -18,13 +18,17 @@ import { resolveTerminalPersona, toTerminalAgentRole, type TerminalAgentPersonaC
 
 export const TERMINAL_AGENT_ENTRYPOINT = 'terminal:kiosk';
 
+export type TerminalAgentEngine = 'agent_v1' | 'agent_v2';
+export type TerminalAgentV2GrayMode = 'legacy_regex' | 'shadow' | 'kg_llm_preferred' | 'kg_llm_only' | 'legacy_retired';
+
 export interface TerminalAgentContextInput {
   role: Role;
   command: string;
   personaCode?: string | null;
   sourceAction?: string | null;
   source?: string | null;
-  agentEngine?: 'agent_v1' | 'agent_v2' | null;
+  agentEngine?: TerminalAgentEngine | null;
+  agentV2GrayMode?: TerminalAgentV2GrayMode | null;
   context?: Record<string, unknown>;
 }
 
@@ -42,13 +46,21 @@ export interface TerminalAgentFeedbackInput {
 function buildTerminalAgentContext(input: TerminalAgentContextInput): {
   context: Record<string, unknown>;
   personaCode?: TerminalAgentPersonaCode;
-  agentEngine: 'agent_v1' | 'agent_v2';
+  agentEngine: TerminalAgentEngine;
 } {
   const contextTerminal = (input.context?.terminal ?? {}) as Record<string, unknown>;
   const contextPersonaCode =
     typeof contextTerminal.personaCode === 'string' ? contextTerminal.personaCode : undefined;
   const contextAgentEngine = input.context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
   const agentEngine = input.agentEngine ?? contextAgentEngine;
+  const contextAgentV2GrayMode =
+    typeof input.context?.agentV2GrayMode === 'string' ? input.context.agentV2GrayMode : undefined;
+  const terminalAgentV2GrayMode =
+    typeof contextTerminal.agentV2GrayMode === 'string' ? contextTerminal.agentV2GrayMode : undefined;
+  const agentV2GrayMode = resolveAgentV2GrayMode(input.agentV2GrayMode ?? contextAgentV2GrayMode ?? terminalAgentV2GrayMode);
+  const agentV2Meta = agentEngine === 'agent_v2'
+    ? { agentV2GrayMode, architecture: 'kg_llm_agent' }
+    : {};
   const personaCode = input.personaCode
     ? resolveTerminalPersona(input.role, input.personaCode)
     : contextPersonaCode
@@ -61,6 +73,7 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
     source: input.source ?? undefined,
     command: input.command,
     agentEngine,
+    ...agentV2Meta,
     ...(personaCode ? { personaCode } : {}),
   };
 
@@ -70,12 +83,26 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
     context: {
       ...(input.context ?? {}),
       agentEngine,
+      ...agentV2Meta,
       terminal: {
         ...(((input.context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
         ...terminalContext,
       },
     },
   };
+}
+
+function resolveAgentV2GrayMode(value: unknown): TerminalAgentV2GrayMode {
+  if (
+    value === 'legacy_regex' ||
+    value === 'shadow' ||
+    value === 'kg_llm_preferred' ||
+    value === 'kg_llm_only' ||
+    value === 'legacy_retired'
+  ) {
+    return value;
+  }
+  return 'kg_llm_preferred';
 }
 
 export async function createTerminalAgentRun(input: TerminalAgentContextInput): Promise<AgentRunResultV2> {

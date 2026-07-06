@@ -1,5 +1,6 @@
 import type { AgentPersonaCode, AgentRiskLevel, AgentRole, AgentToolPlanItem } from '../../agent/agent.types.js';
 import type { BusinessTask, BusinessTaskDomain, BusinessTaskOutputIntent } from '../../agent/business-task/business-task.types.js';
+import type { StructuredIntent } from '../intent/agent-v2-intent.types.js';
 
 export type AgentV2ActionIntent =
   | 'lookup'
@@ -18,6 +19,7 @@ export type AgentV2ExecutorType =
   | 'business_detail_query'
   | 'business_action_draft'
   | 'business_query'
+  | 'custom_service'
   | 'draft_tool'
   | 'workflow'
   | 'navigation';
@@ -33,6 +35,19 @@ export type AgentV2FieldPolicy = {
   label: string;
   visibility: 'allow' | 'mask' | 'deny';
   reason: string;
+};
+
+export type AgentV2QueryAggregation = {
+  type: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  field?: string;
+  as?: string;
+};
+
+export type AgentV2QueryPlan = {
+  dateField?: string;
+  orderBy?: Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
+  take?: number;
+  aggregation?: AgentV2QueryAggregation[];
 };
 
 export type AgentV2CapabilityManifest = {
@@ -55,6 +70,8 @@ export type AgentV2CapabilityManifest = {
     tool: string;
     queryKey?: string;
   };
+  customServiceReason?: string;
+  queryPlan?: AgentV2QueryPlan;
   storeScope: AgentV2StoreScope;
   permissionCodes: string[];
   fieldPolicies: AgentV2FieldPolicy[];
@@ -89,4 +106,5 @@ export type AgentV2CapabilityDecision = {
   outputIntent?: BusinessTaskOutputIntent;
   toolPlan: AgentToolPlanItem[];
   boundaryWarnings: string[];
+  intent?: StructuredIntent;
 };

@@ -72,6 +72,29 @@ describe('AgentV2PolicyGatewayService', () => {
     expect(result.checks).toContainEqual(expect.objectContaining({ name: 'store_scope', status: 'deny' }));
   });
 
+  it('requires all declared permissions for multi-domain capabilities', () => {
+    const capability = AGENT_V2_CAPABILITY_MANIFESTS.find((item) => item.capabilityId === 'agent.multi-domain.summary');
+
+    const partial = service.evaluateCapabilityAccess(capability, {
+      storeId: 1,
+      userId: 1,
+      role: 'manager',
+      entrypoint: 'kiosk',
+      permissions: ['core:finance:view', 'core:inventory:view'],
+    });
+    const full = service.evaluateCapabilityAccess(capability, {
+      storeId: 1,
+      userId: 1,
+      role: 'manager',
+      entrypoint: 'kiosk',
+      permissions: ['core:finance:view', 'core:inventory:view', 'core:customer:view', 'core:order:view', 'core:store:view'],
+    });
+
+    expect(partial.allowed).toBe(false);
+    expect(partial.denialReason).toContain('core:customer:view');
+    expect(full.allowed).toBe(true);
+  });
+
   it('allows action draft execution while leaving the final write for approval', () => {
     const capability = AGENT_V2_CAPABILITY_MANIFESTS.find((item) => item.capabilityId === 'inventory.stock.operation.draft');
 
@@ -95,6 +118,34 @@ describe('AgentV2PolicyGatewayService', () => {
       tool,
       { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
     )).toThrow(ForbiddenException);
+  });
+
+  it('blocks high-risk tools from auto-publish capabilities', () => {
+    const base = AGENT_V2_CAPABILITY_MANIFESTS.find((item) => item.capabilityId === 'finance.daily-settlement.metric');
+    const result = service.evaluateCapabilityAccess(
+      base,
+      { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      { ...tool, name: 'business.high-risk.write', riskLevel: 'high' },
+    );
+
+    expect(result.allowed).toBe(false);
+    expect(result.denialReason).toContain('不能自动发布执行');
+    expect(result.checks).toContainEqual(expect.objectContaining({ name: 'release_strategy', status: 'deny' }));
+  });
+
+  it('blocks coupon issue capabilities with explicit release-strategy reason', () => {
+    const capability = AGENT_V2_CAPABILITY_MANIFESTS.find((item) => item.capabilityId === 'marketing.coupon.issue.blocked');
+
+    const result = service.evaluateCapabilityAccess(
+      capability,
+      { storeId: 1, userId: 1, role: 'manager', entrypoint: 'agent_governance_debug', permissions: ['*'] },
+      { ...tool, name: 'business.action.draft', riskLevel: 'medium' },
+    );
+
+    expect(result.allowed).toBe(false);
+    expect(result.requiresApproval).toBe(false);
+    expect(result.denialReason).toContain('当前不允许自动执行');
+    expect(result.checks).toContainEqual(expect.objectContaining({ name: 'release_strategy', status: 'deny' }));
   });
 
   it('applies manifest field policy before data enters the answer context', () => {
@@ -147,6 +198,12 @@ describe('AgentV2PolicyGatewayService', () => {
       mode: 'manifest_field_policy',
       maskedFields: ['remark'],
     });
+    expect(result.evidence?.fieldPolicyApplied).toMatchObject({
+      mode: 'manifest_field_policy',
+      maskedFields: ['remark'],
+    });
+    expect(result.evidence?.sourceModels).toEqual(expect.arrayContaining(['ProductOrder']));
+    expect(result.evidence?.storeScope).toBe('required');
     expect(result.evidence?.limitations?.join(' ')).toContain('已应用 V2 字段策略');
   });
 
@@ -166,7 +223,9 @@ describe('AgentV2PolicyGatewayService', () => {
 
     expect(result.evidence).toMatchObject({
       source: expect.arrayContaining(['DailySettlement']),
+      sourceModels: expect.arrayContaining(['DailySettlement']),
       filters: [],
+      storeScope: 'required',
       sampleSize: 1,
     });
     expect(result.evidence?.limitations?.join(' ')).toContain('V2 权限网关');

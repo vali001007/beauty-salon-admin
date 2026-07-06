@@ -1,7 +1,11 @@
 import { AgentV2RuntimeService } from './agent-v2-runtime.service.js';
+import { AgentV2GrayStrategyService } from './agent-v2-gray-strategy.service.js';
 import { AgentV2ToolRegistryService } from './agent-v2-tool-registry.service.js';
 import { AgentV2CapabilityDecisionService } from './capability/agent-v2-capability-decision.service.js';
+import { AgentV2CapabilityMappingService } from './capability/agent-v2-capability-mapping.service.js';
 import { AgentV2AnswerContractValidatorService } from './contracts/agent-v2-answer-contract-validator.service.js';
+import { AgentV2IntentExtractionService } from './intent/agent-v2-intent-extraction.service.js';
+import { KnowledgeGraphIntentContextService } from './intent/knowledge-graph-intent-context.service.js';
 
 describe('AgentV2RuntimeService', () => {
   const businessRecordQuery = {
@@ -151,6 +155,7 @@ describe('AgentV2RuntimeService', () => {
       navigation as any,
     ),
     new AgentV2AnswerContractValidatorService(),
+    new AgentV2GrayStrategyService(),
   );
 
   it('plans occurred scrap record questions inside V2 runtime', () => {
@@ -159,10 +164,15 @@ describe('AgentV2RuntimeService', () => {
       actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
     });
 
-    expect(result?.plan.capabilityPlan).toMatchObject({
-      capabilityId: 'inventory.scrap.records.list',
-    });
-    expect(result?.plan.toolPlan).toEqual([
+      expect(result?.plan.capabilityPlan).toMatchObject({
+        capabilityId: 'inventory.scrap.records.list',
+      });
+      expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+        mode: 'kg_llm_preferred',
+        finalEngine: 'legacy_regex',
+        fallbackReason: 'KG intent engine dependencies are not registered.',
+      });
+      expect(result?.plan.toolPlan).toEqual([
       expect.objectContaining({
         tool: 'business.record.query',
         args: expect.objectContaining({ capabilityId: 'inventory.scrap.records.list' }),
@@ -170,13 +180,16 @@ describe('AgentV2RuntimeService', () => {
     ]);
   });
 
-  it('does not take over unsupported V2 capabilities without a native V2 tool', () => {
+  it('plans expiring inventory risk questions inside V2 runtime', () => {
     const result = service.plan({
       message: '哪些产品快报废了',
       actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
     });
 
-    expect(result).toBeNull();
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'inventory.expiring-risk.list',
+    });
+    expect(result?.plan.toolPlan[0]?.tool).toBe('business.record.query');
   });
 
   it('falls back when V2 switch is disabled', () => {
@@ -269,6 +282,94 @@ describe('AgentV2RuntimeService', () => {
     expect(result?.plan.toolPlan[0]?.tool).toBe('business.action.draft');
   });
 
+  it('plans high-risk coupon issue requests as write-blocked action drafts', () => {
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = kgService.plan({
+      message: '帮我给所有沉睡客户发券',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'agent_governance_debug', permissions: ['*'] },
+      context: { agentV2GrayMode: 'kg_llm_only' },
+    });
+
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_only',
+      finalEngine: 'kg_llm',
+    });
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'marketing.coupon.issue.blocked',
+    });
+    expect(result?.decision.selected).toMatchObject({
+      capabilityId: 'marketing.coupon.issue.blocked',
+      riskLevel: 'high',
+      releaseStrategy: 'write_blocked',
+    });
+    expect(result?.decision.intent?.action).toBe('draft');
+    expect(result?.decision.outputIntent).toBe('confirm_action');
+    expect(result?.plan.toolPlan[0]).toEqual(expect.objectContaining({
+      tool: 'business.action.draft',
+      args: expect.objectContaining({
+        capabilityId: 'marketing.coupon.issue.blocked',
+        queryKey: 'marketing.coupon-issue-blocked',
+      }),
+    }));
+    expect((result?.plan.businessTask as any)?.releaseStrategy).toBe('write_blocked');
+  });
+
+  it('plans staff efficiency questions through the KG engine as a metric query', () => {
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = kgService.plan({
+      message: '这个月人效怎么样',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'agent_governance_debug', permissions: ['*'] },
+      context: { agentV2GrayMode: 'kg_llm_only' },
+    });
+
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_only',
+      finalEngine: 'kg_llm',
+    });
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'finance.staff-efficiency.metric',
+    });
+    expect(result?.plan.toolPlan[0]).toMatchObject({
+      tool: 'business.metric.query',
+      args: expect.objectContaining({
+        capabilityId: 'finance.staff-efficiency.metric',
+        queryKey: 'finance.staff-efficiency.metric',
+      }),
+    });
+  });
+
   it('executes registered V2 trend tools', async () => {
     const result = await service.executeTool(
       'business.trend.query',
@@ -323,5 +424,335 @@ describe('AgentV2RuntimeService', () => {
       { capabilityId: 'navigation.cashier.open' },
       { runId: 1, storeId: 1, userId: 1, role: 'manager' },
     );
+  });
+
+  it('can plan through the KG intent engine when explicitly enabled', () => {
+    const previous = process.env.AGENT_INTENT_ENGINE;
+    process.env.AGENT_INTENT_ENGINE = 'kg_llm';
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    try {
+      const result = kgService.plan({
+        message: '哪些客户买了次卡但最近一直不来用',
+        actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      });
+
+      expect((result?.plan.businessTask as any)?.architecture).toBe('agent_v2_kg_llm');
+      expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+        mode: 'kg_llm_preferred',
+        finalEngine: 'kg_llm',
+      });
+      expect(result?.plan.capabilityPlan).toMatchObject({
+        capabilityId: 'card.package.inactive-customers.list',
+      });
+      expect(result?.plan.toolPlan[0]?.tool).toBe('business.record.query');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.AGENT_INTENT_ENGINE;
+      } else {
+        process.env.AGENT_INTENT_ENGINE = previous;
+      }
+    }
+  });
+
+  it('can plan asynchronously through the AI Gateway intent engine when enabled', async () => {
+    const aiService = {
+      chat: jest.fn().mockResolvedValue({
+        text: JSON.stringify({
+          objects: ['Customer', 'MemberCard'],
+          domain: 'customer',
+          action: 'list',
+          timeIntent: 'historical_pattern',
+          keywords: ['次卡沉睡'],
+          candidateCapabilities: ['card.package.inactive-customers.list'],
+          confidence: 0.92,
+          needsClarification: false,
+          unsupportedReason: null,
+        }),
+      }),
+    };
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService, aiService as any),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = await kgService.planAsync({
+      message: '哪些客户买了次卡但最近一直不来用',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      context: { agentV2GrayMode: 'kg_llm_only' },
+    });
+
+    expect(aiService.chat).toHaveBeenCalled();
+    expect((result?.plan.businessTask as any)?.architecture).toBe('agent_v2_kg_llm');
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_only',
+      finalEngine: 'kg_llm',
+    });
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'card.package.inactive-customers.list',
+    });
+    expect(result?.plan.toolPlan[0]?.tool).toBe('business.record.query');
+  });
+
+  it('can prefer KG intent per debug context without changing the global default', () => {
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = kgService.plan({
+      message: '哪些客户买了次卡但最近一直不来用',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'agent_governance_debug', permissions: ['*'] },
+      context: { agentV2GrayMode: 'kg_llm_preferred' },
+    });
+
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_preferred',
+      finalEngine: 'kg_llm',
+    });
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'card.package.inactive-customers.list',
+    });
+  });
+
+  it('can switch a specific capability to KG preferred through gray rules without debug context', () => {
+    const previousRules = process.env.AGENT_V2_GRAY_RULES;
+    process.env.AGENT_V2_GRAY_RULES = JSON.stringify([
+      {
+        name: 'card-inactive-customers-kg-preferred',
+        mode: 'kg_llm_preferred',
+        capabilityIds: ['card.package.inactive-customers.list'],
+        entrypoints: ['kiosk'],
+      },
+    ]);
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    try {
+      const result = kgService.plan({
+        message: '哪些客户买了次卡但最近一直不来用',
+        actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      });
+
+      expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+        mode: 'kg_llm_preferred',
+        source: 'env_rule',
+        matchedRule: 'card-inactive-customers-kg-preferred',
+        finalEngine: 'kg_llm',
+        kgSelectedCapabilityId: 'card.package.inactive-customers.list',
+      });
+      expect(result?.plan.capabilityPlan).toMatchObject({
+        capabilityId: 'card.package.inactive-customers.list',
+      });
+    } finally {
+      if (previousRules === undefined) {
+        delete process.env.AGENT_V2_GRAY_RULES;
+      } else {
+        process.env.AGENT_V2_GRAY_RULES = previousRules;
+      }
+    }
+  });
+
+  it('can switch a specific capability to KG preferred through DB gray rules in async runtime', async () => {
+    const prisma = {
+      agentV2GrayRule: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 31,
+            name: 'db-card-kg-preferred',
+            mode: 'kg_llm_preferred',
+            status: 'active',
+            priority: 1,
+            storeIds: [],
+            personaCodes: [],
+            roles: [],
+            entrypoints: ['kiosk'],
+            capabilityIds: ['card.package.inactive-customers.list'],
+          },
+        ]),
+      },
+    };
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(prisma as any),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = await kgService.planAsync({
+      message: '哪些客户买了次卡但最近一直不来用',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+    });
+
+    expect(prisma.agentV2GrayRule.findMany).toHaveBeenCalled();
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_preferred',
+      source: 'db_rule',
+      matchedRule: 'db-card-kg-preferred',
+      finalEngine: 'kg_llm',
+      kgSelectedCapabilityId: 'card.package.inactive-customers.list',
+    });
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'card.package.inactive-customers.list',
+    });
+  });
+
+  it('keeps high-risk refund diagnostics on KG path in preferred mode', () => {
+    const contextService = new KnowledgeGraphIntentContextService();
+    const kgService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = kgService.plan({
+      message: '有没有大额异常退款我不知道的',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'agent_governance_debug', permissions: ['*'] },
+      context: { agentV2GrayMode: 'kg_llm_preferred' },
+    });
+
+    expect(result?.plan.capabilityPlan).toMatchObject({
+      capabilityId: 'finance.risk-diagnostics.metric',
+    });
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_preferred',
+      finalEngine: 'kg_llm',
+      kgSelectedCapabilityId: 'finance.risk-diagnostics.metric',
+    });
+  });
+
+  it('falls back to legacy in kg_llm_preferred when KG dependencies are unavailable', () => {
+    const fallbackService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+    );
+
+    const result = fallbackService.plan({
+      message: '本周有哪些报废产品',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      context: { agentV2GrayMode: 'kg_llm_preferred' },
+    });
+
+    expect((result?.plan.businessTask as any)?.architecture).toBe('agent_v2_legacy_fallback');
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'kg_llm_preferred',
+      finalEngine: 'legacy_regex',
+      legacySelectedCapabilityId: 'inventory.scrap.records.list',
+    });
+  });
+
+  it('records shadow KG selection while returning legacy decision', () => {
+    const contextService = new KnowledgeGraphIntentContextService();
+    const shadowService = new AgentV2RuntimeService(
+      new AgentV2CapabilityDecisionService(),
+      new AgentV2ToolRegistryService(
+        businessRecordQuery as any,
+        businessMetricQuery as any,
+        businessTrendQuery as any,
+        businessDetailQuery as any,
+        businessActionDraft as any,
+        navigation as any,
+      ),
+      new AgentV2AnswerContractValidatorService(),
+      new AgentV2GrayStrategyService(),
+      new AgentV2IntentExtractionService(contextService),
+      new AgentV2CapabilityMappingService(),
+    );
+
+    const result = shadowService.plan({
+      message: '哪些客户买了次卡但最近一直不来用',
+      actor: { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      context: { agentV2GrayMode: 'shadow' },
+    });
+
+    expect((result?.plan.businessTask as any)?.architecture).toBe('agent_v2_shadow');
+    expect((result?.plan.businessTask as any)?.agentV2GrayStrategy).toMatchObject({
+      mode: 'shadow',
+      finalEngine: 'legacy_regex',
+      kgSelectedCapabilityId: 'card.package.inactive-customers.list',
+      legacySelectedCapabilityId: 'card.package.inactive-customers.list',
+    });
   });
 });

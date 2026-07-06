@@ -26,6 +26,7 @@ type ApiExpiringProduct = Partial<ExpiringProduct> & {
     name?: string;
     sku?: string;
     unit?: string | null;
+    specUnit?: string | null;
     retailPrice?: number | string;
     costPrice?: number | string;
     supplier?: string | null;
@@ -46,7 +47,7 @@ type ApiExpirySummary = Partial<ExpirySummary> & {
 };
 type ApiStockMovement = Partial<StockMovement> & {
   store?: { id?: number; name?: string };
-  product?: { id?: number; name?: string; sku?: string; unit?: string };
+  product?: { id?: number; name?: string; sku?: string; unit?: string; specUnit?: string | null };
   batch?: { id?: number; batchNo?: string };
   operator?: { id?: number; name?: string; username?: string };
 };

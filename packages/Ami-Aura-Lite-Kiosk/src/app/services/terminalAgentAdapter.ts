@@ -3,14 +3,18 @@ import type { Role } from '../types';
 import type { MicroAppRunResult } from '../microApps/microAppTypes';
 import type { BusinessQueryContext } from '@/types/businessQuery';
 import type { AgentRunResult } from '@/types/agent';
-import { appendTerminalAgentMessage, createTerminalAgentRun } from './agentRuntimeService';
-
-type TerminalAgentEngine = 'agent_v1' | 'agent_v2';
+import {
+  appendTerminalAgentMessage,
+  createTerminalAgentRun,
+  type TerminalAgentEngine,
+  type TerminalAgentV2GrayMode,
+} from './agentRuntimeService';
 
 export interface TerminalAgentAdapterOptions {
   businessQueryContext?: BusinessQueryContext;
   agentContext?: Record<string, unknown>;
   agentEngine?: TerminalAgentEngine;
+  agentV2GrayMode?: TerminalAgentV2GrayMode;
 }
 
 export function isTerminalAgentRuntimeEnabled(): boolean {
@@ -33,9 +37,21 @@ export function shouldUseTerminalAgentRuntime(intent: AuraResolvedIntent): boole
 
 function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentAdapterOptions): Record<string, unknown> {
   const agentEngine = options.agentEngine ?? (options.agentContext?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1');
+  const agentV2GrayMode =
+    agentEngine === 'agent_v2'
+      ? options.agentV2GrayMode ?? resolveContextAgentV2GrayMode(options.agentContext) ?? 'kg_llm_preferred'
+      : undefined;
+  const agentV2Meta = agentV2GrayMode ? { agentV2GrayMode, architecture: 'kg_llm_agent' } : {};
+  const terminalContext = ((options.agentContext ?? {}).terminal as Record<string, unknown> | undefined) ?? {};
   return {
     ...(options.agentContext ?? {}),
     agentEngine,
+    ...agentV2Meta,
+    terminal: {
+      ...terminalContext,
+      agentEngine,
+      ...agentV2Meta,
+    },
     ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     intent: {
       name: intent.name,
@@ -45,6 +61,25 @@ function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentA
       source: intent.source,
     },
   };
+}
+
+function resolveContextAgentV2GrayMode(context?: Record<string, unknown>): TerminalAgentV2GrayMode | undefined {
+  const direct = context?.agentV2GrayMode;
+  if (isAgentV2GrayMode(direct)) return direct;
+  const terminal = context?.terminal;
+  if (!terminal || typeof terminal !== 'object') return undefined;
+  const terminalMode = (terminal as { agentV2GrayMode?: unknown }).agentV2GrayMode;
+  return isAgentV2GrayMode(terminalMode) ? terminalMode : undefined;
+}
+
+function isAgentV2GrayMode(value: unknown): value is TerminalAgentV2GrayMode {
+  return (
+    value === 'legacy_regex' ||
+    value === 'shadow' ||
+    value === 'kg_llm_preferred' ||
+    value === 'kg_llm_only' ||
+    value === 'legacy_retired'
+  );
 }
 
 function getPreviousRunId(options: TerminalAgentAdapterOptions): number | null {
@@ -63,6 +98,7 @@ export async function runTerminalAgentIntent(
   const context = buildAdapterContext(intent, options);
   const previousRunId = getPreviousRunId(options);
   const agentEngine = options.agentEngine ?? (context.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1');
+  const agentV2GrayMode = isAgentV2GrayMode(context.agentV2GrayMode) ? context.agentV2GrayMode : undefined;
   const data: AgentRunResult = previousRunId
     ? await appendTerminalAgentMessage({
         activeRunId: previousRunId,
@@ -71,6 +107,7 @@ export async function runTerminalAgentIntent(
         sourceAction: intent.action ?? null,
         source: intent.source,
         agentEngine,
+        agentV2GrayMode,
         context,
       })
     : await createTerminalAgentRun({
@@ -79,6 +116,7 @@ export async function runTerminalAgentIntent(
         sourceAction: intent.action ?? null,
         source: intent.source,
         agentEngine,
+        agentV2GrayMode,
         context,
       });
 

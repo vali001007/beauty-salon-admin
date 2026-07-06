@@ -9,10 +9,19 @@ import { getTerminalQueryMetrics, type TerminalQueryMetric, type TerminalQuerySo
 import type { Role } from "../types";
 
 type AgentEngine = "agent_v1" | "agent_v2";
+type AgentV2GrayMode = "legacy_regex" | "shadow" | "kg_llm_preferred" | "kg_llm_only" | "legacy_retired";
 
 const AGENT_ENGINE_OPTIONS: Array<{ value: AgentEngine; label: string; title: string }> = [
   { value: "agent_v1", label: "V1", title: "Agent V1：旧工具链" },
   { value: "agent_v2", label: "V2", title: "Agent V2：能力目录" },
+];
+
+const AGENT_V2_GRAY_MODE_OPTIONS: Array<{ value: AgentV2GrayMode; label: string; title: string }> = [
+  { value: "kg_llm_preferred", label: "优先", title: "优先使用 KG+LLM，新链路失败时回退" },
+  { value: "shadow", label: "Shadow", title: "旧链路答复，新链路旁路观测" },
+  { value: "kg_llm_only", label: "仅新", title: "只使用 KG+LLM 链路" },
+  { value: "legacy_regex", label: "旧链", title: "只使用旧正则/能力规则链路" },
+  { value: "legacy_retired", label: "退役", title: "旧链路退役模式，保留受控回退" },
 ];
 
 function DeviceBadge({
@@ -327,6 +336,35 @@ function AgentEngineSwitch({
   );
 }
 
+function AgentV2GrayModeSwitch({
+  value,
+  onChange,
+}: {
+  value: AgentV2GrayMode;
+  onChange: (mode: AgentV2GrayMode) => void;
+}) {
+  return (
+    <div className="hidden items-center rounded-full border border-[#2D1B69]/15 bg-[#2D1B69]/5 p-0.5 lg:flex" title="Agent V2 灰度策略">
+      {AGENT_V2_GRAY_MODE_OPTIONS.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`h-8 min-w-9 rounded-full px-2 text-[11px] font-semibold transition-colors ${
+              active ? "bg-[#C9956C] text-white shadow-sm" : "text-[#6F6678] hover:bg-white hover:text-[#1F1B2D]"
+            }`}
+            title={option.title}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TopStatusBar({
   storeName,
   currentStoreId,
@@ -336,11 +374,13 @@ export function TopStatusBar({
   currentUserId,
   availableUsers,
   agentEngine,
+  agentV2GrayMode,
   switchingStore,
   switchingUser,
   onStoreChange,
   onUserChange,
   onAgentEngineChange,
+  onAgentV2GrayModeChange,
   onHistory,
   onLock,
   onFingerprint,
@@ -353,11 +393,13 @@ export function TopStatusBar({
   currentUserId: number | null;
   availableUsers: AuraTerminalUser[];
   agentEngine: AgentEngine;
+  agentV2GrayMode: AgentV2GrayMode;
   switchingStore?: boolean;
   switchingUser?: boolean;
   onStoreChange: (storeId: number) => void;
   onUserChange: (userId: number) => void;
   onAgentEngineChange: (engine: AgentEngine) => void;
+  onAgentV2GrayModeChange: (mode: AgentV2GrayMode) => void;
   onHistory: () => void;
   onLock: () => void;
   onFingerprint: () => void;
@@ -400,6 +442,9 @@ export function TopStatusBar({
         </div>
         <div className="h-4 w-px bg-black/10" />
         <AgentEngineSwitch value={agentEngine} onChange={onAgentEngineChange} />
+        {agentEngine === "agent_v2" ? (
+          <AgentV2GrayModeSwitch value={agentV2GrayMode} onChange={onAgentV2GrayModeChange} />
+        ) : null}
         <QueryDiagnostics />
         <button
           type="button"

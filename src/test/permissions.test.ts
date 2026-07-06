@@ -18,6 +18,18 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:customer:export')).toBe(false);
   });
 
+  it('keeps Agent governance behind dedicated permissions', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+    const systemMenu = MENU_ITEMS.find((menu) => menu.path === '/system');
+
+    expect(codes).toEqual(expect.arrayContaining(['core:agent-governance:view', 'core:agent-governance:manage']));
+    expect(hasPermission(ROLE_PERMISSIONS.super_admin, 'core:agent-governance:view')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:agent-governance:view')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:agent-governance:manage')).toBe(false);
+    expect(systemMenu?.children.find((child) => child.path === '/system/agent-governance')?.permission).toBe('core:agent-governance:view');
+    expect(systemMenu?.children.find((child) => child.path === '/system/agent-capabilities')?.permission).toBe('core:agent-governance:view');
+  });
+
   it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 

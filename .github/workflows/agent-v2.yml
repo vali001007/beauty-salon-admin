@@ -1,10 +1,22 @@
 name: Agent V2 Gate
 
+# Commit-driven only: do not add a schedule trigger unless product re-approves cron publishing.
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      scan_mode:
+        description: Agent V2 auto-publish scan mode
+        required: false
+        default: hash
+        type: choice
+        options:
+          - hash
+          - git_diff
+          - full
 
 jobs:
   agent-v2:
@@ -18,6 +30,9 @@ jobs:
       JWT_REFRESH_SECRET: "ci-test-refresh-secret"
       AGENT_CAPABILITY_DECISION_V2: "true"
       AGENT_V2_EVAL_STRICT: "1"
+      AGENT_V2_DEPLOY_HOOK_URL: ${{ secrets.AGENT_V2_DEPLOY_HOOK_URL }}
+      AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN: ${{ secrets.AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN }}
+      AGENT_V2_PRODUCTION_HOOK_ENABLED: ${{ vars.AGENT_V2_PRODUCTION_HOOK_ENABLED }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,6 +53,11 @@ jobs:
         run: >
           npm run test -- --runTestsByPath
           src/agent-v2/agent-v2-runtime.service.spec.ts
+          src/agent-v2/intent/agent-v2-intent-extraction.service.spec.ts
+          src/agent-v2/query-engine/generic-query-engine.service.spec.ts
+          src/agent-v2/governance/agent-v2-governance.service.spec.ts
+          src/agent-v2/capability-center/agent-v2-auto-publish.service.spec.ts
+          src/agent-v2/capability-center/agent-v2-capability-center.dto.spec.ts
           src/agent-v2/capability-center/agent-v2-capability-center.service.spec.ts
           src/agent-v2/capability/agent-v2-capability-decision.service.spec.ts
           src/agent-v2/contracts/agent-v2-answer-contract-validator.service.spec.ts
@@ -48,9 +68,282 @@ jobs:
           src/agent-v2/tools/agent-v2-business-detail-query.service.spec.ts
           src/agent-v2/tools/agent-v2-business-action-draft.service.spec.ts
           src/agent-v2/tools/agent-v2-navigation.service.spec.ts
+      - name: Generate Agent V2 knowledge graph
+        run: npm run kg:generate:strict
       - name: Generate Agent V2 capability drafts
         run: npm run agent-v2:capability-drafts
+      - name: Validate Agent V2 capability manifests
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const repoRoot = path.resolve(process.cwd(), '../..');
+          const reportDir = path.join(repoRoot, 'docs', '04-测试数据', 'Agent评测与知识治理-2026-06-30至07-03');
+          const draftReportPath = path.join(reportDir, 'agent-v2-capability-drafts.json');
+          const governanceReportPath = path.join(reportDir, 'agent-v2-capability-governance-report.json');
+          const draftReport = JSON.parse(fs.readFileSync(draftReportPath, 'utf8'));
+          const governanceReport = JSON.parse(fs.readFileSync(governanceReportPath, 'utf8'));
+          const requiredFields = ['capabilityId', 'displayName', 'domain', 'businessObject', 'releaseStrategy', 'riskLevel'];
+          const errors = [];
+
+          if (!Array.isArray(draftReport.drafts)) {
+            errors.push('agent-v2-capability-drafts.json: drafts must be an array');
+          }
+
+          for (const draft of draftReport.drafts || []) {
+            const capabilityId = draft.capabilityId || 'unknown';
+            for (const field of requiredFields) {
+              if (!draft[field]) errors.push(`${capabilityId}: missing ${field}`);
+            }
+            if (!Array.isArray(draft.actions) || draft.actions.length === 0) {
+              errors.push(`${capabilityId}: missing actions`);
+            }
+            if (!Array.isArray(draft.permissionCodes) || draft.permissionCodes.length === 0) {
+              errors.push(`${capabilityId}: missing permissionCodes`);
+            }
+            if (!draft.executor?.tool) {
+              errors.push(`${capabilityId}: missing executor.tool`);
+            }
+            if (!draft.executor?.queryKey) {
+              errors.push(`${capabilityId}: missing executor.queryKey`);
+            }
+          }
+
+          const governanceGates = governanceReport.gates || {};
+          for (const gateName of ['missingPermission', 'missingModel', 'highRiskAutoPublish']) {
+            const items = governanceGates[gateName];
+            if (Array.isArray(items) && items.length > 0) {
+              errors.push(`${gateName}: ${items.length}`);
+            }
+          }
+
+          if (errors.length > 0) {
+            console.error('[Agent V2 manifest validate] failed');
+            for (const error of errors.slice(0, 50)) console.error(`- ${error}`);
+            if (errors.length > 50) console.error(`...and ${errors.length - 50} more`);
+            process.exit(1);
+          }
+
+          console.log(`[Agent V2 manifest validate] ok: ${draftReport.drafts?.length || 0} capability drafts`);
+          NODE
       - name: Run Agent V2 strict eval gate
         run: npm run agent-v2:eval-gate:strict
+      - name: Attribute Agent V2 legacy retirement diffs
+        run: npm run agent-v2:legacy-diff-attribution
+      - name: Check Agent V2 legacy retirement preflight
+        run: npm run agent-v2:legacy-retirement-preflight:local
+      - name: Audit Agent V2 legacy dependency boundary
+        run: npm run agent-v2:legacy-dependency-audit:strict
+      - name: Drill Agent V2 rollback switches
+        run: npm run agent-v2:rollback-drill:strict
+      - name: Check Agent V2 production config readiness
+        run: npm run agent-v2:production-config-readiness:strict
+      - name: Check Agent V2 production evidence contract
+        run: npm run agent-v2:legacy-retirement-evidence
+      - name: Build Agent V2 retirement handoff package
+        run: npm run agent-v2:retirement-handoff:strict
+      - name: Audit Agent V2 local completion boundary
+        run: npm run agent-v2:local-completion-audit:strict
+      - name: Build Agent V2 production rollout runbook
+        run: npm run agent-v2:production-rollout-plan:strict
+      - name: Plan Agent V2 shadow evidence export
+        run: npm run agent-v2:legacy-retirement-shadow-export -- --dry-run --days 7 --environment ci
       - name: Build API
         run: npm run build
+      - name: Write Agent V2 gate summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const repoRoot = path.resolve(process.cwd(), '../..');
+          const reportDir = path.join(repoRoot, 'docs', '04-测试数据', 'Agent评测与知识治理-2026-06-30至07-03');
+          const relativeReportDir = 'docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03';
+
+          function readJson(fileName) {
+            const filePath = path.join(reportDir, fileName);
+            if (!fs.existsSync(filePath)) return { missing: true, fileName };
+            try {
+              return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            } catch (error) {
+              return { invalid: true, fileName, error: error.message };
+            }
+          }
+
+          function asCount(items) {
+            return Array.isArray(items) ? items.length : 0;
+          }
+
+          function metricValue(metric) {
+            if (typeof metric === 'number' && Number.isFinite(metric)) return metric;
+            if (metric && typeof metric.value === 'number' && Number.isFinite(metric.value)) return metric.value;
+            return undefined;
+          }
+
+          function metricSample(metric) {
+            if (!metric || typeof metric.sampleCount !== 'number') return '';
+            return ` (${metric.sampleCount} samples)`;
+          }
+
+          function asPercent(metric) {
+            const value = metricValue(metric);
+            if (typeof value !== 'number') return 'n/a';
+            return `${(value * 100).toFixed(1)}%${metricSample(metric)}`;
+          }
+
+          function asMs(metric) {
+            const value = metricValue(metric);
+            if (typeof value !== 'number') return 'n/a';
+            return `${value.toFixed(2)} ms${metricSample(metric)}`;
+          }
+
+          function statusLabel(pass) {
+            if (pass === true) return '[PASS]';
+            if (pass === false) return '[FAIL]';
+            return '[INFO]';
+          }
+
+          const evalReport = readJson('agent-v2-eval-gate-report.json');
+          const draftReport = readJson('agent-v2-capability-drafts.json');
+          const governanceReport = readJson('agent-v2-capability-governance-report.json');
+          const legacyDependencyAudit = readJson('agent-v2-legacy-dependency-audit.json');
+          const rollbackDrill = readJson('agent-v2-rollback-drill.json');
+          const legacyRetirementPreflight = readJson('agent-v2-legacy-retirement-preflight.json');
+          const productionConfigReadiness = readJson('agent-v2-production-config-readiness.json');
+          const productionEvidenceCheck = readJson('agent-v2-legacy-retirement-production-evidence-check.json');
+          const retirementHandoff = readJson('agent-v2-retirement-handoff.json');
+          const localCompletionAudit = readJson('agent-v2-local-completion-audit.json');
+          const productionRolloutPlan = readJson('agent-v2-production-rollout-plan.json');
+          const evalSummary = evalReport.summary || {};
+          const evalMetrics = evalReport.metrics || {};
+          const governanceGates = governanceReport.gates || {};
+          const legacyDependencySummary = legacyDependencyAudit.summary || {};
+          const rollbackDrillSummary = rollbackDrill.summary || {};
+          const retirementSummary = legacyRetirementPreflight.summary || {};
+          const productionConfigSummary = productionConfigReadiness.summary || {};
+          const evidenceSummary = productionEvidenceCheck.summary || {};
+          const handoffSummary = retirementHandoff.summary || {};
+          const localCompletionSummary = localCompletionAudit.summary || {};
+          const rolloutSummary = productionRolloutPlan.summary || {};
+          const releaseDistribution = governanceReport.distributions?.byReleaseStrategy || {};
+          const drafts = Array.isArray(draftReport.drafts) ? draftReport.drafts : [];
+          const autoPublishCount = releaseDistribution.auto_publish ?? drafts.filter((item) => item.releaseStrategy === 'auto_publish').length;
+          const blockedCandidateCount =
+            asCount(governanceGates.missingPermission) +
+            asCount(governanceGates.missingModel) +
+            asCount(governanceGates.highRiskAutoPublish);
+
+          const lines = [
+            '# Agent V2 Gate',
+            '',
+            `Gate status: ${statusLabel(evalSummary.pass)} ${evalSummary.pass === true ? 'strict eval passed' : 'strict eval needs attention'}`,
+            '',
+            '## Delivery Summary',
+            '',
+            '| Item | Value |',
+            '| --- | ---: |',
+            `| Candidate capabilities | ${draftReport.total ?? drafts.length ?? 'n/a'} |`,
+            `| Auto-publish candidates | ${autoPublishCount} |`,
+            `| Blocked candidates | ${blockedCandidateCount} |`,
+            `| P0 questions | ${evalSummary.p0Questions ?? 'n/a'} |`,
+            `| P0 pass rate | ${asPercent(evalMetrics.p0Accuracy)} |`,
+            `| P0 runtime pass rate | ${asPercent(evalMetrics.p0RuntimeAccuracy)} |`,
+            `| P0 consistency | ${asPercent(evalMetrics.p0Consistency)} |`,
+            `| LLM fallback coverage | ${asPercent(evalMetrics.p0FallbackCoverage)} |`,
+            `| Latency P99 | ${asMs(evalMetrics.latencyP99Ms)} |`,
+            `| Cache hit rate | ${asPercent(evalMetrics.cacheHitRate)} |`,
+            `| Unauthorized evidence | ${evalMetrics.unauthorizedEvidenceCount ?? 'n/a'} |`,
+            `| Legacy dependency audit | ${statusLabel(legacyDependencySummary.pass)} |`,
+            `| Legacy regex predicates | ${legacyDependencySummary.legacyRegexPredicateCount ?? 'n/a'} |`,
+            `| Rollback drill | ${statusLabel(rollbackDrillSummary.pass)} |`,
+            `| Legacy retirement local preflight | ${statusLabel(retirementSummary.localPreflightPass)} |`,
+            `| Production config readiness | ${statusLabel(productionConfigSummary.pass)} |`,
+            `| Retirement handoff ready | ${statusLabel(handoffSummary.handoffReady)} |`,
+            `| Local completion audit | ${statusLabel(localCompletionSummary.localClosureReady)} |`,
+            `| Local open task items | ${localCompletionSummary.localOpenUncheckedCount ?? 'n/a'} |`,
+            `| Production rollout runbook | ${statusLabel(rolloutSummary.rolloutPlanReady)} |`,
+            `| Production execution allowed | ${rolloutSummary.productionExecutionAllowed === true ? 'allowed' : 'requires manual authorization'} |`,
+            `| Legacy retirement ready | ${retirementSummary.retirementReady === true ? 'ready' : 'blocked'} |`,
+            `| Production evidence blockers | ${retirementSummary.productionEvidenceBlockers ?? evidenceSummary.blockerCount ?? 'n/a'} |`,
+            '',
+            '## Strict Gates',
+            '',
+            '| Gate | Expected | Actual | Status |',
+            '| --- | --- | --- | --- |',
+          ];
+
+          for (const gate of Array.isArray(evalReport.gates) ? evalReport.gates : []) {
+            lines.push(`| ${gate.gate} | ${gate.expected} | ${gate.actual} | ${statusLabel(gate.pass)} |`);
+          }
+
+          lines.push(
+            '',
+            '## Locator',
+            '',
+            `- Eval gate report: \`${relativeReportDir}/agent-v2-eval-gate-report.json\``,
+            `- Capability drafts: \`${relativeReportDir}/agent-v2-capability-drafts.json\``,
+            `- Governance report: \`${relativeReportDir}/agent-v2-capability-governance-report.json\``,
+            `- Legacy dependency audit: \`${relativeReportDir}/agent-v2-legacy-dependency-audit.json\``,
+            `- Rollback drill: \`${relativeReportDir}/agent-v2-rollback-drill.json\``,
+            `- Legacy retirement preflight: \`${relativeReportDir}/agent-v2-legacy-retirement-preflight.json\``,
+            `- Production config readiness: \`${relativeReportDir}/agent-v2-production-config-readiness.json\``,
+            `- Production evidence check: \`${relativeReportDir}/agent-v2-legacy-retirement-production-evidence-check.json\``,
+            `- Retirement handoff: \`${relativeReportDir}/agent-v2-retirement-handoff.json\``,
+            `- Local completion audit: \`${relativeReportDir}/agent-v2-local-completion-audit.json\``,
+            `- Production rollout runbook: \`${relativeReportDir}/agent-v2-production-rollout-plan.json\``,
+            '',
+            '## Attention Queues',
+            '',
+            '| Queue | Count |',
+            '| --- | ---: |',
+            `| Missing permission | ${asCount(governanceGates.missingPermission)} |`,
+            `| Missing model | ${asCount(governanceGates.missingModel)} |`,
+            `| High-risk auto publish | ${asCount(governanceGates.highRiskAutoPublish)} |`,
+            `| Inferred permission review | ${asCount(governanceGates.inferredPermission)} |`,
+            `| Unmapped eval candidates | ${asCount(governanceGates.unmappedEval)} |`,
+            `| Legacy dependency audit blockers | ${legacyDependencySummary.blockerCount ?? 'n/a'} |`,
+            `| Rollback drill blockers | ${rollbackDrillSummary.blockerCount ?? 'n/a'} |`,
+            `| Legacy retirement blockers | ${retirementSummary.blockerCount ?? 'n/a'} |`,
+            `| Production config readiness blockers | ${productionConfigSummary.blockerCount ?? 'n/a'} |`,
+            `| Production evidence blockers | ${evidenceSummary.blockerCount ?? 'n/a'} |`,
+            `| Retirement handoff blockers | ${handoffSummary.blockerCount ?? 'n/a'} |`,
+            `| Local completion audit blockers | ${localCompletionSummary.blockerCount ?? 'n/a'} |`,
+            `| Production rollout runbook missing reports | ${rolloutSummary.missingReportCount ?? 'n/a'} |`,
+          );
+
+          for (const report of [evalReport, draftReport, governanceReport, legacyDependencyAudit, rollbackDrill, legacyRetirementPreflight, productionConfigReadiness, productionEvidenceCheck, retirementHandoff, localCompletionAudit, productionRolloutPlan]) {
+            if (report.missing || report.invalid) {
+              lines.push('', `Report issue: ${report.fileName} ${report.missing ? 'missing' : report.error}`);
+            }
+          }
+
+          const output = `${lines.join('\n')}\n`;
+          if (process.env.GITHUB_STEP_SUMMARY) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
+          } else {
+            console.log(output);
+          }
+          NODE
+      - name: Trigger production Agent V2 auto-publish hook
+        # Production auto-publish is driven by main-branch GitHub pushes after gates pass.
+        # PRs and scheduled cron runs must not trigger this hook.
+        if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && env.AGENT_V2_PRODUCTION_HOOK_ENABLED == 'true' && env.AGENT_V2_DEPLOY_HOOK_URL != '' && env.AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN != '' }}
+        shell: bash
+        run: |
+          scan_mode="${{ inputs.scan_mode || '' }}"
+          if [ -z "$scan_mode" ]; then
+            if [ "${{ github.event_name }}" = "push" ]; then
+              scan_mode="git_diff"
+            else
+              scan_mode="hash"
+            fi
+          fi
+          curl --fail --show-error --silent \
+            -X POST "$AGENT_V2_DEPLOY_HOOK_URL" \
+            -H "content-type: application/json" \
+            -H "x-agent-v2-deploy-token: $AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN" \
+            --data "{\"scanMode\":\"$scan_mode\",\"title\":\"GitHub Agent V2 auto-publish ${GITHUB_SHA}\",\"summary\":\"Triggered by ${GITHUB_EVENT_NAME} on ${GITHUB_REF_NAME}.\"}"

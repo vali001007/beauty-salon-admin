@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import type { AgentActor, AgentPersonaCode, AgentToolDefinition, AgentToolResult } from '../../agent/agent.types.js';
+import type { AgentActor, AgentEvidence, AgentPersonaCode, AgentToolDefinition, AgentToolResult } from '../../agent/agent.types.js';
 import type { AgentV2CapabilityManifest, AgentV2FieldPolicy } from '../capability/agent-v2-capability.types.js';
 
 export type AgentV2FieldPolicyAudit = {
@@ -170,10 +170,13 @@ export class AgentV2PolicyGatewayService {
     capability: AgentV2CapabilityManifest | null | undefined,
     policyEvaluation: AgentV2PolicyEvaluation,
     fieldAudit?: AgentV2FieldPolicyAudit,
-  ) {
+  ): AgentEvidence {
     const base = result.evidence ?? {
       source: capability?.sourceModels?.length ? capability.sourceModels : ['AgentV2CapabilityManifest'],
+      sourceModels: capability?.sourceModels ?? ['AgentV2CapabilityManifest'],
+      sourceApis: capability?.sourceApis ?? [],
       sourceTables: capability?.sourceModels ?? ['AgentV2CapabilityManifest'],
+      storeScope: capability?.storeScope,
       metricDefinition: capability
         ? `${capability.displayName} = ${capability.description}`
         : 'Agent V2 工具未返回原始证据包，已按能力目录补充最低限度证据说明。',
@@ -193,11 +196,21 @@ export class AgentV2PolicyGatewayService {
     return {
       ...base,
       source: base.source?.length ? base.source : capability?.sourceModels ?? ['AgentV2CapabilityManifest'],
+      sourceModels: base.sourceModels?.length
+        ? base.sourceModels
+        : capability?.sourceModels?.length
+          ? capability.sourceModels
+          : base.sourceTables ?? base.source,
+      sourceApis: base.sourceApis?.length ? base.sourceApis : capability?.sourceApis ?? [],
       sourceTables: base.sourceTables?.length ? base.sourceTables : capability?.sourceModels,
+      timeRange: base.timeRange ?? base.dateRange,
       metricDefinition: base.metricDefinition || capability?.description || '未提供指标定义。',
       filters: base.filters ?? [],
+      storeScope: base.storeScope ?? capability?.storeScope,
       sampleSize: base.sampleSize ?? this.sampleSizeFromData(result.data),
       limitations,
+      fieldPolicyApplied: fieldAudit ?? base.fieldPolicyApplied,
+      queryTraceId: base.queryTraceId ?? this.queryTraceIdFromData(result.data),
     };
   }
 
@@ -232,19 +245,43 @@ export class AgentV2PolicyGatewayService {
   private permissionCheck(capability: AgentV2CapabilityManifest, actor: AgentActor): AgentV2PolicyCheck {
     const permissions = actor.permissions ?? [];
     const requiredPermissions = capability.permissionCodes ?? [];
-    const allowed = !requiredPermissions.length || permissions.includes('*') || requiredPermissions.some((permission) => permissions.includes(permission));
+    const missingPermissions = requiredPermissions.filter((permission) => !permissions.includes(permission));
+    const allowed = !requiredPermissions.length || permissions.includes('*') || missingPermissions.length === 0;
     return allowed
       ? { name: 'permission', status: 'pass', reason: '权限码满足能力要求。' }
       : {
           name: 'permission',
           status: 'deny',
-          reason: `当前账号缺少能力「${capability.displayName}」所需权限，无法执行该经营查询。`,
+          reason: `当前账号缺少能力「${capability.displayName}」所需权限：${missingPermissions.join('、')}，无法执行该经营查询。`,
         };
   }
 
   private releaseStrategyCheck(capability: AgentV2CapabilityManifest, tool?: AgentToolDefinition): AgentV2PolicyCheck {
     if (capability.releaseStrategy === 'write_blocked') {
       return { name: 'release_strategy', status: 'deny', reason: `能力「${capability.displayName}」当前不允许自动执行。` };
+    }
+    if (capability.releaseStrategy === 'auto_publish') {
+      if (capability.riskLevel === 'high' || tool?.riskLevel === 'high') {
+        return {
+          name: 'release_strategy',
+          status: 'deny',
+          reason: `能力「${capability.displayName}」或工具风险等级为 high，不能自动发布执行。`,
+        };
+      }
+      if (this.isDirectMutationCapability(capability, tool)) {
+        return {
+          name: 'release_strategy',
+          status: 'deny',
+          reason: `能力「${capability.displayName}」疑似直接写入、删除、发券或下发，不能按 auto_publish 执行。`,
+        };
+      }
+      if (capability.riskLevel !== 'low' && capability.executor.type !== 'business_action_draft') {
+        return {
+          name: 'release_strategy',
+          status: 'deny',
+          reason: `能力「${capability.displayName}」不是低风险只读或草稿，不能按 auto_publish 执行。`,
+        };
+      }
     }
     if (capability.releaseStrategy === 'approval_required' && this.isDirectMutationCapability(capability, tool)) {
       return {
@@ -275,6 +312,13 @@ export class AgentV2PolicyGatewayService {
 
   private isDirectMutationCapability(capability: AgentV2CapabilityManifest, tool?: AgentToolDefinition) {
     if (capability.executor.type === 'business_action_draft' || capability.executor.type === 'navigation') return false;
+    if ([
+      'business_record_query',
+      'business_metric_query',
+      'business_trend_query',
+      'business_detail_query',
+      'business_query',
+    ].includes(capability.executor.type)) return false;
     const actionText = [
       capability.capabilityId,
       capability.displayName,
@@ -292,6 +336,37 @@ export class AgentV2PolicyGatewayService {
     if (Array.isArray(data.items)) return data.items.length;
     if (Array.isArray(data.rows)) return data.rows.length;
     if (this.isRecord(data.metrics)) return 1;
+    return undefined;
+  }
+
+  private queryTraceIdFromData(data: unknown) {
+    const queryTrace = this.findObjectByKeyDeep(data, 'queryTrace');
+    if (!queryTrace) return undefined;
+    const explicitTraceId = queryTrace.traceId ?? queryTrace.queryTraceId;
+    if (typeof explicitTraceId === 'string' && explicitTraceId.trim()) return explicitTraceId;
+    const queryKey = typeof queryTrace.queryKey === 'string' ? queryTrace.queryKey : '';
+    const sourceModel = typeof queryTrace.sourceModel === 'string' ? queryTrace.sourceModel : '';
+    const kind = typeof queryTrace.kind === 'string' ? queryTrace.kind : '';
+    const parts = ['generic_query_engine', queryKey, sourceModel, kind].filter(Boolean);
+    return parts.length > 1 ? parts.join(':') : undefined;
+  }
+
+  private findObjectByKeyDeep(value: unknown, key: string): Record<string, unknown> | undefined {
+    if (value === null || value === undefined) return undefined;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const result = this.findObjectByKeyDeep(item, key);
+        if (result) return result;
+      }
+      return undefined;
+    }
+    if (typeof value !== 'object') return undefined;
+    const record = value as Record<string, unknown>;
+    if (this.isRecord(record[key])) return record[key];
+    for (const nested of Object.values(record)) {
+      const result = this.findObjectByKeyDeep(nested, key);
+      if (result) return result;
+    }
     return undefined;
   }
 

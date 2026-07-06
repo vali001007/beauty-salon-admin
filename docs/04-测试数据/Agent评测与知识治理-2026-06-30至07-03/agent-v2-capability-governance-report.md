@@ -1,6 +1,6 @@
 # Agent V2 能力治理报告
 
-生成时间：2026-07-03 14:49:06 Asia/Shanghai
+生成时间：2026-07-05 18:38:57 Asia/Shanghai
 
 ## 发布策略
 
@@ -8,12 +8,12 @@
 
 ## 扫描规模
 
-- Prisma 模型：126
-- DTO 类：177
-- 后端接口：600
-- 已识别权限接口：283
-- 前端路由：72
-- 能力草稿：592
+- Prisma 模型：122
+- DTO 类：166
+- 后端接口：587
+- 已识别权限接口：266
+- 前端路由：68
+- 能力草稿：577
 - Eval 草稿：650
 - 未映射 Eval：418
 
@@ -21,17 +21,17 @@
 
 ### 发布策略分布
 
-- auto_publish：327
-- approval_required：258
+- auto_publish：320
+- approval_required：250
 - write_blocked：7
 
 ### 领域分布
 
-- finance：253
+- finance：252
 - marketing：77
-- industry：75
-- customer：67
-- order：47
+- customer：68
+- industry：68
+- order：39
 - store：37
 - inventory：36
 

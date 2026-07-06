@@ -1,0 +1,912 @@
+{
+  "generatedAt": "2026-07-06 11:57:21 Asia/Shanghai",
+  "summary": {
+    "releaseReady": false,
+    "gateCount": 6,
+    "blockerCount": 1,
+    "changedEntryCount": 161,
+    "changedCategoryCount": {
+      "github-workflow": 3,
+      "docs-evidence": 50,
+      "package-manifest": 3,
+      "kiosk": 8,
+      "server-prisma-agent-v2": 23,
+      "server-agent-v2": 53,
+      "other": 4,
+      "server-health": 2,
+      "admin-api": 6,
+      "admin-routing-permissions": 4,
+      "admin-agent-workspace": 1,
+      "admin-types": 2,
+      "admin-agent-governance": 2
+    },
+    "secretFindingCount": 0,
+    "localClosureReady": true,
+    "productionReady": false,
+    "rolloutPlanReady": true,
+    "deploymentSyncProven": false,
+    "productionHookTriggerReady": false,
+    "recommendation": "当前本地仍有 161 个改动条目；需要用户授权后按 Agent V2 范围整理提交/PR，再由 Zeabur 自动部署 GitHub 提交。"
+  },
+  "source": {
+    "reports": {
+      "localCompletionAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-local-completion-audit.json",
+      "productionRolloutPlan": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.json",
+      "productionDeploymentSyncAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.json",
+      "productionLiveConfigAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.json"
+    }
+  },
+  "gates": [
+    {
+      "id": "no_secret_findings",
+      "title": "可提交文件未发现高风险 Secret",
+      "expected": "secretFindingCount=0",
+      "actual": "secretFindingCount=0",
+      "status": "pass",
+      "impact": "防止 deploy token、Zeabur token、私钥或 API key 被提交到 GitHub。"
+    },
+    {
+      "id": "worktree_has_commit_boundary",
+      "title": "工作区已收敛为可提交状态",
+      "expected": "changedEntryCount=0 或已由用户授权进入提交流程",
+      "actual": "changedEntryCount=161",
+      "status": "fail",
+      "impact": "Zeabur 只能部署 GitHub 提交；当前大量本地改动需要先形成提交/PR。"
+    },
+    {
+      "id": "local_completion_ready",
+      "title": "本地完成度审计通过",
+      "expected": "localClosureReady=true",
+      "actual": "localClosureReady=true",
+      "status": "pass",
+      "impact": "证明 task.md 剩余未勾选项均为生产/真实流量/旧正则退役后置项。"
+    },
+    {
+      "id": "rollout_plan_ready",
+      "title": "生产 rollout runbook 已就绪",
+      "expected": "rolloutPlanReady=true",
+      "actual": "rolloutPlanReady=true",
+      "status": "pass",
+      "impact": "证明进入生产前的执行顺序和阻塞项已经可审计。"
+    },
+    {
+      "id": "deployment_sync_not_overclaimed",
+      "title": "生产部署同步未被误报",
+      "expected": "deploymentSyncProven=false 时 releaseReady 必须保持 false",
+      "actual": "deploymentSyncProven=false",
+      "status": "pass",
+      "impact": "当前生产 health 尚不能证明运行本地目标提交，不能宣称已上线。"
+    },
+    {
+      "id": "production_hook_not_required_for_zeabur_deploy",
+      "title": "Agent V2 hook 与 Zeabur 代码部署分层",
+      "expected": "productionHookTriggerReady=false 且 rollout 文案明确 GitHub main 提交触发 auto-publish、无定时发布",
+      "actual": "productionHookTriggerReady=false",
+      "status": "pass",
+      "impact": "保持 hook 关闭不影响 Zeabur 自动部署代码；后续打开后，能力治理 auto-publish 跟随 GitHub main 提交，而不是平时定时触发。"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "worktree_has_commit_boundary",
+      "title": "工作区已收敛为可提交状态",
+      "expected": "changedEntryCount=0 或已由用户授权进入提交流程",
+      "actual": "changedEntryCount=161",
+      "status": "fail",
+      "impact": "Zeabur 只能部署 GitHub 提交；当前大量本地改动需要先形成提交/PR。"
+    }
+  ],
+  "changedFiles": [
+    {
+      "status": "M",
+      "path": ".env.production.example",
+      "category": "github-workflow"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/agent-v2.yml",
+      "category": "github-workflow"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-drafts.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-drafts.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-governance-report.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-governance-report.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "M",
+      "path": "package-lock.json",
+      "category": "package-manifest"
+    },
+    {
+      "status": "M",
+      "path": "package.json",
+      "category": "package-manifest"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/AppContent.tsx",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/components/AgentMessageItem.test.tsx",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/components/AgentMessageItem.tsx",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/components/TopStatusBar.tsx",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/microApps/runMicroApp.test.ts",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/microApps/runMicroApp.ts",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/services/agentRuntimeService.ts",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/Ami-Aura-Lite-Kiosk/src/app/services/terminalAgentAdapter.ts",
+      "category": "kiosk"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/.env.example",
+      "category": "github-workflow"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/package.json",
+      "category": "package-manifest"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/prisma/agent-v2-eval-gate.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/prisma/schema.prisma",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/agent-v2-orchestrator.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/agent-v2-runtime.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/agent-v2-runtime.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/agent-v2.module.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.controller.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-manifest-provider.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability/agent-v2-capability-manifest.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/capability/agent-v2-capability.types.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/contracts/agent-v2-answer-contract-validator.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/contracts/agent-v2-answer-contract-validator.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/policy/agent-v2-policy-gateway.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/policy/agent-v2-policy-gateway.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-action-draft.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-action-draft.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-detail-query.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-metric-query.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-metric-query.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-record-query.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-record-query.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-business-trend-query.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-navigation.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent-v2/tools/agent-v2-navigation.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent/agent.types.ts",
+      "category": "other"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent/knowledge/business-object.catalog.ts",
+      "category": "other"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent/knowledge/business-semantic-lexicon.ts",
+      "category": "other"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/agent/knowledge/knowledge.types.ts",
+      "category": "other"
+    },
+    {
+      "status": "M",
+      "path": "packages/server-v2/src/health/health.controller.ts",
+      "category": "server-health"
+    },
+    {
+      "status": "M",
+      "path": "src/api/index.ts",
+      "category": "admin-api"
+    },
+    {
+      "status": "M",
+      "path": "src/api/real/inventory.ts",
+      "category": "admin-api"
+    },
+    {
+      "status": "M",
+      "path": "src/api/real/product.ts",
+      "category": "admin-api"
+    },
+    {
+      "status": "M",
+      "path": "src/api/real/project.ts",
+      "category": "admin-api"
+    },
+    {
+      "status": "M",
+      "path": "src/app/components/Layout.tsx",
+      "category": "admin-routing-permissions"
+    },
+    {
+      "status": "M",
+      "path": "src/app/pages/ami-agent/AmiAgentWorkspace.tsx",
+      "category": "admin-agent-workspace"
+    },
+    {
+      "status": "M",
+      "path": "src/app/routes.tsx",
+      "category": "admin-routing-permissions"
+    },
+    {
+      "status": "M",
+      "path": "src/config/permissions.ts",
+      "category": "admin-routing-permissions"
+    },
+    {
+      "status": "M",
+      "path": "src/test/permissions.test.ts",
+      "category": "admin-routing-permissions"
+    },
+    {
+      "status": "M",
+      "path": "src/types/product.ts",
+      "category": "admin-types"
+    },
+    {
+      "status": "??",
+      "path": "docs/03-开发计划/01-AI智能体与问数能力/Agent新一代架构方案-知识图谱+LLM+全自动能力发布-2026-07-05.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/03-开发计划/01-AI智能体与问数能力/task.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-pr-brief.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-release-handoff.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-release-handoff.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.txt",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-dependency-audit.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-dependency-audit.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-preflight.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-preflight.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence-check.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence-check.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.candidate.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.example.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-shadow-evidence-aggregate.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-shadow-evidence-aggregate.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-local-completion-audit.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-local-completion-audit.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-post-merge-deploy-verify.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-post-merge-deploy-verify.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-retirement-handoff.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-retirement-handoff.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-rollback-drill.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-rollback-drill.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-shadow-evidence-export.example.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph-enhancement-candidates.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph-enhancement-candidates.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph-report.md",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph.json",
+      "category": "docs-evidence"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-github-release-handoff.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-knowledge-graph-enhance.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-knowledge-graph.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-legacy-dependency-audit.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-legacy-diff-attribution.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-legacy-retirement-preflight.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-legacy-retirement-production-evidence.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-legacy-retirement-shadow-evidence.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-legacy-retirement-shadow-export.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-local-completion-audit.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-post-merge-deploy-verify.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-production-config-readiness.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-production-deployment-sync-audit.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-production-live-config-audit.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-production-rollout-plan.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-release-readiness-audit.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-retirement-handoff.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/agent-v2-rollback-drill.ts",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/migrations/20260705190000_agent_knowledge_graph_overrides/migration.sql",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/migrations/20260705212500_agent_v2_gray_rules/migration.sql",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/prisma/migrations/20260706043000_agent_governance_observability/migration.sql",
+      "category": "server-prisma-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/agent-v2-gray-strategy.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/agent-v2-gray-strategy.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/agent-v2-orchestrator.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-auto-publish.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-auto-publish.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.dto.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.dto.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-deploy-hook.guard.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-deploy-hook.guard.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability-center/agent-v2-manifest-provider.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/capability/agent-v2-capability-mapping.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/evidence/agent-v2-evidence.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/evidence/agent-v2-evidence.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/governance/agent-v2-governance.controller.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/governance/agent-v2-governance.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/governance/agent-v2-governance.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/intent/agent-v2-intent-extraction.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/intent/agent-v2-intent-extraction.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/intent/agent-v2-intent.types.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/intent/knowledge-graph-intent-context.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/knowledge-graph/generated/knowledge-graph.generated.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/knowledge-graph/knowledge-graph-builder.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/knowledge-graph/knowledge-graph-builder.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/knowledge-graph/knowledge-graph.types.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/query-engine/generic-query-engine.service.spec.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/query-engine/generic-query-engine.service.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/agent-v2/query-engine/generic-query-engine.types.ts",
+      "category": "server-agent-v2"
+    },
+    {
+      "status": "??",
+      "path": "packages/server-v2/src/health/health.controller.spec.ts",
+      "category": "server-health"
+    },
+    {
+      "status": "??",
+      "path": "src/api/agentGovernance.ts",
+      "category": "admin-api"
+    },
+    {
+      "status": "??",
+      "path": "src/api/real/agentGovernance.ts",
+      "category": "admin-api"
+    },
+    {
+      "status": "??",
+      "path": "src/app/pages/system/AgentGovernanceCenter.test.tsx",
+      "category": "admin-agent-governance"
+    },
+    {
+      "status": "??",
+      "path": "src/app/pages/system/AgentGovernanceCenter.tsx",
+      "category": "admin-agent-governance"
+    },
+    {
+      "status": "??",
+      "path": "src/types/agentGovernance.ts",
+      "category": "admin-types"
+    }
+  ],
+  "secretFindings": [],
+  "boundaries": [
+    "本审计只读取本地 Git 状态、目标文件和已有 Agent V2 报告，不 stage、不 commit、不 push。",
+    "本审计会扫描未被 gitignore 忽略的改动文件，避免真实 token/env 进入 GitHub。",
+    "releaseReady=false 不代表本地开发失败；它表示还不能把当前工作区直接视为 Zeabur 可部署提交。"
+  ]
+}

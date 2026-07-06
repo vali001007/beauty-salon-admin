@@ -1,4 +1,5 @@
 import { AgentV2CapabilityDecisionService } from './agent-v2-capability-decision.service.js';
+import { listAgentV2CapabilityManifests, listAgentV2CustomServiceManifests } from './agent-v2-capability-manifest.js';
 
 describe('AgentV2CapabilityDecisionService', () => {
   const service = new AgentV2CapabilityDecisionService();
@@ -19,7 +20,7 @@ describe('AgentV2CapabilityDecisionService', () => {
 
     expect(decision.selected?.capabilityId).toBe('inventory.expiring-risk.list');
     expect(decision.toolPlan[0]).toMatchObject({
-      tool: 'inventory.risk.rank',
+      tool: 'business.record.query',
       args: expect.objectContaining({ capabilityId: 'inventory.expiring-risk.list' }),
     });
   });
@@ -46,6 +47,22 @@ describe('AgentV2CapabilityDecisionService', () => {
       tool: 'business.action.draft',
       args: expect.objectContaining({ capabilityId: 'inventory.stock.operation.draft' }),
     });
+  });
+
+  it('marks complex dedicated capabilities as custom services with governance reasons', () => {
+    const customServices = listAgentV2CustomServiceManifests();
+    const customIds = customServices.map((item) => item.capabilityId);
+    const dailySettlement = listAgentV2CapabilityManifests().find((item) => item.capabilityId === 'finance.daily-settlement.metric');
+
+    expect(customServices.length).toBeGreaterThan(0);
+    expect(customIds).toContain('finance.staff-efficiency.metric');
+    expect(customIds).toContain('finance.risk-diagnostics.metric');
+    expect(customServices.every((item) => item.queryKey && item.customServiceReason.trim().length > 0)).toBe(true);
+    expect(customServices.find((item) => item.capabilityId === 'finance.staff-efficiency.metric')).toMatchObject({
+      tool: 'business.metric.query',
+      customServiceReason: expect.stringContaining('人效'),
+    });
+    expect(dailySettlement?.executor.type).toBe('business_metric_query');
   });
 
   it.each([

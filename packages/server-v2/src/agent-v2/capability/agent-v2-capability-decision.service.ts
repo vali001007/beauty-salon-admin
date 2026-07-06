@@ -194,6 +194,16 @@ export class AgentV2CapabilityDecisionService {
     if (manifest.capabilityId === 'inventory.stock.operation.draft') {
       return `命中库存写入意图，但发布策略为人工确认，仅生成操作草稿${legacy}。`;
     }
+    if (manifest.capabilityId === 'marketing.coupon.issue.blocked') {
+      return `命中发券/权益下发高风险动作，发布策略为阻断，不执行真实发券${legacy}。`;
+    }
+    if (manifest.executor.type === 'custom_service') {
+      const reason = manifest.customServiceReason ? `；保留原因：${manifest.customServiceReason}` : '';
+      return `命中 V2 专用业务服务：${manifest.displayName}${reason}；按 ${manifest.sourceModels.join(' / ')} 授权取数${legacy}。`;
+    }
+    if (manifest.capabilityId === 'finance.staff-efficiency.metric') {
+      return `命中员工人效问法，按服务、销售、提成、预约完成和核销综合评估${legacy}。`;
+    }
     if (
       manifest.executor.type === 'business_record_query' ||
       manifest.executor.type === 'business_metric_query' ||

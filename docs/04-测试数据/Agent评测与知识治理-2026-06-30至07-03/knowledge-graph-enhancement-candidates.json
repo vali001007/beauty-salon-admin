@@ -1,0 +1,4882 @@
+{
+  "generatedAt": "2026-07-06 05:20:13 Asia/Shanghai",
+  "sourceFiles": {
+    "graph": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph.json",
+    "evalDrafts": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.json"
+  },
+  "mode": "offline_review_candidates",
+  "safety": {
+    "writesActiveGraph": false,
+    "writesDatabase": false,
+    "candidateStatus": "review_required",
+    "mergePath": "管理员审核后写入 AgentKnowledgeGraphOverride，下次 kg:generate 合入。"
+  },
+  "summary": {
+    "businessObjectCount": 16,
+    "unsupportedQuestionCount": 491,
+    "synonymCandidates": 15,
+    "fkBusinessMeaningCandidates": 120,
+    "reviewItems": 80,
+    "totalCandidates": 215
+  },
+  "candidates": [
+    {
+      "id": "synonym:business-object:customer:客人",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:customer",
+      "relationType": "SYNONYM_OF",
+      "value": "客人",
+      "label": "客户口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“客人”，建议作为 客户 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天来了几个客人，现在还有几个在店",
+        "帮我看一下今天到店客人的画像，主要是什么年龄段",
+        "哪个美容师接的客人最多",
+        "今天谁服务了几个客人",
+        "免费体验活动来的客人转化率多少",
+        "这个月进店的客人里有多少是被活动吸引来的",
+        "有个客人说她叫李梅，手机尾号3256，帮我找一下",
+        "这个客人有没有在我们店消费过"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "客户"
+      }
+    },
+    {
+      "id": "synonym:business-object:customer:到店客人",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:customer",
+      "relationType": "SYNONYM_OF",
+      "value": "到店客人",
+      "label": "客户口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“到店客人”，建议作为 客户 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天来了几个客人，现在还有几个在店",
+        "帮我看一下今天到店客人的画像，主要是什么年龄段",
+        "哪个美容师接的客人最多",
+        "今天谁服务了几个客人",
+        "免费体验活动来的客人转化率多少",
+        "这个月进店的客人里有多少是被活动吸引来的",
+        "有个客人说她叫李梅，手机尾号3256，帮我找一下",
+        "这个客人有没有在我们店消费过"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "客户"
+      }
+    },
+    {
+      "id": "synonym:business-object:customer:来店客人",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:customer",
+      "relationType": "SYNONYM_OF",
+      "value": "来店客人",
+      "label": "客户口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“来店客人”，建议作为 客户 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天来了几个客人，现在还有几个在店",
+        "帮我看一下今天到店客人的画像，主要是什么年龄段",
+        "哪个美容师接的客人最多",
+        "今天谁服务了几个客人",
+        "免费体验活动来的客人转化率多少",
+        "这个月进店的客人里有多少是被活动吸引来的",
+        "有个客人说她叫李梅，手机尾号3256，帮我找一下",
+        "这个客人有没有在我们店消费过"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "客户"
+      }
+    },
+    {
+      "id": "synonym:business-object:businessoverview:店里情况",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:businessoverview",
+      "relationType": "SYNONYM_OF",
+      "value": "店里情况",
+      "label": "经营概览口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“店里情况”，建议作为 经营概览 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天店里情况怎么样，给我来个总结"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "经营概览"
+      }
+    },
+    {
+      "id": "synonym:business-object:businessoverview:门店情况",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:businessoverview",
+      "relationType": "SYNONYM_OF",
+      "value": "门店情况",
+      "label": "经营概览口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“门店情况”，建议作为 经营概览 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天店里情况怎么样，给我来个总结"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "经营概览"
+      }
+    },
+    {
+      "id": "synonym:business-object:businessoverview:经营情况",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:businessoverview",
+      "relationType": "SYNONYM_OF",
+      "value": "经营情况",
+      "label": "经营概览口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“经营情况”，建议作为 经营概览 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天店里情况怎么样，给我来个总结"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "经营概览"
+      }
+    },
+    {
+      "id": "synonym:business-object:businessoverview:经营状态",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:businessoverview",
+      "relationType": "SYNONYM_OF",
+      "value": "经营状态",
+      "label": "经营概览口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“经营状态”，建议作为 经营概览 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天店里情况怎么样，给我来个总结"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "经营概览"
+      }
+    },
+    {
+      "id": "synonym:business-object:reservation:在店",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:reservation",
+      "relationType": "SYNONYM_OF",
+      "value": "在店",
+      "label": "到店状态口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“在店”，建议作为 预约 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天来了几个客人，现在还有几个在店",
+        "现在店里哪些美容师在忙，哪些空着",
+        "帮我看一下今天到店客人的画像，主要是什么年龄段",
+        "帮我看一下今天所有到店客人的基本信息",
+        "帮我统计一下今天的到店率，爽约了几个",
+        "现在店里有几个客人在，分别做什么",
+        "我在店里的业绩排名第几",
+        "我的复购率在店里算高还是低"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "预约"
+      }
+    },
+    {
+      "id": "synonym:business-object:reservation:还在店",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:reservation",
+      "relationType": "SYNONYM_OF",
+      "value": "还在店",
+      "label": "到店状态口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“还在店”，建议作为 预约 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天来了几个客人，现在还有几个在店",
+        "现在店里哪些美容师在忙，哪些空着",
+        "帮我看一下今天到店客人的画像，主要是什么年龄段",
+        "帮我看一下今天所有到店客人的基本信息",
+        "帮我统计一下今天的到店率，爽约了几个",
+        "现在店里有几个客人在，分别做什么",
+        "我在店里的业绩排名第几",
+        "我的复购率在店里算高还是低"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "预约"
+      }
+    },
+    {
+      "id": "synonym:business-object:financemetric:营业额",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:financemetric",
+      "relationType": "SYNONYM_OF",
+      "value": "营业额",
+      "label": "财务指标口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“营业额”，建议作为 财务指标 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天营业额到多少了",
+        "今天和昨天比营业额差多少",
+        "帮我查一下上周某天的收款记录",
+        "帮我看一下今天所有的收款明细",
+        "今天第一笔收款是几点，是谁的",
+        "这个月营业额是多少",
+        "帮我核对一下今天的收款和系统记录是否一致",
+        "这个月有没有大额异常收款"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "财务指标"
+      }
+    },
+    {
+      "id": "synonym:business-object:financemetric:流水",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:financemetric",
+      "relationType": "SYNONYM_OF",
+      "value": "流水",
+      "label": "财务指标口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“流水”，建议作为 财务指标 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天营业额到多少了",
+        "今天和昨天比营业额差多少",
+        "帮我查一下上周某天的收款记录",
+        "帮我看一下今天所有的收款明细",
+        "今天第一笔收款是几点，是谁的",
+        "这个月营业额是多少",
+        "帮我核对一下今天的收款和系统记录是否一致",
+        "这个月有没有大额异常收款"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "财务指标"
+      }
+    },
+    {
+      "id": "synonym:business-object:financemetric:收款",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:financemetric",
+      "relationType": "SYNONYM_OF",
+      "value": "收款",
+      "label": "财务指标口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“收款”，建议作为 财务指标 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "今天营业额到多少了",
+        "今天和昨天比营业额差多少",
+        "帮我查一下上周某天的收款记录",
+        "帮我看一下今天所有的收款明细",
+        "今天第一笔收款是几点，是谁的",
+        "这个月营业额是多少",
+        "帮我核对一下今天的收款和系统记录是否一致",
+        "这个月有没有大额异常收款"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "财务指标"
+      }
+    },
+    {
+      "id": "synonym:business-object:marketingactivity:券",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:marketingactivity",
+      "relationType": "SYNONYM_OF",
+      "value": "券",
+      "label": "优惠权益口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“券”，建议作为 营销活动 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "我想推一个疗程套餐，定价和权益怎么设计",
+        "哪种权益对客户吸引力最大",
+        "这个客人说她有优惠券，帮我查一下"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "营销活动"
+      }
+    },
+    {
+      "id": "synonym:business-object:marketingactivity:优惠券",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:marketingactivity",
+      "relationType": "SYNONYM_OF",
+      "value": "优惠券",
+      "label": "优惠权益口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“优惠券”，建议作为 营销活动 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "我想推一个疗程套餐，定价和权益怎么设计",
+        "哪种权益对客户吸引力最大",
+        "这个客人说她有优惠券，帮我查一下"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "营销活动"
+      }
+    },
+    {
+      "id": "synonym:business-object:marketingactivity:权益",
+      "type": "synonym",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.72,
+      "targetNodeId": "business-object:marketingactivity",
+      "relationType": "SYNONYM_OF",
+      "value": "权益",
+      "label": "优惠权益口语别名",
+      "reason": "从未覆盖/待确认问法中抽取到“权益”，建议作为 营销活动 的人工审核同义词候选。",
+      "sourceQuestions": [
+        "我想推一个疗程套餐，定价和权益怎么设计",
+        "哪种权益对客户吸引力最大",
+        "这个客人说她有优惠券，帮我查一下"
+      ],
+      "payload": {
+        "overrideType": "synonym",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed",
+        "targetDisplayName": "营销活动"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:agentcapabilitymanifestitem->data-model:agentcapabilitymanifestversion:agentcapabilitymanifestitem.version--agentcapabilitymanifestversion",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:agentcapabilitymanifestitem",
+      "targetNodeId": "data-model:agentcapabilitymanifestversion",
+      "relationType": "FK_RELATION",
+      "value": "AgentCapabilityManifestItem 通过 AgentCapabilityManifestItem.version -> AgentCapabilityManifestVersion 关联 AgentCapabilityManifestVersion",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:agentcapabilitymanifestitem->data-model:agentcapabilitymanifestversion:agentcapabilitymanifestitem.version--agentcapabilitymanifestversion",
+        "originalLabel": "AgentCapabilityManifestItem.version -> AgentCapabilityManifestVersion",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:agentcapabilitymanifestversion->data-model:agentcapabilitymanifestitem:agentcapabilitymanifestversion.items--agentcapabilitymanifestitem",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:agentcapabilitymanifestversion",
+      "targetNodeId": "data-model:agentcapabilitymanifestitem",
+      "relationType": "FK_RELATION",
+      "value": "AgentCapabilityManifestVersion 通过 AgentCapabilityManifestVersion.items -> AgentCapabilityManifestItem 关联 AgentCapabilityManifestItem",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:agentcapabilitymanifestversion->data-model:agentcapabilitymanifestitem:agentcapabilitymanifestversion.items--agentcapabilitymanifestitem",
+        "originalLabel": "AgentCapabilityManifestVersion.items -> AgentCapabilityManifestItem",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:agentevalcaseresult->data-model:agentevalrun:agentevalcaseresult.evalrun--agentevalrun",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:agentevalcaseresult",
+      "targetNodeId": "data-model:agentevalrun",
+      "relationType": "FK_RELATION",
+      "value": "AgentEvalCaseResult 通过 AgentEvalCaseResult.evalRun -> AgentEvalRun 关联 AgentEvalRun",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:agentevalcaseresult->data-model:agentevalrun:agentevalcaseresult.evalrun--agentevalrun",
+        "originalLabel": "AgentEvalCaseResult.evalRun -> AgentEvalRun",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:agentevalrun->data-model:agentevalcaseresult:agentevalrun.caseresults--agentevalcaseresult",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:agentevalrun",
+      "targetNodeId": "data-model:agentevalcaseresult",
+      "relationType": "FK_RELATION",
+      "value": "AgentEvalRun 通过 AgentEvalRun.caseResults -> AgentEvalCaseResult 关联 AgentEvalCaseResult",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:agentevalrun->data-model:agentevalcaseresult:agentevalrun.caseresults--agentevalcaseresult",
+        "originalLabel": "AgentEvalRun.caseResults -> AgentEvalCaseResult",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:aiauditlog->data-model:store:aiauditlog.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:aiauditlog",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AiAuditLog 通过 AiAuditLog.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:aiauditlog->data-model:store:aiauditlog.store--store",
+        "originalLabel": "AiAuditLog.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:aiauditlog->data-model:terminaldevice:aiauditlog.device--terminaldevice",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:aiauditlog",
+      "targetNodeId": "data-model:terminaldevice",
+      "relationType": "FK_RELATION",
+      "value": "AiAuditLog 通过 AiAuditLog.device -> TerminalDevice 关联 TerminalDevice",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:aiauditlog->data-model:terminaldevice:aiauditlog.device--terminaldevice",
+        "originalLabel": "AiAuditLog.device -> TerminalDevice",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:aiauditlog->data-model:user:aiauditlog.user--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:aiauditlog",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "AiAuditLog 通过 AiAuditLog.user -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:aiauditlog->data-model:user:aiauditlog.user--user",
+        "originalLabel": "AiAuditLog.user -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:amiglowdisplayconfig->data-model:store:amiglowdisplayconfig.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:amiglowdisplayconfig",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AmiGlowDisplayConfig 通过 AmiGlowDisplayConfig.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:amiglowdisplayconfig->data-model:store:amiglowdisplayconfig.store--store",
+        "originalLabel": "AmiGlowDisplayConfig.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:amimonthlybill->data-model:store:amimonthlybill.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:amimonthlybill",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AmiMonthlyBill 通过 AmiMonthlyBill.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:amimonthlybill->data-model:store:amimonthlybill.store--store",
+        "originalLabel": "AmiMonthlyBill.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:amiperformancerecord->data-model:customer:amiperformancerecord.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:amiperformancerecord",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "AmiPerformanceRecord 通过 AmiPerformanceRecord.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:amiperformancerecord->data-model:customer:amiperformancerecord.customer--customer",
+        "originalLabel": "AmiPerformanceRecord.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:amiperformancerecord->data-model:productorder:amiperformancerecord.order--productorder",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:amiperformancerecord",
+      "targetNodeId": "data-model:productorder",
+      "relationType": "FK_RELATION",
+      "value": "AmiPerformanceRecord 通过 AmiPerformanceRecord.order -> ProductOrder 关联 ProductOrder",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:amiperformancerecord->data-model:productorder:amiperformancerecord.order--productorder",
+        "originalLabel": "AmiPerformanceRecord.order -> ProductOrder",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:amiperformancerecord->data-model:store:amiperformancerecord.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:amiperformancerecord",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AmiPerformanceRecord 通过 AmiPerformanceRecord.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:amiperformancerecord->data-model:store:amiperformancerecord.store--store",
+        "originalLabel": "AmiPerformanceRecord.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapcandidate->data-model:appointmentgapopportunity:appointmentgapcandidate.opportunity--appointmentgapopportunity",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapcandidate",
+      "targetNodeId": "data-model:appointmentgapopportunity",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapCandidate 通过 AppointmentGapCandidate.opportunity -> AppointmentGapOpportunity 关联 AppointmentGapOpportunity",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapcandidate->data-model:appointmentgapopportunity:appointmentgapcandidate.opportunity--appointmentgapopportunity",
+        "originalLabel": "AppointmentGapCandidate.opportunity -> AppointmentGapOpportunity",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapcandidate->data-model:appointmentgapopportunityevent:appointmentgapcandidate.events--appointmentgapopportunityevent",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapcandidate",
+      "targetNodeId": "data-model:appointmentgapopportunityevent",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapCandidate 通过 AppointmentGapCandidate.events -> AppointmentGapOpportunityEvent 关联 AppointmentGapOpportunityEvent",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapcandidate->data-model:appointmentgapopportunityevent:appointmentgapcandidate.events--appointmentgapopportunityevent",
+        "originalLabel": "AppointmentGapCandidate.events -> AppointmentGapOpportunityEvent",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapcandidate->data-model:customer:appointmentgapcandidate.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapcandidate",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapCandidate 通过 AppointmentGapCandidate.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapcandidate->data-model:customer:appointmentgapcandidate.customer--customer",
+        "originalLabel": "AppointmentGapCandidate.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapcandidate->data-model:project:appointmentgapcandidate.project--project",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapcandidate",
+      "targetNodeId": "data-model:project",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapCandidate 通过 AppointmentGapCandidate.project -> Project 关联 Project",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapcandidate->data-model:project:appointmentgapcandidate.project--project",
+        "originalLabel": "AppointmentGapCandidate.project -> Project",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapcandidate->data-model:store:appointmentgapcandidate.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapcandidate",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapCandidate 通过 AppointmentGapCandidate.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapcandidate->data-model:store:appointmentgapcandidate.store--store",
+        "originalLabel": "AppointmentGapCandidate.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapcandidate->data-model:terminalfollowuptask:appointmentgapcandidate.followuptask--terminalfollowuptask",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapcandidate",
+      "targetNodeId": "data-model:terminalfollowuptask",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapCandidate 通过 AppointmentGapCandidate.followUpTask -> TerminalFollowUpTask 关联 TerminalFollowUpTask",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapcandidate->data-model:terminalfollowuptask:appointmentgapcandidate.followuptask--terminalfollowuptask",
+        "originalLabel": "AppointmentGapCandidate.followUpTask -> TerminalFollowUpTask",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunity->data-model:appointmentgapcandidate:appointmentgapopportunity.candidates--appointmentgapcandidate",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunity",
+      "targetNodeId": "data-model:appointmentgapcandidate",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunity 通过 AppointmentGapOpportunity.candidates -> AppointmentGapCandidate 关联 AppointmentGapCandidate",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunity->data-model:appointmentgapcandidate:appointmentgapopportunity.candidates--appointmentgapcandidate",
+        "originalLabel": "AppointmentGapOpportunity.candidates -> AppointmentGapCandidate",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunity->data-model:appointmentgapopportunityevent:appointmentgapopportunity.events--appointmentgapopportunityevent",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunity",
+      "targetNodeId": "data-model:appointmentgapopportunityevent",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunity 通过 AppointmentGapOpportunity.events -> AppointmentGapOpportunityEvent 关联 AppointmentGapOpportunityEvent",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunity->data-model:appointmentgapopportunityevent:appointmentgapopportunity.events--appointmentgapopportunityevent",
+        "originalLabel": "AppointmentGapOpportunity.events -> AppointmentGapOpportunityEvent",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunity->data-model:store:appointmentgapopportunity.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunity",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunity 通过 AppointmentGapOpportunity.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunity->data-model:store:appointmentgapopportunity.store--store",
+        "originalLabel": "AppointmentGapOpportunity.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunityevent->data-model:appointmentgapcandidate:appointmentgapopportunityevent.candidate--appointmentgapcandidate",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunityevent",
+      "targetNodeId": "data-model:appointmentgapcandidate",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunityEvent 通过 AppointmentGapOpportunityEvent.candidate -> AppointmentGapCandidate 关联 AppointmentGapCandidate",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunityevent->data-model:appointmentgapcandidate:appointmentgapopportunityevent.candidate--appointmentgapcandidate",
+        "originalLabel": "AppointmentGapOpportunityEvent.candidate -> AppointmentGapCandidate",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunityevent->data-model:appointmentgapopportunity:appointmentgapopportunityevent.opportunity--appointmentgapopportunity",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunityevent",
+      "targetNodeId": "data-model:appointmentgapopportunity",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunityEvent 通过 AppointmentGapOpportunityEvent.opportunity -> AppointmentGapOpportunity 关联 AppointmentGapOpportunity",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunityevent->data-model:appointmentgapopportunity:appointmentgapopportunityevent.opportunity--appointmentgapopportunity",
+        "originalLabel": "AppointmentGapOpportunityEvent.opportunity -> AppointmentGapOpportunity",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunityevent->data-model:customer:appointmentgapopportunityevent.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunityevent",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunityEvent 通过 AppointmentGapOpportunityEvent.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunityevent->data-model:customer:appointmentgapopportunityevent.customer--customer",
+        "originalLabel": "AppointmentGapOpportunityEvent.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:appointmentgapopportunityevent->data-model:store:appointmentgapopportunityevent.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:appointmentgapopportunityevent",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "AppointmentGapOpportunityEvent 通过 AppointmentGapOpportunityEvent.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:appointmentgapopportunityevent->data-model:store:appointmentgapopportunityevent.store--store",
+        "originalLabel": "AppointmentGapOpportunityEvent.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:beauticianavailability:beautician.availabilities--beauticianavailability",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:beauticianavailability",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.availabilities -> BeauticianAvailability 关联 BeauticianAvailability",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:beauticianavailability:beautician.availabilities--beauticianavailability",
+        "originalLabel": "Beautician.availabilities -> BeauticianAvailability",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:beauticianlevel:beautician.level--beauticianlevel",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:beauticianlevel",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.level -> BeauticianLevel 关联 BeauticianLevel",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:beauticianlevel:beautician.level--beauticianlevel",
+        "originalLabel": "Beautician.level -> BeauticianLevel",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:beauticianprojectskill:beautician.projectskills--beauticianprojectskill",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:beauticianprojectskill",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.projectSkills -> BeauticianProjectSkill 关联 BeauticianProjectSkill",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:beauticianprojectskill:beautician.projectskills--beauticianprojectskill",
+        "originalLabel": "Beautician.projectSkills -> BeauticianProjectSkill",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:beauticiantimeoff:beautician.timeoffs--beauticiantimeoff",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:beauticiantimeoff",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.timeOffs -> BeauticianTimeOff 关联 BeauticianTimeOff",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:beauticiantimeoff:beautician.timeoffs--beauticiantimeoff",
+        "originalLabel": "Beautician.timeOffs -> BeauticianTimeOff",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:cardusagerecord:beautician.cardusagerecords--cardusagerecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:cardusagerecord",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.cardUsageRecords -> CardUsageRecord 关联 CardUsageRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:cardusagerecord:beautician.cardusagerecords--cardusagerecord",
+        "originalLabel": "Beautician.cardUsageRecords -> CardUsageRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:commissionrecord:beautician.commissionrecords--commissionrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:commissionrecord",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.commissionRecords -> CommissionRecord 关联 CommissionRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:commissionrecord:beautician.commissionrecords--commissionrecord",
+        "originalLabel": "Beautician.commissionRecords -> CommissionRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:commissionsettlement:beautician.commissionsettlements--commissionsettlement",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:commissionsettlement",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.commissionSettlements -> CommissionSettlement 关联 CommissionSettlement",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:commissionsettlement:beautician.commissionsettlements--commissionsettlement",
+        "originalLabel": "Beautician.commissionSettlements -> CommissionSettlement",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:orderitem:beautician.orderitems--orderitem",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:orderitem",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.orderItems -> OrderItem 关联 OrderItem",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:orderitem:beautician.orderitems--orderitem",
+        "originalLabel": "Beautician.orderItems -> OrderItem",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:reservation:beautician.reservations--reservation",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:reservation",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.reservations -> Reservation 关联 Reservation",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:reservation:beautician.reservations--reservation",
+        "originalLabel": "Beautician.reservations -> Reservation",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:schedule:beautician.schedules--schedule",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:schedule",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.schedules -> Schedule 关联 Schedule",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:schedule:beautician.schedules--schedule",
+        "originalLabel": "Beautician.schedules -> Schedule",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:servicetask:beautician.servicetasks--servicetask",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:servicetask",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.serviceTasks -> ServiceTask 关联 ServiceTask",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:servicetask:beautician.servicetasks--servicetask",
+        "originalLabel": "Beautician.serviceTasks -> ServiceTask",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:store:beautician.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:store:beautician.store--store",
+        "originalLabel": "Beautician.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:terminalfollowuptask:beautician.followuptasks--terminalfollowuptask",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:terminalfollowuptask",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.followUpTasks -> TerminalFollowUpTask 关联 TerminalFollowUpTask",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:terminalfollowuptask:beautician.followuptasks--terminalfollowuptask",
+        "originalLabel": "Beautician.followUpTasks -> TerminalFollowUpTask",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beautician->data-model:user:beautician.user--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beautician",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "Beautician 通过 Beautician.user -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beautician->data-model:user:beautician.user--user",
+        "originalLabel": "Beautician.user -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticianavailability->data-model:beautician:beauticianavailability.beautician--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticianavailability",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianAvailability 通过 BeauticianAvailability.beautician -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticianavailability->data-model:beautician:beauticianavailability.beautician--beautician",
+        "originalLabel": "BeauticianAvailability.beautician -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticianavailability->data-model:store:beauticianavailability.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticianavailability",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianAvailability 通过 BeauticianAvailability.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticianavailability->data-model:store:beauticianavailability.store--store",
+        "originalLabel": "BeauticianAvailability.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticianlevel->data-model:beautician:beauticianlevel.beauticians--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticianlevel",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianLevel 通过 BeauticianLevel.beauticians -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticianlevel->data-model:beautician:beauticianlevel.beauticians--beautician",
+        "originalLabel": "BeauticianLevel.beauticians -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticianlevel->data-model:commissionrule:beauticianlevel.commissionrules--commissionrule",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticianlevel",
+      "targetNodeId": "data-model:commissionrule",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianLevel 通过 BeauticianLevel.commissionRules -> CommissionRule 关联 CommissionRule",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticianlevel->data-model:commissionrule:beauticianlevel.commissionrules--commissionrule",
+        "originalLabel": "BeauticianLevel.commissionRules -> CommissionRule",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticianprojectskill->data-model:beautician:beauticianprojectskill.beautician--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticianprojectskill",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianProjectSkill 通过 BeauticianProjectSkill.beautician -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticianprojectskill->data-model:beautician:beauticianprojectskill.beautician--beautician",
+        "originalLabel": "BeauticianProjectSkill.beautician -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticianprojectskill->data-model:project:beauticianprojectskill.project--project",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticianprojectskill",
+      "targetNodeId": "data-model:project",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianProjectSkill 通过 BeauticianProjectSkill.project -> Project 关联 Project",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticianprojectskill->data-model:project:beauticianprojectskill.project--project",
+        "originalLabel": "BeauticianProjectSkill.project -> Project",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticiantimeoff->data-model:beautician:beauticiantimeoff.beautician--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticiantimeoff",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianTimeOff 通过 BeauticianTimeOff.beautician -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticiantimeoff->data-model:beautician:beauticiantimeoff.beautician--beautician",
+        "originalLabel": "BeauticianTimeOff.beautician -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:beauticiantimeoff->data-model:store:beauticiantimeoff.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:beauticiantimeoff",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "BeauticianTimeOff 通过 BeauticianTimeOff.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:beauticiantimeoff->data-model:store:beauticiantimeoff.store--store",
+        "originalLabel": "BeauticianTimeOff.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:card->data-model:cardusagerecord:card.usagerecords--cardusagerecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:card",
+      "targetNodeId": "data-model:cardusagerecord",
+      "relationType": "FK_RELATION",
+      "value": "Card 通过 Card.usageRecords -> CardUsageRecord 关联 CardUsageRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:card->data-model:cardusagerecord:card.usagerecords--cardusagerecord",
+        "originalLabel": "Card.usageRecords -> CardUsageRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:card->data-model:customercard:card.customercards--customercard",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:card",
+      "targetNodeId": "data-model:customercard",
+      "relationType": "FK_RELATION",
+      "value": "Card 通过 Card.customerCards -> CustomerCard 关联 CustomerCard",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:card->data-model:customercard:card.customercards--customercard",
+        "originalLabel": "Card.customerCards -> CustomerCard",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:card->data-model:store:card.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:card",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "Card 通过 Card.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:card->data-model:store:card.store--store",
+        "originalLabel": "Card.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:beautician:cardusagerecord.beautician--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.beautician -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:beautician:cardusagerecord.beautician--beautician",
+        "originalLabel": "CardUsageRecord.beautician -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:card:cardusagerecord.card--card",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:card",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.card -> Card 关联 Card",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:card:cardusagerecord.card--card",
+        "originalLabel": "CardUsageRecord.card -> Card",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:commissionrecord:cardusagerecord.commissionrecords--commissionrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:commissionrecord",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.commissionRecords -> CommissionRecord 关联 CommissionRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:commissionrecord:cardusagerecord.commissionrecords--commissionrecord",
+        "originalLabel": "CardUsageRecord.commissionRecords -> CommissionRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:customer:cardusagerecord.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:customer:cardusagerecord.customer--customer",
+        "originalLabel": "CardUsageRecord.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:customercard:cardusagerecord.customercard--customercard",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:customercard",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.customerCard -> CustomerCard 关联 CustomerCard",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:customercard:cardusagerecord.customercard--customercard",
+        "originalLabel": "CardUsageRecord.customerCard -> CustomerCard",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:orderitem:cardusagerecord.sourceorderitem--orderitem",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:orderitem",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.sourceOrderItem -> OrderItem 关联 OrderItem",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:orderitem:cardusagerecord.sourceorderitem--orderitem",
+        "originalLabel": "CardUsageRecord.sourceOrderItem -> OrderItem",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:productorder:cardusagerecord.sourceorder--productorder",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:productorder",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.sourceOrder -> ProductOrder 关联 ProductOrder",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:productorder:cardusagerecord.sourceorder--productorder",
+        "originalLabel": "CardUsageRecord.sourceOrder -> ProductOrder",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:project:cardusagerecord.project--project",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:project",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.project -> Project 关联 Project",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:project:cardusagerecord.project--project",
+        "originalLabel": "CardUsageRecord.project -> Project",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:store:cardusagerecord.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:store:cardusagerecord.store--store",
+        "originalLabel": "CardUsageRecord.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:terminaldevice:cardusagerecord.device--terminaldevice",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:terminaldevice",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.device -> TerminalDevice 关联 TerminalDevice",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:terminaldevice:cardusagerecord.device--terminaldevice",
+        "originalLabel": "CardUsageRecord.device -> TerminalDevice",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cardusagerecord->data-model:user:cardusagerecord.operator--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cardusagerecord",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "CardUsageRecord 通过 CardUsageRecord.operator -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cardusagerecord->data-model:user:cardusagerecord.operator--user",
+        "originalLabel": "CardUsageRecord.operator -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cashiershift->data-model:store:cashiershift.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cashiershift",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CashierShift 通过 CashierShift.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cashiershift->data-model:store:cashiershift.store--store",
+        "originalLabel": "CashierShift.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cashiershift->data-model:terminaldevice:cashiershift.device--terminaldevice",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cashiershift",
+      "targetNodeId": "data-model:terminaldevice",
+      "relationType": "FK_RELATION",
+      "value": "CashierShift 通过 CashierShift.device -> TerminalDevice 关联 TerminalDevice",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cashiershift->data-model:terminaldevice:cashiershift.device--terminaldevice",
+        "originalLabel": "CashierShift.device -> TerminalDevice",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:cashiershift->data-model:user:cashiershift.operator--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:cashiershift",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "CashierShift 通过 CashierShift.operator -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:cashiershift->data-model:user:cashiershift.operator--user",
+        "originalLabel": "CashierShift.operator -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:category->data-model:category:category.children--category",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:category",
+      "targetNodeId": "data-model:category",
+      "relationType": "FK_RELATION",
+      "value": "Category 通过 Category.children -> Category 关联 Category",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:category->data-model:category:category.children--category",
+        "originalLabel": "Category.children -> Category",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:category->data-model:category:category.parent--category",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:category",
+      "targetNodeId": "data-model:category",
+      "relationType": "FK_RELATION",
+      "value": "Category 通过 Category.parent -> Category 关联 Category",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:category->data-model:category:category.parent--category",
+        "originalLabel": "Category.parent -> Category",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:category->data-model:product:category.products--product",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:category",
+      "targetNodeId": "data-model:product",
+      "relationType": "FK_RELATION",
+      "value": "Category 通过 Category.products -> Product 关联 Product",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:category->data-model:product:category.products--product",
+        "originalLabel": "Category.products -> Product",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:beautician:commissionrecord.beautician--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.beautician -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:beautician:commissionrecord.beautician--beautician",
+        "originalLabel": "CommissionRecord.beautician -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:cardusagerecord:commissionrecord.cardusagerecord--cardusagerecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:cardusagerecord",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.cardUsageRecord -> CardUsageRecord 关联 CardUsageRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:cardusagerecord:commissionrecord.cardusagerecord--cardusagerecord",
+        "originalLabel": "CommissionRecord.cardUsageRecord -> CardUsageRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:commissionrule:commissionrecord.rule--commissionrule",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:commissionrule",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.rule -> CommissionRule 关联 CommissionRule",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:commissionrule:commissionrecord.rule--commissionrule",
+        "originalLabel": "CommissionRecord.rule -> CommissionRule",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:commissionruleassignment:commissionrecord.assignment--commissionruleassignment",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:commissionruleassignment",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.assignment -> CommissionRuleAssignment 关联 CommissionRuleAssignment",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:commissionruleassignment:commissionrecord.assignment--commissionruleassignment",
+        "originalLabel": "CommissionRecord.assignment -> CommissionRuleAssignment",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:commissionsettlementrecord:commissionrecord.settlementrecords--commissionsettlementrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:commissionsettlementrecord",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.settlementRecords -> CommissionSettlementRecord 关联 CommissionSettlementRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:commissionsettlementrecord:commissionrecord.settlementrecords--commissionsettlementrecord",
+        "originalLabel": "CommissionRecord.settlementRecords -> CommissionSettlementRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:orderitem:commissionrecord.orderitem--orderitem",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:orderitem",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.orderItem -> OrderItem 关联 OrderItem",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:orderitem:commissionrecord.orderitem--orderitem",
+        "originalLabel": "CommissionRecord.orderItem -> OrderItem",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:productorder:commissionrecord.order--productorder",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:productorder",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.order -> ProductOrder 关联 ProductOrder",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:productorder:commissionrecord.order--productorder",
+        "originalLabel": "CommissionRecord.order -> ProductOrder",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:store:commissionrecord.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:store:commissionrecord.store--store",
+        "originalLabel": "CommissionRecord.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrecord->data-model:user:commissionrecord.staffuser--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrecord",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRecord 通过 CommissionRecord.staffUser -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrecord->data-model:user:commissionrecord.staffuser--user",
+        "originalLabel": "CommissionRecord.staffUser -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrule->data-model:beauticianlevel:commissionrule.level--beauticianlevel",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrule",
+      "targetNodeId": "data-model:beauticianlevel",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRule 通过 CommissionRule.level -> BeauticianLevel 关联 BeauticianLevel",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrule->data-model:beauticianlevel:commissionrule.level--beauticianlevel",
+        "originalLabel": "CommissionRule.level -> BeauticianLevel",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrule->data-model:commissionrecord:commissionrule.records--commissionrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrule",
+      "targetNodeId": "data-model:commissionrecord",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRule 通过 CommissionRule.records -> CommissionRecord 关联 CommissionRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrule->data-model:commissionrecord:commissionrule.records--commissionrecord",
+        "originalLabel": "CommissionRule.records -> CommissionRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrule->data-model:commissionruleassignment:commissionrule.assignments--commissionruleassignment",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrule",
+      "targetNodeId": "data-model:commissionruleassignment",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRule 通过 CommissionRule.assignments -> CommissionRuleAssignment 关联 CommissionRuleAssignment",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrule->data-model:commissionruleassignment:commissionrule.assignments--commissionruleassignment",
+        "originalLabel": "CommissionRule.assignments -> CommissionRuleAssignment",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrule->data-model:store:commissionrule.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrule",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRule 通过 CommissionRule.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrule->data-model:store:commissionrule.store--store",
+        "originalLabel": "CommissionRule.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionrule->data-model:user:commissionrule.user--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionrule",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRule 通过 CommissionRule.user -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionrule->data-model:user:commissionrule.user--user",
+        "originalLabel": "CommissionRule.user -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionruleassignment->data-model:commissionrecord:commissionruleassignment.records--commissionrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionruleassignment",
+      "targetNodeId": "data-model:commissionrecord",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRuleAssignment 通过 CommissionRuleAssignment.records -> CommissionRecord 关联 CommissionRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionruleassignment->data-model:commissionrecord:commissionruleassignment.records--commissionrecord",
+        "originalLabel": "CommissionRuleAssignment.records -> CommissionRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionruleassignment->data-model:commissionrule:commissionruleassignment.rule--commissionrule",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionruleassignment",
+      "targetNodeId": "data-model:commissionrule",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRuleAssignment 通过 CommissionRuleAssignment.rule -> CommissionRule 关联 CommissionRule",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionruleassignment->data-model:commissionrule:commissionruleassignment.rule--commissionrule",
+        "originalLabel": "CommissionRuleAssignment.rule -> CommissionRule",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionruleassignment->data-model:store:commissionruleassignment.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionruleassignment",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRuleAssignment 通过 CommissionRuleAssignment.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionruleassignment->data-model:store:commissionruleassignment.store--store",
+        "originalLabel": "CommissionRuleAssignment.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionruleassignment->data-model:user:commissionruleassignment.user--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionruleassignment",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "CommissionRuleAssignment 通过 CommissionRuleAssignment.user -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionruleassignment->data-model:user:commissionruleassignment.user--user",
+        "originalLabel": "CommissionRuleAssignment.user -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionsettlement->data-model:beautician:commissionsettlement.beautician--beautician",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionsettlement",
+      "targetNodeId": "data-model:beautician",
+      "relationType": "FK_RELATION",
+      "value": "CommissionSettlement 通过 CommissionSettlement.beautician -> Beautician 关联 Beautician",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionsettlement->data-model:beautician:commissionsettlement.beautician--beautician",
+        "originalLabel": "CommissionSettlement.beautician -> Beautician",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionsettlement->data-model:commissionsettlementrecord:commissionsettlement.settlementrecords--commissionsettlementrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionsettlement",
+      "targetNodeId": "data-model:commissionsettlementrecord",
+      "relationType": "FK_RELATION",
+      "value": "CommissionSettlement 通过 CommissionSettlement.settlementRecords -> CommissionSettlementRecord 关联 CommissionSettlementRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionsettlement->data-model:commissionsettlementrecord:commissionsettlement.settlementrecords--commissionsettlementrecord",
+        "originalLabel": "CommissionSettlement.settlementRecords -> CommissionSettlementRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionsettlement->data-model:store:commissionsettlement.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionsettlement",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CommissionSettlement 通过 CommissionSettlement.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionsettlement->data-model:store:commissionsettlement.store--store",
+        "originalLabel": "CommissionSettlement.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionsettlement->data-model:user:commissionsettlement.staffuser--user",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionsettlement",
+      "targetNodeId": "data-model:user",
+      "relationType": "FK_RELATION",
+      "value": "CommissionSettlement 通过 CommissionSettlement.staffUser -> User 关联 User",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionsettlement->data-model:user:commissionsettlement.staffuser--user",
+        "originalLabel": "CommissionSettlement.staffUser -> User",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionsettlementrecord->data-model:commissionrecord:commissionsettlementrecord.commissionrecord--commissionrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionsettlementrecord",
+      "targetNodeId": "data-model:commissionrecord",
+      "relationType": "FK_RELATION",
+      "value": "CommissionSettlementRecord 通过 CommissionSettlementRecord.commissionRecord -> CommissionRecord 关联 CommissionRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionsettlementrecord->data-model:commissionrecord:commissionsettlementrecord.commissionrecord--commissionrecord",
+        "originalLabel": "CommissionSettlementRecord.commissionRecord -> CommissionRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:commissionsettlementrecord->data-model:commissionsettlement:commissionsettlementrecord.settlement--commissionsettlement",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:commissionsettlementrecord",
+      "targetNodeId": "data-model:commissionsettlement",
+      "relationType": "FK_RELATION",
+      "value": "CommissionSettlementRecord 通过 CommissionSettlementRecord.settlement -> CommissionSettlement 关联 CommissionSettlement",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:commissionsettlementrecord->data-model:commissionsettlement:commissionsettlementrecord.settlement--commissionsettlement",
+        "originalLabel": "CommissionSettlementRecord.settlement -> CommissionSettlement",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:consumptionrecord->data-model:customer:consumptionrecord.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:consumptionrecord",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "ConsumptionRecord 通过 ConsumptionRecord.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:consumptionrecord->data-model:customer:consumptionrecord.customer--customer",
+        "originalLabel": "ConsumptionRecord.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:amiperformancerecord:customer.amiperformancerecords--amiperformancerecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:amiperformancerecord",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.amiPerformanceRecords -> AmiPerformanceRecord 关联 AmiPerformanceRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:amiperformancerecord:customer.amiperformancerecords--amiperformancerecord",
+        "originalLabel": "Customer.amiPerformanceRecords -> AmiPerformanceRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:appointmentgapcandidate:customer.gapcandidates--appointmentgapcandidate",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:appointmentgapcandidate",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.gapCandidates -> AppointmentGapCandidate 关联 AppointmentGapCandidate",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:appointmentgapcandidate:customer.gapcandidates--appointmentgapcandidate",
+        "originalLabel": "Customer.gapCandidates -> AppointmentGapCandidate",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:appointmentgapopportunityevent:customer.gapopportunityevents--appointmentgapopportunityevent",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:appointmentgapopportunityevent",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.gapOpportunityEvents -> AppointmentGapOpportunityEvent 关联 AppointmentGapOpportunityEvent",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:appointmentgapopportunityevent:customer.gapopportunityevents--appointmentgapopportunityevent",
+        "originalLabel": "Customer.gapOpportunityEvents -> AppointmentGapOpportunityEvent",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:cardusagerecord:customer.cardusagerecords--cardusagerecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:cardusagerecord",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.cardUsageRecords -> CardUsageRecord 关联 CardUsageRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:cardusagerecord:customer.cardusagerecords--cardusagerecord",
+        "originalLabel": "Customer.cardUsageRecords -> CardUsageRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:consumptionrecord:customer.consumptionrecords--consumptionrecord",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:consumptionrecord",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.consumptionRecords -> ConsumptionRecord 关联 ConsumptionRecord",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:consumptionrecord:customer.consumptionrecords--consumptionrecord",
+        "originalLabel": "Customer.consumptionRecords -> ConsumptionRecord",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customerappevent:customer.customerappevents--customerappevent",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customerappevent",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.customerAppEvents -> CustomerAppEvent 关联 CustomerAppEvent",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customerappevent:customer.customerappevents--customerappevent",
+        "originalLabel": "Customer.customerAppEvents -> CustomerAppEvent",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customerappidentity:customer.customerappidentities--customerappidentity",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customerappidentity",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.customerAppIdentities -> CustomerAppIdentity 关联 CustomerAppIdentity",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customerappidentity:customer.customerappidentities--customerappidentity",
+        "originalLabel": "Customer.customerAppIdentities -> CustomerAppIdentity",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customerbalanceaccount:customer.balanceaccounts--customerbalanceaccount",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customerbalanceaccount",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.balanceAccounts -> CustomerBalanceAccount 关联 CustomerBalanceAccount",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customerbalanceaccount:customer.balanceaccounts--customerbalanceaccount",
+        "originalLabel": "Customer.balanceAccounts -> CustomerBalanceAccount",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customerbalancetransaction:customer.balancetransactions--customerbalancetransaction",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customerbalancetransaction",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.balanceTransactions -> CustomerBalanceTransaction 关联 CustomerBalanceTransaction",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customerbalancetransaction:customer.balancetransactions--customerbalancetransaction",
+        "originalLabel": "Customer.balanceTransactions -> CustomerBalanceTransaction",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customercard:customer.customercards--customercard",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customercard",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.customerCards -> CustomerCard 关联 CustomerCard",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customercard:customer.customercards--customercard",
+        "originalLabel": "Customer.customerCards -> CustomerCard",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customerhealthprofile:customer.healthprofile--customerhealthprofile",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customerhealthprofile",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.healthProfile -> CustomerHealthProfile 关联 CustomerHealthProfile",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customerhealthprofile:customer.healthprofile--customerhealthprofile",
+        "originalLabel": "Customer.healthProfile -> CustomerHealthProfile",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:customerpredictionsnapshot:customer.predictionsnapshots--customerpredictionsnapshot",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:customerpredictionsnapshot",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.predictionSnapshots -> CustomerPredictionSnapshot 关联 CustomerPredictionSnapshot",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:customerpredictionsnapshot:customer.predictionsnapshots--customerpredictionsnapshot",
+        "originalLabel": "Customer.predictionSnapshots -> CustomerPredictionSnapshot",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:marketingattribution:customer.marketingattributions--marketingattribution",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:marketingattribution",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.marketingAttributions -> MarketingAttribution 关联 MarketingAttribution",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:marketingattribution:customer.marketingattributions--marketingattribution",
+        "originalLabel": "Customer.marketingAttributions -> MarketingAttribution",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:marketingautomationtouch:customer.marketingtouches--marketingautomationtouch",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:marketingautomationtouch",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.marketingTouches -> MarketingAutomationTouch 关联 MarketingAutomationTouch",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:marketingautomationtouch:customer.marketingtouches--marketingautomationtouch",
+        "originalLabel": "Customer.marketingTouches -> MarketingAutomationTouch",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:marketingpageattribution:customer.pageattributions--marketingpageattribution",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:marketingpageattribution",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.pageAttributions -> MarketingPageAttribution 关联 MarketingPageAttribution",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:marketingpageattribution:customer.pageattributions--marketingpageattribution",
+        "originalLabel": "Customer.pageAttributions -> MarketingPageAttribution",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:productorder:customer.productorders--productorder",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:productorder",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.productOrders -> ProductOrder 关联 ProductOrder",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:productorder:customer.productorders--productorder",
+        "originalLabel": "Customer.productOrders -> ProductOrder",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:recommendationevent:customer.recommendationevents--recommendationevent",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:recommendationevent",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.recommendationEvents -> RecommendationEvent 关联 RecommendationEvent",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:recommendationevent:customer.recommendationevents--recommendationevent",
+        "originalLabel": "Customer.recommendationEvents -> RecommendationEvent",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:reservation:customer.reservations--reservation",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:reservation",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.reservations -> Reservation 关联 Reservation",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:reservation:customer.reservations--reservation",
+        "originalLabel": "Customer.reservations -> Reservation",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:servicetask:customer.servicetasks--servicetask",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:servicetask",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.serviceTasks -> ServiceTask 关联 ServiceTask",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:servicetask:customer.servicetasks--servicetask",
+        "originalLabel": "Customer.serviceTasks -> ServiceTask",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:skintest:customer.skintests--skintest",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:skintest",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.skinTests -> SkinTest 关联 SkinTest",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:skintest:customer.skintests--skintest",
+        "originalLabel": "Customer.skinTests -> SkinTest",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:store:customer.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:store:customer.store--store",
+        "originalLabel": "Customer.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customer->data-model:terminalfollowuptask:customer.terminalfollowuptasks--terminalfollowuptask",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customer",
+      "targetNodeId": "data-model:terminalfollowuptask",
+      "relationType": "FK_RELATION",
+      "value": "Customer 通过 Customer.terminalFollowUpTasks -> TerminalFollowUpTask 关联 TerminalFollowUpTask",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customer->data-model:terminalfollowuptask:customer.terminalfollowuptasks--terminalfollowuptask",
+        "originalLabel": "Customer.terminalFollowUpTasks -> TerminalFollowUpTask",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customerappevent->data-model:customer:customerappevent.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customerappevent",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "CustomerAppEvent 通过 CustomerAppEvent.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customerappevent->data-model:customer:customerappevent.customer--customer",
+        "originalLabel": "CustomerAppEvent.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customerappevent->data-model:customerappidentity:customerappevent.identity--customerappidentity",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customerappevent",
+      "targetNodeId": "data-model:customerappidentity",
+      "relationType": "FK_RELATION",
+      "value": "CustomerAppEvent 通过 CustomerAppEvent.identity -> CustomerAppIdentity 关联 CustomerAppIdentity",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customerappevent->data-model:customerappidentity:customerappevent.identity--customerappidentity",
+        "originalLabel": "CustomerAppEvent.identity -> CustomerAppIdentity",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customerappevent->data-model:store:customerappevent.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customerappevent",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CustomerAppEvent 通过 CustomerAppEvent.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customerappevent->data-model:store:customerappevent.store--store",
+        "originalLabel": "CustomerAppEvent.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customerappidentity->data-model:customer:customerappidentity.customer--customer",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customerappidentity",
+      "targetNodeId": "data-model:customer",
+      "relationType": "FK_RELATION",
+      "value": "CustomerAppIdentity 通过 CustomerAppIdentity.customer -> Customer 关联 Customer",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customerappidentity->data-model:customer:customerappidentity.customer--customer",
+        "originalLabel": "CustomerAppIdentity.customer -> Customer",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customerappidentity->data-model:customerappevent:customerappidentity.events--customerappevent",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customerappidentity",
+      "targetNodeId": "data-model:customerappevent",
+      "relationType": "FK_RELATION",
+      "value": "CustomerAppIdentity 通过 CustomerAppIdentity.events -> CustomerAppEvent 关联 CustomerAppEvent",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customerappidentity->data-model:customerappevent:customerappidentity.events--customerappevent",
+        "originalLabel": "CustomerAppIdentity.events -> CustomerAppEvent",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "fk-meaning:FK_RELATION:data-model:customerappidentity->data-model:store:customerappidentity.store--store",
+      "type": "fk_business_meaning",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.68,
+      "sourceNodeId": "data-model:customerappidentity",
+      "targetNodeId": "data-model:store",
+      "relationType": "FK_RELATION",
+      "value": "CustomerAppIdentity 通过 CustomerAppIdentity.store -> Store 关联 Store",
+      "label": "FK 业务含义候选",
+      "reason": "为图谱 FK 关系补充中文业务含义，供 GenericQueryEngine 后续做跨表 join 路径说明和人工审核。",
+      "payload": {
+        "edgeId": "FK_RELATION:data-model:customerappidentity->data-model:store:customerappidentity.store--store",
+        "originalLabel": "CustomerAppIdentity.store -> Store",
+        "lowConfidenceCandidate": true,
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q001",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天店里情况怎么样，给我来个总结",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天店里情况怎么样，给我来个总结"
+      ],
+      "payload": {
+        "questionId": "q001",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q002",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天营业额到多少了",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天营业额到多少了"
+      ],
+      "payload": {
+        "questionId": "q002",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q003",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天来了几个客人，现在还有几个在店",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天来了几个客人，现在还有几个在店"
+      ],
+      "payload": {
+        "questionId": "q003",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q004",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天和昨天比营业额差多少",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天和昨天比营业额差多少"
+      ],
+      "payload": {
+        "questionId": "q004",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q005",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "本周跟上周比，哪天差距最大",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "本周跟上周比，哪天差距最大"
+      ],
+      "payload": {
+        "questionId": "q005",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q006",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月目标完成率多少了，还差多远",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "这个月目标完成率多少了，还差多远"
+      ],
+      "payload": {
+        "questionId": "q006",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q007",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天客单价多少，跟平时比怎么样",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天客单价多少，跟平时比怎么样"
+      ],
+      "payload": {
+        "questionId": "q007",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q008",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天有没有什么异常情况我需要知道",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天有没有什么异常情况我需要知道"
+      ],
+      "payload": {
+        "questionId": "q008",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q009",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "现在店里哪些美容师在忙，哪些空着",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "现在店里哪些美容师在忙，哪些空着"
+      ],
+      "payload": {
+        "questionId": "q009",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q011",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月跟上个月比收入差多少",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "这个月跟上个月比收入差多少"
+      ],
+      "payload": {
+        "questionId": "q011",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q012",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天新客老客各来了几个",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "今天新客老客各来了几个"
+      ],
+      "payload": {
+        "questionId": "q012",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q013",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "现在几点了，下午还有几个预约",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "现在几点了，下午还有几个预约"
+      ],
+      "payload": {
+        "questionId": "q013",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:reservation"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q014",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天哪个项目做得最多",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "今天哪个项目做得最多"
+      ],
+      "payload": {
+        "questionId": "q014",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q015",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天最大的一笔消费是多少",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天最大的一笔消费是多少"
+      ],
+      "payload": {
+        "questionId": "q015",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q016",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天折扣优惠送出去多少钱",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天折扣优惠送出去多少钱"
+      ],
+      "payload": {
+        "questionId": "q016",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q018",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这周有没有哪天特别差，为什么",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "这周有没有哪天特别差，为什么"
+      ],
+      "payload": {
+        "questionId": "q018",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q021",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近哪些老客好久没来了，帮我列一下",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近哪些老客好久没来了，帮我列一下"
+      ],
+      "payload": {
+        "questionId": "q021",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q022",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "上个月新来了多少新客，转化了多少",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "上个月新来了多少新客，转化了多少"
+      ],
+      "payload": {
+        "questionId": "q022",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q028",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我看一下今天到店客人的画像，主要是什么年龄段",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我看一下今天到店客人的画像，主要是什么年龄段"
+      ],
+      "payload": {
+        "questionId": "q028",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:reservation"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q029",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "我们的老客回头率大概是多少",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "我们的老客回头率大概是多少"
+      ],
+      "payload": {
+        "questionId": "q029",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q038",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月新客主要来自什么渠道",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "这个月新客主要来自什么渠道"
+      ],
+      "payload": {
+        "questionId": "q038",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q041",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月谁的业绩最好",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "这个月谁的业绩最好"
+      ],
+      "payload": {
+        "questionId": "q041",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q042",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "哪个美容师接的客人最多",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "哪个美容师接的客人最多"
+      ],
+      "payload": {
+        "questionId": "q042",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q044",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有没有员工这周业绩明显下滑",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有没有员工这周业绩明显下滑"
+      ],
+      "payload": {
+        "questionId": "q044",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q046",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "各美容师今天的排班情况，有没有空档",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "各美容师今天的排班情况，有没有空档"
+      ],
+      "payload": {
+        "questionId": "q046",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician",
+          "business-object:schedule"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q047",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天谁请假了，有没有影响接待",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天谁请假了，有没有影响接待"
+      ],
+      "payload": {
+        "questionId": "q047",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q048",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "哪个美容师的客诉最多，最近有没有",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "哪个美容师的客诉最多，最近有没有"
+      ],
+      "payload": {
+        "questionId": "q048",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q049",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "新员工试用期表现怎么样",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "新员工试用期表现怎么样"
+      ],
+      "payload": {
+        "questionId": "q049",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q050",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我看一下各美容师的服务次数对比",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我看一下各美容师的服务次数对比"
+      ],
+      "payload": {
+        "questionId": "q050",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q051",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天谁服务了几个客人",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天谁服务了几个客人"
+      ],
+      "payload": {
+        "questionId": "q051",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q052",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "哪个员工这个月进步最快",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "哪个员工这个月进步最快"
+      ],
+      "payload": {
+        "questionId": "q052",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q053",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有没有员工最近很长时间没有新客了",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有没有员工最近很长时间没有新客了"
+      ],
+      "payload": {
+        "questionId": "q053",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician",
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q056",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有没有员工到期转正需要我处理",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有没有员工到期转正需要我处理"
+      ],
+      "payload": {
+        "questionId": "q056",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q057",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近有没有员工出现迟到早退",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近有没有员工出现迟到早退"
+      ],
+      "payload": {
+        "questionId": "q057",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q058",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "哪个美容师的升单能力最强",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "哪个美容师的升单能力最强"
+      ],
+      "payload": {
+        "questionId": "q058",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q059",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我看一下员工这周的工作饱和度",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我看一下员工这周的工作饱和度"
+      ],
+      "payload": {
+        "questionId": "q059",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "store.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:beautician"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q063",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月耗材用了多少，正常吗",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "这个月耗材用了多少，正常吗"
+      ],
+      "payload": {
+        "questionId": "q063",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q064",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近卖得最好的产品是什么",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近卖得最好的产品是什么"
+      ],
+      "payload": {
+        "questionId": "q064",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q065",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有什么产品积压太久了",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有什么产品积压太久了"
+      ],
+      "payload": {
+        "questionId": "q065",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q066",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "下次采购需要补什么货",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "下次采购需要补什么货"
+      ],
+      "payload": {
+        "questionId": "q066",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:supplier"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q068",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有没有哪个项目因为缺耗材没法做",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有没有哪个项目因为缺耗材没法做"
+      ],
+      "payload": {
+        "questionId": "q068",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct",
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q070",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近采购了什么，花了多少钱",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近采购了什么，花了多少钱"
+      ],
+      "payload": {
+        "questionId": "q070",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:supplier"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q071",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有没有产品快断货但还没采购的",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有没有产品快断货但还没采购的"
+      ],
+      "payload": {
+        "questionId": "q071",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct",
+          "business-object:supplier"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q073",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "哪些耗材消耗速度最快",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "哪些耗材消耗速度最快"
+      ],
+      "payload": {
+        "questionId": "q073",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q074",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "现在仓库里护肤品还有多少",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "现在仓库里护肤品还有多少"
+      ],
+      "payload": {
+        "questionId": "q074",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q075",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "有没有产品卖出去的价格低于成本的",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "有没有产品卖出去的价格低于成本的"
+      ],
+      "payload": {
+        "questionId": "q075",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:financemetric",
+          "business-object:inventoryproduct"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q076",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近有没有收到供应商的涨价通知",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近有没有收到供应商的涨价通知"
+      ],
+      "payload": {
+        "questionId": "q076",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:supplier"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q077",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月退货了多少，原因是什么",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "这个月退货了多少，原因是什么"
+      ],
+      "payload": {
+        "questionId": "q077",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q080",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我生成一份补货建议",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我生成一份补货建议"
+      ],
+      "payload": {
+        "questionId": "q080",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "inventory.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:supplier"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q083",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这周预约爽约率高不高",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "这周预约爽约率高不高"
+      ],
+      "payload": {
+        "questionId": "q083",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:reservation"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q085",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "店里设备最近有没有什么问题",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "店里设备最近有没有什么问题"
+      ],
+      "payload": {
+        "questionId": "q085",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:terminal"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q086",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天有没有超时服务影响了下一个预约",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "今天有没有超时服务影响了下一个预约"
+      ],
+      "payload": {
+        "questionId": "q086",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:reservation"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q087",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近折扣幅度有没有超出正常范围的",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "最近折扣幅度有没有超出正常范围的"
+      ],
+      "payload": {
+        "questionId": "q087",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q093",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天有没有超过接待能力的情况",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天有没有超过接待能力的情况"
+      ],
+      "payload": {
+        "questionId": "q093",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q096",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近有没有出现服务事故或皮肤过敏的情况",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "最近有没有出现服务事故或皮肤过敏的情况"
+      ],
+      "payload": {
+        "questionId": "q096",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q097",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "这个月有没有收到很多差评或负面反馈",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "这个月有没有收到很多差评或负面反馈"
+      ],
+      "payload": {
+        "questionId": "q097",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q099",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "店里消防安全检查需要做吗",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "店里消防安全检查需要做吗"
+      ],
+      "payload": {
+        "questionId": "q099",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q100",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "今天有没有需要我马上处理的紧急事项",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "今天有没有需要我马上处理的紧急事项"
+      ],
+      "payload": {
+        "questionId": "q100",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "finance.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q013",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近新客转化效果好不好，问题出在哪",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近新客转化效果好不好，问题出在哪"
+      ],
+      "payload": {
+        "questionId": "q013",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q018",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近哪个时间段新客最多，从哪些渠道来",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近哪个时间段新客最多，从哪些渠道来"
+      ],
+      "payload": {
+        "questionId": "q018",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q019",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我找一下办了卡但还没预约的新客",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我找一下办了卡但还没预约的新客"
+      ],
+      "payload": {
+        "questionId": "q019",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "customer.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer",
+          "business-object:reservation"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q021",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我策划一个母亲节的促销活动",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我策划一个母亲节的促销活动"
+      ],
+      "payload": {
+        "questionId": "q021",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q022",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "国庆节前后我应该做什么活动",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "国庆节前后我应该做什么活动"
+      ],
+      "payload": {
+        "questionId": "q022",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q023",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "夏天快来了，有什么适合推的季节性项目",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "夏天快来了，有什么适合推的季节性项目"
+      ],
+      "payload": {
+        "questionId": "q023",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q024",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "我想做个老带新的活动，怎么设计比较合理",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "我想做个老带新的活动，怎么设计比较合理"
+      ],
+      "payload": {
+        "questionId": "q024",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q028",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我想个适合在朋友圈发的活动主题",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我想个适合在朋友圈发的活动主题"
+      ],
+      "payload": {
+        "questionId": "q028",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q030",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我设计一个新客专属的欢迎礼包",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我设计一个新客专属的欢迎礼包"
+      ],
+      "payload": {
+        "questionId": "q030",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q031",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "最近销售下滑，有什么活动可以拉动一下",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "最近销售下滑，有什么活动可以拉动一下"
+      ],
+      "payload": {
+        "questionId": "q031",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q032",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "我们店三周年了，做什么活动比较有意义",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "我们店三周年了，做什么活动比较有意义"
+      ],
+      "payload": {
+        "questionId": "q032",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q034",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我策划一个回馈老客的感恩活动",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我策划一个回馈老客的感恩活动"
+      ],
+      "payload": {
+        "questionId": "q034",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer",
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q035",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "我想推一个疗程套餐，定价和权益怎么设计",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "我想推一个疗程套餐，定价和权益怎么设计"
+      ],
+      "payload": {
+        "questionId": "q035",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q038",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "情人节快到了，适合推什么项目或活动",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "情人节快到了，适合推什么项目或活动"
+      ],
+      "payload": {
+        "questionId": "q038",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity",
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q040",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我策划一个线上引流到线下体验的活动",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我策划一个线上引流到线下体验的活动"
+      ],
+      "payload": {
+        "questionId": "q040",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q043",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我写个朋友圈文案推一下我们的新项目",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我写个朋友圈文案推一下我们的新项目"
+      ],
+      "payload": {
+        "questionId": "q043",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q044",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "给刚来店体验过的新客写一条跟进话术",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "给刚来店体验过的新客写一条跟进话术"
+      ],
+      "payload": {
+        "questionId": "q044",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q045",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我写一条推荐疗程续购的私信",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我写一条推荐疗程续购的私信"
+      ],
+      "payload": {
+        "questionId": "q045",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q047",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我写一个活动通知，发给全体会员",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我写一个活动通知，发给全体会员"
+      ],
+      "payload": {
+        "questionId": "q047",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:customer",
+          "business-object:marketingactivity"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q049",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.54,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我写个生日祝福加优惠的消息模板",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法未能稳定关联到业务对象，需产品或运营确认是否新增对象、能力或作为闲聊处理。",
+      "sourceQuestions": [
+        "帮我写个生日祝福加优惠的消息模板"
+      ],
+      "payload": {
+        "questionId": "q049",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q056",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "写一条解释疗程效果需要坚持的话术",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "写一条解释疗程效果需要坚持的话术"
+      ],
+      "payload": {
+        "questionId": "q056",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:project"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    },
+    {
+      "id": "review:q058",
+      "type": "review_item",
+      "status": "review_required",
+      "source": "llm_generated",
+      "confidence": 0.66,
+      "relationType": "REVIEW_REQUIRED",
+      "value": "帮我写一条推荐产品的朋友圈文案",
+      "label": "未覆盖问法治理项",
+      "reason": "该问法能关联到业务对象，但仍缺能力、同义词或输出形态确认。",
+      "sourceQuestions": [
+        "帮我写一条推荐产品的朋友圈文案"
+      ],
+      "payload": {
+        "questionId": "q058",
+        "priority": "P2",
+        "failureCategory": "能力缺失",
+        "expectedCapabilityId": "marketing.unmapped.eval_candidate",
+        "matchedObjectIds": [
+          "business-object:inventoryproduct"
+        ],
+        "confirmationNeeded": [
+          "未匹配到能力草稿，需要人工确认是否新增能力",
+          "确认是否为闲聊/低风险直答/业务查询"
+        ],
+        "activeGraphImpact": "none_until_reviewed"
+      }
+    }
+  ]
+}

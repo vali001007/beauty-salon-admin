@@ -1,30 +1,30 @@
 {
-  "generatedAt": "2026-07-03 14:49:06 Asia/Shanghai",
+  "generatedAt": "2026-07-05 18:38:57 Asia/Shanghai",
   "scanner": "agent-v2-capability-draft-generator",
   "policy": "直接写入、删除、发券、下发必须审批或阻断；其他只读、指标、趋势、详情、诊断、草稿类能力可自动发布，但必须有权限、证据包和字段策略。",
   "counts": {
-    "prismaModels": 126,
-    "dtoClasses": 177,
-    "controllerEndpoints": 600,
-    "controllerEndpointsWithPermissions": 283,
-    "frontendRoutes": 72,
-    "capabilityDrafts": 592,
+    "prismaModels": 122,
+    "dtoClasses": 166,
+    "controllerEndpoints": 587,
+    "controllerEndpointsWithPermissions": 266,
+    "frontendRoutes": 68,
+    "capabilityDrafts": 577,
     "evalDrafts": 650,
     "unmappedEval": 418
   },
   "distributions": {
     "byReleaseStrategy": {
-      "auto_publish": 327,
-      "approval_required": 258,
+      "auto_publish": 320,
+      "approval_required": 250,
       "write_blocked": 7
     },
     "byDomain": {
-      "customer": 67,
-      "finance": 253,
-      "industry": 75,
+      "customer": 68,
+      "finance": 252,
+      "industry": 68,
       "inventory": 36,
       "marketing": 77,
-      "order": 47,
+      "order": 39,
       "store": 37
     },
     "byFailureCategory": {

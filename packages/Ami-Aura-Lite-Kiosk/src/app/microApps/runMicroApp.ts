@@ -36,6 +36,7 @@ import {
   type TerminalQueryResult,
 } from '../services/terminalQueryClient';
 import { isTerminalAgentRuntimeEnabled, runTerminalAgentIntent, shouldUseTerminalAgentRuntime } from '../services/terminalAgentAdapter';
+import type { TerminalAgentEngine, TerminalAgentV2GrayMode } from '../services/agentRuntimeService';
 import type { MicroAppRunResult } from './microAppTypes';
 
 type CacheableMicroAppConfig<T> = {
@@ -45,12 +46,11 @@ type CacheableMicroAppConfig<T> = {
   toResult: (data: T) => MicroAppRunResult;
 };
 
-type TerminalAgentEngine = 'agent_v1' | 'agent_v2';
-
 type RunMicroAppIntentOptions = {
   businessQueryContext?: BusinessQueryContext;
   agentContext?: Record<string, unknown>;
   agentEngine?: TerminalAgentEngine;
+  agentV2GrayMode?: TerminalAgentV2GrayMode;
 };
 
 export function toTerminalDateKey(date: Date) {
@@ -424,6 +424,9 @@ export async function runMicroAppIntent(
     const context = {
       ...(options.agentContext ?? {}),
       ...(options.agentEngine ? { agentEngine: options.agentEngine } : {}),
+      ...(options.agentEngine === 'agent_v2'
+        ? { agentV2GrayMode: options.agentV2GrayMode ?? 'kg_llm_preferred', architecture: 'kg_llm_agent' }
+        : {}),
       ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     };
     const data = await runBusinessAgent(command, intent.role, context);

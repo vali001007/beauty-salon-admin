@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { formatBusinessDate, formatBusinessDateTime } from '../../common/utils/business-time.js';
 import type { AgentEvidence, AgentToolExecutionContext, AgentToolResult } from '../../agent/agent.types.js';
+import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
+import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
+import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
 
 const DAY_MS = 86_400_000;
 
@@ -22,11 +25,19 @@ type OrderRecordConfig = {
 
 @Injectable()
 export class AgentV2BusinessRecordQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly genericQueryEngine?: GenericQueryEngineService,
+    @Optional() private readonly manifestProvider?: AgentV2ManifestProviderService,
+  ) {}
 
   async execute(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const capabilityId = String(args.capabilityId ?? '');
+    const genericResult = await this.tryGenericQuery(capabilityId, args, context);
+    if (genericResult) return genericResult;
     if (capabilityId === 'inventory.scrap.records.list') return this.listInventoryScrapRecords(args, context);
+    if (capabilityId === 'inventory.expiring-risk.list') return this.listInventoryExpiringRisk(args, context);
+    if (capabilityId === 'inventory.bom.consumption.records.records.list') return this.listInventoryStockHealth(args, context);
     if (capabilityId === 'order.product.records.list') {
       return this.listOrderRecords(args, context, {
         title: '商品订单记录',
@@ -71,6 +82,16 @@ export class AgentV2BusinessRecordQueryService {
       evidence: this.evidence(['AgentV2CapabilityManifest'], '当前能力没有可执行记录查询器。', [], 0),
       actions: [],
     };
+  }
+
+  private async tryGenericQuery(capabilityId: string, args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const manifest = this.activeManifests().find((item) => item.capabilityId === capabilityId);
+    if (!manifest || !this.genericQueryEngine?.canExecute(manifest)) return null;
+    return this.genericQueryEngine.tryExecute({ manifest, args, context });
+  }
+
+  private activeManifests() {
+    return this.manifestProvider?.listManifests() ?? listAgentV2CapabilityManifests();
   }
 
   private async listInventoryScrapRecords(
@@ -149,6 +170,344 @@ export class AgentV2BusinessRecordQueryService {
       },
       evidence,
       actions: [{ label: '查看库存流水', action: 'inventory:stock-movements', riskLevel: 'low' }],
+    };
+  }
+
+  private async listInventoryExpiringRisk(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = this.resolveLimit(args.limit);
+    const riskWindowDays = this.resolveRiskWindowDays(args);
+    const now = this.startOfDay(new Date());
+    const products = await (this.prisma as any).product.findMany({
+      where: {
+        storeId: context.storeId,
+        deletedAt: null,
+      },
+      include: {
+        category: { select: { name: true } },
+        batches: {
+          where: { stock: { gt: 0 } },
+          orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }],
+          take: 5,
+        },
+      },
+      orderBy: [{ currentStock: 'asc' }, { updatedAt: 'desc' }],
+      take: Math.max(limit, 50),
+    });
+
+    const items = ((products ?? []) as any[])
+      .map((product) => {
+        const currentStock = this.toNumber(product.currentStock);
+        const safetyStock = this.toNumber(product.safetyStock);
+        const costPrice = this.toNumber(product.costPrice);
+        const nearestBatch = Array.isArray(product.batches) ? product.batches.find((batch: any) => batch.expiryDate) : null;
+        const expiryDate = nearestBatch?.expiryDate ? new Date(nearestBatch.expiryDate) : null;
+        const daysUntilExpiry = expiryDate ? Math.ceil((this.startOfDay(expiryDate).getTime() - now.getTime()) / DAY_MS) : null;
+        const lowStock = safetyStock > 0 && currentStock < safetyStock;
+        const outOfStock = currentStock <= 0;
+        const expiring = daysUntilExpiry !== null && daysUntilExpiry <= riskWindowDays;
+        const riskScore = (outOfStock ? 100 : 0) + (lowStock ? 70 : 0) + (expiring ? Math.max(10, riskWindowDays - Math.max(daysUntilExpiry ?? riskWindowDays, 0)) : 0);
+        const unit = product.specUnit ?? product.unit ?? '';
+        return {
+          productId: product.id,
+          productName: product.name ?? `商品#${product.id}`,
+          sku: product.sku ?? '',
+          categoryName: product.category?.name ?? '未分类',
+          currentStock,
+          currentStockText: `${currentStock}${unit}`,
+          safetyStock,
+          safetyStockText: `${safetyStock}${unit}`,
+          stockValue: Number((currentStock * costPrice).toFixed(2)),
+          stockValueText: this.formatMoney(currentStock * costPrice),
+          expiryDate,
+          expiryDateText: this.formatDate(expiryDate),
+          daysUntilExpiry,
+          statusLabel: outOfStock ? '缺货' : lowStock ? '低于安全库存' : expiring ? '临期风险' : '正常',
+          riskReason: outOfStock
+            ? '当前库存为 0 或更低。'
+            : lowStock
+              ? '当前库存低于安全库存线。'
+              : expiring
+                ? `最近批次 ${daysUntilExpiry} 天后到期。`
+                : '暂无临期或缺货风险。',
+          riskScore,
+        };
+      })
+      .filter((item) => item.statusLabel !== '正常')
+      .sort((a, b) => b.riskScore - a.riskScore || (a.daysUntilExpiry ?? 9999) - (b.daysUntilExpiry ?? 9999))
+      .slice(0, limit);
+
+    const evidence = this.evidence(
+      ['Product', 'StockBatch', 'StockMovement'],
+      '临期与缺货风险 = Product.currentStock / safetyStock + StockBatch.expiryDate；按当前门店过滤，只读识别风险，不直接生成促销、采购或报废动作。',
+      [`storeId=${context.storeId}`, 'deletedAt=null', `riskWindowDays=${riskWindowDays}`, `limit=${limit}`],
+      items.length,
+      undefined,
+      ['处理方案和促销建议需要人工确认；本能力只提供风险清单和建议入口，不自动发券、不自动下发活动。'],
+    );
+
+    if (!items.length) {
+      return this.noData('临期与报废风险清单', `当前门店 ${riskWindowDays} 天内没有临期、缺货或低库存风险商品。`, { items, requestedLimit: limit, riskWindowDays }, evidence);
+    }
+
+    return {
+      status: 'success',
+      title: '临期与报废风险清单',
+      summary: `发现 ${items.length} 个库存风险商品；最高风险是 ${items[0].productName}，${items[0].riskReason}`,
+      data: {
+        items,
+        requestedLimit: limit,
+        riskWindowDays,
+        riskCount: items.length,
+      },
+      evidence,
+      actions: [
+        { label: '查看库存风险', action: 'inventory:risk-open', riskLevel: 'low' },
+        { label: '生成处理建议草稿', action: 'inventory:risk-draft-recommendation', riskLevel: 'medium' },
+      ],
+    };
+  }
+
+  private async listInventoryStockHealth(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const limit = this.resolveLimit(args.limit);
+    const now = this.startOfDay(new Date());
+    const thirtyDaysAgo = new Date(now.getTime() - 29 * DAY_MS);
+    const sevenDaysAgo = new Date(now.getTime() - 6 * DAY_MS);
+    const sevenDaysLater = new Date(now.getTime() + 7 * DAY_MS);
+    const products = await (this.prisma as any).product.findMany({
+      where: {
+        storeId: context.storeId,
+        deletedAt: null,
+      },
+      include: {
+        category: { select: { name: true } },
+        batches: {
+          where: { stock: { gt: 0 } },
+          orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }],
+          take: 3,
+        },
+      },
+      orderBy: [{ currentStock: 'asc' }, { updatedAt: 'desc' }],
+      take: limit,
+    });
+
+    const productIds = ((products ?? []) as any[]).map((product) => Number(product.id)).filter(Boolean);
+    const [consumptionMovements, reservations, serviceTasks] = productIds.length
+      ? await Promise.all([
+          (this.prisma as any).stockMovement?.findMany
+            ? (this.prisma as any).stockMovement.findMany({
+                where: {
+                  storeId: context.storeId,
+                  productId: { in: productIds },
+                  movementType: { in: ['sale_out', 'service_consume', 'service_consumption'] },
+                  quantity: { lt: 0 },
+                  occurredAt: { gte: thirtyDaysAgo, lt: new Date(now.getTime() + DAY_MS) },
+                },
+                select: { productId: true, quantity: true, occurredAt: true, movementType: true },
+                take: 5000,
+              })
+            : [],
+          (this.prisma as any).reservation?.findMany
+            ? (this.prisma as any).reservation.findMany({
+                where: {
+                  storeId: context.storeId,
+                  date: { gte: now, lt: sevenDaysLater },
+                  status: { notIn: ['cancelled', 'no_show', 'completed'] },
+                },
+                select: { projectId: true },
+                take: 2000,
+              })
+            : [],
+          (this.prisma as any).serviceTask?.findMany
+            ? (this.prisma as any).serviceTask.findMany({
+                where: {
+                  storeId: context.storeId,
+                  appointmentTime: { gte: now, lt: sevenDaysLater },
+                  status: { notIn: ['cancelled', 'completed'] },
+                },
+                select: { projectId: true },
+                take: 2000,
+              })
+            : [],
+        ])
+      : [[], [], []];
+
+    const consumptionByProduct = new Map<number, { consumed7Days: number; consumed30Days: number }>();
+    for (const movement of (consumptionMovements ?? []) as any[]) {
+      const productId = Number(movement.productId);
+      if (!productId) continue;
+      const quantity = Math.abs(this.toNumber(movement.quantity));
+      const current = consumptionByProduct.get(productId) ?? { consumed7Days: 0, consumed30Days: 0 };
+      current.consumed30Days += quantity;
+      if (movement.occurredAt && new Date(movement.occurredAt).getTime() >= sevenDaysAgo.getTime()) current.consumed7Days += quantity;
+      consumptionByProduct.set(productId, current);
+    }
+
+    const projectDemand = new Map<number, number>();
+    for (const item of ([...(reservations ?? []), ...(serviceTasks ?? [])] as any[])) {
+      const projectId = Number(item.projectId);
+      if (!projectId) continue;
+      projectDemand.set(projectId, (projectDemand.get(projectId) ?? 0) + 1);
+    }
+
+    const scheduledBomByProduct = new Map<number, number>();
+    if (projectDemand.size && productIds.length && (this.prisma as any).projectBomItem?.findMany) {
+      const bomItems = await (this.prisma as any).projectBomItem.findMany({
+        where: {
+          projectId: { in: [...projectDemand.keys()] },
+          productId: { in: productIds },
+        },
+        select: { projectId: true, productId: true, standardQty: true },
+      });
+      for (const bomItem of (bomItems ?? []) as any[]) {
+        const productId = Number(bomItem.productId);
+        const multiplier = projectDemand.get(Number(bomItem.projectId)) ?? 0;
+        if (!productId || multiplier <= 0) continue;
+        scheduledBomByProduct.set(productId, (scheduledBomByProduct.get(productId) ?? 0) + this.toNumber(bomItem.standardQty) * multiplier);
+      }
+    }
+
+    const items = ((products ?? []) as any[]).map((product) => {
+      const currentStock = this.toNumber(product.currentStock);
+      const safetyStock = this.toNumber(product.safetyStock);
+      const costPrice = this.toNumber(product.costPrice);
+      const stockValue = Number((currentStock * costPrice).toFixed(2));
+      const nearestBatch = Array.isArray(product.batches) ? product.batches.find((batch: any) => batch.expiryDate) : null;
+      const expiryDate = nearestBatch?.expiryDate ? new Date(nearestBatch.expiryDate) : null;
+      const daysUntilExpiry = expiryDate ? Math.ceil((this.startOfDay(expiryDate).getTime() - now.getTime()) / DAY_MS) : null;
+      const lowStock = safetyStock > 0 && currentStock < safetyStock;
+      const outOfStock = currentStock <= 0;
+      const expiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 30;
+      const statusLabel = outOfStock ? '缺货' : lowStock ? '低于安全库存' : expiringSoon ? '临期关注' : '正常';
+      const unit = product.specUnit ?? product.unit ?? '';
+      const consumption = consumptionByProduct.get(Number(product.id)) ?? { consumed7Days: 0, consumed30Days: 0 };
+      const scheduledBomConsumption7Days = scheduledBomByProduct.get(Number(product.id)) ?? 0;
+      const dailyConsumption30Days = consumption.consumed30Days / 30;
+      const trendForecast7Days = dailyConsumption30Days * 7;
+      const forecast7DaysConsumption = trendForecast7Days + scheduledBomConsumption7Days;
+      const forecast30DaysConsumption = dailyConsumption30Days * 30 + scheduledBomConsumption7Days;
+      const projectedShortage7Days = Math.max(0, forecast7DaysConsumption - currentStock);
+      const recommendedReplenishmentQty = Math.max(0, safetyStock + forecast7DaysConsumption - currentStock);
+      const turnoverRate30Days = currentStock > 0 ? consumption.consumed30Days / currentStock : consumption.consumed30Days > 0 ? null : 0;
+      const daysOfSupply = dailyConsumption30Days > 0 ? currentStock / dailyConsumption30Days : null;
+      const consumptionStatusLabel = projectedShortage7Days > 0
+        ? '7天预计缺口'
+        : daysOfSupply !== null && daysOfSupply <= 7
+          ? '7天内可能耗尽'
+          : consumption.consumed30Days > 0
+            ? '有消耗记录'
+            : '暂无消耗记录';
+      return {
+        productId: product.id,
+        productName: product.name ?? `商品#${product.id}`,
+        sku: product.sku ?? '',
+        categoryName: product.category?.name ?? '未分类',
+        currentStock,
+        currentStockText: `${currentStock}${unit}`,
+        safetyStock,
+        safetyStockText: `${safetyStock}${unit}`,
+        costPrice,
+        costPriceText: this.formatMoney(costPrice),
+        stockValue,
+        stockValueText: this.formatMoney(stockValue),
+        statusLabel,
+        nearestExpiryDate: this.formatDate(expiryDate),
+        daysUntilExpiry,
+        consumed7Days: this.round(consumption.consumed7Days, 2),
+        consumed7DaysText: `${this.round(consumption.consumed7Days, 2)}${unit}`,
+        consumed30Days: this.round(consumption.consumed30Days, 2),
+        consumed30DaysText: `${this.round(consumption.consumed30Days, 2)}${unit}`,
+        dailyConsumption30Days: this.round(dailyConsumption30Days, 2),
+        dailyConsumption30DaysText: `${this.round(dailyConsumption30Days, 2)}${unit}/天`,
+        scheduledBomConsumption7Days: this.round(scheduledBomConsumption7Days, 2),
+        scheduledBomConsumption7DaysText: `${this.round(scheduledBomConsumption7Days, 2)}${unit}`,
+        forecast7DaysConsumption: this.round(forecast7DaysConsumption, 2),
+        forecast7DaysConsumptionText: `${this.round(forecast7DaysConsumption, 2)}${unit}`,
+        forecast30DaysConsumption: this.round(forecast30DaysConsumption, 2),
+        forecast30DaysConsumptionText: `${this.round(forecast30DaysConsumption, 2)}${unit}`,
+        turnoverRate30Days: turnoverRate30Days === null ? null : this.round(turnoverRate30Days, 2),
+        turnoverRate30DaysText: turnoverRate30Days === null ? '无当前库存基数' : `${this.round(turnoverRate30Days, 2)}次/30天`,
+        daysOfSupply: daysOfSupply === null ? null : this.round(daysOfSupply, 1),
+        daysOfSupplyText: daysOfSupply === null ? '暂无消耗基准' : `${this.round(daysOfSupply, 1)}天`,
+        projectedShortage7Days: this.round(projectedShortage7Days, 2),
+        projectedShortage7DaysText: `${this.round(projectedShortage7Days, 2)}${unit}`,
+        recommendedReplenishmentQty: this.round(recommendedReplenishmentQty, 2),
+        recommendedReplenishmentText: `${this.round(recommendedReplenishmentQty, 2)}${unit}`,
+        consumptionStatusLabel,
+        formula: {
+          turnoverRate30Days: '近30天消耗量 / 当前库存',
+          daysOfSupply: '当前库存 / (近30天消耗量 / 30)',
+          forecast7DaysConsumption: '近30天日均消耗 * 7 + 未来7天预约/待服务项目BOM标准耗材',
+          recommendedReplenishmentQty: 'max(0, 安全库存 + 7天预测消耗 - 当前库存)',
+        },
+        riskReason: outOfStock
+          ? '当前库存为 0 或更低，需要优先补货或核对库存。'
+          : lowStock
+            ? '当前库存低于安全库存线。'
+            : projectedShortage7Days > 0
+              ? `按近30天消耗和未来7天项目BOM预计缺口 ${this.round(projectedShortage7Days, 2)}${unit}。`
+            : expiringSoon
+              ? `最近批次 ${daysUntilExpiry} 天后到期。`
+              : '暂无明显库存风险。',
+      };
+    });
+    const totalStockValue = items.reduce((sum, item) => sum + item.stockValue, 0);
+    const lowStockCount = items.filter((item) => item.statusLabel === '缺货' || item.statusLabel === '低于安全库存').length;
+    const expiringCount = items.filter((item) => item.statusLabel === '临期关注').length;
+    const projectedShortageCount = items.filter((item) => item.projectedShortage7Days > 0).length;
+    const totalForecast7DaysConsumption = items.reduce((sum, item) => sum + item.forecast7DaysConsumption, 0);
+    const totalScheduledBomConsumption7Days = items.reduce((sum, item) => sum + item.scheduledBomConsumption7Days, 0);
+    const totalRecommendedReplenishmentQty = items.reduce((sum, item) => sum + item.recommendedReplenishmentQty, 0);
+    const evidence = this.evidence(
+      ['Product', 'StockBatch', 'StockMovement', 'ProjectBomItem'],
+      '库存状态与消耗健康 = Product.currentStock / safetyStock / costPrice + StockBatch 最近到期批次 + 近30天 StockMovement 消耗 + 未来7天 Reservation/ServiceTask 对应 ProjectBomItem 标准耗材；只读不生成补货单。',
+      [
+        `storeId=${context.storeId}`,
+        'deletedAt=null',
+        `productLimit=${limit}`,
+        `consumptionWindow=${this.formatDate(thirtyDaysAgo)} 至 ${this.formatDate(new Date(now.getTime() + DAY_MS))}`,
+        `futureBomWindow=${this.formatDate(now)} 至 ${this.formatDate(sevenDaysLater)}`,
+      ],
+      items.length,
+      undefined,
+      [
+        '周转率以当前库存作为库存基数，适合小门店快速问数；如需财务级周转率，应补充期初/期末平均库存。',
+        '未来消耗预测只纳入未来7天已预约或待服务项目的 BOM 标准耗材，不自动创建采购、调拨或报废单。',
+      ],
+    );
+
+    if (!items.length) {
+      return this.noData('库存状态与消耗健康', '当前门店没有可用于库存问数的商品记录。', { items, requestedLimit: limit, totalStockValue: 0 }, evidence);
+    }
+
+    return {
+      status: 'success',
+      title: '库存状态与消耗健康',
+      summary: `当前纳入 ${items.length} 个商品，库存金额约 ${this.formatMoney(totalStockValue)}；低库存/缺货 ${lowStockCount} 个，临期关注 ${expiringCount} 个，7天预测有缺口 ${projectedShortageCount} 个。`,
+      data: {
+        items,
+        requestedLimit: limit,
+        totalStockValue: Number(totalStockValue.toFixed(2)),
+        totalStockValueText: this.formatMoney(totalStockValue),
+        lowStockCount,
+        expiringCount,
+        projectedShortageCount,
+        totalForecast7DaysConsumption: this.round(totalForecast7DaysConsumption, 2),
+        totalScheduledBomConsumption7Days: this.round(totalScheduledBomConsumption7Days, 2),
+        totalRecommendedReplenishmentQty: this.round(totalRecommendedReplenishmentQty, 2),
+        formulaSummary: {
+          turnoverRate30Days: '近30天消耗量 / 当前库存',
+          daysOfSupply: '当前库存 / 近30天日均消耗',
+          forecast7DaysConsumption: '近30天日均消耗 * 7 + 未来7天预约/待服务项目BOM标准耗材',
+        },
+      },
+      evidence,
+      actions: [{ label: '查看库存管理', action: 'inventory:open-products', riskLevel: 'low' }],
     };
   }
 
@@ -809,6 +1168,12 @@ export class AgentV2BusinessRecordQueryService {
     return Math.min(Math.max(Number(input) || 20, 1), 100);
   }
 
+  private resolveRiskWindowDays(args: Record<string, unknown>) {
+    const filters = typeof args.filters === 'object' && args.filters !== null ? args.filters as Record<string, unknown> : {};
+    const raw = Number(filters.riskWindowDays ?? filters.expiringDays ?? args.riskWindowDays ?? args.expiringDays ?? 30);
+    return Math.min(Math.max(Number.isFinite(raw) ? raw : 30, 1), 365);
+  }
+
   private resolveDateRange(input: unknown): AgentV2DateRange {
     const now = new Date();
     const preset = typeof input === 'object' && input !== null ? String((input as any).preset ?? '') : String(input ?? '');
@@ -927,6 +1292,11 @@ export class AgentV2BusinessRecordQueryService {
   private toNumber(value: unknown) {
     const number = Number(value ?? 0);
     return Number.isFinite(number) ? number : 0;
+  }
+
+  private round(value: number, precision = 2) {
+    const factor = 10 ** precision;
+    return Math.round((Number(value || 0) + Number.EPSILON) * factor) / factor;
   }
 
   private formatMoney(value: number) {

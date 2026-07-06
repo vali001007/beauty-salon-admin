@@ -53,6 +53,7 @@ const StoreSettings = lazyWithRetry(() => import('./pages/system/StoreSettings')
 const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManagement').then(m => ({ default: m.DeviceManagement })), 'DeviceManagement');
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
 const AgentAuditPage = lazyWithRetry(() => import('./pages/system/AgentAuditPage').then(m => ({ default: m.AgentAuditPage })), 'AgentAuditPage');
+const AgentGovernanceCenter = lazyWithRetry(() => import('./pages/system/AgentGovernanceCenter').then(m => ({ default: m.AgentGovernanceCenter })), 'AgentGovernanceCenter');
 const AgentCapabilityCenter = lazyWithRetry(() => import('./pages/system/AgentCapabilityCenter').then(m => ({ default: m.AgentCapabilityCenter })), 'AgentCapabilityCenter');
 const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
 const FinanceOverview = lazyWithRetry(() => import('./pages/finance/FinanceOverview').then(m => ({ default: m.FinanceOverview })), 'FinanceOverview');
@@ -237,7 +238,17 @@ export const router = createBrowserRouter([
       { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
       { path: 'system/agent-audit', element: withGuard('core:system:view', AgentAuditPage) },
-      { path: 'system/agent-capabilities', element: withGuard('core:system:view', AgentCapabilityCenter) },
+      { path: 'system/agent-governance', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/runs', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/runs/:id', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/knowledge-graph', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/knowledge-graph/visualize', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/knowledge-graph/synonyms', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/capabilities', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/auto-publish', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/eval', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
 
       // AI 智能体工作台
       { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },

@@ -150,4 +150,24 @@ describe('AgentV2AnswerContractValidatorService', () => {
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('reasoning_answer_missing_limitations');
   });
+
+  it('warns when table output skipped the field policy audit', () => {
+    const result = service.validate({
+      question: '今天有哪些商品订单',
+      plan: {
+        capabilityPlan: { capabilityId: 'order.product.records.list', reason: '' },
+        outputContract: { requiredKinds: ['table', 'evidence_panel'] },
+      } as any,
+      answer: '找到 1 条商品订单。',
+      toolResults: [
+        {
+          data: { items: [{ orderNo: 'POMQPDGTF8', customerPhone: '13700000000' }] },
+          evidence: { source: ['ProductOrder'], metricDefinition: '商品订单', filters: ['storeId=1'], sampleSize: 1, limitations: ['只读。'] },
+        } as any,
+      ],
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toContain('table_output_missing_field_policy_audit');
+  });
 });

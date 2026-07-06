@@ -1,5 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AgentEvidenceService } from '../agent/agent-evidence.service.js';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AgentWorkflowRuntimeService } from '../agent/agent-workflow-runtime.service.js';
 import type {
   AgentActor,
@@ -13,7 +12,9 @@ import type {
   AuraResponseBlock,
 } from '../agent/agent.types.js';
 import { AgentV2RuntimeService, type AgentV2RuntimePlan } from './agent-v2-runtime.service.js';
+import { AgentV2EvidenceService } from './evidence/agent-v2-evidence.service.js';
 import { AgentV2PolicyGatewayService } from './policy/agent-v2-policy-gateway.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 const TABLE_LABELS: Record<string, string> = {
   movementId: '流水ID',
@@ -80,11 +81,14 @@ const TABLE_LABELS: Record<string, string> = {
 
 @Injectable()
 export class AgentV2OrchestratorService {
+  private readonly logger = new Logger(AgentV2OrchestratorService.name);
+
   constructor(
     private readonly agentV2Runtime: AgentV2RuntimeService,
     private readonly runtime: AgentWorkflowRuntimeService,
-    private readonly evidenceService: AgentEvidenceService,
+    private readonly evidenceService: AgentV2EvidenceService,
     private readonly policyGateway: AgentV2PolicyGatewayService,
+    private readonly prisma: PrismaService,
   ) {}
 
   listTools() {
@@ -163,7 +167,7 @@ export class AgentV2OrchestratorService {
     actor: AgentActor;
     context?: Record<string, unknown>;
   }): Promise<AgentRunResult> {
-    const agentV2Plan = this.agentV2Runtime.plan({
+    const agentV2Plan = await this.agentV2Runtime.planAsync({
       message: input.message,
       actor: input.actor,
       context: input.context,
@@ -202,12 +206,30 @@ export class AgentV2OrchestratorService {
       startedAt: planningAt,
       endedAt: new Date(),
     });
+    await this.upsertAuditDetail({
+      run: input.run,
+      message: input.message,
+      actor: input.actor,
+      context: input.context,
+      status: 'planned',
+      agentV2Plan,
+      latencyBreakdown: { planningMs: Date.now() - planningAt.getTime() },
+    });
 
     if (plan.clarificationNeeded || !plan.toolPlan.length) {
       const answer = plan.clarificationQuestion ?? '请补充要处理的经营任务。';
       await this.runtime.addMessage(runId, 'assistant', answer, { status: 'clarify', architecture: 'agent_v2' });
       const updated = await this.runtime.setRunStatus(runId, 'completed', {
         resultJson: this.toJson({ answer, plan, toolResults: [], architecture: 'agent_v2' }),
+      });
+      await this.upsertAuditDetail({
+        run: updated,
+        message: input.message,
+        actor: input.actor,
+        context: input.context,
+        status: 'completed',
+        agentV2Plan,
+        toolResults: [],
       });
       return this.buildRunResult(updated, plan, answer, [], [], [], input.context, undefined, undefined);
     }
@@ -249,6 +271,16 @@ export class AgentV2OrchestratorService {
         const updated = await this.runtime.setRunStatus(runId, 'waiting_approval', {
           resultJson: this.toJson({ answer, plan, toolResults, renderedBlocks, approval, architecture: 'agent_v2' }),
         });
+        await this.upsertAuditDetail({
+          run: updated,
+          message: input.message,
+          actor: input.actor,
+          context: input.context,
+          status: 'waiting_approval',
+          agentV2Plan,
+          toolResults,
+          latencyBreakdown: { waitingApprovalId: approval.id },
+        });
         return {
           ...this.buildRunResult(updated, plan, answer, toolResults, actions, renderedBlocks, input.context, undefined, undefined),
           approval: {
@@ -270,6 +302,7 @@ export class AgentV2OrchestratorService {
         userId: input.actor.userId,
         deviceId: input.actor.deviceId,
         role: input.actor.role,
+        permissions: input.actor.permissions,
       });
       const result = this.policyGateway.applyResultPolicy(rawResult, agentV2Plan.decision.selected, input.actor);
       toolResults.push(result);
@@ -316,6 +349,7 @@ export class AgentV2OrchestratorService {
     const finalAnswer = answerContract.valid ? answer : this.contractFailureAnswer(answerContract);
     const finalBlocks = answerContract.valid ? renderedBlocks : this.contractFailureBlocks(finalAnswer, answerContract);
     const phaseOutputs = this.buildPhaseOutputs(finalAnswer, finalBlocks);
+    const answerContractSummary = this.toAnswerContract(answerContract);
 
     await this.runtime.recordStep({
       runId,
@@ -337,9 +371,21 @@ export class AgentV2OrchestratorService {
         actions,
         renderedBlocks: finalBlocks,
         phaseOutputs,
-        answerContract: this.toAnswerContract(answerContract),
+        answerContract: answerContractSummary,
         architecture: 'agent_v2',
       }),
+    });
+    await this.upsertAuditDetail({
+      run: updated,
+      message: input.message,
+      actor: input.actor,
+      context: input.context,
+      status: answerContract.valid ? 'completed' : 'contract_failed',
+      agentV2Plan,
+      toolResults,
+      evidence,
+      answerContract: answerContractSummary,
+      phaseOutputs,
     });
     return this.buildRunResult(
       updated,
@@ -350,7 +396,7 @@ export class AgentV2OrchestratorService {
       finalBlocks,
       input.context,
       evidence,
-      this.toAnswerContract(answerContract),
+      answerContractSummary,
       phaseOutputs,
     );
   }
@@ -380,7 +426,7 @@ export class AgentV2OrchestratorService {
         errors: answerContract.errors,
       },
     };
-    const retryPlan = this.agentV2Runtime.plan({
+    const retryPlan = await this.agentV2Runtime.planAsync({
       message: input.message,
       actor: input.actor,
       context: retryContext,
@@ -443,7 +489,104 @@ export class AgentV2OrchestratorService {
     const updated = await this.runtime.setRunStatus(runId, 'completed', {
       resultJson: this.toJson({ answer, plan, toolResults: [], architecture: 'agent_v2', fallback: false }),
     });
+    await this.upsertAuditDetail({
+      run: updated,
+      message: input.message,
+      actor: input.actor,
+      context: input.context,
+      status: 'unsupported_capability',
+      errorCode: 'no_capability_matched',
+      errorMessage: 'Agent V2 当前没有匹配的已发布能力。',
+    });
     return this.buildRunResult(updated, plan, answer, [], [], [], input.context);
+  }
+
+  private async upsertAuditDetail(input: {
+    run: any;
+    message: string;
+    actor: AgentActor;
+    context?: Record<string, unknown>;
+    status: string;
+    agentV2Plan?: AgentV2RuntimePlan;
+    toolResults?: AgentToolResult[];
+    evidence?: AgentEvidence;
+    answerContract?: AgentRunResult['answerContract'];
+    phaseOutputs?: AgentPhaseOutput[];
+    latencyBreakdown?: Record<string, unknown>;
+    errorCode?: string;
+    errorMessage?: string;
+  }) {
+    const delegate = (this.prisma as any).agentRunAuditDetail;
+    if (!delegate?.upsert) return;
+
+    const decision = input.agentV2Plan?.decision;
+    const selected = decision?.selected;
+    const runId = Number(input.run.id);
+    const data = {
+      runId,
+      storeId: input.actor.storeId ?? input.run.storeId ?? null,
+      userId: input.actor.userId ?? input.run.userId ?? null,
+      role: input.actor.role ?? input.run.role ?? null,
+      entrypoint: input.actor.entrypoint ?? input.run.entrypoint ?? null,
+      agentCode: input.run.agentCode ?? 'agent_v2',
+      personaCode: input.actor.personaCode ?? input.run.personaCode ?? null,
+      question: input.message,
+      status: input.status,
+      capabilityId: selected?.capabilityId ?? null,
+      knowledgeGraphJson: this.toJson({
+        routeDecision: this.asObject(input.context?.routeDecision),
+        strategy: input.agentV2Plan?.strategy,
+      }),
+      llmPromptJson: this.toJson(this.asObject(input.context?.llmPrompt) ?? this.asObject(input.context?.agentV2Prompt)),
+      llmResponseJson: this.toJson(this.asObject(input.context?.llmResponse) ?? this.asObject(input.context?.agentV2LlmResponse)),
+      structuredIntentJson: this.toJson({
+        outputIntent: decision?.outputIntent,
+        boundaryWarnings: decision?.boundaryWarnings ?? [],
+      }),
+      capabilityMappingJson: this.toJson({
+        selected: selected?.capabilityId ?? null,
+        reason: decision?.reason,
+        confidence: decision?.confidence,
+        candidates: decision?.candidates,
+        excluded: decision?.excluded,
+        toolPlan: decision?.toolPlan,
+      }),
+      policyDecisionJson: this.toJson({
+        releaseStrategy: selected?.releaseStrategy,
+        riskLevel: selected?.riskLevel,
+        permissionCodes: selected?.permissionCodes,
+        storeScope: selected?.storeScope,
+        fieldPolicies: selected?.fieldPolicies,
+        answerContract: input.answerContract,
+      }),
+      toolTraceJson: this.toJson({
+        plannedTools: input.agentV2Plan?.plan.toolPlan ?? [],
+        results: input.toolResults ?? [],
+        evidence: input.evidence,
+        phaseOutputs: input.phaseOutputs,
+      }),
+      contractValidationJson: this.toJson(input.answerContract),
+      latencyBreakdownJson: this.toJson(input.latencyBreakdown),
+      costJson: this.toJson(this.asObject(input.context?.cost) ?? this.asObject(input.context?.agentV2Cost)),
+      riskJson: this.toJson({
+        releaseStrategy: selected?.releaseStrategy,
+        riskLevel: selected?.riskLevel,
+        boundaryWarnings: decision?.boundaryWarnings ?? [],
+      }),
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+    };
+    const { runId: _runId, ...updateData } = data;
+
+    try {
+      await delegate.upsert({
+        where: { runId },
+        create: data,
+        update: updateData,
+      });
+    } catch (error) {
+      this.logger.warn(`Agent V2 audit detail upsert failed for run ${runId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private withAgentV2Context(context?: Record<string, unknown>) {

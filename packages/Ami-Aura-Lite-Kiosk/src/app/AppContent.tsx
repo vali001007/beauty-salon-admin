@@ -141,6 +141,7 @@ import type { AuraBootstrap } from "../../../../src/types/aura";
 type LoadingPayload = { kind: "agentThinking" };
 type Payload = AuraPayload | LoadingPayload;
 type TerminalAgentEngine = "agent_v1" | "agent_v2";
+type TerminalAgentV2GrayMode = "legacy_regex" | "shadow" | "kg_llm_preferred" | "kg_llm_only" | "legacy_retired";
 
 const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "cardVerification",
@@ -154,6 +155,7 @@ const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
 
 const PERSONA_REFRESH_INTERVAL_MS = 60_000;
 const TERMINAL_AGENT_ENGINE_STORAGE_KEY = "ami.aura.agent.runtimeMode";
+const TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY = "ami.aura.agent.v2GrayMode";
 
 function resolveTerminalAgentEngine(value: string | null | undefined): TerminalAgentEngine {
   return value === "agent_v2" ? "agent_v2" : "agent_v1";
@@ -162,6 +164,24 @@ function resolveTerminalAgentEngine(value: string | null | undefined): TerminalA
 function getStoredTerminalAgentEngine(): TerminalAgentEngine {
   if (typeof window === "undefined") return "agent_v1";
   return resolveTerminalAgentEngine(window.localStorage.getItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY));
+}
+
+function resolveTerminalAgentV2GrayMode(value: string | null | undefined): TerminalAgentV2GrayMode {
+  if (
+    value === "legacy_regex" ||
+    value === "shadow" ||
+    value === "kg_llm_preferred" ||
+    value === "kg_llm_only" ||
+    value === "legacy_retired"
+  ) {
+    return value;
+  }
+  return "kg_llm_preferred";
+}
+
+function getStoredTerminalAgentV2GrayMode(): TerminalAgentV2GrayMode {
+  if (typeof window === "undefined") return "kg_llm_preferred";
+  return resolveTerminalAgentV2GrayMode(window.localStorage.getItem(TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY));
 }
 
 function createMessage(
@@ -617,6 +637,7 @@ export default function AppContent() {
   const [currentRole, setCurrentRole] = useState<Role>("reception");
   const [activePersonaCode, setActivePersonaCode] = useState<TerminalAgentPersonaCode>(getDefaultTerminalPersona("reception"));
   const [agentEngine, setAgentEngine] = useState<TerminalAgentEngine>(getStoredTerminalAgentEngine);
+  const [agentV2GrayMode, setAgentV2GrayMode] = useState<TerminalAgentV2GrayMode>(getStoredTerminalAgentV2GrayMode);
   const [agentPersonas, setAgentPersonas] = useState<AgentPersonaSummary[]>(BUILTIN_AGENT_PERSONAS);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -667,6 +688,7 @@ export default function AppContent() {
   const currentRoleRef = useRef<Role>(currentRole);
   const activePersonaCodeRef = useRef<TerminalAgentPersonaCode>(activePersonaCode);
   const agentEngineRef = useRef<TerminalAgentEngine>(agentEngine);
+  const agentV2GrayModeRef = useRef<TerminalAgentV2GrayMode>(agentV2GrayMode);
   const currentOperatorIdRef = useRef<number | null>(currentOperatorId);
   const conversationEpochRef = useRef(0);
   const refreshAgentPersonas = useCallback(async (isActive: () => boolean = () => true) => {
@@ -695,6 +717,10 @@ export default function AppContent() {
   useEffect(() => {
     agentEngineRef.current = agentEngine;
   }, [agentEngine]);
+
+  useEffect(() => {
+    agentV2GrayModeRef.current = agentV2GrayMode;
+  }, [agentV2GrayMode]);
 
   useEffect(() => {
     currentOperatorIdRef.current = currentOperatorId;
@@ -754,6 +780,27 @@ export default function AppContent() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY, nextEngine);
       }
+      advanceConversationEpoch();
+      clearAllMessages();
+      setConversationContext(createConversationContext(currentRoleRef.current, undefined));
+      setLoading(false);
+      setAgentLoading(false);
+      setSuppressBlockingLoading(false);
+      setLoadingText("正在接入 Ami_Core");
+      setError(null);
+    },
+    [clearAllMessages, setAgentLoading],
+  );
+
+  const handleAgentV2GrayModeChange = useCallback(
+    (nextMode: TerminalAgentV2GrayMode) => {
+      if (nextMode === agentV2GrayModeRef.current) return;
+      agentV2GrayModeRef.current = nextMode;
+      setAgentV2GrayMode(nextMode);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY, nextMode);
+      }
+      if (agentEngineRef.current !== "agent_v2") return;
       advanceConversationEpoch();
       clearAllMessages();
       setConversationContext(createConversationContext(currentRoleRef.current, undefined));
@@ -1407,6 +1454,10 @@ export default function AppContent() {
 
       const selectedPersonaCode = activePersonaCodeRef.current;
       const selectedAgentEngine = agentEngineRef.current;
+      const selectedAgentV2GrayMode = selectedAgentEngine === "agent_v2" ? agentV2GrayModeRef.current : undefined;
+      const agentV2Meta = selectedAgentV2GrayMode
+        ? { agentV2GrayMode: selectedAgentV2GrayMode, architecture: "kg_llm_agent" }
+        : {};
       const terminalFacts = buildTerminalFactContext(messagesRef.current, {
         store: bootstrap?.currentStore ?? session?.store ?? null,
         operator: bootstrap?.currentUser ?? session?.user ?? null,
@@ -1414,18 +1465,22 @@ export default function AppContent() {
           entrypoint: "terminal:kiosk",
           role: currentRoleRef.current,
           agentEngine: selectedAgentEngine,
+          ...agentV2Meta,
           ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
         },
       });
 
       const result = await runMicroAppIntent(intent, command, {
         agentEngine: selectedAgentEngine,
+        ...(selectedAgentV2GrayMode ? { agentV2GrayMode: selectedAgentV2GrayMode } : {}),
         agentContext: {
           ...(getLatestAgentContext() ?? {}),
           agentEngine: selectedAgentEngine,
+          ...agentV2Meta,
           terminalFacts,
           terminal: {
             agentEngine: selectedAgentEngine,
+            ...agentV2Meta,
             ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
           },
         },
@@ -1607,11 +1662,13 @@ export default function AppContent() {
         currentUserId={currentOperatorId}
         availableUsers={availableUsers}
         agentEngine={agentEngine}
+        agentV2GrayMode={agentV2GrayMode}
         switchingStore={switchingStore}
         switchingUser={switchingUser}
         onStoreChange={handleStoreChange}
         onUserChange={handleUserChange}
         onAgentEngineChange={handleAgentEngineChange}
+        onAgentV2GrayModeChange={handleAgentV2GrayModeChange}
         onHistory={() => setShowConversationHistory(true)}
         onLock={handleLock}
         onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() })}

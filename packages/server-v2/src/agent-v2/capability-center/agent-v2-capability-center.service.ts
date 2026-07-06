@@ -43,6 +43,7 @@ type RawCapabilityDraft = Record<string, unknown> & {
   sourceRoutes?: unknown[];
   outputKinds?: unknown[];
   executor?: unknown;
+  customServiceReason?: string;
   storeScope?: string;
   fieldPolicies?: unknown[];
   triggerKeywords?: unknown[];
@@ -164,12 +165,17 @@ export class AgentV2CapabilityCenterService {
     };
   }
 
-  async importDrafts(input: { path?: string; limit?: number; overwriteReviewed?: boolean } = {}) {
+  async importDrafts(input: { path?: string; limit?: number; overwriteReviewed?: boolean; capabilityIds?: string[] } = {}) {
     const path = this.resolveWorkspacePath(input.path || DEFAULT_DRAFT_REPORT);
     if (!existsSync(path)) throw new NotFoundException(`候选能力草稿文件不存在：${input.path || DEFAULT_DRAFT_REPORT}`);
 
     const report = JSON.parse(readFileSync(path, 'utf8')) as DraftReport;
-    const drafts = (report.drafts ?? []).filter((item) => item.capabilityId);
+    const capabilityIdFilter = new Set((input.capabilityIds ?? []).map(String).filter(Boolean));
+    const drafts = (report.drafts ?? []).filter((item) => {
+      if (!item.capabilityId) return false;
+      if (!capabilityIdFilter.size) return true;
+      return capabilityIdFilter.has(String(item.capabilityId));
+    });
     const limit = input.limit ? Math.min(this.toPositiveInt(input.limit, drafts.length), drafts.length) : drafts.length;
     const selected = [
       ...drafts.slice(0, limit),
@@ -179,6 +185,7 @@ export class AgentV2CapabilityCenterService {
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    let deprecated = 0;
     for (const raw of selected) {
       const capabilityId = String(raw.capabilityId);
       const existing = await this.prisma.agentCapabilityDraft.findUnique({ where: { capabilityId } });
@@ -196,6 +203,17 @@ export class AgentV2CapabilityCenterService {
       else created += 1;
       await this.upsertQueryKeyFromDraft(raw);
     }
+    if (!input.limit && !capabilityIdFilter.size) {
+      const deprecatedResult = await this.prisma.agentCapabilityDraft.updateMany({
+        where: {
+          source: 'auto_scan_draft',
+          capabilityId: { notIn: selected.map((item) => String(item.capabilityId)) },
+          status: { notIn: ['published', 'rejected', 'deprecated'] },
+        },
+        data: { status: 'deprecated' },
+      });
+      deprecated = Number(deprecatedResult.count ?? 0);
+    }
 
     return {
       source: input.path || DEFAULT_DRAFT_REPORT,
@@ -207,6 +225,7 @@ export class AgentV2CapabilityCenterService {
       created,
       updated,
       skipped,
+      deprecated,
     };
   }
 
@@ -250,6 +269,14 @@ export class AgentV2CapabilityCenterService {
         level: 'warn',
         message: '缺少 queryKey，运行时只能按工具默认逻辑处理。',
         suggestion: '为能力生成稳定 queryKey 并登记到工具 QueryKey Registry。',
+      });
+    }
+    if (manifest.executor.type === 'custom_service' && !manifest.customServiceReason?.trim()) {
+      issues.push({
+        code: 'missing_custom_service_reason',
+        level: 'block',
+        message: '专用服务能力缺少保留专用逻辑的原因，不能进入正式能力目录。',
+        suggestion: '补充 customServiceReason，说明为何不能由 GenericQueryEngine 或通用工具直接承接。',
       });
     }
     if (!manifest.outputKinds.length) {
@@ -808,6 +835,7 @@ export class AgentV2CapabilityCenterService {
       version: result.version.version,
       itemCount: allManifests.length,
       publishedDraftCount: drafts.length,
+      publishedCapabilityIds: drafts.map((draft) => draft.capabilityId),
       activeManifestVersion: this.manifestProvider.getActiveVersion(),
     };
   }
@@ -855,28 +883,46 @@ export class AgentV2CapabilityCenterService {
   }
 
   private publishWhere(input: { capabilityIds?: string[]; mode?: 'selected' | 'approved' | 'auto' }) {
-    if (input.capabilityIds?.length) return { capabilityId: { in: input.capabilityIds } };
-    if (input.mode === 'auto') return { status: { in: ['draft', 'approved'] }, releaseStrategy: 'auto_publish' };
+    const capabilityFilter = input.capabilityIds?.length ? { capabilityId: { in: input.capabilityIds } } : {};
+    if (input.mode === 'auto') return { ...capabilityFilter, status: { in: ['draft', 'approved'] }, releaseStrategy: 'auto_publish' };
+    if (input.capabilityIds?.length) return capabilityFilter;
     return { status: 'approved' };
   }
 
   private async getDraftStats() {
-    const groups = await this.prisma.agentCapabilityDraft.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    });
-    const total = await this.prisma.agentCapabilityDraft.count();
+    const [groups, total, executorItems] = await Promise.all([
+      this.prisma.agentCapabilityDraft.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      this.prisma.agentCapabilityDraft.count(),
+      this.prisma.agentCapabilityDraft.findMany({
+        select: { executorJson: true },
+        take: 1000,
+      }),
+    ]);
+    const byExecutorType = (executorItems as Array<{ executorJson?: unknown }>).reduce<Record<string, number>>((acc, item) => {
+      const executor = this.asObject(item.executorJson);
+      const type = String(executor?.type ?? 'unknown');
+      acc[type] = (acc[type] ?? 0) + 1;
+      return acc;
+    }, {});
     return {
       total,
       byStatus: Object.fromEntries(groups.map((item) => [item.status, item._count._all])),
+      byExecutorType,
+      customServiceTotal: byExecutorType.custom_service ?? 0,
     };
   }
 
   private toDraftWriteData(raw: RawCapabilityDraft) {
     const executor = this.asObject(raw.executor);
+    const customServiceReason = String(raw.customServiceReason ?? executor?.customServiceReason ?? '').trim();
+    if (executor && customServiceReason) executor.customServiceReason = customServiceReason;
+    const classification = this.classifyDraft(raw, executor);
     return {
       capabilityId: String(raw.capabilityId),
-      status: String(raw.status ?? 'draft'),
+      status: String(raw.status ?? classification.status),
       source: String(raw.source ?? 'auto_scan_draft'),
       displayName: String(raw.displayName ?? raw.capabilityId),
       displayNameZh: raw.displayNameZh ? String(raw.displayNameZh) : undefined,
@@ -885,7 +931,7 @@ export class AgentV2CapabilityCenterService {
       businessObject: String(raw.businessObject ?? 'Unknown'),
       actionCodes: this.toJson(this.stringArray(raw.actions)),
       personaCodes: this.toJson(this.stringArray(raw.personaCodes)),
-      releaseStrategy: String(raw.releaseStrategy ?? 'approval_required'),
+      releaseStrategy: String(raw.releaseStrategy ?? classification.releaseStrategy),
       riskLevel: String(raw.riskLevel ?? 'low'),
       permissionSource: raw.permissionSource ? String(raw.permissionSource) : undefined,
       permissionCodes: this.toJson(this.stringArray(raw.permissionCodes)),
@@ -901,9 +947,108 @@ export class AgentV2CapabilityCenterService {
       examples: this.toJson(this.stringArray(raw.examples)),
       negativeExamples: this.toJson(this.stringArray(raw.negativeExamples)),
       boundaryNotes: this.toJson(this.stringArray(raw.boundaryNotes)),
-      governanceIssues: this.toJson(Array.isArray(raw.governanceIssues) ? raw.governanceIssues : undefined),
+      governanceIssues: this.toJson([
+        ...(Array.isArray(raw.governanceIssues) ? raw.governanceIssues : []),
+        ...classification.governanceIssues,
+      ]),
       scannerFingerprint: this.fingerprint(raw),
     };
+  }
+
+  private classifyDraft(raw: RawCapabilityDraft, executor: Record<string, unknown> | null) {
+    const permissionCodes = this.stringArray(raw.permissionCodes);
+    const sourceApis = this.stringArray(raw.sourceApis);
+    const actions = this.stringArray(raw.actions);
+    const outputKinds = this.stringArray(raw.outputKinds);
+    const executorType = String(executor?.type ?? '');
+    const queryKey = executor?.queryKey ? String(executor.queryKey) : '';
+    const customServiceReason = String(executor?.customServiceReason ?? raw.customServiceReason ?? '').trim();
+    const missingCustomServiceReason = executorType === 'custom_service' && !customServiceReason;
+    const usedStrategyDefault = raw.releaseStrategy === undefined || raw.releaseStrategy === null || raw.releaseStrategy === '';
+    const usedStatusDefault = raw.status === undefined || raw.status === null || raw.status === '';
+    const draftLike = executorType === 'business_action_draft' || actions.includes('draft');
+    const writeBlocked = !draftLike && this.isWriteBlockedDraft(raw, sourceApis, actions);
+    const releaseStrategy: AgentV2ReleaseStrategy = writeBlocked
+      ? 'write_blocked'
+      : draftLike
+        ? 'approval_required'
+        : this.isAutoPublishDraft(sourceApis, executorType, outputKinds, actions)
+          ? 'auto_publish'
+          : 'approval_required';
+    const status = !permissionCodes.length || missingCustomServiceReason
+      ? 'needs_review'
+      : this.requiresQueryKey(executorType) && !queryKey
+        ? 'needs_development'
+        : 'draft';
+    const governanceIssues: Array<{ code: string; level: 'info' | 'warn' | 'block'; message: string }> = [];
+    if (usedStrategyDefault || usedStatusDefault) {
+      governanceIssues.push({
+        code: 'auto_classification_applied',
+        level: 'info',
+        message: `自动分类：releaseStrategy=${releaseStrategy}, status=${status}`,
+      });
+    }
+    if (!permissionCodes.length) {
+      governanceIssues.push({
+        code: 'missing_permission_needs_review',
+        level: 'warn',
+        message: '缺少明确权限码，进入 needs_review，不允许自动发布。',
+      });
+    }
+    if (status === 'needs_development') {
+      governanceIssues.push({
+        code: 'query_key_needs_development',
+        level: 'warn',
+        message: '缺少 queryKey，进入 needs_development，等待工具登记和 dry-run。',
+      });
+    }
+    if (missingCustomServiceReason) {
+      governanceIssues.push({
+        code: 'missing_custom_service_reason',
+        level: 'block',
+        message: '专用服务缺少保留原因，进入 needs_review，不能自动发布。',
+      });
+    }
+    if (writeBlocked) {
+      governanceIssues.push({
+        code: 'write_operation_blocked',
+        level: 'block',
+        message: '疑似写入、删除、发券或下发能力，默认 write_blocked。',
+      });
+    }
+    return { releaseStrategy, status, governanceIssues };
+  }
+
+  private isAutoPublishDraft(
+    sourceApis: string[],
+    executorType: string,
+    outputKinds: string[],
+    actions: string[],
+  ) {
+    if (executorType === 'navigation') return true;
+    if (sourceApis.some((api) => /^get\s+/i.test(api.trim()))) return true;
+    if (['business_record_query', 'business_metric_query', 'business_trend_query', 'business_detail_query', 'business_query', 'custom_service'].includes(executorType)) {
+      return true;
+    }
+    if (outputKinds.some((kind) => ['table', 'kpi', 'chart', 'evidence_panel'].includes(kind))) return true;
+    return actions.some((action) => ['lookup', 'list', 'summary', 'analyze', 'diagnose', 'recommend'].includes(action));
+  }
+
+  private isWriteBlockedDraft(raw: RawCapabilityDraft, sourceApis: string[], actions: string[]) {
+    if (String(raw.riskLevel ?? '') === 'high') return true;
+    const writeApi = sourceApis.some((api) => /^(post|put|patch|delete)\s+/i.test(api.trim()) && !/draft|preview|dry-run|query/i.test(api));
+    const text = [
+      raw.capabilityId,
+      raw.displayName,
+      raw.description,
+      ...sourceApis,
+      ...actions,
+    ].join('|');
+    return writeApi || /写入|删除|发券|下发|扣减|核销执行|create|update|delete|issue|send/i.test(text);
+  }
+
+  private requiresQueryKey(executorType: string) {
+    return ['business_record_query', 'business_metric_query', 'business_trend_query', 'business_detail_query', 'business_query', 'custom_service'].includes(executorType);
   }
 
   private toDraftDto(draft: Record<string, any>) {
@@ -929,6 +1074,9 @@ export class AgentV2CapabilityCenterService {
       sourceRoutes: this.arrayValue(draft.sourceRoutes),
       outputKinds: this.arrayValue(draft.outputKinds),
       executor: draft.executorJson ?? null,
+      customServiceReason: this.asObject(draft.executorJson)?.customServiceReason
+        ? String(this.asObject(draft.executorJson)?.customServiceReason)
+        : undefined,
       storeScope: draft.storeScope,
       fieldPolicies: this.arrayValue(draft.fieldPoliciesJson),
       triggerKeywords: this.arrayValue(draft.triggerKeywords),
@@ -965,7 +1113,10 @@ export class AgentV2CapabilityCenterService {
       sourceDtos: [],
       sourceRoutes: [],
       outputKinds: manifest.outputKinds,
-      executor: manifest.executor,
+      executor: manifest.customServiceReason
+        ? { ...manifest.executor, customServiceReason: manifest.customServiceReason }
+        : manifest.executor,
+      customServiceReason: manifest.customServiceReason,
       storeScope: manifest.storeScope,
       fieldPolicies: manifest.fieldPolicies,
       triggerKeywords: manifest.triggerKeywords,
@@ -1006,6 +1157,7 @@ export class AgentV2CapabilityCenterService {
         tool: String(executor.tool ?? 'business.record.query'),
         queryKey: executor.queryKey ? String(executor.queryKey) : undefined,
       },
+      customServiceReason: executor.customServiceReason ? String(executor.customServiceReason) : undefined,
       storeScope: String(draft.storeScope ?? 'required') as AgentV2StoreScope,
       permissionCodes: this.arrayValue(draft.permissionCodes),
       fieldPolicies: this.arrayValue(draft.fieldPoliciesJson) as unknown as AgentV2CapabilityManifest['fieldPolicies'],

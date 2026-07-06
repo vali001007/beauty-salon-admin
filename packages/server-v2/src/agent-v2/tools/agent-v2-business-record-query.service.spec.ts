@@ -1,7 +1,201 @@
 import type { PrismaService } from '../../prisma/prisma.service.js';
+import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
+import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
 import { AgentV2BusinessRecordQueryService } from './agent-v2-business-record-query.service.js';
 
 describe('AgentV2BusinessRecordQueryService', () => {
+  it('uses the active manifest provider so newly published manifests work without restart', async () => {
+    const base = listAgentV2CapabilityManifests().find((item) => item.capabilityId === 'order.product.records.list');
+    const activeManifest = {
+      ...base!,
+      capabilityId: 'order.product.records.dynamic',
+      displayName: '动态商品订单查询',
+      examples: ['动态商品订单有哪些'],
+    };
+    const genericQueryEngine = {
+      canExecute: jest.fn().mockReturnValue(true),
+      tryExecute: jest.fn().mockResolvedValue({
+        status: 'success',
+        title: '动态商品订单查询',
+        summary: 'Active Manifest 动态能力已执行。',
+        data: { items: [{ orderNo: 'PO-DYNAMIC' }] },
+        evidence: { source: ['ProductOrder'], metricDefinition: '动态商品订单查询。', filters: ['storeId=1'], sampleSize: 1 },
+        actions: [],
+      }),
+    };
+    const manifestProvider = {
+      listManifests: jest.fn().mockReturnValue([activeManifest]),
+    };
+    const service = new AgentV2BusinessRecordQueryService(
+      {} as PrismaService,
+      genericQueryEngine as any,
+      manifestProvider as any,
+    );
+
+    const result = await service.execute(
+      { capabilityId: 'order.product.records.dynamic', limit: 1 },
+      { runId: 1, storeId: 1, role: 'manager' },
+    );
+
+    expect(manifestProvider.listManifests).toHaveBeenCalled();
+    expect(genericQueryEngine.canExecute).toHaveBeenCalledWith(expect.objectContaining({
+      capabilityId: 'order.product.records.dynamic',
+      executor: expect.objectContaining({ queryKey: 'order.product.records' }),
+    }));
+    expect(result.status).toBe('success');
+    expect((result.data as any).items[0]).toMatchObject({ orderNo: 'PO-DYNAMIC' });
+  });
+
+  it('executes active semantic record query keys through GenericQueryEngine without a dedicated adapter', async () => {
+    const base = listAgentV2CapabilityManifests().find((item) => item.capabilityId === 'order.product.records.list');
+    const activeManifest = {
+      ...base!,
+      capabilityId: 'cashier.payment.records.auto.list',
+      displayName: '自动发布支付流水',
+      sourceModels: ['PaymentRecord', 'ProductOrder'],
+      executor: {
+        type: 'business_record_query' as const,
+        tool: 'business.record.query',
+        queryKey: 'cashier.payment.records.auto',
+      },
+      fieldPolicies: [
+        { field: 'paymentNo', label: '支付单号', visibility: 'allow' as const, reason: '自动发布记录展示字段' },
+        { field: 'method', label: '支付方式', visibility: 'allow' as const, reason: '自动发布记录展示字段' },
+        { field: 'amount', label: '金额', visibility: 'allow' as const, reason: '自动发布记录展示字段' },
+        { field: 'rawPayload', label: '原始载荷', visibility: 'deny' as const, reason: '敏感原始载荷不展示' },
+      ],
+    };
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 1,
+        paymentNo: 'PAY-AUTO-001',
+        method: 'wechat',
+        amount: 128,
+        paidAt: new Date('2026-07-02T02:00:00.000Z'),
+      },
+    ]);
+    const prisma = { paymentRecord: { findMany } } as unknown as PrismaService;
+    const manifestProvider = {
+      listManifests: jest.fn().mockReturnValue([activeManifest]),
+    };
+    const service = new AgentV2BusinessRecordQueryService(
+      prisma,
+      new GenericQueryEngineService(prisma),
+      manifestProvider as any,
+    );
+
+    const result = await service.execute(
+      { capabilityId: 'cashier.payment.records.auto.list', timeRange: { preset: 'today', label: '今天' }, limit: 5 },
+      { runId: 1, storeId: 6, role: 'manager', permissions: ['*'] },
+    );
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        order: { storeId: 6 },
+        paidAt: expect.objectContaining({ gte: expect.any(Date), lt: expect.any(Date) }),
+      },
+      select: {
+        id: true,
+        paymentNo: true,
+        method: true,
+        amount: true,
+      },
+      take: 5,
+    }));
+    expect(result.status).toBe('success');
+    expect((result.data as any).items[0]).toMatchObject({
+      paymentNo: 'PAY-AUTO-001',
+      method: 'wechat',
+      amount: 128,
+    });
+    expect((result.data as any).queryTrace).toMatchObject({
+      engine: 'generic_query_engine',
+      queryKey: 'cashier.payment.records.auto',
+      sourceModel: 'PaymentRecord',
+    });
+  });
+
+  it('uses GenericQueryEngine adapter for migrated order record capabilities when available', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 11,
+        orderNo: 'POMQPDGTF8',
+        orderKind: 'product',
+        customerName: '杨紫萱',
+        totalAmount: 628,
+        netAmount: 590,
+        totalDiscountAmount: 38,
+        payMethod: 'wechat',
+        status: 'completed',
+        source: 'admin',
+        createdAt: new Date('2026-07-01T02:00:00.000Z'),
+        customer: { id: 1, name: '杨紫萱', phone: '13700000000' },
+        store: { id: 1, name: 'Ami 全量演示门店' },
+        orderItems: [{ id: 1, name: '洁面乳', itemType: 'product', quantity: 2 }],
+        paymentRecords: [],
+        refundRecords: [],
+      },
+    ]);
+    const prisma = { productOrder: { findMany } } as unknown as PrismaService;
+    const service = new AgentV2BusinessRecordQueryService(prisma, new GenericQueryEngineService(prisma));
+
+    const result = await service.execute(
+      { capabilityId: 'order.product.records.list', queryKey: 'order.product.records', limit: 10 },
+      { runId: 1, storeId: 1, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect((result.data as any).queryTrace).toMatchObject({
+      engine: 'generic_query_engine',
+      queryKey: 'order.product.records',
+      sourceModel: 'ProductOrder',
+    });
+  });
+
+  it('uses GenericQueryEngine adapter for migrated card usage records when available', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 31,
+        cardId: 2,
+        cardName: '补水护理 10 次卡',
+        customerId: 8,
+        customerName: '林雨薇',
+        projectId: 9,
+        projectName: '深层补水护理',
+        storeId: 1,
+        times: 1,
+        remainingTimes: 8,
+        recognizedAmount: 268,
+        verifiedAt: new Date('2026-07-01T02:00:00.000Z'),
+        customer: { id: 8, name: '林雨薇', phone: '13900000000' },
+        store: { id: 1, name: 'Ami 全量演示门店' },
+        operator: { id: 1, name: '系统管理员', username: 'admin', role: 'super_admin' },
+        beautician: null,
+        device: null,
+        sourceOrder: { id: 7, orderNo: 'CARD-1' },
+      },
+    ]);
+    const prisma = { cardUsageRecord: { findMany } } as unknown as PrismaService;
+    const service = new AgentV2BusinessRecordQueryService(prisma, new GenericQueryEngineService(prisma));
+
+    const result = await service.execute(
+      { capabilityId: 'card.usage.records.list', timeRange: { preset: 'today', label: '今天' }, limit: 10 },
+      { runId: 1, storeId: 1, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect((result.data as any).queryTrace).toMatchObject({
+      engine: 'generic_query_engine',
+      queryKey: 'card.usage.records',
+      sourceModel: 'CardUsageRecord',
+    });
+    expect((result.data as any).items[0]).toMatchObject({
+      operatorName: '系统管理员',
+      entrySourceLabel: '管理端',
+      recognizedAmount: 268,
+    });
+  });
+
   it('queries only occurred scrap stock movements', async () => {
     const findMany = jest.fn().mockResolvedValue([
       {
@@ -40,6 +234,104 @@ describe('AgentV2BusinessRecordQueryService', () => {
       scrapQuantity: 2,
       operatorName: '林店长',
     });
+  });
+
+  it('queries inventory stock health from products without writing inventory data', async () => {
+    const productFindMany = jest.fn().mockResolvedValue([
+      {
+        id: 9,
+        sku: 'SKU-9',
+        name: '玻尿酸精华',
+        currentStock: 3,
+        safetyStock: 5,
+        costPrice: 18,
+        specUnit: '瓶',
+        updatedAt: new Date('2026-07-01T02:00:00.000Z'),
+        category: { name: '精华' },
+        batches: [{ stock: 3, expiryDate: new Date('2026-07-20T00:00:00.000Z') }],
+      },
+    ]);
+    const stockMovementFindMany = jest.fn().mockResolvedValue([
+      { productId: 9, quantity: -4, movementType: 'service_consume', occurredAt: new Date() },
+      { productId: 9, quantity: -2, movementType: 'sale_out', occurredAt: new Date(Date.now() - 10 * 86_400_000) },
+    ]);
+    const reservationFindMany = jest.fn().mockResolvedValue([{ projectId: 21 }]);
+    const serviceTaskFindMany = jest.fn().mockResolvedValue([{ projectId: 21 }]);
+    const projectBomItemFindMany = jest.fn().mockResolvedValue([{ projectId: 21, productId: 9, standardQty: 1 }]);
+    const service = new AgentV2BusinessRecordQueryService({
+      product: { findMany: productFindMany },
+      stockMovement: { findMany: stockMovementFindMany },
+      reservation: { findMany: reservationFindMany },
+      serviceTask: { findMany: serviceTaskFindMany },
+      projectBomItem: { findMany: projectBomItemFindMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { capabilityId: 'inventory.bom.consumption.records.records.list', question: '帮我看一下库存整体情况', limit: 10 },
+      { runId: 1, storeId: 1, role: 'manager' },
+    );
+
+    expect(productFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: 1, deletedAt: null },
+      take: 10,
+    }));
+    expect(stockMovementFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 1, productId: { in: [9] } }),
+    }));
+    expect(projectBomItemFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: { in: [21] }, productId: { in: [9] } }),
+    }));
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('库存状态与消耗健康');
+    expect(result.evidence?.source).toEqual(expect.arrayContaining(['Product', 'StockBatch', 'StockMovement', 'ProjectBomItem']));
+    expect((result.data as any).items[0]).toMatchObject({
+      productName: '玻尿酸精华',
+      currentStock: 3,
+      safetyStock: 5,
+      stockValue: 54,
+      statusLabel: '低于安全库存',
+      consumed30Days: 6,
+      scheduledBomConsumption7Days: 2,
+      forecast7DaysConsumption: 3.4,
+      turnoverRate30Days: 2,
+      daysOfSupply: 15,
+      projectedShortage7Days: 0.4,
+    });
+    expect((result.data as any).formulaSummary.forecast7DaysConsumption).toContain('BOM');
+  });
+
+  it('queries inventory expiring risk from product batches as a read-only list', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 9,
+        sku: 'SKU-9',
+        name: '玻尿酸精华',
+        currentStock: 8,
+        safetyStock: 5,
+        costPrice: 18,
+        specUnit: '瓶',
+        updatedAt: new Date('2026-07-01T02:00:00.000Z'),
+        category: { name: '精华' },
+        batches: [{ stock: 8, expiryDate: new Date(Date.now() + 10 * 86_400_000) }],
+      },
+    ]);
+    const service = new AgentV2BusinessRecordQueryService({
+      product: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { capabilityId: 'inventory.expiring-risk.list', question: '临期产品怎么处理比较好', limit: 10 },
+      { runId: 1, storeId: 1, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('临期与报废风险清单');
+    expect(result.evidence?.metricDefinition).toContain('StockBatch.expiryDate');
+    expect((result.data as any).items[0]).toMatchObject({
+      productName: '玻尿酸精华',
+      statusLabel: '临期风险',
+    });
+    expect(result.actions?.map((action) => action.action)).toEqual(expect.arrayContaining(['inventory:risk-open']));
   });
 
   it('queries project orders from ProductOrder and OrderItem', async () => {

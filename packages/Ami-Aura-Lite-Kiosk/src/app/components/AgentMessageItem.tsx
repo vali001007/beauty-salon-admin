@@ -62,6 +62,39 @@ const personaLabels: Record<string, string> = {
   finance: "财务风控 Agent",
 };
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function getArchitectureLabel(value: unknown) {
+  const architecture = String(value ?? "");
+  const labels: Record<string, string> = {
+    agent_v2_kg_llm: "KG+LLM",
+    kg_llm_agent: "KG+LLM",
+    agent_v2_shadow: "V2 Shadow",
+    agent_v2_legacy_fallback: "V2 回退",
+    agent_v2_kg_llm_retired: "旧链退役",
+    agent_v2: "Agent V2",
+    agent_v1: "Agent V1",
+  };
+  return labels[architecture] ?? architecture;
+}
+
+function getAgentArchitectureMeta(data: AgentRunWithBlocks) {
+  const plan = asRecord(data.plan);
+  const businessTask = asRecord(plan.businessTask);
+  const strategy = asRecord(businessTask.agentV2GrayStrategy);
+  const architecture = businessTask.architecture ?? asRecord(data).architecture;
+  const architectureLabel = architecture ? getArchitectureLabel(architecture) : "";
+  const mode = typeof strategy.mode === "string" ? strategy.mode : "";
+  const finalEngine = typeof strategy.finalEngine === "string" ? strategy.finalEngine : "";
+  return {
+    architectureLabel,
+    mode,
+    finalEngine,
+  };
+}
+
 function getRouteText(data: AgentRunWithBlocks) {
   const personaCode = data.routeDecision?.personaCode ?? data.personaCode;
   if (!personaCode) return "";
@@ -131,6 +164,7 @@ export function AgentMessageItem({
   const limitations = displayModel.limitations;
   const statusNotice = displayModel.statusNotice;
   const routeText = getRouteText(data);
+  const architectureMeta = getAgentArchitectureMeta(data);
   const shouldRenderAnswer = Boolean(data.answer) && !hasAnswerBlock(blocks);
   const shouldRenderEvidence = Boolean(evidenceText) && !hasEvidencePanel(blocks);
   const embeddedActionKeys = getEmbeddedActionKeys(blocks);
@@ -144,7 +178,16 @@ export function AgentMessageItem({
   });
   const followUps = displayModel.followUpSuggestions.filter((suggestion) => !visibleActionKeys.has(suggestion));
 
-  if (!blocks.length && !followUps.length && !evidenceText && !limitations.length && !visibleActions.length && !statusNotice && !routeText) {
+  if (
+    !blocks.length &&
+    !followUps.length &&
+    !evidenceText &&
+    !limitations.length &&
+    !visibleActions.length &&
+    !statusNotice &&
+    !routeText &&
+    !architectureMeta.architectureLabel
+  ) {
     return (
       <div className="grid gap-2">
         <AgentRunResultCard data={data} onAction={onAction} onApprove={onApprove} onReject={onReject} />
@@ -170,6 +213,18 @@ export function AgentMessageItem({
             {routeText ? (
               <span className="rounded-full bg-[#2D1B69]/5 px-3 py-1 text-xs font-medium text-[#2D1B69]">
                 {routeText}
+              </span>
+            ) : null}
+            {architectureMeta.architectureLabel ? (
+              <span
+                className="rounded-full bg-[#C9956C]/10 px-3 py-1 text-xs font-medium text-[#8A5D38]"
+                title={[
+                  architectureMeta.mode ? `灰度：${architectureMeta.mode}` : "",
+                  architectureMeta.finalEngine ? `最终引擎：${architectureMeta.finalEngine}` : "",
+                ].filter(Boolean).join(" · ")}
+              >
+                {architectureMeta.architectureLabel}
+                {architectureMeta.mode ? ` · ${architectureMeta.mode}` : ""}
               </span>
             ) : null}
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClass(data.status)}`}>

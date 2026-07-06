@@ -53,6 +53,9 @@ describe('AgentV2CapabilityCenterService', () => {
     const prisma = {
       agentCapabilityDraft: {
         findUnique: jest.fn().mockResolvedValue(makeDraft()),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockImplementation(({ data }) => Promise.resolve(makeDraft(data))),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       agentToolQueryKeyRegistry: {
         findUnique: jest.fn().mockResolvedValue(makeRegistry()),
@@ -178,5 +181,92 @@ describe('AgentV2CapabilityCenterService', () => {
     expect(result.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'post_publish_smoke_pass', level: 'pass' }),
     ]));
+  });
+
+  it('keeps auto publish scoped to auto_publish candidates even when capability IDs are provided', async () => {
+    const { service, prisma } = createService({
+      status: 'success',
+      title: '商品订单记录',
+      summary: '已返回授权后的订单证据包。',
+      evidence: { source: ['ProductOrder'], sampleSize: 1 },
+      actions: [],
+    });
+
+    await expect(service.publish({
+      mode: 'auto',
+      capabilityIds: ['marketing.coupon.issue.blocked'],
+      publishedBy: 7,
+    })).rejects.toThrow('没有可发布的候选能力');
+
+    expect(prisma.agentCapabilityDraft.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        capabilityId: { in: ['marketing.coupon.issue.blocked'] },
+        releaseStrategy: 'auto_publish',
+        status: { in: ['draft', 'approved'] },
+      }),
+    }));
+  });
+
+  it('classifies scanner drafts into local release strategies before production hooks are configured', async () => {
+    const { service, prisma } = createService({
+      status: 'success',
+      title: '商品订单记录',
+      summary: '已返回授权后的订单证据包。',
+      evidence: { source: ['ProductOrder'], sampleSize: 1 },
+      actions: [],
+    });
+
+    await service.updateDraft('order.product.records.list', {
+      sourceApis: ['GET /api/orders/products'],
+      actions: ['list'],
+      permissionCodes: [],
+      outputKinds: ['table', 'evidence_panel'],
+      executor: {
+        type: 'business_record_query',
+        tool: 'business.record.query',
+        queryKey: 'order.product.records',
+      },
+    });
+    expect(prisma.agentCapabilityDraft.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: 'needs_review',
+        releaseStrategy: 'auto_publish',
+        governanceIssues: expect.arrayContaining([
+          expect.objectContaining({ code: 'missing_permission_needs_review' }),
+        ]),
+      }),
+    }));
+
+    await service.updateDraft('order.product.records.list', {
+      sourceApis: ['POST /api/marketing/coupons/issue'],
+      actions: ['confirm_action'],
+      riskLevel: 'high',
+      permissionCodes: ['core:marketing:manage'],
+      outputKinds: ['action_card', 'evidence_panel'],
+      executor: { type: 'workflow', tool: 'marketing.coupon.issue' },
+    });
+    expect(prisma.agentCapabilityDraft.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: 'draft',
+        releaseStrategy: 'write_blocked',
+        governanceIssues: expect.arrayContaining([
+          expect.objectContaining({ code: 'write_operation_blocked' }),
+        ]),
+      }),
+    }));
+
+    await service.updateDraft('order.product.records.list', {
+      sourceApis: ['POST /api/inventory/stock-operation-drafts'],
+      actions: ['draft'],
+      permissionCodes: ['core:inventory:adjustment'],
+      outputKinds: ['action_card', 'evidence_panel'],
+      executor: { type: 'business_action_draft', tool: 'business.action.draft', queryKey: 'inventory.stock-operation-draft' },
+    });
+    expect(prisma.agentCapabilityDraft.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: 'draft',
+        releaseStrategy: 'approval_required',
+      }),
+    }));
   });
 });

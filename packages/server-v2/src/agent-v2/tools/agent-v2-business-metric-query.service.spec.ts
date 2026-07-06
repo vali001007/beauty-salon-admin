@@ -78,6 +78,75 @@ describe('AgentV2BusinessMetricQueryService', () => {
     expect((result.data as any).items[0]).toMatchObject({ methodLabel: '微信', revenue: 150, paymentCount: 2 });
   });
 
+  it('resolves metric query targets from manifest queryKey', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { id: 1, orderId: 11, method: 'alipay', amount: 88, status: 'success', paidAt: new Date('2026-07-02T03:00:00.000Z'), createdAt: new Date('2026-07-02T03:00:00.000Z') },
+    ]);
+    const service = new AgentV2BusinessMetricQueryService({
+      paymentRecord: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { queryKey: 'finance.payment-method-breakdown.metric', timeRange: { preset: 'today', label: '今天' } },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('支付方式收款拆分');
+    expect((result.data as any).metricManifest).toMatchObject({
+      capabilityId: 'finance.payment-method-breakdown.metric',
+      queryKey: 'finance.payment-method-breakdown.metric',
+      sourceModels: expect.arrayContaining(['PaymentRecord', 'ProductOrder']),
+    });
+    expect((result.data as any).metrics).toMatchObject({ totalRevenue: 88, totalPaymentCount: 1 });
+  });
+
+  it('delegates migrated metric capabilities to GenericQueryEngine when available', async () => {
+    const findMany = jest.fn();
+    const genericQueryEngine = {
+      canExecute: jest.fn().mockReturnValue(true),
+      tryExecute: jest.fn().mockResolvedValue({
+        status: 'success',
+        title: '支付方式收款拆分',
+        summary: '通用引擎返回支付方式拆分。',
+        data: {
+          metrics: { totalRevenue: 99 },
+          queryTrace: { engine: 'generic_query_engine', queryKey: 'finance.payment-method-breakdown.metric' },
+        },
+        evidence: { source: ['PaymentRecord'], sourceTables: ['PaymentRecord'], metricDefinition: '通用指标执行器。', filters: [], sampleSize: 1 },
+        actions: [],
+      }),
+    };
+    const service = new AgentV2BusinessMetricQueryService({
+      paymentRecord: { findMany },
+    } as unknown as PrismaService, genericQueryEngine as any);
+
+    const result = await service.execute(
+      { queryKey: 'finance.payment-method-breakdown.metric', timeRange: { preset: 'today', label: '今天' } },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(genericQueryEngine.canExecute).toHaveBeenCalledWith(expect.objectContaining({
+      capabilityId: 'finance.payment-method-breakdown.metric',
+      executor: expect.objectContaining({ queryKey: 'finance.payment-method-breakdown.metric' }),
+    }));
+    expect(genericQueryEngine.tryExecute).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: expect.objectContaining({ capabilityId: 'finance.payment-method-breakdown.metric' }),
+      args: expect.objectContaining({
+        capabilityId: 'finance.payment-method-breakdown.metric',
+        queryKey: 'finance.payment-method-breakdown.metric',
+      }),
+      context: expect.objectContaining({ storeId: 6 }),
+    }));
+    expect(findMany).not.toHaveBeenCalled();
+    expect(result.status).toBe('success');
+    expect((result.data as any).queryTrace).toMatchObject({ engine: 'generic_query_engine' });
+    expect((result.data as any).metricManifest).toMatchObject({
+      capabilityId: 'finance.payment-method-breakdown.metric',
+      queryKey: 'finance.payment-method-breakdown.metric',
+    });
+  });
+
   it('summarizes refund count and amount', async () => {
     const findMany = jest.fn().mockResolvedValue([
       {
@@ -176,6 +245,97 @@ describe('AgentV2BusinessMetricQueryService', () => {
       staffCount: 2,
       topStaffName: '林雅',
       topStaffAmount: 200,
+    });
+  });
+
+  it('summarizes staff efficiency from orders, service tasks, reservations, card usage and commissions', async () => {
+    const beauticianFindMany = jest.fn().mockResolvedValue([
+      { id: 10, userId: 100, name: '林雅', status: 'active', level: { name: '高级美容师' } },
+      { id: 11, userId: 101, name: '周宁', status: 'active', level: { name: '美容师' } },
+    ]);
+    const orderItemFindMany = jest.fn().mockResolvedValue([
+      {
+        id: 101,
+        orderId: 201,
+        beauticianId: 10,
+        itemType: 'project',
+        quantity: 2,
+        netAmount: 800,
+        subtotal: 900,
+        order: { id: 201, customerId: 301, createdAt: new Date('2026-07-02T01:00:00.000Z'), status: 'paid' },
+      },
+      {
+        id: 102,
+        orderId: 202,
+        beauticianId: 11,
+        itemType: 'project',
+        quantity: 1,
+        netAmount: 260,
+        subtotal: 260,
+        order: { id: 202, customerId: 302, createdAt: new Date('2026-07-02T02:00:00.000Z'), status: 'completed' },
+      },
+    ]);
+    const commissionFindMany = jest.fn().mockResolvedValue([
+      { id: 1, beauticianId: 10, staffUserId: 100, amount: 120, status: 'confirmed', type: 'project', createdAt: new Date('2026-07-02T03:00:00.000Z') },
+      { id: 2, beauticianId: 11, staffUserId: 101, amount: 30, status: 'confirmed', type: 'project', createdAt: new Date('2026-07-02T04:00:00.000Z') },
+    ]);
+    const reservationFindMany = jest.fn().mockResolvedValue([
+      { id: 1, beauticianId: 10, customerId: 301, status: 'completed', date: new Date('2026-07-03T01:00:00.000Z') },
+      { id: 2, beauticianId: 10, customerId: 303, status: 'scheduled', date: new Date('2026-07-03T02:00:00.000Z') },
+      { id: 3, beauticianId: 11, customerId: 302, status: 'completed', date: new Date('2026-07-03T03:00:00.000Z') },
+    ]);
+    const serviceTaskFindMany = jest.fn().mockResolvedValue([
+      { id: 1, beauticianId: 10, status: 'completed', completedAt: new Date('2026-07-04T01:00:00.000Z') },
+      { id: 2, beauticianId: 11, status: 'pending', completedAt: null },
+    ]);
+    const cardUsageFindMany = jest.fn().mockResolvedValue([
+      { id: 1, beauticianId: 10, customerId: 301, times: 3, verifiedAt: new Date('2026-07-04T02:00:00.000Z') },
+    ]);
+    const service = new AgentV2BusinessMetricQueryService({
+      beautician: { findMany: beauticianFindMany },
+      orderItem: { findMany: orderItemFindMany },
+      commissionRecord: { findMany: commissionFindMany },
+      reservation: { findMany: reservationFindMany },
+      serviceTask: { findMany: serviceTaskFindMany },
+      cardUsageRecord: { findMany: cardUsageFindMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { capabilityId: 'finance.staff-efficiency.metric', timeRange: { preset: 'this_month', label: '本月' }, question: '这个月人效怎么样' },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(beauticianFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 6, status: 'active' }),
+    }));
+    expect(orderItemFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ beauticianId: { not: null } }),
+      take: 3000,
+    }));
+    expect(cardUsageFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ beauticianId: { not: null } }),
+    }));
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('员工人效指标');
+    expect(result.evidence?.source).toEqual(expect.arrayContaining(['Beautician', 'OrderItem', 'ServiceTask', 'CardUsageRecord']));
+    expect((result.data as any).items[0]).toMatchObject({
+      staffName: '林雅',
+      performanceLevel: '稳定发挥',
+      serviceCount: 2,
+      cardUsageTimes: 3,
+      salesAmount: 800,
+      commissionAmount: 120,
+    });
+    expect((result.data as any).metrics).toMatchObject({
+      staffCount: 2,
+      topStaffName: '林雅',
+      totalSales: 1060,
+      totalCommission: 150,
+      totalServiceCount: 6,
+    });
+    expect((result.data as any).metricManifest).toMatchObject({
+      capabilityId: 'finance.staff-efficiency.metric',
+      queryKey: 'finance.staff-efficiency.metric',
     });
   });
 

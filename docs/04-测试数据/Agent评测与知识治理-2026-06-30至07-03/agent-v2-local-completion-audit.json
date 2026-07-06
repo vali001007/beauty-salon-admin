@@ -1,0 +1,551 @@
+{
+  "generatedAt": "2026-07-06 11:49:03 Asia/Shanghai",
+  "summary": {
+    "localClosureReady": true,
+    "productionReady": false,
+    "gateCount": 9,
+    "blockerCount": 0,
+    "uncheckedCount": 31,
+    "deferredUncheckedCount": 31,
+    "localOpenUncheckedCount": 0,
+    "recommendation": "本地开发闭环已可审计：task.md 剩余未勾选项均属于生产/真实流量/旧正则最终退役后置项。"
+  },
+  "source": {
+    "task": "docs/03-开发计划/01-AI智能体与问数能力/task.md",
+    "reports": {
+      "evalGate": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.json",
+      "legacyDiffAttribution": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.json",
+      "legacyDependencyAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-dependency-audit.json",
+      "rollbackDrill": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-rollback-drill.json",
+      "productionConfigReadiness": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.json",
+      "retirementPreflight": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-preflight.json",
+      "productionEvidenceCheck": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence-check.json",
+      "retirementHandoff": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-retirement-handoff.json",
+      "releaseReadinessAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.json",
+      "githubReleaseHandoff": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-release-handoff.json",
+      "productionLiveConfigAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.json",
+      "productionDeploymentSyncAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.json",
+      "productionRolloutPlan": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.json",
+      "postMergeDeployVerify": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-post-merge-deploy-verify.json"
+    },
+    "canonicalProductionEvidence": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.json"
+  },
+  "gates": [
+    {
+      "id": "task_unchecked_classification",
+      "title": "task.md 剩余未勾选项均已分类为后置生产项",
+      "expected": "localOpenUncheckedCount=0",
+      "actual": "unchecked=31, deferred=31, localOpen=0",
+      "status": "pass",
+      "impact": "避免把本地尚未开发的任务误归入生产后置。"
+    },
+    {
+      "id": "task_local_closure_statement",
+      "title": "任务文档声明本地闭环边界",
+      "expected": "包含“本地可闭环项已收口，生产/真实流量/授权项保留为后续上线阶段任务”",
+      "actual": "present",
+      "status": "pass",
+      "impact": "产品交付口径明确：当前可验收本地开发，不误报生产完成。"
+    },
+    {
+      "id": "required_reports_exist",
+      "title": "本地闭环依赖报告齐备",
+      "expected": "eval、diff、dependency、rollback、config、preflight、evidence、handoff 报告均存在",
+      "actual": "all reports exist",
+      "status": "pass",
+      "impact": "审计不是只看 task.md 文案，而是读取当前报告证据。"
+    },
+    {
+      "id": "strict_eval_and_dependency_gates",
+      "title": "核心本地门禁通过",
+      "expected": "strict eval pass=true，旧正则依赖审计 pass=true",
+      "actual": "eval=true, dependency=true, predicates=33",
+      "status": "pass",
+      "impact": "证明本地能力映射、权限、契约和旧正则依赖边界没有回退。"
+    },
+    {
+      "id": "rollback_and_config_readiness",
+      "title": "回滚演练和生产配置预留通过",
+      "expected": "rollback pass=true，production config readiness pass=true",
+      "actual": "rollback=true, config=true",
+      "status": "pass",
+      "impact": "证明后续生产配置和回滚路径有本地保护。"
+    },
+    {
+      "id": "handoff_local_ready_not_production_ready",
+      "title": "退役交接包本地就绪但生产不误放行",
+      "expected": "handoffReady=true，localReady=true，productionReady=false",
+      "actual": "handoff=true, local=true, production=false",
+      "status": "pass",
+      "impact": "可以进入生产/准生产证据采集，但不能删除旧正则或切 legacy_retired。"
+    },
+    {
+      "id": "github_release_handoff_ready",
+      "title": "GitHub 提交/PR 交接已准备好但仍需授权",
+      "expected": "secretFindingCount=0，github handoffReady=true，stageDryRunReady=true，authorizationRequired=true",
+      "actual": "releaseSecretFindings=0, changedEntryCount=161, handoffReady=true, stageDryRunReady=true, authorizationRequired=true",
+      "status": "pass",
+      "impact": "证明后续只差用户授权执行 stage/commit/PR，且当前发布范围未发现疑似 Secret。"
+    },
+    {
+      "id": "deployment_and_hook_not_misreported",
+      "title": "Zeabur 部署和生产 hook 状态未被误报为完成",
+      "expected": "rolloutReady=true，postMergeVerifierReady=true，productionVerified=false，deploymentSyncProven=false，productionHookTriggerReady=false",
+      "actual": "rolloutReady=true, postMergeVerifierReady=true, postMergeProductionVerified=false, deploymentSyncProven=false, productionHealthReady=true, hookTriggerReady=false",
+      "status": "pass",
+      "impact": "确认本地发布材料已准备好，但 GitHub 合入、Zeabur commit 证明和生产 hook 启用仍后置。"
+    },
+    {
+      "id": "production_evidence_still_blocks_retirement",
+      "title": "生产证据继续阻塞旧正则退役",
+      "expected": "retirementReady=false，productionEvidenceCheck pass=false，正式生产证据文件不存在",
+      "actual": "retirementReady=false, productionBlockers=5, evidencePass=false, canonicalEvidenceExists=false",
+      "status": "pass",
+      "impact": "确认当前没有伪造生产证据，旧正则最终退役仍后置。"
+    }
+  ],
+  "uncheckedItems": [
+    {
+      "line": 1177,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "当满足退役条件后删除旧正则：",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1178,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "P0 strict gate 连续通过。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1179,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "shadow 对比 7 天无重大回归。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1180,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "线上用户有用率不低于旧链路。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1181,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "高风险自动执行为 0。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1182,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "可回滚方案已验证。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1183,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "删除或降级：",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1184,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "`AgentV2CapabilityDecisionService` 正则判断。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1185,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "对应过时测试。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1186,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "重复手写查询逻辑。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1197,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "旧 `isXxx` 规则不再参与正式能力选择。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1199,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "删除后 `server-v2` build、P0 eval、管理端 build 通过。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1281,
+      "section": "Sprint 6：图谱可视化、灰度和旧规则退役",
+      "text": "shadow 对比。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1282,
+      "section": "Sprint 6：图谱可视化、灰度和旧规则退役",
+      "text": "旧正则退役。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1342,
+      "section": "18.4 旧正则退役回归",
+      "text": "开启 shadow 7 天。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1345,
+      "section": "18.4 旧正则退役回归",
+      "text": "切到 `kg_llm_preferred`。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1346,
+      "section": "18.4 旧正则退役回归",
+      "text": "观察线上失败分类。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1347,
+      "section": "18.4 旧正则退役回归",
+      "text": "切到 `kg_llm_only`。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1348,
+      "section": "18.4 旧正则退役回归",
+      "text": "删除旧正则。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1352,
+      "section": "18.4 旧正则退役回归",
+      "text": "新架构稳定接管。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1353,
+      "section": "18.4 旧正则退役回归",
+      "text": "旧规则删除后仍可通过评测、构建和核心手动场景。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1369,
+      "section": "19.2 技术完成标准",
+      "text": "正式能力选择不再依赖 33 个 `isXxx` 正则。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1454,
+      "section": "22. 最终交付清单",
+      "text": "旧 `CapabilityDecisionService` 正则退役。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1645,
+      "section": "剩余关键缺口",
+      "text": "M3 生产正式默认仍保持 `legacy_regex` 或治理表灰度控制；需 7 天 shadow、线上有用率、回滚验证和授权后才能改为生产默认接管。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1704,
+      "section": "更新后的剩余关键缺口",
+      "text": "P0 运行时采样已完成，但还不是线上真实流量评测；仍需把实际 AgentRun/ToolCall 的延迟、缓存、命中差异持续落库并按门店/入口看 7 天。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1755,
+      "section": "更新后的剩余关键缺口",
+      "text": "真实生产 LLM Key、模型延迟、成本和失败率尚未接入线上观测；本轮验证的是 AI Gateway 调用链路、mock/fake LLM 单测和不可用降级。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1756,
+      "section": "更新后的剩余关键缺口",
+      "text": "评测运行已可落库，但尚未自动从 CI/定时任务写入生产库；当前需要管理员或后续 automation 调用导入接口。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1757,
+      "section": "更新后的剩余关键缺口",
+      "text": "`kg_llm_preferred` 仍需要 7 天真实 shadow 数据判断差异，旧正则暂不能删除。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1801,
+      "section": "更新后的剩余关键缺口",
+      "text": "真实生产 LLM Key、模型延迟、成本、失败率和失败样本仍需接入线上观测；本地只能证明 AI Gateway 调用链路、mock/fake LLM 单测和降级策略。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1802,
+      "section": "更新后的剩余关键缺口",
+      "text": "评测运行已可落库，deploy hook 已有服务 token，但 CI/定时任务写入生产库仍需真实部署环境配置 `AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN`、数据库连接和调度任务。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1803,
+      "section": "更新后的剩余关键缺口",
+      "text": "`kg_llm_preferred` 仍需要 7 天真实 shadow 数据判断差异，旧正则暂不能删除。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    }
+  ],
+  "localOpenItems": [],
+  "deferredItems": [
+    {
+      "line": 1177,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "当满足退役条件后删除旧正则：",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1178,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "P0 strict gate 连续通过。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1179,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "shadow 对比 7 天无重大回归。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1180,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "线上用户有用率不低于旧链路。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1181,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "高风险自动执行为 0。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1182,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "可回滚方案已验证。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1183,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "删除或降级：",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1184,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "`AgentV2CapabilityDecisionService` 正则判断。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1185,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "对应过时测试。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1186,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "重复手写查询逻辑。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1197,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "旧 `isXxx` 规则不再参与正式能力选择。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1199,
+      "section": "T12.3 删除旧 CapabilityDecisionService",
+      "text": "删除后 `server-v2` build、P0 eval、管理端 build 通过。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1281,
+      "section": "Sprint 6：图谱可视化、灰度和旧规则退役",
+      "text": "shadow 对比。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1282,
+      "section": "Sprint 6：图谱可视化、灰度和旧规则退役",
+      "text": "旧正则退役。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1342,
+      "section": "18.4 旧正则退役回归",
+      "text": "开启 shadow 7 天。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1345,
+      "section": "18.4 旧正则退役回归",
+      "text": "切到 `kg_llm_preferred`。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1346,
+      "section": "18.4 旧正则退役回归",
+      "text": "观察线上失败分类。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1347,
+      "section": "18.4 旧正则退役回归",
+      "text": "切到 `kg_llm_only`。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1348,
+      "section": "18.4 旧正则退役回归",
+      "text": "删除旧正则。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1352,
+      "section": "18.4 旧正则退役回归",
+      "text": "新架构稳定接管。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1353,
+      "section": "18.4 旧正则退役回归",
+      "text": "旧规则删除后仍可通过评测、构建和核心手动场景。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1369,
+      "section": "19.2 技术完成标准",
+      "text": "正式能力选择不再依赖 33 个 `isXxx` 正则。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1454,
+      "section": "22. 最终交付清单",
+      "text": "旧 `CapabilityDecisionService` 正则退役。",
+      "classification": "legacy_retirement_deferred",
+      "deferredReason": "旧正则最终删除必须等待生产证据、回滚验证和授权。"
+    },
+    {
+      "line": 1645,
+      "section": "剩余关键缺口",
+      "text": "M3 生产正式默认仍保持 `legacy_regex` 或治理表灰度控制；需 7 天 shadow、线上有用率、回滚验证和授权后才能改为生产默认接管。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1704,
+      "section": "更新后的剩余关键缺口",
+      "text": "P0 运行时采样已完成，但还不是线上真实流量评测；仍需把实际 AgentRun/ToolCall 的延迟、缓存、命中差异持续落库并按门店/入口看 7 天。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1755,
+      "section": "更新后的剩余关键缺口",
+      "text": "真实生产 LLM Key、模型延迟、成本和失败率尚未接入线上观测；本轮验证的是 AI Gateway 调用链路、mock/fake LLM 单测和不可用降级。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1756,
+      "section": "更新后的剩余关键缺口",
+      "text": "评测运行已可落库，但尚未自动从 CI/定时任务写入生产库；当前需要管理员或后续 automation 调用导入接口。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1757,
+      "section": "更新后的剩余关键缺口",
+      "text": "`kg_llm_preferred` 仍需要 7 天真实 shadow 数据判断差异，旧正则暂不能删除。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1801,
+      "section": "更新后的剩余关键缺口",
+      "text": "真实生产 LLM Key、模型延迟、成本、失败率和失败样本仍需接入线上观测；本地只能证明 AI Gateway 调用链路、mock/fake LLM 单测和降级策略。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1802,
+      "section": "更新后的剩余关键缺口",
+      "text": "评测运行已可落库，deploy hook 已有服务 token，但 CI/定时任务写入生产库仍需真实部署环境配置 `AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN`、数据库连接和调度任务。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    },
+    {
+      "line": 1803,
+      "section": "更新后的剩余关键缺口",
+      "text": "`kg_llm_preferred` 仍需要 7 天真实 shadow 数据判断差异，旧正则暂不能删除。",
+      "classification": "production_evidence_deferred",
+      "deferredReason": "需要生产/准生产配置、真实流量、线上 LLM 观测或运维授权。"
+    }
+  ],
+  "nextActions": [
+    "继续保持本地 strict gate、生产配置 readiness、回滚演练和退役交接包在 CI 中通过。",
+    "生产 API 域名、deploy token、GitHub Secrets、后端环境变量和调度任务稳定后，再进入生产/准生产证据采集。",
+    "完成 7 天 shadow、线上有用率、生产 LLM 延迟/失败率/成本观测和真实回滚验证后，再写正式生产证据并申请旧正则删除授权。"
+  ]
+}

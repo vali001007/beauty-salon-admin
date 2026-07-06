@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { AgentEvidence, AgentToolExecutionContext, AgentToolResult } from '../../agent/agent.types.js';
 import { formatBusinessDate } from '../../common/utils/business-time.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
+import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
+import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
 
 const DAY_MS = 86_400_000;
 
@@ -14,10 +17,16 @@ type AgentV2DateRange = {
 
 @Injectable()
 export class AgentV2BusinessTrendQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly genericQueryEngine?: GenericQueryEngineService,
+    @Optional() private readonly manifestProvider?: AgentV2ManifestProviderService,
+  ) {}
 
   async execute(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const capabilityId = String(args.capabilityId ?? '');
+    const genericResult = await this.tryGenericQuery(capabilityId, args, context);
+    if (genericResult) return genericResult;
     if (capabilityId === 'finance.revenue.trend') return this.getRevenueTrend(args, context);
     return {
       status: 'unsupported',
@@ -27,6 +36,16 @@ export class AgentV2BusinessTrendQueryService {
       evidence: this.evidence(['AgentV2CapabilityManifest'], '当前能力没有可执行趋势查询器。', [], 0),
       actions: [],
     };
+  }
+
+  private async tryGenericQuery(capabilityId: string, args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const manifest = this.activeManifests().find((item) => item.capabilityId === capabilityId);
+    if (!manifest || !this.genericQueryEngine?.canExecute(manifest)) return null;
+    return this.genericQueryEngine.tryExecute({ manifest, args, context });
+  }
+
+  private activeManifests() {
+    return this.manifestProvider?.listManifests() ?? listAgentV2CapabilityManifests();
   }
 
   private async getRevenueTrend(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {

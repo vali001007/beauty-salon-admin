@@ -163,7 +163,8 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
       { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
       { title: 'Agent 审计', path: '/system/agent-audit', icon: Sparkles, permission: 'core:system:view' },
-      { title: 'Agent 能力中心', path: '/system/agent-capabilities', icon: ShieldCheck, permission: 'core:system:view' },
+      { title: 'Agent 治理台', path: '/system/agent-governance', icon: Database, permission: 'core:agent-governance:view' },
+      { title: 'Agent 能力中心', path: '/system/agent-capabilities', icon: ShieldCheck, permission: 'core:agent-governance:view' },
     ],
   },
 ];

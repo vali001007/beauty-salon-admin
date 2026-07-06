@@ -1,27 +1,76 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { AgentEvidence, AgentToolExecutionContext, AgentToolResult } from '../../agent/agent.types.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
+import type { AgentV2CapabilityManifest } from '../capability/agent-v2-capability.types.js';
+import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
 
 type StockOperationType = 'scrap_out' | 'manual_outbound' | 'stocktake' | 'adjustment';
 
+type ActionDraftTarget = {
+  capabilityId: string;
+  queryKey?: string;
+  displayName: string;
+  sourceModels: string[];
+  permissionCodes: string[];
+  boundaryNotes: string[];
+  riskLevel: AgentV2CapabilityManifest['riskLevel'];
+};
+
 @Injectable()
 export class AgentV2BusinessActionDraftService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly manifestProvider?: AgentV2ManifestProviderService,
+  ) {}
+
+  private get targets() {
+    return this.buildTargets();
+  }
 
   async execute(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const capabilityId = String(args.capabilityId ?? '');
-    if (capabilityId === 'inventory.stock.operation.draft') return this.draftStockOperation(args, context);
+    const queryKey = String(args.queryKey ?? '');
+    const target = this.resolveTarget(capabilityId, queryKey);
+    if (target?.queryKey === 'inventory.stock-operation-draft' || target?.capabilityId === 'inventory.stock.operation.draft') {
+      return this.draftStockOperation(args, context, target);
+    }
+    if (target) return this.genericActionDraft(args, context, target);
+
     return {
       status: 'unsupported',
       title: '暂不支持的动作草稿',
       summary: `V2 动作草稿暂未支持 ${capabilityId || 'unknown'}。`,
-      data: { capabilityId },
+      data: { capabilityId, queryKey },
       evidence: this.evidence(['AgentV2CapabilityManifest'], '当前能力没有可执行动作草稿生成器。', [], 0),
       actions: [],
     };
   }
 
-  private async draftStockOperation(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
+  private buildTargets(): ActionDraftTarget[] {
+    return this.activeManifests()
+      .filter((manifest) => manifest.status === 'enabled' && manifest.executor.tool === 'business.action.draft')
+      .map((manifest) => ({
+        capabilityId: manifest.capabilityId,
+        queryKey: manifest.executor.queryKey,
+        displayName: manifest.displayName,
+        sourceModels: manifest.sourceModels,
+        permissionCodes: manifest.permissionCodes,
+        boundaryNotes: manifest.boundaryNotes,
+        riskLevel: manifest.riskLevel,
+      }));
+  }
+
+  private activeManifests() {
+    return this.manifestProvider?.listManifests() ?? listAgentV2CapabilityManifests();
+  }
+
+  private resolveTarget(capabilityId: string, queryKey: string) {
+    const candidates = [capabilityId, queryKey].map((value) => value.trim()).filter(Boolean);
+    return this.targets.find((target) => candidates.includes(target.capabilityId) || (target.queryKey && candidates.includes(target.queryKey))) ?? null;
+  }
+
+  private async draftStockOperation(args: Record<string, unknown>, context: AgentToolExecutionContext, target: ActionDraftTarget): Promise<AgentToolResult> {
     const question = String(args.question ?? '');
     const operationType = this.resolveStockOperationType(question);
     const quantity = this.extractQuantity(question);
@@ -47,6 +96,8 @@ export class AgentV2BusinessActionDraftService {
     const primaryProduct = Array.isArray(candidates) ? candidates[0] : null;
     const unit = quantity.unit || primaryProduct?.specUnit || primaryProduct?.unit || '';
     const actionDraft = {
+      capabilityId: target.capabilityId,
+      queryKey: target.queryKey,
       draftType: 'inventory_stock_operation',
       operationType,
       operationTypeLabel: this.stockOperationLabel(operationType),
@@ -71,11 +122,16 @@ export class AgentV2BusinessActionDraftService {
       },
     ];
     const evidence = this.evidence(
-      ['Product', 'StockMovementDraft'],
+      unique([...target.sourceModels, 'StockMovementDraft']),
       '库存动作草稿 = 根据用户语义识别库存操作类型，并只读取 Product 候选项；不会直接写入 StockMovement。',
-      [`storeId=${context.storeId}`, `operationType=${operationType}`, productKeyword ? `productKeyword=${productKeyword}` : 'productKeyword=未识别'],
+      [
+        `storeId=${context.storeId}`,
+        `operationType=${operationType}`,
+        productKeyword ? `productKeyword=${productKeyword}` : 'productKeyword=未识别',
+        ...target.permissionCodes.map((code) => `permission=${code}`),
+      ],
       Array.isArray(candidates) ? candidates.length : 0,
-      ['该能力只生成待确认草稿，不直接出库、报废、盘点或修改库存。'],
+      ['该能力只生成待确认草稿，不直接出库、报废、盘点或修改库存。', ...target.boundaryNotes],
     );
 
     return {
@@ -94,7 +150,40 @@ export class AgentV2BusinessActionDraftService {
         })),
       },
       evidence,
-      actions: [{ label: '提交库存审批', action: 'inventory:stock-operation-submit', riskLevel: 'medium' }],
+      actions: [{ label: '提交库存审批', action: 'inventory:stock-operation-submit', riskLevel: target.riskLevel }],
+    };
+  }
+
+  private async genericActionDraft(args: Record<string, unknown>, context: AgentToolExecutionContext, target: ActionDraftTarget): Promise<AgentToolResult> {
+    const question = String(args.question ?? '');
+    const actionDraft = {
+      capabilityId: target.capabilityId,
+      queryKey: target.queryKey,
+      draftType: target.queryKey ?? target.capabilityId,
+      title: target.displayName,
+      requestedQuestion: question,
+      statusLabel: '待确认',
+      approvalRequired: true,
+      writeScope: 'approval_required',
+      operatorSource: '当前登录用户',
+      permissionCodes: target.permissionCodes,
+      sourceModels: target.sourceModels,
+    };
+    const evidence = this.evidence(
+      unique([...target.sourceModels, 'AgentV2CapabilityManifest']),
+      `${target.displayName} = Manifest 声明的动作草稿；只生成审批草稿，不直接写入业务数据。`,
+      [`storeId=${context.storeId}`, `capabilityId=${target.capabilityId}`, ...target.permissionCodes.map((code) => `permission=${code}`)],
+      0,
+      ['该能力当前使用 Manifest 通用草稿生成器，只能进入人工确认或审批。', ...target.boundaryNotes],
+    );
+
+    return {
+      status: 'success',
+      title: target.displayName,
+      summary: `已生成${target.displayName}草稿；提交前需要人工确认。`,
+      data: { actionDraft, items: [{ title: target.displayName, statusLabel: '待确认', writeScope: 'approval_required' }] },
+      evidence,
+      actions: [{ label: '提交审批', action: `approval:${target.queryKey ?? target.capabilityId}`, riskLevel: target.riskLevel }],
     };
   }
 
@@ -156,4 +245,8 @@ export class AgentV2BusinessActionDraftService {
     const number = Number(value ?? 0);
     return Number.isFinite(number) ? number : 0;
   }
+}
+
+function unique(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }

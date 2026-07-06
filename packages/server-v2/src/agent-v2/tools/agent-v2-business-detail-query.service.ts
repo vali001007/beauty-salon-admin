@@ -1,14 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { AgentEvidence, AgentToolExecutionContext, AgentToolResult } from '../../agent/agent.types.js';
 import { formatBusinessDateTime } from '../../common/utils/business-time.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
+import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
+import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
 
 @Injectable()
 export class AgentV2BusinessDetailQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly genericQueryEngine?: GenericQueryEngineService,
+    @Optional() private readonly manifestProvider?: AgentV2ManifestProviderService,
+  ) {}
 
   async execute(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const capabilityId = String(args.capabilityId ?? '');
+    const genericResult = await this.tryGenericQuery(capabilityId, args, context);
+    if (genericResult) return genericResult;
     if (capabilityId === 'order.detail.lookup') return this.lookupOrderDetail(args, context);
     return {
       status: 'unsupported',
@@ -18,6 +27,16 @@ export class AgentV2BusinessDetailQueryService {
       evidence: this.evidence(['AgentV2CapabilityManifest'], '当前能力没有可执行详情查询器。', [], 0),
       actions: [],
     };
+  }
+
+  private async tryGenericQuery(capabilityId: string, args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const manifest = this.activeManifests().find((item) => item.capabilityId === capabilityId);
+    if (!manifest || !this.genericQueryEngine?.canExecute(manifest)) return null;
+    return this.genericQueryEngine.tryExecute({ manifest, args, context });
+  }
+
+  private activeManifests() {
+    return this.manifestProvider?.listManifests() ?? listAgentV2CapabilityManifests();
   }
 
   private async lookupOrderDetail(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {

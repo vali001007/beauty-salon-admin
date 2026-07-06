@@ -47,7 +47,17 @@ function normalizeProduct(item: ApiProduct): Product {
     miniappStatus: item.miniappStatus ?? 'unpublished',
     miniappPublishedAt: item.miniappPublishedAt ? String(item.miniappPublishedAt) : null,
     industrySource: item.industrySource ?? null,
-    supplyMapping: item.supplyMapping ?? { availabilityStatus: 'not_mapped' },
+    supplyMapping: item.supplyMapping ?? {
+      mappingId: null,
+      mappingStatus: null,
+      supplySkuId: null,
+      supplierName: null,
+      latestQuotePrice: null,
+      moq: null,
+      leadDays: null,
+      stockStatus: null,
+      availabilityStatus: 'not_mapped',
+    },
   };
 }
 

@@ -2779,6 +2779,43 @@ model AgentRun {
   @@map("agent_runs")
 }
 
+model AgentRunAuditDetail {
+  id                     Int      @id @default(autoincrement())
+  runId                  Int      @unique
+  storeId                Int?
+  userId                 Int?
+  role                   String?
+  entrypoint             String?
+  agentCode              String?
+  personaCode            String?
+  question               String?
+  status                 String   @default("pending")
+  capabilityId           String?
+  knowledgeGraphJson     Json?
+  llmPromptJson          Json?
+  llmResponseJson        Json?
+  structuredIntentJson   Json?
+  capabilityMappingJson  Json?
+  policyDecisionJson     Json?
+  toolTraceJson          Json?
+  contractValidationJson Json?
+  latencyBreakdownJson   Json?
+  costJson               Json?
+  riskJson               Json?
+  errorCode              String?
+  errorMessage           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([userId])
+  @@index([status])
+  @@index([capabilityId])
+  @@index([agentCode])
+  @@index([personaCode])
+  @@map("agent_run_audit_details")
+}
+
 model AgentMessage {
   id        Int      @id @default(autoincrement())
   runId     Int
@@ -2874,10 +2911,48 @@ model AgentEvalRun {
   errorMessage String?
   createdAt  DateTime @default(now())
 
+  caseResults AgentEvalCaseResult[]
+
   @@index([caseId])
   @@index([runId])
   @@index([status])
   @@map("agent_eval_runs")
+}
+
+model AgentEvalCaseResult {
+  id                   Int      @id @default(autoincrement())
+  evalRunId            Int?
+  caseId               Int?
+  questionId           String?
+  question             String
+  roleGroup            String?
+  expectedCapabilityId String?
+  actualCapabilityId   String?
+  expectedOutputKind   String?
+  actualOutputKind     String?
+  status               String
+  pass                 Boolean  @default(false)
+  score                Float?
+  failureCategory      String?
+  errorMessage         String?
+  latencyMs            Int?
+  cacheHit             Boolean?
+  fallbackUsed         Boolean?
+  resultJson           Json?
+  traceJson            Json?
+  createdAt            DateTime @default(now())
+
+  evalRun AgentEvalRun? @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+
+  @@index([evalRunId])
+  @@index([caseId])
+  @@index([questionId])
+  @@index([status])
+  @@index([pass])
+  @@index([expectedCapabilityId])
+  @@index([actualCapabilityId])
+  @@index([failureCategory])
+  @@map("agent_eval_case_results")
 }
 
 // ─── Agent Persona（六大角色 Agent 配置）────────────────────────────────────
@@ -3228,4 +3303,115 @@ model AgentToolQueryKeyRegistry {
   @@index([domain])
   @@index([status])
   @@map("agent_tool_query_key_registry")
+}
+
+model AgentAutoPublishLog {
+  id              Int       @id @default(autoincrement())
+  runNo           String?
+  source          String    @default("ci")
+  scanMode        String    @default("hash")
+  status          String
+  capabilityId    String?
+  draftId         Int?
+  publishRunId    Int?
+  releaseStrategy String?
+  riskLevel       String?
+  decision        String?
+  summary         String?
+  inputJson       Json?
+  resultJson      Json?
+  errorMessage    String?
+  triggeredBy     Int?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([runNo])
+  @@index([source])
+  @@index([scanMode])
+  @@index([status])
+  @@index([capabilityId])
+  @@index([draftId])
+  @@index([publishRunId])
+  @@index([triggeredBy])
+  @@index([startedAt])
+  @@map("agent_auto_publish_logs")
+}
+
+model AgentHealthMetric {
+  id             Int      @id @default(autoincrement())
+  storeId        Int?
+  metricKey      String
+  metricType     String   @default("gauge")
+  valueFloat     Float?
+  valueInt       Int?
+  valueText      String?
+  unit           String?
+  windowStart    DateTime?
+  windowEnd      DateTime?
+  dimensionsJson Json?
+  status         String   @default("normal")
+  source         String   @default("agent_v2_governance")
+  collectedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([storeId, collectedAt])
+  @@index([metricKey, collectedAt])
+  @@index([metricType])
+  @@index([status])
+  @@index([source])
+  @@index([collectedAt])
+  @@map("agent_health_metrics")
+}
+
+model AgentKnowledgeGraphOverride {
+  id           Int      @id @default(autoincrement())
+  overrideType String
+  relationType String
+  sourceNodeId String?
+  targetNodeId String?
+  value        String?
+  label        String?
+  reason       String?
+  status       String   @default("active")
+  source       String   @default("manual_override")
+  confidence   Float    @default(1)
+  payloadJson  Json?
+  createdBy    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([overrideType, status])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+  @@index([createdBy])
+  @@index([updatedAt])
+  @@map("agent_knowledge_graph_overrides")
+}
+
+model AgentV2GrayRule {
+  id            Int      @id @default(autoincrement())
+  name          String
+  mode          String
+  status        String   @default("active")
+  priority      Int      @default(100)
+  storeIds      Json?
+  personaCodes  Json?
+  roles         Json?
+  entrypoints   Json?
+  capabilityIds Json?
+  reason        String?
+  source        String   @default("governance_config")
+  payloadJson   Json?
+  createdBy     Int?
+  updatedBy     Int?
+  deletedBy     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([mode])
+  @@index([priority])
+  @@index([updatedAt])
+  @@map("agent_v2_gray_rules")
 }

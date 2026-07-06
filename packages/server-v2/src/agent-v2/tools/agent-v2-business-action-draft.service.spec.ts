@@ -38,4 +38,29 @@ describe('AgentV2BusinessActionDraftService', () => {
     });
     expect(result.evidence?.metricDefinition).toContain('不会直接写入 StockMovement');
   });
+
+  it('resolves inventory draft target from manifest queryKey', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const create = jest.fn();
+    const service = new AgentV2BusinessActionDraftService({
+      product: { findMany },
+      stockMovement: { create },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { queryKey: 'inventory.stock-operation-draft', question: '生成盘点调整草稿' },
+      { runId: 1, storeId: 6, role: 'manager', userId: 1 },
+    );
+
+    expect(create).not.toHaveBeenCalled();
+    expect(result.status).toBe('success');
+    expect((result.data as any).actionDraft).toMatchObject({
+      capabilityId: 'inventory.stock.operation.draft',
+      queryKey: 'inventory.stock-operation-draft',
+      draftType: 'inventory_stock_operation',
+      operationType: 'stocktake',
+      approvalRequired: true,
+    });
+    expect(result.evidence?.filters).toContain('permission=core:inventory:adjustment');
+  });
 });

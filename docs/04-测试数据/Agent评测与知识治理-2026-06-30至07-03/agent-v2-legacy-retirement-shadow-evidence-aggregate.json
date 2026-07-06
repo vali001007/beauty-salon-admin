@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-07-06 06:43:52 Asia/Shanghai",
+  "source": {
+    "input": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-shadow-evidence-export.example.json",
+    "defaultInput": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-shadow-evidence-export.json",
+    "exampleInput": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-shadow-evidence-export.example.json",
+    "candidateOutput": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.candidate.json"
+  },
+  "summary": {
+    "passCandidate": false,
+    "observedDays": 1,
+    "totalRuns": 3,
+    "shadowRuns": 1,
+    "kgLlmPreferredRuns": 1,
+    "kgLlmOnlyRuns": 0,
+    "usefulnessSampleCount": 3,
+    "llmObserved": true,
+    "rollbackVerified": false,
+    "recommendation": "已生成 candidate 证据；必须再通过 agent-v2:legacy-retirement-evidence -- --input <candidate> 校验后，才能考虑写入正式生产证据。"
+  },
+  "aggregate": {
+    "observedDays": 1,
+    "firstObservedAt": "2026-07-06T02:15:00.000Z",
+    "lastObservedAt": "2026-07-06T02:25:00.000Z",
+    "runs": {
+      "total": 3,
+      "byMode": {
+        "shadow": 1,
+        "kg_llm_preferred": 1,
+        "legacy_regex": 1
+      },
+      "byFinalEngine": {
+        "legacy_regex": 2,
+        "kg_llm": 1
+      },
+      "byStatus": {
+        "success": 3
+      },
+      "shadow": 1,
+      "kgLlmPreferred": 1,
+      "kgLlmOnly": 0,
+      "newChain": 2
+    },
+    "safety": {
+      "majorRegressionCount": 0,
+      "highRiskAutoExecutionCount": 0
+    },
+    "usefulness": {
+      "kgSampleCount": 1,
+      "legacySampleCount": 2,
+      "kgHelpfulRate": 1,
+      "legacyHelpfulRate": 1
+    },
+    "llm": {
+      "sampleCount": 2,
+      "failedCount": 2,
+      "latencyP99Ms": 610,
+      "failureRate": 1,
+      "costObserved": true,
+      "failureSamplesCaptured": true
+    }
+  },
+  "candidate": {
+    "generatedAt": "2026-07-06 06:43:52 Asia/Shanghai",
+    "source": {
+      "environment": "production",
+      "window": "2026-07-06 10:00:00 Asia/Shanghai ~ 2026-07-13 10:00:00 Asia/Shanghai",
+      "exportedBy": "agent-governance-observability-job"
+    },
+    "shadow": {
+      "observedDays": 1,
+      "totalRuns": 3,
+      "shadowRuns": 1,
+      "kgLlmPreferredRuns": 1,
+      "kgLlmOnlyRuns": 0,
+      "majorRegressionCount": 0,
+      "highRiskAutoExecutionCount": 0,
+      "notes": "由 AgentRun / AgentRunAuditDetail / AgentToolCall 导出聚合生成；写入正式证据前必须复核真实生产窗口。"
+    },
+    "usefulness": {
+      "relativeToLegacy": "equal",
+      "sampleCount": 3,
+      "kgHelpfulRate": 1,
+      "legacyHelpfulRate": 1,
+      "notes": "有用率按 rating>=4 或 adopted=true 计为 helpful；KG 与 legacy 都需要真实反馈样本才可证明不低于旧链路。"
+    },
+    "llmObservability": {
+      "enabled": true,
+      "latencyP99Ms": 610,
+      "failureRate": 1,
+      "costObserved": true,
+      "failureSamplesCaptured": true,
+      "notes": "LLM 观测来自 audit detail 的 llmPrompt/llmResponse/cost/latency trace；0ms 表示没有可用样本。"
+    },
+    "rollback": {
+      "verified": false,
+      "lastVerifiedAt": null,
+      "method": null,
+      "notes": "示例文件不代表真实回滚验证。"
+    }
+  }
+}

@@ -6,6 +6,7 @@ export interface Product {
   sku: string;
   brand: string;
   spec: string;
+  unit?: string | null;
   specQuantity?: number | null;
   specUnit?: string | null;
   packageUnit?: '瓶' | '盒' | '支' | '个' | '套' | '包' | string | null;
