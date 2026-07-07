@@ -21,6 +21,9 @@ type EvalGateReport = {
       sampleCount?: number;
     };
   };
+  samples?: {
+    kgLegacyDiffs?: RuntimeSampleIssue[];
+  };
 };
 
 type DiffAttributionReport = {
@@ -31,6 +34,7 @@ type DiffAttributionReport = {
     needsKgFix?: number;
     safeToRetireByAttribution?: boolean;
   };
+  diffs?: DiffAttribution[];
 };
 
 type RetirementPreflightReport = {
@@ -39,6 +43,24 @@ type RetirementPreflightReport = {
     retirementReady?: boolean;
     productionEvidenceBlockers?: number;
   };
+};
+
+type RuntimeSampleIssue = {
+  id?: string;
+  question?: string;
+  expectedCapabilityId?: string;
+  kgCapabilityId?: string | null;
+  legacyCapabilityId?: string | null;
+  finalEngine?: string | null;
+};
+
+type DiffAttribution = RuntimeSampleIssue & {
+  preferredCapabilityId?: string | null;
+  preferredFinalEngine?: string | null;
+  category?: string;
+  kgMatchesExpected?: boolean;
+  legacyMatchesExpected?: boolean;
+  needsKgFix?: boolean;
 };
 
 const workspaceRoot = resolve(process.cwd(), '../..');
@@ -116,7 +138,46 @@ function main() {
     for (const blocker of blockers) {
       console.error(`- ${blocker.id}: ${blocker.actual}`);
     }
+    printFailureSamples({ evalGateReport, diffAttributionReport });
     process.exit(1);
+  }
+}
+
+function printFailureSamples(input: {
+  evalGateReport: EvalGateReport | null;
+  diffAttributionReport: DiffAttributionReport | null;
+}) {
+  const preferredFallbacks = (input.diffAttributionReport?.diffs ?? [])
+    .filter((diff) => diff.preferredFinalEngine === 'legacy_regex')
+    .slice(0, 10);
+  const kgFixes = (input.diffAttributionReport?.diffs ?? [])
+    .filter((diff) => diff.needsKgFix)
+    .slice(0, 10);
+  const kgLegacyDiffs = (input.evalGateReport?.samples?.kgLegacyDiffs ?? []).slice(0, 10);
+
+  printSampleList('preferred legacy fallback samples', preferredFallbacks);
+  printSampleList('KG fix required samples', kgFixes);
+  printSampleList('eval KG/legacy diff samples', kgLegacyDiffs);
+}
+
+function printSampleList(title: string, samples: RuntimeSampleIssue[]) {
+  if (!samples.length) return;
+  console.error(`[agent-v2:legacy-dependency-audit] ${title}`);
+  for (const sample of samples) {
+    const diff = sample as DiffAttribution;
+    console.error(
+      [
+        `- id=${sample.id ?? 'n/a'}`,
+        `question=${JSON.stringify(sample.question ?? '')}`,
+        `expected=${sample.expectedCapabilityId ?? 'n/a'}`,
+        `kg=${sample.kgCapabilityId ?? 'n/a'}`,
+        `legacy=${sample.legacyCapabilityId ?? 'n/a'}`,
+        `preferred=${diff.preferredCapabilityId ?? 'n/a'}`,
+        `preferredEngine=${diff.preferredFinalEngine ?? sample.finalEngine ?? 'n/a'}`,
+        `category=${diff.category ?? 'n/a'}`,
+        `needsKgFix=${diff.needsKgFix ?? 'n/a'}`,
+      ].join(', '),
+    );
   }
 }
 
