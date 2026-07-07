@@ -76,6 +76,7 @@ describe('AgentV2CapabilityDecisionService', () => {
     ['最近三天营业额趋势怎么样', 'finance.revenue.trend', 'business.trend.query'],
     ['今天现金、微信、支付宝各收了多少', 'finance.payment-method-breakdown.metric', 'business.metric.query'],
     ['今天退款有几笔，金额多少', 'finance.refund.metric', 'business.metric.query'],
+    ['有没有退款影响到员工提成的情况', 'finance.refund.metric', 'business.metric.query'],
     ['这个月提成最高的是谁，大概多少', 'finance.staff-commission.metric', 'business.metric.query'],
     ['哪些产品毛利率最高', 'finance.product-gross-profit.metric', 'business.metric.query'],
     ['帮我看一下各项目的毛利情况', 'finance.project-gross-profit.metric', 'business.metric.query'],

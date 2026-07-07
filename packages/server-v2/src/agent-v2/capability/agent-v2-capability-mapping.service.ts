@@ -204,7 +204,7 @@ export class AgentV2CapabilityMappingService {
     if (!/退款|退费|退款率/.test(question)) return false;
     if (this.isFinanceRiskDiagnosticsQuestion(question)) return false;
     if (/直接退款|帮我退款|发起退款|执行退款|操作退款|处理这笔退款/.test(question)) return false;
-    return /原因|主要|流程|合规|退款率|最高|投诉|应该|还是|怎么处理|怎么办|几笔|金额|统计|记录|明细|异常|最近/.test(question);
+    return /原因|主要|流程|合规|退款率|最高|投诉|应该|还是|怎么处理|怎么办|几笔|金额|统计|记录|明细|异常|最近|影响|情况/.test(question);
   }
 
   private isMultiDomainSummaryQuestion(question: string) {
