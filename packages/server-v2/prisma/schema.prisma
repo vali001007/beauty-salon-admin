@@ -3433,6 +3433,193 @@ model AgentV2TextToSqlFeedback {
   @@map("agent_v2_text_to_sql_feedback")
 }
 
+// ─── Agent V3 Pure Text-to-SQL ─────────────────────────────────────────────
+
+model AgentV3TextToSqlRun {
+  id                   Int      @id @default(autoincrement())
+  question             String
+  normalizedIntentJson Json?
+  userId               Int?
+  storeScopeJson       Json
+  selectedViewsJson    Json
+  generatedSqlHash     String?
+  redactedSql          String?  @db.Text
+  safeSqlHash          String?
+  status               String
+  blockedReason        String?
+  rowCount             Int      @default(0)
+  executionMs          Int?
+  evidenceJson         Json?
+  queryTraceJson       Json?
+  createdAt            DateTime @default(now())
+
+  feedback AgentV3TextToSqlFeedback[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([blockedReason])
+  @@index([createdAt])
+  @@map("agent_v3_text_to_sql_runs")
+}
+
+model AgentV3TextToSqlSemanticView {
+  id                      Int      @id @default(autoincrement())
+  viewName                String   @unique
+  domain                  String
+  description             String
+  requiredPermissionsJson Json
+  storeScopeField         String?
+  defaultTimeField        String?
+  fieldPoliciesJson       Json
+  isEnabled               Boolean  @default(false)
+  adminOnly               Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([domain])
+  @@index([isEnabled])
+  @@index([adminOnly])
+  @@map("agent_v3_text_to_sql_semantic_views")
+}
+
+model AgentV3TextToSqlFeedback {
+  id                  Int      @id @default(autoincrement())
+  runId               Int
+  userId              Int?
+  rating              Int?
+  feedbackText        String?  @db.Text
+  isUseful            Boolean?
+  isWrongAnswer       Boolean  @default(false)
+  isPermissionConcern Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  run AgentV3TextToSqlRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([userId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("agent_v3_text_to_sql_feedback")
+}
+
+model AgentV3SemanticKgSnapshot {
+  id                   Int       @id @default(autoincrement())
+  version              String    @unique
+  source               String    @default("v3_kg_local_fixture")
+  status               String    @default("draft")
+  snapshotJson         Json
+  statsJson            Json?
+  generatedFromVersion String?
+  activatedAt          DateTime?
+  createdBy            Int?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status])
+  @@index([source])
+  @@index([createdAt])
+  @@map("agent_v3_semantic_kg_snapshots")
+}
+
+model AgentV3SemanticEntity {
+  id              Int      @id @default(autoincrement())
+  entityType      String   @unique
+  canonicalName   String
+  domain          String
+  aliasesJson     Json
+  expectedFields  Json
+  forbiddenFields Json
+  status          String   @default("active")
+  source          String   @default("v3_kg_snapshot")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([domain])
+  @@index([status])
+  @@map("agent_v3_semantic_entities")
+}
+
+model AgentV3SemanticMetric {
+  id              Int      @id @default(autoincrement())
+  canonicalName   String   @unique
+  metricType      String
+  aliasesJson     Json
+  fieldsJson      Json
+  sortDirection   String?
+  defaultByEntity Json?
+  status          String   @default("active")
+  source          String   @default("v3_kg_snapshot")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([metricType])
+  @@index([status])
+  @@map("agent_v3_semantic_metrics")
+}
+
+model AgentV3SemanticViewBinding {
+  id             Int      @id @default(autoincrement())
+  entityType     String
+  metricName     String
+  viewName       String
+  score          Float    @default(0)
+  reasonsJson    Json
+  status         String   @default("active")
+  source         String   @default("v3_kg_snapshot")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([entityType, metricName, viewName])
+  @@index([entityType])
+  @@index([metricName])
+  @@index([viewName])
+  @@index([status])
+  @@map("agent_v3_semantic_view_bindings")
+}
+
+model AgentV3SemanticRoutingExample {
+  id                Int      @id @default(autoincrement())
+  question          String
+  expectedEntity    String?
+  expectedMetric    String?
+  expectedView      String?
+  negativeViewsJson Json?
+  source            String   @default("manual")
+  status            String   @default("active")
+  createdBy         Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([expectedEntity])
+  @@index([expectedMetric])
+  @@index([expectedView])
+  @@index([status])
+  @@map("agent_v3_semantic_routing_examples")
+}
+
+model AgentV3SemanticRoutingFeedback {
+  id              Int       @id @default(autoincrement())
+  question        String
+  routeIntentJson Json?
+  selectedView    String?
+  expectedView    String?
+  isWrongAnswer   Boolean   @default(false)
+  feedbackText    String?   @db.Text
+  status          String    @default("open")
+  createdBy       Int?
+  resolvedBy      Int?
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([selectedView])
+  @@index([expectedView])
+  @@index([isWrongAnswer])
+  @@index([status])
+  @@index([createdAt])
+  @@map("agent_v3_semantic_routing_feedback")
+}
+
 model AgentKnowledgeGraphOverride {
   id           Int      @id @default(autoincrement())
   overrideType String

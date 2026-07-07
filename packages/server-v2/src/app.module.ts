@@ -31,6 +31,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
 import { BusinessQueryModule } from './business-query/business-query.module.js';
 import { AgentModule } from './agent/agent.module.js';
 import { AgentV2Module } from './agent-v2/agent-v2.module.js';
+import { AgentV3Module } from './agent-v3/agent-v3.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
@@ -66,6 +67,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     BusinessQueryModule,
     AgentModule,
     AgentV2Module,
+    AgentV3Module,
     OperationProfitModule,
     BomModule,
     HealthModule,
