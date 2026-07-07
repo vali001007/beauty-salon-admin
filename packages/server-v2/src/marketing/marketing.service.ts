@@ -5133,8 +5133,11 @@ export class MarketingService {
   private defaultTriggerParams(triggerType: string) {
     const params: Record<string, any> = {
       dormant: { days: 60, excludePurchasedRecently: true, excludeBooked: true, wakeLevel: 'medium' },
+      dormant_winback: { days: 90, excludePurchasedRecently: true, excludeBooked: true, wakeLevel: 'medium' },
       care_cycle: { cycleDays: 28, lastServiceType: 'facial_care', remindDaysBefore: 3, channels: ['miniapp', 'sms'] },
+      care_cycle_due: { cycleDays: 28, lastServiceType: 'facial_care', remindDaysBefore: 3, channels: ['miniapp', 'sms'] },
       card_expiry: { beforeDays: 30, remainingTimes: 1, cardType: 'all', actionIntent: 'use_or_renew' },
+      card_expiring: { beforeDays: 30, remainingTimes: 1, cardType: 'all', actionIntent: 'use_or_renew' },
       coupon_expiry: { beforeDays: 7, remindSteps: [7, 3, 1], excludeBooked: true },
       coupon_claimed_unused: { unusedDays: 3, excludePurchasedRecently: true, channels: ['miniapp', 'sms'] },
       browse_abandonment: { windowHours: 24, minViewCount: 1, targetType: 'project', excludeBooked: true },
