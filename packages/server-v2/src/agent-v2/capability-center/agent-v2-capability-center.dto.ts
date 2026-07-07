@@ -23,6 +23,7 @@ export enum AgentV2CapabilityDraftStatusDto {
   published = 'published',
   rejected = 'rejected',
   deprecated = 'deprecated',
+  needs_changes = 'needs_changes',
   needs_review = 'needs_review',
   needs_development = 'needs_development',
 }
@@ -33,6 +34,7 @@ export enum AgentV2CapabilityDraftWriteStatusDto {
   published = 'published',
   rejected = 'rejected',
   deprecated = 'deprecated',
+  needs_changes = 'needs_changes',
   needs_review = 'needs_review',
   needs_development = 'needs_development',
 }
@@ -73,7 +75,14 @@ export enum AgentV2ReviewDecisionDto {
   approve = 'approve',
   reject = 'reject',
   needs_changes = 'needs_changes',
+  needs_review = 'needs_review',
   draft = 'draft',
+}
+
+export enum AgentV2AutoGovernanceModeDto {
+  open = 'open',
+  selected = 'selected',
+  all = 'all',
 }
 
 export enum AgentV2PublishModeDto {
@@ -109,6 +118,11 @@ export class AgentV2CapabilityDraftListQueryDto {
   @IsString()
   @MaxLength(80)
   domain?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  source?: string;
 
   @IsOptional()
   @IsEnum(AgentV2RiskLevelDto)
@@ -420,6 +434,32 @@ export class AgentV2ReviewDraftDto {
   @IsOptional()
   @Allow()
   changes?: Record<string, unknown>;
+}
+
+export class AgentV2AutoGovernanceDto {
+  @IsOptional()
+  @Transform(toStringArray)
+  @IsArray()
+  @ArrayMaxSize(CAPABILITY_ID_LIMIT)
+  @IsString({ each: true })
+  capabilityIds?: string[];
+
+  @IsOptional()
+  @IsEnum(AgentV2AutoGovernanceModeDto)
+  mode?: 'open' | 'selected' | 'all';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  storeId?: number;
 }
 
 export class AgentV2PublishDto {

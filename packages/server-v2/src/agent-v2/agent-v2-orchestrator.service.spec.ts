@@ -127,6 +127,253 @@ describe('AgentV2OrchestratorService contract retry', () => {
       expect.objectContaining({ kind: 'alert' }),
     ]));
   });
+
+  it('falls back to controlled Text-to-SQL when no published capability matches', async () => {
+    const previous = process.env.AGENT_V2_TEXT_TO_SQL_ENABLED;
+    process.env.AGENT_V2_TEXT_TO_SQL_ENABLED = 'true';
+    const runtime = runtimeMock(run);
+    const agentV2Runtime = {
+      planAsync: jest.fn().mockResolvedValue(null),
+    };
+    const controlledTextToSql = {
+      run: jest.fn().mockResolvedValue({
+        status: 'dry_run',
+        answer: '已生成受控只读查询计划，命中语义视图：agent_v2_order_item_sales_view。当前为 dry-run，未访问数据库。',
+        rows: [],
+        evidence: {
+          sourceViews: ['agent_v2_order_item_sales_view'],
+          storeScope: '限定门店：1',
+          fieldPolicies: [],
+          limitations: ['仅允许 SELECT 只读查询。'],
+        },
+        queryTrace: {
+          executionMode: 'execute',
+          rowCount: 0,
+          planner: {
+            status: 'planned',
+            intent: { domain: 'product', type: 'ranking' },
+            selectedViews: ['agent_v2_order_item_sales_view'],
+            generatedSql: 'SELECT product_name FROM agent_v2_order_item_sales_view LIMIT 10;',
+            parameters: {},
+            explanation: 'unit-test',
+          },
+          guard: {
+            status: 'pass',
+            safeSql: 'SELECT product_name FROM agent_v2_order_item_sales_view WHERE store_id = ANY(:allowedStoreIds) LIMIT 10;',
+            redactedSql: 'SELECT product_name FROM agent_v2_order_item_sales_view WHERE store_id = ANY(:allowedStoreIds) LIMIT 10;',
+            params: { allowedStoreIds: [1] },
+            selectedViews: [],
+            parsed: {
+              statementType: 'select',
+              columns: ['product_name'],
+              sourceViews: ['agent_v2_order_item_sales_view'],
+              functions: [],
+              hasWildcard: false,
+              hasLimit: true,
+              limit: 10,
+              hasWhere: false,
+              hasGroupBy: false,
+              hasOrderBy: false,
+              tokens: [],
+            },
+            appliedPolicies: ['select_only'],
+          },
+        },
+        auditRunId: '12',
+      }),
+    };
+    const service = new AgentV2OrchestratorService(
+      agentV2Runtime as any,
+      runtime as any,
+      new AgentV2EvidenceService(),
+      new AgentV2PolicyGatewayService(),
+      prismaMock() as any,
+      controlledTextToSql as any,
+    );
+
+    try {
+      const result = await service.processRun({ run, message: '本月销量最好的商品', actor, context: {} });
+
+      expect(controlledTextToSql.run).toHaveBeenCalledWith(expect.objectContaining({
+        question: '本月销量最好的商品',
+        storeIds: [1],
+        mode: 'execute',
+      }));
+      expect(result.status).toBe('completed');
+      expect(result.plan?.capabilityPlan?.capabilityId).toBe('agent_v2.text_to_sql.fallback');
+      const runtimeTrace = result.evidence?.queryTraces?.[0] as any;
+      expect(runtimeTrace?.planner?.generatedSql).toBe('redacted_for_user_runtime');
+      expect(runtimeTrace?.guard?.safeSql).toBe('redacted_for_user_runtime');
+      expect(JSON.stringify(result.evidence)).not.toContain('SELECT product_name');
+      expect(result.renderedBlocks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'evidence_panel' }),
+      ]));
+    } finally {
+      if (previous === undefined) {
+        delete process.env.AGENT_V2_TEXT_TO_SQL_ENABLED;
+      } else {
+        process.env.AGENT_V2_TEXT_TO_SQL_ENABLED = previous;
+      }
+    }
+  });
+
+  it('renders successful controlled Text-to-SQL rows as table blocks without leaking SQL traces', async () => {
+    const previous = process.env.AGENT_V2_TEXT_TO_SQL_ENABLED;
+    process.env.AGENT_V2_TEXT_TO_SQL_ENABLED = 'true';
+    const runtime = runtimeMock(run);
+    const agentV2Runtime = {
+      planAsync: jest.fn().mockResolvedValue(null),
+    };
+    const controlledTextToSql = {
+      run: jest.fn().mockResolvedValue({
+        status: 'success',
+        answer: '本月销量最高的是洁面乳，共销售 12 件，净销售额 ¥1,200.00。',
+        rows: [
+          { product_name: '洁面乳', quantity_sold: 12, net_sales_amount: 1200 },
+          { product_name: '面膜', quantity_sold: 8, net_sales_amount: 960 },
+        ],
+        evidence: {
+          sourceViews: ['agent_v2_order_item_sales_view'],
+          storeScope: '限定门店：1',
+          dateRange: '2026-07-01 至 2026-07-31',
+          fieldPolicies: [{ field: '*', policy: 'allow' }],
+          limitations: ['仅允许 SELECT 只读查询。'],
+        },
+        queryTrace: {
+          executionMode: 'execute',
+          rowCount: 2,
+          planner: {
+            status: 'planned',
+            intent: { domain: 'product', type: 'ranking', metric: 'quantity_sold' },
+            selectedViews: ['agent_v2_order_item_sales_view'],
+            generatedSql: 'SELECT product_name, SUM(quantity) AS quantity_sold FROM agent_v2_order_item_sales_view GROUP BY product_name ORDER BY quantity_sold DESC LIMIT 10;',
+            parameters: {},
+            explanation: 'unit-test',
+          },
+          guard: {
+            status: 'pass',
+            safeSql: 'SELECT product_name, SUM(quantity) AS quantity_sold FROM agent_v2_order_item_sales_view WHERE store_id = ANY(:allowedStoreIds) GROUP BY product_name ORDER BY quantity_sold DESC LIMIT 10;',
+            redactedSql: 'SELECT product_name, SUM(quantity) AS quantity_sold FROM agent_v2_order_item_sales_view WHERE store_id = ANY(?) GROUP BY product_name ORDER BY quantity_sold DESC LIMIT 10;',
+            params: { allowedStoreIds: [1] },
+            selectedViews: ['agent_v2_order_item_sales_view'],
+            parsed: {
+              statementType: 'select',
+              columns: ['product_name', 'quantity'],
+              sourceViews: ['agent_v2_order_item_sales_view'],
+              functions: ['sum'],
+              hasWildcard: false,
+              hasLimit: true,
+              limit: 10,
+              hasWhere: true,
+              hasGroupBy: true,
+              hasOrderBy: true,
+              tokens: [],
+            },
+            appliedPolicies: ['select_only', 'semantic_view_whitelist'],
+          },
+        },
+        auditRunId: '18',
+      }),
+    };
+    const service = new AgentV2OrchestratorService(
+      agentV2Runtime as any,
+      runtime as any,
+      new AgentV2EvidenceService(),
+      new AgentV2PolicyGatewayService(),
+      prismaMock() as any,
+      controlledTextToSql as any,
+    );
+
+    try {
+      const result = await service.processRun({ run, message: '本月销量最好的商品', actor, context: {} });
+
+      expect(controlledTextToSql.run).toHaveBeenCalledWith(expect.objectContaining({
+        question: '本月销量最好的商品',
+        storeIds: [1],
+        mode: 'execute',
+      }));
+      expect(result.status).toBe('completed');
+      expect(result.plan?.capabilityPlan?.capabilityId).toBe('agent_v2.text_to_sql.fallback');
+      expect(result.toolResults[0]).toMatchObject({
+        status: 'success',
+        title: '受控 Text-to-SQL 只读分析',
+        data: {
+          status: 'success',
+          auditRunId: '18',
+        },
+      });
+      expect(result.renderedBlocks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'table', caption: '受控 Text-to-SQL 查询结果' }),
+        expect.objectContaining({ kind: 'evidence_panel', sources: ['agent_v2_order_item_sales_view'] }),
+      ]));
+      const table = (result.renderedBlocks ?? []).find((block) => block.kind === 'table') as any;
+      expect(table.columns).toEqual(['product_name', 'quantity_sold', 'net_sales_amount']);
+      expect(table.rows[0]).toEqual(['洁面乳', '12', '1200']);
+      const runtimeTrace = result.evidence?.queryTraces?.[0] as any;
+      expect(runtimeTrace?.planner?.generatedSql).toBe('redacted_for_user_runtime');
+      expect(runtimeTrace?.guard?.safeSql).toBe('redacted_for_user_runtime');
+      expect(runtimeTrace?.guard?.redactedSql).toBe('redacted_for_user_runtime');
+      expect(runtimeTrace?.guard?.parsed).toBe('redacted_for_user_runtime');
+      expect(JSON.stringify(result.evidence)).not.toContain('SELECT product_name');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.AGENT_V2_TEXT_TO_SQL_ENABLED;
+      } else {
+        process.env.AGENT_V2_TEXT_TO_SQL_ENABLED = previous;
+      }
+    }
+  });
+
+  it('does not fall back to controlled Text-to-SQL for ordinary users by default', async () => {
+    const previousEnabled = process.env.AGENT_V2_TEXT_TO_SQL_ENABLED;
+    const previousAdminOnly = process.env.AGENT_V2_TEXT_TO_SQL_ADMIN_ONLY;
+    process.env.AGENT_V2_TEXT_TO_SQL_ENABLED = 'true';
+    delete process.env.AGENT_V2_TEXT_TO_SQL_ADMIN_ONLY;
+    const runtime = runtimeMock(run);
+    const agentV2Runtime = {
+      planAsync: jest.fn().mockResolvedValue(null),
+    };
+    const controlledTextToSql = {
+      run: jest.fn(),
+    };
+    const service = new AgentV2OrchestratorService(
+      agentV2Runtime as any,
+      runtime as any,
+      new AgentV2EvidenceService(),
+      new AgentV2PolicyGatewayService(),
+      prismaMock() as any,
+      controlledTextToSql as any,
+    );
+
+    try {
+      const result = await service.processRun({
+        run,
+        message: '本月销量最好的商品',
+        actor: {
+          storeId: 1,
+          userId: 2,
+          role: 'reception',
+          entrypoint: 'kiosk',
+          permissions: ['core:order:view'],
+        },
+        context: {},
+      });
+
+      expect(controlledTextToSql.run).not.toHaveBeenCalled();
+      expect(result.plan?.capabilityPlan?.capabilityId).toBe('agent_v2.unsupported');
+    } finally {
+      if (previousEnabled === undefined) {
+        delete process.env.AGENT_V2_TEXT_TO_SQL_ENABLED;
+      } else {
+        process.env.AGENT_V2_TEXT_TO_SQL_ENABLED = previousEnabled;
+      }
+      if (previousAdminOnly === undefined) {
+        delete process.env.AGENT_V2_TEXT_TO_SQL_ADMIN_ONLY;
+      } else {
+        process.env.AGENT_V2_TEXT_TO_SQL_ADMIN_ONLY = previousAdminOnly;
+      }
+    }
+  });
 });
 
 function manifest(capabilityId: string): AgentV2CapabilityManifest {

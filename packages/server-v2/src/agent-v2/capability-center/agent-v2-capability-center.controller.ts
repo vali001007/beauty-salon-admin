@@ -10,6 +10,7 @@ import { AgentV2CapabilityCenterService } from './agent-v2-capability-center.ser
 import {
   AgentV2AutoPublishRunDto,
   AgentV2AutoPublishRunListQueryDto,
+  AgentV2AutoGovernanceDto,
   AgentV2CapabilityDraftListQueryDto,
   AgentV2DeployHookRunDto,
   AgentV2EvalGateDto,
@@ -44,6 +45,7 @@ export class AgentV2CapabilityCenterController {
       keyword: query.keyword,
       status: query.status,
       domain: query.domain,
+      source: query.source,
       riskLevel: query.riskLevel,
       releaseStrategy: query.releaseStrategy,
     });
@@ -114,6 +116,22 @@ export class AgentV2CapabilityCenterController {
   @ApiOperation({ summary: '执行 Agent V2 Eval Gate' })
   runEvalGate(@Body() body: AgentV2EvalGateDto = {}) {
     return this.capabilityCenter.runEvalGate(body);
+  }
+
+  @Post('auto-governance')
+  @Permissions('core:agent-governance:manage')
+  @ApiOperation({ summary: '自动治理候选能力并分流状态' })
+  autoGovernance(
+    @Body() body: AgentV2AutoGovernanceDto = {},
+    @Req() req: AuthedRequest,
+  ) {
+    return this.capabilityCenter.autoGovernance({
+      capabilityIds: body?.capabilityIds,
+      mode: body?.mode,
+      limit: body?.limit,
+      storeId: body?.storeId,
+      requestedBy: req.user?.id,
+    });
   }
 
   @Post('auto-publish/run')

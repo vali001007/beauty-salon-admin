@@ -312,6 +312,7 @@ export class AgentV2PolicyGatewayService {
 
   private isDirectMutationCapability(capability: AgentV2CapabilityManifest, tool?: AgentToolDefinition) {
     if (capability.executor.type === 'business_action_draft' || capability.executor.type === 'navigation') return false;
+    if (this.isReadOnlyBusinessTool(capability, tool)) return false;
     if ([
       'business_record_query',
       'business_metric_query',
@@ -329,6 +330,24 @@ export class AgentV2PolicyGatewayService {
       ...(capability.eventTypes ?? []),
     ].join('|');
     return /写入|删除|发券|下发|退款|核销|扣减|create|update|delete|issue|send|follow/i.test(actionText);
+  }
+
+  private isReadOnlyBusinessTool(capability: AgentV2CapabilityManifest, tool?: AgentToolDefinition) {
+    const toolName = tool?.name ?? capability.executor.tool;
+    const readOnlyTools = new Set([
+      'business.record.query',
+      'business.metric.query',
+      'business.trend.query',
+      'business.detail.query',
+      'business.query',
+    ]);
+    const readOnlyActions = new Set(['lookup', 'list', 'summary', 'analyze', 'diagnose', 'recommend']);
+    return (
+      readOnlyTools.has(toolName) &&
+      capability.riskLevel === 'low' &&
+      tool?.riskLevel !== 'high' &&
+      (capability.actions.length === 0 || capability.actions.every((action) => readOnlyActions.has(action)))
+    );
   }
 
   private sampleSizeFromData(data: unknown) {

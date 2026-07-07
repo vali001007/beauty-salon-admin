@@ -3071,6 +3071,7 @@ export class AgentV2GovernanceService {
 
   private isDebugDirectMutationCapability(capability: AgentV2CapabilityManifest, tool: ReturnType<AgentV2RuntimeService['getTool']> | null) {
     if (capability.executor?.type === 'business_action_draft' || capability.executor?.type === 'navigation') return false;
+    if (this.isDebugReadOnlyBusinessTool(capability, tool)) return false;
     const actionText = [
       capability.capabilityId,
       capability.displayName,
@@ -3081,6 +3082,25 @@ export class AgentV2GovernanceService {
       ...(capability.eventTypes ?? []),
     ].join('|');
     return /写入|删除|发券|下发|退款|核销|扣减|create|update|delete|issue|send|follow/i.test(actionText);
+  }
+
+  private isDebugReadOnlyBusinessTool(capability: AgentV2CapabilityManifest, tool: ReturnType<AgentV2RuntimeService['getTool']> | null) {
+    const toolName = tool?.name ?? capability.executor?.tool;
+    const readOnlyTools = new Set([
+      'business.record.query',
+      'business.metric.query',
+      'business.trend.query',
+      'business.detail.query',
+      'business.query',
+    ]);
+    const readOnlyActions = new Set(['lookup', 'list', 'summary', 'analyze', 'diagnose', 'recommend']);
+    return (
+      Boolean(toolName) &&
+      readOnlyTools.has(String(toolName)) &&
+      capability.riskLevel === 'low' &&
+      tool?.riskLevel !== 'high' &&
+      ((capability.actions ?? []).length === 0 || (capability.actions ?? []).every((action) => readOnlyActions.has(action)))
+    );
   }
 
   private buildDebugReplay(

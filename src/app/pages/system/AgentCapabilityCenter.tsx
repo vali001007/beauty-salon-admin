@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Bot,
   CheckCircle2,
   Eye,
   GitBranch,
@@ -15,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import {
   activateAgentCapabilityManifestVersion,
+  autoGovernAgentCapabilities,
   dryRunAgentCapabilityDraft,
   getAgentCapabilityDraft,
   getAgentCapabilityDrafts,
@@ -29,6 +31,7 @@ import {
   validateAgentCapabilityDraft,
 } from '@/api';
 import type {
+  AgentCapabilityAutoGovernanceResult,
   AgentCapabilityDraftDetail,
   AgentCapabilityDraftListResult,
   AgentCapabilityDryRunResult,
@@ -41,6 +44,8 @@ import type {
 const statusLabels: Record<string, string> = {
   draft: '待治理',
   needs_changes: '待补齐',
+  needs_development: '待补齐',
+  needs_review: '待复核',
   approved: '已审核',
   rejected: '已驳回',
   published: '已发布',
@@ -58,9 +63,19 @@ const riskLabels: Record<string, string> = {
   high: '高风险',
 };
 
+const sourceLabels: Record<string, string> = {
+  auto_scan_draft: '自动扫描',
+  auto_governance: '自动治理',
+  manual_builtin: '内置迁移',
+  eval_failure: '评测失败',
+  text_to_sql_candidate: 'Text-to-SQL 候选',
+};
+
 const statusClass: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
   needs_changes: 'bg-amber-50 text-amber-700',
+  needs_development: 'bg-amber-50 text-amber-700',
+  needs_review: 'bg-amber-50 text-amber-700',
   approved: 'bg-blue-50 text-blue-700',
   rejected: 'bg-red-50 text-red-700',
   published: 'bg-emerald-50 text-emerald-700',
@@ -81,6 +96,41 @@ function compactList(values?: string[], limit = 3) {
   const list = values?.filter(Boolean) ?? [];
   if (!list.length) return '-';
   return list.length > limit ? `${list.slice(0, limit).join('、')} 等 ${list.length} 项` : list.join('、');
+}
+
+type CapabilityActionError = Error & {
+  payload?: {
+    message?: unknown;
+    details?: unknown;
+  };
+};
+
+function getCapabilityActionError(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return { title: fallback };
+  const payload = (error as CapabilityActionError).payload;
+  const details = payload?.details as Record<string, unknown> | undefined;
+  const nestedMessage = details?.message as Record<string, unknown> | undefined;
+  const blocked = (details?.blocked ?? nestedMessage?.blocked) as
+    | Array<{ capabilityId?: string; issues?: Array<{ message?: string }> }>
+    | undefined;
+  const title =
+    (typeof payload?.message === 'string' && payload.message) ||
+    (typeof details?.message === 'string' && details.message) ||
+    (typeof nestedMessage?.message === 'string' && nestedMessage.message) ||
+    error.message ||
+    fallback;
+  if (!blocked?.length) return { title };
+  const sample = blocked.slice(0, 3).map((item) => {
+    const issue = item.issues?.find((entry) => entry.message)?.message ?? '未返回具体原因';
+    return `${item.capabilityId ?? 'unknown'}：${issue}`;
+  });
+  const description = `${sample.join('\n')}${blocked.length > sample.length ? `\n另有 ${blocked.length - sample.length} 项被阻断` : ''}`;
+  return { title, description };
+}
+
+function autoGovernanceSummary(result: AgentCapabilityAutoGovernanceResult) {
+  const byStatus = result.summary.byStatus ?? {};
+  return `已处理 ${result.processed} 项：已审核 ${byStatus.approved ?? 0}，待补齐 ${byStatus.needs_development ?? 0}，待复核 ${byStatus.needs_review ?? 0}`;
 }
 
 function StatCard({
@@ -111,6 +161,7 @@ export function AgentCapabilityCenter() {
     keyword: '',
     status: 'all',
     domain: 'all',
+    source: 'all',
     riskLevel: 'all',
     releaseStrategy: 'all',
   });
@@ -223,7 +274,8 @@ export function AgentCapabilityCenter() {
       await loadData();
       if (detail?.capabilityId) await openDetail(detail.capabilityId, false, { resetResults: false });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '操作失败');
+      const message = getCapabilityActionError(error, '操作失败');
+      toast.error(message.title, { description: message.description });
     } finally {
       setActionLoading(null);
     }
@@ -238,6 +290,41 @@ export function AgentCapabilityCenter() {
       else toast.error('发布后烟测未通过，请查看命中能力与工具结果');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '发布后烟测失败');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function runAutoGovernance(capabilityIds = selectedArray) {
+    setActionLoading('auto-governance');
+    try {
+      const result = await autoGovernAgentCapabilities(
+        capabilityIds.length
+          ? { capabilityIds, mode: 'selected', limit: capabilityIds.length }
+          : { mode: 'open', limit: 100 },
+      );
+      toast.success('自动治理完成', { description: autoGovernanceSummary(result) });
+      if (capabilityIds.length) setSelectedIds(new Set());
+      await loadData();
+      if (detail?.capabilityId) await openDetail(detail.capabilityId, false, { resetResults: false });
+    } catch (error) {
+      const message = getCapabilityActionError(error, '自动治理失败');
+      toast.error(message.title, { description: message.description });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function importAndAutoGovernance() {
+    setActionLoading('import-auto-governance');
+    try {
+      await importAgentCapabilityDrafts();
+      const result = await autoGovernAgentCapabilities({ mode: 'open', limit: 100 });
+      toast.success('候选能力已导入并自动治理', { description: autoGovernanceSummary(result) });
+      await loadData();
+    } catch (error) {
+      const message = getCapabilityActionError(error, '导入或自动治理失败');
+      toast.error(message.title, { description: message.description });
     } finally {
       setActionLoading(null);
     }
@@ -259,7 +346,8 @@ export function AgentCapabilityCenter() {
       if (smokeResult.pass) toast.success('能力已发布，并通过发布后烟测');
       else toast.error('能力已发布，但发布后烟测未通过');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '能力发布失败');
+      const message = getCapabilityActionError(error, '能力发布失败');
+      toast.error(message.title, { description: message.description });
     } finally {
       setActionLoading(null);
     }
@@ -288,11 +376,19 @@ export function AgentCapabilityCenter() {
           </button>
           <button
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
-            onClick={() => void runAction('import', () => importAgentCapabilityDrafts(), '候选能力已导入')}
+            onClick={() => void importAndAutoGovernance()}
             disabled={Boolean(actionLoading)}
           >
             <Sparkles className="h-4 w-4" />
-            导入候选
+            导入并治理
+          </button>
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-teal-200 px-4 text-sm text-teal-700 shadow-sm hover:bg-teal-50 disabled:opacity-60"
+            onClick={() => void runAutoGovernance()}
+            disabled={Boolean(actionLoading)}
+          >
+            <Bot className="h-4 w-4" />
+            自动治理
           </button>
           <button
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 px-4 text-sm text-blue-700 shadow-sm hover:bg-blue-50 disabled:opacity-60"
@@ -341,16 +437,17 @@ export function AgentCapabilityCenter() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
         <StatCard label="候选能力" value={data?.stats.total ?? 0} tone="gray" />
         <StatCard label="待治理" value={stats.draft ?? 0} tone="amber" />
+        <StatCard label="待补齐" value={stats.needs_development ?? 0} tone="amber" />
+        <StatCard label="待复核" value={stats.needs_review ?? 0} tone="amber" />
         <StatCard label="已审核" value={stats.approved ?? 0} tone="blue" />
         <StatCard label="已发布" value={stats.published ?? 0} tone="green" />
-        <StatCard label="当前 Manifest" value={data?.activeManifestVersion ?? '内置版本'} tone="gray" />
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_160px_160px_170px]">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_150px_170px_150px_170px]">
           <label className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -367,7 +464,8 @@ export function AgentCapabilityCenter() {
           >
             <option value="all">全部状态</option>
             <option value="draft">待治理</option>
-            <option value="needs_changes">待补齐</option>
+            <option value="needs_development">待补齐</option>
+            <option value="needs_review">待复核</option>
             <option value="approved">已审核</option>
             <option value="published">已发布</option>
             <option value="rejected">已驳回</option>
@@ -383,6 +481,18 @@ export function AgentCapabilityCenter() {
                 {domain}
               </option>
             ))}
+          </select>
+          <select
+            className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
+            value={query.source}
+            onChange={(event) => updateQuery({ source: event.target.value })}
+          >
+            <option value="all">全部来源</option>
+            <option value="auto_scan_draft">自动扫描</option>
+            <option value="auto_governance">自动治理</option>
+            <option value="text_to_sql_candidate">Text-to-SQL 候选</option>
+            <option value="manual_builtin">内置迁移</option>
+            <option value="eval_failure">评测失败</option>
           </select>
           <select
             className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
@@ -419,7 +529,7 @@ export function AgentCapabilityCenter() {
             {loading && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-sm">
+            <table className="w-full min-w-[1220px] text-sm">
               <thead className="bg-gray-50 text-left text-xs text-gray-500">
                 <tr>
                   <th className="w-10 px-4 py-3">
@@ -427,6 +537,7 @@ export function AgentCapabilityCenter() {
                   </th>
                   <th className="px-4 py-3">能力</th>
                   <th className="px-4 py-3">领域/对象</th>
+                  <th className="px-4 py-3">来源</th>
                   <th className="px-4 py-3">动作</th>
                   <th className="px-4 py-3">策略/风险</th>
                   <th className="px-4 py-3">权限</th>
@@ -454,6 +565,11 @@ export function AgentCapabilityCenter() {
                     <td className="px-4 py-3 text-gray-700">
                       <div>{item.domain}</div>
                       <div className="text-xs text-gray-500">{item.businessObject}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      <span className={item.source === 'text_to_sql_candidate' ? 'rounded-full bg-violet-50 px-2 py-1 text-violet-700' : ''}>
+                        {sourceLabels[item.source] ?? item.source}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{compactList(item.actions)}</td>
                     <td className="px-4 py-3">
@@ -489,7 +605,7 @@ export function AgentCapabilityCenter() {
                 ))}
                 {!data?.items.length && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={10} className="px-4 py-10 text-center text-gray-500">
                       暂无候选能力，请先导入草稿。
                     </td>
                   </tr>
@@ -606,6 +722,10 @@ export function AgentCapabilityCenter() {
                       </div>
                       <div className="space-y-2 text-sm">
                         <div>
+                          <span className="text-gray-500">来源：</span>
+                          {sourceLabels[detail.source] ?? detail.source}
+                        </div>
+                        <div>
                           <span className="text-gray-500">权限：</span>
                           {compactList(detail.permissionCodes, 4)}
                         </div>
@@ -618,6 +738,17 @@ export function AgentCapabilityCenter() {
                           {compactList(detail.sourceApis, 2)}
                         </div>
                       </div>
+                      {detail.source === 'text_to_sql_candidate' && (
+                        <div className="rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm text-violet-900">
+                          <div className="mb-2 font-medium">Text-to-SQL 候选证据</div>
+                          <div>视图：{compactList((detail.executor?.selectedViews as string[] | undefined) ?? detail.sourceModels, 4)}</div>
+                          <div className="mt-1">权限来源：{detail.permissionSource ?? '-'}</div>
+                          <div className="mt-1">权限：{compactList(detail.permissionCodes, 4)}</div>
+                          <div className="mt-1">字段策略：{Array.isArray(detail.fieldPolicies) ? detail.fieldPolicies.length : 0} 条</div>
+                          <div className="mt-1 break-all font-mono text-xs text-violet-700">safeSqlHash: {String(detail.executor?.safeSqlHash ?? '-')}</div>
+                          <div className="mt-1 break-all font-mono text-xs text-violet-700">generatedSqlHash: {String(detail.executor?.generatedSqlHash ?? '-')}</div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"

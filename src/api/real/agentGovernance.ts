@@ -22,6 +22,12 @@ import type {
   AgentGovernanceRunDetail,
   AgentGovernanceRunStats,
   AgentGovernanceUncoveredQuestion,
+  AgentV2TextToSqlCandidate,
+  AgentV2TextToSqlGuardInspectResult,
+  AgentV2TextToSqlRun,
+  AgentV2TextToSqlRunResult,
+  AgentV2TextToSqlSemanticView,
+  AgentV2TextToSqlStatus,
   AgentV2GrayRule,
   CreateAgentV2GrayRuleInput,
   AgentKnowledgeGraphOverride,
@@ -37,6 +43,7 @@ import type {
 import type { AgentRunRecord } from '@/types/agent';
 
 const BASE_PATH = '/agent-governance';
+const TEXT_TO_SQL_PATH = '/agent-v2/text-to-sql';
 
 export async function getAgentGovernanceRuns(
   params: AgentGovernanceListQuery = {},
@@ -66,6 +73,86 @@ export async function getAgentGovernanceUncoveredTop(
 
 export async function getAgentGovernanceRunDetail(id: number, params: { storeId?: number } = {}): Promise<AgentGovernanceRunDetail> {
   return apiClient.get(`${BASE_PATH}/runs/${id}/detail`, { params });
+}
+
+export async function getAgentV2TextToSqlSemanticViews(params: {
+  includePlanned?: boolean;
+  includeAdmin?: boolean;
+} = {}): Promise<AgentV2TextToSqlSemanticView[]> {
+  return apiClient.get(`${TEXT_TO_SQL_PATH}/semantic-views`, { params });
+}
+
+export async function getAgentV2TextToSqlRuns(params: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  userId?: number;
+} = {}): Promise<AgentGovernanceListResult<AgentV2TextToSqlRun>> {
+  return apiClient.get(`${TEXT_TO_SQL_PATH}/runs`, { params });
+}
+
+export async function getAgentV2TextToSqlRun(id: number): Promise<AgentV2TextToSqlRun | null> {
+  return apiClient.get(`${TEXT_TO_SQL_PATH}/runs/${id}`);
+}
+
+export async function getAgentV2TextToSqlStatus(): Promise<AgentV2TextToSqlStatus> {
+  return apiClient.get(`${TEXT_TO_SQL_PATH}/status`);
+}
+
+export async function dryRunAgentV2TextToSql(data: {
+  question: string;
+  storeId?: number;
+  storeIds?: number[];
+}): Promise<AgentV2TextToSqlRunResult> {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/dry-run`, data, { timeout: 60000 });
+}
+
+export async function executeAgentV2TextToSql(data: {
+  question: string;
+  storeId?: number;
+  storeIds?: number[];
+}): Promise<AgentV2TextToSqlRunResult> {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/execute`, data, { timeout: 60000 });
+}
+
+export async function inspectAgentV2TextToSqlGuard(data: {
+  sql: string;
+  storeId?: number;
+  storeIds?: number[];
+}): Promise<AgentV2TextToSqlGuardInspectResult> {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/guard/inspect`, data);
+}
+
+export async function testAgentV2TextToSqlSemanticView(viewName: string, data: {
+  storeId?: number;
+  storeIds?: number[];
+} = {}): Promise<AgentV2TextToSqlGuardInspectResult> {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/semantic-views/${encodeURIComponent(viewName)}/test`, data);
+}
+
+export async function createAgentV2TextToSqlFeedback(id: number, data: {
+  rating?: number;
+  feedbackText?: string;
+  isUseful?: boolean;
+  isWrongAnswer?: boolean;
+  isPermissionConcern?: boolean;
+}) {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/runs/${id}/feedback`, data);
+}
+
+export async function promoteAgentV2TextToSqlRun(id: number): Promise<Record<string, unknown>> {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/runs/${id}/promote`);
+}
+
+export async function getAgentV2TextToSqlCandidates(params: {
+  limit?: number;
+  minHitCount?: number;
+} = {}): Promise<AgentV2TextToSqlCandidate[]> {
+  return apiClient.get(`${TEXT_TO_SQL_PATH}/candidates`, { params });
+}
+
+export async function promoteAgentV2TextToSqlCandidate(clusterKey: string): Promise<Record<string, unknown>> {
+  return apiClient.post(`${TEXT_TO_SQL_PATH}/candidates/promote`, { clusterKey });
 }
 
 export async function getAgentKnowledgeGraphSummary(): Promise<AgentKnowledgeGraphSummary> {

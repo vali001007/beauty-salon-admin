@@ -1,5 +1,6 @@
 import apiClient from '../client';
 import type {
+  AgentCapabilityAutoGovernanceResult,
   AgentCapabilityDraftDetail,
   AgentCapabilityDraftListQuery,
   AgentCapabilityDraftListResult,
@@ -64,6 +65,15 @@ export async function runAgentCapabilityPostPublishSmokeTest(
 
 export async function runAgentCapabilityEvalGate(data: { capabilityIds?: string[] } = {}): Promise<AgentCapabilityEvalGateResult> {
   return apiClient.post(`${BASE_PATH}/eval-gate`, data, { timeout: 60000 });
+}
+
+export async function autoGovernAgentCapabilities(data: {
+  capabilityIds?: string[];
+  mode?: 'open' | 'selected' | 'all';
+  limit?: number;
+  storeId?: number;
+} = {}): Promise<AgentCapabilityAutoGovernanceResult> {
+  return apiClient.post(`${BASE_PATH}/auto-governance`, data, { timeout: 120000 });
 }
 
 export async function reviewAgentCapabilityDraft(data: {

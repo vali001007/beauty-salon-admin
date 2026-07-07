@@ -32,11 +32,13 @@ import { AgentV2BusinessRecordQueryService } from './tools/agent-v2-business-rec
 import { AgentV2BusinessTrendQueryService } from './tools/agent-v2-business-trend-query.service.js';
 import { AgentV2NavigationService } from './tools/agent-v2-navigation.service.js';
 import { AgentV2PolicyGatewayService } from './policy/agent-v2-policy-gateway.service.js';
+import { AgentV2TextToSqlModule } from './text-to-sql/agent-v2-text-to-sql.module.js';
 
 @Module({
   imports: [
     PrismaModule,
     AiModule,
+    AgentV2TextToSqlModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

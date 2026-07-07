@@ -236,6 +236,35 @@ describe('AgentV2BusinessRecordQueryService', () => {
     });
   });
 
+  it('infers recent date range from Chinese questions when timeRange is missing', async () => {
+    const now = new Date('2026-07-06T12:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      const findMany = jest.fn().mockResolvedValue([]);
+      const service = new AgentV2BusinessRecordQueryService({
+        stockMovement: { findMany },
+      } as unknown as PrismaService);
+
+      const result = await service.execute(
+        { capabilityId: 'inventory.scrap.records.list', question: '最近30天报废的产品有哪些', limit: 10 },
+        { runId: 1, storeId: 1, role: 'manager' },
+      );
+
+      const call = findMany.mock.calls[0][0];
+      expect(call.where).toMatchObject({
+        storeId: 1,
+        movementType: 'scrap_out',
+        occurredAt: { gte: expect.any(Date), lt: expect.any(Date) },
+      });
+      expect(call.where.occurredAt.gte.getTime()).toBeLessThanOrEqual(now.getTime() - 29 * 86_400_000);
+      expect(call.where.occurredAt.lt).toEqual(now);
+      expect((result.data as any).timeRange).toMatchObject({ label: '近 30 天', preset: 'last_30_days' });
+      expect(result.summary).toContain('近 30 天');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('queries inventory stock health from products without writing inventory data', async () => {
     const productFindMany = jest.fn().mockResolvedValue([
       {
@@ -651,6 +680,124 @@ describe('AgentV2BusinessRecordQueryService', () => {
       staffName: '周宁',
       staffUserId: 2,
       amount: 36.64,
+    });
+  });
+
+  it('queries customer profile analytics behavior records through a stable queryKey', async () => {
+    const count = jest.fn().mockResolvedValue(1);
+    const customerFindMany = jest.fn().mockResolvedValue([
+      {
+        id: 1,
+        storeId: 6,
+        name: '杨紫萱',
+        age: 29,
+        skinCondition: '干性缺水',
+        memberLevel: 'VIP',
+        totalSpent: 36000,
+        visitCount: 12,
+        lastVisitDate: new Date(),
+        skinType: '干性肌肤',
+        tags: ['VIP客户'],
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        healthProfile: {
+          customerId: 1,
+          skinType: '干性肌肤',
+          skinStatus: '缺水',
+          mainProblems: '干纹',
+        },
+      },
+    ]);
+    const consumptionFindMany = jest.fn().mockResolvedValue([
+      { id: 1, customerId: 1, consumeType: '面部护理', amount: 1280, campaign: '夏季护理', consumeTime: new Date('2026-07-01T02:00:00.000Z') },
+      { id: 2, customerId: 1, consumeType: '面部护理', amount: 980, campaign: '无', consumeTime: new Date('2026-04-01T02:00:00.000Z') },
+      { id: 3, customerId: 1, consumeType: '身体护理', amount: 580, campaign: '无', consumeTime: new Date('2026-01-01T02:00:00.000Z') },
+    ]);
+    const service = new AgentV2BusinessRecordQueryService({
+      customer: { count, findMany: customerFindMany },
+      consumptionRecord: { findMany: consumptionFindMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { queryKey: 'customer.profile-analytics.behavior.records', pageSize: 10 },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(customerFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { deletedAt: null, storeId: 6 },
+      take: 300,
+    }));
+    expect(consumptionFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { customerId: { in: [1] } },
+      take: 2000,
+    }));
+    expect(result.status).toBe('success');
+    expect((result.data as any).items[0]).toMatchObject({
+      customerId: 1,
+      name: '杨紫萱',
+      skinType: '干性肌肤',
+      preferredService: '面部护理',
+    });
+    expect((result.data as any).queryTrace).toMatchObject({
+      queryKey: 'customer.profile-analytics.behavior.records',
+      engine: 'agent_v2_dedicated_adapter',
+    });
+  });
+
+  it('queries miniapp behavior analysis through the customer readonly adapter', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 1,
+        name: '杨紫萱',
+        phone: '13700000000',
+        wechat: 'wx_1',
+        totalSpent: 12000,
+        lastVisitDate: new Date(),
+        store: { id: 6, name: 'Ami 全量演示门店' },
+        customerAppIdentities: [{ id: 1, bindStatus: 'bound', lastLoginAt: new Date() }],
+        customerAppEvents: [{ id: 1, eventType: 'page_view', occurredAt: new Date() }],
+        reservations: [{ id: 2, status: 'pending', createdAt: new Date() }],
+        productOrders: [{ id: 3, status: 'completed', totalAmount: 1280, createdAt: new Date() }],
+        marketingTouches: [],
+        recommendationEvents: [],
+        customerCards: [],
+      },
+    ]);
+    const service = new AgentV2BusinessRecordQueryService({
+      customer: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { capabilityId: 'customer.customers.miniapp.behavior.analysis.records.list', limit: 10 },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: 6, deletedAt: null },
+    }));
+    expect(result.status).toBe('success');
+    expect((result.data as any).items[0]).toMatchObject({
+      customerId: 1,
+      name: '杨紫萱',
+      miniappStatus: expect.any(String),
+    });
+    expect((result.data as any).queryTrace).toMatchObject({
+      engine: 'agent_v2_customer_readonly_adapter',
+      queryKey: 'customer.miniapp-behavior-analysis.records',
+    });
+  });
+
+  it('does not block publish dry-run for customer app me records without customer context', async () => {
+    const service = new AgentV2BusinessRecordQueryService({} as unknown as PrismaService);
+
+    const result = await service.execute(
+      { capabilityId: 'customer.customer.app.me.records.list', dryRun: true },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(result.status).toBe('no_data');
+    expect((result.data as any).dataGap).toBe('missing_customer_context');
+    expect((result.data as any).queryTrace).toMatchObject({
+      queryKey: 'customer.app.me.records',
     });
   });
 });

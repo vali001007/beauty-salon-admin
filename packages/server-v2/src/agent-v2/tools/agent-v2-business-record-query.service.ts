@@ -5,15 +5,13 @@ import type { AgentEvidence, AgentToolExecutionContext, AgentToolResult } from '
 import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
 import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
 import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
+import {
+  resolveAgentV2QueryDateRange,
+  startOfAgentV2Day,
+  type AgentV2DateRange,
+} from '../utils/agent-v2-date-range.js';
 
 const DAY_MS = 86_400_000;
-
-type AgentV2DateRange = {
-  start: Date;
-  end: Date;
-  label: string;
-  preset: string;
-};
 
 type OrderRecordConfig = {
   title: string;
@@ -22,6 +20,169 @@ type OrderRecordConfig = {
   orderKinds?: string[];
   metricDefinition: string;
 };
+
+type CustomerRecordAdapterKind =
+  | 'customer_app_contact'
+  | 'customer_app_display_configs'
+  | 'customer_app_events'
+  | 'customer_app_home'
+  | 'customer_app_me'
+  | 'customer_app_me_cards'
+  | 'customer_app_me_consumption'
+  | 'customer_app_me_member_card'
+  | 'customer_app_me_reservations'
+  | 'customer_app_projects'
+  | 'customer_app_reservation_availability'
+  | 'customer_card_portraits'
+  | 'customer_consumption_records'
+  | 'customer_health_profiles'
+  | 'customer_miniapp_behavior';
+
+type CustomerRecordAdapterConfig = {
+  capabilityId: string;
+  title: string;
+  queryKey: string;
+  kind: CustomerRecordAdapterKind;
+  sourceModels: string[];
+  metricDefinition: string;
+};
+
+const DEDICATED_RECORD_ADAPTER_CAPABILITY_IDS = new Set([
+  'card.package.status.lookup',
+  'customer.coupon.status.lookup',
+  'finance.staff-commission.records.list',
+]);
+
+const CUSTOMER_RECORD_ADAPTERS: CustomerRecordAdapterConfig[] = [
+  {
+    capabilityId: 'customer.customer.app.contact.records.list',
+    title: 'Ami Glow 联系方式',
+    queryKey: 'customer.app.contact.records',
+    kind: 'customer_app_contact',
+    sourceModels: ['Store'],
+    metricDefinition: 'Ami Glow 联系方式 = 当前门店 Store 的联系电话、地址和营业时间说明，只读返回。',
+  },
+  {
+    capabilityId: 'customer.customer.app.display.configs.records.list',
+    title: 'Ami Glow 展示配置',
+    queryKey: 'customer.app.display-configs.records',
+    kind: 'customer_app_display_configs',
+    sourceModels: ['AmiGlowDisplayConfig', 'Store'],
+    metricDefinition: 'Ami Glow 展示配置 = AmiGlowDisplayConfig 中配置给小程序/H5 的项目、商品、卡项、权益和页面展示记录。',
+  },
+  {
+    capabilityId: 'customer.customer.app.events.records.list',
+    title: 'Ami Glow 小程序事件',
+    queryKey: 'customer.app.events.records',
+    kind: 'customer_app_events',
+    sourceModels: ['CustomerAppEvent', 'CustomerAppIdentity', 'Customer', 'Store'],
+    metricDefinition: 'Ami Glow 小程序事件 = CustomerAppEvent 中已落库的浏览、点击、预约、领取等客户端事件。',
+  },
+  {
+    capabilityId: 'customer.customer.app.home.records.list',
+    title: 'Ami Glow 首页推荐数据',
+    queryKey: 'customer.app.home.records',
+    kind: 'customer_app_home',
+    sourceModels: ['Store', 'Project', 'Promotion', 'Product', 'Card', 'MarketingPage', 'AmiGlowDisplayConfig'],
+    metricDefinition: 'Ami Glow 首页推荐数据 = 当前门店可展示的项目、权益、商品、卡项和营销页面只读摘要。',
+  },
+  {
+    capabilityId: 'customer.customer.app.me.records.list',
+    title: 'Ami Glow 我的资料',
+    queryKey: 'customer.app.me.records',
+    kind: 'customer_app_me',
+    sourceModels: ['Customer', 'CustomerHealthProfile', 'CustomerAppIdentity'],
+    metricDefinition: 'Ami Glow 我的资料 = 绑定客户的基础档案、健康档案和小程序身份信息；无客户上下文时返回 no_data。',
+  },
+  {
+    capabilityId: 'customer.customer.app.me.cards.records.list',
+    title: 'Ami Glow 我的次卡',
+    queryKey: 'customer.app.me.cards.records',
+    kind: 'customer_app_me_cards',
+    sourceModels: ['CustomerCard', 'Card', 'Customer'],
+    metricDefinition: 'Ami Glow 我的次卡 = CustomerCard 中当前客户可查看的次卡权益记录；无客户上下文时返回 no_data。',
+  },
+  {
+    capabilityId: 'customer.customer.app.me.consumption.records.records.list',
+    title: 'Ami Glow 我的消费记录',
+    queryKey: 'customer.app.me.consumption-records.records',
+    kind: 'customer_app_me_consumption',
+    sourceModels: ['ConsumptionRecord', 'Customer'],
+    metricDefinition: 'Ami Glow 我的消费记录 = 当前客户 ConsumptionRecord 消费流水；无客户上下文时返回 no_data。',
+  },
+  {
+    capabilityId: 'customer.customer.app.me.member.card.records.list',
+    title: 'Ami Glow 我的会员卡',
+    queryKey: 'customer.app.me.member-card.records',
+    kind: 'customer_app_me_member_card',
+    sourceModels: ['Customer', 'CustomerBalanceAccount'],
+    metricDefinition: 'Ami Glow 我的会员卡 = CustomerBalanceAccount + Customer.memberLevel 的会员余额与权益摘要；无客户上下文时返回 no_data。',
+  },
+  {
+    capabilityId: 'customer.customer.app.me.reservations.records.list',
+    title: 'Ami Glow 我的预约',
+    queryKey: 'customer.app.me.reservations.records',
+    kind: 'customer_app_me_reservations',
+    sourceModels: ['Reservation', 'Customer', 'Project', 'Beautician', 'Store'],
+    metricDefinition: 'Ami Glow 我的预约 = 当前客户 Reservation 预约记录；无客户上下文时返回 no_data。',
+  },
+  {
+    capabilityId: 'customer.customer.app.projects.records.list',
+    title: 'Ami Glow 项目列表',
+    queryKey: 'customer.app.projects.records',
+    kind: 'customer_app_projects',
+    sourceModels: ['Project', 'ProjectType', 'Store', 'AmiGlowDisplayConfig'],
+    metricDefinition: 'Ami Glow 项目列表 = 当前门店可在线展示的 Project 记录。',
+  },
+  {
+    capabilityId: 'customer.customer.app.reservations.availability.records.list',
+    title: 'Ami Glow 预约可用时段',
+    queryKey: 'customer.app.reservation-availability.records',
+    kind: 'customer_app_reservation_availability',
+    sourceModels: ['Project', 'Reservation', 'SchedulingRuleConfig', 'BeauticianTimeOff'],
+    metricDefinition: 'Ami Glow 预约可用时段 = 项目时长、营业时间和已有预约综合形成的只读可约时段摘要。',
+  },
+  {
+    capabilityId: 'customer.customers.card.portraits.records.list',
+    title: '客户卡项画像',
+    queryKey: 'customer.card-portraits.records',
+    kind: 'customer_card_portraits',
+    sourceModels: ['CustomerCard', 'Card', 'Customer'],
+    metricDefinition: '客户卡项画像 = CustomerCard 次卡权益和客户基础档案形成的卡项偏好只读列表。',
+  },
+  {
+    capabilityId: 'customer.customers.consumption.records.records.list',
+    title: '客户消费记录',
+    queryKey: 'customer.consumption.records',
+    kind: 'customer_consumption_records',
+    sourceModels: ['ConsumptionRecord', 'Customer'],
+    metricDefinition: '客户消费记录 = ConsumptionRecord 中当前门店客户已落库消费流水。',
+  },
+  {
+    capabilityId: 'customer.customers.health.profiles.records.list',
+    title: '客户健康档案',
+    queryKey: 'customer.health-profiles.records',
+    kind: 'customer_health_profiles',
+    sourceModels: ['CustomerHealthProfile', 'Customer'],
+    metricDefinition: '客户健康档案 = CustomerHealthProfile 中肤质、问题、护理建议和最近检测时间。',
+  },
+  {
+    capabilityId: 'customer.customers.miniapp.behavior.analysis.records.list',
+    title: '客户小程序行为分析',
+    queryKey: 'customer.miniapp-behavior-analysis.records',
+    kind: 'customer_miniapp_behavior',
+    sourceModels: ['Customer', 'CustomerAppEvent', 'CustomerAppIdentity', 'Reservation', 'ProductOrder', 'MarketingAutomationTouch'],
+    metricDefinition: '客户小程序行为分析 = 客户档案、小程序事件、预约、订单和营销触达推导出的活跃度与意向分层。',
+  },
+];
+
+const CUSTOMER_RECORD_ADAPTER_BY_CAPABILITY_ID = new Map(
+  CUSTOMER_RECORD_ADAPTERS.map((config) => [config.capabilityId, config]),
+);
+
+const CUSTOMER_RECORD_ADAPTER_BY_QUERY_KEY = new Map(
+  CUSTOMER_RECORD_ADAPTERS.map((config) => [config.queryKey, config]),
+);
 
 @Injectable()
 export class AgentV2BusinessRecordQueryService {
@@ -33,8 +194,19 @@ export class AgentV2BusinessRecordQueryService {
 
   async execute(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const capabilityId = String(args.capabilityId ?? '');
-    const genericResult = await this.tryGenericQuery(capabilityId, args, context);
-    if (genericResult) return genericResult;
+    const queryKey = String(args.queryKey ?? '');
+    const preferDedicatedAdapter = DEDICATED_RECORD_ADAPTER_CAPABILITY_IDS.has(capabilityId);
+    if (!preferDedicatedAdapter) {
+      const genericResult = await this.tryGenericQuery(capabilityId, args, context);
+      if (genericResult) return genericResult;
+    }
+
+    if (
+      capabilityId === 'customer.customers.profile.analytics.behavior.records.list' ||
+      queryKey === 'customer.profile-analytics.behavior.records'
+    ) return this.listCustomerProfileAnalyticsBehavior(args, context);
+    const customerRecordAdapter = this.resolveCustomerRecordAdapter(capabilityId, queryKey);
+    if (customerRecordAdapter) return this.listCustomerReadOnlyRecords(customerRecordAdapter, args, context);
     if (capabilityId === 'inventory.scrap.records.list') return this.listInventoryScrapRecords(args, context);
     if (capabilityId === 'inventory.expiring-risk.list') return this.listInventoryExpiringRisk(args, context);
     if (capabilityId === 'inventory.bom.consumption.records.records.list') return this.listInventoryStockHealth(args, context);
@@ -74,6 +246,11 @@ export class AgentV2BusinessRecordQueryService {
     if (capabilityId === 'finance.staff-commission.records.list') return this.listCommissionRecords(args, context);
     if (capabilityId === 'customer.consumption.records.list') return this.listCustomerConsumptionRecords(args, context);
 
+    if (preferDedicatedAdapter) {
+      const genericResult = await this.tryGenericQuery(capabilityId, args, context);
+      if (genericResult) return genericResult;
+    }
+
     return {
       status: 'unsupported',
       title: '暂不支持的业务记录查询',
@@ -94,12 +271,643 @@ export class AgentV2BusinessRecordQueryService {
     return this.manifestProvider?.listManifests() ?? listAgentV2CapabilityManifests();
   }
 
+  private resolveCustomerRecordAdapter(capabilityId: string, queryKey: string) {
+    return CUSTOMER_RECORD_ADAPTER_BY_CAPABILITY_ID.get(capabilityId) ?? CUSTOMER_RECORD_ADAPTER_BY_QUERY_KEY.get(queryKey) ?? null;
+  }
+
+  private async listCustomerReadOnlyRecords(
+    config: CustomerRecordAdapterConfig,
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const page = this.resolvePage(this.filterValue(args, 'page'));
+    const pageSize = this.resolvePageSize(this.filterValue(args, 'pageSize') ?? args.limit);
+    let payload: { items: any[]; total: number; metrics?: Record<string, unknown>; dataGap?: string };
+    switch (config.kind) {
+      case 'customer_app_contact':
+        payload = await this.listCustomerAppContact(context);
+        break;
+      case 'customer_app_display_configs':
+        payload = await this.listAmiGlowDisplayConfigs(context, page, pageSize);
+        break;
+      case 'customer_app_events':
+        payload = await this.listCustomerAppEvents(context, page, pageSize);
+        break;
+      case 'customer_app_home':
+        payload = await this.listCustomerAppHomeRecords(context);
+        break;
+      case 'customer_app_me':
+        payload = await this.listCustomerAppMe(args, context);
+        break;
+      case 'customer_app_me_cards':
+        payload = await this.listCustomerAppMeCards(args, context, page, pageSize);
+        break;
+      case 'customer_app_me_consumption':
+        payload = await this.listCustomerAppMeConsumption(args, context, page, pageSize);
+        break;
+      case 'customer_app_me_member_card':
+        payload = await this.listCustomerAppMeMemberCard(args, context);
+        break;
+      case 'customer_app_me_reservations':
+        payload = await this.listCustomerAppMeReservations(args, context, page, pageSize);
+        break;
+      case 'customer_app_projects':
+        payload = await this.listCustomerAppProjects(context, page, pageSize);
+        break;
+      case 'customer_app_reservation_availability':
+        payload = await this.listCustomerAppReservationAvailability(args, context);
+        break;
+      case 'customer_card_portraits':
+        payload = await this.listCustomerCardPortraits(context, page, pageSize);
+        break;
+      case 'customer_consumption_records':
+        payload = await this.listCustomerConsumptionRecordRows(context, page, pageSize);
+        break;
+      case 'customer_health_profiles':
+        payload = await this.listCustomerHealthProfiles(context, page, pageSize);
+        break;
+      case 'customer_miniapp_behavior':
+        payload = await this.listCustomerMiniappBehaviorAnalysis(context, page, pageSize);
+        break;
+      default:
+        payload = { items: [], total: 0 };
+    }
+
+    const evidence = this.evidence(
+      config.sourceModels,
+      config.metricDefinition,
+      [`storeId=${context.storeId}`, `queryKey=${config.queryKey}`, `page=${page}`, `pageSize=${pageSize}`],
+      payload.items.length,
+      undefined,
+      ['只读取当前账号授权范围内的小程序/客户相关数据，不执行登录、绑定、预约、发券、触达或写入。'],
+    );
+    const data = {
+      items: payload.items,
+      data: payload.items,
+      total: payload.total,
+      page,
+      pageSize,
+      metrics: payload.metrics,
+      dataGap: payload.dataGap,
+      queryTrace: {
+        engine: 'agent_v2_customer_readonly_adapter',
+        queryKey: config.queryKey,
+        capabilityId: config.capabilityId,
+        sourceModels: config.sourceModels,
+      },
+    };
+
+    if (!payload.items.length) {
+      return this.noData(
+        config.title,
+        payload.dataGap === 'missing_customer_context'
+          ? `${config.title} 需要客户 ID、手机号或姓名；当前 dry-run 未提供客户上下文，但工具分支已接入。`
+          : `${config.title} 当前没有匹配记录。`,
+        data,
+        evidence,
+      );
+    }
+
+    return {
+      status: 'success',
+      title: config.title,
+      summary: `${config.title} 返回 ${payload.items.length} 条只读记录，共 ${payload.total} 条。`,
+      data,
+      evidence,
+      actions: [{ label: '查看客户数据', action: 'customers:data', riskLevel: 'low' }],
+    };
+  }
+
+  private async listCustomerAppContact(context: AgentToolExecutionContext) {
+    const store = await (this.prisma as any).store.findFirst({
+      where: { id: context.storeId, deletedAt: null },
+      select: { id: true, name: true, phone: true, address: true },
+    });
+    return {
+      items: store ? [{ storeId: store.id, storeName: store.name, phone: store.phone, address: store.address, businessHours: '09:00-20:00' }] : [],
+      total: store ? 1 : 0,
+    };
+  }
+
+  private async listAmiGlowDisplayConfigs(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const where = { storeId: context.storeId };
+    const [items, total] = await Promise.all([
+      (this.prisma as any).amiGlowDisplayConfig.findMany({
+        where,
+        include: { store: { select: { id: true, name: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).amiGlowDisplayConfig.count({ where }),
+    ]);
+    return {
+      items: (items ?? []).map((item: any) => ({
+        id: item.id,
+        storeId: item.storeId,
+        storeName: item.store?.name,
+        objectType: item.objectType,
+        objectId: item.objectId,
+        showInAmiGlow: item.showInAmiGlow,
+        publishStatus: item.publishStatus,
+        sortOrder: item.sortOrder,
+        tags: item.tags ?? [],
+        summary: item.summary,
+        updatedAt: this.formatDateTime(item.updatedAt),
+      })),
+      total,
+    };
+  }
+
+  private async listCustomerAppEvents(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const where = { storeId: context.storeId };
+    const [items, total] = await Promise.all([
+      (this.prisma as any).customerAppEvent.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          identity: { select: { id: true, nickname: true, bindStatus: true } },
+          store: { select: { id: true, name: true } },
+        },
+        orderBy: { occurredAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).customerAppEvent.count({ where }),
+    ]);
+    return {
+      items: (items ?? []).map((item: any) => ({
+        id: item.id,
+        storeId: item.storeId,
+        storeName: item.store?.name,
+        customerId: item.customerId,
+        customerName: item.customer?.name,
+        identityId: item.identityId,
+        nickname: item.identity?.nickname,
+        bindStatus: item.identity?.bindStatus,
+        eventType: item.eventType,
+        channel: item.channel,
+        source: item.source,
+        targetType: item.targetType,
+        targetId: item.targetId,
+        occurredAt: this.formatDateTime(item.occurredAt),
+      })),
+      total,
+    };
+  }
+
+  private async listCustomerAppHomeRecords(context: AgentToolExecutionContext) {
+    const now = new Date();
+    const [store, projects, promotions, products, cards, pages, configs] = await Promise.all([
+      (this.prisma as any).store.findFirst({ where: { id: context.storeId, deletedAt: null }, select: { id: true, name: true } }),
+      (this.prisma as any).project.findMany({ where: { storeId: context.storeId, status: 'active', deletedAt: null }, select: { id: true, name: true, price: true, duration: true, updatedAt: true }, orderBy: [{ updatedAt: 'desc' }], take: 6 }),
+      (this.prisma as any).promotion.findMany({
+        where: {
+          status: 'active',
+          approvalStatus: 'approved',
+          OR: [{ storeId: context.storeId }, { storeId: null }],
+          AND: [
+            { OR: [{ startAt: null }, { startAt: { lte: now } }] },
+            { OR: [{ endAt: null }, { endAt: { gte: now } }] },
+          ],
+        },
+        select: { id: true, name: true, discountText: true, updatedAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      (this.prisma as any).product.findMany({ where: { storeId: context.storeId, status: 'active', deletedAt: null }, select: { id: true, name: true, salePrice: true, retailPrice: true, updatedAt: true }, orderBy: [{ updatedAt: 'desc' }], take: 4 }),
+      (this.prisma as any).card.findMany({ where: { status: 'active' }, select: { id: true, name: true, price: true, updatedAt: true }, orderBy: { updatedAt: 'desc' }, take: 4 }),
+      (this.prisma as any).marketingPage.findMany({ where: { OR: [{ storeId: context.storeId }, { storeId: null }], status: 'published' }, select: { id: true, title: true, status: true, publishedAt: true }, orderBy: { publishedAt: 'desc' }, take: 5 }),
+      (this.prisma as any).amiGlowDisplayConfig.findMany({ where: { storeId: context.storeId, showInAmiGlow: true, publishStatus: 'published' }, select: { id: true, objectType: true, objectId: true, sortOrder: true }, orderBy: [{ sortOrder: 'asc' }], take: 20 }),
+    ]);
+    const rows = [
+      ...(store ? [{ section: 'store', id: store.id, title: store.name }] : []),
+      ...(projects ?? []).map((item: any) => ({ section: 'project', id: item.id, title: item.name, price: this.toNumber(item.price), duration: item.duration })),
+      ...(promotions ?? []).map((item: any) => ({ section: 'promotion', id: item.id, title: item.name, discountText: item.discountText })),
+      ...(products ?? []).map((item: any) => ({ section: 'product', id: item.id, title: item.name, price: this.toNumber(item.salePrice ?? item.retailPrice) })),
+      ...(cards ?? []).map((item: any) => ({ section: 'card', id: item.id, title: item.name, price: this.toNumber(item.price) })),
+      ...(pages ?? []).map((item: any) => ({ section: 'marketing_page', id: item.id, title: item.title, status: item.status })),
+    ];
+    return {
+      items: rows,
+      total: rows.length,
+      metrics: {
+        projectCount: projects?.length ?? 0,
+        promotionCount: promotions?.length ?? 0,
+        productCount: products?.length ?? 0,
+        cardCount: cards?.length ?? 0,
+        marketingPageCount: pages?.length ?? 0,
+        displayConfigCount: configs?.length ?? 0,
+      },
+    };
+  }
+
+  private async listCustomerAppMe(args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const customer = await this.findCustomerForCustomerApp(args, context);
+    if (!customer) return { items: [], total: 0, dataGap: 'missing_customer_context' };
+    return {
+      items: [{
+        customerId: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        memberLevel: customer.memberLevel,
+        totalSpent: this.toNumber(customer.totalSpent),
+        visitCount: customer.visitCount,
+        lastVisitDate: this.formatDate(customer.lastVisitDate),
+        skinType: customer.healthProfile?.skinType ?? customer.skinType,
+        bindStatus: customer.customerAppIdentities?.[0]?.bindStatus,
+      }],
+      total: 1,
+    };
+  }
+
+  private async listCustomerAppMeCards(args: Record<string, unknown>, context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const customer = await this.findCustomerForCustomerApp(args, context);
+    if (!customer) return { items: [], total: 0, dataGap: 'missing_customer_context' };
+    const where = { customerId: customer.id };
+    const [cards, total] = await Promise.all([
+      (this.prisma as any).customerCard.findMany({ where, include: { card: true }, orderBy: { expiryDate: 'asc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      (this.prisma as any).customerCard.count({ where }),
+    ]);
+    return {
+      items: (cards ?? []).map((card: any) => this.toCustomerCardRow(card)),
+      total,
+    };
+  }
+
+  private async listCustomerAppMeConsumption(args: Record<string, unknown>, context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const customer = await this.findCustomerForCustomerApp(args, context);
+    if (!customer) return { items: [], total: 0, dataGap: 'missing_customer_context' };
+    const where = { customerId: customer.id };
+    const [records, total] = await Promise.all([
+      (this.prisma as any).consumptionRecord.findMany({ where, orderBy: { consumeTime: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      (this.prisma as any).consumptionRecord.count({ where }),
+    ]);
+    return {
+      items: (records ?? []).map((record: any) => this.toConsumptionRecordRow(record, customer)),
+      total,
+    };
+  }
+
+  private async listCustomerAppMeMemberCard(args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const customer = await this.findCustomerForCustomerApp(args, context);
+    if (!customer) return { items: [], total: 0, dataGap: 'missing_customer_context' };
+    const account = await (this.prisma as any).customerBalanceAccount.findFirst({
+      where: { customerId: customer.id, storeId: customer.storeId, status: 'active' },
+    });
+    return {
+      items: [{
+        customerId: customer.id,
+        name: customer.name,
+        memberLevel: customer.memberLevel || '普通会员',
+        cashBalance: this.toNumber(account?.cashBalance),
+        giftBalance: this.toNumber(account?.giftBalance),
+        status: account?.status ?? 'inactive',
+        benefits: ['会员专属护理建议', '项目预约提醒', '次卡余额查询'],
+      }],
+      total: 1,
+    };
+  }
+
+  private async listCustomerAppMeReservations(args: Record<string, unknown>, context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const customer = await this.findCustomerForCustomerApp(args, context);
+    if (!customer) return { items: [], total: 0, dataGap: 'missing_customer_context' };
+    const where = { customerId: customer.id };
+    const [reservations, total] = await Promise.all([
+      (this.prisma as any).reservation.findMany({
+        where,
+        include: { store: true, project: true, beautician: true },
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).reservation.count({ where }),
+    ]);
+    return {
+      items: (reservations ?? []).map((reservation: any) => this.toReservationRow(reservation, customer)),
+      total,
+    };
+  }
+
+  private async listCustomerAppProjects(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const where = { storeId: context.storeId, status: 'active', deletedAt: null };
+    const [projects, total] = await Promise.all([
+      (this.prisma as any).project.findMany({
+        where,
+        include: { type: true, store: { select: { id: true, name: true } } },
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).project.count({ where }),
+    ]);
+    return {
+      items: (projects ?? []).map((project: any) => ({
+        projectId: project.id,
+        projectName: project.name,
+        typeName: project.type?.name,
+        storeName: project.store?.name,
+        price: this.toNumber(project.price),
+        duration: project.duration,
+        online: project.online,
+        recommend: project.recommend,
+      })),
+      total,
+    };
+  }
+
+  private async listCustomerAppReservationAvailability(args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const projectId = this.toPositiveInt(this.filterValue(args, 'projectId') ?? args.projectId);
+    const [rule, project] = await Promise.all([
+      (this.prisma as any).schedulingRuleConfig.findFirst({ where: { storeId: context.storeId, status: 'active' }, orderBy: { updatedAt: 'desc' } }),
+      projectId
+        ? (this.prisma as any).project.findFirst({ where: { id: projectId, storeId: context.storeId, status: 'active', deletedAt: null } })
+        : (this.prisma as any).project.findFirst({ where: { storeId: context.storeId, status: 'active', deletedAt: null }, orderBy: { updatedAt: 'desc' } }),
+    ]);
+    if (!project) return { items: [], total: 0 };
+    const startTime = rule?.businessStartTime ?? '09:00';
+    const endTime = rule?.businessEndTime ?? '20:00';
+    const duration = this.toNumber(project.duration) || 60;
+    return {
+      items: [{
+        storeId: context.storeId,
+        projectId: project.id,
+        projectName: project.name,
+        businessStartTime: startTime,
+        businessEndTime: endTime,
+        duration,
+        slotMinutes: rule?.slotMinutes ?? duration,
+        note: '发布 dry-run 只验证预约可用时段查询分支；实际时段占用需带 date/beauticianId 后计算。',
+      }],
+      total: 1,
+    };
+  }
+
+  private async listCustomerCardPortraits(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const where = { customer: { storeId: context.storeId, deletedAt: null } };
+    const [cards, total] = await Promise.all([
+      (this.prisma as any).customerCard.findMany({
+        where,
+        include: { customer: { select: { id: true, name: true, phone: true, memberLevel: true } }, card: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).customerCard.count({ where }),
+    ]);
+    return {
+      items: (cards ?? []).map((card: any) => this.toCustomerCardRow(card)),
+      total,
+    };
+  }
+
+  private async listCustomerConsumptionRecordRows(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const where = { customer: { storeId: context.storeId, deletedAt: null } };
+    const [records, total] = await Promise.all([
+      (this.prisma as any).consumptionRecord.findMany({
+        where,
+        include: { customer: { select: { id: true, name: true, phone: true, storeId: true } } },
+        orderBy: { consumeTime: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).consumptionRecord.count({ where }),
+    ]);
+    return {
+      items: (records ?? []).map((record: any) => this.toConsumptionRecordRow(record, record.customer)),
+      total,
+    };
+  }
+
+  private async listCustomerHealthProfiles(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const where = { customer: { storeId: context.storeId, deletedAt: null } };
+    const [profiles, total] = await Promise.all([
+      (this.prisma as any).customerHealthProfile.findMany({
+        where,
+        include: { customer: { select: { id: true, name: true, phone: true, storeId: true } } },
+        orderBy: { lastCheck: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma as any).customerHealthProfile.count({ where }),
+    ]);
+    return {
+      items: (profiles ?? []).map((profile: any) => ({
+        profileId: profile.id,
+        customerId: profile.customerId,
+        customerName: profile.customer?.name,
+        phone: profile.customer?.phone,
+        skinType: profile.skinType,
+        skinStatus: profile.skinStatus,
+        mainProblems: profile.mainProblems,
+        recommendedCare: profile.recommendedCare,
+        lastCheck: this.formatDate(profile.lastCheck),
+      })),
+      total,
+    };
+  }
+
+  private async listCustomerMiniappBehaviorAnalysis(context: AgentToolExecutionContext, page: number, pageSize: number) {
+    const customers = await (this.prisma as any).customer.findMany({
+      where: { storeId: context.storeId, deletedAt: null },
+      include: {
+        store: { select: { id: true, name: true } },
+        customerAppIdentities: { select: { id: true, bindStatus: true, lastLoginAt: true }, orderBy: { lastLoginAt: 'desc' }, take: 3 },
+        customerAppEvents: { select: { id: true, eventType: true, occurredAt: true }, orderBy: { occurredAt: 'desc' }, take: 20 },
+        reservations: { select: { id: true, status: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 20 },
+        productOrders: { select: { id: true, status: true, totalAmount: true, netAmount: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 20 },
+        marketingTouches: { select: { id: true, status: true, touchedAt: true, convertedAt: true }, orderBy: { touchedAt: 'desc' }, take: 20 },
+        recommendationEvents: { select: { id: true, eventType: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 20 },
+        customerCards: { select: { id: true, status: true, remainingTimes: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 10 },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 500,
+    });
+    const now = new Date();
+    const active7d = new Date(now.getTime() - 7 * DAY_MS);
+    const active30d = new Date(now.getTime() - 30 * DAY_MS);
+    const rows = (customers ?? []).map((customer: any) => {
+      const touchCount = (customer.customerAppEvents?.length ?? 0) + (customer.recommendationEvents?.length ?? 0) + (customer.marketingTouches?.length ?? 0);
+      const reservationCount = customer.reservations?.length ?? 0;
+      const orderCount = customer.productOrders?.length ?? 0;
+      const cardCount = customer.customerCards?.length ?? 0;
+      const conversionCount =
+        (customer.productOrders ?? []).filter((order: any) => ['completed', 'paid', '已完成', '已付款'].includes(String(order.status))).length +
+        (customer.marketingTouches ?? []).filter((touch: any) => touch.convertedAt || touch.status === 'converted').length;
+      const lastActiveAt = this.maxDate([
+        customer.lastVisitDate,
+        ...(customer.customerAppEvents ?? []).map((item: any) => item.occurredAt),
+        ...(customer.reservations ?? []).map((item: any) => item.createdAt),
+        ...(customer.productOrders ?? []).map((item: any) => item.createdAt),
+        ...(customer.marketingTouches ?? []).map((item: any) => item.touchedAt),
+        ...(customer.recommendationEvents ?? []).map((item: any) => item.createdAt),
+        ...(customer.customerCards ?? []).map((item: any) => item.createdAt),
+      ]);
+      const engagementScore = Math.min(
+        100,
+        Math.round(touchCount * 6 + reservationCount * 10 + orderCount * 12 + conversionCount * 16 + cardCount * 4 + Math.min(20, this.toNumber(customer.totalSpent) / 2000) + (lastActiveAt && lastActiveAt >= active7d ? 18 : lastActiveAt && lastActiveAt >= active30d ? 10 : 0)),
+      );
+      const miniappStatus =
+        (customer.customerAppIdentities?.length ?? 0) === 0 && !customer.phone && !customer.wechat
+          ? '待绑定'
+          : engagementScore >= 70
+            ? '高活跃'
+            : reservationCount > 0 || touchCount > 0 || engagementScore >= 35
+              ? '有意向'
+              : '低活跃';
+      return {
+        customerId: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        storeName: customer.store?.name,
+        miniappStatus,
+        touchCount,
+        reservationCount,
+        orderCount,
+        conversionCount,
+        cardCount,
+        engagementScore,
+        intentLevel: engagementScore >= 70 ? '高' : engagementScore >= 35 ? '中' : '低',
+        lastActiveAt: this.formatDateTime(lastActiveAt),
+      };
+    }).sort((a: any, b: any) => b.engagementScore - a.engagementScore);
+    const items = rows.slice((page - 1) * pageSize, page * pageSize);
+    return {
+      items,
+      total: rows.length,
+      metrics: {
+        totalCustomers: rows.length,
+        highActiveCount: rows.filter((row: any) => row.miniappStatus === '高活跃').length,
+        intentCount: rows.filter((row: any) => row.intentLevel !== '低').length,
+        avgEngagementScore: rows.length ? Math.round(rows.reduce((sum: number, row: any) => sum + row.engagementScore, 0) / rows.length) : 0,
+      },
+    };
+  }
+
+  private async listCustomerProfileAnalyticsBehavior(
+    args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const filters = typeof args.filters === 'object' && args.filters !== null ? args.filters as Record<string, unknown> : {};
+    const page = this.resolvePage(filters.page ?? args.page);
+    const pageSize = this.resolvePageSize(filters.pageSize ?? args.pageSize ?? args.limit);
+    const segmentFilter = String(filters.segment ?? args.segment ?? '').trim();
+    const skinTypeFilter = String(filters.skinType ?? args.skinType ?? '').trim();
+    const now = new Date();
+
+    const where: Record<string, unknown> = { deletedAt: null, storeId: context.storeId };
+    const [totalCustomers, customers] = await Promise.all([
+      (this.prisma as any).customer.count({ where }),
+      (this.prisma as any).customer.findMany({
+        where,
+        select: {
+          id: true,
+          storeId: true,
+          name: true,
+          age: true,
+          skinCondition: true,
+          memberLevel: true,
+          totalSpent: true,
+          visitCount: true,
+          lastVisitDate: true,
+          skinType: true,
+          tags: true,
+          createdAt: true,
+          healthProfile: {
+            select: {
+              customerId: true,
+              skinType: true,
+              skinStatus: true,
+              mainProblems: true,
+            },
+          },
+        },
+        orderBy: [{ totalSpent: 'desc' }, { id: 'asc' }],
+        take: 300,
+      }),
+    ]);
+
+    const customerIds = ((customers ?? []) as any[]).map((customer) => customer.id);
+    const consumptionRecords = customerIds.length
+      ? await (this.prisma as any).consumptionRecord.findMany({
+        where: { customerId: { in: customerIds } },
+        select: {
+          id: true,
+          customerId: true,
+          consumeType: true,
+          consumeContent: true,
+          amount: true,
+          campaign: true,
+          consumeTime: true,
+        },
+        orderBy: { consumeTime: 'desc' },
+        take: 2000,
+      })
+      : [];
+
+    let rows = this.buildCustomerProfileBehaviorRows(customers ?? [], consumptionRecords ?? [], now);
+    if (segmentFilter) rows = rows.filter((row) => row.segment === segmentFilter);
+    if (skinTypeFilter) rows = rows.filter((row) => row.skinType === skinTypeFilter);
+
+    const total = rows.length;
+    const items = rows.slice((page - 1) * pageSize, page * pageSize);
+    const evidence = this.evidence(
+      ['Customer', 'CustomerHealthProfile', 'ConsumptionRecord'],
+      '客户画像行为记录 = Customer 基础画像 + CustomerHealthProfile 肤质信息 + ConsumptionRecord 消费偏好；按当前门店过滤，只读计算行为画像。',
+      [
+        `storeId=${context.storeId}`,
+        'deletedAt=null',
+        `page=${page}`,
+        `pageSize=${pageSize}`,
+        ...(segmentFilter ? [`segment=${segmentFilter}`] : []),
+        ...(skinTypeFilter ? [`skinType=${skinTypeFilter}`] : []),
+      ],
+      items.length,
+      undefined,
+      ['只读取客户画像与消费记录，不创建、修改或触达客户。'],
+    );
+
+    const data = {
+      generatedAt: this.formatDateTime(now),
+      storeId: context.storeId,
+      totalCustomers,
+      items,
+      data: items,
+      total,
+      page,
+      pageSize,
+      queryTrace: {
+        engine: 'agent_v2_dedicated_adapter',
+        queryKey: 'customer.profile-analytics.behavior.records',
+        sourceModels: ['Customer', 'CustomerHealthProfile', 'ConsumptionRecord'],
+      },
+    };
+
+    if (!items.length) {
+      return this.noData(
+        '客户画像行为记录',
+        segmentFilter || skinTypeFilter ? '当前筛选条件下没有客户画像行为记录。' : '当前门店没有可用于画像行为分析的客户记录。',
+        data,
+        evidence,
+      );
+    }
+
+    return {
+      status: 'success',
+      title: '客户画像行为记录',
+      summary: `当前门店生成 ${total} 条客户画像行为记录，本页返回 ${items.length} 条；首位客户 ${items[0].name}，分层为 ${items[0].segment}。`,
+      data,
+      evidence,
+      actions: [{ label: '查看客户画像分析', action: 'customers:profile-analytics', riskLevel: 'low' }],
+    };
+  }
+
   private async listInventoryScrapRecords(
     args: Record<string, unknown>,
     context: AgentToolExecutionContext,
   ): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
-    const range = this.resolveDateRange(args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(args, 'this_week');
     const movements = await (this.prisma as any).stockMovement.findMany({
       where: {
         storeId: context.storeId,
@@ -109,7 +917,7 @@ export class AgentV2BusinessRecordQueryService {
       include: {
         product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, costPrice: true, category: { select: { name: true } } } },
         store: { select: { id: true, name: true } },
-        operator: { select: { id: true, name: true, username: true, role: true } },
+        operator: { select: { id: true, name: true, username: true } },
         batch: { select: { id: true, batchNo: true, expiryDate: true } },
       },
       orderBy: { occurredAt: 'desc' },
@@ -518,7 +1326,7 @@ export class AgentV2BusinessRecordQueryService {
   ): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
     const orderNo = this.extractOrderNo(args);
-    const range = this.resolveDateRange(args.timeRange ?? (orderNo ? 'all' : 'this_week'));
+    const range = this.resolveQueryDateRange(args, orderNo ? 'all' : 'this_week');
     const where: Record<string, unknown> = {
       storeId: context.storeId,
       ...this.orderNoWhere(orderNo),
@@ -577,7 +1385,7 @@ export class AgentV2BusinessRecordQueryService {
 
   private async listCardPackageRecords(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
-    const range = this.resolveDateRange(args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(args, 'this_week');
     const cards = await (this.prisma as any).customerCard.findMany({
       where: {
         customer: { storeId: context.storeId },
@@ -586,7 +1394,7 @@ export class AgentV2BusinessRecordQueryService {
       include: {
         customer: { select: { id: true, name: true, phone: true, store: { select: { id: true, name: true } } } },
         card: { select: { id: true, name: true, totalTimes: true } },
-        operator: { select: { id: true, name: true, username: true, role: true } },
+        operator: { select: { id: true, name: true, username: true } },
         sourceOrder: { select: { id: true, orderNo: true, payMethod: true, status: true, netAmount: true, totalAmount: true, createdAt: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -782,7 +1590,7 @@ export class AgentV2BusinessRecordQueryService {
   private async listPaymentRecords(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
     const orderNo = this.extractOrderNo(args);
-    const range = this.resolveDateRange(args.timeRange ?? (orderNo ? 'all' : 'this_week'));
+    const range = this.resolveQueryDateRange(args, orderNo ? 'all' : 'this_week');
     const payments = await (this.prisma as any).paymentRecord.findMany({
       where: {
         order: {
@@ -848,7 +1656,7 @@ export class AgentV2BusinessRecordQueryService {
 
   private async listCardUsageRecords(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
-    const range = this.resolveDateRange(args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(args, 'this_week');
     const records = await (this.prisma as any).cardUsageRecord.findMany({
       where: {
         storeId: context.storeId,
@@ -857,7 +1665,7 @@ export class AgentV2BusinessRecordQueryService {
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         store: { select: { id: true, name: true } },
-        operator: { select: { id: true, name: true, username: true, role: true } },
+        operator: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true, userId: true } },
         device: { select: { id: true, name: true, deviceCode: true } },
         sourceOrder: { select: { id: true, orderNo: true } },
@@ -912,7 +1720,7 @@ export class AgentV2BusinessRecordQueryService {
 
   private async listCardPackageInactiveCustomers(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
-    const range = this.resolveDateRange(args.timeRange ?? 'last_90_days');
+    const range = this.resolveQueryDateRange(args, 'last_90_days');
     const inactiveThresholdDays = this.toNumber((args.filters as any)?.inactiveDays ?? 30) || 30;
     const cards = await (this.prisma as any).customerCard.findMany({
       where: {
@@ -976,14 +1784,14 @@ export class AgentV2BusinessRecordQueryService {
 
   private async listCommissionRecords(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
-    const range = this.resolveDateRange(args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(args, 'this_week');
     const records = await (this.prisma as any).commissionRecord.findMany({
       where: {
         storeId: context.storeId,
         createdAt: { gte: range.start, lt: range.end },
       },
       include: {
-        staffUser: { select: { id: true, name: true, username: true, role: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
         order: { select: { id: true, orderNo: true, orderKind: true } },
         orderItem: { select: { id: true, name: true, itemType: true } },
@@ -1034,7 +1842,7 @@ export class AgentV2BusinessRecordQueryService {
 
   private async listCustomerConsumptionRecords(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
     const limit = this.resolveLimit(args.limit);
-    const range = this.resolveDateRange(args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(args, 'this_week');
     const records = await (this.prisma as any).consumptionRecord.findMany({
       where: {
         customer: { storeId: context.storeId },
@@ -1160,8 +1968,257 @@ export class AgentV2BusinessRecordQueryService {
     return String(value);
   }
 
+  private filterValue(args: Record<string, unknown>, key: string) {
+    const filters = typeof args.filters === 'object' && args.filters !== null ? args.filters as Record<string, unknown> : {};
+    return filters[key] ?? args[key];
+  }
+
+  private async findCustomerForCustomerApp(args: Record<string, unknown>, context: AgentToolExecutionContext) {
+    const keyword = this.extractCustomerKeyword(args);
+    const id = this.toPositiveInt(this.filterValue(args, 'customerId') ?? args.customerId ?? args.id);
+    const where: Record<string, unknown> = {
+      storeId: context.storeId,
+      deletedAt: null,
+      ...(id ? { id } : keyword ? this.customerKeywordWhere(keyword) : {}),
+    };
+    if (!id && !keyword) return null;
+    return (this.prisma as any).customer.findFirst({
+      where,
+      include: {
+        store: { select: { id: true, name: true } },
+        healthProfile: true,
+        customerAppIdentities: { orderBy: { lastLoginAt: 'desc' }, take: 1 },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  private toCustomerCardRow(card: any) {
+    return {
+      id: card.id,
+      customerId: card.customerId,
+      customerName: card.customer?.name,
+      phone: card.customer?.phone,
+      memberLevel: card.customer?.memberLevel,
+      cardId: card.cardId,
+      cardName: card.cardName ?? card.card?.name,
+      totalTimes: this.toNumber(card.totalTimes),
+      remainingTimes: this.toNumber(card.remainingTimes),
+      paidAmount: this.toNumber(card.paidAmount),
+      paidAmountText: this.formatMoney(this.toNumber(card.paidAmount)),
+      expiryDate: this.formatDate(card.expiryDate),
+      status: card.remainingTimes <= 0 ? 'used_up' : card.expiryDate && card.expiryDate < new Date() ? 'expired' : card.status,
+      createdAt: this.formatDateTime(card.createdAt),
+    };
+  }
+
+  private toConsumptionRecordRow(record: any, customer?: any) {
+    return {
+      id: record.id,
+      customerId: record.customerId,
+      customerName: customer?.name ?? record.customer?.name,
+      phone: customer?.phone ?? record.customer?.phone,
+      consumeType: record.consumeType,
+      consumeContent: this.formatConsumeContent(record.consumeContent),
+      payMethod: record.payMethod,
+      amount: this.toNumber(record.amount),
+      amountText: this.formatMoney(this.toNumber(record.amount)),
+      campaign: record.campaign,
+      consumeTime: this.formatDateTime(record.consumeTime),
+    };
+  }
+
+  private toReservationRow(reservation: any, customer?: any) {
+    return {
+      id: reservation.id,
+      storeId: reservation.storeId,
+      storeName: reservation.store?.name,
+      customerId: reservation.customerId,
+      customerName: customer?.name ?? reservation.customer?.name,
+      projectId: reservation.projectId,
+      projectName: reservation.project?.name,
+      beauticianId: reservation.beauticianId,
+      beauticianName: reservation.beautician?.name,
+      date: this.formatDate(reservation.date),
+      startTime: reservation.startTime,
+      endTime: reservation.endTime,
+      status: reservation.status,
+      createdAt: this.formatDateTime(reservation.createdAt),
+    };
+  }
+
+  private toPositiveInt(input: unknown) {
+    const value = Number(input);
+    return Number.isInteger(value) && value > 0 ? value : 0;
+  }
+
+  private maxDate(values: unknown[]) {
+    const timestamps = values
+      .filter(Boolean)
+      .map((value) => new Date(value as any).getTime())
+      .filter((value) => Number.isFinite(value));
+    return timestamps.length ? new Date(Math.max(...timestamps)) : undefined;
+  }
+
+  private buildCustomerProfileBehaviorRows(customers: any[], consumptionRecords: any[], now: Date) {
+    const recordsByCustomer = new Map<number, any[]>();
+    for (const record of consumptionRecords) {
+      if (!recordsByCustomer.has(record.customerId)) recordsByCustomer.set(record.customerId, []);
+      recordsByCustomer.get(record.customerId)!.push(record);
+    }
+
+    return [...customers]
+      .sort((a, b) => this.toNumber(b.totalSpent) - this.toNumber(a.totalSpent) || this.toNumber(a.id) - this.toNumber(b.id))
+      .map((customer) => {
+        const records = recordsByCustomer.get(customer.id) ?? [];
+        const freqPerMonth = this.toNumber(customer.visitCount) / this.monthsSinceDate(customer.createdAt, now);
+        const visitFrequency =
+          freqPerMonth >= 8
+            ? '每周2次'
+            : freqPerMonth >= 4
+              ? '每周1次'
+              : freqPerMonth >= 2
+                ? '每月2-3次'
+                : freqPerMonth >= 1
+                  ? '每月1次'
+                  : this.toNumber(customer.visitCount) <= 2
+                    ? '首次消费'
+                    : '偶尔到店';
+        const avgSpend = this.toNumber(customer.visitCount) > 0
+          ? Math.round(this.toNumber(customer.totalSpent) / this.toNumber(customer.visitCount))
+          : 0;
+        const typeCounts: Record<string, number> = {};
+        for (const record of records) {
+          const key = String(record.consumeType || '面部护理');
+          typeCounts[key] = (typeCounts[key] ?? 0) + 1;
+        }
+        const preferredService = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '面部护理';
+        const promoCount = records.filter((record) => record.campaign && record.campaign !== '无').length;
+        const promoSensitivity = records.length ? Math.round((promoCount / records.length) * 100) : 50;
+        const repurchase = this.toNumber(customer.visitCount) > 1 ? Math.min(95, 50 + this.toNumber(customer.visitCount)) : 0;
+        const loyalty = Math.min(
+          99,
+          Math.round(
+            ((this.scoreProfileRecency(customer.lastVisitDate, now) +
+              this.scoreProfileFrequency(this.toNumber(customer.visitCount), customer.createdAt, now)) /
+              10) *
+              100,
+          ),
+        );
+        const monthCounts = [0, 0, 0, 0];
+        for (const record of records) {
+          const date = record.consumeTime instanceof Date ? record.consumeTime : new Date(record.consumeTime);
+          const month = Number.isNaN(date.getTime()) ? 0 : date.getMonth() + 1;
+          if (!month) continue;
+          if (month <= 3) monthCounts[0]++;
+          else if (month <= 6) monthCounts[1]++;
+          else if (month <= 9) monthCounts[2]++;
+          else monthCounts[3]++;
+        }
+        const seasons = ['春季高峰', '夏季活跃', '秋季偏好', '冬季偏好'];
+        const maxQuarter = monthCounts.indexOf(Math.max(...monthCounts));
+
+        return {
+          customerId: customer.id,
+          name: customer.name,
+          segment: this.classifyProfileSegment(customer, now),
+          skinType: this.classifyProfileSkin(customer, customer.healthProfile),
+          visitFrequency,
+          avgSpend: this.formatPlainCurrency(avgSpend),
+          preferredService,
+          promotionSensitivity: `${promoSensitivity}%`,
+          repurchaseRate: `${repurchase}%`,
+          loyalty: `${loyalty}%`,
+          seasonalTrend: records.length >= 3 ? seasons[maxQuarter] : '待观察',
+        };
+      });
+  }
+
+  private daysSinceDate(value: string | Date | null | undefined, now: Date) {
+    if (!value) return 9999;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return 9999;
+    return Math.max(0, Math.floor((now.getTime() - date.getTime()) / DAY_MS));
+  }
+
+  private monthsSinceDate(value: string | Date | null | undefined, now: Date) {
+    const days = this.daysSinceDate(value, now);
+    if (days >= 9999) return 12;
+    return Math.max(1, Math.floor(days / 30));
+  }
+
+  private scoreProfileRecency(lastVisitDate: string | Date | null | undefined, now: Date) {
+    const days = this.daysSinceDate(lastVisitDate, now);
+    if (days <= 14) return 5;
+    if (days <= 30) return 4;
+    if (days <= 60) return 3;
+    if (days <= 120) return 2;
+    if (days <= 365) return 1;
+    return 0;
+  }
+
+  private scoreProfileFrequency(visitCount: number, createdAt: string | Date | null | undefined, now: Date) {
+    const freq = this.toNumber(visitCount) / this.monthsSinceDate(createdAt, now);
+    if (freq >= 4) return 5;
+    if (freq >= 2) return 4;
+    if (freq >= 1) return 3;
+    if (freq >= 0.5) return 2;
+    if (freq > 0) return 1;
+    return 0;
+  }
+
+  private scoreProfileMonetary(totalSpent: number) {
+    const amount = this.toNumber(totalSpent);
+    if (amount >= 50000) return 5;
+    if (amount >= 20000) return 4;
+    if (amount >= 8000) return 3;
+    if (amount >= 3000) return 2;
+    if (amount > 0) return 1;
+    return 0;
+  }
+
+  private classifyProfileSegment(customer: any, now: Date) {
+    const recency = this.scoreProfileRecency(customer.lastVisitDate, now);
+    const frequency = this.scoreProfileFrequency(this.toNumber(customer.visitCount), customer.createdAt, now);
+    const monetary = this.scoreProfileMonetary(this.toNumber(customer.totalSpent));
+    const registeredDays = this.daysSinceDate(customer.createdAt, now);
+
+    if (registeredDays <= 90 || this.toNumber(customer.visitCount) <= 2) return '新客户';
+    if (recency <= 1 || (recency <= 2 && frequency <= 1)) return '流失风险客户';
+    if (recency >= 4 && frequency >= 3 && monetary >= 4) return '高价值客户';
+    if (recency >= 3 && this.toNumber(customer.age ?? 30) < 35 && monetary <= 3) return '潜在价值客户';
+    return '稳定客户';
+  }
+
+  private classifyProfileSkin(customer: any, healthProfile?: any) {
+    const values = [
+      healthProfile?.skinType,
+      customer.skinType,
+      customer.skinCondition,
+      ...(Array.isArray(customer.tags) ? customer.tags : []),
+      healthProfile?.skinStatus,
+      healthProfile?.mainProblems,
+    ].filter(Boolean).join(' ');
+
+    if (!values) return '未分类';
+    if ((values.includes('干') || values.includes('缺水') || values.includes('干纹')) && !values.includes('混')) return '干性肌肤';
+    if ((values.includes('油') || values.includes('出油') || values.includes('痘')) && !values.includes('混')) return '油性肌肤';
+    if (values.includes('敏感') || values.includes('泛红') || values.includes('过敏') || values.includes('红血丝')) return '敏感肌肤';
+    if (values.includes('混合') || values.includes('混干') || values.includes('混油') || values.includes('T区')) return '混合肌肤';
+    if (values.includes('中性') || values.includes('水油平衡') || values.includes('状态良好')) return '中性肌肤';
+    return '未分类';
+  }
+
   private noData(title: string, summary: string, data: unknown, evidence: AgentEvidence): AgentToolResult {
     return { status: 'no_data', title, summary, data, evidence, actions: [] };
+  }
+
+  private resolvePage(input: unknown) {
+    return Math.max(Number(input) || 1, 1);
+  }
+
+  private resolvePageSize(input: unknown) {
+    return Math.min(Math.max(Number(input) || 10, 10), 50);
   }
 
   private resolveLimit(input: unknown) {
@@ -1174,31 +2231,8 @@ export class AgentV2BusinessRecordQueryService {
     return Math.min(Math.max(Number.isFinite(raw) ? raw : 30, 1), 365);
   }
 
-  private resolveDateRange(input: unknown): AgentV2DateRange {
-    const now = new Date();
-    const preset = typeof input === 'object' && input !== null ? String((input as any).preset ?? '') : String(input ?? '');
-    if (preset === 'all') return { start: new Date(0), end: now, label: '全部时间', preset };
-    if (typeof input === 'object' && input !== null && (input as any).startDate && (input as any).endDate) {
-      return {
-        start: new Date(String((input as any).startDate)),
-        end: new Date(`${String((input as any).endDate).slice(0, 10)}T23:59:59.999Z`),
-        label: String((input as any).label ?? '自定义时间'),
-        preset: String((input as any).preset ?? 'custom'),
-      };
-    }
-    if (preset === 'today') {
-      const start = this.startOfDay(now);
-      return { start, end: new Date(start.getTime() + DAY_MS), label: '今天', preset };
-    }
-    if (preset === 'yesterday') {
-      const end = this.startOfDay(now);
-      return { start: new Date(end.getTime() - DAY_MS), end, label: '昨天', preset };
-    }
-    if (preset === 'last_7_days') return { start: new Date(now.getTime() - 7 * DAY_MS), end: now, label: '近 7 天', preset };
-    if (preset === 'last_30_days') return { start: new Date(now.getTime() - 30 * DAY_MS), end: now, label: '近 30 天', preset };
-    if (preset === 'this_month') return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now, label: '本月', preset };
-    const start = this.startOfWeek(now);
-    return { start, end: now, label: '本周', preset: 'this_week' };
+  private resolveQueryDateRange(args: Record<string, unknown>, fallbackPreset: string): AgentV2DateRange {
+    return resolveAgentV2QueryDateRange(args, fallbackPreset);
   }
 
   private createdAtWhere(range: AgentV2DateRange) {
@@ -1249,13 +2283,7 @@ export class AgentV2BusinessRecordQueryService {
   }
 
   private startOfDay(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private startOfWeek(date: Date) {
-    const day = date.getDay() || 7;
-    const start = this.startOfDay(date);
-    return new Date(start.getTime() - (day - 1) * DAY_MS);
+    return startOfAgentV2Day(date);
   }
 
   private evidence(source: string[], metricDefinition: string, filters: string[], sampleSize: number, range?: AgentV2DateRange, limitations?: string[]): AgentEvidence {
@@ -1301,6 +2329,10 @@ export class AgentV2BusinessRecordQueryService {
 
   private formatMoney(value: number) {
     return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  private formatPlainCurrency(value: number) {
+    return `¥${Math.round(value || 0).toLocaleString('zh-CN')}`;
   }
 
   private payMethodLabel(value: unknown) {

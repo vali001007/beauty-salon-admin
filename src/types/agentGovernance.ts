@@ -104,6 +104,141 @@ export interface AgentGovernanceRunDetail {
   replay?: Record<string, unknown>;
 }
 
+export interface AgentV2TextToSqlSemanticView {
+  id: string;
+  viewName: string;
+  domain: string;
+  description: string;
+  status: 'enabled' | 'planned' | 'disabled' | string;
+  batch: 'P0' | 'P1' | 'P2' | string;
+  adminOnly?: boolean;
+  requiredPermissions: string[];
+  storeScopeField?: string;
+  defaultTimeField?: string;
+  fields: Array<{
+    name: string;
+    type: string;
+    description: string;
+    policy: 'allow' | 'mask' | 'deny' | string;
+    roles?: string[];
+  }>;
+  sampleQuestions: string[];
+}
+
+export interface AgentV2TextToSqlRun {
+  id: number;
+  question: string;
+  normalizedIntentJson?: Record<string, unknown> | null;
+  userId?: number | null;
+  storeScopeJson: unknown;
+  selectedViewsJson: unknown;
+  generatedSqlHash?: string | null;
+  redactedSql?: string | null;
+  safeSqlHash?: string | null;
+  status: string;
+  blockedReason?: string | null;
+  rowCount: number;
+  executionMs?: number | null;
+  evidenceJson?: Record<string, unknown> | null;
+  queryTraceJson?: Record<string, unknown> | null;
+  promotedCapabilityId?: string | null;
+  createdAt: string;
+  feedback?: AgentV2TextToSqlFeedback[];
+}
+
+export interface AgentV2TextToSqlFeedback {
+  id: number;
+  runId: number;
+  userId?: number | null;
+  rating?: number | null;
+  feedbackText?: string | null;
+  isUseful?: boolean | null;
+  isWrongAnswer: boolean;
+  isPermissionConcern: boolean;
+  createdAt: string;
+}
+
+export interface AgentV2TextToSqlRunResult {
+  status: 'success' | 'no_data' | 'blocked' | 'failed' | 'dry_run' | string;
+  answer?: string;
+  rows: Array<Record<string, unknown>>;
+  evidence: {
+    sourceViews: string[];
+    dateRange?: string;
+    storeScope: string;
+    fieldPolicies: Array<{ field: string; policy: string }>;
+    limitations: string[];
+  };
+  queryTrace: Record<string, unknown>;
+  auditRunId?: string;
+  blockedReason?: string;
+}
+
+export interface AgentV2TextToSqlGuardInspectResult {
+  status: 'pass' | 'blocked' | string;
+  safeSql?: string;
+  redactedSql?: string;
+  reasonCode?: string;
+  message?: string;
+  params?: Record<string, unknown>;
+  selectedViews?: AgentV2TextToSqlSemanticView[];
+  appliedPolicies: string[];
+  parsed?: Record<string, unknown>;
+}
+
+export interface AgentV2TextToSqlStatus {
+  enabled: boolean;
+  adminOnly: boolean;
+  maxLimit: number;
+  timeoutMs: number;
+  maxRangeDays: number;
+  maxEstimatedCost: number;
+  readonlyExecutionReady: boolean;
+  executeMode: 'readonly_execute_ready' | 'dry_run_only' | string;
+  readinessCommands?: {
+    localGate: string;
+    completionAudit: string;
+    strictReadiness: string;
+  };
+  deploymentReadiness?: {
+    primaryMigrationName: string;
+    completionAuditRequired: boolean;
+    readonlyUrlRequired: boolean;
+  };
+  viewReadiness?: {
+    totalViews: number;
+    enabledViews: number;
+    plannedViews: number;
+    adminViews: number;
+    enabledViewNames?: string[];
+  };
+  executeBlockers?: string[];
+  nextActions?: string[];
+}
+
+export interface AgentV2TextToSqlCandidate {
+  clusterKey: string;
+  normalizedIntent?: Record<string, unknown>;
+  selectedViews: string[];
+  safeSqlHash?: string | null;
+  generatedSqlHash?: string | null;
+  sampleQuestions: string[];
+  hitCount: number;
+  successCount: number;
+  blockedCount: number;
+  failedCount: number;
+  usefulFeedbackCount: number;
+  feedbackCount: number;
+  successRate: number;
+  blockedRate: number;
+  feedbackUsefulRate?: number | null;
+  riskLevel: 'low' | 'medium' | 'high' | string;
+  status: 'candidate' | 'blocked_report' | string;
+  reason: string;
+  suggestedCapabilityId: string;
+  displayName: string;
+}
+
 export interface AgentGovernanceUncoveredQuestion {
   question: string;
   count: number;

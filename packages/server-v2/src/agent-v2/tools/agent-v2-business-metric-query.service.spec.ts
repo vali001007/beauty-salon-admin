@@ -46,6 +46,38 @@ describe('AgentV2BusinessMetricQueryService', () => {
     });
   });
 
+  it('uses shared natural-language date range for previous-month revenue questions', async () => {
+    const now = new Date(2026, 6, 6, 12, 0, 0);
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      const findMany = jest.fn().mockResolvedValue([]);
+      const service = new AgentV2BusinessMetricQueryService({
+        dailySettlement: { findMany },
+      } as unknown as PrismaService);
+
+      const result = await service.execute(
+        { capabilityId: 'finance.daily-settlement.metric', question: '上个月营业额' },
+        { runId: 1, storeId: 6, role: 'manager' },
+      );
+
+      const call = findMany.mock.calls[0][0];
+      expect(call.where).toMatchObject({
+        storeId: 6,
+        settleDate: {
+          gte: new Date(2026, 5, 1),
+          lt: new Date(2026, 6, 1),
+        },
+      });
+      expect((result.data as any).timeRange).toMatchObject({
+        label: '上月',
+        preset: 'last_month',
+      });
+      expect(result.summary).toContain('上月');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('summarizes payment records by payment method', async () => {
     const findMany = jest.fn().mockResolvedValue([
       { id: 1, orderId: 11, method: 'wechat', amount: 120, status: 'success', paidAt: new Date('2026-07-02T03:00:00.000Z'), createdAt: new Date('2026-07-02T03:00:00.000Z') },
@@ -748,5 +780,27 @@ describe('AgentV2BusinessMetricQueryService', () => {
       expect.objectContaining({ section: '库存' }),
       expect.objectContaining({ section: '月报' }),
     ]));
+  });
+
+  it('summarizes customer profile analytics overview through a stable queryKey', async () => {
+    const count = jest.fn().mockResolvedValue(36);
+    const service = new AgentV2BusinessMetricQueryService({
+      customer: { count },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { queryKey: 'customer.profile-analytics.overview.metric' },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(count).toHaveBeenCalledWith({ where: { deletedAt: null, storeId: 6 } });
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('客户画像总览指标');
+    expect((result.data as any).metrics).toMatchObject({ totalCustomers: 36 });
+    expect((result.data as any).queryTrace).toMatchObject({
+      queryKey: 'customer.profile-analytics.overview.metric',
+      engine: 'agent_v2_dedicated_adapter',
+    });
+    expect(result.evidence?.source).toContain('Customer');
   });
 });

@@ -133,6 +133,20 @@ describe('AgentV2PolicyGatewayService', () => {
     expect(result.checks).toContainEqual(expect.objectContaining({ name: 'release_strategy', status: 'deny' }));
   });
 
+  it('allows low-risk custom metric services such as staff efficiency to auto-publish', () => {
+    const capability = AGENT_V2_CAPABILITY_MANIFESTS.find((item) => item.capabilityId === 'finance.staff-efficiency.metric');
+
+    const result = service.evaluateCapabilityAccess(
+      capability,
+      { storeId: 1, userId: 1, role: 'manager', entrypoint: 'kiosk', permissions: ['*'] },
+      tool,
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(result.requiresApproval).toBe(false);
+    expect(result.checks).toContainEqual(expect.objectContaining({ name: 'release_strategy', status: 'pass' }));
+  });
+
   it('blocks coupon issue capabilities with explicit release-strategy reason', () => {
     const capability = AGENT_V2_CAPABILITY_MANIFESTS.find((item) => item.capabilityId === 'marketing.coupon.issue.blocked');
 

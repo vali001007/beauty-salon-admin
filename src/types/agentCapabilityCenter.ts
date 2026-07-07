@@ -1,4 +1,12 @@
-export type AgentCapabilityDraftStatus = 'draft' | 'needs_changes' | 'approved' | 'rejected' | 'published' | string;
+export type AgentCapabilityDraftStatus =
+  | 'draft'
+  | 'needs_changes'
+  | 'needs_development'
+  | 'needs_review'
+  | 'approved'
+  | 'rejected'
+  | 'published'
+  | string;
 
 export type AgentCapabilityRiskLevel = 'low' | 'medium' | 'high' | string;
 
@@ -99,6 +107,30 @@ export interface AgentCapabilityEvalGateResult {
   samples: Record<string, unknown[]>;
 }
 
+export interface AgentCapabilityAutoGovernanceResult {
+  mode: 'open' | 'selected' | 'all' | string;
+  processed: number;
+  summary: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+  results: Array<{
+    capabilityId: string;
+    previousStatus: string;
+    nextStatus: string;
+    reason: string;
+    validationPass: boolean;
+    dryRunPass?: boolean;
+    evalGatePass?: boolean;
+    issues: Array<{
+      code: string;
+      level: string;
+      message: string;
+      suggestion?: string;
+    }>;
+  }>;
+}
+
 export interface AgentCapabilityDraft {
   id: number;
   capabilityId: string;
@@ -153,6 +185,7 @@ export interface AgentCapabilityDraftListQuery {
   keyword?: string;
   status?: string;
   domain?: string;
+  source?: string;
   riskLevel?: string;
   releaseStrategy?: string;
 }

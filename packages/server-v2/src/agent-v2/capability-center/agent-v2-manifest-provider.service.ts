@@ -7,7 +7,7 @@ export type AgentV2ManifestVersionSnapshot = {
   requestedVersion?: string | null;
   version: string | null;
   status?: string | null;
-  source: 'active' | 'database' | 'builtin' | 'missing' | 'fallback';
+  source: 'active' | 'database' | 'builtin' | 'missing' | 'database_error' | 'fallback';
   found: boolean;
   itemCount: number;
   manifests: AgentV2CapabilityManifest[];
@@ -18,8 +18,10 @@ export type AgentV2ManifestVersionSnapshot = {
 export class AgentV2ManifestProviderService implements OnModuleInit {
   private readonly logger = new Logger(AgentV2ManifestProviderService.name);
   private readonly builtinManifests = listAgentV2CapabilityManifests();
-  private manifests = this.builtinManifests;
+  private manifests: AgentV2CapabilityManifest[] = [];
   private activeVersion: string | null = null;
+  private activeSource: AgentV2ManifestVersionSnapshot['source'] = 'missing';
+  private activeReason: string | undefined;
   private lastRefreshAt = 0;
   private refreshInFlight: Promise<void> | null = null;
 
@@ -38,17 +40,22 @@ export class AgentV2ManifestProviderService implements OnModuleInit {
     return this.activeVersion;
   }
 
+  getActiveSource() {
+    return this.activeSource;
+  }
+
   async listManifestsForVersion(versionName?: string | null): Promise<AgentV2ManifestVersionSnapshot> {
     const requestedVersion = String(versionName ?? '').trim();
     if (!requestedVersion || requestedVersion === 'active' || requestedVersion === this.activeVersion) {
       return {
         requestedVersion: requestedVersion || 'active',
         version: this.activeVersion,
-        status: this.activeVersion ? 'active' : 'builtin',
-        source: this.activeVersion ? 'active' : 'builtin',
-        found: true,
+        status: this.activeVersion ? 'active' : this.activeSource,
+        source: this.activeVersion ? 'active' : this.activeSource,
+        found: Boolean(this.activeVersion),
         itemCount: this.manifests.length,
         manifests: this.manifests,
+        reason: this.activeReason,
       };
     }
 
@@ -86,23 +93,22 @@ export class AgentV2ManifestProviderService implements OnModuleInit {
         .map((item) => this.parseManifest(item.manifestJson))
         .filter((item): item is AgentV2CapabilityManifest => Boolean(item))
         .map((manifest) => ({ ...manifest, version: version.version }));
-      const manifests = this.mergeWithBuiltin(dbManifests);
       return {
         requestedVersion,
         version: version.version,
         status: version.status,
         source: 'database',
         found: true,
-        itemCount: manifests.length,
-        manifests,
+        itemCount: dbManifests.length,
+        manifests: dbManifests,
       };
     } catch (error) {
-      this.logger.warn(`Agent V2 指定 Manifest 版本加载失败，已回退 active：${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`Agent V2 指定 Manifest 版本加载失败：${error instanceof Error ? error.message : String(error)}`);
       return {
         requestedVersion,
         version: this.activeVersion,
-        status: this.activeVersion ? 'active' : 'builtin',
-        source: 'fallback',
+        status: this.activeVersion ? 'active' : 'database_error',
+        source: this.activeVersion ? 'fallback' : 'database_error',
         found: false,
         itemCount: this.manifests.length,
         manifests: this.manifests,
@@ -124,7 +130,9 @@ export class AgentV2ManifestProviderService implements OnModuleInit {
 
       if (!version) {
         this.activeVersion = null;
-        this.manifests = this.builtinManifests;
+        this.activeSource = 'missing';
+        this.activeReason = '缺少 active DB Manifest。';
+        this.manifests = [];
         return;
       }
 
@@ -132,17 +140,23 @@ export class AgentV2ManifestProviderService implements OnModuleInit {
         .map((item) => this.parseManifest(item.manifestJson))
         .filter((item): item is AgentV2CapabilityManifest => Boolean(item));
       this.activeVersion = version.version;
-      this.manifests = this.mergeWithBuiltin(dbManifests);
+      this.activeSource = 'active';
+      this.activeReason = undefined;
+      this.manifests = dbManifests;
     } catch (error) {
       if (previousVersion) {
         this.logger.warn(`Agent V2 DB Manifest 刷新失败，继续使用上一版 active Manifest：${error instanceof Error ? error.message : String(error)}`);
         this.activeVersion = previousVersion;
         this.manifests = previousManifests;
+        this.activeSource = 'fallback';
+        this.activeReason = error instanceof Error ? error.message : String(error);
         return;
       }
-      this.logger.warn(`Agent V2 DB Manifest 加载失败，已回退内置能力：${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`Agent V2 DB Manifest 加载失败，Runtime 将保持空 Manifest：${error instanceof Error ? error.message : String(error)}`);
       this.activeVersion = null;
-      this.manifests = this.builtinManifests;
+      this.activeSource = 'database_error';
+      this.activeReason = error instanceof Error ? error.message : String(error);
+      this.manifests = [];
     }
   }
 
@@ -167,12 +181,5 @@ export class AgentV2ManifestProviderService implements OnModuleInit {
     const manifest = value as AgentV2CapabilityManifest;
     if (!manifest.capabilityId || !manifest.executor?.tool) return null;
     return manifest;
-  }
-
-  private mergeWithBuiltin(manifests: AgentV2CapabilityManifest[]) {
-    const merged = new Map<string, AgentV2CapabilityManifest>();
-    for (const manifest of this.builtinManifests) merged.set(manifest.capabilityId, manifest);
-    for (const manifest of manifests) merged.set(manifest.capabilityId, manifest);
-    return Array.from(merged.values());
   }
 }

@@ -1,5 +1,6 @@
 import { ArgumentMetadata, Type, ValidationPipe } from '@nestjs/common';
 import {
+  AgentV2AutoGovernanceDto,
   AgentV2AutoPublishRunDto,
   AgentV2CapabilityDraftListQueryDto,
   AgentV2DeployHookRunDto,
@@ -37,6 +38,13 @@ describe('AgentV2CapabilityCenter DTO validation', () => {
     expect(result.pageSize).toBe(50);
     await expect(transform(AgentV2CapabilityDraftListQueryDto, { page: '0' }, 'query')).rejects.toThrow();
     await expect(transform(AgentV2CapabilityDraftListQueryDto, { status: 'published;drop' }, 'query')).rejects.toThrow();
+
+    await expect(transform(AgentV2CapabilityDraftListQueryDto, { status: 'needs_development' }, 'query')).resolves.toMatchObject({
+      status: 'needs_development',
+    });
+    await expect(transform(AgentV2CapabilityDraftListQueryDto, { status: 'needs_changes' }, 'query')).resolves.toMatchObject({
+      status: 'needs_changes',
+    });
   });
 
   it('rejects list-only values when updating a draft', async () => {
@@ -65,6 +73,21 @@ describe('AgentV2CapabilityCenter DTO validation', () => {
     });
     expect(result.storeId).toBe(3);
     expect(result.question).toBe('这个月人效怎么样');
+  });
+
+  it('validates auto governance scope before changing draft statuses', async () => {
+    const result = await transform(AgentV2AutoGovernanceDto, {
+      mode: 'open',
+      limit: '20',
+      capabilityIds: 'order.product.records.list',
+      storeId: '1',
+    });
+    expect(result.limit).toBe(20);
+    expect(result.storeId).toBe(1);
+    expect(result.capabilityIds).toEqual(['order.product.records.list']);
+
+    await expect(transform(AgentV2AutoGovernanceDto, { mode: 'everything' })).rejects.toThrow();
+    await expect(transform(AgentV2AutoGovernanceDto, { limit: '101' })).rejects.toThrow();
   });
 
   it('keeps deploy hook input narrower than manual auto-publish input', async () => {

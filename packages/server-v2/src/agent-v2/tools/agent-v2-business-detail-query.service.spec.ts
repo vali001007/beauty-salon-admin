@@ -71,4 +71,73 @@ describe('AgentV2BusinessDetailQueryService', () => {
       amountText: '¥590.00',
     });
   });
+
+  it('returns page context for customer marketing pages without database writes', async () => {
+    const service = new AgentV2BusinessDetailQueryService({} as unknown as PrismaService);
+
+    const result = await service.execute(
+      {
+        capabilityId: 'customer.customer.marketing.workbench.page.context',
+        queryKey: 'customer.customer.marketing.workbench.page.context',
+        dryRun: true,
+      },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('营销工作台页面语义');
+    expect((result.data as any).pageContext).toMatchObject({
+      route: '/customer-marketing/workbench',
+      dataSources: expect.arrayContaining(['Customer', 'ConsumptionRecord']),
+    });
+    expect(result.evidence?.filters).toEqual(expect.arrayContaining([
+      'queryKey=customer.customer.marketing.workbench.page.context',
+      'write=false',
+    ]));
+    expect(result.evidence?.limitations?.join(' ')).toContain('不访问写接口');
+  });
+
+  it('returns page context for the customer management page without database writes', async () => {
+    const service = new AgentV2BusinessDetailQueryService({} as unknown as PrismaService);
+
+    const result = await service.execute(
+      {
+        capabilityId: 'customer.customers.page.context',
+        queryKey: 'customer.customers.page.context',
+        dryRun: true,
+      },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.title).toBe('客户管理页面语义');
+    expect((result.data as any).pageContext).toMatchObject({
+      route: '/customers',
+      dataSources: expect.arrayContaining(['Customer', 'CustomerHealthProfile', 'ConsumptionRecord']),
+    });
+    expect(result.evidence?.filters).toEqual(expect.arrayContaining([
+      'queryKey=customer.customers.page.context',
+      'write=false',
+    ]));
+  });
+
+  it('does not block publish dry-run for customer detail without an id', async () => {
+    const service = new AgentV2BusinessDetailQueryService({} as unknown as PrismaService);
+
+    const result = await service.execute(
+      {
+        capabilityId: 'customer.customers.id.detail',
+        queryKey: 'customer.detail',
+        dryRun: true,
+      },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(result.status).toBe('no_data');
+    expect((result.data as any).dataGap).toBe('missing_detail_id');
+    expect((result.data as any).queryTrace).toMatchObject({
+      engine: 'agent_v2_customer_readonly_adapter',
+      queryKey: 'customer.detail',
+    });
+  });
 });

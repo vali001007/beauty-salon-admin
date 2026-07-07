@@ -6,15 +6,13 @@ import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capabilit
 import type { AgentV2CapabilityManifest } from '../capability/agent-v2-capability.types.js';
 import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
 import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
+import {
+  resolveAgentV2QueryDateRange,
+  startOfAgentV2Day,
+  type AgentV2DateRange,
+} from '../utils/agent-v2-date-range.js';
 
 const DAY_MS = 86_400_000;
-
-type AgentV2DateRange = {
-  start: Date;
-  end: Date;
-  label: string;
-  preset: string;
-};
 
 type MetricQueryTarget = {
   manifest: AgentV2CapabilityManifest;
@@ -42,7 +40,7 @@ export class AgentV2BusinessMetricQueryService {
     const capabilityId = String(args.capabilityId ?? '');
     const queryKey = String(args.queryKey ?? '');
     const target = this.resolveTarget(capabilityId, queryKey);
-    const metricKey = target?.queryKey ?? (queryKey || capabilityId);
+    const metricKey = this.resolveDedicatedMetricKey(capabilityId) ?? target?.queryKey ?? (queryKey || capabilityId);
     const genericResult = await this.tryExecuteGenericMetric(target, args, context);
     if (genericResult) return this.withMetricTarget(genericResult, target);
     const result = await this.executeMetricKey(metricKey, args, context);
@@ -82,6 +80,13 @@ export class AgentV2BusinessMetricQueryService {
     return this.targets.find((target) => candidates.includes(target.capabilityId) || (target.queryKey && candidates.includes(target.queryKey))) ?? null;
   }
 
+  private resolveDedicatedMetricKey(capabilityId: string) {
+    if (capabilityId === 'customer.customers.profile.analytics.overview.metric') {
+      return 'customer.profile-analytics.overview.metric';
+    }
+    return null;
+  }
+
   private async tryExecuteGenericMetric(
     target: MetricQueryTarget | null,
     args: Record<string, unknown>,
@@ -116,6 +121,7 @@ export class AgentV2BusinessMetricQueryService {
     if (metricKey === 'finance.risk-diagnostics.metric') return this.getFinanceRiskDiagnosticsMetric(args, context);
     if (metricKey === 'agent.multi-domain.summary') return this.getMultiDomainSummaryMetric(args, context);
     if (metricKey === 'finance.commission-cost-optimization.advice') return this.getCommissionCostOptimizationAdvice(args, context);
+    if (metricKey === 'customer.profile-analytics.overview.metric') return this.getCustomerProfileAnalyticsOverviewMetric(args, context);
     return Promise.resolve(null);
   }
 
@@ -158,8 +164,73 @@ export class AgentV2BusinessMetricQueryService {
     };
   }
 
+  private async getCustomerProfileAnalyticsOverviewMetric(
+    _args: Record<string, unknown>,
+    context: AgentToolExecutionContext,
+  ): Promise<AgentToolResult> {
+    const now = new Date();
+    const where = { deletedAt: null, storeId: context.storeId };
+    const totalCustomers = await (this.prisma as any).customer.count({ where });
+    const evidence = this.evidence(
+      ['Customer'],
+      '客户画像总览 = 当前门店未删除客户数，用于支撑客户画像分析总览入口；按当前门店授权过滤。',
+      [`storeId=${context.storeId}`, 'deletedAt=null'],
+      totalCustomers,
+      undefined,
+      ['只读取客户画像总览指标，不创建、修改或触达客户。'],
+    );
+    const data = {
+      generatedAt: this.formatDateTime(now),
+      storeId: context.storeId,
+      metrics: {
+        totalCustomers,
+      },
+      rows: [
+        {
+          metric: 'totalCustomers',
+          label: '客户总数',
+          value: totalCustomers,
+          valueText: `${totalCustomers}人`,
+        },
+      ],
+      items: [
+        {
+          metric: 'totalCustomers',
+          label: '客户总数',
+          value: totalCustomers,
+          valueText: `${totalCustomers}人`,
+        },
+      ],
+      queryTrace: {
+        engine: 'agent_v2_dedicated_adapter',
+        queryKey: 'customer.profile-analytics.overview.metric',
+        sourceModels: ['Customer'],
+      },
+    };
+
+    if (totalCustomers <= 0) {
+      return {
+        status: 'no_data',
+        title: '客户画像总览指标',
+        summary: '当前门店没有可用于客户画像总览的客户记录。',
+        data,
+        evidence,
+        actions: [],
+      };
+    }
+
+    return {
+      status: 'success',
+      title: '客户画像总览指标',
+      summary: `当前门店客户画像总览覆盖 ${totalCustomers} 位客户。`,
+      data,
+      evidence,
+      actions: [{ label: '查看客户画像总览', action: 'customers:profile-analytics', riskLevel: 'low' }],
+    };
+  }
+
   private async getDailySettlementMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(args, 'today');
     const settlements = await (this.prisma as any).dailySettlement.findMany({
       where: {
         storeId: context.storeId,
@@ -242,7 +313,7 @@ export class AgentV2BusinessMetricQueryService {
     args: Record<string, unknown>,
     context: AgentToolExecutionContext,
   ): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(args, 'today');
     const payments = await (this.prisma as any).paymentRecord.findMany({
       where: {
         order: { storeId: context.storeId },
@@ -345,7 +416,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getRefundMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(args, 'today');
     const refunds = await (this.prisma as any).refundRecord.findMany({
       where: {
         order: { storeId: context.storeId },
@@ -421,7 +492,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getStaffCommissionMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const question = String(args.question ?? '');
     const where: Record<string, unknown> = {
       storeId: context.storeId,
@@ -431,7 +502,7 @@ export class AgentV2BusinessMetricQueryService {
     const records = await (this.prisma as any).commissionRecord.findMany({
       where,
       include: {
-        staffUser: { select: { id: true, name: true, username: true, role: true } },
+        staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -533,7 +604,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getStaffEfficiencyMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const prisma = this.prisma as any;
     const [beauticians, orderItems, commissionRecords, reservations, serviceTasks, cardUsageRecords] = await Promise.all([
       prisma.beautician?.findMany?.({
@@ -775,7 +846,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getProductGrossProfitMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const question = String(args.question ?? '');
     const orders = await (this.prisma as any).productOrder.findMany({
       where: {
@@ -888,7 +959,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getProjectGrossProfitMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const question = String(args.question ?? '');
     const orders = await (this.prisma as any).productOrder.findMany({
       where: {
@@ -1029,7 +1100,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getOverallGrossMarginMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const settlements = await (this.prisma as any).dailySettlement.findMany({
       where: { storeId: context.storeId, settleDate: { gte: range.start, lt: range.end } },
       orderBy: { settleDate: 'desc' },
@@ -1104,7 +1175,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getCardPackageSalesMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const records = await (this.prisma as any).customerCard.findMany({
       where: {
         customer: { storeId: context.storeId },
@@ -1171,7 +1242,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getPaymentChannelFeeMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(args, 'today');
     const payments = await (this.prisma as any).paymentRecord.findMany({
       where: {
         order: { storeId: context.storeId },
@@ -1258,7 +1329,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getCouponRedemptionMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const promotions = await (this.prisma as any).promotion.findMany({
       where: {
         OR: [{ storeId: context.storeId }, { storeId: null }],
@@ -1353,7 +1424,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getDiscountPermissionRiskMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const orders = await (this.prisma as any).productOrder.findMany({
       where: {
         storeId: context.storeId,
@@ -1424,11 +1495,11 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getCommissionCostOptimizationAdvice(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const [commissionRecords, orders] = await Promise.all([
       (this.prisma as any).commissionRecord.findMany({
         where: { storeId: context.storeId, createdAt: { gte: range.start, lt: range.end } },
-        include: { staffUser: { select: { id: true, name: true, username: true, role: true } }, rule: { select: { id: true, name: true, type: true } } },
+        include: { staffUser: { select: { id: true, name: true, username: true } }, rule: { select: { id: true, name: true, type: true } } },
         orderBy: { createdAt: 'desc' },
         take: 3000,
       }),
@@ -1490,7 +1561,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getCardPackageFreeVsPaidBehaviorMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const cards = await (this.prisma as any).customerCard.findMany({
       where: { customer: { storeId: context.storeId } },
       include: {
@@ -1568,7 +1639,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getFinanceRiskDiagnosticsMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'this_month');
+    const range = this.resolveQueryDateRange(args, 'this_month');
     const prisma = this.prisma as any;
     const [orders, refunds, settlements, commissions, approvals] = await Promise.all([
       prisma.productOrder?.findMany?.({ where: { storeId: context.storeId, createdAt: { gte: range.start, lt: range.end } }, select: { id: true, netAmount: true, totalAmount: true, status: true }, take: 5000 }) ?? [],
@@ -1642,7 +1713,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private async getMultiDomainSummaryMetric(args: Record<string, unknown>, context: AgentToolExecutionContext): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(args, 'today');
     const prisma = this.prisma as any;
     const [orders, settlements] = await Promise.all([
       prisma.productOrder?.findMany?.({ where: { storeId: context.storeId, createdAt: { gte: range.start, lt: range.end } }, select: { id: true, netAmount: true, totalAmount: true }, take: 5000 }) ?? [],
@@ -1675,29 +1746,8 @@ export class AgentV2BusinessMetricQueryService {
     };
   }
 
-  private resolveDateRange(input: unknown): AgentV2DateRange {
-    const now = new Date();
-    const preset = typeof input === 'object' && input !== null ? String((input as any).preset ?? '') : String(input ?? '');
-    if (typeof input === 'object' && input !== null && (input as any).startDate && (input as any).endDate) {
-      return {
-        start: new Date(String((input as any).startDate)),
-        end: new Date(`${String((input as any).endDate).slice(0, 10)}T23:59:59.999Z`),
-        label: String((input as any).label ?? '自定义时间'),
-        preset: String((input as any).preset ?? 'custom'),
-      };
-    }
-    if (preset === 'yesterday') {
-      const end = this.startOfDay(now);
-      return { start: new Date(end.getTime() - DAY_MS), end, label: '昨天', preset };
-    }
-    if (preset === 'this_week') {
-      const start = this.startOfWeek(now);
-      return { start, end: now, label: '本周', preset };
-    }
-    if (preset === 'this_month') return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now, label: '本月', preset };
-    if (preset === 'last_30_days') return { start: new Date(now.getTime() - 30 * DAY_MS), end: now, label: '近 30 天', preset };
-    const start = this.startOfDay(now);
-    return { start, end: new Date(start.getTime() + DAY_MS), label: '今天', preset: 'today' };
+  private resolveQueryDateRange(args: Record<string, unknown>, fallbackPreset: string): AgentV2DateRange {
+    return resolveAgentV2QueryDateRange(args, fallbackPreset);
   }
 
   private paymentTimeWhere(range: AgentV2DateRange) {
@@ -1773,13 +1823,7 @@ export class AgentV2BusinessMetricQueryService {
   }
 
   private startOfDay(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private startOfWeek(date: Date) {
-    const day = date.getDay() || 7;
-    const start = this.startOfDay(date);
-    return new Date(start.getTime() - (day - 1) * DAY_MS);
+    return startOfAgentV2Day(date);
   }
 
   private evidence(source: string[], metricDefinition: string, filters: string[], sampleSize: number, range?: AgentV2DateRange, limitations?: string[]): AgentEvidence {

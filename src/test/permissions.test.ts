@@ -26,8 +26,13 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.super_admin, 'core:agent-governance:view')).toBe(true);
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:agent-governance:view')).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:agent-governance:manage')).toBe(false);
-    expect(systemMenu?.children.find((child) => child.path === '/system/agent-governance')?.permission).toBe('core:agent-governance:view');
-    expect(systemMenu?.children.find((child) => child.path === '/system/agent-capabilities')?.permission).toBe('core:agent-governance:view');
+    expect(systemMenu?.children.find((child) => child.path === '/system/agent-governance')).toMatchObject({
+      title: 'AI 治理中心',
+      permission: 'core:agent-governance:view',
+    });
+    expect(systemMenu?.children.some((child) => child.path === '/system/ai-audit')).toBe(false);
+    expect(systemMenu?.children.some((child) => child.path === '/system/agent-audit')).toBe(false);
+    expect(systemMenu?.children.some((child) => child.path === '/system/agent-capabilities')).toBe(false);
   });
 
   it('registers financial and supply-platform permission codes', () => {

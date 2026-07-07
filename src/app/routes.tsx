@@ -52,7 +52,6 @@ const PermissionManagement = lazyWithRetry(() => import('./pages/system/Permissi
 const StoreSettings = lazyWithRetry(() => import('./pages/system/StoreSettings').then(m => ({ default: m.StoreSettings })), 'StoreSettings');
 const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManagement').then(m => ({ default: m.DeviceManagement })), 'DeviceManagement');
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
-const AgentAuditPage = lazyWithRetry(() => import('./pages/system/AgentAuditPage').then(m => ({ default: m.AgentAuditPage })), 'AgentAuditPage');
 const AgentGovernanceCenter = lazyWithRetry(() => import('./pages/system/AgentGovernanceCenter').then(m => ({ default: m.AgentGovernanceCenter })), 'AgentGovernanceCenter');
 const AgentCapabilityCenter = lazyWithRetry(() => import('./pages/system/AgentCapabilityCenter').then(m => ({ default: m.AgentCapabilityCenter })), 'AgentCapabilityCenter');
 const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
@@ -237,7 +236,7 @@ export const router = createBrowserRouter([
       { path: 'system/stores', element: withGuard('core:system:stores', StoreSettings) },
       { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
-      { path: 'system/agent-audit', element: withGuard('core:system:view', AgentAuditPage) },
+      { path: 'system/agent-audit', element: <Navigate to="/system/agent-governance/runs" replace /> },
       { path: 'system/agent-governance', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/runs', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/runs/:id', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },

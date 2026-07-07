@@ -5,15 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { listAgentV2CapabilityManifests } from '../capability/agent-v2-capability-manifest.js';
 import { AgentV2ManifestProviderService } from '../capability-center/agent-v2-manifest-provider.service.js';
 import { GenericQueryEngineService } from '../query-engine/generic-query-engine.service.js';
-
-const DAY_MS = 86_400_000;
-
-type AgentV2DateRange = {
-  start: Date;
-  end: Date;
-  label: string;
-  preset: string;
-};
+import {
+  resolveAgentV2QueryDateRange,
+  type AgentV2DateRange,
+} from '../utils/agent-v2-date-range.js';
 
 @Injectable()
 export class AgentV2BusinessTrendQueryService {
@@ -162,51 +157,7 @@ export class AgentV2BusinessTrendQueryService {
   }
 
   private resolveDateRange(args: Record<string, unknown>): AgentV2DateRange {
-    const input = args.timeRange;
-    const now = new Date();
-    if (typeof input === 'object' && input !== null && (input as any).startDate && (input as any).endDate) {
-      return {
-        start: new Date(String((input as any).startDate)),
-        end: new Date(`${String((input as any).endDate).slice(0, 10)}T23:59:59.999Z`),
-        label: String((input as any).label ?? '自定义时间'),
-        preset: String((input as any).preset ?? 'custom'),
-      };
-    }
-    const preset = typeof input === 'object' && input !== null ? String((input as any).preset ?? '') : String(input ?? '');
-    if (preset === 'today') {
-      const start = this.startOfDay(now);
-      return { start, end: new Date(start.getTime() + DAY_MS), label: '今天', preset };
-    }
-    if (preset === 'this_week') return { start: this.startOfWeek(now), end: now, label: '本周', preset };
-    if (preset === 'this_month') return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now, label: '本月', preset };
-    const days = this.extractRecentDays(String(args.question ?? '')) ?? (preset === 'last_30_days' ? 30 : 7);
-    const start = this.startOfDay(new Date(now.getTime() - Math.max(0, days - 1) * DAY_MS));
-    return { start, end: now, label: `近 ${days} 天`, preset: `last_${days}_days` };
-  }
-
-  private extractRecentDays(question: string) {
-    const raw = question.match(/(?:最近|近)\s*([一二两三四五六七八九十\d]{1,3})\s*天/)?.[1];
-    if (!raw) return null;
-    const numeric = Number(raw);
-    if (Number.isFinite(numeric) && numeric > 0) return Math.min(numeric, 90);
-    const map: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
-    if (raw === '十') return 10;
-    if (raw.startsWith('十')) return 10 + (map[raw.slice(1)] ?? 0);
-    if (raw.includes('十')) {
-      const [tens, ones] = raw.split('十');
-      return (map[tens] ?? 1) * 10 + (map[ones] ?? 0);
-    }
-    return map[raw] ?? null;
-  }
-
-  private startOfDay(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private startOfWeek(date: Date) {
-    const day = date.getDay() || 7;
-    const start = this.startOfDay(date);
-    return new Date(start.getTime() - (day - 1) * DAY_MS);
+    return resolveAgentV2QueryDateRange(args, 'last_7_days');
   }
 
   private evidence(source: string[], metricDefinition: string, filters: string[], sampleSize: number, range?: AgentV2DateRange, limitations?: string[]): AgentEvidence {

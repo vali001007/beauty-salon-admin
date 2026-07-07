@@ -112,14 +112,16 @@ export class AgentV2CapabilityCenterService {
     keyword?: string;
     status?: string;
     domain?: string;
+    source?: string;
     riskLevel?: string;
     releaseStrategy?: string;
   }) {
     const page = this.toPositiveInt(query.page, 1);
     const pageSize = Math.min(this.toPositiveInt(query.pageSize, 20), 100);
     const where: Record<string, unknown> = {};
-    if (query.status && query.status !== 'all') where.status = query.status;
+    if (query.status && query.status !== 'all') where.status = this.normalizeDraftStatus(query.status);
     if (query.domain && query.domain !== 'all') where.domain = query.domain;
+    if (query.source && query.source !== 'all') where.source = query.source;
     if (query.riskLevel && query.riskLevel !== 'all') where.riskLevel = query.riskLevel;
     if (query.releaseStrategy && query.releaseStrategy !== 'all') where.releaseStrategy = query.releaseStrategy;
     if (query.keyword) {
@@ -667,12 +669,46 @@ export class AgentV2CapabilityCenterService {
     };
   }
 
+  async autoGovernance(input: {
+    capabilityIds?: string[];
+    mode?: 'open' | 'selected' | 'all';
+    limit?: number;
+    storeId?: number;
+    requestedBy?: number;
+  } = {}) {
+    const where = this.autoGovernanceWhere(input);
+    const limit = Math.min(this.toPositiveInt(input.limit, input.capabilityIds?.length || 50), 100);
+    const drafts = await this.prisma.agentCapabilityDraft.findMany({
+      where,
+      orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+      take: limit,
+    });
+    const results = [];
+    for (const draft of drafts) {
+      results.push(await this.autoGovernDraft(draft, input));
+    }
+    const summary = results.reduce(
+      (acc, item) => {
+        acc.byStatus[item.nextStatus] = (acc.byStatus[item.nextStatus] ?? 0) + 1;
+        return acc;
+      },
+      { total: drafts.length, byStatus: {} as Record<string, number> },
+    );
+    return {
+      mode: input.capabilityIds?.length ? 'selected' : input.mode ?? 'open',
+      processed: drafts.length,
+      summary,
+      results,
+    };
+  }
+
   async reviewDraft(input: { capabilityId: string; decision: string; comment?: string; changes?: Partial<RawCapabilityDraft>; reviewerId?: number }) {
     const current = await this.findDraft(input.capabilityId);
     const statusByDecision: Record<string, string> = {
       approve: 'approved',
       reject: 'rejected',
-      needs_changes: 'needs_changes',
+      needs_changes: 'needs_development',
+      needs_review: 'needs_review',
       draft: 'draft',
     };
     const nextStatus = statusByDecision[input.decision] ?? input.decision;
@@ -711,6 +747,16 @@ export class AgentV2CapabilityCenterService {
     const validations = await Promise.all(drafts.map((draft) => this.validateDraft(draft.capabilityId)));
     const blocked = validations.filter((item) => !item.pass);
     if (blocked.length) {
+      for (const item of blocked) {
+        const draft = drafts.find((candidate) => candidate.capabilityId === item.capabilityId);
+        if (!draft) continue;
+        await this.applyAutoGovernanceResult(draft, {
+          nextStatus: this.validationFailureStatus(item.issues),
+          reason: '发布前预检未通过，已自动移出已审核池。',
+          issues: item.issues,
+          requestedBy: input.publishedBy,
+        });
+      }
       throw new BadRequestException({
         message: '存在未通过预检的能力，不能发布。',
         blocked: blocked.map((item) => ({
@@ -723,6 +769,16 @@ export class AgentV2CapabilityCenterService {
     const dryRuns = await Promise.all(drafts.map((draft) => this.dryRunDraft(draft.capabilityId, { userId: input.publishedBy })));
     const blockedDryRuns = dryRuns.filter((item) => !item.pass);
     if (blockedDryRuns.length) {
+      for (const item of blockedDryRuns) {
+        const draft = drafts.find((candidate) => candidate.capabilityId === item.capabilityId);
+        if (!draft) continue;
+        await this.applyAutoGovernanceResult(draft, {
+          nextStatus: 'needs_development',
+          reason: '发布前 queryKey dry-run 未通过，已自动移出已审核池。',
+          issues: item.issues,
+          requestedBy: input.publishedBy,
+        });
+      }
       const runNo = `agent-cap-pub-${Date.now()}`;
       await this.prisma.agentCapabilityPublishRun.create({
         data: {
@@ -746,6 +802,19 @@ export class AgentV2CapabilityCenterService {
 
     const evalGate = await this.runEvalGate({ capabilityIds: drafts.map((draft) => draft.capabilityId) });
     if (!evalGate.pass) {
+      const issues = evalGate.gates.filter((gate) => !gate.pass).map((gate) => ({
+        code: `eval_gate_${gate.gate}`,
+        level: gate.level,
+        message: `${gate.gate}：${gate.actual}`,
+      }));
+      for (const draft of drafts) {
+        await this.applyAutoGovernanceResult(draft, {
+          nextStatus: 'needs_review',
+          reason: '发布前 Eval Gate 未通过，已自动移出已审核池。',
+          issues,
+          requestedBy: input.publishedBy,
+        });
+      }
       const runNo = `agent-cap-pub-${Date.now()}`;
       await this.prisma.agentCapabilityPublishRun.create({
         data: {
@@ -767,11 +836,31 @@ export class AgentV2CapabilityCenterService {
     const runNo = `agent-cap-pub-${Date.now()}`;
     const versionName = `cap-${this.formatTimestamp(new Date())}`;
     const manifests = drafts.map((draft) => this.toManifest(draft));
-    const activeStatic = listAgentV2CapabilityManifests();
+    await this.manifestProvider.refreshFromDatabase();
+    const activeManifests = this.manifestProvider.listManifests();
     const merged = new Map<string, AgentV2CapabilityManifest>();
-    for (const item of activeStatic) merged.set(item.capabilityId, item);
+    for (const item of activeManifests) merged.set(item.capabilityId, item);
     for (const item of manifests) merged.set(item.capabilityId, item);
     const allManifests = Array.from(merged.values());
+    const manifestIssues = allManifests.flatMap((manifest) => this.validatePublishManifest(manifest));
+    if (manifestIssues.length) {
+      const runNo = `agent-cap-pub-${Date.now()}`;
+      await this.prisma.agentCapabilityPublishRun.create({
+        data: {
+          runNo,
+          status: 'failed',
+          requestedBy: input.publishedBy,
+          inputJson: this.toJson(input),
+          resultJson: this.toJson({ manifestIssues }),
+          completedAt: new Date(),
+          errorMessage: 'Manifest JSON 校验未通过。',
+        },
+      });
+      throw new BadRequestException({
+        message: 'Manifest JSON 校验未通过，不能发布。',
+        blocked: manifestIssues,
+      });
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       const run = await tx.agentCapabilityPublishRun.create({
@@ -889,6 +978,152 @@ export class AgentV2CapabilityCenterService {
     return { status: 'approved' };
   }
 
+  private autoGovernanceWhere(input: { capabilityIds?: string[]; mode?: 'open' | 'selected' | 'all' }) {
+    const capabilityIds = (input.capabilityIds ?? []).map(String).filter(Boolean);
+    const publishClosed = ['published', 'rejected', 'deprecated'];
+    if (capabilityIds.length) {
+      return {
+        capabilityId: { in: capabilityIds },
+        status: { notIn: publishClosed },
+      };
+    }
+    if (input.mode === 'all') return { status: { notIn: publishClosed } };
+    return { status: { in: ['draft', 'needs_development', 'needs_review', 'approved'] } };
+  }
+
+  private async autoGovernDraft(
+    draft: { id: number; capabilityId: string; status: string },
+    input: { storeId?: number; requestedBy?: number },
+  ) {
+    const previousStatus = draft.status;
+    const issues: Array<{ code: string; level: string; message: string; suggestion?: string }> = [];
+    let nextStatus = 'needs_review';
+    let reason = '需要人工复核。';
+    let validationPass = false;
+    let dryRunPass: boolean | undefined;
+    let evalGatePass: boolean | undefined;
+
+    try {
+      const validation = await this.validateDraft(draft.capabilityId);
+      validationPass = validation.pass;
+      issues.push(...validation.issues.map((issue) => ({
+        code: issue.code,
+        level: issue.level,
+        message: issue.message,
+        suggestion: issue.suggestion,
+      })));
+
+      if (!validation.pass) {
+        nextStatus = this.validationFailureStatus(validation.issues);
+        reason = nextStatus === 'needs_development' ? '预检发现工具、输出契约或实现缺口。' : '预检发现权限、风险或业务口径需要人工复核。';
+      } else if (!this.canAutoApproveManifest(validation.manifest)) {
+        nextStatus = 'needs_review';
+        reason = '不是低风险自动发布能力，保留人工复核口。';
+      } else {
+        const dryRun = await this.dryRunDraft(draft.capabilityId, {
+          storeId: input.storeId,
+          userId: input.requestedBy,
+        });
+        dryRunPass = dryRun.pass;
+        issues.push(...dryRun.issues.map((issue) => ({
+          code: issue.code,
+          level: issue.level,
+          message: issue.message,
+          suggestion: issue.suggestion,
+        })));
+
+        if (!dryRun.pass) {
+          nextStatus = 'needs_development';
+          reason = 'queryKey dry-run 未通过，需要补齐工具分支、QueryKey Registry 或底层查询。';
+        } else {
+          const evalGate = await this.runEvalGate({ capabilityIds: [draft.capabilityId] });
+          evalGatePass = evalGate.pass;
+          if (!evalGate.pass) {
+            nextStatus = 'needs_review';
+            reason = 'Eval Gate 未通过，需要人工复核评测样例、权限或路由风险。';
+            issues.push(...evalGate.gates.filter((gate) => !gate.pass).map((gate) => ({
+              code: `eval_gate_${gate.gate}`,
+              level: gate.level,
+              message: `${gate.gate}：${gate.actual}`,
+            })));
+          } else {
+            nextStatus = 'approved';
+            reason = '预检、queryKey dry-run 和 Eval Gate 均通过，自动进入已审核。';
+          }
+        }
+      }
+    } catch (error) {
+      nextStatus = 'needs_development';
+      reason = '自动治理执行异常，需要开发排查。';
+      issues.push({
+        code: 'auto_governance_error',
+        level: 'block',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    await this.applyAutoGovernanceResult(draft, {
+      nextStatus,
+      reason,
+      issues,
+      requestedBy: input.requestedBy,
+    });
+
+    return {
+      capabilityId: draft.capabilityId,
+      previousStatus,
+      nextStatus,
+      reason,
+      validationPass,
+      dryRunPass,
+      evalGatePass,
+      issues,
+    };
+  }
+
+  private canAutoApproveManifest(manifest: Record<string, unknown>) {
+    return manifest.riskLevel === 'low' && manifest.releaseStrategy === 'auto_publish';
+  }
+
+  private validationFailureStatus(issues: Array<{ code: string; level: string }>) {
+    const developmentCodes = new Set(['missing_registered_tool', 'missing_output_kind', 'missing_query_key']);
+    return issues.some((issue) => issue.level === 'block' && developmentCodes.has(issue.code)) ? 'needs_development' : 'needs_review';
+  }
+
+  private async applyAutoGovernanceResult(
+    draft: { id: number; capabilityId: string; status: string },
+    result: {
+      nextStatus: string;
+      reason: string;
+      issues: Array<{ code: string; level: string; message: string; suggestion?: string }>;
+      requestedBy?: number;
+    },
+  ) {
+    await this.prisma.agentCapabilityDraft.update({
+      where: { capabilityId: draft.capabilityId },
+      data: {
+        status: result.nextStatus,
+        reviewedBy: result.requestedBy,
+        reviewedAt: new Date(),
+      },
+    });
+    await this.prisma.agentCapabilityReview.create({
+      data: {
+        draftId: draft.id,
+        capabilityId: draft.capabilityId,
+        decision: result.nextStatus === 'approved' ? 'approve' : result.nextStatus,
+        comment: result.reason,
+        reviewerId: result.requestedBy,
+        changesJson: this.toJson({
+          source: 'auto_governance',
+          previousStatus: draft.status,
+          nextStatus: result.nextStatus,
+          issues: result.issues,
+        }),
+      },
+    });
+  }
+
   private async getDraftStats() {
     const [groups, total, executorItems] = await Promise.all([
       this.prisma.agentCapabilityDraft.groupBy({
@@ -915,14 +1150,20 @@ export class AgentV2CapabilityCenterService {
     };
   }
 
+  private normalizeDraftStatus(status: unknown) {
+    const value = String(status ?? 'draft');
+    return value === 'needs_changes' ? 'needs_development' : value;
+  }
+
   private toDraftWriteData(raw: RawCapabilityDraft) {
     const executor = this.asObject(raw.executor);
     const customServiceReason = String(raw.customServiceReason ?? executor?.customServiceReason ?? '').trim();
     if (executor && customServiceReason) executor.customServiceReason = customServiceReason;
+    const permissionCodes = this.normalizePermissionCodes(String(raw.capabilityId ?? ''), this.stringArray(raw.permissionCodes));
     const classification = this.classifyDraft(raw, executor);
     return {
       capabilityId: String(raw.capabilityId),
-      status: String(raw.status ?? classification.status),
+      status: this.normalizeDraftStatus(raw.status ?? classification.status),
       source: String(raw.source ?? 'auto_scan_draft'),
       displayName: String(raw.displayName ?? raw.capabilityId),
       displayNameZh: raw.displayNameZh ? String(raw.displayNameZh) : undefined,
@@ -934,7 +1175,7 @@ export class AgentV2CapabilityCenterService {
       releaseStrategy: String(raw.releaseStrategy ?? classification.releaseStrategy),
       riskLevel: String(raw.riskLevel ?? 'low'),
       permissionSource: raw.permissionSource ? String(raw.permissionSource) : undefined,
-      permissionCodes: this.toJson(this.stringArray(raw.permissionCodes)),
+      permissionCodes: this.toJson(permissionCodes),
       sourceModels: this.toJson(this.stringArray(raw.sourceModels)),
       sourceApis: this.toJson(this.stringArray(raw.sourceApis)),
       sourceDtos: this.toJson(this.stringArray(raw.sourceDtos)),
@@ -956,7 +1197,7 @@ export class AgentV2CapabilityCenterService {
   }
 
   private classifyDraft(raw: RawCapabilityDraft, executor: Record<string, unknown> | null) {
-    const permissionCodes = this.stringArray(raw.permissionCodes);
+    const permissionCodes = this.normalizePermissionCodes(String(raw.capabilityId ?? ''), this.stringArray(raw.permissionCodes));
     const sourceApis = this.stringArray(raw.sourceApis);
     const actions = this.stringArray(raw.actions);
     const outputKinds = this.stringArray(raw.outputKinds);
@@ -1019,6 +1260,14 @@ export class AgentV2CapabilityCenterService {
     return { releaseStrategy, status, governanceIssues };
   }
 
+  private normalizePermissionCodes(capabilityId: string, permissionCodes: string[]) {
+    const overrides: Record<string, string[]> = {
+      'customer.customer.app.events.records.list': ['core:marketing:view'],
+      'customer.customers.id.consumption.records.detail': ['core:customer:view'],
+    };
+    return overrides[capabilityId] ?? permissionCodes;
+  }
+
   private isAutoPublishDraft(
     sourceApis: string[],
     executorType: string,
@@ -1078,7 +1327,7 @@ export class AgentV2CapabilityCenterService {
         ? String(this.asObject(draft.executorJson)?.customServiceReason)
         : undefined,
       storeScope: draft.storeScope,
-      fieldPolicies: this.arrayValue(draft.fieldPoliciesJson),
+      fieldPolicies: this.structuredArrayValue(draft.fieldPoliciesJson),
       triggerKeywords: this.arrayValue(draft.triggerKeywords),
       examples: this.arrayValue(draft.examples),
       negativeExamples: this.arrayValue(draft.negativeExamples),
@@ -1160,7 +1409,7 @@ export class AgentV2CapabilityCenterService {
       customServiceReason: executor.customServiceReason ? String(executor.customServiceReason) : undefined,
       storeScope: String(draft.storeScope ?? 'required') as AgentV2StoreScope,
       permissionCodes: this.arrayValue(draft.permissionCodes),
-      fieldPolicies: this.arrayValue(draft.fieldPoliciesJson) as unknown as AgentV2CapabilityManifest['fieldPolicies'],
+      fieldPolicies: this.structuredArrayValue(draft.fieldPoliciesJson) as unknown as AgentV2CapabilityManifest['fieldPolicies'],
       riskLevel: draft.riskLevel,
       releaseStrategy: String(draft.releaseStrategy ?? 'approval_required') as AgentV2ReleaseStrategy,
       examples: this.arrayValue(draft.examples),
@@ -1246,6 +1495,43 @@ export class AgentV2CapabilityCenterService {
 
   private stringArray(value: unknown): string[] {
     return this.arrayValue(value);
+  }
+
+  private structuredArrayValue(value: unknown): unknown[] {
+    return Array.isArray(value) ? value.filter((item) => item !== undefined && item !== null) : [];
+  }
+
+  private validatePublishManifest(manifest: AgentV2CapabilityManifest) {
+    const issues: Array<{ capabilityId: string; code: string; level: 'block'; message: string }> = [];
+    const capabilityId = String(manifest.capabilityId ?? '');
+    const knownReleaseStrategies = new Set(['auto_publish', 'approval_required', 'write_blocked']);
+    const knownRiskLevels = new Set(['low', 'medium', 'high']);
+    if (!capabilityId) {
+      issues.push({ capabilityId: capabilityId || '(missing)', code: 'manifest_missing_capability_id', level: 'block', message: 'Manifest 缺少 capabilityId。' });
+    }
+    if (!manifest.executor?.tool) {
+      issues.push({ capabilityId, code: 'manifest_missing_tool', level: 'block', message: 'Manifest 缺少 executor.tool。' });
+    }
+    if (!manifest.executor?.queryKey) {
+      issues.push({ capabilityId, code: 'manifest_missing_query_key', level: 'block', message: 'Manifest 缺少 executor.queryKey。' });
+    }
+    if (!knownReleaseStrategies.has(String(manifest.releaseStrategy ?? ''))) {
+      issues.push({ capabilityId, code: 'manifest_invalid_release_strategy', level: 'block', message: `Manifest releaseStrategy 非法：${String(manifest.releaseStrategy ?? '')}` });
+    }
+    if (!knownRiskLevels.has(String(manifest.riskLevel ?? ''))) {
+      issues.push({ capabilityId, code: 'manifest_invalid_risk_level', level: 'block', message: `Manifest riskLevel 非法：${String(manifest.riskLevel ?? '')}` });
+    }
+    if (!Array.isArray(manifest.fieldPolicies)) {
+      issues.push({ capabilityId, code: 'manifest_invalid_field_policies', level: 'block', message: 'Manifest fieldPolicies 必须是数组。' });
+    } else if (manifest.fieldPolicies.some((item) => !this.asObject(item))) {
+      issues.push({
+        capabilityId,
+        code: 'manifest_invalid_field_policies',
+        level: 'block',
+        message: 'Manifest fieldPolicies 必须是对象数组，不能包含字符串化对象。',
+      });
+    }
+    return issues;
   }
 
   private asObject(value: unknown): Record<string, unknown> | null {

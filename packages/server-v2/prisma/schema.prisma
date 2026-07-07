@@ -3364,6 +3364,75 @@ model AgentHealthMetric {
   @@map("agent_health_metrics")
 }
 
+// ─── Agent V2 Controlled Text-to-SQL ────────────────────────────────────────
+
+model AgentV2TextToSqlRun {
+  id                   Int      @id @default(autoincrement())
+  question             String
+  normalizedIntentJson Json?
+  userId               Int?
+  storeScopeJson       Json
+  selectedViewsJson    Json
+  generatedSqlHash     String?
+  redactedSql          String?  @db.Text
+  safeSqlHash          String?
+  status               String
+  blockedReason        String?
+  rowCount             Int      @default(0)
+  executionMs          Int?
+  evidenceJson         Json?
+  queryTraceJson       Json?
+  promotedCapabilityId String?
+  createdAt            DateTime @default(now())
+
+  feedback AgentV2TextToSqlFeedback[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([blockedReason])
+  @@index([promotedCapabilityId])
+  @@index([createdAt])
+  @@map("agent_v2_text_to_sql_runs")
+}
+
+model AgentV2TextToSqlSemanticView {
+  id                      Int      @id @default(autoincrement())
+  viewName                String   @unique
+  domain                  String
+  description             String
+  requiredPermissionsJson Json
+  storeScopeField         String?
+  defaultTimeField        String?
+  fieldPoliciesJson       Json
+  isEnabled               Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([domain])
+  @@index([isEnabled])
+  @@map("agent_v2_text_to_sql_semantic_views")
+}
+
+model AgentV2TextToSqlFeedback {
+  id                  Int      @id @default(autoincrement())
+  runId               Int
+  userId              Int?
+  rating              Int?
+  feedbackText        String?  @db.Text
+  isUseful            Boolean?
+  isWrongAnswer       Boolean  @default(false)
+  isPermissionConcern Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  run AgentV2TextToSqlRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([userId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("agent_v2_text_to_sql_feedback")
+}
+
 model AgentKnowledgeGraphOverride {
   id           Int      @id @default(autoincrement())
   overrideType String

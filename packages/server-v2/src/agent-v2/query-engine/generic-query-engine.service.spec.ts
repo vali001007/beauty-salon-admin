@@ -24,6 +24,21 @@ const genericRecordManifest = (override: Partial<AgentV2CapabilityManifest> = {}
   ...override,
 });
 
+const genericDetailManifest = (override: Partial<AgentV2CapabilityManifest> = {}): AgentV2CapabilityManifest => ({
+  ...manifest('order.product.records.list'),
+  capabilityId: 'customer.customers.id.detail',
+  displayName: '客户详情',
+  sourceModels: ['Customer', 'CustomerHealthProfile'],
+  executor: { type: 'business_detail_query', tool: 'business.detail.query', queryKey: 'auto.detail' },
+  actions: ['lookup'],
+  fieldPolicies: [
+    { field: 'name', label: '客户姓名', visibility: 'allow', reason: '详情展示字段' },
+    { field: 'phone', label: '手机号', visibility: 'mask', reason: '详情脱敏字段' },
+    { field: 'internalNote', label: '内部备注', visibility: 'deny', reason: '内部字段不出站' },
+  ],
+  ...override,
+});
+
 describe('GenericQueryEngineService', () => {
   it('blocks store-scoped queries when runtime context has no storeId', async () => {
     const findMany = jest.fn();
@@ -43,6 +58,84 @@ describe('GenericQueryEngineService', () => {
       },
     });
     expect(result?.evidence?.filters).toContain('storeScope=required');
+  });
+
+  it('infers Chinese recent date range for built-in scrap record queries', async () => {
+    const now = new Date('2026-07-06T12:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(now);
+    try {
+      const findMany = jest.fn().mockResolvedValue([]);
+      const service = new GenericQueryEngineService({ stockMovement: { findMany } } as unknown as PrismaService);
+
+      const result = await service.tryExecute({
+        manifest: manifest('inventory.scrap.records.list'),
+        args: { capabilityId: 'inventory.scrap.records.list', question: '最近30天报废的产品有哪些', limit: 10 },
+        context: { runId: 1, storeId: 1, role: 'manager' },
+      });
+
+      const call = findMany.mock.calls[0][0];
+      expect(call.where).toMatchObject({
+        storeId: 1,
+        movementType: 'scrap_out',
+        occurredAt: { gte: expect.any(Date), lt: expect.any(Date) },
+      });
+      expect(call.where.occurredAt.gte.getTime()).toBeLessThanOrEqual(now.getTime() - 29 * 86_400_000);
+      expect(call.where.occurredAt.lt).toEqual(now);
+      expect((result?.data as any).timeRange).toMatchObject({ label: '近 30 天', preset: 'last_30_days' });
+      expect(result?.summary).toContain('近 30 天');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('executes dynamic detail queries from manifest metadata', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 7,
+      storeId: 1,
+      name: '林雨薇',
+      phone: '13800000000',
+      internalNote: '高敏备注',
+    });
+    const service = new GenericQueryEngineService({ customer: { findFirst } } as unknown as PrismaService);
+
+    const result = await service.tryExecute({
+      manifest: genericDetailManifest(),
+      args: { capabilityId: 'customer.customers.id.detail', filters: { id: 7 } },
+      context: { runId: 1, storeId: 1, role: 'manager' },
+    });
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { storeId: 1, id: 7 },
+      select: { id: true, name: true, phone: true },
+    });
+    expect(result?.status).toBe('success');
+    expect((result?.data as any).detail).toMatchObject({
+      id: 7,
+      name: '林雨薇',
+      phone: '已脱敏',
+    });
+    expect((result?.data as any).detail.internalNote).toBeUndefined();
+    expect((result?.data as any).queryTrace).toMatchObject({
+      kind: 'detail.query',
+      sourceModel: 'Customer',
+      sqlSummary: expect.objectContaining({ operation: 'findFirst' }),
+    });
+  });
+
+  it('returns no_data for dynamic detail dry-run without an id instead of unsupported', async () => {
+    const findFirst = jest.fn();
+    const service = new GenericQueryEngineService({ customer: { findFirst } } as unknown as PrismaService);
+
+    const result = await service.tryExecute({
+      manifest: genericDetailManifest(),
+      args: { capabilityId: 'customer.customers.id.detail', dryRun: true },
+      context: { runId: 1, storeId: 1, role: 'manager' },
+    });
+
+    expect(findFirst).not.toHaveBeenCalled();
+    expect(result?.status).toBe('no_data');
+    expect((result?.data as any).requiredParameters).toEqual(['id']);
+    expect((result?.data as any).queryTrace.sqlSummary.operation).toBe('findFirst');
   });
 
   it('executes store-scoped product order records from manifest metadata', async () => {

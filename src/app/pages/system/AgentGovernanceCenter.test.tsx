@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   deleteAgentV2GrayRule: vi.fn(),
   debugAgentGovernanceCompare: vi.fn(),
   debugAgentGovernanceExecute: vi.fn(),
+  dryRunAgentV2TextToSql: vi.fn(),
   getAgentCapabilityDrafts: vi.fn(),
   getAgentCapabilityManifestVersions: vi.fn(),
   getAgentToolQueryKeys: vi.fn(),
@@ -38,7 +39,15 @@ const api = vi.hoisted(() => ({
   getAgentKnowledgeGraphSummary: vi.fn(),
   getAgentKnowledgeGraphSynonyms: vi.fn(),
   getAgentKnowledgeGraphVisualize: vi.fn(),
+  getAgentV2TextToSqlCandidates: vi.fn(),
+  getAgentV2TextToSqlRun: vi.fn(),
+  getAgentV2TextToSqlRuns: vi.fn(),
+  getAgentV2TextToSqlSemanticViews: vi.fn(),
+  getAgentV2TextToSqlStatus: vi.fn(),
   importLatestAgentGovernanceEvalRun: vi.fn(),
+  inspectAgentV2TextToSqlGuard: vi.fn(),
+  promoteAgentV2TextToSqlCandidate: vi.fn(),
+  promoteAgentV2TextToSqlRun: vi.fn(),
   replayAgentGovernanceEvalRunFailure: vi.fn(),
   runAgentGovernanceEvalDryRunBatch: vi.fn(),
   simulateAgentGovernanceManifest: vi.fn(),
@@ -139,7 +148,7 @@ describe('AgentGovernanceCenter', () => {
 
     renderAgentGovernanceCenter();
 
-    expect(await screen.findByRole('heading', { name: 'Agent 治理台' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AI 治理中心' })).toBeInTheDocument();
     expect(await screen.findByText('7天运行数')).toBeInTheDocument();
     expect(screen.getByText('成本观测')).toBeInTheDocument();
     expect(screen.getByText('$0.0123')).toBeInTheDocument();
@@ -633,7 +642,7 @@ describe('AgentGovernanceCenter', () => {
 
     renderAgentGovernanceCenter();
 
-    await screen.findByRole('heading', { name: 'Agent 治理台' });
+    await screen.findByRole('heading', { name: 'AI 治理中心' });
     await userEvent.click(screen.getByRole('tab', { name: '运行审计' }));
     expect(await screen.findByText('RUN-101')).toBeInTheDocument();
 
@@ -910,7 +919,7 @@ describe('AgentGovernanceCenter', () => {
 
     renderAgentGovernanceCenter();
 
-    await screen.findByRole('heading', { name: 'Agent 治理台' });
+    await screen.findByRole('heading', { name: 'AI 治理中心' });
     await userEvent.click(screen.getByRole('tab', { name: '评测门禁' }));
     expect(await screen.findByText('103 P0 / 650 题')).toBeInTheDocument();
 
@@ -1289,7 +1298,7 @@ describe('AgentGovernanceCenter', () => {
 
     renderAgentGovernanceCenter();
 
-    await screen.findByRole('heading', { name: 'Agent 治理台' });
+    await screen.findByRole('heading', { name: 'AI 治理中心' });
     await userEvent.click(screen.getByRole('tab', { name: '单题调试' }));
     await userEvent.type(screen.getByLabelText('目标 Manifest 版本'), 'cap-prev');
     await userEvent.click(screen.getByRole('button', { name: '对比' }));
@@ -1363,6 +1372,213 @@ describe('AgentGovernanceCenter', () => {
       'href',
       '/system/agent-capabilities?capabilityId=card.package.inactive-customers.list',
     );
+  });
+
+  it('loads controlled Text-to-SQL governance console with semantic views and blocked summary', async () => {
+    const now = '2026-07-07T02:40:00.000Z';
+    api.getAgentGovernanceRunStats.mockResolvedValue({
+      total: 2,
+      byStatus: { completed: 2 },
+      activeManifestVersion: 'db-active',
+    });
+    api.getAgentKnowledgeGraphSummary.mockResolvedValue({
+      generatedAt: now,
+      schemaHash: 'hash',
+      nodeCount: 3576,
+      edgeCount: 4109,
+      nodeCountsByType: {},
+      edgeCountsByType: {},
+      businessObjectCount: 15,
+      dataModelCount: 131,
+      activeCapabilityCount: 58,
+      permissionCodeCount: 79,
+      passed: true,
+      blockerCount: 0,
+      warningCount: 0,
+    });
+    api.getAgentGovernanceHealth.mockResolvedValue({
+      generatedAt: now,
+      window: { days: 7, since: now, until: now },
+      runs: { total: 2, completed: 2, failed: 0, successRate: 1, byStatus: { completed: 2 }, runLatencyP99Ms: 180, latencySampleCount: 2 },
+      tools: { total: 1, failed: 0, highRiskAutoExecutionCount: 0, byStatus: {}, byRiskLevel: {}, topTools: [], toolLatencyP99Ms: 80, latencySampleCount: 1 },
+      approvals: { total: 0, byStatus: {} },
+      strategy: { byMode: { kg_llm_preferred: 2 }, byFinalEngine: { kg_llm: 2 }, legacyFallbackCount: 0, shadowCount: 0, sampleCount: 2 },
+      cache: { status: 'measured', hitRate: 1, sampleCount: 2 },
+      eval: { total: 0, byStatus: {} },
+      risks: { unauthorizedEvidenceCount: 0, highRiskAutoExecutionCount: 0 },
+    });
+    api.getAgentGovernanceCapabilityHealth.mockResolvedValue({
+      activeManifestVersion: 'db-active',
+      total: 58,
+      enabled: 58,
+      disabled: 0,
+      byReleaseStrategy: { auto_publish: 52, approval_required: 6 },
+      byRiskLevel: { low: 52, medium: 6 },
+    });
+    api.getAgentGovernanceEvalRuns.mockResolvedValue({
+      generatedAt: now,
+      summary: { pass: true, totalQuestions: 650, p0Questions: 103 },
+      metrics: { p0Accuracy: 1, highRiskAutoPublish: 0 },
+      gates: [],
+    });
+    api.getAgentGovernanceAutoPublishLogs.mockResolvedValue(listResult([], 5));
+    api.getAgentGovernanceUncoveredTop.mockResolvedValue([]);
+    api.getAgentV2TextToSqlRuns.mockResolvedValue(listResult([
+      {
+        id: 12,
+        question: '本月销量最好的商品',
+        storeScopeJson: { storeId: 1 },
+        selectedViewsJson: ['agent_v2_order_item_sales_view'],
+        status: 'dry_run',
+        rowCount: 0,
+        executionMs: 12,
+        queryTraceJson: { redactedSql: 'SELECT product_name FROM agent_v2_order_item_sales_view LIMIT 10' },
+        createdAt: now,
+      },
+      {
+        id: 13,
+        question: '导出客户手机号',
+        storeScopeJson: { storeId: 1 },
+        selectedViewsJson: ['agent_v2_customer_profile_summary_view'],
+        status: 'blocked',
+        blockedReason: 'sensitive_field_selected',
+        rowCount: 0,
+        executionMs: 4,
+        queryTraceJson: { reasonCode: 'sensitive_field_selected' },
+        createdAt: now,
+      },
+    ], 12));
+    api.getAgentV2TextToSqlSemanticViews.mockResolvedValue([
+      {
+        id: 'agent_v2_order_item_sales_view',
+        viewName: 'agent_v2_order_item_sales_view',
+        domain: 'product/order',
+        description: '商品销量、商品销售额',
+        status: 'enabled',
+        batch: 'P0',
+        requiredPermissions: ['core:order:view'],
+        storeScopeField: 'store_id',
+        defaultTimeField: 'order_created_at',
+        fields: [
+          { name: 'product_name', type: 'string', description: '商品名称', policy: 'allow' },
+          { name: 'quantity', type: 'number', description: '销量', policy: 'allow' },
+        ],
+        sampleQuestions: ['本月销量最好的商品'],
+      },
+      {
+        id: 'agent_v2_user_role_permission_view',
+        viewName: 'agent_v2_user_role_permission_view',
+        domain: 'system',
+        description: '用户、角色、权限摘要',
+        status: 'planned',
+        batch: 'P2',
+        adminOnly: true,
+        requiredPermissions: ['core:user:view'],
+        fields: [
+          { name: 'user_id', type: 'number', description: '用户 ID', policy: 'allow' },
+        ],
+        sampleQuestions: ['哪些用户有管理权限'],
+      },
+    ]);
+    api.getAgentV2TextToSqlCandidates.mockResolvedValue([
+      {
+        clusterKey: 'sales_top_product',
+        selectedViews: ['agent_v2_order_item_sales_view'],
+        sampleQuestions: ['本月销量最好的商品'],
+        hitCount: 8,
+        successCount: 6,
+        blockedCount: 0,
+        failedCount: 0,
+        usefulFeedbackCount: 2,
+        feedbackCount: 2,
+        successRate: 0.75,
+        blockedRate: 0,
+        riskLevel: 'low',
+        status: 'candidate',
+        reason: '高频成功问题',
+        suggestedCapabilityId: 'product.sales.top.list',
+        displayName: '商品销量排行',
+      },
+      {
+        clusterKey: 'sensitive_customer_export',
+        selectedViews: ['agent_v2_customer_profile_summary_view'],
+        sampleQuestions: ['导出客户手机号'],
+        hitCount: 3,
+        successCount: 0,
+        blockedCount: 3,
+        failedCount: 0,
+        usefulFeedbackCount: 0,
+        feedbackCount: 0,
+        successRate: 0,
+        blockedRate: 1,
+        riskLevel: 'high',
+        status: 'blocked_report',
+        reason: 'sensitive_field_selected',
+        suggestedCapabilityId: 'customer.sensitive.export',
+        displayName: '敏感客户导出',
+      },
+    ]);
+    api.getAgentV2TextToSqlStatus.mockResolvedValue({
+      enabled: true,
+      adminOnly: true,
+      maxLimit: 100,
+      timeoutMs: 5000,
+      maxRangeDays: 365,
+      maxEstimatedCost: 100000,
+      readonlyExecutionReady: false,
+      executeMode: 'dry_run_only',
+      readinessCommands: {
+        localGate: 'npm.cmd run check:agent-v2-text-to-sql',
+        completionAudit: 'npm.cmd run check:agent-v2-text-to-sql:completion-audit',
+        strictReadiness: 'npm.cmd --prefix packages/server-v2 run agent-v2:text-to-sql-readiness:strict -- --store-id=1 --url postgresql://readonly:raw-secret@db.example/app token=deploy-token-raw',
+      },
+      deploymentReadiness: {
+        primaryMigrationName: '20260707013000_agent_v2_text_to_sql',
+        completionAuditRequired: true,
+        readonlyUrlRequired: true,
+      },
+      viewReadiness: {
+        totalViews: 40,
+        enabledViews: 13,
+        plannedViews: 27,
+        adminViews: 4,
+        enabledViewNames: ['agent_v2_order_item_sales_view'],
+      },
+      executeBlockers: ['readonly_database_url_missing'],
+      nextActions: ['配置 AGENT_V2_TEXT_TO_SQL_READONLY_DATABASE_URL=postgresql://readonly:raw-secret@db.example/app?token=deploy-token-raw 后运行 strict readiness。'],
+    });
+
+    renderAgentGovernanceCenter(['/system/agent-governance/text-to-sql']);
+
+    expect(await screen.findByRole('heading', { name: 'AI 治理中心' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '受控SQL' })).toHaveAttribute('data-state', 'active');
+    expect(await screen.findByText('受控 Text-to-SQL Dry-run')).toBeInTheDocument();
+    expect(screen.getByText('Guard Inspect')).toBeInTheDocument();
+    expect(screen.getByText('高频候选能力')).toBeInTheDocument();
+    expect(screen.getAllByText('审计运行').length).toBeGreaterThan(0);
+    expect(screen.getByText('商品销量排行')).toBeInTheDocument();
+    expect(screen.getByText('敏感客户导出')).toBeInTheDocument();
+    expect(screen.getByText('高频阻断原因：sensitive_field_selected x1')).toBeInTheDocument();
+    expect(screen.getByText('dry_run_only')).toBeInTheDocument();
+    expect(screen.getByText('执行阻断：readonly_database_url_missing')).toBeInTheDocument();
+    expect(screen.getByText('迁移：20260707013000_agent_v2_text_to_sql')).toBeInTheDocument();
+    expect(screen.getByText('真实库审计：npm.cmd run check:agent-v2-text-to-sql:completion-audit')).toBeInTheDocument();
+    expect(screen.getByText(/只读库验收：npm.cmd --prefix packages\/server-v2 run agent-v2:text-to-sql-readiness:strict/)).toBeInTheDocument();
+    expect(screen.getAllByText(/\[redacted-db-url\]/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/token=\[redacted\]/)).toBeInTheDocument();
+    expect(screen.queryByText(/postgresql:\/\/readonly:raw-secret/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/deploy-token-raw/)).not.toBeInTheDocument();
+    expect(screen.getByText(/total 40 \/ enabled 13 \/ planned 27 \/ admin 4/)).toBeInTheDocument();
+    expect(screen.getAllByText('agent_v2_order_item_sales_view').length).toBeGreaterThan(0);
+    expect(screen.getByText('agent_v2_user_role_permission_view')).toBeInTheDocument();
+    await waitFor(() => expect(api.getAgentV2TextToSqlSemanticViews).toHaveBeenCalledWith({
+      includePlanned: true,
+      includeAdmin: true,
+    }));
+    await waitFor(() => expect(api.getAgentV2TextToSqlCandidates).toHaveBeenCalledWith({
+      limit: 500,
+      minHitCount: 1,
+    }));
   });
 
   it('drives graph node details into governance actions', async () => {
@@ -1483,7 +1699,7 @@ describe('AgentGovernanceCenter', () => {
 
     renderAgentGovernanceCenter();
 
-    await screen.findByRole('heading', { name: 'Agent 治理台' });
+    await screen.findByRole('heading', { name: 'AI 治理中心' });
     await userEvent.click(screen.getByRole('tab', { name: '知识图谱' }));
     expect((await screen.findAllByText('人效')).length).toBeGreaterThan(0);
 

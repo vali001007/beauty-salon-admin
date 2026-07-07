@@ -35,6 +35,7 @@ import {
   getAgentCapabilityDrafts,
   getAgentCapabilityManifestVersions,
   getAgentToolQueryKeys,
+  dryRunAgentV2TextToSql,
   getAgentGovernanceAutoPublishLog,
   getAgentGovernanceAutoPublishLogs,
   getAgentGovernanceCapabilityHealth,
@@ -48,6 +49,11 @@ import {
   getAgentGovernanceRuns,
   getAgentGovernanceRunStats,
   getAgentGovernanceUncoveredTop,
+  getAgentV2TextToSqlCandidates,
+  getAgentV2TextToSqlRun,
+  getAgentV2TextToSqlRuns,
+  getAgentV2TextToSqlSemanticViews,
+  getAgentV2TextToSqlStatus,
   getAgentV2GrayRules,
   getAgentKnowledgeGraphGaps,
   getAgentKnowledgeGraphExcludes,
@@ -58,6 +64,9 @@ import {
   getAgentKnowledgeGraphSynonyms,
   getAgentKnowledgeGraphVisualize,
   importLatestAgentGovernanceEvalRun,
+  inspectAgentV2TextToSqlGuard,
+  promoteAgentV2TextToSqlCandidate,
+  promoteAgentV2TextToSqlRun,
   replayAgentGovernanceEvalRunFailure,
   runAgentGovernanceEvalDryRunBatch,
   simulateAgentGovernanceManifest,
@@ -65,6 +74,7 @@ import {
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { usePermission } from '@/hooks/usePermission';
 import type {
   AgentGovernanceAutoPublishRun,
   AgentGovernanceCapabilityHealth,
@@ -88,6 +98,12 @@ import type {
   AgentGovernanceRunDetail,
   AgentGovernanceRunStats,
   AgentGovernanceUncoveredQuestion,
+  AgentV2TextToSqlCandidate,
+  AgentV2TextToSqlGuardInspectResult,
+  AgentV2TextToSqlRun,
+  AgentV2TextToSqlRunResult,
+  AgentV2TextToSqlSemanticView,
+  AgentV2TextToSqlStatus,
   AgentV2GrayRule,
   CreateAgentV2GrayRuleInput,
   AgentKnowledgeGraphGap,
@@ -106,7 +122,7 @@ import type {
 } from '@/types/agentCapabilityCenter';
 import type { AgentRunRecord } from '@/types/agent';
 
-type TabKey = 'overview' | 'runs' | 'knowledge' | 'capabilities' | 'gray' | 'eval' | 'debug';
+type TabKey = 'overview' | 'runs' | 'knowledge' | 'capabilities' | 'gray' | 'eval' | 'textSql' | 'debug';
 type DebugMode = 'execute' | 'toolReplay' | 'compare' | 'simulate';
 type DebugSimulationEnabled = 'inherit' | 'enabled' | 'disabled';
 type GraphSimulationNode = AgentKnowledgeGraphNode & { x?: number; y?: number; fx?: number | null; fy?: number | null };
@@ -199,6 +215,7 @@ const TAB_ROUTE_PATHS: Record<TabKey, string> = {
   capabilities: '/system/agent-governance/capabilities',
   gray: '/system/agent-governance/gray-rules',
   eval: '/system/agent-governance/eval',
+  textSql: '/system/agent-governance/text-to-sql',
   debug: '/system/agent-governance/debug',
 };
 
@@ -209,6 +226,7 @@ function getTabFromPath(pathname: string): TabKey {
   if (pathname.includes('/system/agent-governance/auto-publish')) return 'capabilities';
   if (pathname.includes('/system/agent-governance/gray-rules')) return 'gray';
   if (pathname.includes('/system/agent-governance/eval')) return 'eval';
+  if (pathname.includes('/system/agent-governance/text-to-sql')) return 'textSql';
   if (pathname.includes('/system/agent-governance/debug')) return 'debug';
   return 'overview';
 }
@@ -241,6 +259,13 @@ function formatJson(value: unknown) {
 
 function maskSensitiveDisplayText(value: string) {
   return value.replace(/1[3-9]\d{9}/g, (phone) => `${phone.slice(0, 3)}****${phone.slice(-4)}`);
+}
+
+function redactSensitiveInlineText(value: string) {
+  return maskSensitiveDisplayText(value)
+    .replace(/\b(?:postgres(?:ql)?|mysql):\/\/[^\s"'，。；;]+/gi, '[redacted-db-url]')
+    .replace(/\b(?:https?:\/\/)[^\s"'，。；;]*(?:token|secret|password|key)=[^\s"'，。；;]+/gi, '[redacted-url]')
+    .replace(/\b(token|secret|password|api[_-]?key)=([^\s"'，。；;]+)/gi, (_match, key: string) => `${key}=[redacted]`);
 }
 
 function isSensitiveDisplayKey(key?: string) {
@@ -278,6 +303,32 @@ function redactSensitiveDisplayValue(value: unknown, key?: string): unknown {
 
 function formatSafeJson(value: unknown) {
   return formatJson(redactSensitiveDisplayValue(value));
+}
+
+function redactTextToSqlTrace(value: unknown, key?: string): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') {
+    if (/^(generatedSql|safeSql|sql)$/i.test(key ?? '')) return '仅管理员可查看';
+    return maskSensitiveDisplayText(value);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.map((item) => redactTextToSqlTrace(item, key));
+  if (typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+      entryKey,
+      redactTextToSqlTrace(entryValue, entryKey),
+    ]),
+  );
+}
+
+function formatTextToSqlTrace(value: unknown, canShowRawSql: boolean) {
+  return canShowRawSql ? formatJson(value) : formatJson(redactTextToSqlTrace(value));
+}
+
+function getTextToSqlGuardSqlDisplay(result: AgentV2TextToSqlGuardInspectResult, canShowRawSql: boolean) {
+  if (canShowRawSql) return result.safeSql ?? result.redactedSql ?? '-';
+  return result.redactedSql ?? (result.safeSql ? 'SQL 已隐藏，仅管理员可查看' : '-');
 }
 
 function formatPercent(value: unknown) {
@@ -362,7 +413,7 @@ function splitNumberList(value: string) {
 }
 
 function formatList(value: Array<string | number> | undefined) {
-  return value?.length ? value.join(', ') : '全部';
+  return value?.length ? value.map((item) => redactSensitiveInlineText(String(item))).join(', ') : '全部';
 }
 
 function getDraftStatusLabel(status: string) {
@@ -1548,6 +1599,7 @@ function KnowledgeGraphPreview({
 export function AgentGovernanceCenter() {
   const location = useLocation();
   const navigate = useNavigate();
+  const canManageAgentGovernance = usePermission('core:agent-governance:manage');
   const [activeTab, setActiveTab] = useState<TabKey>(() => getTabFromPath(location.pathname));
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [runStats, setRunStats] = useState<AgentGovernanceRunStats | null>(null);
@@ -1632,6 +1684,23 @@ export function AgentGovernanceCenter() {
   const [evalReplayLoadingKey, setEvalReplayLoadingKey] = useState<string | null>(null);
   const [evalReplayResult, setEvalReplayResult] = useState<AgentGovernanceEvalFailureReplayResult | null>(null);
 
+  const [textSqlRuns, setTextSqlRuns] = useState<AgentGovernanceListResult<AgentV2TextToSqlRun> | null>(null);
+  const [textSqlViews, setTextSqlViews] = useState<AgentV2TextToSqlSemanticView[]>([]);
+  const [textSqlCandidates, setTextSqlCandidates] = useState<AgentV2TextToSqlCandidate[]>([]);
+  const [textSqlConfigStatus, setTextSqlConfigStatus] = useState<AgentV2TextToSqlStatus | null>(null);
+  const [textSqlStatus, setTextSqlStatus] = useState('all');
+  const [textSqlPage, setTextSqlPage] = useState(1);
+  const [textSqlLoading, setTextSqlLoading] = useState(false);
+  const [textSqlPromotingKey, setTextSqlPromotingKey] = useState<string | null>(null);
+  const [textSqlRunDetail, setTextSqlRunDetail] = useState<AgentV2TextToSqlRun | null>(null);
+  const [textSqlQuestion, setTextSqlQuestion] = useState('本月销量最好的商品');
+  const [textSqlStoreId, setTextSqlStoreId] = useState('1');
+  const [textSqlDryRunResult, setTextSqlDryRunResult] = useState<AgentV2TextToSqlRunResult | null>(null);
+  const [textSqlDryRunning, setTextSqlDryRunning] = useState(false);
+  const [textSqlInspectSql, setTextSqlInspectSql] = useState('SELECT product_name FROM agent_v2_order_item_sales_view LIMIT 10;');
+  const [textSqlGuardResult, setTextSqlGuardResult] = useState<AgentV2TextToSqlGuardInspectResult | null>(null);
+  const [textSqlGuardLoading, setTextSqlGuardLoading] = useState(false);
+
   const [debugQuestion, setDebugQuestion] = useState('哪些客户买了次卡但最近一直不来用');
   const [debugGrayMode, setDebugGrayMode] = useState('kg_llm_preferred');
   const [debugRole, setDebugRole] = useState('manager');
@@ -1650,7 +1719,30 @@ export function AgentGovernanceCenter() {
   const kgPageSize = 20;
   const grayRulePageSize = 12;
   const evalPageSize = 20;
+  const textSqlPageSize = 12;
   const p0Accuracy = evalReport?.metrics?.p0Accuracy;
+  const textSqlBlockedSummary = useMemo(() => {
+    const runs = textSqlRuns?.items ?? [];
+    const blocked = runs.filter((item) => item.status === 'blocked');
+    const failed = runs.filter((item) => item.status === 'failed');
+    const noData = runs.filter((item) => item.status === 'no_data');
+    const reasonCounts = blocked.reduce<Record<string, number>>((acc, item) => {
+      const key = item.blockedReason || 'unknown';
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+    const topReasons = Object.entries(reasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([reason, count]) => `${reason} x${count}`);
+    return {
+      blockedCount: blocked.length,
+      failedCount: failed.length,
+      noDataCount: noData.length,
+      blockedReports: textSqlCandidates.filter((item) => item.status === 'blocked_report').length,
+      topReasons,
+    };
+  }, [textSqlCandidates, textSqlRuns?.items]);
   const fallbackCount = evalReport?.metrics?.p0FallbackCount;
   const highRiskAutoPublish = evalReport?.metrics?.highRiskAutoPublish;
   const unauthorizedEvidenceCount = evalReport?.metrics?.unauthorizedEvidenceCount;
@@ -1796,6 +1888,30 @@ export function AgentGovernanceCenter() {
     }
   }, [evalPage, evalPriority]);
 
+  const loadTextSql = useCallback(async () => {
+    setTextSqlLoading(true);
+    try {
+      const [runs, views, candidates, configStatus] = await Promise.all([
+        getAgentV2TextToSqlRuns({
+          page: textSqlPage,
+          pageSize: textSqlPageSize,
+          status: textSqlStatus === 'all' ? undefined : textSqlStatus,
+        }),
+        getAgentV2TextToSqlSemanticViews({ includePlanned: true, includeAdmin: true }),
+        getAgentV2TextToSqlCandidates({ limit: 500, minHitCount: 1 }),
+        getAgentV2TextToSqlStatus(),
+      ]);
+      setTextSqlRuns(runs);
+      setTextSqlViews(views);
+      setTextSqlCandidates(candidates);
+      setTextSqlConfigStatus(configStatus);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '受控 Text-to-SQL 加载失败');
+    } finally {
+      setTextSqlLoading(false);
+    }
+  }, [textSqlPage, textSqlPageSize, textSqlStatus]);
+
   const selectTab = useCallback((tab: TabKey) => {
     setActiveTab(tab);
     const path = TAB_ROUTE_PATHS[tab];
@@ -1832,6 +1948,10 @@ export function AgentGovernanceCenter() {
   }, [activeTab, loadEval]);
 
   useEffect(() => {
+    if (activeTab === 'textSql') void loadTextSql();
+  }, [activeTab, loadTextSql]);
+
+  useEffect(() => {
     const runId = getRunIdFromPath(location.pathname);
     if (!runId) return;
     if (runDetailOpen && runDetail?.run?.id === runId) return;
@@ -1850,6 +1970,80 @@ export function AgentGovernanceCenter() {
       setRunDetailOpen(false);
     } finally {
       setRunDetailLoading(false);
+    }
+  }
+
+  async function openTextSqlRunDetail(id: number) {
+    try {
+      setTextSqlRunDetail(await getAgentV2TextToSqlRun(id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '受控 Text-to-SQL 详情加载失败');
+    }
+  }
+
+  async function runTextSqlDryRun() {
+    setTextSqlDryRunning(true);
+    try {
+      const storeId = Number(textSqlStoreId);
+      const result = await dryRunAgentV2TextToSql({
+        question: textSqlQuestion,
+        storeId: Number.isFinite(storeId) ? storeId : undefined,
+        mode: 'dry_run',
+      });
+      setTextSqlDryRunResult(result);
+      toast.success(result.status === 'blocked' ? 'dry-run 已返回阻断原因' : 'dry-run 已生成查询计划');
+      void loadTextSql();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '受控 Text-to-SQL dry-run 失败');
+    } finally {
+      setTextSqlDryRunning(false);
+    }
+  }
+
+  async function inspectTextSqlGuard() {
+    setTextSqlGuardLoading(true);
+    try {
+      const storeId = Number(textSqlStoreId);
+      const result = await inspectAgentV2TextToSqlGuard({
+        sql: textSqlInspectSql,
+        storeId: Number.isFinite(storeId) ? storeId : undefined,
+      });
+      setTextSqlGuardResult(result);
+      toast.success(result.status === 'pass' ? 'Guard 检查通过' : 'Guard 已阻断');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Guard 检查失败');
+    } finally {
+      setTextSqlGuardLoading(false);
+    }
+  }
+
+  async function promoteTextSqlCandidate(candidate: AgentV2TextToSqlCandidate) {
+    setTextSqlPromotingKey(candidate.clusterKey);
+    try {
+      const draft = await promoteAgentV2TextToSqlCandidate(candidate.clusterKey);
+      const capabilityId = String(draft.capabilityId ?? candidate.suggestedCapabilityId);
+      toast.success(`已沉淀到能力中心待治理：${capabilityId}`);
+      void loadTextSql();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '候选能力沉淀失败');
+    } finally {
+      setTextSqlPromotingKey(null);
+    }
+  }
+
+  async function promoteTextSqlRun(run: AgentV2TextToSqlRun) {
+    const loadingKey = `run:${run.id}`;
+    setTextSqlPromotingKey(loadingKey);
+    try {
+      const draft = await promoteAgentV2TextToSqlRun(run.id);
+      const capabilityId = String(draft.capabilityId ?? `run:${run.id}`);
+      toast.success(`已沉淀到能力中心待治理：${capabilityId}`);
+      await openTextSqlRunDetail(run.id);
+      void loadTextSql();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '审计运行沉淀失败');
+    } finally {
+      setTextSqlPromotingKey(null);
     }
   }
 
@@ -2190,15 +2384,16 @@ export function AgentGovernanceCenter() {
     if (activeTab === 'capabilities') void loadCapabilities();
     if (activeTab === 'gray') void loadGrayRules();
     if (activeTab === 'eval') void loadEval();
+    if (activeTab === 'textSql') void loadTextSql();
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="text-sm text-gray-500">首页 / 系统设置 / Agent 治理台</div>
+      <div className="text-sm text-gray-500">首页 / 系统设置 / AI 治理中心</div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">Agent 治理台</h2>
+          <h2 className="text-xl font-semibold text-gray-800">AI 治理中心</h2>
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge className={kgSummary?.passed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}>
               图谱 {kgSummary?.passed ? '通过' : '待处理'}
@@ -2211,8 +2406,8 @@ export function AgentGovernanceCenter() {
             </Badge>
           </div>
         </div>
-        <Button variant="outline" onClick={refreshActiveTab} disabled={overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading}>
-          {(overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading) ? (
+        <Button variant="outline" onClick={refreshActiveTab} disabled={overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading}>
+          {(overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading) ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -2229,6 +2424,7 @@ export function AgentGovernanceCenter() {
           <TabsTrigger value="capabilities">能力治理</TabsTrigger>
           <TabsTrigger value="gray">灰度规则</TabsTrigger>
           <TabsTrigger value="eval">评测门禁</TabsTrigger>
+          <TabsTrigger value="textSql">受控SQL</TabsTrigger>
           <TabsTrigger value="debug">单题调试</TabsTrigger>
         </TabsList>
 
@@ -3108,6 +3304,308 @@ export function AgentGovernanceCenter() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="textSql" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="语义视图" value={String(textSqlConfigStatus?.viewReadiness?.totalViews ?? (textSqlViews.length || '-'))} icon={Database} tone="sky" />
+            <StatTile label="启用视图" value={String(textSqlConfigStatus?.viewReadiness?.enabledViews ?? (textSqlViews.filter((item) => item.status === 'enabled').length || '-'))} icon={ShieldCheck} tone="emerald" />
+            <StatTile label="审计运行" value={String(textSqlRuns?.total ?? '-')} icon={Activity} tone="slate" />
+            <StatTile
+              label={textSqlConfigStatus?.enabled ? '已启用' : '未启用'}
+              value={textSqlConfigStatus?.readonlyExecutionReady ? '可执行' : 'Dry-run'}
+              icon={AlertTriangle}
+              tone={textSqlConfigStatus?.readonlyExecutionReady ? 'emerald' : 'amber'}
+            />
+          </div>
+
+          {textSqlConfigStatus ? (
+            <div className="rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={textSqlConfigStatus.readonlyExecutionReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                  {textSqlConfigStatus.executeMode}
+                </Badge>
+                <span className="text-gray-600">
+                  total {textSqlConfigStatus.viewReadiness?.totalViews ?? textSqlViews.length} / enabled {textSqlConfigStatus.viewReadiness?.enabledViews ?? textSqlViews.filter((item) => item.status === 'enabled').length} / planned {textSqlConfigStatus.viewReadiness?.plannedViews ?? '-'} / admin {textSqlConfigStatus.viewReadiness?.adminViews ?? '-'}
+                </span>
+              </div>
+              {textSqlConfigStatus.executeBlockers?.length ? (
+                <div className="mt-2 text-amber-700">执行阻断：{formatList(textSqlConfigStatus.executeBlockers)}</div>
+              ) : null}
+              {textSqlConfigStatus.nextActions?.length ? (
+                <div className="mt-1 text-gray-500">下一步：{formatList(textSqlConfigStatus.nextActions)}</div>
+              ) : null}
+              {textSqlConfigStatus.deploymentReadiness ? (
+                <div className="mt-2 text-gray-500">迁移：{textSqlConfigStatus.deploymentReadiness.primaryMigrationName}</div>
+              ) : null}
+              {textSqlConfigStatus.readinessCommands ? (
+                <div className="mt-2 grid gap-1 rounded-md bg-muted/40 p-2 font-mono text-xs text-gray-600">
+                  <div>本地门禁：{redactSensitiveInlineText(textSqlConfigStatus.readinessCommands.localGate)}</div>
+                  <div>真实库审计：{redactSensitiveInlineText(textSqlConfigStatus.readinessCommands.completionAudit)}</div>
+                  <div>只读库验收：{redactSensitiveInlineText(textSqlConfigStatus.readinessCommands.strictReadiness)}</div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-gray-800">受控 Text-to-SQL Dry-run</div>
+                <Badge className="border-amber-200 bg-amber-50 text-amber-700">不会访问数据库</Badge>
+              </div>
+              <textarea
+                value={textSqlQuestion}
+                onChange={(event) => setTextSqlQuestion(event.target.value)}
+                className="min-h-24 w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+              />
+              <div className="mt-3 grid gap-2 md:grid-cols-[140px_auto]">
+                <Input value={textSqlStoreId} onChange={(event) => setTextSqlStoreId(event.target.value)} placeholder="storeId" />
+                <Button onClick={() => void runTextSqlDryRun()} disabled={textSqlDryRunning || !textSqlQuestion.trim()}>
+                  {textSqlDryRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  生成受控查询计划
+                </Button>
+              </div>
+              {textSqlDryRunResult ? (
+                <div className="mt-4 space-y-3 rounded-lg border border-border bg-background p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={getStatusClass(textSqlDryRunResult.status)}>{textSqlDryRunResult.status}</Badge>
+                    <span className="text-gray-500">auditRunId: {textSqlDryRunResult.auditRunId ?? '-'}</span>
+                  </div>
+                  <div className="text-gray-800">{textSqlDryRunResult.answer ?? '-'}</div>
+                  <div className="text-xs text-gray-500">视图：{formatList(textSqlDryRunResult.evidence.sourceViews)}</div>
+                  <pre className="max-h-48 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-gray-100">
+                    {formatTextToSqlTrace(textSqlDryRunResult.queryTrace, canManageAgentGovernance)}
+                  </pre>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-gray-800">Guard Inspect</div>
+                <Badge className="border-sky-200 bg-sky-50 text-sky-700">SELECT only</Badge>
+              </div>
+              <textarea
+                value={textSqlInspectSql}
+                onChange={(event) => setTextSqlInspectSql(event.target.value)}
+                className="min-h-32 w-full rounded-lg border border-input bg-background p-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring/30"
+              />
+              <Button className="mt-3" variant="outline" onClick={() => void inspectTextSqlGuard()} disabled={textSqlGuardLoading || !textSqlInspectSql.trim()}>
+                {textSqlGuardLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                检查 SQL
+              </Button>
+              {textSqlGuardResult ? (
+                <div className="mt-4 space-y-3 rounded-lg border border-border bg-background p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={textSqlGuardResult.status === 'pass' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}>
+                      {textSqlGuardResult.status}
+                    </Badge>
+                    <span className="text-gray-500">{textSqlGuardResult.reasonCode ?? textSqlGuardResult.message ?? 'guard result'}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">策略：{formatList(textSqlGuardResult.appliedPolicies)}</div>
+                  <pre className="max-h-48 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-gray-100">
+                    {getTextToSqlGuardSqlDisplay(textSqlGuardResult, canManageAgentGovernance)}
+                  </pre>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">高频候选能力</div>
+                <div className="mt-1 text-xs text-gray-500">由受控 Text-to-SQL 审计自动聚类，只沉淀为待治理草稿，不自动发布。</div>
+              </div>
+              <Badge className="border-violet-200 bg-violet-50 text-violet-700">
+                {textSqlCandidates.filter((item) => item.status === 'candidate').length} 个可沉淀
+              </Badge>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>候选</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>命中</TableHead>
+                  <TableHead>成功率</TableHead>
+                  <TableHead>视图</TableHead>
+                  <TableHead>样例问题</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {textSqlCandidates.length ? textSqlCandidates.slice(0, 8).map((candidate) => (
+                  <TableRow key={candidate.clusterKey}>
+                    <TableCell>
+                      <div className="font-medium text-gray-900">{candidate.displayName}</div>
+                      <div className="font-mono text-xs text-gray-500">{candidate.suggestedCapabilityId}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={candidate.status === 'candidate' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                        {candidate.status === 'candidate' ? '可沉淀' : '阻断报表'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{candidate.hitCount}</TableCell>
+                    <TableCell>{formatPercent(candidate.successRate)}</TableCell>
+                    <TableCell className="max-w-[240px] truncate font-mono text-xs">{formatList(candidate.selectedViews)}</TableCell>
+                    <TableCell className="max-w-[300px] truncate">{candidate.sampleQuestions[0] ?? '-'}</TableCell>
+                    <TableCell className="text-right">
+                      {candidate.status === 'candidate' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void promoteTextSqlCandidate(candidate)}
+                          disabled={textSqlPromotingKey === candidate.clusterKey}
+                        >
+                          {textSqlPromotingKey === candidate.clusterKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                          沉淀草稿
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-gray-500">{candidate.reason}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <EmptyRow colSpan={7} text={textSqlLoading ? '候选能力加载中' : '暂无高频候选能力'} />
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-gray-800">审计运行</div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={textSqlStatus}
+                    onChange={(event) => {
+                      setTextSqlStatus(event.target.value);
+                      setTextSqlPage(1);
+                    }}
+                    className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="all">全部状态</option>
+                    <option value="dry_run">Dry-run</option>
+                    <option value="success">成功</option>
+                    <option value="no_data">无数据</option>
+                    <option value="blocked">已阻断</option>
+                    <option value="failed">失败</option>
+                  </select>
+                  <Button variant="outline" onClick={() => void loadTextSql()} disabled={textSqlLoading}>
+                    {textSqlLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    刷新
+                  </Button>
+                </div>
+              </div>
+              <div className="mb-3 grid gap-2 md:grid-cols-4">
+                <div className="rounded-md border border-rose-100 bg-rose-50 p-3">
+                  <div className="text-xs text-rose-600">已阻断</div>
+                  <div className="mt-1 text-lg font-semibold text-rose-700">{textSqlBlockedSummary.blockedCount}</div>
+                </div>
+                <div className="rounded-md border border-amber-100 bg-amber-50 p-3">
+                  <div className="text-xs text-amber-700">无数据</div>
+                  <div className="mt-1 text-lg font-semibold text-amber-800">{textSqlBlockedSummary.noDataCount}</div>
+                </div>
+                <div className="rounded-md border border-slate-100 bg-slate-50 p-3">
+                  <div className="text-xs text-slate-600">失败</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-800">{textSqlBlockedSummary.failedCount}</div>
+                </div>
+                <div className="rounded-md border border-violet-100 bg-violet-50 p-3">
+                  <div className="text-xs text-violet-700">阻断报表</div>
+                  <div className="mt-1 text-lg font-semibold text-violet-800">{textSqlBlockedSummary.blockedReports}</div>
+                </div>
+              </div>
+              {textSqlBlockedSummary.topReasons.length ? (
+                <div className="mb-3 rounded-md border border-border bg-muted/30 p-3 text-xs text-gray-600">
+                  高频阻断原因：{formatList(textSqlBlockedSummary.topReasons)}
+                </div>
+              ) : null}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>问题</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>视图</TableHead>
+                    <TableHead>耗时</TableHead>
+                    <TableHead>时间</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {textSqlRuns?.items.length ? textSqlRuns.items.map((run) => (
+                    <TableRow key={run.id}>
+                      <TableCell className="font-mono text-xs">{run.id}</TableCell>
+                      <TableCell className="max-w-[320px] truncate">{run.question}</TableCell>
+                      <TableCell><Badge className={getStatusClass(run.status)}>{run.status}</Badge></TableCell>
+                      <TableCell className="max-w-[260px] truncate font-mono text-xs">{formatJson(run.selectedViewsJson)}</TableCell>
+                      <TableCell>{run.executionMs ?? '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap text-gray-500">{formatDateTime(run.createdAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => void openTextSqlRunDetail(run.id)}>详情</Button>
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <EmptyRow colSpan={7} text={textSqlLoading ? 'Text-to-SQL 审计加载中' : '暂无 Text-to-SQL 审计'} />
+                  )}
+                </TableBody>
+              </Table>
+              <div className="mt-3 flex items-center justify-end gap-2 text-sm text-gray-500">
+                <Button variant="outline" size="sm" disabled={textSqlPage <= 1} onClick={() => setTextSqlPage((current) => Math.max(1, current - 1))}>上一页</Button>
+                <span>{textSqlPage} / {Math.max(1, Math.ceil((textSqlRuns?.total ?? 0) / textSqlPageSize))}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={textSqlPage >= Math.max(1, Math.ceil((textSqlRuns?.total ?? 0) / textSqlPageSize))}
+                  onClick={() => setTextSqlPage((current) => current + 1)}
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="mb-3 text-sm font-semibold text-gray-800">语义视图 / 运行详情</div>
+              {textSqlRunDetail ? (
+                <div className="mb-4 space-y-2 rounded-lg border border-border bg-background p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium text-gray-900">#{textSqlRunDetail.id} {textSqlRunDetail.status}</div>
+                    {['success', 'dry_run', 'no_data'].includes(textSqlRunDetail.status) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void promoteTextSqlRun(textSqlRunDetail)}
+                        disabled={textSqlPromotingKey === `run:${textSqlRunDetail.id}`}
+                      >
+                        {textSqlPromotingKey === `run:${textSqlRunDetail.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                        沉淀草稿
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="text-gray-600">{textSqlRunDetail.question}</div>
+                  <div className="text-xs text-gray-500">blockedReason: {textSqlRunDetail.blockedReason ?? '-'}</div>
+                  <pre className="max-h-52 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-gray-100">
+                    {formatTextToSqlTrace(textSqlRunDetail.queryTraceJson, canManageAgentGovernance)}
+                  </pre>
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                {textSqlViews.slice(0, 16).map((view) => (
+                  <div key={view.viewName} className="rounded-lg border border-border bg-background p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-gray-800">{view.viewName}</span>
+                      <Badge className={view.status === 'enabled' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                        {view.batch} · {view.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500">{view.domain} · {formatList(view.requiredPermissions)}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

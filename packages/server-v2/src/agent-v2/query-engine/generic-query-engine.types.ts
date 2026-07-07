@@ -1,5 +1,6 @@
 import type { AgentEvidence, AgentToolExecutionContext, AgentToolResult } from '../../agent/agent.types.js';
 import type { AgentV2CapabilityManifest, AgentV2FieldPolicy, AgentV2QueryAggregation } from '../capability/agent-v2-capability.types.js';
+import type { AgentV2DateRange } from '../utils/agent-v2-date-range.js';
 
 export type GenericQueryExecutionKind =
   | 'record.query'
@@ -15,12 +16,7 @@ export type GenericQueryInput = {
   context: AgentToolExecutionContext;
 };
 
-export type GenericQueryDateRange = {
-  start: Date;
-  end: Date;
-  label: string;
-  preset: string;
-};
+export type GenericQueryDateRange = AgentV2DateRange;
 
 export type GenericQueryTrace = {
   engine: 'generic_query_engine';

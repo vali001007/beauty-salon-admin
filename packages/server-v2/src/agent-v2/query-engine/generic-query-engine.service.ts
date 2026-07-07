@@ -4,6 +4,10 @@ import { formatBusinessDate, formatBusinessDateTime } from '../../common/utils/b
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AgentV2CapabilityManifest, AgentV2FieldPolicy, AgentV2QueryAggregation } from '../capability/agent-v2-capability.types.js';
 import { AGENT_V2_KNOWLEDGE_GRAPH_SNAPSHOT } from '../knowledge-graph/generated/knowledge-graph.generated.js';
+import {
+  resolveAgentV2QueryDateRange,
+  startOfAgentV2Day,
+} from '../utils/agent-v2-date-range.js';
 import type { GenericQueryDateRange, GenericQueryExecutionKind, GenericQueryInput, GenericQueryTrace } from './generic-query-engine.types.js';
 
 const DAY_MS = 86_400_000;
@@ -36,7 +40,12 @@ export class GenericQueryEngineService {
   constructor(private readonly prisma: PrismaService) {}
 
   canExecute(manifest: AgentV2CapabilityManifest) {
-    return Boolean(manifest.executor.queryKey && (SUPPORTED_QUERY_KEYS.has(manifest.executor.queryKey) || this.canExecuteDynamicRecordQuery(manifest)));
+    return Boolean(
+      manifest.executor.queryKey &&
+      (SUPPORTED_QUERY_KEYS.has(manifest.executor.queryKey) ||
+        this.canExecuteDynamicRecordQuery(manifest) ||
+        this.canExecuteDynamicDetailQuery(manifest)),
+    );
   }
 
   async tryExecute(input: GenericQueryInput): Promise<AgentToolResult | null> {
@@ -81,6 +90,7 @@ export class GenericQueryEngineService {
     if (queryKey === 'finance.refund.metric') return this.getRefundMetric(input);
     if (queryKey === 'finance.revenue.trend') return this.getRevenueTrend(input);
     if (queryKey === 'order.detail.lookup') return this.lookupOrderDetail(input);
+    if (this.canExecuteDynamicDetailQuery(input.manifest)) return this.executeDynamicDetailQuery(input);
     if (this.canExecuteDynamicRecordQuery(input.manifest)) return this.executeDynamicRecordQuery(input);
     return null;
   }
@@ -89,6 +99,18 @@ export class GenericQueryEngineService {
     return (
       manifest.executor.tool === 'business.record.query' &&
       manifest.executor.type === 'business_record_query' &&
+      Boolean(manifest.executor.queryKey) &&
+      Boolean(manifest.sourceModels[0]) &&
+      manifest.fieldPolicies.some((policy) => policy.visibility !== 'deny' && /^[A-Za-z][A-Za-z0-9_]*$/.test(policy.field)) &&
+      manifest.riskLevel === 'low' &&
+      manifest.releaseStrategy === 'auto_publish'
+    );
+  }
+
+  private canExecuteDynamicDetailQuery(manifest: AgentV2CapabilityManifest) {
+    return (
+      manifest.executor.tool === 'business.detail.query' &&
+      manifest.executor.type === 'business_detail_query' &&
       Boolean(manifest.executor.queryKey) &&
       Boolean(manifest.sourceModels[0]) &&
       manifest.fieldPolicies.some((policy) => policy.visibility !== 'deny' && /^[A-Za-z][A-Za-z0-9_]*$/.test(policy.field)) &&
@@ -156,9 +178,86 @@ export class GenericQueryEngineService {
     };
   }
 
+  private async executeDynamicDetailQuery(input: GenericQueryInput): Promise<AgentToolResult> {
+    const sourceModel = input.manifest.sourceModels[0];
+    const delegate = (this.prisma as any)[this.prismaDelegateName(sourceModel)];
+    const id = this.extractDetailId(input.args);
+    const baseWhere = this.dynamicStoreWhere(sourceModel, input.context.storeId);
+    const where = id ? { ...baseWhere, id } : baseWhere;
+    const selectFields = this.dynamicSelectFields(input.manifest);
+    const select = Object.fromEntries(selectFields.map((field) => [field, true]));
+    const trace = this.trace(input, 'detail.query', sourceModel, where, 1, undefined, undefined, undefined, 'findFirst');
+    trace.select = selectFields;
+    trace.graphRelationPath = this.storeRelationPathLabels(sourceModel);
+    trace.sqlSummary = this.sqlSummary(sourceModel, where, 1, undefined, selectFields, undefined, 'findFirst');
+
+    if (!delegate?.findFirst) {
+      return this.failed(
+        input.manifest,
+        'needs_development',
+        `通用详情查询暂未找到 ${sourceModel} 对应的 Prisma delegate，需补 queryKey 或专用 detail adapter。`,
+      );
+    }
+
+    const evidence = this.evidence(
+      input.manifest,
+      `${sourceModel} 通用详情查询 = GenericQueryEngine 根据 Manifest.sourceModels、fieldPolicies、storeScope 和 id 参数动态构造 Prisma findFirst。`,
+      trace.filters,
+      0,
+      undefined,
+      ['动态详情只读取 Manifest 字段策略允许的字段；如需跨表详情或复杂页面语义，需升级为专用 adapter。'],
+    );
+
+    if (!id) {
+      return {
+        status: 'no_data',
+        title: input.manifest.displayName,
+        summary: `${input.manifest.displayName} 需要提供 id 后才能定位单条详情；当前 dry-run 已验证详情查询入口可执行。`,
+        data: {
+          detail: null,
+          items: [],
+          sourceModel,
+          requiredParameters: ['id'],
+          queryTrace: trace,
+        },
+        evidence,
+        actions: [],
+      };
+    }
+
+    const row = await delegate.findFirst({ where, select });
+    const rawDetail = row ? this.mapDynamicRow(row) : null;
+    const detail = rawDetail ? this.applyFieldPolicies([rawDetail], input.manifest.fieldPolicies)[0] : null;
+    const detailEvidence = this.evidence(
+      input.manifest,
+      `${sourceModel} 通用详情查询 = GenericQueryEngine 根据 Manifest.sourceModels、fieldPolicies、storeScope 和 id 参数动态构造 Prisma findFirst。`,
+      trace.filters,
+      detail ? 1 : 0,
+      undefined,
+      ['动态详情只读取 Manifest 字段策略允许的字段；如需跨表详情或复杂页面语义，需升级为专用 adapter。'],
+    );
+
+    return {
+      status: detail ? 'success' : 'no_data',
+      title: input.manifest.displayName,
+      summary: detail
+        ? `已查询到 ${input.manifest.displayName} 详情。`
+        : `没有查询到 id=${String(id)} 对应的${input.manifest.displayName}详情。`,
+      data: {
+        detail,
+        items: detail ? [detail] : [],
+        sourceModel,
+        id,
+        queryTrace: trace,
+      },
+      evidence: detailEvidence,
+      actions: [],
+    };
+  }
+
   private async listInventoryScrapRecords(input: GenericQueryInput): Promise<AgentToolResult> {
     const limit = this.resolveLimit(input.args.limit);
-    const range = this.resolveDateRange(input.args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(input.args, 'this_week');
     const where = {
       storeId: input.context.storeId,
       movementType: 'scrap_out',
@@ -169,7 +268,7 @@ export class GenericQueryEngineService {
       include: {
         product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, costPrice: true, category: { select: { name: true } } } },
         store: { select: { id: true, name: true } },
-        operator: { select: { id: true, name: true, username: true, role: true } },
+        operator: { select: { id: true, name: true, username: true } },
         batch: { select: { id: true, batchNo: true, expiryDate: true } },
       },
       orderBy: { occurredAt: 'desc' },
@@ -333,7 +432,7 @@ export class GenericQueryEngineService {
   ): Promise<AgentToolResult> {
     const limit = this.resolveLimit(input.args.limit);
     const orderNo = this.extractOrderNo(input.args);
-    const range = this.resolveDateRange(input.args.timeRange ?? (orderNo ? 'all' : 'this_week'));
+    const range = this.resolveQueryDateRange(input.args, orderNo ? 'all' : 'this_week');
     const where: Record<string, unknown> = {
       storeId: input.context.storeId,
       ...this.orderNoWhere(orderNo),
@@ -388,7 +487,7 @@ export class GenericQueryEngineService {
 
   private async listCardPackageRecords(input: GenericQueryInput): Promise<AgentToolResult> {
     const limit = this.resolveLimit(input.args.limit);
-    const range = this.resolveDateRange(input.args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(input.args, 'this_week');
     const where = {
       customer: { storeId: input.context.storeId },
       ...this.createdAtWhere(range),
@@ -396,7 +495,7 @@ export class GenericQueryEngineService {
     const include = {
       customer: { select: { id: true, name: true, phone: true, store: { select: { id: true, name: true } } } },
       card: { select: { id: true, name: true, totalTimes: true } },
-      operator: { select: { id: true, name: true, username: true, role: true } },
+      operator: { select: { id: true, name: true, username: true } },
       sourceOrder: { select: { id: true, orderNo: true, payMethod: true, status: true, netAmount: true, totalAmount: true, createdAt: true } },
     };
     const orderBy = { createdAt: 'desc' };
@@ -457,7 +556,7 @@ export class GenericQueryEngineService {
 
   private async listCardUsageRecords(input: GenericQueryInput): Promise<AgentToolResult> {
     const limit = this.resolveLimit(input.args.limit);
-    const range = this.resolveDateRange(input.args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(input.args, 'this_week');
     const where = {
       storeId: input.context.storeId,
       verifiedAt: { gte: range.start, lt: range.end },
@@ -465,7 +564,7 @@ export class GenericQueryEngineService {
     const include = {
       customer: { select: { id: true, name: true, phone: true } },
       store: { select: { id: true, name: true } },
-      operator: { select: { id: true, name: true, username: true, role: true } },
+      operator: { select: { id: true, name: true, username: true } },
       beautician: { select: { id: true, name: true, userId: true } },
       device: { select: { id: true, name: true, deviceCode: true } },
       sourceOrder: { select: { id: true, orderNo: true } },
@@ -544,7 +643,7 @@ export class GenericQueryEngineService {
 
   private async listCardPackageInactiveCustomers(input: GenericQueryInput): Promise<AgentToolResult> {
     const limit = this.resolveLimit(input.args.limit);
-    const range = this.resolveDateRange(input.args.timeRange ?? 'last_90_days');
+    const range = this.resolveQueryDateRange(input.args, 'last_90_days');
     const inactiveThresholdDays = this.resolveInactiveThresholdDays(input.args);
     const where = {
       customer: { storeId: input.context.storeId },
@@ -620,7 +719,7 @@ export class GenericQueryEngineService {
 
   private async listCustomerConsumptionRecords(input: GenericQueryInput): Promise<AgentToolResult> {
     const limit = this.resolveLimit(input.args.limit);
-    const range = this.resolveDateRange(input.args.timeRange ?? 'this_week');
+    const range = this.resolveQueryDateRange(input.args, 'this_week');
     const where = {
       customer: { storeId: input.context.storeId },
       consumeTime: { gte: range.start, lt: range.end },
@@ -682,7 +781,7 @@ export class GenericQueryEngineService {
   }
 
   private async getDailySettlementMetric(input: GenericQueryInput): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(input.args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(input.args, 'today');
     const limit = 60;
     const where = {
       storeId: input.context.storeId,
@@ -845,7 +944,7 @@ export class GenericQueryEngineService {
   }
 
   private async getPaymentMethodBreakdownMetric(input: GenericQueryInput): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(input.args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(input.args, 'today');
     const limit = 2000;
     const where = {
       order: { storeId: input.context.storeId },
@@ -944,7 +1043,7 @@ export class GenericQueryEngineService {
   }
 
   private async getRefundMetric(input: GenericQueryInput): Promise<AgentToolResult> {
-    const range = this.resolveDateRange(input.args.timeRange ?? 'today');
+    const range = this.resolveQueryDateRange(input.args, 'today');
     const limit = 500;
     const where = {
       order: { storeId: input.context.storeId },
@@ -1131,6 +1230,20 @@ export class GenericQueryEngineService {
 
   private prismaDelegateName(sourceModel: string) {
     return sourceModel ? sourceModel.charAt(0).toLowerCase() + sourceModel.slice(1) : '';
+  }
+
+  private extractDetailId(args: Record<string, unknown>) {
+    const filters = typeof args.filters === 'object' && args.filters !== null ? (args.filters as Record<string, unknown>) : {};
+    const candidates = [args.id, args.recordId, args.customerId, filters.id, filters.recordId, filters.customerId];
+    for (const candidate of candidates) {
+      const parsed = Number(candidate);
+      if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    }
+    const question = String(args.question ?? '');
+    const match = question.match(/(?:id|ID|#)\s*[:：#]?\s*(\d{1,10})/);
+    if (!match) return null;
+    const parsed = Number(match[1]);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }
 
   private dynamicStoreWhere(sourceModel: string, storeId?: number) {
@@ -1617,65 +1730,12 @@ export class GenericQueryEngineService {
     return Math.min(Math.max(Number.isFinite(raw) ? raw : 30, 1), 365);
   }
 
-  private resolveDateRange(input: unknown): GenericQueryDateRange {
-    const now = new Date();
-    const preset = typeof input === 'object' && input !== null ? String((input as any).preset ?? '') : String(input ?? '');
-    if (preset === 'all') return { start: new Date(0), end: now, label: '全部时间', preset };
-    if (typeof input === 'object' && input !== null && (input as any).startDate && (input as any).endDate) {
-      return {
-        start: new Date(String((input as any).startDate)),
-        end: new Date(`${String((input as any).endDate).slice(0, 10)}T23:59:59.999Z`),
-        label: String((input as any).label ?? '自定义时间'),
-        preset: String((input as any).preset ?? 'custom'),
-      };
-    }
-    if (preset === 'today') {
-      const start = this.startOfDay(now);
-      return { start, end: new Date(start.getTime() + DAY_MS), label: '今天', preset };
-    }
-    if (preset === 'yesterday') {
-      const end = this.startOfDay(now);
-      return { start: new Date(end.getTime() - DAY_MS), end, label: '昨天', preset };
-    }
-    if (preset === 'last_7_days') return { start: new Date(now.getTime() - 7 * DAY_MS), end: now, label: '近 7 天', preset };
-    if (preset === 'last_30_days') return { start: new Date(now.getTime() - 30 * DAY_MS), end: now, label: '近 30 天', preset };
-    if (preset === 'this_month') return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now, label: '本月', preset };
-    const start = this.startOfWeek(now);
-    return { start, end: now, label: '本周', preset: 'this_week' };
-  }
-
   private resolveQueryDateRange(args: Record<string, unknown>, fallbackPreset: string): GenericQueryDateRange {
-    if (args.timeRange) return this.resolveDateRange(args.timeRange);
-    const question = String(args.question ?? '');
-    const preset = this.extractDatePreset(question);
-    if (preset) return this.resolveDateRange(preset);
-    const days = this.extractRecentDays(question);
-    if (days) {
-      const now = new Date();
-      const start = this.startOfDay(new Date(now.getTime() - Math.max(0, days - 1) * DAY_MS));
-      return { start, end: now, label: `近 ${days} 天`, preset: `last_${days}_days` };
-    }
-    return this.resolveDateRange(fallbackPreset);
-  }
-
-  private extractDatePreset(question: string) {
-    if (/今天|今日/.test(question)) return 'today';
-    if (/昨天|昨日/.test(question)) return 'yesterday';
-    if (/本月|这个月|当月/.test(question)) return 'this_month';
-    if (/本周|这周|本星期|这个星期/.test(question)) return 'this_week';
-    if (/近7天|最近7天|近七天|最近七天/.test(question)) return 'last_7_days';
-    if (/近30天|最近30天|近三十天|最近三十天/.test(question)) return 'last_30_days';
-    return null;
+    return resolveAgentV2QueryDateRange(args, fallbackPreset);
   }
 
   private resolveTrendRange(args: Record<string, unknown>): GenericQueryDateRange {
-    const input = args.timeRange;
-    const preset = typeof input === 'object' && input !== null ? String((input as any).preset ?? '') : String(input ?? '');
-    if (preset || typeof input === 'object') return this.resolveDateRange(input);
-    const days = this.extractRecentDays(String(args.question ?? '')) ?? 7;
-    const now = new Date();
-    const start = this.startOfDay(new Date(now.getTime() - Math.max(0, days - 1) * DAY_MS));
-    return { start, end: now, label: `近 ${days} 天`, preset: `last_${days}_days` };
+    return resolveAgentV2QueryDateRange(args, 'last_7_days');
   }
 
   private createdAtWhere(range: GenericQueryDateRange) {
@@ -1709,33 +1769,12 @@ export class GenericQueryEngineService {
     return question.match(/[A-Z]{2,}[A-Z0-9]{5,}|PO\d{6,}/)?.[0] ?? null;
   }
 
-  private extractRecentDays(question: string) {
-    const raw = question.match(/(?:最近|近)\s*([一二两三四五六七八九十\d]{1,3})\s*天/)?.[1];
-    if (!raw) return null;
-    const numeric = Number(raw);
-    if (Number.isFinite(numeric) && numeric > 0) return Math.min(numeric, 90);
-    const map: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
-    if (raw === '十') return 10;
-    if (raw.startsWith('十')) return 10 + (map[raw.slice(1)] ?? 0);
-    if (raw.includes('十')) {
-      const [tens, ones] = raw.split('十');
-      return (map[tens] ?? 1) * 10 + (map[ones] ?? 0);
-    }
-    return map[raw] ?? null;
-  }
-
   private serializeRange(range: GenericQueryDateRange) {
     return { start: this.formatDate(range.start), end: this.formatDate(range.end), label: range.label, preset: range.preset };
   }
 
   private startOfDay(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private startOfWeek(date: Date) {
-    const day = date.getDay() || 7;
-    const start = this.startOfDay(date);
-    return new Date(start.getTime() - (day - 1) * DAY_MS);
+    return startOfAgentV2Day(date);
   }
 
   private formatDate(value: unknown) {
