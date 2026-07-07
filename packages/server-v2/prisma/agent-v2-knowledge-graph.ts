@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { buildAgentV2KnowledgeGraph, renderKnowledgeGraphGeneratedFile } from '../src/agent-v2/knowledge-graph/knowledge-graph-builder.js';
 import type {
@@ -68,7 +69,11 @@ async function main() {
 
 async function loadManualOverrides(): Promise<KnowledgeGraphManualOverrideSource[]> {
   if (!process.env.DATABASE_URL) return [];
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({
+      connectionString: process.env.DATABASE_URL,
+    }),
+  });
   try {
     const rows = await prisma.agentKnowledgeGraphOverride.findMany({
       where: { status: 'active' },

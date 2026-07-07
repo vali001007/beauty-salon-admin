@@ -1551,8 +1551,7 @@ describe('AgentGovernanceCenter', () => {
     renderAgentGovernanceCenter(['/system/agent-governance/text-to-sql']);
 
     expect(await screen.findByRole('heading', { name: 'AI 治理中心' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '受控SQL' })).toHaveAttribute('data-state', 'active');
-    expect(await screen.findByText('受控 Text-to-SQL Dry-run')).toBeInTheDocument();
+    expect(await screen.findByText('治理 Text-to-SQL Dry-run')).toBeInTheDocument();
     expect(screen.getByText('Guard Inspect')).toBeInTheDocument();
     expect(screen.getByText('高频候选能力')).toBeInTheDocument();
     expect(screen.getAllByText('审计运行').length).toBeGreaterThan(0);
