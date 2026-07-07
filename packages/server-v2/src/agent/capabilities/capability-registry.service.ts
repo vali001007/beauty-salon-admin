@@ -59,6 +59,28 @@ export class CapabilityRegistryService {
       ],
     },
     {
+      id: 'business_anomaly_alert',
+      name: '经营异常提醒',
+      domain: 'business',
+      supportedTaskTypes: ['query', 'diagnosis', 'forecast'],
+      requiredMetrics: ['business_anomaly_count'],
+      allowedRoles: ['manager'],
+      description: '汇总订单、预约、库存、客户和自动化执行中的经营风险与异常提醒。',
+      toolPlanFactory: (task) => [
+        {
+          tool: 'business.query.ask',
+          args: {
+            question: task.objective,
+            businessTask: task,
+            capabilityId: 'business_anomaly_alert',
+            limit: Math.min(Math.max(Number(task.limit) || 10, 1), 50),
+            timeRange: task.timeRange?.preset ?? 'last_30_days',
+            filters: task.filters,
+          },
+        },
+      ],
+    },
+    {
       id: 'order_customer_consumption_list',
       name: '消费客户清单',
       domain: 'order',
@@ -74,6 +96,28 @@ export class CapabilityRegistryService {
             businessTask: task,
             limit: Math.min(Math.max(Number(task.limit) || 20, 1), 100),
             timeRange: task.timeRange?.preset ?? 'yesterday',
+            filters: task.filters,
+          },
+        },
+      ],
+    },
+    {
+      id: 'product_customer_distribution',
+      name: '商品购买客户分布',
+      domain: 'product',
+      supportedTaskTypes: ['query', 'ranking'],
+      requiredMetrics: ['product_customer_distribution'],
+      allowedRoles: ['manager', 'reception'],
+      description: '查询购买过指定商品或商品集合的客户分布、订单数和最近购买时间。',
+      toolPlanFactory: (task) => [
+        {
+          tool: 'business.query.ask',
+          args: {
+            question: task.objective,
+            businessTask: task,
+            capabilityId: 'product_customer_distribution',
+            limit: Math.min(Math.max(Number(task.limit) || 20, 1), 100),
+            timeRange: task.timeRange?.preset ?? 'last_30_days',
             filters: task.filters,
           },
         },

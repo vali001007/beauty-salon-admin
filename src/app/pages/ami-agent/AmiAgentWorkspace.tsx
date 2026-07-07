@@ -1686,7 +1686,7 @@ function GovernanceReportPanel({
 
 function downloadGovernanceMarkdown(report: AgentKnowledgeGovernanceReportSummary) {
   if (!report.markdownContent) return;
-  const blob = new Blob([report.markdownContent], { type: 'text/markdown;charset=utf-8' });
+  const blob = new globalThis.Blob([report.markdownContent], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

@@ -91,6 +91,10 @@ export class BusinessTaskCompilerService {
   }
 
   private capabilityFromSkillOrRegistry(skill: AmiBusinessSkillPlan | null, task: BusinessTask, role: AgentRole) {
+    const registryCapability = this.capabilityRegistry.match(task, role);
+    if (registryCapability && this.shouldPreferRegistryCapability(skill, registryCapability.capabilityId, task)) {
+      return registryCapability;
+    }
     if (skill) {
       return {
         capabilityId: skill.capabilityId ?? skill.skillId,
@@ -98,7 +102,32 @@ export class BusinessTaskCompilerService {
         toolPlan: skill.toolPlan,
       };
     }
-    return this.capabilityRegistry.match(task, role);
+    return registryCapability;
+  }
+
+  private shouldPreferRegistryCapability(
+    skill: AmiBusinessSkillPlan | null,
+    registryCapabilityId: string,
+    task: BusinessTask,
+  ) {
+    if (!skill) return true;
+    const skillTool = skill.toolPlan[0]?.tool;
+    const skillCapabilityId = skill.capabilityId ?? skill.skillId;
+    if (skillTool !== 'business.query.ask') return false;
+    if (registryCapabilityId === skillCapabilityId) return false;
+    if (registryCapabilityId === 'revenue_diagnosis') {
+      return /异常|诊断|为什么|原因|下降|上升|变化|影响/.test(task.objective);
+    }
+    return [
+      'product_sales_ranking',
+      'card_member_business_diagnosis',
+      'supplier_performance_diagnosis',
+      'project_business_diagnosis',
+      'finance_margin_diagnosis',
+      'marketing_conversion_diagnosis',
+      'automation_execution_diagnosis',
+      'store_comparison_diagnosis',
+    ].includes(registryCapabilityId);
   }
 
   private disabledLlmDraft(): BusinessTaskLlmDraftResult {

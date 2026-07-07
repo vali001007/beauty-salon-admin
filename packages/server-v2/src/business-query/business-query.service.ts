@@ -3494,15 +3494,16 @@ export class BusinessQueryService {
     const items = (products as any[])
       .map((product) => {
         const mapping = [...(product.supplyMappings ?? [])].sort((a: any, b: any) => Number(b.isPreferred) - Number(a.isPreferred))[0];
-        const supplier = mapping?.supplySku?.supplier;
-        const quote = mapping?.supplySku?.quotes?.[0];
+        const legacySupplier = [...(product.suppliers ?? [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))[0];
+        const supplier = mapping?.supplySku?.supplier ?? legacySupplier?.supplier;
+        const quote = mapping?.supplySku?.quotes?.[0] ?? legacySupplier;
         const currentStock = this.toNumber(product.currentStock);
         const safetyStock = this.toNumber(product.safetyStock);
         const salesQuantity = salesByProduct.get(Number(product.id)) ?? 0;
         const suggestedBase = Math.max(0, safetyStock - currentStock, Math.ceil((salesQuantity / 30) * 14) - currentStock);
         const moq = Number(quote?.moq ?? product.minPurchaseQty ?? 0);
         const suggestedQty = moq > 0 ? Math.max(suggestedBase, moq) : suggestedBase;
-        const supplyPrice = this.toNumber(quote?.price ?? product.costPrice);
+        const supplyPrice = this.toNumber(quote?.price ?? quote?.supplyPrice ?? product.costPrice);
         return {
           productId: product.id,
           productName: product.name,
@@ -3518,7 +3519,7 @@ export class BusinessQueryService {
           leadDays: quote?.leadDays ?? null,
           supplyPrice,
           estimatedAmount: suggestedQty * supplyPrice,
-          priorityScore: suggestedBase * 10 + salesQuantity + (mapping?.isPreferred ? 5 : 0),
+          priorityScore: suggestedBase * 10 + salesQuantity + (mapping?.isPreferred || legacySupplier?.isPrimary ? 5 : 0),
         };
       })
       .filter((item) => item.suggestedQty > 0)

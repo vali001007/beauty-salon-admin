@@ -12,6 +12,7 @@ function readQuestionBankMarkdown() {
   const candidates = [
     resolve(process.cwd(), 'docs/04-测试数据/agent-eval-questions.md'),
     resolve(process.cwd(), '../../docs/04-测试数据/agent-eval-questions.md'),
+    resolve(process.cwd(), '../../docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-eval-questions.md'),
   ];
   const file = candidates.find((item) => existsSync(item));
   if (!file) throw new Error(`agent-eval-questions.md not found. tried: ${candidates.join(', ')}`);

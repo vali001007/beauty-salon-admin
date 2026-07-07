@@ -863,14 +863,6 @@ describe('InventoryService terminal dashboard cache', () => {
         costPrice: 20,
         minPurchaseQty: 3,
         supplier: '旧供应商文本',
-        suppliers: [
-          {
-            supplierId: 88,
-            supplyPrice: 18,
-            moq: 12,
-            supplier: { id: 88, name: '正式主供应商' },
-          },
-        ],
       },
     ]);
     prisma.stockMovement.findMany.mockResolvedValue([
@@ -878,20 +870,26 @@ describe('InventoryService terminal dashboard cache', () => {
       { productId: 10, quantity: -4, movementType: 'service_consume', occurredAt: new Date() },
     ]);
     prisma.purchaseOrder.findMany.mockResolvedValue([]);
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
+      {
+        id: 501,
+        productId: 10,
+        isPreferred: true,
+        supplySku: {
+          id: 601,
+          supplierId: 88,
+          name: '平台精华液',
+          supplier: { id: 88, name: '正式主供应商', status: 'active' },
+          quotes: [{ id: 701, price: 18, moq: 12, leadDays: 3 }],
+        },
+      },
+    ]);
 
     const result = await service.getReplenishment(1);
 
     expect(result).toHaveLength(1);
     expect(prisma.product.findMany).toHaveBeenCalledWith({
       where: { deletedAt: null, storeId: 1 },
-      include: {
-        suppliers: {
-          where: { supplier: { status: 'active', deletedAt: null } },
-          include: { supplier: { select: { id: true, name: true } } },
-          orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
-          take: 1,
-        },
-      },
     });
     expect(result[0]).toEqual(
       expect.objectContaining({

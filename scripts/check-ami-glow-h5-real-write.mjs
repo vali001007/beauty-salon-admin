@@ -50,15 +50,25 @@ try {
   await page.waitForSelector('.reservation-panel', { timeout: 15000 });
 
   const firstAvailableSlot = page.locator('.slot-grid button:not([disabled])').first();
+  await firstAvailableSlot.waitFor({ state: 'visible', timeout: 15000 });
   assert((await firstAvailableSlot.count()) > 0, '没有可预约时段，无法完成真实预约写库验收');
   const selectedSlot = (await firstAvailableSlot.innerText()).trim();
   await firstAvailableSlot.click();
   await page.getByRole('button', { name: '确认预约' }).click();
   await page.waitForURL('**/mine/reservations', { timeout: 20000 });
   await page.waitForLoadState('networkidle', { timeout: 20000 });
-  const bodyText = await page.locator('body').innerText({ timeout: 10000 });
+  const token = await page.evaluate(() => window.localStorage.getItem('ami_glow_h5_token'));
+  assert(token, '预约成功后未找到 H5 登录态 token，无法回查我的预约');
+  const reservationsResponse = await page.request.get(`${baseUrl}/api/customer-app/me/reservations?page=1&pageSize=20`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert(reservationsResponse.ok(), `我的预约接口回查失败：${reservationsResponse.status()}`);
+  const reservations = await reservationsResponse.json();
+  const createdReservation = reservations.items?.find(
+    (item) => Number(item.projectId) === Number(projectId) && item.startTime === selectedSlot,
+  );
 
-  assert(bodyText.includes(selectedSlot), `我的预约页未展示刚选择的时段：${selectedSlot}`);
+  assert(createdReservation, `我的预约接口未返回刚选择的时段：${selectedSlot}`);
   assert(errors.length === 0, `浏览器运行时错误：${errors.join(' | ')}`);
 
   console.log(
@@ -70,6 +80,7 @@ try {
         projectId: Number(projectId),
         phone,
         selectedSlot,
+        reservationId: createdReservation.id,
         expectedAdminSource: 'Ami Glow H5',
         nextManualChecks: ['管理端项目预约列表来源列显示 Ami Glow H5', '管理端 CustomerAppEvent 可按 source=ami_glow_h5 查到事件'],
       },
