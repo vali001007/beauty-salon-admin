@@ -44,9 +44,11 @@ import {
   askBusinessQuery,
   appendAgentMessage,
   appendAgentV2Message,
+  appendAgentV3Message,
   approveAgentApproval,
   createAgentRun,
   createAgentV2Run,
+  createAgentV3Run,
   rejectAgentApproval,
   cancelTerminalReservation,
   confirmTerminalReservation,
@@ -1730,8 +1732,21 @@ function resolveAgentPersonaCode(role: Role, context?: Record<string, unknown>):
     : undefined;
 }
 
-function resolveAgentEngine(context?: Record<string, unknown>): 'agent_v1' | 'agent_v2' {
+function resolveAgentEngine(context?: Record<string, unknown>): 'agent_v1' | 'agent_v2' | 'agent_v3' {
+  if (context?.agentEngine === 'agent_v3') return 'agent_v3';
   return context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
+}
+
+function resolveAgentRunApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3') {
+  if (agentEngine === 'agent_v3') return createAgentV3Run;
+  if (agentEngine === 'agent_v2') return createAgentV2Run;
+  return createAgentRun;
+}
+
+function resolveAgentAppendApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3') {
+  if (agentEngine === 'agent_v3') return appendAgentV3Message;
+  if (agentEngine === 'agent_v2') return appendAgentV2Message;
+  return appendAgentMessage;
 }
 
 export async function runBusinessAgent(
@@ -1741,7 +1756,7 @@ export async function runBusinessAgent(
 ): Promise<AgentRunResult> {
   const personaCode = resolveAgentPersonaCode(role, context);
   const agentEngine = resolveAgentEngine(context);
-  const runApi = agentEngine === 'agent_v2' ? createAgentV2Run : createAgentRun;
+  const runApi = resolveAgentRunApi(agentEngine);
   return runWithAuraAuthRepair(() =>
     runApi({
       message: command,
@@ -1773,7 +1788,7 @@ export async function appendBusinessAgentMessage(
 ): Promise<AgentRunResult> {
   const personaCode = resolveAgentPersonaCode(role, context);
   const agentEngine = resolveAgentEngine(context);
-  const appendApi = agentEngine === 'agent_v2' ? appendAgentV2Message : appendAgentMessage;
+  const appendApi = resolveAgentAppendApi(agentEngine);
   return runWithAuraAuthRepair(() =>
     appendApi(runId, {
       message: command,

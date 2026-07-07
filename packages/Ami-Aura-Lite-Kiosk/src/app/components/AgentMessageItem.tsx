@@ -75,6 +75,8 @@ function getArchitectureLabel(value: unknown) {
     agent_v2_legacy_fallback: "V2 回退",
     agent_v2_kg_llm_retired: "旧链退役",
     agent_v2: "Agent V2",
+    agent_v3_text_to_sql: "V3 数据分析",
+    agent_v3: "Agent V3",
     agent_v1: "Agent V1",
   };
   return labels[architecture] ?? architecture;

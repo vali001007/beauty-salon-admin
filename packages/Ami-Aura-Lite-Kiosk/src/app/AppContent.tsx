@@ -140,7 +140,7 @@ import type { AuraBootstrap } from "../../../../src/types/aura";
 
 type LoadingPayload = { kind: "agentThinking" };
 type Payload = AuraPayload | LoadingPayload;
-type TerminalAgentEngine = "agent_v1" | "agent_v2";
+type TerminalAgentEngine = "agent_v1" | "agent_v2" | "agent_v3";
 type TerminalAgentV2GrayMode = "legacy_regex" | "shadow" | "kg_llm_preferred" | "kg_llm_only" | "legacy_retired";
 
 const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
@@ -158,6 +158,7 @@ const TERMINAL_AGENT_ENGINE_STORAGE_KEY = "ami.aura.agent.runtimeMode";
 const TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY = "ami.aura.agent.v2GrayMode";
 
 function resolveTerminalAgentEngine(value: string | null | undefined): TerminalAgentEngine {
+  if (value === "agent_v3") return "agent_v3";
   return value === "agent_v2" ? "agent_v2" : "agent_v1";
 }
 

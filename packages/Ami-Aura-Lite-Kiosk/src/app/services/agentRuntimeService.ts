@@ -1,8 +1,10 @@
 import {
   appendAgentMessage,
   appendAgentV2Message,
+  appendAgentV3Message,
   createAgentRun,
   createAgentV2Run,
+  createAgentV3Run,
   submitAgentFeedback,
 } from '@/api';
 import type {
@@ -18,7 +20,7 @@ import { resolveTerminalPersona, toTerminalAgentRole, type TerminalAgentPersonaC
 
 export const TERMINAL_AGENT_ENTRYPOINT = 'terminal:kiosk';
 
-export type TerminalAgentEngine = 'agent_v1' | 'agent_v2';
+export type TerminalAgentEngine = 'agent_v1' | 'agent_v2' | 'agent_v3';
 export type TerminalAgentV2GrayMode = 'legacy_regex' | 'shadow' | 'kg_llm_preferred' | 'kg_llm_only' | 'legacy_retired';
 
 export interface TerminalAgentContextInput {
@@ -51,7 +53,7 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
   const contextTerminal = (input.context?.terminal ?? {}) as Record<string, unknown>;
   const contextPersonaCode =
     typeof contextTerminal.personaCode === 'string' ? contextTerminal.personaCode : undefined;
-  const contextAgentEngine = input.context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
+  const contextAgentEngine = resolveTerminalAgentEngine(input.context?.agentEngine);
   const agentEngine = input.agentEngine ?? contextAgentEngine;
   const contextAgentV2GrayMode =
     typeof input.context?.agentV2GrayMode === 'string' ? input.context.agentV2GrayMode : undefined;
@@ -60,6 +62,8 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
   const agentV2GrayMode = resolveAgentV2GrayMode(input.agentV2GrayMode ?? contextAgentV2GrayMode ?? terminalAgentV2GrayMode);
   const agentV2Meta = agentEngine === 'agent_v2'
     ? { agentV2GrayMode, architecture: 'kg_llm_agent' }
+    : agentEngine === 'agent_v3'
+      ? { architecture: 'agent_v3_text_to_sql', agentV3Mode: 'execute' }
     : {};
   const personaCode = input.personaCode
     ? resolveTerminalPersona(input.role, input.personaCode)
@@ -92,6 +96,12 @@ function buildTerminalAgentContext(input: TerminalAgentContextInput): {
   };
 }
 
+function resolveTerminalAgentEngine(value: unknown): TerminalAgentEngine {
+  if (value === 'agent_v3') return 'agent_v3';
+  if (value === 'agent_v2') return 'agent_v2';
+  return 'agent_v1';
+}
+
 function resolveAgentV2GrayMode(value: unknown): TerminalAgentV2GrayMode {
   if (
     value === 'legacy_regex' ||
@@ -117,7 +127,11 @@ export async function createTerminalAgentRun(input: TerminalAgentContextInput): 
     context,
   };
 
-  return runWithAuraAuthRepair(() => (agentEngine === 'agent_v2' ? createAgentV2Run(payload) : createAgentRun(payload)));
+  return runWithAuraAuthRepair(() => {
+    if (agentEngine === 'agent_v3') return createAgentV3Run(payload);
+    if (agentEngine === 'agent_v2') return createAgentV2Run(payload);
+    return createAgentRun(payload);
+  });
 }
 
 export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): Promise<AgentRunResultV2> {
@@ -136,7 +150,11 @@ export async function appendTerminalAgentMessage(input: TerminalAgentRunInput): 
   };
 
   return runWithAuraAuthRepair(() =>
-    agentEngine === 'agent_v2' ? appendAgentV2Message(runId, payload) : appendAgentMessage(runId, payload),
+    agentEngine === 'agent_v3'
+      ? appendAgentV3Message(runId, payload)
+      : agentEngine === 'agent_v2'
+        ? appendAgentV2Message(runId, payload)
+        : appendAgentMessage(runId, payload),
   );
 }
 

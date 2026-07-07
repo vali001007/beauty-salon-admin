@@ -36,21 +36,25 @@ export function shouldUseTerminalAgentRuntime(intent: AuraResolvedIntent): boole
 }
 
 function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentAdapterOptions): Record<string, unknown> {
-  const agentEngine = options.agentEngine ?? (options.agentContext?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1');
+  const agentEngine = options.agentEngine ?? resolveContextAgentEngine(options.agentContext);
   const agentV2GrayMode =
     agentEngine === 'agent_v2'
       ? options.agentV2GrayMode ?? resolveContextAgentV2GrayMode(options.agentContext) ?? 'kg_llm_preferred'
       : undefined;
-  const agentV2Meta = agentV2GrayMode ? { agentV2GrayMode, architecture: 'kg_llm_agent' } : {};
+  const agentEngineMeta = agentV2GrayMode
+    ? { agentV2GrayMode, architecture: 'kg_llm_agent' }
+    : agentEngine === 'agent_v3'
+      ? { architecture: 'agent_v3_text_to_sql', agentV3Mode: 'execute' }
+      : {};
   const terminalContext = ((options.agentContext ?? {}).terminal as Record<string, unknown> | undefined) ?? {};
   return {
     ...(options.agentContext ?? {}),
     agentEngine,
-    ...agentV2Meta,
+    ...agentEngineMeta,
     terminal: {
       ...terminalContext,
       agentEngine,
-      ...agentV2Meta,
+      ...agentEngineMeta,
     },
     ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     intent: {
@@ -61,6 +65,12 @@ function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentA
       source: intent.source,
     },
   };
+}
+
+function resolveContextAgentEngine(context?: Record<string, unknown>): TerminalAgentEngine {
+  if (context?.agentEngine === 'agent_v3') return 'agent_v3';
+  if (context?.agentEngine === 'agent_v2') return 'agent_v2';
+  return 'agent_v1';
 }
 
 function resolveContextAgentV2GrayMode(context?: Record<string, unknown>): TerminalAgentV2GrayMode | undefined {
@@ -97,7 +107,7 @@ export async function runTerminalAgentIntent(
 ): Promise<MicroAppRunResult> {
   const context = buildAdapterContext(intent, options);
   const previousRunId = getPreviousRunId(options);
-  const agentEngine = options.agentEngine ?? (context.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1');
+  const agentEngine = options.agentEngine ?? resolveContextAgentEngine(context);
   const agentV2GrayMode = isAgentV2GrayMode(context.agentV2GrayMode) ? context.agentV2GrayMode : undefined;
   const data: AgentRunResult = previousRunId
     ? await appendTerminalAgentMessage({

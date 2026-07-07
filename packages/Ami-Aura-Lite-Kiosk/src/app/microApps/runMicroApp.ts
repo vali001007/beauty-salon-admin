@@ -426,6 +426,8 @@ export async function runMicroAppIntent(
       ...(options.agentEngine ? { agentEngine: options.agentEngine } : {}),
       ...(options.agentEngine === 'agent_v2'
         ? { agentV2GrayMode: options.agentV2GrayMode ?? 'kg_llm_preferred', architecture: 'kg_llm_agent' }
+        : options.agentEngine === 'agent_v3'
+          ? { architecture: 'agent_v3_text_to_sql', agentV3Mode: 'execute' }
         : {}),
       ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     };

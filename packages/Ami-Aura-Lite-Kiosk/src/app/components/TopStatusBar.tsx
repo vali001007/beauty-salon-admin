@@ -8,12 +8,13 @@ import type { Store } from "../../../../../src/types";
 import { getTerminalQueryMetrics, type TerminalQueryMetric, type TerminalQuerySource } from "../services/terminalQueryClient";
 import type { Role } from "../types";
 
-type AgentEngine = "agent_v1" | "agent_v2";
+type AgentEngine = "agent_v1" | "agent_v2" | "agent_v3";
 type AgentV2GrayMode = "legacy_regex" | "shadow" | "kg_llm_preferred" | "kg_llm_only" | "legacy_retired";
 
 const AGENT_ENGINE_OPTIONS: Array<{ value: AgentEngine; label: string; title: string }> = [
   { value: "agent_v1", label: "V1", title: "Agent V1：旧工具链" },
   { value: "agent_v2", label: "V2", title: "Agent V2：能力目录" },
+  { value: "agent_v3", label: "V3", title: "Agent V3：Text-to-SQL 数据分析" },
 ];
 
 const AGENT_V2_GRAY_MODE_OPTIONS: Array<{ value: AgentV2GrayMode; label: string; title: string }> = [
