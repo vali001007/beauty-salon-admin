@@ -111,7 +111,13 @@ function main() {
   writeMarkdown(outputMdPath, report);
   console.log(JSON.stringify(report.summary, null, 2));
 
-  if (process.argv.includes('--strict') && !pass) process.exit(1);
+  if (process.argv.includes('--strict') && !pass) {
+    console.error('[agent-v2:legacy-dependency-audit] blockers');
+    for (const blocker of blockers) {
+      console.error(`- ${blocker.id}: ${blocker.actual}`);
+    }
+    process.exit(1);
+  }
 }
 
 function buildGates(input: {
@@ -275,7 +281,7 @@ function gate(id: string, title: string, expected: string, actual: string, pass:
 
 function readText(path: string) {
   if (!existsSync(path)) throw new Error(`缺少旧正则依赖审计文件：${relativePath(path)}`);
-  return readFileSync(path, 'utf8');
+  return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
 }
 
 function readJson<T>(path: string): T {
