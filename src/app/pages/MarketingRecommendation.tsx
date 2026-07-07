@@ -1599,6 +1599,7 @@ export function MarketingRecommendation() {
       case 'capacity': return { text: '排期机会', color: 'bg-emerald-100 text-emerald-700' };
       case 'product': return { text: '商品复购', color: 'bg-teal-100 text-teal-700' };
       case 'project': return { text: '项目复购', color: 'bg-indigo-100 text-indigo-700' };
+      case 'customer_lifecycle': return { text: '生命周期本体', color: 'bg-emerald-100 text-emerald-700' };
       default: return { text: '策略推荐', color: 'bg-gray-100 text-gray-700' };
     }
   };
@@ -1884,6 +1885,22 @@ export function MarketingRecommendation() {
                         <div className="space-y-1">
                           {rec.riskWarnings.map((warning, i) => (
                             <div key={i} className="text-xs text-red-700">{warning}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(rec.source === 'customer_lifecycle' || rec.dataEvidence?.length) && (
+                      <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                        <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-emerald-700">
+                          <span>{rec.source === 'customer_lifecycle' ? '生命周期证据' : '推荐证据'}</span>
+                          {rec.audienceSnapshot?.totalCustomers != null && (
+                            <span>目标 {rec.audienceSnapshot.totalCustomers} 人</span>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {(rec.dataEvidence ?? []).slice(0, 4).map((evidence, i) => (
+                            <div key={`${evidence}-${i}`} className="text-xs text-emerald-800">{evidence}</div>
                           ))}
                         </div>
                       </div>

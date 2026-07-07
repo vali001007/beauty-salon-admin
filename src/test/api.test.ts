@@ -317,6 +317,9 @@ describe('API facades', () => {
     const realUpdateAutomationStrategy = vi.fn(async (_id, data) => ({ id: 1, ...data }));
     const realDeleteAutomationStrategy = vi.fn(async () => undefined);
     const realRecordCustomerBehaviorEvent = vi.fn(async (data) => ({ id: 1, ...data }));
+    const realRebuildCustomerLifecycleOntology = vi.fn(async (data) => ({ rebuilt: true, snapshotCount: 1, opportunityCount: 2, ...data }));
+    const realGetCustomerLifecycleOpportunities = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetCustomerLifecycleContext = vi.fn(async (id) => ({ snapshot: null, opportunities: [], events: [], customerId: id }));
     const realGetMarketingActivityById = vi.fn(async (id) => ({ id, title: '活动详情' }));
     const realGetInvitationCandidates = vi.fn(async () => ({ items: [], generatedAt: '2026-06-15T00:00:00.000Z', source: 'prediction' }));
     const realGetMarketingRuleTemplatesPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
@@ -351,6 +354,9 @@ describe('API facades', () => {
       realGetLatestPredictionSummary: vi.fn(),
       realGetPredictionCustomers: vi.fn(),
       realGetCustomerPrediction: vi.fn(),
+      realRebuildCustomerLifecycleOntology,
+      realGetCustomerLifecycleOpportunities,
+      realGetCustomerLifecycleContext,
       realGetInvitationCandidates,
       realRecordCustomerBehaviorEvent,
       realGetMarketingRuleTemplatesPaginated,
@@ -391,6 +397,9 @@ describe('API facades', () => {
     await api.deleteAutomationStrategy(1);
     await api.getMarketingActivityById(3);
     await api.recordCustomerBehaviorEvent({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
+    await api.rebuildCustomerLifecycleOntology({ storeId: 1 });
+    await api.getCustomerLifecycleOpportunities({ page: 1, pageSize: 10, opportunityType: 'care_cycle_due' });
+    await api.getCustomerLifecycleContext(2);
     await api.getInvitationCandidates({ limit: 10 });
     await api.getMarketingRuleTemplatesPaginated({ page: 1, pageSize: 10 });
     await api.cloneMarketingRuleTemplate(1);
@@ -402,6 +411,9 @@ describe('API facades', () => {
     expect(realDeleteAutomationStrategy).toHaveBeenCalledWith(1);
     expect(realGetMarketingActivityById).toHaveBeenCalledWith(3);
     expect(realRecordCustomerBehaviorEvent).toHaveBeenCalledWith({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
+    expect(realRebuildCustomerLifecycleOntology).toHaveBeenCalledWith({ storeId: 1 });
+    expect(realGetCustomerLifecycleOpportunities).toHaveBeenCalledWith({ page: 1, pageSize: 10, opportunityType: 'care_cycle_due' });
+    expect(realGetCustomerLifecycleContext).toHaveBeenCalledWith(2);
     expect(realGetInvitationCandidates).toHaveBeenCalledWith({ limit: 10 });
     expect(realGetMarketingRuleTemplatesPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
     expect(realCloneMarketingRuleTemplate).toHaveBeenCalledWith(1);

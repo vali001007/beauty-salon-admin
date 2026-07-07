@@ -707,6 +707,8 @@ export function UserProfile() {
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">30天复购</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">营销响应</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">LTV层级</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">生命周期</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">机会</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">原因</th>
                 </tr>
               </thead>
@@ -728,7 +730,23 @@ export function UserProfile() {
                       <span className="rounded bg-purple-50 px-2 py-1 text-sm text-purple-700">{row.ltvTier}</span>
                       <div className="mt-1 text-xs text-gray-400">¥{row.ltv12m.toLocaleString()}</div>
                     </td>
-                    <td className="px-6 py-4 text-xs text-gray-600">{row.reasons.join('；')}</td>
+                    <td className="px-6 py-4">
+                      {row.lifecycleStageLabel ? (
+                        <span className="rounded bg-emerald-50 px-2 py-1 text-sm text-emerald-700">{row.lifecycleStageLabel}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">待计算</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex max-w-[220px] flex-wrap gap-1">
+                        {row.opportunityTypeLabels?.length ? row.opportunityTypeLabels.slice(0, 3).map((label) => (
+                          <span key={label} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{label}</span>
+                        )) : <span className="text-xs text-gray-400">暂无机会</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-600">
+                      {[...row.reasons, ...(row.topLifecycleEvidence ?? [])].filter(Boolean).slice(0, 5).join('；')}
+                    </td>
                   </tr>
                 ))}
               </tbody>

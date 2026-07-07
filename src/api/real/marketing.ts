@@ -14,6 +14,8 @@ import type {
   MarketingTriggerOption,
   MarketingTriggerRule,
   CustomerPredictionSnapshot,
+  CustomerLifecycleContext,
+  CustomerOpportunity,
   InvitationCandidateResponse,
   PredictionRunSummary,
   UnifiedMarketingEffectsResponse,
@@ -256,6 +258,28 @@ export async function realGetCustomerPrediction(customerId: number): Promise<{
   history: Array<Pick<CustomerPredictionSnapshot, 'id' | 'runId' | 'churnScore' | 'repurchase30dScore' | 'marketingResponseScore' | 'ltv6m' | 'ltv12m' | 'createdAt'>>;
 }> {
   return apiClient.get(`/marketing/predictions/customers/${customerId}`);
+}
+
+export async function realRebuildCustomerLifecycleOntology(data: {
+  storeId?: number;
+  predictionRunId?: number;
+} = {}): Promise<{ rebuilt: boolean; reason?: string | null; predictionRunId?: number | null; snapshotCount: number; opportunityCount: number }> {
+  return apiClient.post('/marketing/lifecycle/rebuild', data);
+}
+
+export async function realGetCustomerLifecycleOpportunities(
+  params: PaginationParams & {
+    opportunityType?: string;
+    priority?: string;
+    status?: string;
+    customerId?: number;
+  },
+): Promise<PaginatedResponse<CustomerOpportunity>> {
+  return apiClient.get('/marketing/lifecycle/opportunities', { params });
+}
+
+export async function realGetCustomerLifecycleContext(customerId: number): Promise<CustomerLifecycleContext | null> {
+  return apiClient.get(`/marketing/lifecycle/customers/${customerId}`);
 }
 
 export async function realGetInvitationCandidates(params?: {

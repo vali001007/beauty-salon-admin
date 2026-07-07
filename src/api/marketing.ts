@@ -14,6 +14,8 @@ import type {
   MarketingTriggerOption,
   MarketingTriggerRule,
   CustomerPredictionSnapshot,
+  CustomerLifecycleContext,
+  CustomerOpportunity,
   InvitationCandidateResponse,
   PredictionRunSummary,
   UnifiedMarketingEffectsResponse,
@@ -49,6 +51,8 @@ import {
   realGetAutomationTriggerOptions,
   realGetUnifiedMarketingEffects,
   realGetCustomerPrediction,
+  realGetCustomerLifecycleContext,
+  realGetCustomerLifecycleOpportunities,
   realGetInvitationCandidates,
   realGetLatestPredictionSummary,
   realGetMarketingActivities,
@@ -70,6 +74,7 @@ import {
   realUpdateMarketingActivity,
   realUpdateMarketingRuleTemplate,
   realRunPredictions,
+  realRebuildCustomerLifecycleOntology,
 } from './real/marketing';
 
 export type { MarketingStrategy, StrategyEffectSummary };
@@ -231,6 +236,25 @@ export const getCustomerPrediction: (customerId: number) => Promise<{
   history: Array<Pick<CustomerPredictionSnapshot, 'id' | 'runId' | 'churnScore' | 'repurchase30dScore' | 'marketingResponseScore' | 'ltv6m' | 'ltv12m' | 'createdAt'>>;
 }> =
   realGetCustomerPrediction;
+
+export const rebuildCustomerLifecycleOntology: (data?: {
+  storeId?: number;
+  predictionRunId?: number;
+}) => Promise<{ rebuilt: boolean; reason?: string | null; predictionRunId?: number | null; snapshotCount: number; opportunityCount: number }> =
+  realRebuildCustomerLifecycleOntology;
+
+export const getCustomerLifecycleOpportunities: (
+  params: PaginationParams & {
+    opportunityType?: string;
+    priority?: string;
+    status?: string;
+    customerId?: number;
+  },
+) => Promise<PaginatedResponse<CustomerOpportunity>> =
+  realGetCustomerLifecycleOpportunities;
+
+export const getCustomerLifecycleContext: (customerId: number) => Promise<CustomerLifecycleContext | null> =
+  realGetCustomerLifecycleContext;
 
 export const getInvitationCandidates: (params?: {
   storeId?: number;
