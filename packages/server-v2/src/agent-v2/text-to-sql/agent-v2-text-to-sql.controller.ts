@@ -43,7 +43,7 @@ type PromoteCandidateBody = {
   clusterKey?: string;
 };
 
-@ApiTags('Agent V2 Text-to-SQL')
+@ApiTags('Agent V2 Governance Text-to-SQL')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('agent-v2/text-to-sql')
@@ -56,7 +56,7 @@ export class AgentV2TextToSqlController {
 
   @Post('dry-run')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL dry-run' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL dry-run，不参与 Agent V2 用户运行链路自动兜底' })
   async dryRun(@Body() body: TextToSqlDryRunBody, @Req() req: AuthedRequest) {
     const result = await this.service.run({
       question: body.question ?? '',
@@ -71,7 +71,7 @@ export class AgentV2TextToSqlController {
 
   @Post('execute')
   @Permissions('core:agent-governance:manage')
-  @ApiOperation({ summary: '受控 Text-to-SQL 只读执行' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 只读执行，仅用于治理诊断/候选能力沉淀' })
   execute(@Body() body: TextToSqlDryRunBody, @Req() req: AuthedRequest) {
     return this.service.run({
       question: body.question ?? '',
@@ -85,7 +85,7 @@ export class AgentV2TextToSqlController {
 
   @Post('guard/inspect')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '检查 SQL 是否通过受控 Text-to-SQL Guard' })
+  @ApiOperation({ summary: '治理工具：检查 SQL 是否通过受控 Text-to-SQL Guard' })
   inspect(@Body() body: GuardInspectBody, @Req() req: AuthedRequest) {
     const result = this.service.inspectSql({
       sql: body.sql ?? '',
@@ -98,7 +98,7 @@ export class AgentV2TextToSqlController {
 
   @Get('semantic-views')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL 白名单语义视图' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 白名单语义视图' })
   listViews(@Query('includePlanned') includePlanned?: string, @Query('includeAdmin') includeAdmin?: string, @Req() req?: AuthedRequest) {
     return this.service.listSemanticViews({
       includePlanned: includePlanned === 'true',
@@ -108,14 +108,14 @@ export class AgentV2TextToSqlController {
 
   @Get('status')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL 配置状态' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 配置状态' })
   getStatus() {
     return this.service.getConfigStatus();
   }
 
   @Post('semantic-views/:id/test')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL 语义视图 Guard 测试' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 语义视图 Guard 测试' })
   testSemanticView(@Param('id') id: string, @Body() body: GuardInspectBody, @Req() req: AuthedRequest) {
     const result = this.service.testSemanticView({
       viewName: id,
@@ -128,7 +128,7 @@ export class AgentV2TextToSqlController {
 
   @Get('runs')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL 审计运行列表' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 审计运行列表' })
   async listRuns(@Query() query: Record<string, string>) {
     const result = await this.audit.listRuns({
       page: Number(query.page),
@@ -141,7 +141,7 @@ export class AgentV2TextToSqlController {
 
   @Get('runs/:id')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL 审计运行详情' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 审计运行详情' })
   async getRun(@Param('id', ParseIntPipe) id: number) {
     const result = await this.audit.getRun(id);
     return this.redactRawSqlForAudit(result);
@@ -149,7 +149,7 @@ export class AgentV2TextToSqlController {
 
   @Post('runs/:id/feedback')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '记录受控 Text-to-SQL 用户反馈' })
+  @ApiOperation({ summary: '治理工具：记录受控 Text-to-SQL 用户反馈' })
   createFeedback(@Param('id', ParseIntPipe) id: number, @Body() body: FeedbackBody, @Req() req: AuthedRequest) {
     return this.audit.createFeedback({
       runId: id,
@@ -164,7 +164,7 @@ export class AgentV2TextToSqlController {
 
   @Post('runs/:id/promote')
   @Permissions('core:agent-governance:manage')
-  @ApiOperation({ summary: '将单条受控 Text-to-SQL 审计运行沉淀为能力草稿' })
+  @ApiOperation({ summary: '治理工具：将单条受控 Text-to-SQL 审计运行沉淀为能力草稿' })
   promoteRun(@Param('id', ParseIntPipe) id: number, @Req() req: AuthedRequest) {
     return this.candidates.promoteRunToDraft({
       runId: id,
@@ -174,7 +174,7 @@ export class AgentV2TextToSqlController {
 
   @Get('candidates')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: '受控 Text-to-SQL 高频候选能力' })
+  @ApiOperation({ summary: '治理工具：受控 Text-to-SQL 高频候选能力' })
   listCandidates(@Query('limit') limit?: string, @Query('minHitCount') minHitCount?: string) {
     return this.candidates.listCandidates({
       limit: limit ? Number(limit) : undefined,
@@ -184,7 +184,7 @@ export class AgentV2TextToSqlController {
 
   @Post('candidates/promote')
   @Permissions('core:agent-governance:manage')
-  @ApiOperation({ summary: '将受控 Text-to-SQL 高频候选沉淀为能力草稿' })
+  @ApiOperation({ summary: '治理工具：将受控 Text-to-SQL 高频候选沉淀为能力草稿' })
   promoteCandidate(@Body() body: PromoteCandidateBody, @Req() req: AuthedRequest) {
     return this.candidates.promoteToDraft({
       clusterKey: body.clusterKey ?? '',

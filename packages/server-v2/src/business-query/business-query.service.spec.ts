@@ -16,6 +16,11 @@ function expectBusinessQueryResponseContract(
   expect(result.capability).toBe(result.queryPlan.capability);
   expect(result.answer).toEqual(expect.any(String));
   expect(result.answer.trim().length).toBeGreaterThan(0);
+  expect(result.runtimeFamily).toBe('agent_v1_legacy');
+  expect(result.runtimeBoundary).toEqual(expect.objectContaining({
+    family: 'agent_v1_legacy',
+    lifecycle: 'legacy_internal',
+  }));
   expect(result.evidence).toEqual(
     expect.objectContaining({
       source: expect.any(Array),

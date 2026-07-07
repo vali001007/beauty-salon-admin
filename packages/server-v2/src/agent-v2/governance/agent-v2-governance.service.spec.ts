@@ -70,6 +70,10 @@ describe('AgentV2GovernanceService', () => {
         groupBy: jest.fn().mockResolvedValue([{ status: 'failed', _count: { _all: 1 } }]),
         findFirst: jest.fn().mockResolvedValue({ id: 1, runNo: 'ar_1', agentCode: 'agent_v2' }),
       },
+      agentFeedback: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
       agentMessage: { findMany: jest.fn().mockResolvedValue([]) },
       agentStep: { findMany: jest.fn().mockResolvedValue([]) },
       agentToolCall: {
@@ -431,6 +435,83 @@ describe('AgentV2GovernanceService', () => {
 
     expect(result.total).toBeGreaterThan(0);
     expect(result.items.length).toBeLessThanOrEqual(5);
+  });
+
+  it('diagnoses useless feedback with semantic route and presentation suggestions', async () => {
+    const { service, prisma } = createService();
+    const now = new Date('2026-07-05T10:00:00.000Z');
+    prisma.agentFeedback.findMany.mockResolvedValueOnce([
+      {
+        id: 201,
+        runId: 301,
+        storeId: 1,
+        rating: 1,
+        adopted: false,
+        comment: null,
+        businessActionJson: null,
+        createdAt: now,
+      },
+      {
+        id: 202,
+        runId: 302,
+        storeId: 1,
+        rating: 1,
+        adopted: false,
+        comment: null,
+        businessActionJson: null,
+        createdAt: now,
+      },
+    ]);
+    prisma.agentFeedback.count.mockResolvedValueOnce(2);
+    prisma.agentRun.findMany.mockResolvedValueOnce([
+      {
+        id: 301,
+        runNo: 'ar_301',
+        storeId: 1,
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        agentCode: 'agent_v3',
+        personaCode: null,
+        status: 'completed',
+        userInput: '最近一个月最受欢迎的项目有哪几个',
+        planJson: {},
+        contextJson: { agentEngine: 'agent_v3' },
+        evidenceJson: {},
+        resultJson: {
+          answer: '已查询到 10 条结果。客户ID customer_id 会员等级',
+          queryTrace: { planner: { selectedViews: ['agent_v3_customer_value_view'] } },
+        },
+        errorMessage: null,
+        createdAt: now,
+      },
+      {
+        id: 302,
+        runNo: 'ar_302',
+        storeId: 1,
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        agentCode: 'agent_v3',
+        personaCode: null,
+        status: 'completed',
+        userInput: '今天营业额',
+        planJson: {},
+        contextJson: { agentEngine: 'agent_v3' },
+        evidenceJson: {},
+        resultJson: {
+          answer: 'order_created_at Tue Jul 07 2026 08:19:42 GMT+0800 2000.0000000000',
+          queryTrace: { planner: { selectedViews: ['agent_v3_order_summary_view'] } },
+        },
+        errorMessage: null,
+        createdAt: now,
+      },
+    ]);
+
+    const report = await service.listFeedbackDiagnostics({ storeId: 1, days: 30 });
+
+    expect(report.kpis.totalNegativeFeedback).toBe(2);
+    expect(report.items.map((item) => item.diagnosis.category)).toEqual(['semantic_route', 'presentation_format']);
+    expect(report.items[0].diagnosis.suggestedFixes.join(' ')).toContain('语义路由');
+    expect(report.items[1].diagnosis.suggestedFixes.join(' ')).toContain('表头');
   });
 
   it('returns focused graph visualization and related node details', () => {

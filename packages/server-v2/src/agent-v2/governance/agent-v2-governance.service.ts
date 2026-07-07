@@ -59,6 +59,28 @@ type GovernanceEvalCase = {
 };
 
 type KnowledgeGraphOverrideType = 'synonym' | 'exclude';
+type FeedbackDiagnosisCategory =
+  | 'semantic_route'
+  | 'presentation_format'
+  | 'semantic_view_gap'
+  | 'data_scope'
+  | 'permission_or_policy'
+  | 'runtime_error'
+  | 'missing_trace'
+  | 'wrong_answer';
+
+type FeedbackDiagnosis = {
+  category: FeedbackDiagnosisCategory;
+  label: string;
+  severity: 'blocker' | 'warning' | 'info';
+  rootCause: string;
+  suggestedFixes: string[];
+  nextAction: {
+    label: string;
+    target: 'debug' | 'knowledge_graph' | 'text_sql' | 'capability_center' | 'runtime_log';
+    url?: string;
+  };
+};
 
 @Injectable()
 export class AgentV2GovernanceService {
@@ -150,6 +172,411 @@ export class AgentV2GovernanceService {
       grouped.set(question, current);
     }
     return Array.from(grouped.values()).sort((a, b) => b.count - a.count).slice(0, limit);
+  }
+
+  async listFeedbackDiagnostics(query: {
+    page?: number;
+    pageSize?: number;
+    days?: number;
+    category?: string;
+    storeId?: number;
+  } = {}) {
+    const page = this.toPositiveInt(query.page, 1);
+    const pageSize = Math.min(this.toPositiveInt(query.pageSize, 20), 100);
+    const days = Math.min(this.toPositiveInt(query.days, 30), 180);
+    const since = new Date(Date.now() - days * DAY_MS);
+    const where: Record<string, unknown> = {
+      createdAt: { gte: since },
+      ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
+      OR: [
+        { adopted: false },
+        { rating: { lte: 2 } },
+      ],
+    };
+    const agentFeedback = this.delegate('agentFeedback');
+    const [feedbacks, total] = await Promise.all([
+      agentFeedback.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      agentFeedback.count({ where }),
+    ]);
+    const runIds = Array.from(new Set((feedbacks as any[]).map((item) => Number(item.runId)).filter(Boolean)));
+    const runs = runIds.length
+      ? await this.agentRun.findMany({
+          where: {
+            id: { in: runIds },
+            ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
+          },
+          select: {
+            id: true,
+            runNo: true,
+            storeId: true,
+            role: true,
+            entrypoint: true,
+            agentCode: true,
+            personaCode: true,
+            status: true,
+            userInput: true,
+            planJson: true,
+            contextJson: true,
+            evidenceJson: true,
+            resultJson: true,
+            errorMessage: true,
+            createdAt: true,
+            completedAt: true,
+          },
+        })
+      : [];
+    const runMap = new Map((runs as any[]).map((run) => [Number(run.id), run]));
+    const allItems = (feedbacks as any[]).map((feedback) => this.buildFeedbackDiagnosticItem(feedback, runMap.get(Number(feedback.runId))));
+    const category = String(query.category ?? 'all');
+    const items = category === 'all' ? allItems : allItems.filter((item) => item.diagnosis.category === category);
+    const categoryCounts = this.countBy(allItems.map((item) => item.diagnosis.category));
+    const engineCounts = this.countBy(allItems.map((item) => item.engine));
+
+    return {
+      range: {
+        days,
+        since: since.toISOString(),
+        until: new Date().toISOString(),
+        storeId: query.storeId ?? null,
+      },
+      kpis: {
+        totalNegativeFeedback: total,
+        returned: items.length,
+        blockerCount: allItems.filter((item) => item.diagnosis.severity === 'blocker').length,
+        warningCount: allItems.filter((item) => item.diagnosis.severity === 'warning').length,
+        byCategory: categoryCounts,
+        byEngine: engineCounts,
+      },
+      items,
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  private buildFeedbackDiagnosticItem(feedback: any, run: any) {
+    const action = this.asObject(feedback.businessActionJson);
+    const snapshot = this.asObject(action?.snapshot);
+    const userProvided = this.asObject(action?.userProvided);
+    const plan = this.asObject(run?.planJson);
+    const context = this.asObject(run?.contextJson);
+    const result = this.asObject(run?.resultJson);
+    const evidence = this.asObject(run?.evidenceJson);
+    const queryTrace = this.extractFeedbackQueryTrace(result, evidence);
+    const traceSummary = this.asObject(result?.traceSummary) ?? this.asObject(evidence?.traceSummary);
+    const skillPlan = this.asObject(plan?.skillPlan) ?? this.asObject(result?.skillPlan);
+    const capabilityPlan = this.asObject(plan?.capabilityPlan) ?? this.asObject(result?.capabilityPlan);
+    const selectedViews = this.extractFeedbackSelectedViews({ queryTrace, result, evidence });
+    const toolNames = this.extractFeedbackToolNames({ plan, result, snapshot });
+    const capabilityId = String(
+      snapshot?.capabilityId ??
+      traceSummary?.capabilityId ??
+      skillPlan?.capabilityId ??
+      capabilityPlan?.capabilityId ??
+      '',
+    );
+    const question = String(snapshot?.question ?? run?.userInput ?? '');
+    const answer = String(snapshot?.answer ?? result?.answer ?? run?.errorMessage ?? '');
+    const engine = this.resolveFeedbackEngine(run, result, context);
+    const diagnosis = this.diagnoseFeedbackFailure({
+      engine,
+      question,
+      answer,
+      run,
+      plan,
+      result,
+      evidence,
+      queryTrace,
+      selectedViews,
+      toolNames,
+      capabilityId,
+    });
+
+    return {
+      feedbackId: Number(feedback.id),
+      runId: Number(feedback.runId),
+      runNo: run?.runNo ?? null,
+      storeId: feedback.storeId ?? run?.storeId ?? null,
+      engine,
+      role: String(run?.role ?? 'manager'),
+      personaCode: run?.personaCode ?? null,
+      entrypoint: run?.entrypoint ?? null,
+      rating: feedback.rating ?? null,
+      adopted: feedback.adopted ?? null,
+      feedbackText: feedback.comment ?? (String(userProvided?.comment ?? '').trim() || null),
+      question,
+      answerPreview: this.previewText(answer, 180),
+      runStatus: run?.status ?? 'missing_run',
+      runError: run?.errorMessage ?? null,
+      createdAt: feedback.createdAt,
+      runCreatedAt: run?.createdAt ?? null,
+      trace: {
+        capabilityId,
+        skillId: String(snapshot?.skillId ?? traceSummary?.skillId ?? skillPlan?.skillId ?? ''),
+        selectedViews,
+        toolNames,
+        auditRunId: String(result?.auditRunId ?? this.asObject(result?.evidence)?.queryTraceId ?? ''),
+        responseMode: result?.responseMode ?? null,
+        answerContract: result?.answerContract ?? null,
+      },
+      diagnosis,
+    };
+  }
+
+  private diagnoseFeedbackFailure(input: {
+    engine: string;
+    question: string;
+    answer: string;
+    run: any;
+    plan: Record<string, unknown> | null;
+    result: Record<string, unknown> | null;
+    evidence: Record<string, unknown> | null;
+    queryTrace: Record<string, unknown> | null;
+    selectedViews: string[];
+    toolNames: string[];
+    capabilityId: string;
+  }): FeedbackDiagnosis {
+    const text = this.feedbackSearchText([
+      input.question,
+      input.answer,
+      input.run?.status,
+      input.run?.errorMessage,
+      input.plan,
+      input.result,
+      input.evidence,
+      input.queryTrace,
+      input.selectedViews,
+      input.toolNames,
+    ]);
+    const mismatch = this.detectFeedbackDomainMismatch(input.question, text, input.selectedViews);
+
+    if (String(input.run?.status) === 'failed' || /request failed|status code 500|timeout|exception|error|失败|报错|500/.test(text)) {
+      return {
+        category: 'runtime_error',
+        label: '运行异常',
+        severity: 'blocker',
+        rootCause: input.run?.errorMessage ? `运行失败：${input.run.errorMessage}` : '运行链路返回异常或 500，用户只能看到兜底回答。',
+        suggestedFixes: [
+          '先打开运行审计详情查看 plan/result/queryTrace 和服务端错误。',
+          '如是 V3，检查 Text-to-SQL guard、只读连接串、语义视图 SQL 和执行器日志。',
+          '把该问题加入 P0/P1 Eval，避免修复后回归。',
+        ],
+        nextAction: { label: '查看运行审计', target: 'runtime_log', url: `/system/agent-governance/runs/${Number(input.run?.id ?? 0)}` },
+      };
+    }
+
+    if (mismatch) {
+      return {
+        category: 'semantic_route',
+        label: '答非所问',
+        severity: 'blocker',
+        rootCause: mismatch,
+        suggestedFixes: [
+          '把该问题作为 V3 语义路由负样例，补 expectedEntity / expectedMetric / expectedView。',
+          '检查知识图谱实体、指标、同义词和 view binding，避免同义词把问题路由到相邻业务对象。',
+          '用单题调试对比当前命中视图和期望视图，修复后加入 Eval 回归。',
+        ],
+        nextAction: { label: '带入单题调试', target: 'debug', url: '/system/agent-governance/debug' },
+      };
+    }
+
+    if (this.hasPresentationFormatIssue(input.answer)) {
+      return {
+        category: 'presentation_format',
+        label: '展示格式问题',
+        severity: 'warning',
+        rootCause: '回答已返回数据，但表头、日期或数字格式仍暴露技术字段，影响店长理解。',
+        suggestedFixes: [
+          '补充 V3 输出字段 label 字典，所有 snake_case 表头统一翻译中文。',
+          '日期统一格式化为中文本地时间，金额和小数统一保留两位。',
+          '把该样例加入 BlockRenderer / Agent V3 输出格式回归测试。',
+        ],
+        nextAction: { label: '检查受控SQL输出', target: 'text_sql', url: '/system/agent-governance/text-to-sql' },
+      };
+    }
+
+    if (/permission|forbidden|unauthorized|access_denied|policy|guard.*block|字段策略|权限|越权|脱敏|拦截/.test(text)) {
+      return {
+        category: 'permission_or_policy',
+        label: '权限/策略拦截',
+        severity: 'warning',
+        rootCause: '查询被权限、字段策略或 SQL Guard 拦截，需要确认是安全策略生效还是权限配置缺失。',
+        suggestedFixes: [
+          '检查当前角色权限、字段策略和语义视图 requiredPermissions。',
+          '如果是敏感字段，保持脱敏并优化回答说明；如果是只读业务字段缺权限，补对应 view 权限。',
+          '用 Guard Inspect 复核 SQL 仅访问白名单视图。',
+        ],
+        nextAction: { label: '检查受控SQL', target: 'text_sql', url: '/system/agent-governance/text-to-sql' },
+      };
+    }
+
+    if (/no_data|rowcount\":0|row_count\":0|没有匹配|没有数据|暂无数据|无数据/.test(text)) {
+      return {
+        category: 'data_scope',
+        label: '数据范围/口径',
+        severity: 'warning',
+        rootCause: '链路执行成功但没有命中业务数据，常见原因是时间范围、门店过滤、状态口径或样例数据不足。',
+        suggestedFixes: [
+          '复核时间解析、storeScope、业务状态过滤和默认时间字段。',
+          '回答中必须说明筛选范围和数据来源，避免用户误以为系统不支持。',
+          '如果业务上应有数据，补语义视图口径或修复源数据 join 条件。',
+        ],
+        nextAction: { label: '查看运行审计', target: 'runtime_log', url: `/system/agent-governance/runs/${Number(input.run?.id ?? 0)}` },
+      };
+    }
+
+    if (input.engine === 'agent_v3' && (!input.selectedViews.length || /no semantic view|semantic view|白名单|未命中视图/.test(text))) {
+      return {
+        category: 'semantic_view_gap',
+        label: '语义视图缺口',
+        severity: 'blocker',
+        rootCause: 'V3 没有稳定命中可执行白名单语义视图，Text-to-SQL 无法可靠回答该类业务问题。',
+        suggestedFixes: [
+          '为该业务对象补白名单语义视图、字段 label、时间字段和门店 scope 字段。',
+          '补知识图谱 entity/metric 到 view binding，避免 LLM 自由猜表。',
+          '新增 3-5 条同义问法样例后再回归测试。',
+        ],
+        nextAction: { label: '治理知识图谱', target: 'knowledge_graph', url: '/system/agent-governance/knowledge-graph' },
+      };
+    }
+
+    if (!input.queryTrace && !input.toolNames.length && !input.selectedViews.length) {
+      return {
+        category: 'missing_trace',
+        label: '缺少证据链',
+        severity: 'warning',
+        rootCause: '负反馈样本缺少 queryTrace、工具名或数据源，无法快速定位是路由、执行还是展示问题。',
+        suggestedFixes: [
+          '补运行结果持久化：queryTrace、selectedViews、sourceViews、answerContract 必须进入 resultJson/evidenceJson。',
+          '终端反馈提交时保留 runId 和回答快照，避免只剩“无用”标记。',
+          '对 Ami AI 兜底回答补 AI audit 与业务上下文引用。',
+        ],
+        nextAction: { label: '查看运行审计', target: 'runtime_log', url: `/system/agent-governance/runs/${Number(input.run?.id ?? 0)}` },
+      };
+    }
+
+    return {
+      category: 'wrong_answer',
+      label: '待复核答案',
+      severity: 'info',
+      rootCause: '用户已标记无用，但现有 trace 未命中明确规则，需要人工确认是否为口径、路由或数据问题。',
+      suggestedFixes: [
+        '先用单题调试复现当前命中路径。',
+        '确认期望答案后沉淀为 Eval case 或语义路由样例。',
+        '如果属于业务口径缺失，补充语义视图字段说明和答案模板。',
+      ],
+      nextAction: { label: '带入单题调试', target: 'debug', url: '/system/agent-governance/debug' },
+    };
+  }
+
+  private extractFeedbackQueryTrace(result: Record<string, unknown> | null, evidence: Record<string, unknown> | null) {
+    const direct = this.asObject(result?.queryTrace);
+    if (direct) return direct;
+    const traces = Array.isArray(evidence?.queryTraces) ? evidence?.queryTraces : [];
+    return this.asObject(traces[0]);
+  }
+
+  private extractFeedbackSelectedViews(input: {
+    queryTrace: Record<string, unknown> | null;
+    result: Record<string, unknown> | null;
+    evidence: Record<string, unknown> | null;
+  }) {
+    const planner = this.asObject(input.queryTrace?.planner);
+    const evidence = this.asObject(input.result?.evidence) ?? input.evidence;
+    return this.uniqueTextList([
+      ...this.feedbackStringList(planner?.selectedViews),
+      ...this.feedbackStringList(input.queryTrace?.selectedViews),
+      ...this.feedbackStringList(evidence?.sourceViews),
+      ...this.feedbackStringList(evidence?.sourceTables),
+      ...this.feedbackStringList(evidence?.source),
+    ]);
+  }
+
+  private extractFeedbackToolNames(input: {
+    plan: Record<string, unknown> | null;
+    result: Record<string, unknown> | null;
+    snapshot: Record<string, unknown> | null;
+  }) {
+    const toolPlan = Array.isArray(input.plan?.toolPlan) ? input.plan?.toolPlan : Array.isArray(input.result?.toolPlan) ? input.result?.toolPlan : [];
+    const toolResults = Array.isArray(input.result?.toolResults) ? input.result?.toolResults : [];
+    return this.uniqueTextList([
+      ...this.feedbackStringList(input.snapshot?.toolNames),
+      ...toolPlan.map((item) => this.asObject(item)?.tool).filter(Boolean).map(String),
+      ...toolResults.map((item) => this.asObject(item)?.title ?? this.asObject(item)?.toolName).filter(Boolean).map(String),
+    ]);
+  }
+
+  private resolveFeedbackEngine(run: any, result: Record<string, unknown> | null, context: Record<string, unknown> | null) {
+    const candidates = [
+      run?.agentCode,
+      context?.agentEngine,
+      context?.architecture,
+      result?.architecture,
+      this.asObject(result?.plan)?.businessTask ? this.asObject(this.asObject(result?.plan)?.businessTask)?.runtime : null,
+    ];
+    if (candidates.some((item) => String(item ?? '').includes('agent_v3'))) return 'agent_v3';
+    if (candidates.some((item) => String(item ?? '').includes('agent_v2'))) return 'agent_v2';
+    return String(run?.agentCode ?? 'agent_v1');
+  }
+
+  private hasPresentationFormatIssue(answer: string) {
+    return /\b[a-z]+_[a-z0-9_]+\b/.test(answer) || /GMT[+-]\d{4}/.test(answer) || /\d+\.\d{6,}/.test(answer);
+  }
+
+  private detectFeedbackDomainMismatch(question: string, text: string, selectedViews: string[]) {
+    const q = question.toLowerCase();
+    const routeText = `${text} ${selectedViews.join(' ')}`.toLowerCase();
+    if (/(项目|护理|服务|疗程)/.test(q) && /(customer_|客户id|会员等级|customer\b|customers\b)/.test(routeText)) {
+      return '问题询问项目/服务受欢迎程度，但当前结果或视图更像客户画像/客户列表，说明实体路由偏到了 customer。';
+    }
+    if (/(商品|产品).*(销量|销售|卖得好|受欢迎)|(?:销量|卖得好|受欢迎).*(商品|产品)/.test(q) && /(库存|缺货|stock|inventory|currentstock)/.test(routeText)) {
+      return '问题询问商品销量/销售排行，但当前结果更像库存状态，说明指标从“销售数量”偏到了“库存”。';
+    }
+    if (/(营业额|营收|收入|实收|销售额)/.test(q) && /(库存|缺货|customer_id|客户id)/.test(routeText)) {
+      return '问题询问经营收入指标，但当前结果命中了库存或客户明细，说明指标路由不一致。';
+    }
+    if (/(报废|损耗)/.test(q) && !/(报废|损耗|scrap|discard|write.?off)/.test(routeText)) {
+      return '问题询问报废/损耗，但执行证据里没有报废语义，可能缺少报废记录视图或同义词。';
+    }
+    return null;
+  }
+
+  private feedbackSearchText(values: unknown[]) {
+    return values.map((value) => {
+      if (value === undefined || value === null) return '';
+      if (typeof value === 'string') return value;
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }).join('\n').toLowerCase();
+  }
+
+  private feedbackStringList(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        if (typeof item === 'string' || typeof item === 'number') return String(item);
+        const record = this.asObject(item);
+        return String(record?.viewName ?? record?.name ?? record?.id ?? record?.source ?? '');
+      }).filter(Boolean);
+    }
+    if (typeof value === 'string' || typeof value === 'number') return [String(value)];
+    return [];
+  }
+
+  private uniqueTextList(values: string[]) {
+    return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean))).slice(0, 12);
+  }
+
+  private previewText(value: string, maxLength: number) {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
   }
 
   async healthMetrics(query: { days?: number; storeId?: number } = {}) {

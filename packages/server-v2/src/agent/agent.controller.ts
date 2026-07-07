@@ -681,7 +681,7 @@ export class AgentController {
   }
 
   @Post('semantic-sql/execute')
-  @ApiOperation({ summary: '执行受控 Semantic SQL Beta 预览' })
+  @ApiOperation({ summary: 'Agent V1 legacy 内部 Semantic SQL Beta 预览（不作为 V2/V3 新能力入口）' })
   executeSemanticSql(@CurrentDevice('storeId') storeId: number, @Body() dto: ExecuteSemanticSqlDto) {
     return this.semanticSqlExecutor.execute({
       taskId: dto.taskId,
@@ -698,7 +698,7 @@ export class AgentController {
   }
 
   @Post('query-plan/preview')
-  @ApiOperation({ summary: '预览统一查询中枢 QueryPlan，不执行查库' })
+  @ApiOperation({ summary: 'Agent V1 legacy QueryPlan 预览，不执行查库' })
   async previewQueryPlan(@CurrentDevice('storeId') storeId: number, @Body() dto: PreviewQueryPlanDto) {
     const role = (dto.role ?? 'manager') as AgentRole;
     const compiled = await this.businessTaskCompiler.compile({
@@ -725,7 +725,7 @@ export class AgentController {
   }
 
   @Post('semantic-query/execute')
-  @ApiOperation({ summary: '执行统一查询中枢受控只读查询' })
+  @ApiOperation({ summary: 'Agent V1 legacy 内部受控只读查询（不作为 V2/V3 新能力入口）' })
   async executeSemanticQuery(@CurrentDevice('storeId') storeId: number, @Body() dto: PreviewQueryPlanDto) {
     const role = (dto.role ?? 'manager') as AgentRole;
     const compiled = await this.businessTaskCompiler.compile({

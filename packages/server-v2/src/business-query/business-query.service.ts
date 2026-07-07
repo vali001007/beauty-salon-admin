@@ -18,11 +18,17 @@ import type {
   BusinessQueryPlannerTrace,
   BusinessQueryResponse,
   BusinessQueryRole,
+  BusinessQueryRuntimeBoundary,
 } from './business-query.types.js';
 
 const DAY_MS = 86_400_000;
 const PAID_ORDER_STATUSES = ['completed', 'paid', '已完成', '已付款'];
 const CANCELLED_ORDER_STATUSES = ['cancelled', 'canceled', 'refunded', '已取消', '已退款'];
+const BUSINESS_QUERY_LEGACY_BOUNDARY: BusinessQueryRuntimeBoundary = {
+  family: 'agent_v1_legacy',
+  lifecycle: 'legacy_internal',
+  note: '旧 business-query/semantic-* 问数底座，仅作为 Agent V1 内部遗留能力保留；新智能体能力应进入 Agent V3 或 Agent V2 能力中心。',
+};
 
 @Injectable()
 export class BusinessQueryService {
@@ -35,7 +41,13 @@ export class BusinessQueryService {
   ) {}
 
   capabilities(role?: BusinessQueryRole) {
-    return BUSINESS_QUERY_CAPABILITIES.filter((item) => !role || item.allowedRoles.includes(role));
+    return BUSINESS_QUERY_CAPABILITIES
+      .filter((item) => !role || item.allowedRoles.includes(role))
+      .map((item) => ({
+        ...item,
+        runtimeFamily: BUSINESS_QUERY_LEGACY_BOUNDARY.family,
+        runtimeBoundary: BUSINESS_QUERY_LEGACY_BOUNDARY,
+      }));
   }
 
   async ask(params: { question: string; storeId: number; role?: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext }) {
@@ -43,26 +55,28 @@ export class BusinessQueryService {
     const role = params.role ?? 'manager';
     const knowledgeQueryResponse = await this.tryKnowledgeQueryFirst(params, role);
     if (knowledgeQueryResponse) {
+      const response = this.withLegacyRuntimeMetadata(knowledgeQueryResponse);
       await this.logAudit({
-        queryPlan: knowledgeQueryResponse.queryPlan,
-        response: knowledgeQueryResponse,
+        queryPlan: response.queryPlan,
+        response,
         operatorId: params.operatorId,
         storeId: params.storeId,
         latencyMs: Date.now() - startedAt,
       });
-      return knowledgeQueryResponse;
+      return response;
     }
 
     const unifiedQueryResponse = await this.tryUnifiedSemanticQueryFirst(params, role);
     if (unifiedQueryResponse) {
+      const response = this.withLegacyRuntimeMetadata(unifiedQueryResponse);
       await this.logAudit({
-        queryPlan: unifiedQueryResponse.queryPlan,
-        response: unifiedQueryResponse,
+        queryPlan: response.queryPlan,
+        response,
         operatorId: params.operatorId,
         storeId: params.storeId,
         latencyMs: Date.now() - startedAt,
       });
-      return unifiedQueryResponse;
+      return response;
     }
 
     const queryPlan = this.resolve({
@@ -177,6 +191,7 @@ export class BusinessQueryService {
           }
         }
       }
+      response = this.withLegacyRuntimeMetadata(response);
       await this.logAudit({ queryPlan, response, operatorId: params.operatorId, storeId: params.storeId, latencyMs: Date.now() - startedAt });
       return response;
     } catch (error) {
@@ -191,6 +206,14 @@ export class BusinessQueryService {
       });
       throw error;
     }
+  }
+
+  private withLegacyRuntimeMetadata(response: BusinessQueryResponse): BusinessQueryResponse {
+    return {
+      ...response,
+      runtimeFamily: BUSINESS_QUERY_LEGACY_BOUNDARY.family,
+      runtimeBoundary: BUSINESS_QUERY_LEGACY_BOUNDARY,
+    };
   }
 
   private async tryKnowledgeQueryFirst(

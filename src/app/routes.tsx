@@ -246,6 +246,7 @@ export const router = createBrowserRouter([
       { path: 'system/agent-governance/capabilities', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/auto-publish', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/eval', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/feedback', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
 

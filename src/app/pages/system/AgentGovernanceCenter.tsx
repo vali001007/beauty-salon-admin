@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Target,
+  ThumbsDown,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ import {
   getAgentCapabilityManifestVersions,
   getAgentToolQueryKeys,
   dryRunAgentV2TextToSql,
+  getAgentFeedbackDiagnostics,
   getAgentGovernanceAutoPublishLog,
   getAgentGovernanceAutoPublishLogs,
   getAgentGovernanceCapabilityHealth,
@@ -82,6 +84,9 @@ import type {
   AgentGovernanceDebugContext,
   AgentGovernanceDebugRequest,
   AgentGovernanceDebugResult,
+  AgentFeedbackDiagnosticItem,
+  AgentFeedbackDiagnosticReport,
+  AgentFeedbackDiagnosisCategory,
   AgentGovernanceEvalCase,
   AgentGovernanceEvalFailureReplayResult,
   AgentGovernanceEvalGateReport,
@@ -122,7 +127,7 @@ import type {
 } from '@/types/agentCapabilityCenter';
 import type { AgentRunRecord } from '@/types/agent';
 
-type TabKey = 'overview' | 'runs' | 'knowledge' | 'capabilities' | 'gray' | 'eval' | 'textSql' | 'debug';
+type TabKey = 'overview' | 'runs' | 'knowledge' | 'capabilities' | 'gray' | 'eval' | 'textSql' | 'feedback' | 'debug';
 type DebugMode = 'execute' | 'toolReplay' | 'compare' | 'simulate';
 type DebugSimulationEnabled = 'inherit' | 'enabled' | 'disabled';
 type GraphSimulationNode = AgentKnowledgeGraphNode & { x?: number; y?: number; fx?: number | null; fy?: number | null };
@@ -174,6 +179,18 @@ const DEBUG_GRAY_MODE_OPTIONS = [
   { value: 'legacy_retired', label: '旧链路退役' },
 ];
 
+const FEEDBACK_DIAGNOSIS_CATEGORY_OPTIONS: Array<{ value: AgentFeedbackDiagnosisCategory; label: string }> = [
+  { value: 'all', label: '全部问题' },
+  { value: 'semantic_route', label: '答非所问' },
+  { value: 'presentation_format', label: '展示格式' },
+  { value: 'semantic_view_gap', label: '视图缺口' },
+  { value: 'data_scope', label: '数据口径' },
+  { value: 'permission_or_policy', label: '权限策略' },
+  { value: 'runtime_error', label: '运行异常' },
+  { value: 'missing_trace', label: '证据缺失' },
+  { value: 'wrong_answer', label: '待复核' },
+];
+
 const GRAY_RULE_STATUS_OPTIONS = [
   { value: 'active', label: '生效中' },
   { value: 'deleted', label: '已删除' },
@@ -216,6 +233,7 @@ const TAB_ROUTE_PATHS: Record<TabKey, string> = {
   gray: '/system/agent-governance/gray-rules',
   eval: '/system/agent-governance/eval',
   textSql: '/system/agent-governance/text-to-sql',
+  feedback: '/system/agent-governance/feedback',
   debug: '/system/agent-governance/debug',
 };
 
@@ -227,6 +245,7 @@ function getTabFromPath(pathname: string): TabKey {
   if (pathname.includes('/system/agent-governance/gray-rules')) return 'gray';
   if (pathname.includes('/system/agent-governance/eval')) return 'eval';
   if (pathname.includes('/system/agent-governance/text-to-sql')) return 'textSql';
+  if (pathname.includes('/system/agent-governance/feedback')) return 'feedback';
   if (pathname.includes('/system/agent-governance/debug')) return 'debug';
   return 'overview';
 }
@@ -395,6 +414,17 @@ function getSeverityClass(severity?: string) {
   if (severity === 'blocker') return 'border-rose-200 bg-rose-50 text-rose-700';
   if (severity === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700';
   return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
+function getFeedbackCategoryLabel(category?: string) {
+  return FEEDBACK_DIAGNOSIS_CATEGORY_OPTIONS.find((item) => item.value === category)?.label ?? category ?? '-';
+}
+
+function getFeedbackEngineLabel(engine?: string) {
+  if (engine === 'agent_v3') return 'V3';
+  if (engine === 'agent_v2') return 'V2';
+  if (engine === 'agent_v1') return 'V1';
+  return engine ?? '-';
 }
 
 function asNumber(value: unknown) {
@@ -1701,6 +1731,12 @@ export function AgentGovernanceCenter() {
   const [textSqlGuardResult, setTextSqlGuardResult] = useState<AgentV2TextToSqlGuardInspectResult | null>(null);
   const [textSqlGuardLoading, setTextSqlGuardLoading] = useState(false);
 
+  const [feedbackDiagnostics, setFeedbackDiagnostics] = useState<AgentFeedbackDiagnosticReport | null>(null);
+  const [feedbackCategory, setFeedbackCategory] = useState<AgentFeedbackDiagnosisCategory>('all');
+  const [feedbackDays, setFeedbackDays] = useState('30');
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+
   const [debugQuestion, setDebugQuestion] = useState('哪些客户买了次卡但最近一直不来用');
   const [debugGrayMode, setDebugGrayMode] = useState('kg_llm_preferred');
   const [debugRole, setDebugRole] = useState('manager');
@@ -1720,6 +1756,7 @@ export function AgentGovernanceCenter() {
   const grayRulePageSize = 12;
   const evalPageSize = 20;
   const textSqlPageSize = 12;
+  const feedbackPageSize = 20;
   const p0Accuracy = evalReport?.metrics?.p0Accuracy;
   const textSqlBlockedSummary = useMemo(() => {
     const runs = textSqlRuns?.items ?? [];
@@ -1912,6 +1949,22 @@ export function AgentGovernanceCenter() {
     }
   }, [textSqlPage, textSqlPageSize, textSqlStatus]);
 
+  const loadFeedbackDiagnostics = useCallback(async () => {
+    setFeedbackLoading(true);
+    try {
+      setFeedbackDiagnostics(await getAgentFeedbackDiagnostics({
+        page: feedbackPage,
+        pageSize: feedbackPageSize,
+        days: Number(feedbackDays),
+        category: feedbackCategory,
+      }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无用反馈诊断加载失败');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [feedbackCategory, feedbackDays, feedbackPage, feedbackPageSize]);
+
   const selectTab = useCallback((tab: TabKey) => {
     setActiveTab(tab);
     const path = TAB_ROUTE_PATHS[tab];
@@ -1950,6 +2003,10 @@ export function AgentGovernanceCenter() {
   useEffect(() => {
     if (activeTab === 'textSql') void loadTextSql();
   }, [activeTab, loadTextSql]);
+
+  useEffect(() => {
+    if (activeTab === 'feedback') void loadFeedbackDiagnostics();
+  }, [activeTab, loadFeedbackDiagnostics]);
 
   useEffect(() => {
     const runId = getRunIdFromPath(location.pathname);
@@ -2120,6 +2177,40 @@ export function AgentGovernanceCenter() {
     setKgSynonymReason(`从未覆盖问法“${item.question}”发起图谱治理`);
     selectTab('knowledge');
     toast.success('未覆盖问法已带入图谱治理');
+  }
+
+  function applyFeedbackDiagnostic(item: AgentFeedbackDiagnosticItem) {
+    const target = item.diagnosis.nextAction.target;
+    if (target === 'runtime_log') {
+      selectTab('runs');
+      void openRunDetail(item.runId);
+      return;
+    }
+    if (target === 'text_sql') {
+      setTextSqlQuestion(item.question);
+      selectTab('textSql');
+      toast.success('无用样本已带入治理 SQL 调试');
+      return;
+    }
+    if (target === 'knowledge_graph') {
+      const term = inferUncoveredGovernanceTerm(item.question);
+      setKgFilters({ type: 'all', keyword: term });
+      setKgPage(1);
+      setKgSynonymValue(term);
+      setKgSynonymReason(`从无用反馈“${item.question}”发起图谱治理`);
+      selectTab('knowledge');
+      toast.success('无用样本已带入知识图谱治理');
+      return;
+    }
+    if (target === 'capability_center' && item.trace.capabilityId) {
+      navigate(`/system/agent-capabilities?capabilityId=${encodeURIComponent(item.trace.capabilityId)}`);
+      return;
+    }
+    setDebugQuestion(item.question);
+    setDebugGrayMode(item.engine === 'agent_v2' ? 'kg_llm_preferred' : debugGrayMode);
+    setDebugEntrypoint('agent_governance_feedback_diagnostic');
+    selectTab('debug');
+    toast.success('无用样本已带入单题调试');
   }
 
   async function runKnowledgePath() {
@@ -2385,6 +2476,7 @@ export function AgentGovernanceCenter() {
     if (activeTab === 'gray') void loadGrayRules();
     if (activeTab === 'eval') void loadEval();
     if (activeTab === 'textSql') void loadTextSql();
+    if (activeTab === 'feedback') void loadFeedbackDiagnostics();
   }
 
   return (
@@ -2406,8 +2498,8 @@ export function AgentGovernanceCenter() {
             </Badge>
           </div>
         </div>
-        <Button variant="outline" onClick={refreshActiveTab} disabled={overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading}>
-          {(overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading) ? (
+        <Button variant="outline" onClick={refreshActiveTab} disabled={overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading || feedbackLoading}>
+          {(overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading || feedbackLoading) ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -2424,7 +2516,8 @@ export function AgentGovernanceCenter() {
           <TabsTrigger value="capabilities">能力治理</TabsTrigger>
           <TabsTrigger value="gray">灰度规则</TabsTrigger>
           <TabsTrigger value="eval">评测门禁</TabsTrigger>
-          <TabsTrigger value="textSql">受控SQL</TabsTrigger>
+          <TabsTrigger value="textSql">治理SQL</TabsTrigger>
+          <TabsTrigger value="feedback">无用诊断</TabsTrigger>
           <TabsTrigger value="debug">单题调试</TabsTrigger>
         </TabsList>
 
@@ -3354,8 +3447,8 @@ export function AgentGovernanceCenter() {
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-gray-800">受控 Text-to-SQL Dry-run</div>
-                <Badge className="border-amber-200 bg-amber-50 text-amber-700">不会访问数据库</Badge>
+                <div className="text-sm font-semibold text-gray-800">治理 Text-to-SQL Dry-run</div>
+                <Badge className="border-amber-200 bg-amber-50 text-amber-700">治理工具，不进 V2 运行链路</Badge>
               </div>
               <textarea
                 value={textSqlQuestion}
@@ -3607,6 +3700,148 @@ export function AgentGovernanceCenter() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="feedback" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="无用反馈" value={String(feedbackDiagnostics?.kpis.totalNegativeFeedback ?? '-')} icon={ThumbsDown} tone={(feedbackDiagnostics?.kpis.totalNegativeFeedback ?? 0) > 0 ? 'amber' : 'emerald'} />
+            <StatTile label="阻断级问题" value={String(feedbackDiagnostics?.kpis.blockerCount ?? '-')} icon={XCircle} tone={(feedbackDiagnostics?.kpis.blockerCount ?? 0) > 0 ? 'rose' : 'emerald'} />
+            <StatTile label="提醒级问题" value={String(feedbackDiagnostics?.kpis.warningCount ?? '-')} icon={AlertTriangle} tone={(feedbackDiagnostics?.kpis.warningCount ?? 0) > 0 ? 'amber' : 'slate'} />
+            <StatTile label="当前窗口" value={`${feedbackDiagnostics?.range.days ?? (Number(feedbackDays) || 30)}天`} icon={Activity} tone="sky" />
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">无用反馈诊断</div>
+                <div className="mt-1 text-xs text-gray-500">汇集终端“无用”点击，自动判断路由、视图、数据口径、格式化和运行异常。</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={feedbackCategory}
+                  onChange={(event) => {
+                    setFeedbackCategory(event.target.value as AgentFeedbackDiagnosisCategory);
+                    setFeedbackPage(1);
+                  }}
+                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
+                >
+                  {FEEDBACK_DIAGNOSIS_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={feedbackDays}
+                  onChange={(event) => {
+                    setFeedbackDays(event.target.value);
+                    setFeedbackPage(1);
+                  }}
+                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
+                >
+                  <option value="7">最近 7 天</option>
+                  <option value="30">最近 30 天</option>
+                  <option value="90">最近 90 天</option>
+                  <option value="180">最近 180 天</option>
+                </select>
+                <Button variant="outline" onClick={() => void loadFeedbackDiagnostics()} disabled={feedbackLoading}>
+                  {feedbackLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  刷新
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-gray-600">
+                <div className="mb-2 font-medium text-gray-800">问题分类</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(feedbackDiagnostics?.kpis.byCategory ?? {}).length ? Object.entries(feedbackDiagnostics?.kpis.byCategory ?? {}).map(([category, count]) => (
+                    <Badge key={category} className={getSeverityClass(category === 'semantic_route' || category === 'runtime_error' || category === 'semantic_view_gap' ? 'blocker' : 'warning')}>
+                      {getFeedbackCategoryLabel(category)} {count}
+                    </Badge>
+                  )) : <span>暂无负反馈分类</span>}
+                </div>
+              </div>
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-gray-600">
+                <div className="mb-2 font-medium text-gray-800">版本分布</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(feedbackDiagnostics?.kpis.byEngine ?? {}).length ? Object.entries(feedbackDiagnostics?.kpis.byEngine ?? {}).map(([engine, count]) => (
+                    <Badge key={engine} className="border-sky-200 bg-sky-50 text-sky-700">
+                      {getFeedbackEngineLabel(engine)} {count}
+                    </Badge>
+                  )) : <span>暂无版本分布</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-gray-800">无用问题清单</div>
+              <div className="text-xs text-gray-500">共 {feedbackDiagnostics?.total ?? 0} 条，当前展示 {feedbackDiagnostics?.items.length ?? 0} 条</div>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>问题</TableHead>
+                  <TableHead>诊断</TableHead>
+                  <TableHead>版本/证据</TableHead>
+                  <TableHead>修复建议</TableHead>
+                  <TableHead>时间</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {feedbackDiagnostics?.items.length ? feedbackDiagnostics.items.map((item) => (
+                  <TableRow key={item.feedbackId}>
+                    <TableCell className="max-w-[320px]">
+                      <div className="line-clamp-2 font-medium text-gray-900">{item.question || '-'}</div>
+                      <div className="mt-1 line-clamp-2 text-xs text-gray-500">{item.answerPreview || '无回答快照'}</div>
+                      {item.feedbackText ? <div className="mt-1 text-xs text-rose-600">{item.feedbackText}</div> : null}
+                    </TableCell>
+                    <TableCell className="max-w-[260px]">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge className={getSeverityClass(item.diagnosis.severity)}>{item.diagnosis.label}</Badge>
+                        <Badge className="border-slate-200 bg-slate-50 text-slate-700">{getFeedbackCategoryLabel(item.diagnosis.category)}</Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-600">{item.diagnosis.rootCause}</div>
+                    </TableCell>
+                    <TableCell className="max-w-[260px] text-xs text-gray-600">
+                      <div className="font-medium text-gray-800">{getFeedbackEngineLabel(item.engine)} · run {item.runId}</div>
+                      <div className="mt-1">状态：{item.runStatus}</div>
+                      <div className="mt-1 truncate">能力：{item.trace.capabilityId || '-'}</div>
+                      <div className="mt-1 truncate">视图：{formatList(item.trace.selectedViews)}</div>
+                    </TableCell>
+                    <TableCell className="max-w-[360px]">
+                      <div className="space-y-1 text-xs text-gray-600">
+                        {item.diagnosis.suggestedFixes.slice(0, 3).map((fix) => (
+                          <div key={fix}>- {fix}</div>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-gray-500">{formatDateTime(item.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => applyFeedbackDiagnostic(item)}>
+                        {item.diagnosis.nextAction.label}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <EmptyRow colSpan={6} text={feedbackLoading ? '无用反馈诊断加载中' : '暂无无用反馈'} />
+                )}
+              </TableBody>
+            </Table>
+            <div className="mt-3 flex items-center justify-end gap-2 text-sm text-gray-500">
+              <Button variant="outline" size="sm" disabled={feedbackPage <= 1} onClick={() => setFeedbackPage((current) => Math.max(1, current - 1))}>上一页</Button>
+              <span>{feedbackPage} / {Math.max(1, Math.ceil((feedbackDiagnostics?.total ?? 0) / feedbackPageSize))}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={feedbackPage >= Math.max(1, Math.ceil((feedbackDiagnostics?.total ?? 0) / feedbackPageSize))}
+                onClick={() => setFeedbackPage((current) => current + 1)}
+              >
+                下一页
+              </Button>
             </div>
           </div>
         </TabsContent>

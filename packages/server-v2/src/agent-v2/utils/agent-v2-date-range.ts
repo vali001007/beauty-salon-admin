@@ -11,6 +11,7 @@ export type AgentV2DateRangeOptions = {
   fallbackPreset?: string;
   now?: Date;
   maxRecentDays?: number;
+  maxRecentMonths?: number;
 };
 
 export function resolveAgentV2DateRange(input: unknown, options: AgentV2DateRangeOptions = {}): AgentV2DateRange {
@@ -53,6 +54,8 @@ export function resolveAgentV2DateRange(input: unknown, options: AgentV2DateRang
   if (monthRange) return monthRange;
   const recentDays = preset.match(/^last_(\d{1,3})_days$/)?.[1];
   if (recentDays) return recentDaysRange(Number(recentDays), now, maxRecentDays, preset);
+  const recentMonths = preset.match(/^last_(\d{1,2})_months$/)?.[1];
+  if (recentMonths) return recentMonthsRange(Number(recentMonths), now, options.maxRecentMonths ?? 24, preset);
   if (options.fallbackPreset && options.fallbackPreset !== preset) {
     return resolveAgentV2DateRange(options.fallbackPreset, { ...options, now });
   }
@@ -69,6 +72,8 @@ export function resolveAgentV2QueryDateRange(args: Record<string, unknown>, fall
   if (preset) return resolveAgentV2DateRange(preset, options);
   const days = extractAgentV2RecentDays(question);
   if (days) return recentDaysRange(days, options.now ?? new Date(), options.maxRecentDays ?? 90, `last_${Math.min(days, options.maxRecentDays ?? 90)}_days`);
+  const months = extractAgentV2RecentMonths(question);
+  if (months) return recentMonthsRange(months, options.now ?? new Date(), options.maxRecentMonths ?? 24, `last_${Math.min(months, options.maxRecentMonths ?? 24)}_months`);
   const monthRange = extractAgentV2MonthRange(question, options.now ?? new Date());
   if (monthRange) return monthRange;
   return resolveAgentV2DateRange(fallbackPreset, options);
@@ -114,7 +119,17 @@ export function extractAgentV2RecentDays(question: string) {
   return map[raw] ?? null;
 }
 
+export function extractAgentV2RecentMonths(question: string) {
+  const raw = question.match(/(?:最近|近|过去)\s*([一二两三四五六七八九十\d]{1,3})\s*个?\s*月/)?.[1];
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) return Math.min(numeric, 24);
+  const parsed = parseChineseNumber(raw);
+  return parsed ? Math.min(parsed, 24) : null;
+}
+
 export function extractAgentV2MonthRange(question: string, now = new Date()): AgentV2DateRange | null {
+  if (/(?:最近|近|过去)\s*[一二两三四五六七八九十\d]{1,3}\s*个?\s*月/.test(question)) return null;
   const matched =
     question.match(/(?:(20\d{2})\s*年\s*)?([一二三四五六七八九十\d]{1,2})\s*月(?:份)?/) ??
     question.match(/(20\d{2})[-/年]([01]?\d)\s*(?:月)?/);
@@ -141,9 +156,19 @@ function recentDaysRange(daysInput: number, now: Date, maxRecentDays: number, pr
   return { start, end: now, label: `近 ${days} 天`, preset };
 }
 
+function recentMonthsRange(monthsInput: number, now: Date, maxRecentMonths: number, preset: string): AgentV2DateRange {
+  const months = Math.min(Math.max(Number(monthsInput) || 1, 1), maxRecentMonths);
+  const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+  return { start, end: now, label: `近 ${months} 个月`, preset };
+}
+
 function parseMonthNumber(input: string) {
   const numeric = Number(input);
   if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  return parseChineseNumber(input);
+}
+
+function parseChineseNumber(input: string) {
   const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
   if (input === '十') return 10;
   if (input.startsWith('十')) return 10 + (map[input.slice(1)] ?? 0);

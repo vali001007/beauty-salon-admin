@@ -104,6 +104,79 @@ export interface AgentGovernanceRunDetail {
   replay?: Record<string, unknown>;
 }
 
+export type AgentFeedbackDiagnosisCategory =
+  | 'all'
+  | 'semantic_route'
+  | 'presentation_format'
+  | 'semantic_view_gap'
+  | 'data_scope'
+  | 'permission_or_policy'
+  | 'runtime_error'
+  | 'missing_trace'
+  | 'wrong_answer';
+
+export interface AgentFeedbackDiagnosticItem {
+  feedbackId: number;
+  runId: number;
+  runNo?: string | null;
+  storeId?: number | null;
+  engine: string;
+  role: string;
+  personaCode?: string | null;
+  entrypoint?: string | null;
+  rating?: number | null;
+  adopted?: boolean | null;
+  feedbackText?: string | null;
+  question: string;
+  answerPreview: string;
+  runStatus: string;
+  runError?: string | null;
+  createdAt: string;
+  runCreatedAt?: string | null;
+  trace: {
+    capabilityId?: string;
+    skillId?: string;
+    selectedViews: string[];
+    toolNames: string[];
+    auditRunId?: string;
+    responseMode?: unknown;
+    answerContract?: unknown;
+  };
+  diagnosis: {
+    category: Exclude<AgentFeedbackDiagnosisCategory, 'all'>;
+    label: string;
+    severity: 'blocker' | 'warning' | 'info' | string;
+    rootCause: string;
+    suggestedFixes: string[];
+    nextAction: {
+      label: string;
+      target: 'debug' | 'knowledge_graph' | 'text_sql' | 'capability_center' | 'runtime_log' | string;
+      url?: string;
+    };
+  };
+}
+
+export interface AgentFeedbackDiagnosticReport {
+  range: {
+    days: number;
+    since: string;
+    until: string;
+    storeId?: number | null;
+  };
+  kpis: {
+    totalNegativeFeedback: number;
+    returned: number;
+    blockerCount: number;
+    warningCount: number;
+    byCategory: Record<string, number>;
+    byEngine: Record<string, number>;
+  };
+  items: AgentFeedbackDiagnosticItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface AgentV2TextToSqlSemanticView {
   id: string;
   viewName: string;

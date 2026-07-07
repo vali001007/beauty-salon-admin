@@ -2,6 +2,14 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import { AgentV2BusinessTrendQueryService } from './agent-v2-business-trend-query.service.js';
 
 describe('AgentV2BusinessTrendQueryService', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 6, 6, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('aggregates revenue trend from ProductOrder by business date', async () => {
     const findMany = jest.fn().mockResolvedValue([
       { id: 1, orderNo: 'PO001', createdAt: new Date('2026-07-01T02:00:00.000Z'), totalAmount: 100, netAmount: 90, status: 'completed' },
@@ -35,6 +43,33 @@ describe('AgentV2BusinessTrendQueryService', () => {
     expect((result.data as any).metrics).toMatchObject({
       totalRevenue: 570,
       orderCount: 3,
+    });
+  });
+
+  it('uses recent month phrases from the question instead of the trend default window', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new AgentV2BusinessTrendQueryService({
+      productOrder: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.execute(
+      { capabilityId: 'finance.revenue.trend', question: '最近3个月营业额趋势' },
+      { runId: 1, storeId: 6, role: 'manager' },
+    );
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        createdAt: {
+          gte: new Date(2026, 4, 1),
+          lt: new Date(2026, 6, 6, 12, 0, 0),
+        },
+      }),
+    }));
+    expect((result.data as any).timeRange).toMatchObject({
+      label: '近 3 个月',
+      preset: 'last_3_months',
+      start: '2026-05-01',
+      end: '2026-07-06',
     });
   });
 });

@@ -2,6 +2,14 @@ export type BusinessQueryRole = 'manager' | 'reception' | 'beautician';
 
 export type BusinessQueryStatus = 'success' | 'clarify' | 'unsupported' | 'no_data';
 
+export type BusinessQueryRuntimeFamily = 'agent_v1_legacy';
+
+export interface BusinessQueryRuntimeBoundary {
+  family: BusinessQueryRuntimeFamily;
+  lifecycle: 'legacy_internal';
+  note: string;
+}
+
 export interface BusinessQueryAskRequest {
   question: string;
   role?: BusinessQueryRole;
@@ -84,6 +92,8 @@ export interface BusinessQueryResponse {
   answer: string;
   evidence: BusinessQueryEvidence;
   actions: BusinessQueryAction[];
+  runtimeFamily?: BusinessQueryRuntimeFamily;
+  runtimeBoundary?: BusinessQueryRuntimeBoundary;
 }
 
 export interface BusinessQueryCapability {
@@ -97,4 +107,6 @@ export interface BusinessQueryCapability {
   riskLevel: 'low' | 'medium' | 'high';
   cardType: string;
   implemented: boolean;
+  runtimeFamily?: BusinessQueryRuntimeFamily;
+  runtimeBoundary?: BusinessQueryRuntimeBoundary;
 }

@@ -44,10 +44,31 @@ describe('Agent V2 date range parsing', () => {
     expect(range).toMatchObject({ label: '今天', preset: 'today' });
   });
 
+  it('parses recent month ranges without treating them as a fixed calendar month', () => {
+    expect(resolveAgentV2QueryDateRange({ question: '最近3个月营业额趋势' }, 'last_7_days', { now })).toMatchObject({
+      label: '近 3 个月',
+      preset: 'last_3_months',
+      start: new Date(2026, 4, 1),
+      end: now,
+    });
+    expect(resolveAgentV2QueryDateRange({ question: '最近三个月营业额趋势' }, 'last_7_days', { now })).toMatchObject({
+      label: '近 3 个月',
+      preset: 'last_3_months',
+      start: new Date(2026, 4, 1),
+      end: now,
+    });
+  });
+
   it('supports preset resolution directly for shared tool code', () => {
     expect(resolveAgentV2DateRange('last_month', { now })).toMatchObject({
       label: '上月',
       preset: 'last_month',
+    });
+    expect(resolveAgentV2DateRange('last_3_months', { now })).toMatchObject({
+      label: '近 3 个月',
+      preset: 'last_3_months',
+      start: new Date(2026, 4, 1),
+      end: now,
     });
   });
 });

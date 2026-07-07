@@ -111,6 +111,19 @@ export class AgentV2GovernanceController {
     return this.governance.listUncoveredTop({ limit: Number(query.limit), storeId: this.storeId(query, req) });
   }
 
+  @Get('feedback-diagnostics')
+  @Permissions('core:agent-governance:view')
+  @ApiOperation({ summary: '汇总有用/无用反馈中的无用问题，并自动诊断修复建议' })
+  feedbackDiagnostics(@Query() query: Record<string, string>, @Req() req: AuthedRequest) {
+    return this.governance.listFeedbackDiagnostics({
+      page: Number(query.page),
+      pageSize: Number(query.pageSize),
+      days: Number(query.days),
+      category: query.category,
+      storeId: this.storeId(query, req),
+    });
+  }
+
   @Get('health')
   @Permissions('core:agent-governance:view')
   @ApiOperation({ summary: 'Agent V2 运行健康指标' })

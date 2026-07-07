@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AgentWorkflowRuntimeService } from '../agent/agent-workflow-runtime.service.js';
 import type {
   AgentActor,
@@ -15,7 +15,6 @@ import { AgentV2RuntimeService, type AgentV2RuntimePlan } from './agent-v2-runti
 import { AgentV2EvidenceService } from './evidence/agent-v2-evidence.service.js';
 import { AgentV2PolicyGatewayService } from './policy/agent-v2-policy-gateway.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AgentV2ControlledTextToSqlService, type AgentV2TextToSqlResult } from './text-to-sql/index.js';
 
 const TABLE_LABELS: Record<string, string> = {
   movementId: '流水ID',
@@ -90,7 +89,6 @@ export class AgentV2OrchestratorService {
     private readonly evidenceService: AgentV2EvidenceService,
     private readonly policyGateway: AgentV2PolicyGatewayService,
     private readonly prisma: PrismaService,
-    @Optional() private readonly controlledTextToSql?: AgentV2ControlledTextToSqlService,
   ) {}
 
   listTools() {
@@ -174,7 +172,7 @@ export class AgentV2OrchestratorService {
       actor: input.actor,
       context: input.context,
     });
-    if (!agentV2Plan) return this.processTextToSqlFallback(input);
+    if (!agentV2Plan) return this.completeUnsupportedRun(input);
     return this.processPlannedRun(input, agentV2Plan);
   }
 
@@ -409,105 +407,6 @@ export class AgentV2OrchestratorService {
     return results.map((result) => result.summary).filter(Boolean).join('\n');
   }
 
-  private toTextToSqlToolResult(result: AgentV2TextToSqlResult): AgentToolResult {
-    return {
-      status: result.status === 'success' || result.status === 'dry_run' ? 'success' : result.status === 'blocked' ? 'unsupported' : result.status,
-      title: '受控 Text-to-SQL 只读分析',
-      summary: result.answer ?? this.textToSqlFallbackAnswer(result),
-      data: {
-        rows: result.rows,
-        status: result.status,
-        auditRunId: result.auditRunId,
-        blockedReason: result.blockedReason,
-      },
-      evidence: this.toAgentEvidence(result),
-      actions: [],
-    };
-  }
-
-  private toAgentEvidence(result: AgentV2TextToSqlResult): AgentEvidence {
-    return {
-      source: result.evidence.sourceViews,
-      sourceTables: result.evidence.sourceViews,
-      storeScope: result.evidence.storeScope,
-      dateRange: result.evidence.dateRange,
-      metricDefinition: 'Agent V2 受控 Text-to-SQL 仅通过白名单语义视图执行只读查询。',
-      filters: [result.evidence.storeScope, ...(result.evidence.limitations ?? [])].filter(Boolean),
-      sampleSize: result.rows.length,
-      limitations: result.evidence.limitations,
-      fieldPolicyApplied: {
-        fieldPolicies: result.evidence.fieldPolicies,
-      },
-      queryTraceId: result.auditRunId,
-      queryTraces: [this.redactTextToSqlTrace(result.queryTrace) as Record<string, unknown>],
-    };
-  }
-
-  private redactTextToSqlTrace(value: unknown, key?: string): unknown {
-    if (value === null || value === undefined) return value;
-    if (typeof value === 'string') {
-      if (/^(generatedSql|safeSql|redactedSql|sql)$/i.test(key ?? '')) return 'redacted_for_user_runtime';
-      return value;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') return value;
-    if (Array.isArray(value)) return value.map((item) => this.redactTextToSqlTrace(item, key));
-    if (typeof value !== 'object') return value;
-    if (key === 'parsed') return 'redacted_for_user_runtime';
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
-        entryKey,
-        this.redactTextToSqlTrace(entryValue, entryKey),
-      ]),
-    );
-  }
-
-  private buildTextToSqlBlocks(result: AgentV2TextToSqlResult): AuraResponseBlock[] {
-    const blocks: AuraResponseBlock[] = [
-      { kind: 'summary_text', content: result.answer ?? this.textToSqlFallbackAnswer(result) },
-      {
-        kind: 'evidence_panel',
-        sources: result.evidence.sourceViews,
-        dateRange: result.evidence.dateRange,
-        metricDefinition: '白名单语义视图 + Guard 安全改写 + 只读执行器',
-        limitations: result.evidence.limitations,
-      },
-    ];
-    if (result.rows.length) {
-      const columns = Object.keys(result.rows[0] ?? {}).slice(0, 8);
-      blocks.splice(1, 0, {
-        kind: 'table',
-        columns,
-        rows: result.rows.slice(0, 20).map((row) => columns.map((column) => this.cell(row[column]))),
-        caption: '受控 Text-to-SQL 查询结果',
-      });
-    }
-    if (result.status === 'blocked' || result.status === 'failed') {
-      blocks.splice(1, 0, {
-        kind: 'data_gap',
-        title: '受控查询未执行',
-        message: result.answer ?? this.textToSqlFallbackAnswer(result),
-        missingData: [result.blockedReason ?? result.status],
-        nextSteps: ['检查语义视图启用状态、只读库连接、权限或 Guard 阻断原因。'],
-      });
-    }
-    return blocks;
-  }
-
-  private textToSqlFallbackAnswer(result: AgentV2TextToSqlResult) {
-    if (result.status === 'blocked') return `受控 Text-to-SQL 已阻断：${result.blockedReason ?? 'unknown'}。`;
-    if (result.status === 'failed') return '受控 Text-to-SQL 执行失败，已记录审计。';
-    if (result.status === 'no_data') return '当前筛选范围内没有匹配数据。';
-    if (result.status === 'dry_run') return '已生成受控 Text-to-SQL 查询计划，当前为 dry-run，未访问数据库。';
-    return `已通过受控 Text-to-SQL 查询到 ${result.rows.length} 条结果。`;
-  }
-
-  private cell(value: unknown) {
-    if (value === null || value === undefined) return '-';
-    if (value instanceof Date) return value.toISOString();
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  }
-
   private async retryAfterContractFailure(
     input: {
       run: any;
@@ -550,133 +449,6 @@ export class AgentV2OrchestratorService {
       endedAt: new Date(),
     });
     return this.processPlannedRun({ ...input, context: retryContext }, retryPlan, true);
-  }
-
-  private async processTextToSqlFallback(input: {
-    run: any;
-    message: string;
-    actor: AgentActor;
-    context?: Record<string, unknown>;
-  }): Promise<AgentRunResult> {
-    if (!this.controlledTextToSql || process.env.AGENT_V2_TEXT_TO_SQL_ENABLED !== 'true') {
-      return this.completeUnsupportedRun(input);
-    }
-    if (!this.isTextToSqlFallbackAllowed(input.actor)) {
-      return this.completeUnsupportedRun(input);
-    }
-
-    const runId = Number(input.run.id);
-    const plan: AgentPlan = {
-      intentType: 'query',
-      goal: '受控 Text-to-SQL 只读分析',
-      toolPlan: [],
-      confidence: 0.45,
-      clarificationNeeded: false,
-      executionPath: 'deep',
-      businessTask: {
-        architecture: 'agent_v2_controlled_text_to_sql',
-        question: input.message,
-        fallbackReason: 'no_published_capability_matched',
-      },
-      capabilityPlan: {
-        capabilityId: 'agent_v2.text_to_sql.fallback',
-        reason: '已发布能力未命中，进入受控 Text-to-SQL 兜底。',
-      },
-      outputContract: {
-        requiredKinds: ['text', 'table', 'evidence_panel'],
-        evidenceRequired: true,
-      },
-    };
-    await this.runtime.persistPlan(runId, plan);
-    await this.runtime.recordStep({
-      runId,
-      stepType: 'planner',
-      name: 'agent.v2.text_to_sql.fallback.plan',
-      status: 'success',
-      inputJson: { message: input.message, role: input.actor.role, context: input.context },
-      outputJson: { plan, architecture: 'agent_v2_controlled_text_to_sql' },
-      startedAt: new Date(),
-      endedAt: new Date(),
-    });
-
-    await this.runtime.setRunStatus(runId, 'running_tool');
-    const result = await this.controlledTextToSql.run({
-      question: input.message,
-      userId: input.actor.userId,
-      storeIds: [input.actor.storeId].filter((value): value is number => typeof value === 'number'),
-      roleCodes: [input.actor.role, input.actor.personaCode].filter((value): value is string => Boolean(value)),
-      permissions: input.actor.permissions ?? [],
-      fieldScopes: input.actor.fieldScopes,
-      runtimeContext: input.context,
-      mode: 'execute',
-    });
-    await this.runtime.recordStep({
-      runId,
-      stepType: 'tool',
-      name: 'agent.v2.text_to_sql.controlled',
-      status: result.status === 'success' || result.status === 'no_data' || result.status === 'dry_run' ? 'success' : 'failed',
-      inputJson: { question: input.message },
-      outputJson: {
-        status: result.status,
-        auditRunId: result.auditRunId,
-        blockedReason: result.blockedReason,
-        evidence: result.evidence,
-        queryTrace: result.queryTrace,
-      },
-      startedAt: new Date(),
-      endedAt: new Date(),
-    });
-
-    const answer = result.answer ?? this.textToSqlFallbackAnswer(result);
-    const toolResult = this.toTextToSqlToolResult(result);
-    const evidence = this.toAgentEvidence(result);
-    const renderedBlocks = this.buildTextToSqlBlocks(result);
-    const phaseOutputs = this.buildPhaseOutputs(answer, renderedBlocks);
-    await this.runtime.addMessage(runId, 'assistant', answer, {
-      responseMode: 'structured_blocks',
-      architecture: 'agent_v2_controlled_text_to_sql',
-      auditRunId: result.auditRunId,
-    });
-    const updated = await this.runtime.setRunStatus(runId, 'completed', {
-      evidenceJson: this.toJson(evidence),
-      resultJson: this.toJson({
-        answer,
-        plan,
-        toolResults: [toolResult],
-        renderedBlocks,
-        phaseOutputs,
-        architecture: 'agent_v2_controlled_text_to_sql',
-        textToSql: {
-          status: result.status,
-          auditRunId: result.auditRunId,
-          blockedReason: result.blockedReason,
-        },
-      }),
-    });
-    await this.upsertAuditDetail({
-      run: updated,
-      message: input.message,
-      actor: input.actor,
-      context: input.context,
-      status: result.status === 'blocked' || result.status === 'failed' ? 'text_to_sql_blocked' : 'text_to_sql_completed',
-      toolResults: [toolResult],
-      evidence,
-      phaseOutputs,
-      errorCode: result.blockedReason,
-      errorMessage: result.status === 'failed' ? result.answer : undefined,
-    });
-    return this.buildRunResult(updated, plan, answer, [toolResult], [], renderedBlocks, input.context, evidence, undefined, phaseOutputs);
-  }
-
-  private isTextToSqlFallbackAllowed(actor: AgentActor) {
-    if (process.env.AGENT_V2_TEXT_TO_SQL_ADMIN_ONLY === 'false') return true;
-    const permissions = actor.permissions ?? [];
-    const roles = [actor.role, actor.personaCode].filter((value): value is string => Boolean(value));
-    return (
-      permissions.includes('*') ||
-      permissions.includes('core:agent-governance:manage') ||
-      roles.some((role) => ['super_admin', 'admin', 'manager'].includes(role))
-    );
   }
 
   private async completeUnsupportedRun(input: {

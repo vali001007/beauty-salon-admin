@@ -26,6 +26,7 @@ export * from './industry';
 export * from './businessQuery';
 export * from './agent';
 export * from './agentV2';
+export * from './agentV3';
 export * from './agentCapabilityCenter';
 export * from './agentGovernance';
 export * from './operationProfit';

@@ -8,7 +8,7 @@ import type { BusinessQueryContext, BusinessQueryRole } from './business-query.t
 import { PrismaService } from '../prisma/prisma.service.js';
 import { resolveAuraAvailableRolesForUser } from '../terminal/terminal-role-access.js';
 
-@ApiTags('Business Query')
+@ApiTags('Agent V1 Legacy Business Query')
 @ApiBearerAuth()
 @UseGuards(DeviceAuthGuard)
 @Controller('business-query')
@@ -19,13 +19,13 @@ export class BusinessQueryController {
   ) {}
 
   @Get('capabilities')
-  @ApiOperation({ summary: '当前角色可用 AI 问数能力目录' })
+  @ApiOperation({ summary: 'Agent V1 legacy 内部问数能力目录（不作为 V2/V3 新能力入口）' })
   capabilities(@Query('role') role?: BusinessQueryRole) {
     return this.businessQueryService.capabilities(role);
   }
 
   @Post('ask')
-  @ApiOperation({ summary: 'AI 问数一体化查询：解析、执行并返回证据化回答' })
+  @ApiOperation({ summary: 'Agent V1 legacy 内部问数查询：解析、执行并返回证据化回答' })
   async ask(
     @CurrentDevice('storeId') storeId: number,
     @CurrentDevice('userId') operatorId: number | undefined,
