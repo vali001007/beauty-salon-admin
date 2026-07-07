@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProductProjectRecommendationService } from './product-project-recommendation.service.js';
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
+import { CustomerLifecycleOntologyService } from './customer-lifecycle-ontology.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 
 type PageQuery = {
@@ -126,6 +127,7 @@ export class MarketingService {
     private config: ConfigService,
     @Optional() private productProjectRecommendationService?: ProductProjectRecommendationService,
     @Optional() private customerMarketingProfileService?: CustomerMarketingProfileService,
+    @Optional() private customerLifecycleOntologyService?: CustomerLifecycleOntologyService,
   ) {
     this.defaultRecommendationImage = this.config.get(
       'MARKETING_RECOMMENDATION_IMAGE_URL',
@@ -737,9 +739,10 @@ export class MarketingService {
       expectedLtv6m,
     }));
     const cards = await Promise.all(cardPromises);
+    const lifecycleCards = await this.getLifecycleRecommendationCards(storeId, options);
 
       return this.limitRecommendationCards(this.mergeRecommendationCards(
-        cards.length ? cards : this.buildFallbackRecommendationCards(totalCustomers, latestRun),
+        [...lifecycleCards, ...(cards.length ? cards : this.buildFallbackRecommendationCards(totalCustomers, latestRun))],
         storeId,
         options,
       ), options.limit);
@@ -763,6 +766,19 @@ export class MarketingService {
   private async getProductProjectRecommendationCards(storeId?: number, type?: string, limit?: number) {
     try {
       return await this.productProjectRecommendationService?.getCards(storeId, { type, limit }) ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async getLifecycleRecommendationCards(storeId?: number, options: RecommendationQueryOptions = {}) {
+    if (!this.customerLifecycleOntologyService) return [];
+    if (options.type && !['care_cycle_due', 'card_expiring', 'dormant_winback', 'coupon_claimed_unused', 'browse_abandonment'].includes(options.type)) {
+      return [];
+    }
+    try {
+      const cards = await this.customerLifecycleOntologyService.buildRecommendationCards(storeId, options.limit ?? 20);
+      return options.type ? cards.filter((card: any) => card.recommendationType === options.type || card.triggerType === options.type) : cards;
     } catch {
       return [];
     }
@@ -2031,7 +2047,26 @@ export class MarketingService {
       },
     });
 
-    return { run: completed, summary };
+    const lifecycle = this.customerLifecycleOntologyService
+      ? await this.customerLifecycleOntologyService.rebuild(storeId, { predictionRunId: completed.id }).catch((error) => ({ rebuilt: false, reason: error?.message ?? 'customer_lifecycle_rebuild_failed' }))
+      : { rebuilt: false, reason: 'customer_lifecycle_service_unavailable' };
+
+    return { run: completed, summary, lifecycle };
+  }
+
+  rebuildLifecycleOntology(storeId?: number, predictionRunId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ rebuilt: false, reason: 'customer_lifecycle_service_unavailable', predictionRunId: null, snapshotCount: 0, opportunityCount: 0 });
+    return this.customerLifecycleOntologyService.rebuild(storeId, { predictionRunId });
+  }
+
+  getLifecycleOpportunities(query: any = {}, storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ items: [], data: [], total: 0, page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.listOpportunities(query, storeId);
+  }
+
+  getCustomerLifecycleContext(customerId: number, storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve(null);
+    return this.customerLifecycleOntologyService.getCustomerContext(customerId, storeId);
   }
 
   async getLatestPredictionSummary(storeId?: number) {

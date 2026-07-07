@@ -54,6 +54,9 @@ model Store {
   customers                Customer[]
   predictionRuns           PredictionRun[]
   predictionSnapshots      CustomerPredictionSnapshot[]
+  lifecycleSnapshots        CustomerLifecycleSnapshot[]
+  lifecycleEvents           CustomerLifecycleEvent[]
+  customerOpportunities     CustomerOpportunity[]
   products                 Product[]
   projects                 Project[]
   beauticians              Beautician[]
@@ -238,6 +241,9 @@ model Customer {
   cardUsageRecords      CardUsageRecord[]
   skinTests             SkinTest[]
   predictionSnapshots   CustomerPredictionSnapshot[]
+  lifecycleSnapshots    CustomerLifecycleSnapshot[]
+  lifecycleEvents       CustomerLifecycleEvent[]
+  opportunities         CustomerOpportunity[]
   amiPerformanceRecords AmiPerformanceRecord[]
   marketingTouches      MarketingAutomationTouch[]
   marketingAttributions MarketingAttribution[]
@@ -2142,6 +2148,8 @@ model PredictionRun {
 
   store     Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
   snapshots CustomerPredictionSnapshot[]
+  lifecycleSnapshots CustomerLifecycleSnapshot[]
+  opportunities CustomerOpportunity[]
 
   @@index([storeId])
   @@index([modelVersion])
@@ -2171,6 +2179,8 @@ model CustomerPredictionSnapshot {
   customer Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   store    Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   touches  MarketingAutomationTouch[]
+  lifecycleSnapshots CustomerLifecycleSnapshot[]
+  opportunities CustomerOpportunity[]
 
   @@index([runId])
   @@index([customerId])
@@ -2178,6 +2188,92 @@ model CustomerPredictionSnapshot {
   @@index([churnLevel])
   @@index([ltvTier])
   @@index([createdAt])
+}
+
+model CustomerLifecycleSnapshot {
+  id                     Int      @id @default(autoincrement())
+  storeId                Int
+  customerId             Int
+  predictionRunId        Int?
+  predictionSnapshotId   Int?
+  lifecycleStage         String
+  ltvTier                String?
+  churnRiskLevel         String?
+  touchFatigueScore      Decimal  @default(0)
+  assetSummaryJson       Json?
+  servicePreferenceJson  Json?
+  evidenceJson           Json
+  computedAt             DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionRun      PredictionRun?              @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  predictionSnapshot CustomerPredictionSnapshot? @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, customerId])
+  @@index([storeId, lifecycleStage])
+  @@index([customerId])
+  @@index([predictionRunId])
+  @@index([predictionSnapshotId])
+  @@index([computedAt])
+}
+
+model CustomerLifecycleEvent {
+  id            Int      @id @default(autoincrement())
+  storeId       Int
+  customerId    Int
+  fromStage     String?
+  toStage       String
+  eventType     String
+  sourceType    String
+  sourceId      String?
+  evidenceJson  Json
+  occurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, occurredAt])
+  @@index([customerId, occurredAt])
+  @@index([toStage])
+  @@index([eventType])
+  @@index([sourceType, sourceId])
+}
+
+model CustomerOpportunity {
+  id                         Int      @id @default(autoincrement())
+  storeId                    Int
+  customerId                 Int
+  predictionRunId            Int?
+  predictionSnapshotId       Int?
+  opportunityType            String
+  priority                   String   @default("P1")
+  status                     String   @default("open")
+  score                      Int      @default(0)
+  recommendedExecutionMode   String   @default("automation")
+  recommendedChannelsJson    Json
+  recommendedOfferJson       Json?
+  recommendedItemsJson       Json?
+  evidenceJson               Json
+  expiresAt                  DateTime?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionRun      PredictionRun?              @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  predictionSnapshot CustomerPredictionSnapshot? @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, customerId, opportunityType])
+  @@index([storeId, opportunityType, status])
+  @@index([customerId])
+  @@index([predictionRunId])
+  @@index([predictionSnapshotId])
+  @@index([priority])
+  @@index([expiresAt])
 }
 
 model MarketingAutomationTouch {

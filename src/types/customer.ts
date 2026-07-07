@@ -264,6 +264,11 @@ export interface CustomerProfilePredictionRow {
   ltvTier: string;
   ltv12m: number;
   reasons: string[];
+  lifecycleStage?: string;
+  lifecycleStageLabel?: string;
+  opportunityTypes?: string[];
+  opportunityTypeLabels?: string[];
+  topLifecycleEvidence?: string[];
 }
 
 export interface CustomerProfileAnalytics {
@@ -334,6 +339,48 @@ export interface CustomerProfilePrediction {
   updatedAt: string;
 }
 
+export interface CustomerLifecycleSnapshot {
+  id: number;
+  storeId?: number;
+  customerId?: number;
+  predictionRunId?: number | null;
+  predictionSnapshotId?: number | null;
+  lifecycleStage: string;
+  lifecycleStageLabel: string;
+  ltvTier?: string | null;
+  churnRiskLevel?: string | null;
+  touchFatigueScore: number;
+  assetSummary: Record<string, unknown>;
+  servicePreference: Record<string, unknown>;
+  evidence: string[];
+  computedAt: string;
+}
+
+export interface CustomerOpportunity {
+  id: number;
+  storeId?: number;
+  customerId: number;
+  opportunityType: string;
+  opportunityTypeLabel: string;
+  priority: 'P0' | 'P1' | 'P2' | string;
+  status: string;
+  score: number;
+  recommendedExecutionMode: string;
+  recommendedChannels: Array<Record<string, unknown>>;
+  recommendedOffer: Record<string, unknown> | null;
+  recommendedItems: Array<Record<string, unknown>>;
+  evidence: string[];
+  expiresAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerLifecycleContext {
+  snapshot: CustomerLifecycleSnapshot | null;
+  opportunities: CustomerOpportunity[];
+  events: Array<Record<string, unknown>>;
+}
+
 export interface CustomerProfile {
   customerId: number;
   storeId: number;
@@ -384,6 +431,7 @@ export interface CustomerProfile {
     usedUpCards: Array<Record<string, unknown>>;
   };
   prediction: CustomerProfilePrediction | null;
+  lifecycle: CustomerLifecycleContext | null;
   touchHistory: Array<Record<string, unknown>>;
   recommendationEvents: Array<Record<string, unknown>>;
 }

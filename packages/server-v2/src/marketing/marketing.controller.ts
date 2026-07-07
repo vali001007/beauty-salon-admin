@@ -152,6 +152,31 @@ export class MarketingController {
     return this.marketingService.recordCustomerBehaviorEvent(dto);
   }
 
+  @Post('lifecycle/rebuild')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '重建客户生命周期小本体快照和机会' })
+  rebuildLifecycleOntology(
+    @Headers('x-store-id') headerStoreId?: string,
+    @Body() dto: { storeId?: number; predictionRunId?: number } = {},
+  ) {
+    const scopedStoreId = dto.storeId ? Number(dto.storeId) : headerStoreId ? Number(headerStoreId) : undefined;
+    return this.marketingService.rebuildLifecycleOntology(scopedStoreId, dto.predictionRunId ? Number(dto.predictionRunId) : undefined);
+  }
+
+  @Get('lifecycle/opportunities')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '查询客户生命周期机会' })
+  getLifecycleOpportunities(@Query() query: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getLifecycleOpportunities(query, storeId ? Number(storeId) : undefined);
+  }
+
+  @Get('lifecycle/customers/:id')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '获取单客户生命周期上下文' })
+  getCustomerLifecycleContext(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getCustomerLifecycleContext(id, storeId ? Number(storeId) : undefined);
+  }
+
   @Get('invitation-candidates')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取客户邀约候选' })

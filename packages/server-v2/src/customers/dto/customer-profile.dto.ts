@@ -14,6 +14,40 @@ export type CustomerProfilePredictionDto = {
   updatedAt: string;
 };
 
+export type CustomerLifecycleSnapshotDto = {
+  id: number;
+  lifecycleStage: string;
+  lifecycleStageLabel: string;
+  ltvTier?: string | null;
+  churnRiskLevel?: string | null;
+  touchFatigueScore: number;
+  assetSummary: any;
+  servicePreference: any;
+  evidence: string[];
+  computedAt: string;
+};
+
+export type CustomerLifecycleOpportunityDto = {
+  id: number;
+  opportunityType: string;
+  opportunityTypeLabel: string;
+  priority: string;
+  status: string;
+  score: number;
+  recommendedExecutionMode: string;
+  recommendedChannels: any[];
+  recommendedOffer: any;
+  recommendedItems: any[];
+  evidence: string[];
+  expiresAt?: string | null;
+};
+
+export type CustomerLifecycleContextDto = {
+  snapshot: CustomerLifecycleSnapshotDto | null;
+  opportunities: CustomerLifecycleOpportunityDto[];
+  events: any[];
+} | null;
+
 export type CustomerProfileDto = {
   customerId: number;
   storeId: number;
@@ -64,6 +98,7 @@ export type CustomerProfileDto = {
     usedUpCards: any[];
   };
   prediction: CustomerProfilePredictionDto | null;
+  lifecycle: CustomerLifecycleContextDto;
   touchHistory: any[];
   recommendationEvents: any[];
 };

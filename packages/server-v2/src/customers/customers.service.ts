@@ -1421,8 +1421,24 @@ export class CustomersService {
     const { totalCustomers, customerViews } = await this.loadProfileCustomers(storeId, 300, false);
     const consumptionViews = await this.loadProfileConsumptionViews(customerViews.map((customer) => customer.id), 2000);
     const rows = this.computeProfilePredictionRows(customerViews, consumptionViews, now);
-    const total = rows.length;
-    const items = rows.slice((page - 1) * pageSize, page * pageSize);
+    const lifecycle = await this.loadLifecycleAnalytics(rows.map((row) => row.customer.id), storeId);
+    const enrichedRows = rows.map((row) => {
+      const snapshot = lifecycle.snapshots.get(Number(row.customer.id));
+      const opportunities = lifecycle.opportunities.get(Number(row.customer.id)) ?? [];
+      return {
+        ...row,
+        lifecycleStage: snapshot?.lifecycleStage,
+        lifecycleStageLabel: snapshot ? this.lifecycleStageLabel(snapshot.lifecycleStage) : undefined,
+        opportunityTypes: opportunities.map((item: any) => item.opportunityType),
+        opportunityTypeLabels: opportunities.map((item: any) => this.opportunityTypeLabel(item.opportunityType)),
+        topLifecycleEvidence: [
+          ...this.asStringArray(snapshot?.evidenceJson).slice(0, 2),
+          ...opportunities.flatMap((item: any) => this.asStringArray(item.evidenceJson)).slice(0, 2),
+        ].slice(0, 4),
+      };
+    });
+    const total = enrichedRows.length;
+    const items = enrichedRows.slice((page - 1) * pageSize, page * pageSize);
 
     return {
       generatedAt: this.formatDateTime(now),
@@ -1840,6 +1856,64 @@ export class CustomersService {
       return memberLevel.includes('金') || memberLevel.includes('钻') || memberLevel.includes('铂') || memberLevel.toUpperCase().includes('VIP');
     }
     return Array.isArray(customer.tags) && customer.tags.includes(tag);
+  }
+
+  private async loadLifecycleAnalytics(customerIds: number[], storeId?: number) {
+    const snapshotDelegate = (this.prisma as any).customerLifecycleSnapshot;
+    const opportunityDelegate = (this.prisma as any).customerOpportunity;
+    if (!snapshotDelegate?.findMany || !opportunityDelegate?.findMany || !customerIds.length) {
+      return { snapshots: new Map<number, any>(), opportunities: new Map<number, any[]>() };
+    }
+    try {
+      const [snapshots, opportunities] = await Promise.all([
+        snapshotDelegate.findMany({ where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}) } }),
+        opportunityDelegate.findMany({ where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}), status: 'open' }, orderBy: [{ priority: 'asc' }, { score: 'desc' }] }),
+      ]);
+      const snapshotMap = new Map<number, any>();
+      for (const snapshot of snapshots) snapshotMap.set(Number(snapshot.customerId), snapshot);
+      const opportunityMap = new Map<number, any[]>();
+      for (const opportunity of opportunities) {
+        const id = Number(opportunity.customerId);
+        if (!opportunityMap.has(id)) opportunityMap.set(id, []);
+        opportunityMap.get(id)!.push(opportunity);
+      }
+      return { snapshots: snapshotMap, opportunities: opportunityMap };
+    } catch {
+      return { snapshots: new Map<number, any>(), opportunities: new Map<number, any[]>() };
+    }
+  }
+
+  private asStringArray(value: any) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map((item) => typeof item === 'string' ? item : item?.detail ?? item?.label ?? JSON.stringify(item)).filter(Boolean);
+    if (typeof value === 'string') return [value];
+    return Object.values(value).map((item) => String(item)).filter(Boolean);
+  }
+
+  private lifecycleStageLabel(stage: string) {
+    const labels: Record<string, string> = {
+      lead: '线索',
+      new_customer: '新客',
+      trial: '体验客',
+      member: '会员',
+      active: '活跃客',
+      growth: '成长客',
+      at_risk: '预流失',
+      dormant: '沉睡客',
+      lost: '流失客',
+    };
+    return labels[stage] ?? stage;
+  }
+
+  private opportunityTypeLabel(type: string) {
+    const labels: Record<string, string> = {
+      care_cycle_due: '护理周期到期',
+      card_expiring: '次卡/套餐到期',
+      dormant_winback: '沉睡客户召回',
+      coupon_claimed_unused: '领券未核销',
+      browse_abandonment: '浏览未预约',
+    };
+    return labels[type] ?? type;
   }
 
   async importCustomers(customers: CreateCustomerDto[]) {

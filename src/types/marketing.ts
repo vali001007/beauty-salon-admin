@@ -64,8 +64,18 @@ export interface MarketingRecommendation {
   image: string;
   tags: string[];
   category: string;
-  source?: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project';
-  recommendationType?: 'product_expiry_clearance' | 'project_idle_capacity' | 'product_replenishment' | 'project_cycle_due' | string;
+  source?: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project' | 'customer_lifecycle';
+  recommendationType?:
+    | 'product_expiry_clearance'
+    | 'project_idle_capacity'
+    | 'product_replenishment'
+    | 'project_cycle_due'
+    | 'care_cycle_due'
+    | 'card_expiring'
+    | 'dormant_winback'
+    | 'coupon_claimed_unused'
+    | 'browse_abandonment'
+    | string;
   recommendationKey?: string;
   predictionRunId?: number;
   modelVersion?: string;
