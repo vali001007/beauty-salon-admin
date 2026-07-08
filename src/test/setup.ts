@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom';
+import { Buffer } from 'node:buffer';
+import process from 'node:process';
 import { afterAll, beforeAll } from 'vitest';
 
 const expectedErrorBoundaryMessages = ['Test error message', 'Temporary error'];
