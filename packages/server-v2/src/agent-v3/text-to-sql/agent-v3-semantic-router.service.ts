@@ -57,7 +57,7 @@ const ENTITY_DEFINITIONS: EntityDefinition[] = [
     type: 'inventory',
     canonicalName: '库存',
     domain: 'inventory',
-    aliases: ['库存', '报废', '损耗', '出入库', '库存流水'],
+    aliases: ['库存', '库存不足', '低库存', '缺货', '库存不够', '产品不够', '需要补货', '补货', '报废', '损耗', '出入库', '库存流水'],
     expectedFields: ['product_id', 'product_name', 'sku', 'scrap_quantity', 'current_stock'],
     forbiddenFields: ['customer_id', 'customer_name_masked'],
   },
@@ -107,6 +107,7 @@ const METRIC_DEFINITIONS: MetricDefinition[] = [
   { canonicalName: 'net_sales_amount', type: 'amount', aliases: ['销售额', '销售金额', '净销售', '项目销售额'], fields: ['net_amount'], sortDirection: 'desc' },
   { canonicalName: 'refund_amount', type: 'amount', aliases: ['退款', '退款率', '退款金额'], fields: ['refund_amount'], sortDirection: 'desc' },
   { canonicalName: 'scrap_quantity', type: 'quantity', aliases: ['报废', '损耗'], fields: ['scrap_quantity'], sortDirection: 'desc' },
+  { canonicalName: 'low_stock', type: 'status', aliases: ['库存不足', '低库存', '缺货', '库存不够', '产品不够', '需要补货', '补货', '安全库存'], fields: ['current_stock', 'safety_stock', 'status'], sortDirection: 'asc' },
   { canonicalName: 'average_order_amount', type: 'amount', aliases: ['客单价'], fields: ['average_order_amount'], sortDirection: 'desc' },
   { canonicalName: 'inactivity', type: 'ranking', aliases: ['很久没来', '沉睡', '流失', '未到店'], fields: ['last_visit_at', 'last_order_at'], sortDirection: 'asc' },
 ];
@@ -116,6 +117,7 @@ const VIEW_BINDINGS: Array<{ entity: string; metrics: string[]; viewName: string
   { entity: 'product', metrics: ['popularity', 'quantity_sold', 'net_sales_amount'], viewName: 'agent_v3_order_item_sales_view', score: 0.96, reasons: ['entity=product', 'product sales view'] },
   { entity: 'order', metrics: ['paid_amount', 'refund_amount', 'net_sales_amount'], viewName: 'agent_v3_order_summary_view', score: 0.92, reasons: ['entity=order', 'order finance view'] },
   { entity: 'inventory', metrics: ['scrap_quantity'], viewName: 'agent_v3_inventory_scrap_view', score: 0.94, reasons: ['entity=inventory', 'scrap movement view'] },
+  { entity: 'inventory', metrics: ['low_stock'], viewName: 'agent_v3_product_inventory_view', score: 0.97, reasons: ['entity=inventory', 'low stock inventory view'] },
   { entity: 'customer', metrics: ['inactivity', 'total_paid_amount', 'popularity'], viewName: 'agent_v3_customer_profile_summary_view', score: 0.9, reasons: ['entity=customer', 'customer profile view'] },
   { entity: 'staff', metrics: ['average_order_amount', 'service_count', 'popularity'], viewName: 'agent_v3_staff_performance_view', score: 0.9, reasons: ['entity=staff', 'staff performance view'] },
   { entity: 'marketing', metrics: ['conversion_count', 'popularity'], viewName: 'agent_v3_marketing_conversion_view', score: 0.9, reasons: ['entity=marketing', 'marketing conversion view'] },
@@ -276,6 +278,12 @@ export class AgentV3SemanticRouterService {
         confidence: 0.72,
       };
     }
+    if (['low_stock'].includes(metric)) {
+      return {
+        ...ENTITY_DEFINITIONS.find((entity) => entity.type === 'inventory')!,
+        confidence: 0.88,
+      };
+    }
     if (['scrap_quantity'].includes(metric)) {
       return {
         ...ENTITY_DEFINITIONS.find((entity) => entity.type === 'inventory')!,
@@ -306,7 +314,9 @@ export class AgentV3SemanticRouterService {
         : { canonicalName: 'service_quantity', type: 'quantity' as const, fields: ['service_quantity'], sortDirection: 'desc' as const, confidence: 0.72 };
     }
     if (entityType === 'inventory') {
-      return { canonicalName: 'scrap_quantity', type: 'quantity' as const, fields: ['scrap_quantity'], sortDirection: 'desc' as const, confidence: 0.72 };
+      return /库存不足|低库存|缺货|库存不够|产品不够|补货|安全库存/.test(question)
+        ? { canonicalName: 'low_stock', type: 'status' as const, fields: ['current_stock', 'safety_stock', 'status'], sortDirection: 'asc' as const, confidence: 0.9 }
+        : { canonicalName: 'scrap_quantity', type: 'quantity' as const, fields: ['scrap_quantity'], sortDirection: 'desc' as const, confidence: 0.72 };
     }
     return this.defaultMetric(question);
   }

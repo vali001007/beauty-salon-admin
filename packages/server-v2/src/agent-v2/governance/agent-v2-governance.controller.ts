@@ -85,30 +85,30 @@ export class AgentV2GovernanceController {
 
   @Get('runs')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: 'Agent V2 运行审计列表' })
+  @ApiOperation({ summary: 'Agent 全版本运行审计列表' })
   listRuns(@Query() query: Record<string, string>, @Req() req: AuthedRequest) {
     return this.governance.listRuns({ ...query, storeId: this.storeId(query, req) });
   }
 
   @Get('runs/stats')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: 'Agent V2 运行统计' })
+  @ApiOperation({ summary: 'Agent 全版本运行统计' })
   runStats(@Query() query: Record<string, string>, @Req() req: AuthedRequest) {
-    return this.governance.getRunStats({ storeId: this.storeId(query, req) });
+    return this.governance.getRunStats({ engine: query.engine, storeId: this.storeId(query, req) });
   }
 
   @Get('runs/failures')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: 'Agent V2 失败运行列表' })
+  @ApiOperation({ summary: 'Agent 全版本失败运行列表' })
   runFailures(@Query() query: Record<string, string>, @Req() req: AuthedRequest) {
     return this.governance.listRunFailures({ ...query, storeId: this.storeId(query, req) });
   }
 
   @Get('runs/uncovered-top')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: 'Agent V2 高频未覆盖问法' })
+  @ApiOperation({ summary: 'Agent 全版本高频未覆盖问法' })
   uncoveredTop(@Query() query: Record<string, string>, @Req() req: AuthedRequest) {
-    return this.governance.listUncoveredTop({ limit: Number(query.limit), storeId: this.storeId(query, req) });
+    return this.governance.listUncoveredTop({ limit: Number(query.limit), engine: query.engine, storeId: this.storeId(query, req) });
   }
 
   @Get('feedback-diagnostics')
@@ -120,22 +120,23 @@ export class AgentV2GovernanceController {
       pageSize: Number(query.pageSize),
       days: Number(query.days),
       category: query.category,
+      engine: query.engine,
       storeId: this.storeId(query, req),
     });
   }
 
   @Get('health')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: 'Agent V2 运行健康指标' })
+  @ApiOperation({ summary: 'Agent 全版本运行健康指标' })
   health(@Query() query: Record<string, string>, @Req() req: AuthedRequest) {
-    return this.governance.healthMetrics({ days: Number(query.days), storeId: this.storeId(query, req) });
+    return this.governance.healthMetrics({ days: Number(query.days), engine: query.engine, storeId: this.storeId(query, req) });
   }
 
   @Get('runs/:id/detail')
   @Permissions('core:agent-governance:view')
-  @ApiOperation({ summary: 'Agent V2 运行审计详情' })
+  @ApiOperation({ summary: 'Agent 全版本运行审计详情' })
   runDetail(@Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>, @Req() req: AuthedRequest) {
-    return this.governance.getRunDetail(id, this.storeId(query, req));
+    return this.governance.getRunDetail(id, this.storeId(query, req), query.engine);
   }
 
   @Get('knowledge-graph/summary')

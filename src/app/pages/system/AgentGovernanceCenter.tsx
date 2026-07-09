@@ -57,6 +57,12 @@ import {
   getAgentV2TextToSqlSemanticViews,
   getAgentV2TextToSqlStatus,
   getAgentV2GrayRules,
+  getAgentV5GovernanceAdapters,
+  getAgentV5GovernanceClarifications,
+  getAgentV5GovernanceEval,
+  getAgentV5GovernanceMemory,
+  getAgentV5GovernanceOverview,
+  getAgentV5GovernanceRoutes,
   getAgentKnowledgeGraphGaps,
   getAgentKnowledgeGraphExcludes,
   getAgentKnowledgeGraphNode,
@@ -84,6 +90,7 @@ import type {
   AgentGovernanceDebugContext,
   AgentGovernanceDebugRequest,
   AgentGovernanceDebugResult,
+  AgentGovernanceEngineFilter,
   AgentFeedbackDiagnosticItem,
   AgentFeedbackDiagnosticReport,
   AgentFeedbackDiagnosisCategory,
@@ -110,6 +117,12 @@ import type {
   AgentV2TextToSqlSemanticView,
   AgentV2TextToSqlStatus,
   AgentV2GrayRule,
+  AgentV5GovernanceAdapters,
+  AgentV5GovernanceClarifications,
+  AgentV5GovernanceEval,
+  AgentV5GovernanceMemory,
+  AgentV5GovernanceOverview,
+  AgentV5GovernanceRoutes,
   CreateAgentV2GrayRuleInput,
   AgentKnowledgeGraphGap,
   AgentKnowledgeGraphEdge,
@@ -189,6 +202,16 @@ const FEEDBACK_DIAGNOSIS_CATEGORY_OPTIONS: Array<{ value: AgentFeedbackDiagnosis
   { value: 'runtime_error', label: '运行异常' },
   { value: 'missing_trace', label: '证据缺失' },
   { value: 'wrong_answer', label: '待复核' },
+];
+
+const AGENT_GOVERNANCE_ENGINE_OPTIONS: Array<{ value: AgentGovernanceEngineFilter; label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'ami_ai', label: 'Ami AI' },
+  { value: 'agent_v1', label: 'V1' },
+  { value: 'agent_v2', label: 'V2' },
+  { value: 'agent_v3', label: 'V3' },
+  { value: 'agent_v4', label: 'V4' },
+  { value: 'agent_v5', label: 'V5' },
 ];
 
 const GRAY_RULE_STATUS_OPTIONS = [
@@ -421,10 +444,15 @@ function getFeedbackCategoryLabel(category?: string) {
 }
 
 function getFeedbackEngineLabel(engine?: string) {
+  if (engine === 'ami_ai') return 'Ami AI';
   if (engine === 'agent_v3') return 'V3';
   if (engine === 'agent_v2') return 'V2';
-  if (engine === 'agent_v1') return 'V1';
+  if (engine === 'agent_v1' || engine === 'business_operations') return 'V1';
   return engine ?? '-';
+}
+
+function getRunEngineLabel(run?: Pick<AgentRunRecord, 'agentCode'> | null) {
+  return getFeedbackEngineLabel(run?.agentCode);
 }
 
 function asNumber(value: unknown) {
@@ -1631,6 +1659,7 @@ export function AgentGovernanceCenter() {
   const navigate = useNavigate();
   const canManageAgentGovernance = usePermission('core:agent-governance:manage');
   const [activeTab, setActiveTab] = useState<TabKey>(() => getTabFromPath(location.pathname));
+  const [runtimeEngine, setRuntimeEngine] = useState<AgentGovernanceEngineFilter>('all');
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [runStats, setRunStats] = useState<AgentGovernanceRunStats | null>(null);
   const [health, setHealth] = useState<AgentGovernanceHealthMetrics | null>(null);
@@ -1639,6 +1668,12 @@ export function AgentGovernanceCenter() {
   const [evalReport, setEvalReport] = useState<AgentGovernanceEvalGateReport | null>(null);
   const [uncovered, setUncovered] = useState<AgentGovernanceUncoveredQuestion[]>([]);
   const [latestAutoRuns, setLatestAutoRuns] = useState<AgentGovernanceAutoPublishRun[]>([]);
+  const [agentV5Overview, setAgentV5Overview] = useState<AgentV5GovernanceOverview | null>(null);
+  const [agentV5Routes, setAgentV5Routes] = useState<AgentV5GovernanceRoutes | null>(null);
+  const [agentV5Adapters, setAgentV5Adapters] = useState<AgentV5GovernanceAdapters | null>(null);
+  const [agentV5Clarifications, setAgentV5Clarifications] = useState<AgentV5GovernanceClarifications | null>(null);
+  const [agentV5Memory, setAgentV5Memory] = useState<AgentV5GovernanceMemory | null>(null);
+  const [agentV5Eval, setAgentV5Eval] = useState<AgentV5GovernanceEval | null>(null);
 
   const [runFilters, setRunFilters] = useState({ status: 'all', keyword: '' });
   const [runPage, setRunPage] = useState(1);
@@ -1809,14 +1844,35 @@ export function AgentGovernanceCenter() {
   const loadOverview = useCallback(async () => {
     setOverviewLoading(true);
     try {
-      const [stats, graph, runtimeHealth, capabilityRuntimeHealth, report, logs, uncoveredTop] = await Promise.all([
-        getAgentGovernanceRunStats(),
+      const loadV5Governance = runtimeEngine === 'agent_v5';
+      const [
+        stats,
+        graph,
+        runtimeHealth,
+        capabilityRuntimeHealth,
+        report,
+        logs,
+        uncoveredTop,
+        v5Overview,
+        v5Routes,
+        v5Adapters,
+        v5Clarifications,
+        v5Memory,
+        v5Eval,
+      ] = await Promise.all([
+        getAgentGovernanceRunStats({ engine: runtimeEngine }),
         getAgentKnowledgeGraphSummary(),
-        getAgentGovernanceHealth({ days: 7 }),
+        getAgentGovernanceHealth({ days: 7, engine: runtimeEngine }),
         getAgentGovernanceCapabilityHealth(),
         getAgentGovernanceEvalRuns(),
         getAgentGovernanceAutoPublishLogs({ page: 1, pageSize: 5 }),
-        getAgentGovernanceUncoveredTop({ limit: 5 }),
+        getAgentGovernanceUncoveredTop({ limit: 5, engine: runtimeEngine }),
+        loadV5Governance ? getAgentV5GovernanceOverview() : Promise.resolve(null),
+        loadV5Governance ? getAgentV5GovernanceRoutes() : Promise.resolve(null),
+        loadV5Governance ? getAgentV5GovernanceAdapters() : Promise.resolve(null),
+        loadV5Governance ? getAgentV5GovernanceClarifications() : Promise.resolve(null),
+        loadV5Governance ? getAgentV5GovernanceMemory() : Promise.resolve(null),
+        loadV5Governance ? getAgentV5GovernanceEval() : Promise.resolve(null),
       ]);
       setRunStats(stats);
       setKgSummary(graph);
@@ -1825,23 +1881,29 @@ export function AgentGovernanceCenter() {
       setEvalReport(report);
       setLatestAutoRuns(logs.items);
       setUncovered(uncoveredTop);
+      setAgentV5Overview(v5Overview);
+      setAgentV5Routes(v5Routes);
+      setAgentV5Adapters(v5Adapters);
+      setAgentV5Clarifications(v5Clarifications);
+      setAgentV5Memory(v5Memory);
+      setAgentV5Eval(v5Eval);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Agent 治理总览加载失败');
     } finally {
       setOverviewLoading(false);
     }
-  }, []);
+  }, [runtimeEngine]);
 
   const loadRuns = useCallback(async () => {
     setRunsLoading(true);
     try {
-      setRuns(await getAgentGovernanceRuns({ ...runFilters, page: runPage, pageSize: runPageSize }));
+      setRuns(await getAgentGovernanceRuns({ ...runFilters, engine: runtimeEngine, page: runPage, pageSize: runPageSize }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '运行审计加载失败');
     } finally {
       setRunsLoading(false);
     }
-  }, [runFilters, runPage]);
+  }, [runFilters, runPage, runtimeEngine]);
 
   const loadKnowledge = useCallback(async () => {
     setKgLoading(true);
@@ -1957,13 +2019,14 @@ export function AgentGovernanceCenter() {
         pageSize: feedbackPageSize,
         days: Number(feedbackDays),
         category: feedbackCategory,
+        engine: runtimeEngine,
       }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '无用反馈诊断加载失败');
     } finally {
       setFeedbackLoading(false);
     }
-  }, [feedbackCategory, feedbackDays, feedbackPage, feedbackPageSize]);
+  }, [feedbackCategory, feedbackDays, feedbackPage, feedbackPageSize, runtimeEngine]);
 
   const selectTab = useCallback((tab: TabKey) => {
     setActiveTab(tab);
@@ -2021,7 +2084,7 @@ export function AgentGovernanceCenter() {
     setRunDetail(null);
     setRunDetailLoading(true);
     try {
-      setRunDetail(await getAgentGovernanceRunDetail(id));
+      setRunDetail(await getAgentGovernanceRunDetail(id, { engine: runtimeEngine }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '运行详情加载失败');
       setRunDetailOpen(false);
@@ -2468,6 +2531,13 @@ export function AgentGovernanceCenter() {
     }
   }
 
+  function changeRuntimeEngine(engine: AgentGovernanceEngineFilter) {
+    setRuntimeEngine(engine);
+    setRunPage(1);
+    setFeedbackPage(1);
+    setRunDetail(null);
+  }
+
   function refreshActiveTab() {
     if (activeTab === 'overview') void loadOverview();
     if (activeTab === 'runs') void loadRuns();
@@ -2497,6 +2567,26 @@ export function AgentGovernanceCenter() {
               Manifest {capabilityHealth?.activeManifestVersion ?? '-'}
             </Badge>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500">运行指标版本</span>
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1">
+              {AGENT_GOVERNANCE_ENGINE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => changeRuntimeEngine(option.value)}
+                  className={`h-8 rounded-md px-3 text-xs font-medium transition-colors ${
+                    runtimeEngine === option.value
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-gray-500 hover:bg-white/70 hover:text-gray-800'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-gray-500">当前统计：{AGENT_GOVERNANCE_ENGINE_OPTIONS.find((item) => item.value === runtimeEngine)?.label ?? '全部'}</span>
+          </div>
         </div>
         <Button variant="outline" onClick={refreshActiveTab} disabled={overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading || feedbackLoading}>
           {(overviewLoading || runsLoading || kgLoading || capabilityLoading || grayRulesLoading || evalLoading || textSqlLoading || feedbackLoading) ? (
@@ -2511,7 +2601,7 @@ export function AgentGovernanceCenter() {
       <Tabs value={activeTab} onValueChange={(value) => selectTab(value as TabKey)} className="gap-4">
         <TabsList className="h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="overview">总览</TabsTrigger>
-          <TabsTrigger value="runs">运行审计</TabsTrigger>
+          <TabsTrigger value="runs">全版本运行审计</TabsTrigger>
           <TabsTrigger value="knowledge">知识图谱</TabsTrigger>
           <TabsTrigger value="capabilities">能力治理</TabsTrigger>
           <TabsTrigger value="gray">灰度规则</TabsTrigger>
@@ -2536,6 +2626,78 @@ export function AgentGovernanceCenter() {
             <StatTile label="KG 回退旧链路" value={health?.strategy.legacyFallbackCount ?? 0} icon={GitBranch} tone={(health?.strategy.legacyFallbackCount ?? 0) > 0 ? 'amber' : 'emerald'} />
             <StatTile label="缓存命中率" value={health?.cache.status === 'measured' ? formatPercent(health.cache.hitRate ?? 0) : '未采样'} icon={Database} tone="sky" />
           </div>
+
+          {runtimeEngine === 'agent_v5' ? (
+            <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+              <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-violet-900">Agent V5 Ontology 治理</div>
+                    <div className="mt-1 text-xs text-violet-700">全业务垂直 OntologyAdapter、模糊追问和短期记忆观测</div>
+                  </div>
+                  <Badge className="border-violet-200 bg-white text-violet-700">agent_v5</Badge>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <StatTile label="V5 样本" value={agentV5Overview?.totalRuns ?? 0} icon={Sparkles} tone="slate" />
+                  <StatTile label="追问率" value={formatPercent(agentV5Overview?.clarificationRate)} icon={Search} tone="sky" />
+                  <StatTile label="记忆使用率" value={formatPercent(agentV5Overview?.memoryUsageRate)} icon={Database} tone="emerald" />
+                  <StatTile label="完成率" value={formatPercent(agentV5Eval?.completionRate)} icon={CheckCircle2} tone="emerald" />
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-lg border border-violet-100 bg-white/80 p-3">
+                    <div className="mb-2 text-xs font-medium text-violet-900">垂直 adapter 覆盖</div>
+                    <div className="flex flex-wrap gap-2">
+                      {(agentV5Adapters?.adapters ?? []).map((adapter) => (
+                        <Badge key={adapter.adapterCode} className="border-slate-200 bg-slate-50 text-slate-700">
+                          {adapter.adapterCode} · {adapter.capabilityCount}
+                        </Badge>
+                      ))}
+                      {!(agentV5Adapters?.adapters ?? []).length ? <span className="text-xs text-gray-500">暂无 adapter 覆盖数据</span> : null}
+                    </div>
+                    <div className="mt-3 text-xs leading-5 text-gray-500">{agentV5Adapters?.boundary ?? 'V5 独立运行，复用底层服务但不递归调用旧版 Agent。'}</div>
+                  </div>
+                  <div className="rounded-lg border border-violet-100 bg-white/80 p-3">
+                    <div className="mb-2 text-xs font-medium text-violet-900">记忆策略</div>
+                    <div className="text-xs leading-5 text-gray-600">{agentV5Memory?.policy ?? '只保留短期业务上下文与偏好，不保存敏感原文。'}</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {Object.entries(agentV5Memory?.workingKeyCounts ?? {}).slice(0, 6).map(([key, count]) => (
+                        <Badge key={key} className="border-emerald-200 bg-emerald-50 text-emerald-700">{key} · {count}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {agentV5Eval?.recommendation ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    改进建议：{agentV5Eval.recommendation}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <div className="mb-3 text-sm font-semibold text-gray-800">V5 最近追问与路由</div>
+                <div className="space-y-2">
+                  {(agentV5Clarifications?.items ?? []).slice(0, 4).map((item) => (
+                    <div key={`${item.runId}-${item.question}`} className="rounded-lg border border-border bg-background p-3">
+                      <div className="line-clamp-2 text-sm font-medium text-gray-800">{item.question || '追问问题'}</div>
+                      <div className="mt-1 text-xs text-gray-500">{item.runNo} · {item.candidates.slice(0, 3).join(' / ') || '无候选'}</div>
+                    </div>
+                  ))}
+                  {!(agentV5Clarifications?.items ?? []).length ? (
+                    <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-gray-500">暂无 V5 追问记录</div>
+                  ) : null}
+                </div>
+                <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="mb-2 text-xs font-medium text-gray-700">Top Intent</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(agentV5Routes?.intentCounts ?? {}).slice(0, 6).map(([intent, count]) => (
+                      <Badge key={intent} className="border-slate-200 bg-white text-slate-700">{intent} · {count}</Badge>
+                    ))}
+                    {!Object.keys(agentV5Routes?.intentCounts ?? {}).length ? <span className="text-xs text-gray-500">暂无路由样本</span> : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-4 xl:grid-cols-3">
             <div className="rounded-lg border border-border bg-card p-4 shadow-sm xl:col-span-2">
@@ -2675,6 +2837,7 @@ export function AgentGovernanceCenter() {
             <TableHeader>
               <TableRow>
                 <TableHead>时间</TableHead>
+                <TableHead>版本</TableHead>
                 <TableHead>Run</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>失败定位</TableHead>
@@ -2690,6 +2853,7 @@ export function AgentGovernanceCenter() {
                 return (
                   <TableRow key={run.id}>
                     <TableCell className="whitespace-nowrap text-gray-500">{formatDateTime(run.createdAt)}</TableCell>
+                    <TableCell><Badge className="border-sky-200 bg-sky-50 text-sky-700">{getRunEngineLabel(run)}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{run.runNo}</TableCell>
                     <TableCell><Badge className={getStatusClass(run.status)}>{getStatusLabel(run.status)}</Badge></TableCell>
                     <TableCell><Badge className={diagnosis.className}>{diagnosis.label}</Badge></TableCell>
@@ -2702,7 +2866,7 @@ export function AgentGovernanceCenter() {
                   </TableRow>
                 );
               }) : (
-                <EmptyRow colSpan={8} text={runsLoading ? '运行审计加载中' : '暂无运行记录'} />
+                <EmptyRow colSpan={9} text={runsLoading ? '运行审计加载中' : '暂无运行记录'} />
               )}
             </TableBody>
           </Table>
@@ -3808,6 +3972,11 @@ export function AgentGovernanceCenter() {
                     </TableCell>
                     <TableCell className="max-w-[260px] text-xs text-gray-600">
                       <div className="font-medium text-gray-800">{getFeedbackEngineLabel(item.engine)} · run {item.runId}</div>
+                      <div className="mt-1">
+                        粒度：{item.feedbackScope === 'message' ? '问题级' : '会话级'}
+                        {item.questionIndex ? ` · 第 ${item.questionIndex} 问` : ''}
+                      </div>
+                      {item.messageId ? <div className="mt-1 truncate">消息：{String(item.messageId)}</div> : null}
                       <div className="mt-1">状态：{item.runStatus}</div>
                       <div className="mt-1 truncate">能力：{item.trace.capabilityId || '-'}</div>
                       <div className="mt-1 truncate">视图：{formatList(item.trace.selectedViews)}</div>
@@ -4036,6 +4205,26 @@ export function AgentGovernanceCenter() {
             </div>
           ) : runDetail ? (
             <div className="space-y-4">
+              <div className="grid gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs text-gray-600 sm:grid-cols-4">
+                <div>
+                  <div className="text-gray-400">版本</div>
+                  <div className="mt-1 font-medium text-gray-800">{getRunEngineLabel(runDetail.run)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400">入口</div>
+                  <div className="mt-1 font-medium text-gray-800">{runDetail.run.entrypoint ?? '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400">状态</div>
+                  <div className="mt-1 font-medium text-gray-800">{getStatusLabel(runDetail.run.status)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400">失败/兜底原因</div>
+                  <div className="mt-1 truncate font-medium text-gray-800">
+                    {runDetail.run.errorMessage ?? String((runDetail.run.resultJson as Record<string, unknown> | null)?.fallbackReason ?? '-')}
+                  </div>
+                </div>
+              </div>
               <RunDetailTracePanel detail={runDetail} />
               <EvidenceAuditPanel detail={runDetail} />
               <div className="grid gap-4 lg:grid-cols-2">

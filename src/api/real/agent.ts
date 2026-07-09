@@ -8,6 +8,8 @@ import type {
   AgentApprovalListItem,
   AgentApprovalListQuery,
   AgentAppendMessageRequest,
+  AmiAiAuditRequest,
+  AmiAiAuditResult,
   AgentAutomationDefinitionItem,
   AgentAutomationDraftRequest,
   AgentAutomationDueRunResult,
@@ -47,6 +49,10 @@ const sharedAgentApi = createAgentApi({
 
 export async function createAgentRun(data: AgentCreateRunRequest): Promise<AgentRunResultV2> {
   return sharedAgentApi.createRun(data);
+}
+
+export async function recordAmiAiAudit(data: AmiAiAuditRequest): Promise<AmiAiAuditResult> {
+  return apiClient.post('/agent/ami-ai/audit', data, agentLongTaskConfig);
 }
 
 export async function compileBusinessTask(data: AgentCompileBusinessTaskRequest): Promise<AgentBusinessTaskCompileResult> {

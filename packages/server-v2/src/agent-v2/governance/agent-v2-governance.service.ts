@@ -59,6 +59,7 @@ type GovernanceEvalCase = {
 };
 
 type KnowledgeGraphOverrideType = 'synonym' | 'exclude';
+type AgentGovernanceEngineFilter = 'all' | 'ami_ai' | 'agent_v1' | 'agent_v2' | 'agent_v3';
 type FeedbackDiagnosisCategory =
   | 'semantic_route'
   | 'presentation_format'
@@ -92,12 +93,12 @@ export class AgentV2GovernanceService {
     private readonly grayStrategy: AgentV2GrayStrategyService,
   ) {}
 
-  async listRuns(query: { page?: number; pageSize?: number; status?: string; keyword?: string; storeId?: number } = {}) {
+  async listRuns(query: { page?: number; pageSize?: number; status?: string; keyword?: string; storeId?: number; engine?: string } = {}) {
     const page = this.toPositiveInt(query.page, 1);
     const pageSize = Math.min(this.toPositiveInt(query.pageSize, 20), 100);
     const keyword = String(query.keyword ?? '').trim();
     const where: Record<string, unknown> = {
-      agentCode: 'agent_v2',
+      ...this.agentCodeWhere(query.engine),
       ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
       ...(query.status && query.status !== 'all' ? { status: query.status } : {}),
       ...(keyword
@@ -116,11 +117,11 @@ export class AgentV2GovernanceService {
     return { items, total, page, pageSize };
   }
 
-  async getRunDetail(id: number, storeId?: number) {
+  async getRunDetail(id: number, storeId?: number, engine?: string) {
     const run = await this.agentRun.findFirst({
-      where: { id, agentCode: 'agent_v2', ...(storeId ? { storeId: Number(storeId) } : {}) },
+      where: { id, ...this.agentCodeWhere(engine), ...(storeId ? { storeId: Number(storeId) } : {}) },
     });
-    if (!run) throw new NotFoundException('Agent V2 run not found');
+    if (!run) throw new NotFoundException('Agent run not found');
     const [messages, steps, toolCalls, approvals] = await Promise.all([
       this.delegate('agentMessage').findMany({ where: { runId: id }, orderBy: { createdAt: 'asc' } }),
       this.delegate('agentStep').findMany({ where: { runId: id }, orderBy: { startedAt: 'asc' } }),
@@ -130,8 +131,8 @@ export class AgentV2GovernanceService {
     return { run, messages, steps, toolCalls, approvals, replay: this.buildRunReplay({ run, messages, steps, toolCalls, approvals }) };
   }
 
-  async getRunStats(query: { storeId?: number } = {}) {
-    const where = { agentCode: 'agent_v2', ...(query.storeId ? { storeId: Number(query.storeId) } : {}) };
+  async getRunStats(query: { storeId?: number; engine?: string } = {}) {
+    const where = { ...this.agentCodeWhere(query.engine), ...(query.storeId ? { storeId: Number(query.storeId) } : {}) };
     const [total, byStatus] = await Promise.all([
       this.agentRun.count({ where }),
       this.agentRun.groupBy({ by: ['status'], where, _count: { _all: true } }),
@@ -140,18 +141,19 @@ export class AgentV2GovernanceService {
       total,
       byStatus: Object.fromEntries((byStatus as Array<{ status: string; _count: { _all: number } }>).map((item) => [item.status, item._count._all])),
       activeManifestVersion: this.manifestProvider.getActiveVersion(),
+      engine: this.normalizeEngineFilter(query.engine),
     };
   }
 
-  async listRunFailures(query: { page?: number; pageSize?: number; storeId?: number } = {}) {
+  async listRunFailures(query: { page?: number; pageSize?: number; storeId?: number; engine?: string } = {}) {
     return this.listRuns({ ...query, status: 'failed' });
   }
 
-  async listUncoveredTop(query: { limit?: number; storeId?: number } = {}) {
+  async listUncoveredTop(query: { limit?: number; storeId?: number; engine?: string } = {}) {
     const limit = Math.min(this.toPositiveInt(query.limit, 20), 100);
     const runs = await this.agentRun.findMany({
       where: {
-        agentCode: 'agent_v2',
+        ...this.agentCodeWhere(query.engine),
         ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
         OR: [
           { status: 'failed' },
@@ -180,6 +182,7 @@ export class AgentV2GovernanceService {
     days?: number;
     category?: string;
     storeId?: number;
+    engine?: string;
   } = {}) {
     const page = this.toPositiveInt(query.page, 1);
     const pageSize = Math.min(this.toPositiveInt(query.pageSize, 20), 100);
@@ -193,6 +196,43 @@ export class AgentV2GovernanceService {
         { rating: { lte: 2 } },
       ],
     };
+    const engine = this.normalizeEngineFilter(query.engine);
+    const agentCodeWhere = this.agentCodeWhere(engine);
+    if (engine !== 'all') {
+      const matchingRuns = await this.agentRun.findMany({
+        where: {
+          ...agentCodeWhere,
+          ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
+        },
+        select: { id: true },
+        take: 50000,
+      });
+      const matchingRunIds = (matchingRuns as Array<{ id: number }>).map((run) => Number(run.id)).filter(Boolean);
+      if (!matchingRunIds.length) {
+        return {
+          range: {
+            days,
+            since: since.toISOString(),
+            until: new Date().toISOString(),
+            storeId: query.storeId ?? null,
+            engine,
+          },
+          kpis: {
+            totalNegativeFeedback: 0,
+            returned: 0,
+            blockerCount: 0,
+            warningCount: 0,
+            byCategory: {},
+            byEngine: {},
+          },
+          items: [],
+          total: 0,
+          page,
+          pageSize,
+        };
+      }
+      where.runId = { in: matchingRunIds };
+    }
     const agentFeedback = this.delegate('agentFeedback');
     const [feedbacks, total] = await Promise.all([
       agentFeedback.findMany({
@@ -208,6 +248,7 @@ export class AgentV2GovernanceService {
       ? await this.agentRun.findMany({
           where: {
             id: { in: runIds },
+            ...agentCodeWhere,
             ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
           },
           select: {
@@ -243,6 +284,7 @@ export class AgentV2GovernanceService {
         since: since.toISOString(),
         until: new Date().toISOString(),
         storeId: query.storeId ?? null,
+        engine,
       },
       kpis: {
         totalNegativeFeedback: total,
@@ -280,6 +322,9 @@ export class AgentV2GovernanceService {
       capabilityPlan?.capabilityId ??
       '',
     );
+    const feedbackScope = String(snapshot?.feedbackScope ?? userProvided?.feedbackScope ?? (snapshot?.messageId ? 'message' : 'run'));
+    const messageId = snapshot?.messageId ?? userProvided?.messageId ?? null;
+    const questionIndex = snapshot?.questionIndex ?? userProvided?.questionIndex ?? null;
     const question = String(snapshot?.question ?? run?.userInput ?? '');
     const answer = String(snapshot?.answer ?? result?.answer ?? run?.errorMessage ?? '');
     const engine = this.resolveFeedbackEngine(run, result, context);
@@ -300,6 +345,9 @@ export class AgentV2GovernanceService {
     return {
       feedbackId: Number(feedback.id),
       runId: Number(feedback.runId),
+      feedbackScope,
+      messageId,
+      questionIndex,
       runNo: run?.runNo ?? null,
       storeId: feedback.storeId ?? run?.storeId ?? null,
       engine,
@@ -519,8 +567,10 @@ export class AgentV2GovernanceService {
       result?.architecture,
       this.asObject(result?.plan)?.businessTask ? this.asObject(this.asObject(result?.plan)?.businessTask)?.runtime : null,
     ];
+    if (candidates.some((item) => String(item ?? '').includes('ami_ai'))) return 'ami_ai';
     if (candidates.some((item) => String(item ?? '').includes('agent_v3'))) return 'agent_v3';
     if (candidates.some((item) => String(item ?? '').includes('agent_v2'))) return 'agent_v2';
+    if (candidates.some((item) => String(item ?? '').includes('business_operations'))) return 'agent_v1';
     return String(run?.agentCode ?? 'agent_v1');
   }
 
@@ -579,12 +629,26 @@ export class AgentV2GovernanceService {
     return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
   }
 
-  async healthMetrics(query: { days?: number; storeId?: number } = {}) {
+  private normalizeEngineFilter(value: unknown): AgentGovernanceEngineFilter {
+    if (value === 'ami_ai' || value === 'agent_v1' || value === 'agent_v2' || value === 'agent_v3') return value;
+    return 'all';
+  }
+
+  private agentCodeWhere(engine: unknown): Record<string, unknown> {
+    const normalized = this.normalizeEngineFilter(engine);
+    if (normalized === 'agent_v1') return { agentCode: 'business_operations' };
+    if (normalized === 'agent_v2') return { agentCode: 'agent_v2' };
+    if (normalized === 'agent_v3') return { agentCode: 'agent_v3' };
+    if (normalized === 'ami_ai') return { agentCode: 'ami_ai' };
+    return {};
+  }
+
+  async healthMetrics(query: { days?: number; storeId?: number; engine?: string } = {}) {
     const days = Math.min(this.toPositiveInt(query.days, 7), 90);
     const until = new Date();
     const since = new Date(until.getTime() - days * DAY_MS);
     const where = {
-      agentCode: 'agent_v2',
+      ...this.agentCodeWhere(query.engine),
       createdAt: { gte: since, lte: until },
       ...(query.storeId ? { storeId: Number(query.storeId) } : {}),
     };
@@ -651,7 +715,7 @@ export class AgentV2GovernanceService {
     return {
       generatedAt: new Date().toISOString(),
       activeManifestVersion: this.manifestProvider.getActiveVersion(),
-      window: { days, since: since.toISOString(), until: until.toISOString(), storeId: query.storeId ?? null },
+      window: { days, since: since.toISOString(), until: until.toISOString(), storeId: query.storeId ?? null, engine: this.normalizeEngineFilter(query.engine) },
       runs: {
         total: runs.length,
         completed: completedCount,

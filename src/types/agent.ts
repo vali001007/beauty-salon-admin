@@ -12,6 +12,7 @@ export type {
   AgentApprovalSummary,
   AgentCreateRunRequest,
   AgentEvidence,
+  AgentFeedbackContext,
   AgentFeedbackRequest,
   AgentPersonaCode,
   AgentPersonaSummary,
@@ -33,6 +34,26 @@ export interface AgentApprovalDecisionRequest {
   operatorId?: number | null;
   comment?: string;
   args?: Record<string, unknown>;
+}
+
+export interface AmiAiAuditRequest {
+  message: string;
+  answer?: string;
+  role?: AgentRole | string;
+  entrypoint?: string;
+  operatorId?: number | null;
+  fallbackReason?: string | null;
+  businessContext?: string | null;
+  latencyMs?: number | null;
+  source?: string | null;
+}
+
+export interface AmiAiAuditResult {
+  runId: number;
+  id: number;
+  runNo: string;
+  agentCode: 'ami_ai' | string;
+  status: string;
 }
 
 export interface AgentCompileBusinessTaskRequest {

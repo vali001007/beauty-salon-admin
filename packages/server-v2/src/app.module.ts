@@ -32,7 +32,10 @@ import { BusinessQueryModule } from './business-query/business-query.module.js';
 import { AgentModule } from './agent/agent.module.js';
 import { AgentV2Module } from './agent-v2/agent-v2.module.js';
 import { AgentV3Module } from './agent-v3/agent-v3.module.js';
+import { AgentV4Module } from './agent-v4/agent-v4.module.js';
+import { AgentV5Module } from './agent-v5/agent-v5.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
+import { FinanceMetricsModule } from './finance-metrics/finance-metrics.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
 @Module({
@@ -68,6 +71,9 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     AgentModule,
     AgentV2Module,
     AgentV3Module,
+    AgentV4Module,
+    AgentV5Module,
+    FinanceMetricsModule,
     OperationProfitModule,
     BomModule,
     HealthModule,

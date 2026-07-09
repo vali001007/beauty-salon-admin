@@ -26,6 +26,25 @@ describe('AgentV3TextToSqlPlannerService', () => {
     expect(plan.intent.metric).toBe('quantity_sold');
   });
 
+  it('plans low-stock product questions through the V3 inventory semantic view', async () => {
+    const plan = await planner.plan({
+      question: '库存不足的产品',
+      storeIds: [1],
+      permissions: ['*'],
+      roleCodes: ['manager'],
+      mode: 'dry_run',
+    });
+
+    expect(plan.status).toBe('planned');
+    expect(plan.selectedViews).toEqual(['agent_v3_product_inventory_view']);
+    expect(plan.generatedSql).toContain('agent_v3_product_inventory_view');
+    expect(plan.generatedSql).toContain('current_stock <= safety_stock');
+    expect(plan.generatedSql).not.toContain('SUM(quantity)');
+    expect(plan.intent.domain).toBe('inventory');
+    expect(plan.intent.metric).toBe('low_stock');
+    expect(plan.queryIntent?.entity.type).toBe('inventory');
+  });
+
   it('plans project popularity through the V3 project service semantic view', async () => {
     const plan = await planner.plan({
       question: '最近一个月最受欢迎的项目有哪几个',

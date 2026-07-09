@@ -155,6 +155,23 @@ export class AgentV3TextToSqlPlannerService {
         `LIMIT ${limit}`,
       ].join(' ');
     }
+    if (viewDef.viewName === 'agent_v3_product_inventory_view') {
+      if (queryIntent.metric.canonicalName === 'low_stock') {
+        return [
+          'SELECT product_id, product_name, sku, current_stock, safety_stock, stock_value, status',
+          `FROM ${viewDef.viewName}`,
+          "WHERE (current_stock <= safety_stock OR status IN ('低库存', '缺货', 'low_stock', 'out_of_stock'))",
+          'ORDER BY current_stock ASC, safety_stock DESC, product_id ASC',
+          `LIMIT ${limit}`,
+        ].join(' ');
+      }
+      return [
+        'SELECT product_id, product_name, sku, current_stock, safety_stock, stock_value, status, nearest_expiry_date',
+        `FROM ${viewDef.viewName}`,
+        'ORDER BY current_stock ASC, nearest_expiry_date ASC NULLS LAST',
+        `LIMIT ${limit}`,
+      ].join(' ');
+    }
     if (viewDef.viewName === 'agent_v3_order_summary_view' || viewDef.viewName === 'agent_v3_daily_settlement_view') {
       const timeField = viewDef.defaultTimeField ?? 'order_created_at';
       return [

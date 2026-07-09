@@ -56,8 +56,9 @@ export class AgentV3SqlGuardService {
       return this.block('missing_store_scope', '缺少门店范围。', sql, sourceViews, []);
     }
 
+    const skipTimeRange = this.shouldSkipTimeRangeForSnapshotQuestion(request.question ?? '', sourceViews);
     const timeRange = resolveAgentV3QueryDateRange({ question: request.question ?? '' }, 'this_month', { maxRecentDays: config.maxRangeDays });
-    const timeInjected = this.needsTimeRange(sql, sourceViews);
+    const timeInjected = !skipTimeRange && this.needsTimeRange(sql, sourceViews);
     const safeSql = this.rewrite(sql, sourceViews, {
       injectedLimit: parsed.parsed.hasLimit ? undefined : Math.min(config.maxLimit, AGENT_V3_TEXT_TO_SQL_DEFAULT_LIMIT),
       injectTimeRange: timeInjected,
@@ -78,7 +79,7 @@ export class AgentV3SqlGuardService {
         'semantic_view_whitelist',
         'field_policy_checked',
         'store_scope_required',
-        timeInjected ? 'time_range_injected' : 'time_range_checked',
+        skipTimeRange ? 'snapshot_state_time_range_skipped' : timeInjected ? 'time_range_injected' : 'time_range_checked',
         parsed.parsed.hasLimit ? 'limit_checked' : 'limit_injected',
       ],
     };
@@ -104,6 +105,12 @@ export class AgentV3SqlGuardService {
 
   private needsTimeRange(sql: string, views: AgentV3SemanticView[]) {
     return this.timeFieldsToInject(sql, views).length > 0;
+  }
+
+  private shouldSkipTimeRangeForSnapshotQuestion(question: string, views: AgentV3SemanticView[]) {
+    if (!views.some((viewDef) => viewDef.viewName === 'agent_v3_product_inventory_view')) return false;
+    if (/临期|过期|效期|快过期|到期/.test(question)) return false;
+    return /库存不足|低库存|缺货|库存不够|产品不够|补货|安全库存|库存还够/.test(question);
   }
 
   private timeFieldsToInject(sql: string, views: AgentV3SemanticView[]) {

@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -31,6 +31,30 @@ import { CapabilityCatalogService } from './knowledge/capability-catalog.service
 import { EntityResolverService } from './knowledge/entity-resolver.service.js';
 import { SchemaGraphService } from './knowledge/schema-graph.service.js';
 import { readKnowledgeMapEvalReport } from './agent-eval-knowledge-map.js';
+
+type RecordAmiAiAuditBody = {
+  message?: string;
+  answer?: string;
+  role?: string;
+  entrypoint?: string;
+  operatorId?: number | null;
+  fallbackReason?: string | null;
+  businessContext?: string | null;
+  latencyMs?: number | null;
+  source?: string | null;
+};
+
+type AgentFeedbackBody = {
+  rating?: number;
+  adopted?: boolean;
+  comment?: string;
+  businessActionJson?: unknown;
+  feedbackScope?: string;
+  messageId?: string | number | null;
+  question?: string | null;
+  answer?: string | null;
+  questionIndex?: number | null;
+};
 
 @ApiTags('Agent')
 @ApiBearerAuth()
@@ -92,11 +116,105 @@ export class AgentController {
 
   // ─── Feedback ────────────────────────────────────────────────────────────
 
+  @Post('ami-ai/audit')
+  @ApiOperation({ summary: '记录 Ami AI 兜底回答到统一运行审计' })
+  async recordAmiAiAudit(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @CurrentDevice('id') deviceId: number | undefined,
+    @CurrentDevice('permissions') permissions: string[] | undefined,
+    @CurrentDevice('fieldScopes') fieldScopes: AgentFieldScopes | undefined,
+    @Body() body: RecordAmiAiAuditBody,
+    @CurrentDevice('availableRoles') availableRoles?: AgentRole[],
+  ) {
+    const message = String(body.message ?? '').trim();
+    if (!message) throw new BadRequestException('Ami AI 审计缺少用户问题。');
+    const answer = String(body.answer ?? '').trim();
+    const completedAt = new Date();
+    const latencyMs = Number(body.latencyMs);
+    const startedAt = new Date(completedAt.getTime() - (Number.isFinite(latencyMs) && latencyMs > 0 ? Math.floor(latencyMs) : 0));
+    const actorContext = await this.resolveActorContext({
+      storeId,
+      authenticatedUserId: userId,
+      requestedOperatorId: body.operatorId,
+      requestedRole: body.role,
+      permissions,
+      fieldScopes,
+      availableRoles,
+    });
+    const runNo = `ar_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const fallbackReason = String(body.fallbackReason ?? '').trim() || null;
+    const businessContext = String(body.businessContext ?? '').trim() || null;
+    const resultJson = this.toJsonObject({
+      answer,
+      architecture: 'ami_ai_fallback',
+      agentEngine: 'ami_ai',
+      responseMode: 'ami_ai',
+      fallback: true,
+      fallbackReason,
+      source: body.source ?? 'terminal_ami_ai_fallback',
+    });
+    const contextJson = this.toJsonObject({
+      agentEngine: 'ami_ai',
+      architecture: 'ami_ai_fallback',
+      fallbackReason,
+      businessContext,
+      source: body.source ?? 'terminal_ami_ai_fallback',
+    });
+    const run = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.agentRun.create({
+        data: {
+          runNo,
+          storeId,
+          userId: actorContext.userId ?? null,
+          deviceId: deviceId ?? null,
+          role: actorContext.role,
+          entrypoint: body.entrypoint ?? 'terminal:kiosk',
+          agentCode: 'ami_ai',
+          personaCode: null,
+          status: 'completed',
+          userInput: message,
+          contextJson,
+          resultJson,
+          errorMessage: null,
+          startedAt,
+          completedAt,
+        },
+      });
+      await tx.agentMessage.create({
+        data: {
+          runId: created.id,
+          role: 'user',
+          content: message,
+          metadata: this.toJsonObject({ entrypoint: body.entrypoint ?? 'terminal:kiosk', agentEngine: 'ami_ai' }),
+        },
+      });
+      if (answer) {
+        await tx.agentMessage.create({
+          data: {
+            runId: created.id,
+            role: 'assistant',
+            content: answer,
+            metadata: this.toJsonObject({ architecture: 'ami_ai_fallback', fallbackReason }),
+          },
+        });
+      }
+      return created;
+    });
+    return {
+      runId: Number(run.id),
+      id: Number(run.id),
+      runNo: run.runNo,
+      agentCode: run.agentCode,
+      status: run.status,
+    };
+  }
+
   @Post('runs/:id/feedback')
   @ApiOperation({ summary: '提交 Agent Run 的用户反馈和采纳记录' })
   async submitFeedback(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
+    @Body() body: AgentFeedbackBody,
     @CurrentDevice() device: any,
   ) {
     const run = await this.prisma.agentRun.findFirst({
@@ -953,7 +1071,7 @@ export class AgentController {
       resultJson?: unknown;
       errorMessage?: string | null;
     } | null,
-    body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
+    body: AgentFeedbackBody,
   ) {
     const plan = this.asObject(run?.planJson);
     const result = this.asObject(run?.resultJson);
@@ -967,11 +1085,40 @@ export class AgentController {
       ...toolResults.map((item) => String(this.asObject(item)?.title ?? '')).filter(Boolean),
     ];
     const userProvided = this.asObject(body.businessActionJson);
+    const feedbackContext = this.asObject(userProvided?.feedbackContext);
+    const previousSnapshot = this.asObject(userProvided?.snapshot);
+    const messageId = body.messageId ?? feedbackContext?.messageId ?? previousSnapshot?.messageId ?? null;
+    const questionIndex = body.questionIndex ?? feedbackContext?.questionIndex ?? previousSnapshot?.questionIndex ?? null;
+    const question = this.firstNonEmptyText(
+      body.question,
+      feedbackContext?.question,
+      previousSnapshot?.question,
+      userProvided?.question,
+      run?.userInput,
+    );
+    const answer = this.firstNonEmptyText(
+      body.answer,
+      feedbackContext?.answer,
+      previousSnapshot?.answer,
+      userProvided?.answer,
+      result?.answer,
+      run?.errorMessage,
+    );
+    const feedbackScope = this.firstNonEmptyText(
+      body.feedbackScope,
+      feedbackContext?.feedbackScope,
+      previousSnapshot?.feedbackScope,
+      userProvided?.feedbackScope,
+      messageId ? 'message' : 'run',
+    );
     return this.toJsonObject({
       ...(userProvided ? { userProvided } : {}),
       snapshot: {
-        question: run?.userInput ?? '',
-        answer: String(result?.answer ?? run?.errorMessage ?? ''),
+        feedbackScope,
+        messageId,
+        questionIndex,
+        question,
+        answer,
         skillId: String(traceSummary?.skillId ?? skillPlan?.skillId ?? ''),
         capabilityId: String(traceSummary?.capabilityId ?? skillPlan?.capabilityId ?? capabilityPlan?.capabilityId ?? ''),
         toolNames: [...new Set(toolNames)].slice(0, 8),
@@ -1150,6 +1297,14 @@ export class AgentController {
 
   private asArray(value: unknown): any[] {
     return Array.isArray(value) ? value : [];
+  }
+
+  private firstNonEmptyText(...values: unknown[]): string {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    }
+    return '';
   }
 
   private toJsonObject(value: Record<string, unknown>) {

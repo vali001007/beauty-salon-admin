@@ -7,6 +7,7 @@ import type {
 } from './agent';
 
 export type AgentGovernanceStatus = 'completed' | 'failed' | 'running' | 'waiting_approval' | 'cancelled' | string;
+export type AgentGovernanceEngineFilter = 'all' | 'ami_ai' | 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5';
 
 export interface AgentGovernanceListQuery {
   page?: number;
@@ -14,6 +15,7 @@ export interface AgentGovernanceListQuery {
   status?: string;
   keyword?: string;
   storeId?: number;
+  engine?: AgentGovernanceEngineFilter;
 }
 
 export interface AgentGovernanceListResult<T> {
@@ -27,6 +29,95 @@ export interface AgentGovernanceRunStats {
   total: number;
   byStatus: Record<string, number>;
   activeManifestVersion?: string | null;
+  engine?: AgentGovernanceEngineFilter;
+}
+
+export interface AgentV5GovernanceRunSummary {
+  runId: number;
+  runNo: string;
+  status: string;
+  intent: string;
+  adapter: string;
+  answer?: string;
+  createdAt?: string;
+}
+
+export interface AgentV5GovernanceOverview {
+  agentCode: 'agent_v5' | string;
+  totalRuns: number;
+  failedRuns: number;
+  failureRate: number;
+  clarificationRuns: number;
+  clarificationRate: number;
+  memoryRuns: number;
+  memoryUsageRate: number;
+  adapterCounts: Record<string, number>;
+  recentRuns: AgentV5GovernanceRunSummary[];
+  limitations?: string[];
+}
+
+export interface AgentV5GovernanceRoutes {
+  intentCounts: Record<string, number>;
+  capabilities: Array<{
+    code: string;
+    label: string;
+    domain: string;
+    adapter: string;
+    riskLevel: string;
+    evidenceRequired: boolean;
+    hitCount: number;
+  }>;
+}
+
+export interface AgentV5GovernanceAdapters {
+  adapters: Array<{
+    adapterCode: string;
+    capabilityCount: number;
+    capabilities: string[];
+  }>;
+  verticalAdapters: string[];
+  boundary: string;
+}
+
+export interface AgentV5GovernanceClarifications {
+  total: number;
+  items: Array<{
+    runId: number;
+    runNo: string;
+    status: string;
+    question: string;
+    candidates: string[];
+    createdAt?: string;
+  }>;
+}
+
+export interface AgentV5GovernanceMemory {
+  snapshotCount: number;
+  workingKeyCounts: Record<string, number>;
+  preferenceKeyCounts: Record<string, number>;
+  policy: string;
+}
+
+export interface AgentV5GovernanceFailures {
+  total: number;
+  items: Array<{
+    runId: number;
+    runNo: string;
+    intent: string;
+    adapter: string;
+    errorMessage?: string;
+    createdAt?: string;
+  }>;
+}
+
+export interface AgentV5GovernanceEval {
+  sampleSize: number;
+  completionRate: number;
+  failureRate: number;
+  clarificationRate: number;
+  memoryUsageRate: number;
+  adapterCoverage: AgentV5GovernanceAdapters;
+  recommendation: string;
 }
 
 export interface AgentGovernanceHealthMetrics {
@@ -37,6 +128,7 @@ export interface AgentGovernanceHealthMetrics {
     since: string;
     until: string;
     storeId?: number | null;
+    engine?: AgentGovernanceEngineFilter;
   };
   runs: {
     total: number;
@@ -118,6 +210,9 @@ export type AgentFeedbackDiagnosisCategory =
 export interface AgentFeedbackDiagnosticItem {
   feedbackId: number;
   runId: number;
+  feedbackScope?: 'run' | 'message' | string;
+  messageId?: string | number | null;
+  questionIndex?: number | null;
   runNo?: string | null;
   storeId?: number | null;
   engine: string;
@@ -162,6 +257,7 @@ export interface AgentFeedbackDiagnosticReport {
     since: string;
     until: string;
     storeId?: number | null;
+    engine?: AgentGovernanceEngineFilter;
   };
   kpis: {
     totalNegativeFeedback: number;

@@ -9,6 +9,7 @@
     "noEmit": true
   },
   "include": [
+    "prisma/agent-all-version-eval.ts",
     "prisma/agent-eval-*.ts",
     "prisma/agent-knowledge-*.ts",
     "prisma/agent-v2-*.ts",

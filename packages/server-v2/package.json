@@ -106,6 +106,7 @@
     "agent:eval:knowledge-map:gate:p1": "npm run agent:eval:knowledge-map -- --gate=p1",
     "agent:eval:knowledge-map:gate:p2": "npm run agent:eval:knowledge-map -- --gate=p2",
     "agent:eval:remaining-supported": "set TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json&& set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/agent-eval-remaining-supported.ts",
+    "agent:eval:all-versions": "set TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json&& set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/agent-all-version-eval.ts",
     "agent:knowledge:generate": "set TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json&& set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/generate-schema-graph.ts",
     "agent:knowledge:schema-check": "set TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json&& set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/agent-knowledge-schema-check.ts",
     "agent:knowledge:scan": "set TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json&& set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/agent-knowledge-scan.ts",

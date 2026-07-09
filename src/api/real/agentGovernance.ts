@@ -17,6 +17,7 @@ import type {
   AgentGovernanceEvalRunImportResult,
   AgentGovernanceEvalRunRecord,
   AgentFeedbackDiagnosticReport,
+  AgentGovernanceEngineFilter,
   AgentGovernanceHealthMetrics,
   AgentGovernanceListQuery,
   AgentGovernanceListResult,
@@ -52,11 +53,11 @@ export async function getAgentGovernanceRuns(
   return apiClient.get(`${BASE_PATH}/runs`, { params });
 }
 
-export async function getAgentGovernanceRunStats(params: { storeId?: number } = {}): Promise<AgentGovernanceRunStats> {
+export async function getAgentGovernanceRunStats(params: { storeId?: number; engine?: AgentGovernanceEngineFilter } = {}): Promise<AgentGovernanceRunStats> {
   return apiClient.get(`${BASE_PATH}/runs/stats`, { params });
 }
 
-export async function getAgentGovernanceHealth(params: { days?: number; storeId?: number } = {}): Promise<AgentGovernanceHealthMetrics> {
+export async function getAgentGovernanceHealth(params: { days?: number; storeId?: number; engine?: AgentGovernanceEngineFilter } = {}): Promise<AgentGovernanceHealthMetrics> {
   return apiClient.get(`${BASE_PATH}/health`, { params });
 }
 
@@ -67,7 +68,7 @@ export async function getAgentGovernanceRunFailures(
 }
 
 export async function getAgentGovernanceUncoveredTop(
-  params: { limit?: number; storeId?: number } = {},
+  params: { limit?: number; storeId?: number; engine?: AgentGovernanceEngineFilter } = {},
 ): Promise<AgentGovernanceUncoveredQuestion[]> {
   return apiClient.get(`${BASE_PATH}/runs/uncovered-top`, { params });
 }
@@ -78,11 +79,12 @@ export async function getAgentFeedbackDiagnostics(params: {
   days?: number;
   category?: string;
   storeId?: number;
+  engine?: AgentGovernanceEngineFilter;
 } = {}): Promise<AgentFeedbackDiagnosticReport> {
   return apiClient.get(`${BASE_PATH}/feedback-diagnostics`, { params });
 }
 
-export async function getAgentGovernanceRunDetail(id: number, params: { storeId?: number } = {}): Promise<AgentGovernanceRunDetail> {
+export async function getAgentGovernanceRunDetail(id: number, params: { storeId?: number; engine?: AgentGovernanceEngineFilter } = {}): Promise<AgentGovernanceRunDetail> {
   return apiClient.get(`${BASE_PATH}/runs/${id}/detail`, { params });
 }
 

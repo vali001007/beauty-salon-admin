@@ -13,6 +13,7 @@ import type {
   AgentRole,
   AgentApprovalListItem,
   AgentEvalSummary,
+  AgentFeedbackContext,
   AgentFeedbackFailureReport,
   AgentKnowledgeGovernance,
   AgentKnowledgeGovernanceReportSummary,
@@ -52,6 +53,24 @@ import {
   getAgentV2RunDetail,
   getAgentV2RunsPaginated,
 } from '@/api/real/agentV2';
+import {
+  appendAgentV3Message,
+  createAgentV3Run,
+  getAgentV3RunDetail,
+  getAgentV3RunsPaginated,
+} from '@/api/real/agentV3';
+import {
+  appendAgentV4Message,
+  createAgentV4Run,
+  getAgentV4RunDetail,
+  getAgentV4RunsPaginated,
+} from '@/api/real/agentV4';
+import {
+  appendAgentV5Message,
+  createAgentV5Run,
+  getAgentV5RunDetail,
+  getAgentV5RunsPaginated,
+} from '@/api/real/agentV5';
 import { useStoreStore } from '@/stores/storeStore';
 import { useAuthStore } from '@/stores/authStore';
 import { AgentBlockRenderer, AgentPhaseOutputRenderer } from './components/AgentBlockRenderer';
@@ -67,7 +86,7 @@ interface ConversationMessage extends AgentConversationMessage {
 }
 
 type AgentWorkspaceTab = 'debug' | 'audit' | 'approvals' | 'personas' | 'eval' | 'quality' | 'knowledge';
-type AgentRuntimeMode = 'agent_v1' | 'agent_v2';
+type AgentRuntimeMode = 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5';
 type AgentV2GrayMode = 'legacy_regex' | 'shadow' | 'kg_llm_preferred' | 'kg_llm_only' | 'legacy_retired';
 
 const AGENT_RUNTIME_MODE_STORAGE_KEY = 'ami.agent.workspace.runtimeMode';
@@ -75,6 +94,9 @@ const AGENT_V2_GRAY_MODE_STORAGE_KEY = 'ami.agent.workspace.v2GrayMode';
 const AGENT_RUNTIME_OPTIONS: Array<{ value: AgentRuntimeMode; label: string; description: string }> = [
   { value: 'agent_v1', label: 'Agent V1', description: '旧工具链' },
   { value: 'agent_v2', label: 'Agent V2', description: '能力目录' },
+  { value: 'agent_v3', label: 'Agent V3', description: '只读问数' },
+  { value: 'agent_v4', label: 'Agent V4', description: '生命周期经营' },
+  { value: 'agent_v5', label: 'Agent V5', description: '全业务 Ontology' },
 ];
 const AGENT_V2_GRAY_MODE_OPTIONS: Array<{ value: AgentV2GrayMode; label: string; description: string }> = [
   { value: 'kg_llm_preferred', label: '优先', description: 'KG+LLM 优先' },
@@ -108,12 +130,23 @@ function getResultBusinessTask(result: unknown): Record<string, unknown> {
 }
 
 function resolveAgentRuntimeMode(value: string | null | undefined): AgentRuntimeMode {
+  if (value === 'agent_v5') return 'agent_v5';
+  if (value === 'agent_v4') return 'agent_v4';
+  if (value === 'agent_v3') return 'agent_v3';
   return value === 'agent_v2' ? 'agent_v2' : 'agent_v1';
 }
 
 function getStoredAgentRuntimeMode(): AgentRuntimeMode {
   if (typeof window === 'undefined') return 'agent_v1';
   return resolveAgentRuntimeMode(window.localStorage.getItem(AGENT_RUNTIME_MODE_STORAGE_KEY));
+}
+
+function resolveArchitectureLabel(mode: AgentRuntimeMode) {
+  if (mode === 'agent_v5') return 'agent_v5_business_ontology_agent';
+  if (mode === 'agent_v4') return 'agent_v4_lifecycle_business_agent';
+  if (mode === 'agent_v3') return 'agent_v3_text_to_sql';
+  if (mode === 'agent_v2') return 'kg_llm_agent';
+  return 'agent_v1';
 }
 
 function resolveAgentV2GrayMode(value: string | null | undefined): AgentV2GrayMode {
@@ -206,16 +239,43 @@ export function AmiAgentWorkspace() {
     () => ({
       ...(showPersonaDebug ? { debugTrace: true } : {}),
       agentEngine: agentRuntimeMode,
-      architecture: agentRuntimeMode === 'agent_v2' ? 'kg_llm_agent' : 'agent_v1',
+      architecture: agentRuntimeMode === 'agent_v5'
+        ? 'agent_v5_business_ontology_agent'
+        : agentRuntimeMode === 'agent_v4'
+        ? 'agent_v4_lifecycle_business_agent'
+        : agentRuntimeMode === 'agent_v3'
+          ? 'agent_v3_text_to_sql'
+          : agentRuntimeMode === 'agent_v2'
+            ? 'kg_llm_agent'
+            : 'agent_v1',
       ...(agentRuntimeMode === 'agent_v2' ? { agentV2GrayMode } : {}),
+      ...(agentRuntimeMode === 'agent_v3' ? { agentV3Mode: 'execute' } : {}),
+      ...(agentRuntimeMode === 'agent_v4' ? { agentV4Mode: 'execute', boundary: 'drafts_and_approval_only' } : {}),
+      ...(agentRuntimeMode === 'agent_v5' ? { agentV5Mode: 'execute', boundary: 'drafts_followups_and_approval_only' } : {}),
     }),
     [agentRuntimeMode, agentV2GrayMode, showPersonaDebug],
   );
 
   const conversationApi = useMemo(
     () => ({
-      createRun: agentRuntimeMode === 'agent_v2' ? createAgentV2Run : createAgentRun,
-      appendMessage: agentRuntimeMode === 'agent_v2' ? appendAgentV2Message : appendAgentMessage,
+      createRun: agentRuntimeMode === 'agent_v5'
+        ? createAgentV5Run
+        : agentRuntimeMode === 'agent_v4'
+        ? createAgentV4Run
+        : agentRuntimeMode === 'agent_v3'
+          ? createAgentV3Run
+          : agentRuntimeMode === 'agent_v2'
+            ? createAgentV2Run
+            : createAgentRun,
+      appendMessage: agentRuntimeMode === 'agent_v5'
+        ? appendAgentV5Message
+        : agentRuntimeMode === 'agent_v4'
+        ? appendAgentV4Message
+        : agentRuntimeMode === 'agent_v3'
+          ? appendAgentV3Message
+          : agentRuntimeMode === 'agent_v2'
+            ? appendAgentV2Message
+            : appendAgentMessage,
       submitFeedback: submitAgentFeedback,
     }),
     [agentRuntimeMode],
@@ -246,7 +306,7 @@ export function AmiAgentWorkspace() {
         limitations: displayModel.limitations,
         phaseOutputs: (result as { phaseOutputs?: AgentPhaseOutput[] }).phaseOutputs,
         routeDecision: result.routeDecision,
-        architecture: String(businessTask.architecture ?? (agentRuntimeMode === 'agent_v2' ? 'kg_llm_agent' : 'agent_v1')),
+        architecture: String(businessTask.architecture ?? resolveArchitectureLabel(agentRuntimeMode)),
         agentV2GrayMode: typeof grayStrategy.mode === 'string'
           ? grayStrategy.mode
           : agentRuntimeMode === 'agent_v2'
@@ -333,8 +393,24 @@ export function AmiAgentWorkspace() {
   const loadAuditPanel = useCallback(async () => {
     setAuditLoading(true);
     try {
-      const listRuns = agentRuntimeMode === 'agent_v2' ? getAgentV2RunsPaginated : getAgentRunsPaginated;
-      const getRunDetail = agentRuntimeMode === 'agent_v2' ? getAgentV2RunDetail : getAgentRunDetail;
+      const listRuns = agentRuntimeMode === 'agent_v5'
+        ? getAgentV5RunsPaginated
+        : agentRuntimeMode === 'agent_v4'
+        ? getAgentV4RunsPaginated
+        : agentRuntimeMode === 'agent_v3'
+          ? getAgentV3RunsPaginated
+          : agentRuntimeMode === 'agent_v2'
+            ? getAgentV2RunsPaginated
+            : getAgentRunsPaginated;
+      const getRunDetail = agentRuntimeMode === 'agent_v5'
+        ? getAgentV5RunDetail
+        : agentRuntimeMode === 'agent_v4'
+        ? getAgentV4RunDetail
+        : agentRuntimeMode === 'agent_v3'
+          ? getAgentV3RunDetail
+          : agentRuntimeMode === 'agent_v2'
+            ? getAgentV2RunDetail
+            : getAgentRunDetail;
       const result = await listRuns({
         page: 1,
         pageSize: 20,
@@ -415,10 +491,10 @@ export function AmiAgentWorkspace() {
   }, [activeTab, loadApprovalsPanel, loadAuditPanel, loadEvalPanel, loadInsightPanel, loadKnowledgePanel]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, options?: { context?: Record<string, unknown> }) => {
       if (!text.trim() || sending) return;
       setInput('');
-      await sendAgentMessage(text);
+      await sendAgentMessage(text, options);
     },
     [sendAgentMessage, sending],
   );
@@ -456,9 +532,18 @@ export function AmiAgentWorkspace() {
     inputRef.current?.focus();
   };
 
-  const handleFeedback = async (runId: number, adopted: boolean) => {
+  const handleFeedback = async (runId: number, adopted: boolean, context?: AgentFeedbackContext) => {
     try {
-      await submitAgentConversationFeedback(runId, { adopted });
+      await submitAgentConversationFeedback(runId, {
+        adopted,
+        rating: adopted ? 5 : 1,
+        feedbackScope: context?.feedbackScope,
+        messageId: context?.messageId,
+        question: context?.question,
+        answer: context?.answer,
+        questionIndex: context?.questionIndex,
+        businessActionJson: context ? { feedbackContext: context } : undefined,
+      });
       void loadInsightPanel();
     } catch {
       // 静默失败，反馈不影响主流程
@@ -486,7 +571,16 @@ export function AmiAgentWorkspace() {
   const handleSelectAuditRun = async (runId: number) => {
     setAuditLoading(true);
     try {
-      setAuditRunDetail(await (agentRuntimeMode === 'agent_v2' ? getAgentV2RunDetail(runId) : getAgentRunDetail(runId)));
+      const getRunDetail = agentRuntimeMode === 'agent_v5'
+        ? getAgentV5RunDetail
+        : agentRuntimeMode === 'agent_v4'
+        ? getAgentV4RunDetail
+        : agentRuntimeMode === 'agent_v3'
+          ? getAgentV3RunDetail
+          : agentRuntimeMode === 'agent_v2'
+            ? getAgentV2RunDetail
+            : getAgentRunDetail;
+      setAuditRunDetail(await getRunDetail(runId));
     } catch (error) {
       console.warn(error);
     } finally {
@@ -511,6 +605,38 @@ export function AmiAgentWorkspace() {
   };
 
   const handleAction = async (actionId: string, payload?: AgentActionPayload) => {
+    if (actionId.startsWith('agent-v5:clarification:')) {
+      const selection = actionId.split(':').slice(2).join(':');
+      void sendMessage(selection, {
+        context: {
+          ...agentRuntimeContext,
+          agentV5ClarificationSelection: selection,
+        },
+      });
+      return;
+    }
+    if (actionId === 'agent-v5:business-plan') {
+      void sendMessage('基于美业全业务 Ontology，生成本周经营计划');
+      return;
+    }
+    if (actionId.startsWith('agent-v5:submit-business-plan:')) {
+      const planId = Number(actionId.split(':')[2]);
+      if (planId) {
+        void sendMessage(`提交经营计划 ${planId} 审批`);
+      }
+      return;
+    }
+    if (actionId === 'agent-v4:business-plan') {
+      void sendMessage('基于客户全生命周期服务营销小本体，生成本周经营计划');
+      return;
+    }
+    if (actionId.startsWith('agent-v4:submit-business-plan:')) {
+      const planId = Number(actionId.split(':')[2]);
+      if (planId) {
+        void sendMessage(`提交经营计划 ${planId} 审批`);
+      }
+      return;
+    }
     const [action, scope, idText] = actionId.split(':');
     if (action === 'marketing' && scope === 'activity') {
       if (idText === 'edit') {
@@ -553,7 +679,7 @@ export function AmiAgentWorkspace() {
         phaseOutputs: (result as { phaseOutputs?: AgentPhaseOutput[] }).phaseOutputs,
         followUpSuggestions: displayModel.followUpSuggestions,
         runId: result.runId,
-        architecture: String(businessTask.architecture ?? (agentRuntimeMode === 'agent_v2' ? 'kg_llm_agent' : 'agent_v1')),
+        architecture: String(businessTask.architecture ?? resolveArchitectureLabel(agentRuntimeMode)),
         agentV2GrayMode: typeof grayStrategy.mode === 'string'
           ? grayStrategy.mode
           : agentRuntimeMode === 'agent_v2'
@@ -591,22 +717,45 @@ export function AmiAgentWorkspace() {
           ) : null}
 
           <div className="flex flex-1 flex-col overflow-hidden border-x border-border">
-            <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-              <Sparkles className="h-5 w-5 text-[#7B5CFF]" />
-              <div>
-                <h1 className="text-sm font-semibold text-foreground">
-                  {showPersonaDebug ? activePersona?.name ?? '洞悉美业·运营智能体' : '洞悉美业·门店运营智能体'}
-                </h1>
-                {showPersonaDebug && activePersona ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
-                    {activePersona.description}
-                  </p>
-                ) : (
-                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
-                    自动识别问题类型并分配给合适的专业 Agent。
-                  </p>
-                )}
+            <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <Sparkles className="h-5 w-5 shrink-0 text-[#7B5CFF]" />
+                <div className="min-w-0">
+                  <h1 className="text-sm font-semibold text-foreground">
+                    {showPersonaDebug ? activePersona?.name ?? '洞悉美业·运营智能体' : '洞悉美业·门店运营智能体'}
+                  </h1>
+                  {showPersonaDebug && activePersona ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                      {activePersona.description}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                      自动识别问题类型并分配给合适的专业 Agent。
+                    </p>
+                  )}
+                </div>
               </div>
+              {agentRuntimeMode === 'agent_v5' ? (
+                <button
+                  type="button"
+                  onClick={() => void sendMessage('基于美业全业务 Ontology，生成本周经营计划')}
+                  disabled={sending}
+                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#7B5CFF]/30 bg-[#7B5CFF]/5 px-3 text-xs font-medium text-[#6A4FE3] hover:bg-[#7B5CFF]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  {sending ? '生成中' : '生成 V5 经营计划'}
+                </button>
+              ) : agentRuntimeMode === 'agent_v4' ? (
+                <button
+                  type="button"
+                  onClick={() => void sendMessage('基于客户全生命周期服务营销小本体，生成本周经营计划')}
+                  disabled={sending}
+                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#7B5CFF]/30 bg-[#7B5CFF]/5 px-3 text-xs font-medium text-[#6A4FE3] hover:bg-[#7B5CFF]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  {sending ? '生成中' : '生成本周经营计划'}
+                </button>
+              ) : null}
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
@@ -2362,6 +2511,9 @@ function getArchitectureLabel(value?: string) {
     agent_v2_shadow: 'V2 Shadow',
     agent_v2_legacy_fallback: 'V2 回退',
     agent_v2_kg_llm_retired: '旧链退役',
+    agent_v5_business_ontology_agent: 'Agent V5',
+    agent_v4_lifecycle_business_agent: 'Agent V4',
+    agent_v3_text_to_sql: 'Agent V3',
     agent_v2: 'Agent V2',
     agent_v1: 'Agent V1',
   };
@@ -2456,6 +2608,18 @@ function EmptyState({
 
 // ─── MessageItem ──────────────────────────────────────────────────────────────
 
+function buildWorkspaceFeedbackContext(msg: ConversationMessage): AgentFeedbackContext {
+  const metadata = msg.metadata ?? {};
+  const question = typeof metadata.feedbackQuestion === 'string' ? metadata.feedbackQuestion : '';
+  return {
+    feedbackScope: 'message',
+    messageId: msg.id,
+    question: question || null,
+    answer: msg.text ?? '',
+    source: 'ami-agent:workspace',
+  };
+}
+
 export function MessageItem({
   msg,
   onFollowUp,
@@ -2464,7 +2628,7 @@ export function MessageItem({
 }: {
   msg: ConversationMessage;
   onFollowUp: (s: string) => void;
-  onFeedback: (runId: number, adopted: boolean) => void;
+  onFeedback: (runId: number, adopted: boolean, context?: AgentFeedbackContext) => void;
   onAction: (actionId: string, payload?: AgentActionPayload) => void;
 }) {
   if (msg.role === 'user') {
@@ -2609,14 +2773,14 @@ export function MessageItem({
         <div className="flex gap-2 px-1">
           <button
             type="button"
-            onClick={() => onFeedback(msg.runId!, true)}
+            onClick={() => onFeedback(msg.runId!, true, buildWorkspaceFeedbackContext(msg))}
             className="text-xs text-muted-foreground hover:text-emerald-600 transition-colors"
           >
             👍 有用
           </button>
           <button
             type="button"
-            onClick={() => onFeedback(msg.runId!, false)}
+            onClick={() => onFeedback(msg.runId!, false, buildWorkspaceFeedbackContext(msg))}
             className="text-xs text-muted-foreground hover:text-rose-500 transition-colors"
           >
             👎 无用

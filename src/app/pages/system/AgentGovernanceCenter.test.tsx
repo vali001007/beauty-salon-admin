@@ -44,6 +44,12 @@ const api = vi.hoisted(() => ({
   getAgentV2TextToSqlRuns: vi.fn(),
   getAgentV2TextToSqlSemanticViews: vi.fn(),
   getAgentV2TextToSqlStatus: vi.fn(),
+  getAgentV5GovernanceAdapters: vi.fn(),
+  getAgentV5GovernanceClarifications: vi.fn(),
+  getAgentV5GovernanceEval: vi.fn(),
+  getAgentV5GovernanceMemory: vi.fn(),
+  getAgentV5GovernanceOverview: vi.fn(),
+  getAgentV5GovernanceRoutes: vi.fn(),
   importLatestAgentGovernanceEvalRun: vi.fn(),
   inspectAgentV2TextToSqlGuard: vi.fn(),
   promoteAgentV2TextToSqlCandidate: vi.fn(),
@@ -167,6 +173,194 @@ describe('AgentGovernanceCenter', () => {
       status: 'active',
       mode: 'all',
     }));
+  });
+
+  it('passes selected runtime engine to governance metrics and run audit APIs', async () => {
+    const now = '2026-07-05T14:42:00.000Z';
+    api.getAgentGovernanceRunStats.mockResolvedValue({
+      total: 1,
+      byStatus: { completed: 1 },
+      activeManifestVersion: 'v-local-smoke',
+    });
+    api.getAgentKnowledgeGraphSummary.mockResolvedValue({
+      generatedAt: now,
+      schemaHash: 'hash',
+      nodeCount: 1,
+      edgeCount: 1,
+      nodeCountsByType: {},
+      edgeCountsByType: {},
+      businessObjectCount: 1,
+      dataModelCount: 1,
+      activeCapabilityCount: 1,
+      permissionCodeCount: 1,
+      passed: true,
+      blockerCount: 0,
+      warningCount: 0,
+    });
+    api.getAgentGovernanceHealth.mockResolvedValue({
+      generatedAt: now,
+      window: { days: 7, since: now, until: now },
+      runs: { total: 1, completed: 1, failed: 0, successRate: 1, byStatus: { completed: 1 }, runLatencyP99Ms: 100, latencySampleCount: 1 },
+      tools: { total: 0, failed: 0, highRiskAutoExecutionCount: 0, byStatus: {}, byRiskLevel: {}, topTools: [], toolLatencyP99Ms: null, latencySampleCount: 0 },
+      approvals: { total: 0, byStatus: {} },
+      strategy: { byMode: {}, byFinalEngine: {}, legacyFallbackCount: 0, shadowCount: 0, sampleCount: 0 },
+      cache: { status: 'not_measured', hitRate: null, sampleCount: 0 },
+      eval: { total: 0, byStatus: {} },
+      risks: { unauthorizedEvidenceCount: 0, highRiskAutoExecutionCount: 0 },
+    });
+    api.getAgentGovernanceCapabilityHealth.mockResolvedValue({
+      activeManifestVersion: 'v-local-smoke',
+      total: 1,
+      enabled: 1,
+      disabled: 0,
+      byReleaseStrategy: {},
+      byRiskLevel: {},
+    });
+    api.getAgentGovernanceEvalRuns.mockResolvedValue({
+      generatedAt: now,
+      summary: { pass: true, totalQuestions: 1, p0Questions: 1 },
+      metrics: { p0Accuracy: 1, highRiskAutoPublish: 0 },
+      gates: [],
+    });
+    api.getAgentGovernanceAutoPublishLogs.mockResolvedValue(listResult([], 5));
+    api.getAgentGovernanceUncoveredTop.mockResolvedValue([]);
+    api.getAgentGovernanceRuns.mockResolvedValue(listResult([
+      {
+        id: 303,
+        runNo: 'RUN-V3',
+        storeId: 1,
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        agentCode: 'agent_v3',
+        status: 'completed',
+        userInput: '最近3个月营业额趋势',
+        createdAt: now,
+        toolCallCount: 0,
+        approvalCount: 0,
+      },
+    ]));
+
+    renderAgentGovernanceCenter();
+    await screen.findByText('7天运行数');
+    await userEvent.click(screen.getByRole('button', { name: 'V3' }));
+
+    await waitFor(() => {
+      expect(api.getAgentGovernanceRunStats).toHaveBeenLastCalledWith({ engine: 'agent_v3' });
+      expect(api.getAgentGovernanceHealth).toHaveBeenLastCalledWith({ days: 7, engine: 'agent_v3' });
+      expect(api.getAgentGovernanceUncoveredTop).toHaveBeenLastCalledWith({ limit: 5, engine: 'agent_v3' });
+    });
+
+    await userEvent.click(screen.getByRole('tab', { name: '全版本运行审计' }));
+
+    await waitFor(() => {
+      expect(api.getAgentGovernanceRuns).toHaveBeenLastCalledWith(expect.objectContaining({ engine: 'agent_v3' }));
+    });
+    expect(await screen.findByText('RUN-V3')).toBeInTheDocument();
+  });
+
+  it('loads Agent V5 ontology governance panel when V5 runtime is selected', async () => {
+    const now = '2026-07-05T14:42:00.000Z';
+    api.getAgentGovernanceRunStats.mockResolvedValue({
+      total: 4,
+      byStatus: { completed: 4 },
+      activeManifestVersion: 'v-local-smoke',
+    });
+    api.getAgentKnowledgeGraphSummary.mockResolvedValue({
+      generatedAt: now,
+      schemaHash: 'hash',
+      nodeCount: 1,
+      edgeCount: 1,
+      nodeCountsByType: {},
+      edgeCountsByType: {},
+      businessObjectCount: 1,
+      dataModelCount: 1,
+      activeCapabilityCount: 1,
+      permissionCodeCount: 1,
+      passed: true,
+      blockerCount: 0,
+      warningCount: 0,
+    });
+    api.getAgentGovernanceHealth.mockResolvedValue({
+      generatedAt: now,
+      window: { days: 7, since: now, until: now },
+      runs: { total: 4, completed: 4, failed: 0, successRate: 1, byStatus: { completed: 4 }, runLatencyP99Ms: 120, latencySampleCount: 4 },
+      tools: { total: 0, failed: 0, highRiskAutoExecutionCount: 0, byStatus: {}, byRiskLevel: {}, topTools: [], toolLatencyP99Ms: null, latencySampleCount: 0 },
+      approvals: { total: 0, byStatus: {} },
+      strategy: { byMode: {}, byFinalEngine: {}, legacyFallbackCount: 0, shadowCount: 0, sampleCount: 0 },
+      cache: { status: 'not_measured', hitRate: null, sampleCount: 0 },
+      eval: { total: 0, byStatus: {} },
+      risks: { unauthorizedEvidenceCount: 0, highRiskAutoExecutionCount: 0 },
+    });
+    api.getAgentGovernanceCapabilityHealth.mockResolvedValue({
+      activeManifestVersion: 'v-local-smoke',
+      total: 1,
+      enabled: 1,
+      disabled: 0,
+      byReleaseStrategy: {},
+      byRiskLevel: {},
+    });
+    api.getAgentGovernanceEvalRuns.mockResolvedValue({
+      generatedAt: now,
+      summary: { pass: true, totalQuestions: 1, p0Questions: 1 },
+      metrics: { p0Accuracy: 1, highRiskAutoPublish: 0 },
+      gates: [],
+    });
+    api.getAgentGovernanceAutoPublishLogs.mockResolvedValue(listResult([], 5));
+    api.getAgentGovernanceUncoveredTop.mockResolvedValue([]);
+    api.getAgentV5GovernanceOverview.mockResolvedValue({
+      agentCode: 'agent_v5',
+      totalRuns: 4,
+      failedRuns: 0,
+      failureRate: 0,
+      clarificationRuns: 2,
+      clarificationRate: 0.5,
+      memoryRuns: 3,
+      memoryUsageRate: 0.75,
+      adapterCounts: { lifecycle: 2, reception: 1 },
+      recentRuns: [],
+    });
+    api.getAgentV5GovernanceRoutes.mockResolvedValue({
+      intentCounts: { lifecycle_diagnosis: 2, reception_lookup: 1 },
+      capabilities: [],
+    });
+    api.getAgentV5GovernanceAdapters.mockResolvedValue({
+      adapters: [
+        { adapterCode: 'lifecycle', capabilityCount: 2, capabilities: ['lifecycle.opportunities'] },
+        { adapterCode: 'reception', capabilityCount: 1, capabilities: ['reception.customer.lookup'] },
+      ],
+      verticalAdapters: ['lifecycle', 'reception'],
+      boundary: 'V5 adapter 可复用底层 service，但不递归调用旧版本 Agent。',
+    });
+    api.getAgentV5GovernanceClarifications.mockResolvedValue({
+      total: 1,
+      items: [{ runId: 1, runNo: 'V5-1', status: 'completed', question: '你想看哪个方向？', candidates: ['business_overview'], createdAt: now }],
+    });
+    api.getAgentV5GovernanceMemory.mockResolvedValue({
+      snapshotCount: 3,
+      workingKeyCounts: { last_customer_name: 2 },
+      preferenceKeyCounts: {},
+      policy: '只保留 V5 短期业务上下文。',
+    });
+    api.getAgentV5GovernanceEval.mockResolvedValue({
+      sampleSize: 4,
+      completionRate: 1,
+      failureRate: 0,
+      clarificationRate: 0.5,
+      memoryUsageRate: 0.75,
+      adapterCoverage: { adapters: [], verticalAdapters: [], boundary: '' },
+      recommendation: '优先补齐低命中 adapter 的实体解析。',
+    });
+
+    renderAgentGovernanceCenter();
+    await screen.findByText('7天运行数');
+    await userEvent.click(screen.getByRole('button', { name: 'V5' }));
+
+    expect(await screen.findByText('Agent V5 Ontology 治理')).toBeInTheDocument();
+    expect(screen.getByText('记忆策略')).toBeInTheDocument();
+    expect(screen.getByText('lifecycle · 2')).toBeInTheDocument();
+    expect(screen.getByText('last_customer_name · 2')).toBeInTheDocument();
+    await waitFor(() => expect(api.getAgentV5GovernanceOverview).toHaveBeenCalled());
+    await waitFor(() => expect(api.getAgentGovernanceRunStats).toHaveBeenLastCalledWith({ engine: 'agent_v5' }));
   });
 
   it('shows capability governance local closure from candidate pool, manifests, query keys and auto publish logs', async () => {
@@ -643,7 +837,7 @@ describe('AgentGovernanceCenter', () => {
     renderAgentGovernanceCenter();
 
     await screen.findByRole('heading', { name: 'AI 治理中心' });
-    await userEvent.click(screen.getByRole('tab', { name: '运行审计' }));
+    await userEvent.click(screen.getByRole('tab', { name: '全版本运行审计' }));
     expect(await screen.findByText('RUN-101')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: '详情' }));

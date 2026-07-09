@@ -437,6 +437,60 @@ describe('AgentV2GovernanceService', () => {
     expect(result.items.length).toBeLessThanOrEqual(5);
   });
 
+  it('filters runtime audit by requested agent engine', async () => {
+    const { service, prisma } = createService();
+
+    await service.listRuns({ engine: 'agent_v3', storeId: 1 });
+    expect(prisma.agentRun.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ agentCode: 'agent_v3', storeId: 1 }),
+    }));
+
+    await service.getRunStats({ engine: 'agent_v1', storeId: 1 });
+    expect(prisma.agentRun.groupBy).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ agentCode: 'business_operations', storeId: 1 }),
+    }));
+
+    await service.listUncoveredTop({ engine: 'ami_ai', storeId: 1 });
+    expect(prisma.agentRun.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ agentCode: 'ami_ai', storeId: 1 }),
+    }));
+  });
+
+  it('does not apply an agentCode filter for all-version audit', async () => {
+    const { service, prisma } = createService();
+
+    await service.listRuns({ engine: 'all', storeId: 1 });
+
+    const calls = prisma.agentRun.findMany.mock.calls;
+    const call = calls[calls.length - 1]?.[0];
+    expect(call.where).toMatchObject({ storeId: 1 });
+    expect(call.where.agentCode).toBeUndefined();
+  });
+
+  it('loads run detail for non-V2 engines', async () => {
+    const { service, prisma } = createService();
+
+    await service.getRunDetail(1, 1, 'agent_v3');
+
+    expect(prisma.agentRun.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 1, storeId: 1, agentCode: 'agent_v3' }),
+    }));
+  });
+
+  it('scopes negative feedback diagnostics by engine run ids', async () => {
+    const { service, prisma } = createService();
+
+    await service.listFeedbackDiagnostics({ engine: 'ami_ai', storeId: 1, days: 30 });
+
+    expect(prisma.agentRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ agentCode: 'ami_ai', storeId: 1 }),
+      select: { id: true },
+    }));
+    expect(prisma.agentFeedback.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ runId: { in: [1] } }),
+    }));
+  });
+
   it('diagnoses useless feedback with semantic route and presentation suggestions', async () => {
     const { service, prisma } = createService();
     const now = new Date('2026-07-05T10:00:00.000Z');
@@ -512,6 +566,79 @@ describe('AgentV2GovernanceService', () => {
     expect(report.items.map((item) => item.diagnosis.category)).toEqual(['semantic_route', 'presentation_format']);
     expect(report.items[0].diagnosis.suggestedFixes.join(' ')).toContain('语义路由');
     expect(report.items[1].diagnosis.suggestedFixes.join(' ')).toContain('表头');
+  });
+
+  it('keeps negative feedback diagnostics split by message question within one run', async () => {
+    const { service, prisma } = createService();
+    const now = new Date('2026-07-05T10:00:00.000Z');
+    prisma.agentFeedback.findMany.mockResolvedValueOnce([
+      {
+        id: 203,
+        runId: 303,
+        storeId: 1,
+        rating: 1,
+        adopted: false,
+        comment: null,
+        businessActionJson: {
+          snapshot: {
+            feedbackScope: 'message',
+            messageId: 'a-2',
+            questionIndex: 2,
+            question: '第二问：哪些客户今天要跟进',
+            answer: '第二问回答',
+          },
+        },
+        createdAt: now,
+      },
+      {
+        id: 204,
+        runId: 303,
+        storeId: 1,
+        rating: 1,
+        adopted: false,
+        comment: null,
+        businessActionJson: {
+          snapshot: {
+            feedbackScope: 'message',
+            messageId: 'a-3',
+            questionIndex: 3,
+            question: '第三问：库存有什么风险',
+            answer: '第三问回答',
+          },
+        },
+        createdAt: now,
+      },
+    ]);
+    prisma.agentFeedback.count.mockResolvedValueOnce(2);
+    prisma.agentRun.findMany.mockResolvedValueOnce([
+      {
+        id: 303,
+        runNo: 'ar_303',
+        storeId: 1,
+        role: 'manager',
+        entrypoint: 'terminal:kiosk',
+        agentCode: 'agent_v5',
+        personaCode: null,
+        status: 'completed',
+        userInput: '第一问：今天营收多少',
+        planJson: {},
+        contextJson: { agentEngine: 'agent_v5' },
+        evidenceJson: {},
+        resultJson: { answer: '第一问回答' },
+        errorMessage: null,
+        createdAt: now,
+      },
+    ]);
+
+    const report = await service.listFeedbackDiagnostics({ storeId: 1, days: 30 });
+
+    expect(report.items).toHaveLength(2);
+    expect(report.items.map((item) => item.question)).toEqual([
+      '第二问：哪些客户今天要跟进',
+      '第三问：库存有什么风险',
+    ]);
+    expect(report.items.map((item) => item.messageId)).toEqual(['a-2', 'a-3']);
+    expect(report.items.every((item) => item.feedbackScope === 'message')).toBe(true);
   });
 
   it('returns focused graph visualization and related node details', () => {
