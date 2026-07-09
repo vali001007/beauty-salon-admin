@@ -15,8 +15,14 @@ import type {
   MarketingTriggerRule,
   CustomerPredictionSnapshot,
   CustomerLifecycleContext,
+  CustomerLifecycleQualitySnapshot,
+  CustomerLifecycleRuleVersion,
   CustomerOpportunity,
+  CustomerOpportunityFulfillmentCheck,
+  CustomerServiceCycleState,
   InvitationCandidateResponse,
+  LifecycleAttributionEvent,
+  LifecycleBusinessPlan,
   PredictionRunSummary,
   UnifiedMarketingEffectsResponse,
 } from '@/types';
@@ -51,8 +57,15 @@ import {
   realGetAutomationTriggerOptions,
   realGetUnifiedMarketingEffects,
   realGetCustomerPrediction,
+  realCreateCustomerLifecycleRule,
+  realCreateLifecycleBusinessPlan,
+  realGetCustomerLifecycleAttribution,
   realGetCustomerLifecycleContext,
   realGetCustomerLifecycleOpportunities,
+  realGetCustomerLifecycleOpportunityFulfillment,
+  realGetCustomerLifecycleQuality,
+  realGetCustomerLifecycleRules,
+  realGetCustomerLifecycleServiceCycles,
   realGetInvitationCandidates,
   realGetLatestPredictionSummary,
   realGetMarketingActivities,
@@ -68,6 +81,8 @@ import {
   realPreviewMarketingRuleTemplateAudience,
   realPreviewAutomationAudience,
   realRecordCustomerBehaviorEvent,
+  realPublishCustomerLifecycleRule,
+  realRollbackCustomerLifecycleRule,
   realSaveAutomationStrategyDraft,
   realSaveStrategyDraft,
   realUpdateAutomationStrategy,
@@ -75,6 +90,7 @@ import {
   realUpdateMarketingRuleTemplate,
   realRunPredictions,
   realRebuildCustomerLifecycleOntology,
+  realSubmitLifecycleBusinessPlanActions,
 } from './real/marketing';
 
 export type { MarketingStrategy, StrategyEffectSummary };
@@ -240,7 +256,19 @@ export const getCustomerPrediction: (customerId: number) => Promise<{
 export const rebuildCustomerLifecycleOntology: (data?: {
   storeId?: number;
   predictionRunId?: number;
-}) => Promise<{ rebuilt: boolean; reason?: string | null; predictionRunId?: number | null; snapshotCount: number; opportunityCount: number }> =
+  includeServiceCycles?: boolean;
+  includeFulfillmentChecks?: boolean;
+  includeAttribution?: boolean;
+}) => Promise<{
+  rebuilt: boolean;
+  reason?: string | null;
+  predictionRunId?: number | null;
+  snapshotCount: number;
+  opportunityCount: number;
+  serviceCycleCount?: number;
+  fulfillmentCheckCount?: number;
+  attributionEventCount?: number;
+}> =
   realRebuildCustomerLifecycleOntology;
 
 export const getCustomerLifecycleOpportunities: (
@@ -249,12 +277,73 @@ export const getCustomerLifecycleOpportunities: (
     priority?: string;
     status?: string;
     customerId?: number;
+    inventoryReady?: boolean;
+    capacityReady?: boolean;
+    projectId?: number;
+    hasAttribution?: boolean;
   },
 ) => Promise<PaginatedResponse<CustomerOpportunity>> =
   realGetCustomerLifecycleOpportunities;
 
 export const getCustomerLifecycleContext: (customerId: number) => Promise<CustomerLifecycleContext | null> =
   realGetCustomerLifecycleContext;
+
+export const getCustomerLifecycleServiceCycles: (
+  params: PaginationParams & {
+    customerId?: number;
+    projectId?: number;
+    dueBefore?: string;
+  },
+) => Promise<PaginatedResponse<CustomerServiceCycleState>> =
+  realGetCustomerLifecycleServiceCycles;
+
+export const getCustomerLifecycleOpportunityFulfillment: (
+  opportunityId: number,
+) => Promise<CustomerOpportunityFulfillmentCheck[]> =
+  realGetCustomerLifecycleOpportunityFulfillment;
+
+export const getCustomerLifecycleAttribution: (params?: {
+  customerId?: number;
+  opportunityId?: number;
+  recommendationKey?: string;
+  eventType?: string;
+}) => Promise<LifecycleAttributionEvent[]> =
+  realGetCustomerLifecycleAttribution;
+
+export const getCustomerLifecycleQuality: (storeId?: number) => Promise<CustomerLifecycleQualitySnapshot | null> =
+  realGetCustomerLifecycleQuality;
+
+export const getCustomerLifecycleRules: (params?: {
+  ruleType?: string;
+  status?: string;
+}) => Promise<CustomerLifecycleRuleVersion[]> =
+  realGetCustomerLifecycleRules;
+
+export const createCustomerLifecycleRule: (data: {
+  ruleType: string;
+  ruleJson: Record<string, unknown>;
+  rolloutRatio?: number;
+  changeLog?: string;
+  storeId?: number;
+}) => Promise<CustomerLifecycleRuleVersion> =
+  realCreateCustomerLifecycleRule;
+
+export const publishCustomerLifecycleRule: (id: number) => Promise<CustomerLifecycleRuleVersion> =
+  realPublishCustomerLifecycleRule;
+
+export const rollbackCustomerLifecycleRule: (id: number) => Promise<CustomerLifecycleRuleVersion> =
+  realRollbackCustomerLifecycleRule;
+
+export const createLifecycleBusinessPlan: (data?: {
+  storeId?: number;
+  planPeriod?: string;
+  title?: string;
+  goalsJson?: Record<string, unknown>;
+}) => Promise<LifecycleBusinessPlan> =
+  realCreateLifecycleBusinessPlan;
+
+export const submitLifecycleBusinessPlanActions: (id: number) => Promise<LifecycleBusinessPlan> =
+  realSubmitLifecycleBusinessPlanActions;
 
 export const getInvitationCandidates: (params?: {
   storeId?: number;

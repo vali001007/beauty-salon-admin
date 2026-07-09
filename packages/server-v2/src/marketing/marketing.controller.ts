@@ -157,10 +157,21 @@ export class MarketingController {
   @ApiOperation({ summary: '重建客户生命周期小本体快照和机会' })
   rebuildLifecycleOntology(
     @Headers('x-store-id') headerStoreId?: string,
-    @Body() dto: { storeId?: number; predictionRunId?: number } = {},
+    @Body() dto: { storeId?: number; predictionRunId?: number; includeServiceCycles?: boolean; includeFulfillmentChecks?: boolean; includeAttribution?: boolean } = {},
   ) {
     const scopedStoreId = dto.storeId ? Number(dto.storeId) : headerStoreId ? Number(headerStoreId) : undefined;
-    return this.marketingService.rebuildLifecycleOntology(scopedStoreId, dto.predictionRunId ? Number(dto.predictionRunId) : undefined);
+    return this.marketingService.rebuildLifecycleOntology(scopedStoreId, dto.predictionRunId ? Number(dto.predictionRunId) : undefined, {
+      includeServiceCycles: dto.includeServiceCycles,
+      includeFulfillmentChecks: dto.includeFulfillmentChecks,
+      includeAttribution: dto.includeAttribution,
+    });
+  }
+
+  @Get('lifecycle/service-cycles')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '查询客户-项目服务周期状态' })
+  getLifecycleServiceCycles(@Query() query: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getLifecycleServiceCycles(query, storeId ? Number(storeId) : undefined);
   }
 
   @Get('lifecycle/opportunities')
@@ -168,6 +179,69 @@ export class MarketingController {
   @ApiOperation({ summary: '查询客户生命周期机会' })
   getLifecycleOpportunities(@Query() query: any, @Headers('x-store-id') storeId?: string) {
     return this.marketingService.getLifecycleOpportunities(query, storeId ? Number(storeId) : undefined);
+  }
+
+  @Get('lifecycle/opportunities/:id/fulfillment')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '查询客户生命周期机会承接校验' })
+  getLifecycleOpportunityFulfillment(@Param('id', ParseIntPipe) id: number) {
+    return this.marketingService.getLifecycleOpportunityFulfillment(id);
+  }
+
+  @Get('lifecycle/attribution')
+  @Permissions('core:marketing:view')
+  @ApiOperation({ summary: '查询客户生命周期归因事件' })
+  getLifecycleAttribution(@Query() query: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getLifecycleAttribution(query, storeId ? Number(storeId) : undefined);
+  }
+
+  @Get('lifecycle/quality')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '查询客户生命周期本体质量快照' })
+  getLifecycleQuality(@Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getLifecycleQuality(storeId ? Number(storeId) : undefined);
+  }
+
+  @Get('lifecycle/rules')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '查询客户生命周期本体规则版本' })
+  getLifecycleRules(@Query() query: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getLifecycleRules(query, storeId ? Number(storeId) : undefined);
+  }
+
+  @Post('lifecycle/rules')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '创建客户生命周期本体规则草稿' })
+  createLifecycleRule(@Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.createLifecycleRule(dto, storeId ? Number(storeId) : undefined);
+  }
+
+  @Post('lifecycle/rules/:id/publish')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '发布客户生命周期本体规则版本' })
+  publishLifecycleRule(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.marketingService.publishLifecycleRule(id, user?.id ? Number(user.id) : undefined);
+  }
+
+  @Post('lifecycle/rules/:id/rollback')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '回滚客户生命周期本体规则版本' })
+  rollbackLifecycleRule(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.marketingService.rollbackLifecycleRule(id, user?.id ? Number(user.id) : undefined);
+  }
+
+  @Post('lifecycle/business-plans')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '生成客户生命周期经营计划草稿' })
+  createLifecycleBusinessPlan(@Body() dto: any, @Headers('x-store-id') storeId?: string, @CurrentUser() user?: any) {
+    return this.marketingService.createLifecycleBusinessPlan(dto, storeId ? Number(storeId) : undefined, user?.id ? Number(user.id) : undefined);
+  }
+
+  @Post('lifecycle/business-plans/:id/submit-actions')
+  @Permissions('core:marketing:analytics')
+  @ApiOperation({ summary: '提交经营计划动作进入人工审批' })
+  submitLifecycleBusinessPlanActions(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @CurrentUser() user: any) {
+    return this.marketingService.submitLifecycleBusinessPlanActions(id, dto, user?.id ? Number(user.id) : undefined);
   }
 
   @Get('lifecycle/customers/:id')

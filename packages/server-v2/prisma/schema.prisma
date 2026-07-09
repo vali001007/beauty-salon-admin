@@ -57,6 +57,11 @@ model Store {
   lifecycleSnapshots        CustomerLifecycleSnapshot[]
   lifecycleEvents           CustomerLifecycleEvent[]
   customerOpportunities     CustomerOpportunity[]
+  customerServiceCycles      CustomerServiceCycleState[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
+  lifecycleRuleVersions      CustomerLifecycleRuleVersion[]
+  lifecycleQualitySnapshots  CustomerLifecycleQualitySnapshot[]
+  lifecycleBusinessPlans     LifecycleBusinessPlan[]
   products                 Product[]
   projects                 Project[]
   beauticians              Beautician[]
@@ -141,6 +146,8 @@ model User {
   commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
   commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
   commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
+  publishedLifecycleRules CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
+  createdLifecycleBusinessPlans LifecycleBusinessPlan[] @relation("LifecycleBusinessPlanCreator")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -244,6 +251,8 @@ model Customer {
   lifecycleSnapshots    CustomerLifecycleSnapshot[]
   lifecycleEvents       CustomerLifecycleEvent[]
   opportunities         CustomerOpportunity[]
+  serviceCycleStates    CustomerServiceCycleState[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
   amiPerformanceRecords AmiPerformanceRecord[]
   marketingTouches      MarketingAutomationTouch[]
   marketingAttributions MarketingAttribution[]
@@ -358,6 +367,9 @@ model StockBatch {
   productId      Int
   batchNo        String
   stock          Decimal   @default(0)
+  unitCost       Decimal?
+  totalAmount    Decimal?
+  supplierName   String?
   productionDate DateTime?
   expiryDate     DateTime?
   createdAt      DateTime  @default(now())
@@ -410,6 +422,9 @@ model StockMovement {
   beforeStock  Decimal?
   afterStock   Decimal?
   unit         String?
+  unitCost     Decimal?
+  costAmount   Decimal?
+  costSource   String?
   sourceType   String?
   sourceId     Int?
   sourceNo     String?
@@ -422,6 +437,7 @@ model StockMovement {
   product  Product     @relation(fields: [productId], references: [id])
   batch    StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   operator User?       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, productId, occurredAt])
   @@index([movementType])
@@ -463,6 +479,7 @@ model Project {
   store            Store                    @relation(fields: [storeId], references: [id])
   type             ProjectType?             @relation(fields: [typeId], references: [id])
   bomItems         ProjectBomItem[]
+  serviceCycleStates CustomerServiceCycleState[]
   serviceTasks     ServiceTask[]
   reservations     Reservation[]
   beauticianSkills BeauticianProjectSkill[]
@@ -1342,6 +1359,7 @@ model ProductOrder {
   marketingAttributions MarketingAttribution[]
   pageAttributions      MarketingPageAttribution[]
   recommendationEvents  RecommendationEvent[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
   terminalFollowUpTasks TerminalFollowUpTask[]
   balanceTransactions   CustomerBalanceTransaction[]
   commissionRecords     CommissionRecord[]
@@ -1580,6 +1598,7 @@ model Reservation {
   project    Project     @relation(fields: [projectId], references: [id])
   beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   followUpTasks TerminalFollowUpTask[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, date])
   @@index([customerId])
@@ -2266,6 +2285,8 @@ model CustomerOpportunity {
   customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   predictionRun      PredictionRun?              @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
   predictionSnapshot CustomerPredictionSnapshot? @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+  fulfillmentChecks  CustomerOpportunityFulfillmentCheck[]
+  attributionEvents  LifecycleAttributionEvent[]
 
   @@unique([storeId, customerId, opportunityType])
   @@index([storeId, opportunityType, status])
@@ -2274,6 +2295,152 @@ model CustomerOpportunity {
   @@index([predictionSnapshotId])
   @@index([priority])
   @@index([expiresAt])
+}
+
+model CustomerServiceCycleState {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  customerId   Int
+  projectId    Int
+  lastServiceAt DateTime?
+  cycleDays    Int      @default(28)
+  nextDueAt    DateTime?
+  sourceType   String?
+  sourceId     String?
+  evidenceJson Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, customerId, projectId])
+  @@index([storeId, nextDueAt])
+  @@index([customerId, nextDueAt])
+  @@index([projectId])
+  @@index([sourceType, sourceId])
+}
+
+model CustomerOpportunityFulfillmentCheck {
+  id                   Int      @id @default(autoincrement())
+  opportunityId        Int
+  inventoryReady       Boolean  @default(true)
+  capacityReady        Boolean  @default(true)
+  requiredProductsJson Json?
+  capacitySnapshotJson Json?
+  riskJson             Json?
+  checkedAt            DateTime @default(now())
+  createdAt            DateTime @default(now())
+
+  opportunity CustomerOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId, checkedAt])
+  @@index([inventoryReady, capacityReady])
+  @@index([checkedAt])
+}
+
+model LifecycleAttributionEvent {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  customerId        Int
+  opportunityId     Int?
+  recommendationKey String?
+  eventType         String
+  sourceType        String
+  sourceId          String?
+  touchId           Int?
+  orderId           Int?
+  reservationId     Int?
+  stockMovementId   Int?
+  eventValue        Decimal  @default(0)
+  evidenceJson      Json?
+  occurredAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer      Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  opportunity   CustomerOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  touch         MarketingAutomationTouch? @relation(fields: [touchId], references: [id], onDelete: SetNull)
+  order         ProductOrder?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  reservation   Reservation?     @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  stockMovement StockMovement?   @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, occurredAt])
+  @@index([customerId, occurredAt])
+  @@index([opportunityId])
+  @@index([recommendationKey])
+  @@index([eventType, occurredAt])
+  @@index([touchId])
+  @@index([orderId])
+  @@index([reservationId])
+  @@index([stockMovementId])
+}
+
+model CustomerLifecycleRuleVersion {
+  id             Int       @id @default(autoincrement())
+  storeId        Int?
+  ruleType       String
+  version        Int       @default(1)
+  status         String    @default("draft")
+  grayPercent    Int       @default(100)
+  ruleJson       Json
+  evidenceJson   Json?
+  publishedBy    Int?
+  publishedAt    DateTime?
+  rolledBackFromId Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  store     Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  publisher User?  @relation("LifecycleRulePublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, ruleType, version])
+  @@index([storeId, ruleType, status])
+  @@index([status])
+  @@index([publishedAt])
+}
+
+model CustomerLifecycleQualitySnapshot {
+  id                         Int      @id @default(autoincrement())
+  storeId                    Int
+  snapshotDate               DateTime @default(now())
+  fieldCoverageRate          Decimal  @default(0)
+  ruleHitRate                Decimal  @default(0)
+  attributionCompletenessRate Decimal @default(0)
+  fulfillmentReadyRate       Decimal  @default(0)
+  metricsJson                Json
+  createdAt                  DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, snapshotDate])
+}
+
+model LifecycleBusinessPlan {
+  id             Int      @id @default(autoincrement())
+  storeId        Int
+  planPeriod     String
+  title          String
+  status         String   @default("draft")
+  goalsJson      Json
+  actionsJson    Json
+  evidenceJson   Json
+  approvalJson   Json?
+  resultJson     Json?
+  createdBy      Int?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  executedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store   Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  creator User? @relation("LifecycleBusinessPlanCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([storeId, planPeriod])
+  @@index([storeId, status])
+  @@index([createdAt])
 }
 
 model MarketingAutomationTouch {
@@ -2297,6 +2464,7 @@ model MarketingAutomationTouch {
   customer           Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   predictionSnapshot CustomerPredictionSnapshot?  @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
   attributions       MarketingAttribution[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([executionId])
   @@index([strategyId])

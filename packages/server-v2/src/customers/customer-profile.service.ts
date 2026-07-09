@@ -114,14 +114,30 @@ export class CustomerProfileService {
     const snapshotDelegate = (this.prisma as any).customerLifecycleSnapshot;
     const opportunityDelegate = (this.prisma as any).customerOpportunity;
     const eventDelegate = (this.prisma as any).customerLifecycleEvent;
+    const serviceCycleDelegate = (this.prisma as any).customerServiceCycleState;
+    const attributionDelegate = (this.prisma as any).lifecycleAttributionEvent;
     if (!snapshotDelegate?.findFirst || !opportunityDelegate?.findMany) return null;
     const where = { customerId: Number(customerId), storeId: Number(storeId) };
-    const [snapshot, opportunities, events] = await Promise.all([
+    const [snapshot, opportunities, events, serviceCycles, attributionEvents] = await Promise.all([
       snapshotDelegate.findFirst({ where, orderBy: { computedAt: 'desc' } }),
-      opportunityDelegate.findMany({ where: { ...where, status: 'open' }, orderBy: [{ priority: 'asc' }, { score: 'desc' }], take: 8 }),
+      opportunityDelegate.findMany({
+        where: { ...where, status: 'open' },
+        orderBy: [{ priority: 'asc' }, { score: 'desc' }],
+        take: 8,
+        include: {
+          fulfillmentChecks: { orderBy: { checkedAt: 'desc' }, take: 1 },
+          attributionEvents: { orderBy: { occurredAt: 'desc' }, take: 5 },
+        },
+      }),
       eventDelegate?.findMany ? eventDelegate.findMany({ where, orderBy: { occurredAt: 'desc' }, take: 5 }) : Promise.resolve([]),
+      serviceCycleDelegate?.findMany
+        ? serviceCycleDelegate.findMany({ where, orderBy: [{ nextDueAt: 'asc' }, { updatedAt: 'desc' }], take: 8 })
+        : Promise.resolve([]),
+      attributionDelegate?.findMany
+        ? attributionDelegate.findMany({ where, orderBy: { occurredAt: 'desc' }, take: 12 })
+        : Promise.resolve([]),
     ]);
-    if (!snapshot && !opportunities.length) return null;
+    if (!snapshot && !opportunities.length && !(serviceCycles ?? []).length) return null;
     return {
       snapshot: snapshot ? {
         id: snapshot.id,
@@ -147,6 +163,9 @@ export class CustomerProfileService {
         recommendedOffer: item.recommendedOfferJson ?? null,
         recommendedItems: item.recommendedItemsJson ?? [],
         evidence: this.asStringArray(item.evidenceJson),
+        fulfillment: item.fulfillmentChecks?.[0] ? this.serializeFulfillmentCheck(item.fulfillmentChecks[0]) : null,
+        attributionEventCount: item.attributionEvents?.length ?? 0,
+        attributionEvents: (item.attributionEvents ?? []).map((event: any) => this.serializeAttributionEvent(event)),
         expiresAt: item.expiresAt?.toISOString?.() ?? null,
       })),
       events: (events ?? []).map((event: any) => ({
@@ -158,6 +177,48 @@ export class CustomerProfileService {
         evidence: this.asStringArray(event.evidenceJson),
         occurredAt: event.occurredAt?.toISOString?.() ?? String(event.occurredAt),
       })),
+      serviceCycles: (serviceCycles ?? []).map((cycle: any) => ({
+        id: cycle.id,
+        projectId: cycle.projectId,
+        lastServiceAt: cycle.lastServiceAt?.toISOString?.() ?? null,
+        cycleDays: cycle.cycleDays,
+        nextDueAt: cycle.nextDueAt?.toISOString?.() ?? null,
+        sourceType: cycle.sourceType,
+        sourceId: cycle.sourceId,
+        evidence: this.asStringArray(cycle.evidenceJson),
+        updatedAt: cycle.updatedAt?.toISOString?.() ?? String(cycle.updatedAt),
+      })),
+      attributionEvents: (attributionEvents ?? []).map((event: any) => this.serializeAttributionEvent(event)),
+    };
+  }
+
+  private serializeFulfillmentCheck(check: any) {
+    return {
+      id: check.id,
+      opportunityId: check.opportunityId,
+      inventoryReady: Boolean(check.inventoryReady),
+      capacityReady: Boolean(check.capacityReady),
+      requiredProducts: check.requiredProductsJson ?? [],
+      capacitySnapshot: check.capacitySnapshotJson ?? {},
+      risks: check.riskJson ?? [],
+      checkedAt: check.checkedAt?.toISOString?.() ?? String(check.checkedAt),
+    };
+  }
+
+  private serializeAttributionEvent(event: any) {
+    return {
+      id: event.id,
+      eventType: event.eventType,
+      sourceType: event.sourceType,
+      sourceId: event.sourceId,
+      opportunityId: event.opportunityId,
+      recommendationKey: event.recommendationKey,
+      touchId: event.touchId,
+      orderId: event.orderId,
+      reservationId: event.reservationId,
+      stockMovementId: event.stockMovementId,
+      evidence: event.evidenceJson ?? {},
+      occurredAt: event.occurredAt?.toISOString?.() ?? String(event.occurredAt),
     };
   }
 
@@ -279,6 +340,11 @@ export class CustomerProfileService {
       dormant_winback: '沉睡客户召回',
       coupon_claimed_unused: '领券未核销',
       browse_abandonment: '浏览未预约',
+      project_cycle_due: '项目护理周期到期',
+      homecare_bundle: '居家护理组合',
+      service_upgrade: '服务升级机会',
+      project_idle_capacity: '低峰产能填充',
+      inventory_clearance: '库存周转机会',
     };
     return labels[type] ?? type;
   }

@@ -2048,15 +2048,15 @@ export class MarketingService {
     });
 
     const lifecycle = this.customerLifecycleOntologyService
-      ? await this.customerLifecycleOntologyService.rebuild(storeId, { predictionRunId: completed.id }).catch((error) => ({ rebuilt: false, reason: error?.message ?? 'customer_lifecycle_rebuild_failed' }))
+      ? await this.customerLifecycleOntologyService.rebuild(storeId, { predictionRunId: completed.id, includeServiceCycles: true, includeFulfillmentChecks: true, includeAttribution: true }).catch((error) => ({ rebuilt: false, reason: error?.message ?? 'customer_lifecycle_rebuild_failed' }))
       : { rebuilt: false, reason: 'customer_lifecycle_service_unavailable' };
 
     return { run: completed, summary, lifecycle };
   }
 
-  rebuildLifecycleOntology(storeId?: number, predictionRunId?: number) {
+  rebuildLifecycleOntology(storeId?: number, predictionRunId?: number, options: any = {}) {
     if (!this.customerLifecycleOntologyService) return Promise.resolve({ rebuilt: false, reason: 'customer_lifecycle_service_unavailable', predictionRunId: null, snapshotCount: 0, opportunityCount: 0 });
-    return this.customerLifecycleOntologyService.rebuild(storeId, { predictionRunId });
+    return this.customerLifecycleOntologyService.rebuild(storeId, { predictionRunId, ...options });
   }
 
   getLifecycleOpportunities(query: any = {}, storeId?: number) {
@@ -2067,6 +2067,56 @@ export class MarketingService {
   getCustomerLifecycleContext(customerId: number, storeId?: number) {
     if (!this.customerLifecycleOntologyService) return Promise.resolve(null);
     return this.customerLifecycleOntologyService.getCustomerContext(customerId, storeId);
+  }
+
+  getLifecycleServiceCycles(query: any = {}, storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ items: [], data: [], total: 0, page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.listServiceCycles(query, storeId);
+  }
+
+  getLifecycleOpportunityFulfillment(id: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ items: [], reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.getOpportunityFulfillment(id);
+  }
+
+  getLifecycleAttribution(query: any = {}, storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ items: [], data: [], total: 0, page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.listAttributionEvents(query, storeId);
+  }
+
+  getLifecycleQuality(storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve(null);
+    return this.customerLifecycleOntologyService.getQualitySnapshot(storeId);
+  }
+
+  getLifecycleRules(query: any = {}, storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ items: [], data: [], total: 0, page: 1, pageSize: 0, reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.listRules(query, storeId);
+  }
+
+  createLifecycleRule(input: any = {}, storeId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ created: false, reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.createRule(input, storeId);
+  }
+
+  publishLifecycleRule(id: number, userId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ published: false, reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.publishRule(id, userId);
+  }
+
+  rollbackLifecycleRule(id: number, userId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ rolledBack: false, reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.rollbackRule(id, userId);
+  }
+
+  createLifecycleBusinessPlan(input: any = {}, storeId?: number, userId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ created: false, reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.createBusinessPlan(input, storeId, userId);
+  }
+
+  submitLifecycleBusinessPlanActions(id: number, input: any = {}, userId?: number) {
+    if (!this.customerLifecycleOntologyService) return Promise.resolve({ submitted: false, reason: 'customer_lifecycle_service_unavailable' });
+    return this.customerLifecycleOntologyService.submitBusinessPlanActions(id, input, userId);
   }
 
   async getLatestPredictionSummary(storeId?: number) {

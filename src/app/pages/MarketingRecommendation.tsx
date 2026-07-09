@@ -32,6 +32,7 @@ import { getCustomerConsumptionRecords, getCustomerHealthProfiles, getCustomersP
 import {
   batchCreateMarketingFollowUpTasks,
   createMarketingActivity,
+  getCustomerLifecycleQuality,
   getMarketingFollowUpTasks,
   getMarketingFollowUpTaskSummary,
   runPredictions,
@@ -39,7 +40,7 @@ import {
 import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
 import { getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
 import { createPromotion, matchPromotions } from '@/api/promotion';
-import type { Customer, RecommendedAction, RecommendedOffer, RecommendedPromotionMatch } from '@/types';
+import type { Customer, CustomerLifecycleQualitySnapshot, RecommendedAction, RecommendedOffer, RecommendedPromotionMatch } from '@/types';
 import type { ActivityPageSchema, MarketingCopyChannel } from '@/types/ai';
 import type { TerminalFollowUpTask, TerminalFollowUpTaskSummary } from '@/types/terminal';
 import type { Recommendation, UrgencyLevel } from '@/utils/marketingRecommendation';
@@ -548,6 +549,7 @@ export function MarketingRecommendation() {
   const [draftingPromotionIds, setDraftingPromotionIds] = useState<Set<number>>(new Set());
   const [selectedPromotionByRecommendation, setSelectedPromotionByRecommendation] = useState<Record<number, number>>({});
   const [pendingRiskAction, setPendingRiskAction] = useState<PendingRiskAction | null>(null);
+  const [lifecycleQuality, setLifecycleQuality] = useState<CustomerLifecycleQualitySnapshot | null>(null);
 
   const getOfferSelection = useCallback((rec: Recommendation): RecommendationOfferSelection => {
     const candidates = [rec.primaryPromotion, ...(rec.alternativePromotions ?? [])].filter(Boolean) as RecommendedPromotionMatch[];
@@ -746,6 +748,9 @@ export function MarketingRecommendation() {
       void getMarketingFollowUpTaskSummary()
         .then(setFollowUpSummary)
         .catch(() => setFollowUpSummary(null));
+      void getCustomerLifecycleQuality()
+        .then(setLifecycleQuality)
+        .catch(() => setLifecycleQuality(null));
       if (!recommendationData.length) {
         toast.warning('推荐接口暂未返回卡片，已启用恢复推荐卡');
       }
@@ -1643,6 +1648,20 @@ export function MarketingRecommendation() {
         ))}
       </div>
 
+      <div className="mb-4 grid gap-3 md:grid-cols-4">
+        {[
+          { label: '字段覆盖率', value: lifecycleQuality ? `${Math.round(lifecycleQuality.fieldCoverageRate * 100)}%` : '待计算' },
+          { label: '规则命中率', value: lifecycleQuality ? `${Math.round(lifecycleQuality.ruleHitRate * 100)}%` : '待计算' },
+          { label: '归因完整率', value: lifecycleQuality ? `${Math.round(lifecycleQuality.attributionCompletenessRate * 100)}%` : '待计算' },
+          { label: '可承接率', value: lifecycleQuality ? `${Math.round(lifecycleQuality.fulfillmentReadyRate * 100)}%` : '待计算' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border border-emerald-100 bg-white px-4 py-3">
+            <div className="text-xs font-medium text-emerald-700">{item.label}</div>
+            <div className="mt-1 text-lg font-semibold text-gray-900">{item.value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* 推荐筛选 */}
       <div className="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
         <label className="flex flex-col gap-1 text-sm text-gray-600">
@@ -1886,6 +1905,23 @@ export function MarketingRecommendation() {
                           {rec.riskWarnings.map((warning, i) => (
                             <div key={i} className="text-xs text-red-700">{warning}</div>
                           ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(rec.fulfillment || rec.attributionSummary) && (
+                      <div className="mb-3 grid gap-2 md:grid-cols-3">
+                        <div className={`rounded-lg border px-3 py-2 ${rec.fulfillment?.inventoryReady ? 'border-green-100 bg-green-50 text-green-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
+                          <div className="text-[11px] font-medium">库存承接</div>
+                          <div className="mt-1 text-xs font-semibold">{rec.fulfillment ? (rec.fulfillment.inventoryReady ? '可承接' : '需人工确认') : '待校验'}</div>
+                        </div>
+                        <div className={`rounded-lg border px-3 py-2 ${rec.fulfillment?.capacityReady ? 'border-green-100 bg-green-50 text-green-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
+                          <div className="text-[11px] font-medium">产能承接</div>
+                          <div className="mt-1 text-xs font-semibold">{rec.fulfillment ? (rec.fulfillment.capacityReady ? '可承接' : '需人工确认') : '待校验'}</div>
+                        </div>
+                        <div className={`rounded-lg border px-3 py-2 ${rec.attributionSummary?.hasAttribution ? 'border-blue-100 bg-blue-50 text-blue-700' : 'border-gray-100 bg-gray-50 text-gray-600'}`}>
+                          <div className="text-[11px] font-medium">归因链</div>
+                          <div className="mt-1 text-xs font-semibold">{rec.attributionSummary?.hasAttribution ? `${rec.attributionSummary.eventCount} 条事件` : '等待触达/预约/订单'}</div>
                         </div>
                       </div>
                     )}

@@ -1425,12 +1425,23 @@ export class CustomersService {
     const enrichedRows = rows.map((row) => {
       const snapshot = lifecycle.snapshots.get(Number(row.customer.id));
       const opportunities = lifecycle.opportunities.get(Number(row.customer.id)) ?? [];
+      const serviceCycles = lifecycle.serviceCycles.get(Number(row.customer.id)) ?? [];
+      const fulfillmentChecks = opportunities.flatMap((item: any) => item.fulfillmentChecks ?? []);
       return {
         ...row,
         lifecycleStage: snapshot?.lifecycleStage,
         lifecycleStageLabel: snapshot ? this.lifecycleStageLabel(snapshot.lifecycleStage) : undefined,
         opportunityTypes: opportunities.map((item: any) => item.opportunityType),
         opportunityTypeLabels: opportunities.map((item: any) => this.opportunityTypeLabel(item.opportunityType)),
+        serviceCycleSummary: serviceCycles.slice(0, 2).map((cycle: any) => ({
+          projectId: cycle.projectId,
+          nextDueAt: cycle.nextDueAt?.toISOString?.() ?? null,
+          cycleDays: cycle.cycleDays,
+        })),
+        fulfillmentRiskLabels: fulfillmentChecks
+          .filter((check: any) => check && (!check.inventoryReady || !check.capacityReady))
+          .slice(0, 3)
+          .map((check: any) => `${check.inventoryReady ? '' : '库存风险'}${!check.inventoryReady && !check.capacityReady ? '/' : ''}${check.capacityReady ? '' : '产能风险'}`),
         topLifecycleEvidence: [
           ...this.asStringArray(snapshot?.evidenceJson).slice(0, 2),
           ...opportunities.flatMap((item: any) => this.asStringArray(item.evidenceJson)).slice(0, 2),
@@ -1861,13 +1872,21 @@ export class CustomersService {
   private async loadLifecycleAnalytics(customerIds: number[], storeId?: number) {
     const snapshotDelegate = (this.prisma as any).customerLifecycleSnapshot;
     const opportunityDelegate = (this.prisma as any).customerOpportunity;
+    const serviceCycleDelegate = (this.prisma as any).customerServiceCycleState;
     if (!snapshotDelegate?.findMany || !opportunityDelegate?.findMany || !customerIds.length) {
-      return { snapshots: new Map<number, any>(), opportunities: new Map<number, any[]>() };
+      return { snapshots: new Map<number, any>(), opportunities: new Map<number, any[]>(), serviceCycles: new Map<number, any[]>() };
     }
     try {
-      const [snapshots, opportunities] = await Promise.all([
+      const [snapshots, opportunities, serviceCycles] = await Promise.all([
         snapshotDelegate.findMany({ where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}) } }),
-        opportunityDelegate.findMany({ where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}), status: 'open' }, orderBy: [{ priority: 'asc' }, { score: 'desc' }] }),
+        opportunityDelegate.findMany({
+          where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}), status: 'open' },
+          orderBy: [{ priority: 'asc' }, { score: 'desc' }],
+          include: { fulfillmentChecks: { orderBy: { checkedAt: 'desc' }, take: 1 } },
+        }),
+        serviceCycleDelegate?.findMany
+          ? serviceCycleDelegate.findMany({ where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}) }, orderBy: [{ nextDueAt: 'asc' }, { updatedAt: 'desc' }] })
+          : Promise.resolve([]),
       ]);
       const snapshotMap = new Map<number, any>();
       for (const snapshot of snapshots) snapshotMap.set(Number(snapshot.customerId), snapshot);
@@ -1877,9 +1896,15 @@ export class CustomersService {
         if (!opportunityMap.has(id)) opportunityMap.set(id, []);
         opportunityMap.get(id)!.push(opportunity);
       }
-      return { snapshots: snapshotMap, opportunities: opportunityMap };
+      const serviceCycleMap = new Map<number, any[]>();
+      for (const cycle of serviceCycles ?? []) {
+        const id = Number(cycle.customerId);
+        if (!serviceCycleMap.has(id)) serviceCycleMap.set(id, []);
+        serviceCycleMap.get(id)!.push(cycle);
+      }
+      return { snapshots: snapshotMap, opportunities: opportunityMap, serviceCycles: serviceCycleMap };
     } catch {
-      return { snapshots: new Map<number, any>(), opportunities: new Map<number, any[]>() };
+      return { snapshots: new Map<number, any>(), opportunities: new Map<number, any[]>(), serviceCycles: new Map<number, any[]>() };
     }
   }
 
@@ -1912,6 +1937,11 @@ export class CustomersService {
       dormant_winback: '沉睡客户召回',
       coupon_claimed_unused: '领券未核销',
       browse_abandonment: '浏览未预约',
+      project_cycle_due: '项目护理周期到期',
+      homecare_bundle: '居家护理组合',
+      service_upgrade: '服务升级机会',
+      project_idle_capacity: '低峰产能填充',
+      inventory_clearance: '库存周转机会',
     };
     return labels[type] ?? type;
   }

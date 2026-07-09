@@ -43,6 +43,9 @@ export interface Recommendation {
     | 'project_idle_capacity'
     | 'product_replenishment'
     | 'project_cycle_due'
+    | 'homecare_bundle'
+    | 'service_upgrade'
+    | 'inventory_clearance'
     | 'care_cycle_due'
     | 'card_expiring'
     | 'dormant_winback'
@@ -99,6 +102,16 @@ export interface Recommendation {
   expectedLossAvoided?: string;
   riskWarnings?: string[];
   executionState?: RecommendationExecutionState;
+  opportunityIds?: number[];
+  fulfillment?: {
+    inventoryReady: boolean;
+    capacityReady: boolean;
+    latestChecks?: Array<Record<string, unknown>>;
+  };
+  attributionSummary?: {
+    eventCount: number;
+    hasAttribution: boolean;
+  };
 }
 
 export interface RecommendationActionExecutionState {
