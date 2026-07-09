@@ -49,6 +49,30 @@ function isOutboundMovement(movementType: string) {
   return movementType.endsWith('_out') || movementType.includes('consume');
 }
 
+function resolveMovementCost(product: any, quantity: number, batch?: any) {
+  const batchUnitCost = toNumber(batch?.unitCost);
+  if (batch && batchUnitCost > 0) {
+    return {
+      unitCost: batchUnitCost,
+      costAmount: batchUnitCost * Math.abs(quantity),
+      costSource: 'batch_snapshot',
+    };
+  }
+  const productUnitCost = toNumber(product?.costPrice);
+  if (productUnitCost > 0) {
+    return {
+      unitCost: productUnitCost,
+      costAmount: productUnitCost * Math.abs(quantity),
+      costSource: 'product_master_estimate',
+    };
+  }
+  return {
+    unitCost: 0,
+    costAmount: 0,
+    costSource: 'missing_cost',
+  };
+}
+
 async function createStockMovement(
   tx: any,
   params: {
@@ -63,6 +87,9 @@ async function createStockMovement(
     unit?: string;
     remark: string;
     operatorId?: number;
+    unitCost?: number;
+    costAmount?: number;
+    costSource?: string;
   },
 ) {
   return tx.stockMovement.create({
@@ -76,6 +103,9 @@ async function createStockMovement(
       beforeStock: params.beforeStock,
       afterStock: params.afterStock,
       unit: params.unit ?? params.product.specUnit ?? params.product.unit,
+      unitCost: params.unitCost,
+      costAmount: params.costAmount,
+      costSource: params.costSource,
       sourceType: params.source.type,
       sourceId: params.source.id,
       sourceNo: params.source.no ?? undefined,
@@ -137,6 +167,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
           data: { stock: Math.max(0, beforeBatchStock - batchAppliedQty) },
         });
       }
+      const cost = resolveMovementCost(product, batchAppliedQty, batch);
       movements.push(await createStockMovement(tx, {
         storeId: params.storeId,
         product,
@@ -148,6 +179,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
         source: params.source,
         unit: params.item.unit,
         operatorId: params.operatorId,
+        ...cost,
         remark: baseRemark,
       }));
       runningBeforeStock = afterStock;
@@ -157,6 +189,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
   if (remainingToApply > 0) {
     const signedQuantity = outbound ? -remainingToApply : remainingToApply;
     const afterStock = outbound ? runningBeforeStock - remainingToApply : runningBeforeStock + remainingToApply;
+    const cost = resolveMovementCost(product, remainingToApply);
     movements.push(await createStockMovement(tx, {
       storeId: params.storeId,
       product,
@@ -167,6 +200,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
       source: params.source,
       unit: params.item.unit,
       operatorId: params.operatorId,
+      ...cost,
       remark: outbound ? appendNoBatchRemark(baseRemark) : baseRemark,
     }));
     runningBeforeStock = afterStock;

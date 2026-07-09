@@ -3,9 +3,12 @@ export type DataQualityStatus = 'complete' | 'estimated' | 'missing_cost' | 'mis
 export type MissingCostReason =
   | 'missing_cost'
   | 'missing_bom'
+  | 'missing_batch_cost'
   | 'missing_commission'
   | 'missing_project_master'
   | 'missing_actual_consumption'
+  | 'product_master_estimate'
+  | 'legacy_missing_snapshot'
   | 'missing_card_unit_value';
 
 export type DateRange = {

@@ -525,11 +525,20 @@ export class InventoryService {
       const existingBatch = await tx.stockBatch.findFirst({
         where: { productId, batchNo },
       });
+      const existingStock = existingBatch ? this.toNonNegativeStock(existingBatch.stock) : 0;
+      const existingUnitCost = this.toNumber(existingBatch?.unitCost);
+      const existingTotalAmount = this.toNumber(existingBatch?.totalAmount) || existingStock * existingUnitCost;
+      const newBatchStock = existingStock + quantity;
+      const newTotalAmount = existingTotalAmount + totalAmount;
+      const newUnitCost = newBatchStock > 0 ? newTotalAmount / newBatchStock : unitCost;
       const batch = existingBatch
         ? await tx.stockBatch.update({
             where: { id: existingBatch.id },
             data: {
-              stock: this.toNonNegativeStock(existingBatch.stock) + quantity,
+              stock: newBatchStock,
+              unitCost: newUnitCost,
+              totalAmount: newTotalAmount,
+              supplierName: supplier || existingBatch.supplierName,
               ...(productionDate ? { productionDate } : {}),
               ...(expiryDate ? { expiryDate } : {}),
             },
@@ -539,6 +548,9 @@ export class InventoryService {
               productId,
               batchNo,
               stock: quantity,
+              unitCost,
+              totalAmount,
+              supplierName: supplier || undefined,
               productionDate,
               expiryDate,
             },
@@ -560,6 +572,9 @@ export class InventoryService {
           beforeStock,
           afterStock,
           unit: product.specUnit ?? product.unit,
+          unitCost,
+          costAmount: totalAmount,
+          costSource: 'inbound_cost',
           sourceType: 'stock_batch',
           sourceId: batch.id,
           sourceNo: batchNo,

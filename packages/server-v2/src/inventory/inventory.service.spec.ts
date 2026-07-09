@@ -99,6 +99,48 @@ describe('InventoryService terminal dashboard cache', () => {
     });
   });
 
+  it('writes inbound cost snapshots to batch and stock movement', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 10,
+      storeId: 2,
+      currentStock: 3,
+      unit: '瓶',
+      costPrice: 12,
+      supplier: '默认供应商',
+    });
+    prisma.stockBatch.findFirst.mockResolvedValue(null);
+    prisma.stockBatch.create.mockResolvedValue({ id: 101, productId: 10, batchNo: 'B-001', stock: 5 });
+
+    await service.inbound({
+      productId: 10,
+      batchNo: 'B-001',
+      quantity: 5,
+      unitCost: 8,
+      totalAmount: 40,
+      supplier: '核心耗材供应商',
+    });
+
+    expect(prisma.stockBatch.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productId: 10,
+        batchNo: 'B-001',
+        stock: 5,
+        unitCost: 8,
+        totalAmount: 40,
+        supplierName: '核心耗材供应商',
+      }),
+    });
+    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        movementType: 'inbound',
+        unitCost: 8,
+        costAmount: 40,
+        costSource: 'inbound_cost',
+        remark: expect.stringContaining('供应商 核心耗材供应商'),
+      }),
+    });
+  });
+
   it('returns non-negative stock values for historical negative products', async () => {
     prisma.product.findMany.mockResolvedValue([
       {
@@ -203,7 +245,11 @@ describe('InventoryService terminal dashboard cache', () => {
     expect(prisma.stockBatch.create).not.toHaveBeenCalled();
     expect(prisma.stockBatch.update).toHaveBeenCalledWith({
       where: { id: 101 },
-      data: { stock: 9 },
+      data: expect.objectContaining({
+        stock: 9,
+        unitCost: 0,
+        totalAmount: 0,
+      }),
     });
   });
 

@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
-import {
-  getDailySettlements,
-  type DailySettlement as DailySettlementItem,
-} from '@/api/commission';
+import { getFinanceDailyMetrics, type FinanceDailyMetric } from '@/api/financeMetrics';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 
@@ -57,9 +54,25 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+const costReasonLabels: Record<string, string> = {
+  missing_actual_consumption: '实际耗材流水缺失',
+  missing_bom: '项目 BOM 缺失',
+  missing_batch_cost: '商品批次成本缺失',
+  product_master_estimate: '商品主档估算',
+  legacy_missing_snapshot: '旧流水缺少成本快照',
+  missing_commission: '提成记录缺失',
+};
+
+const costQualityLabels: Record<string, string> = {
+  complete: '成本完整',
+  mixed: '含估算',
+  estimated: '估算成本',
+  missing: '成本缺失',
+};
+
 export function DailySettlement() {
-  const [items, setItems] = useState<DailySettlementItem[]>([]);
-  const [detailItem, setDetailItem] = useState<DailySettlementItem | null>(null);
+  const [items, setItems] = useState<FinanceDailyMetric[]>([]);
+  const [detailItem, setDetailItem] = useState<FinanceDailyMetric | null>(null);
   const [loading, setLoading] = useState(false);
   const [rangePreset, setRangePreset] = useState<'7' | '30' | 'custom'>('7');
   const [filters, setFilters] = useState({ dateFrom: daysAgoText(6), dateTo: todayText() });
@@ -67,9 +80,7 @@ export function DailySettlement() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await getDailySettlements({
-        page: 1,
-        pageSize: 60,
+      const page = await getFinanceDailyMetrics({
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
       });
@@ -89,19 +100,19 @@ export function DailySettlement() {
     () =>
       items.reduce(
         (sum, item) => ({
-          totalRevenue: sum.totalRevenue + item.totalRevenue,
-          cashRevenue: sum.cashRevenue + item.cashRevenue,
-          wechatRevenue: sum.wechatRevenue + item.wechatRevenue,
-          alipayRevenue: sum.alipayRevenue + item.alipayRevenue,
-          cardRevenue: sum.cardRevenue + item.cardRevenue,
-          balanceRevenue: sum.balanceRevenue + item.balanceRevenue,
-          memberBalanceCashDeduct: sum.memberBalanceCashDeduct + Number(item.memberBalanceCashDeduct ?? item.summary?.memberBalanceCashDeduct ?? 0),
-          memberBalanceGiftDeduct: sum.memberBalanceGiftDeduct + Number(item.memberBalanceGiftDeduct ?? item.summary?.memberBalanceGiftDeduct ?? 0),
-          prepaidIncome: sum.prepaidIncome + Number(item.prepaidIncome ?? item.rechargeIncome ?? 0),
-          cardUsageRevenue: sum.cardUsageRevenue + Number(item.cardUsageRevenue ?? 0),
+          totalRevenue: sum.totalRevenue + item.operatingRevenue,
+          cashRevenue: sum.cashRevenue + item.paymentBreakdown.cash,
+          wechatRevenue: sum.wechatRevenue + item.paymentBreakdown.wechat,
+          alipayRevenue: sum.alipayRevenue + item.paymentBreakdown.alipay,
+          cardRevenue: sum.cardRevenue + item.paymentBreakdown.card,
+          balanceRevenue: sum.balanceRevenue + item.memberBalanceDeductTotal,
+          memberBalanceCashDeduct: sum.memberBalanceCashDeduct + item.memberBalanceDeductCash,
+          memberBalanceGiftDeduct: sum.memberBalanceGiftDeduct + item.memberBalanceDeductGift,
+          prepaidIncome: sum.prepaidIncome + item.prepaidAmount,
+          cardUsageRevenue: sum.cardUsageRevenue + item.cardUsageRecognized,
           refundAmount: sum.refundAmount + item.refundAmount,
           grossProfit: sum.grossProfit + item.grossProfit,
-          commissionTotal: sum.commissionTotal + item.commissionTotal,
+          commissionTotal: sum.commissionTotal + item.commissionCost,
           orderCount: sum.orderCount + item.orderCount,
           customerCount: sum.customerCount + item.customerCount,
         }),
@@ -149,42 +160,53 @@ export function DailySettlement() {
   ];
   const detailRows = useMemo(() => {
     if (!detailItem) return [];
-    const detailCashflow = Number(detailItem.cashRevenue ?? 0) + Number(detailItem.wechatRevenue ?? 0) + Number(detailItem.alipayRevenue ?? 0) + Number(detailItem.cardRevenue ?? 0);
     return [
-      { name: '营业收入', value: money(detailItem.totalRevenue), detail: '订单净收入 + 次卡核销确认' },
-      { name: '现金收入', value: money(detailCashflow), detail: <PaymentMethodBreakdown cash={detailItem.cashRevenue} wechat={detailItem.wechatRevenue} alipay={detailItem.alipayRevenue} card={detailItem.cardRevenue} /> },
-      { name: '预收金额', value: money(detailItem.prepaidIncome ?? detailItem.rechargeIncome), detail: `含充值收入 ${money(detailItem.rechargeIncome)}，以及办次卡等未履约预收` },
-      { name: '会员划扣', value: money(detailItem.balanceRevenue), detail: '会员余额消费，确认订单结清但不产生新的现金入账' },
+      { name: '营业收入', value: money(detailItem.operatingRevenue), detail: '项目/商品已履约净收入 + 次卡核销确认' },
+      { name: '现金收入', value: money(detailItem.cashIncome), detail: <PaymentMethodBreakdown cash={detailItem.paymentBreakdown.cash} wechat={detailItem.paymentBreakdown.wechat} alipay={detailItem.paymentBreakdown.alipay} card={detailItem.paymentBreakdown.card} /> },
+      { name: '预收金额', value: money(detailItem.prepaidAmount), detail: '当期充值、办次卡等未履约预收金额' },
+      { name: '会员划扣', value: money(detailItem.memberBalanceDeductTotal), detail: '会员余额消费，确认订单结清但不产生新的现金入账' },
       {
         name: '本金划扣',
-        value: money(detailItem.memberBalanceCashDeduct ?? detailItem.summary?.memberBalanceCashDeduct),
+        value: money(detailItem.memberBalanceDeductCash),
         detail: '会员卡划扣中消耗的现金本金部分',
       },
       {
         name: '赠送划扣',
-        value: money(detailItem.memberBalanceGiftDeduct ?? detailItem.summary?.memberBalanceGiftDeduct),
+        value: money(detailItem.memberBalanceDeductGift),
         detail: '会员卡划扣中消耗的赠送余额部分',
       },
-      { name: '次卡核销', value: money(detailItem.cardUsageRevenue), detail: '次卡核销后的履约确认收入，已并入营业收入' },
+      { name: '次卡核销', value: money(detailItem.cardUsageRecognized), detail: '次卡核销后的履约确认收入，已并入营业收入' },
       { name: '退款金额', value: money(detailItem.refundAmount), detail: '成功退款金额，按退款时间归属营业日' },
-      { name: '订单/顾客', value: `${detailItem.orderCount} / ${detailItem.customerCount}`, detail: `客单价 ${money(detailItem.avgTransaction)}` },
-      { name: '成本', value: money(Number(detailItem.materialCost ?? 0) + Number(detailItem.commissionTotal ?? 0)), detail: `耗材 ${money(detailItem.materialCost)} / 提成 ${money(detailItem.commissionTotal)}` },
-      { name: '毛利', value: money(detailItem.grossProfit), detail: `毛利率 ${Number(detailItem.grossMargin ?? 0).toFixed(2)}%` },
+      { name: '订单/顾客', value: `${detailItem.orderCount} / ${detailItem.customerCount}`, detail: `客单价 ${money(detailItem.avgTicket)}` },
+      { name: '实际耗材', value: money(detailItem.materialCostActual), detail: '已落实际耗材出库流水且带成本快照' },
+      { name: 'BOM 估算', value: money(detailItem.materialCostEstimated), detail: '没有实际耗材流水时按项目 BOM 估算' },
+      { name: '商品批次成本', value: money(detailItem.productCostActual), detail: '商品销售出库按批次成本快照计入' },
+      { name: '商品主档估算', value: money(detailItem.productCostEstimated), detail: '缺少批次成本时按商品主档成本估算' },
+      { name: '提成成本', value: money(detailItem.commissionCost), detail: '来自提成流水' },
+      {
+        name: '缺成本原因',
+        value: costQualityLabels[detailItem.costQuality?.status ?? 'complete'] ?? '-',
+        detail:
+          detailItem.costQuality?.reasons?.length
+            ? detailItem.costQuality.reasons.map((reason) => costReasonLabels[reason] ?? reason).join(' / ')
+            : '暂无成本缺口',
+      },
+      { name: '毛利', value: money(detailItem.grossProfit), detail: `毛利率 ${(Number(detailItem.grossMargin ?? 0) * 100).toFixed(2)}%` },
     ];
   }, [detailItem]);
 
   const trendRows = useMemo(
     () =>
       [...items]
-        .sort((a, b) => dateText(a.settleDate).localeCompare(dateText(b.settleDate)))
+        .sort((a, b) => dateText(a.date).localeCompare(dateText(b.date)))
         .map((item) => ({
-          date: dateText(item.settleDate).slice(5),
-          fullDate: dateText(item.settleDate),
-          totalRevenue: Number(item.totalRevenue ?? 0),
-          cashflowReceived: Number(item.cashRevenue ?? 0) + Number(item.wechatRevenue ?? 0) + Number(item.alipayRevenue ?? 0) + Number(item.cardRevenue ?? 0),
+          date: dateText(item.date).slice(5),
+          fullDate: dateText(item.date),
+          totalRevenue: Number(item.operatingRevenue ?? 0),
+          cashflowReceived: Number(item.cashIncome ?? 0),
           grossProfit: Number(item.grossProfit ?? 0),
           refundAmount: Number(item.refundAmount ?? 0),
-          cardUsageRevenue: Number(item.cardUsageRevenue ?? 0),
+          cardUsageRevenue: Number(item.cardUsageRecognized ?? 0),
           orderCount: Number(item.orderCount ?? 0),
           grossMargin: Number(item.grossMargin ?? 0),
         })),
@@ -333,19 +355,19 @@ export function DailySettlement() {
             </TableRow>
           ) : items.length ? (
             items.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell className="font-medium">{dateText(item.settleDate)}</TableCell>
-                <TableCell>{money(item.totalRevenue)}</TableCell>
-                <TableCell>{money(Number(item.cashRevenue ?? 0) + Number(item.wechatRevenue ?? 0) + Number(item.alipayRevenue ?? 0) + Number(item.cardRevenue ?? 0))}</TableCell>
-                <TableCell>{money(item.prepaidIncome ?? item.rechargeIncome)}</TableCell>
-                <TableCell>{money(item.balanceRevenue)}</TableCell>
-                <TableCell>{money(item.cardUsageRevenue)}</TableCell>
+              <TableRow key={`${item.storeId ?? 'all'}-${item.date}`}>
+                <TableCell className="font-medium">{dateText(item.date)}</TableCell>
+                <TableCell>{money(item.operatingRevenue)}</TableCell>
+                <TableCell>{money(item.cashIncome)}</TableCell>
+                <TableCell>{money(item.prepaidAmount)}</TableCell>
+                <TableCell>{money(item.memberBalanceDeductTotal)}</TableCell>
+                <TableCell>{money(item.cardUsageRecognized)}</TableCell>
                 <TableCell>{money(item.refundAmount)}</TableCell>
                 <TableCell>
                   {item.orderCount} / {item.customerCount}
                 </TableCell>
-                <TableCell>{money(item.avgTransaction)}</TableCell>
-                <TableCell>{Number(item.grossMargin ?? 0).toFixed(2)}%</TableCell>
+                <TableCell>{money(item.avgTicket)}</TableCell>
+                <TableCell>{(Number(item.grossMargin ?? 0) * 100).toFixed(2)}%</TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <Button size="sm" variant="outline" onClick={() => setDetailItem(item)}>
@@ -369,7 +391,7 @@ export function DailySettlement() {
       <Dialog open={Boolean(detailItem)} onOpenChange={(open) => !open && setDetailItem(null)}>
         <DialogContent className="max-w-4xl" aria-describedby="daily-settlement-detail-desc">
           <DialogHeader>
-            <DialogTitle>日结明细 - {dateText(detailItem?.settleDate)}</DialogTitle>
+            <DialogTitle>日结明细 - {dateText(detailItem?.date)}</DialogTitle>
             <DialogDescription id="daily-settlement-detail-desc">
               系统已按订单、支付、退款、耗材和提成流水汇总，默认采纳当前数据，无需人工确认审核。
             </DialogDescription>
@@ -380,7 +402,7 @@ export function DailySettlement() {
               <section className="grid gap-3 md:grid-cols-4">
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">营业收入</div>
-                  <div className="mt-1 text-lg font-semibold">{money(detailItem.totalRevenue)}</div>
+                  <div className="mt-1 text-lg font-semibold">{money(detailItem.operatingRevenue)}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">订单/顾客</div>
@@ -394,7 +416,7 @@ export function DailySettlement() {
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">毛利率</div>
-                  <div className="mt-1 text-lg font-semibold">{Number(detailItem.grossMargin ?? 0).toFixed(2)}%</div>
+                  <div className="mt-1 text-lg font-semibold">{(Number(detailItem.grossMargin ?? 0) * 100).toFixed(2)}%</div>
                 </div>
               </section>
 

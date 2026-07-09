@@ -5,6 +5,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateCommissionRuleAssignmentDto, CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
 import { UpdateCommissionRuleDto } from './dto/update-commission-rule.dto.js';
 import { UpdateCommissionRuleAssignmentDto } from './dto/update-commission-rule-assignment.dto.js';
+import { FinanceMetricsService } from '../finance-metrics/finance-metrics.service.js';
 
 type PrismaLike = PrismaService | any;
 
@@ -83,7 +84,7 @@ const PREPAID_ORDER_ITEM_TYPES = new Set(['recharge', 'card', 'open']);
 export class CommissionService {
   private readonly logger = new Logger(CommissionService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly financeMetricsService?: FinanceMetricsService) {}
 
   private db(client: PrismaLike = this.prisma): PrismaLike {
     return client as PrismaLike;
@@ -338,10 +339,14 @@ export class CommissionService {
   private serializeDailySettlement(settlement: any) {
     if (!settlement) return settlement;
     const cardUsageRevenue = this.toNumber(settlement.cardUsageRevenue ?? settlement._cardUsageRevenue);
-    const totalRevenue = Math.round((this.toNumber(settlement.totalRevenue) + cardUsageRevenue) * 100) / 100;
-    const materialCost = this.toNumber(settlement.materialCost);
+    const isUnifiedMetric = settlement.summary?.metricVersion === 'finance_metrics_v1';
+    const totalRevenue = isUnifiedMetric
+      ? this.toNumber(settlement.totalRevenue)
+      : Math.round((this.toNumber(settlement.totalRevenue) + cardUsageRevenue) * 100) / 100;
+    const materialCost = this.toNumber(settlement.summary?.materialCost ?? settlement.materialCost);
+    const productCost = this.toNumber(settlement.summary?.productCost);
     const commissionTotal = this.toNumber(settlement.commissionTotal);
-    const grossProfit = Math.round((totalRevenue - materialCost - commissionTotal) * 100) / 100;
+    const grossProfit = Math.round((totalRevenue - materialCost - productCost - commissionTotal) * 100) / 100;
     const grossMargin = totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 10000) / 100 : 0;
     const orderCount = this.toNumber(settlement.orderCount);
     return {
@@ -354,16 +359,18 @@ export class CommissionService {
       cardRevenue: this.toNumber(settlement.cardRevenue),
       balanceRevenue: this.toNumber(settlement.balanceRevenue),
       rechargeIncome: this.toNumber(settlement.rechargeIncome),
-      prepaidIncome: this.toNumber(settlement.prepaidIncome ?? settlement._prepaidIncome ?? settlement.rechargeIncome),
+      prepaidIncome: this.toNumber(settlement.summary?.prepaidAmount ?? settlement.prepaidIncome ?? settlement._prepaidIncome ?? settlement.rechargeIncome),
       refundAmount: this.toNumber(settlement.refundAmount),
       avgTransaction: orderCount > 0 ? Math.round((totalRevenue / orderCount) * 100) / 100 : this.toNumber(settlement.avgTransaction),
       materialCost,
       grossProfit,
       grossMargin,
       commissionTotal,
-      cardUsageRevenue,
+      productCost,
+      cardUsageRevenue: this.toNumber(settlement.summary?.cardUsageRecognized ?? cardUsageRevenue),
       memberBalanceCashDeduct: this.toNumber(settlement.summary?.memberBalanceCashDeduct),
       memberBalanceGiftDeduct: this.toNumber(settlement.summary?.memberBalanceGiftDeduct),
+      dataQuality: settlement.summary?.dataQuality,
       storeName: settlement.store?.name,
     };
   }
@@ -2401,9 +2408,84 @@ export class CommissionService {
     return { items, data: items, total: sorted.length, page, pageSize, summary: { high: sorted.filter((item) => item.severity === 'high').length, medium: sorted.filter((item) => item.severity === 'medium').length, low: sorted.filter((item) => item.severity === 'low').length } };
   }
 
+  private dailyMetricSummary(metric: any) {
+    return {
+      metricVersion: 'finance_metrics_v1',
+      cash: this.toNumber(metric.paymentBreakdown?.cash),
+      wechat: this.toNumber(metric.paymentBreakdown?.wechat),
+      alipay: this.toNumber(metric.paymentBreakdown?.alipay),
+      card: this.toNumber(metric.paymentBreakdown?.card),
+      total: this.toNumber(metric.paymentBreakdown?.total ?? metric.cashIncome),
+      member_balance: this.toNumber(metric.memberBalanceDeductTotal),
+      memberBalanceCashDeduct: this.toNumber(metric.memberBalanceDeductCash),
+      memberBalanceGiftDeduct: this.toNumber(metric.memberBalanceDeductGift),
+      prepaidAmount: this.toNumber(metric.prepaidAmount),
+      cardUsageRecognized: this.toNumber(metric.cardUsageRecognized),
+      refund: this.toNumber(metric.refundAmount),
+      materialCost: this.toNumber(metric.materialCost),
+      productCost: this.toNumber(metric.productCost),
+      commissionCost: this.toNumber(metric.commissionCost),
+      dataQuality: metric.dataQuality,
+    };
+  }
+
+  private async upsertDailySettlementFromMetric(storeId: number, settleDate: Date, metric: any) {
+    const summary = this.dailyMetricSummary(metric);
+    const materialCostTotal = this.toNumber(metric.materialCost) + this.toNumber(metric.productCost);
+    const grossMarginPercent = this.toNumber(metric.grossMargin) * 100;
+    const settlement = await this.db().dailySettlement.upsert({
+      where: { storeId_settleDate: { storeId, settleDate } },
+      create: {
+        storeId,
+        settleDate,
+        totalRevenue: this.toNumber(metric.operatingRevenue),
+        cashRevenue: this.toNumber(metric.paymentBreakdown?.cash),
+        wechatRevenue: this.toNumber(metric.paymentBreakdown?.wechat),
+        alipayRevenue: this.toNumber(metric.paymentBreakdown?.alipay),
+        cardRevenue: this.toNumber(metric.paymentBreakdown?.card),
+        balanceRevenue: this.toNumber(metric.memberBalanceDeductTotal),
+        rechargeIncome: this.toNumber(metric.prepaidAmount),
+        refundAmount: this.toNumber(metric.refundAmount),
+        orderCount: this.toNumber(metric.orderCount),
+        customerCount: this.toNumber(metric.customerCount),
+        avgTransaction: this.toNumber(metric.avgTicket),
+        materialCost: materialCostTotal,
+        grossProfit: this.toNumber(metric.grossProfit),
+        grossMargin: grossMarginPercent,
+        commissionTotal: this.toNumber(metric.commissionCost),
+        status: 'draft',
+        summary,
+      },
+      update: {
+        totalRevenue: this.toNumber(metric.operatingRevenue),
+        cashRevenue: this.toNumber(metric.paymentBreakdown?.cash),
+        wechatRevenue: this.toNumber(metric.paymentBreakdown?.wechat),
+        alipayRevenue: this.toNumber(metric.paymentBreakdown?.alipay),
+        cardRevenue: this.toNumber(metric.paymentBreakdown?.card),
+        balanceRevenue: this.toNumber(metric.memberBalanceDeductTotal),
+        rechargeIncome: this.toNumber(metric.prepaidAmount),
+        refundAmount: this.toNumber(metric.refundAmount),
+        orderCount: this.toNumber(metric.orderCount),
+        customerCount: this.toNumber(metric.customerCount),
+        avgTransaction: this.toNumber(metric.avgTicket),
+        materialCost: materialCostTotal,
+        grossProfit: this.toNumber(metric.grossProfit),
+        grossMargin: grossMarginPercent,
+        commissionTotal: this.toNumber(metric.commissionCost),
+        summary,
+      },
+      include: { store: { select: { id: true, name: true } } },
+    });
+    return this.serializeDailySettlement(settlement);
+  }
+
   async generateDailySettlement(storeIdInput: number | string | undefined, dateInput: string | Date) {
     const storeId = this.asStoreId(storeIdInput);
     const { start: dayStart, end: dayEnd, settleDate } = this.getBusinessDayRange(dateInput);
+    if (this.financeMetricsService) {
+      const metric = await this.financeMetricsService.getDailyMetricForStoreDate(storeId, settleDate);
+      return this.upsertDailySettlementFromMetric(storeId, settleDate, metric);
+    }
 
     const [orders, refunds] = await Promise.all([
       this.prisma.productOrder.findMany({

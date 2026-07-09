@@ -30,9 +30,10 @@ const statusLabels: Record<string, string> = {
 };
 
 const costSourceLabels: Record<ProductCostSource, string> = {
+  batch_snapshot: '批次成本',
   order_snapshot: '订单快照',
-  stock_movement: '出库确认',
-  product_master: '商品档案',
+  product_master_estimate: '商品主档估算',
+  legacy_missing_snapshot: '旧流水估算',
   missing: '缺成本',
   mixed: '多来源',
 };
@@ -298,6 +299,9 @@ export function ProductMarginAnalysis() {
                 <TableHead className="text-right">销售额</TableHead>
                 <TableHead className="text-right">退款</TableHead>
                 <TableHead className="text-right">净收入</TableHead>
+                <TableHead className="text-right">成本单价</TableHead>
+                <TableHead className="text-right">成本小计</TableHead>
+                <TableHead>来源</TableHead>
                 <TableHead className="text-right">提成</TableHead>
               </TableRow>
             </TableHeader>
@@ -311,6 +315,12 @@ export function ProductMarginAnalysis() {
                   <TableCell className="text-right">{money(source.salesAmount)}</TableCell>
                   <TableCell className="text-right">{money(source.refundAmount)}</TableCell>
                   <TableCell className="text-right">{money(source.netSalesAmount)}</TableCell>
+                  <TableCell className="text-right">{money(source.unitCost)}</TableCell>
+                  <TableCell className="text-right">{money(source.productCost)}</TableCell>
+                  <TableCell>
+                    <div>{costSourceLabels[source.costSource ?? 'missing'] ?? source.costSource ?? '-'}</div>
+                    {source.costSourceNo ? <div className="mt-1 text-xs text-muted-foreground">{source.costSourceNo}</div> : null}
+                  </TableCell>
                   <TableCell className="text-right">{money(source.commissionCost)}</TableCell>
                 </TableRow>
               ))}
