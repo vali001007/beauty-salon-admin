@@ -731,17 +731,27 @@ export function UserProfile() {
                       <div className="mt-1 text-xs text-gray-400">¥{row.ltv12m.toLocaleString()}</div>
                     </td>
                     <td className="px-6 py-4">
-                      {row.lifecycleStageLabel ? (
-                        <span className="rounded bg-emerald-50 px-2 py-1 text-sm text-emerald-700">{row.lifecycleStageLabel}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">待计算</span>
-                      )}
+                      <div className="space-y-1">
+                        {row.lifecycleStageLabel ? (
+                          <span className="inline-flex rounded bg-emerald-50 px-2 py-1 text-sm text-emerald-700">{row.lifecycleStageLabel}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">待计算</span>
+                        )}
+                        {row.serviceCycleSummary?.length ? (
+                          <div className="text-xs text-emerald-700">
+                            下次护理 {row.serviceCycleSummary[0].nextDueAt?.slice(0, 10) ?? '-'}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex max-w-[220px] flex-wrap gap-1">
                         {row.opportunityTypeLabels?.length ? row.opportunityTypeLabels.slice(0, 3).map((label) => (
                           <span key={label} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{label}</span>
                         )) : <span className="text-xs text-gray-400">暂无机会</span>}
+                        {row.fulfillmentRiskLabels?.length ? row.fulfillmentRiskLabels.slice(0, 2).map((label, index) => (
+                          <span key={`${label}-${index}`} className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">{label}</span>
+                        )) : null}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-600">
