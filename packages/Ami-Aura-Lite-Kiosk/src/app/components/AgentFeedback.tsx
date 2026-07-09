@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
+import type { AgentFeedbackContext } from "@ami/agent-core";
 
 export interface AgentFeedbackProps {
   runId?: number | null;
-  onFeedback?: (runId: number, adopted: boolean) => Promise<void> | void;
+  feedbackContext?: AgentFeedbackContext;
+  onFeedback?: (runId: number, adopted: boolean, context?: AgentFeedbackContext) => Promise<void> | void;
 }
 
-export function AgentFeedback({ runId, onFeedback }: AgentFeedbackProps) {
+export function AgentFeedback({ runId, feedbackContext, onFeedback }: AgentFeedbackProps) {
   const [selected, setSelected] = useState<"up" | "down" | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,7 +18,7 @@ export function AgentFeedback({ runId, onFeedback }: AgentFeedbackProps) {
     if (submitting || selected) return;
     setSubmitting(true);
     try {
-      await onFeedback(runId, adopted);
+      await onFeedback(runId, adopted, feedbackContext);
       setSelected(adopted ? "up" : "down");
     } finally {
       setSubmitting(false);

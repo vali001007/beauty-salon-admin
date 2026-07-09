@@ -582,6 +582,7 @@ export interface AiSuggestionData {
   title: string;
   text: string;
   source: 'Ami AI';
+  runId?: number;
   structured?: TerminalServiceAdviceStructured | NextBestActionStructured;
 }
 

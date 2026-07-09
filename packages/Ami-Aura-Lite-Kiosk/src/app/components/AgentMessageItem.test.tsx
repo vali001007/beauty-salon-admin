@@ -248,7 +248,7 @@ describe("AgentMessageItem", () => {
     });
 
     expect(container.textContent).toContain("KG+LLM");
-    expect(container.textContent).toContain("kg_llm_preferred");
+    expect(container.querySelector('[title*="kg_llm_preferred"]')).not.toBeNull();
   });
 
   it("does not duplicate answer, evidence, or actions already represented by blocks", async () => {
@@ -306,13 +306,21 @@ describe("AgentMessageItem", () => {
     expect(onAction).toHaveBeenCalledWith("inventory.alerts.view", "查看库存预警");
   });
 
-  it("submits negative feedback with run id for quality analytics", async () => {
+  it("submits negative feedback with message context for quality analytics", async () => {
     const onFeedback = vi.fn().mockResolvedValue(undefined);
 
     await act(async () => {
       root.render(
         <AgentMessageItem
           data={createAgentResult({ runId: 101 })}
+          feedbackContext={{
+            feedbackScope: "message",
+            messageId: "msg-a-1",
+            question: "最近一个月哪些客户需要跟进",
+            answer: "已找到 3 位客户。",
+            questionIndex: 1,
+            source: "terminal:kiosk",
+          }}
           onFeedback={onFeedback}
         />,
       );
@@ -324,7 +332,13 @@ describe("AgentMessageItem", () => {
         ?.click();
     });
 
-    expect(onFeedback).toHaveBeenCalledWith(101, false);
+    expect(onFeedback).toHaveBeenCalledWith(101, false, expect.objectContaining({
+      feedbackScope: "message",
+      messageId: "msg-a-1",
+      question: "最近一个月哪些客户需要跟进",
+      answer: "已找到 3 位客户。",
+      questionIndex: 1,
+    }));
     expect(container.textContent).toContain("已记录");
   });
 });

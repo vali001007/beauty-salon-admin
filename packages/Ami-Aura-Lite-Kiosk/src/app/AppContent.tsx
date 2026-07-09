@@ -6,6 +6,7 @@ import { SmartCommandBar } from "./components/SmartCommandBar";
 import { LockScreenOverlay } from "./components/LockScreenOverlay";
 import { ConversationHistory } from "./components/ConversationHistory";
 import { AgentMessageItem } from "./components/AgentMessageItem";
+import { AgentFeedback } from "./components/AgentFeedback";
 import { PersonaSwitcher } from "./components/PersonaSwitcher";
 import { AutomationDraftCard } from "./components/AutomationDraftCard";
 import { AutomationTodayCard } from "./components/AutomationTodayCard";
@@ -70,7 +71,7 @@ import {
   switchAuraStore,
   writeAuraStartupCache,
 } from "./services/auraCoreService";
-import { submitTerminalAgentFeedback } from "./services/agentRuntimeService";
+import { recordTerminalAmiAiAudit, submitTerminalAgentFeedback } from "./services/agentRuntimeService";
 import { buildTerminalFactContext } from "./services/terminalFactContext";
 import {
   getDefaultTerminalPersona,
@@ -83,7 +84,7 @@ import { useKioskAgentConversation } from "./hooks/useKioskAgentConversation";
 import type { AuraHomePayload } from "./services/auraCoreService";
 import type { BusinessQueryContext, BusinessQueryResponse } from "@/types/businessQuery";
 import { getAgentPersonas } from "@/api";
-import { BUILTIN_AGENT_PERSONAS, type AgentPersonaSummary } from "@ami/agent-core";
+import { BUILTIN_AGENT_PERSONAS, type AgentFeedbackContext, type AgentPersonaSummary } from "@ami/agent-core";
 import {
   agentActionToCommand,
   buildUnsupportedInternalActionResult,
@@ -140,8 +141,7 @@ import type { AuraBootstrap } from "../../../../src/types/aura";
 
 type LoadingPayload = { kind: "agentThinking" };
 type Payload = AuraPayload | LoadingPayload;
-type TerminalAgentEngine = "agent_v1" | "agent_v2" | "agent_v3";
-type TerminalAgentV2GrayMode = "legacy_regex" | "shadow" | "kg_llm_preferred" | "kg_llm_only" | "legacy_retired";
+type TerminalAgentEngine = "agent_v1" | "agent_v2" | "agent_v3" | "agent_v4" | "agent_v5";
 
 const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "cardVerification",
@@ -155,9 +155,10 @@ const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
 
 const PERSONA_REFRESH_INTERVAL_MS = 60_000;
 const TERMINAL_AGENT_ENGINE_STORAGE_KEY = "ami.aura.agent.runtimeMode";
-const TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY = "ami.aura.agent.v2GrayMode";
 
 function resolveTerminalAgentEngine(value: string | null | undefined): TerminalAgentEngine {
+  if (value === "agent_v5") return "agent_v5";
+  if (value === "agent_v4") return "agent_v4";
   if (value === "agent_v3") return "agent_v3";
   return value === "agent_v2" ? "agent_v2" : "agent_v1";
 }
@@ -165,24 +166,6 @@ function resolveTerminalAgentEngine(value: string | null | undefined): TerminalA
 function getStoredTerminalAgentEngine(): TerminalAgentEngine {
   if (typeof window === "undefined") return "agent_v1";
   return resolveTerminalAgentEngine(window.localStorage.getItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY));
-}
-
-function resolveTerminalAgentV2GrayMode(value: string | null | undefined): TerminalAgentV2GrayMode {
-  if (
-    value === "legacy_regex" ||
-    value === "shadow" ||
-    value === "kg_llm_preferred" ||
-    value === "kg_llm_only" ||
-    value === "legacy_retired"
-  ) {
-    return value;
-  }
-  return "kg_llm_preferred";
-}
-
-function getStoredTerminalAgentV2GrayMode(): TerminalAgentV2GrayMode {
-  if (typeof window === "undefined") return "kg_llm_preferred";
-  return resolveTerminalAgentV2GrayMode(window.localStorage.getItem(TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY));
 }
 
 function createMessage(
@@ -196,6 +179,41 @@ function createMessage(
     payload,
     title,
     timestamp: new Date(),
+  };
+}
+
+function getMessageQueryText(message: Message): string {
+  const payload = message.payload as { text?: unknown } | undefined;
+  return typeof payload?.text === "string" ? payload.text.trim() : "";
+}
+
+function findPreviousQuestion(messages: Message[], messageId: string): { question: string; questionIndex: number | null } {
+  const currentIndex = messages.findIndex((message) => message.id === messageId);
+  const endIndex = currentIndex >= 0 ? currentIndex - 1 : messages.length - 1;
+  let questionIndex = 0;
+  for (let index = 0; index <= endIndex; index += 1) {
+    if (messages[index]?.type === "query" && getMessageQueryText(messages[index])) {
+      questionIndex += 1;
+    }
+  }
+  for (let index = endIndex; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.type !== "query") continue;
+    const question = getMessageQueryText(message);
+    if (question) return { question, questionIndex: questionIndex || null };
+  }
+  return { question: "", questionIndex: null };
+}
+
+function buildMessageFeedbackContext(message: Message, messages: Message[], answer?: string): AgentFeedbackContext {
+  const previous = findPreviousQuestion(messages, message.id);
+  return {
+    feedbackScope: "message",
+    messageId: message.id,
+    question: previous.question || null,
+    answer: answer ?? "",
+    questionIndex: previous.questionIndex,
+    source: "terminal:kiosk",
   };
 }
 
@@ -458,61 +476,72 @@ function StructuredList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function AiSuggestionCard({ data }: { data: AiSuggestionData }) {
+function AiSuggestionCard({
+  data,
+  feedbackContext,
+  onFeedback,
+}: {
+  data: AiSuggestionData;
+  feedbackContext?: AgentFeedbackContext;
+  onFeedback?: (runId: number, adopted: boolean, context?: AgentFeedbackContext) => Promise<void> | void;
+}) {
   const structured = data.structured;
   return (
-    <div className="rounded-2xl border border-[#2D1B69]/10 bg-white p-5 shadow-sm">
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#2D1B69]">
-        <Sparkles className="h-4 w-4" />
-        {data.title}
-      </div>
-      {isTerminalServiceAdviceStructured(structured) ? (
-        <div className="grid gap-3">
-          <div className="rounded-xl border border-[#2D1B69]/10 bg-[#2D1B69]/6 p-3 text-sm leading-6 text-[#1F1B2D]">
-            <div className="mb-1 text-xs font-medium text-[#6F6678]">方案判断</div>
-            <p className="whitespace-pre-wrap">{data.text}</p>
+    <div className="grid gap-2">
+      <div className="rounded-2xl border border-[#2D1B69]/10 bg-white p-5 shadow-sm">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#2D1B69]">
+          <Sparkles className="h-4 w-4" />
+          {data.title}
+        </div>
+        {isTerminalServiceAdviceStructured(structured) ? (
+          <div className="grid gap-3">
+            <div className="rounded-xl border border-[#2D1B69]/10 bg-[#2D1B69]/6 p-3 text-sm leading-6 text-[#1F1B2D]">
+              <div className="mb-1 text-xs font-medium text-[#6F6678]">方案判断</div>
+              <p className="whitespace-pre-wrap">{data.text}</p>
+            </div>
+            <StructuredList title="服务前确认" items={structured.preChecks} />
+            <StructuredList title="关键步骤" items={structured.keySteps} />
+            <StructuredList title="耗材提示" items={structured.materialUsage} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm leading-6 text-[#1F1B2D]">
+                <div className="mb-1 text-xs font-medium text-[#6F6678]">服务后跟进</div>
+                {structured.followUpAdvice}
+              </div>
+              <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm leading-6 text-[#1F1B2D]">
+                <div className="mb-1 text-xs font-medium text-[#6F6678]">下次预约</div>
+                {structured.nextBookingHint}
+              </div>
+            </div>
           </div>
-          <StructuredList title="服务前确认" items={structured.preChecks} />
-          <StructuredList title="关键步骤" items={structured.keySteps} />
-          <StructuredList title="耗材提示" items={structured.materialUsage} />
+        ) : isNextBestActionStructured(structured) ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm leading-6 text-[#1F1B2D]">
-              <div className="mb-1 text-xs font-medium text-[#6F6678]">服务后跟进</div>
-              {structured.followUpAdvice}
+            <div className="rounded-xl bg-[#F7F5F2] p-3">
+              <div className="text-xs font-medium text-[#6F6678]">下一步动作</div>
+              <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">{structured.action}</div>
             </div>
-            <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm leading-6 text-[#1F1B2D]">
-              <div className="mb-1 text-xs font-medium text-[#6F6678]">下次预约</div>
-              {structured.nextBookingHint}
+            <div className="rounded-xl bg-[#F7F5F2] p-3">
+              <div className="text-xs font-medium text-[#6F6678]">优先级 / 置信度</div>
+              <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">
+                {structured.urgency} · {Math.round(Number(structured.confidence ?? 0) * 100)}%
+              </div>
+            </div>
+            {structured.projectName ? (
+              <div className="rounded-xl bg-[#F7F5F2] p-3 sm:col-span-2">
+                <div className="text-xs font-medium text-[#6F6678]">推荐项目</div>
+                <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">{structured.projectName}</div>
+              </div>
+            ) : null}
+            <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm leading-6 text-[#1F1B2D] sm:col-span-2">
+              <div className="mb-1 text-xs font-medium text-[#6F6678]">推荐理由</div>
+              {structured.reason}
             </div>
           </div>
-        </div>
-      ) : isNextBestActionStructured(structured) ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-[#F7F5F2] p-3">
-            <div className="text-xs font-medium text-[#6F6678]">下一步动作</div>
-            <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">{structured.action}</div>
-          </div>
-          <div className="rounded-xl bg-[#F7F5F2] p-3">
-            <div className="text-xs font-medium text-[#6F6678]">优先级 / 置信度</div>
-            <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">
-              {structured.urgency} · {Math.round(Number(structured.confidence ?? 0) * 100)}%
-            </div>
-          </div>
-          {structured.projectName ? (
-            <div className="rounded-xl bg-[#F7F5F2] p-3 sm:col-span-2">
-              <div className="text-xs font-medium text-[#6F6678]">推荐项目</div>
-              <div className="mt-1 text-sm font-semibold text-[#1F1B2D]">{structured.projectName}</div>
-            </div>
-          ) : null}
-          <div className="rounded-xl bg-[#F7F5F2] p-3 text-sm leading-6 text-[#1F1B2D] sm:col-span-2">
-            <div className="mb-1 text-xs font-medium text-[#6F6678]">推荐理由</div>
-            {structured.reason}
-          </div>
-        </div>
-      ) : (
-        <p className="whitespace-pre-wrap text-sm leading-6 text-[#1F1B2D]">{data.text}</p>
-      )}
-      <div className="mt-3 text-xs text-[#6F6678]">建议由 Ami AI 生成，业务事实以 Ami_Core 卡片数据为准</div>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-[#1F1B2D]">{data.text}</p>
+        )}
+        <div className="mt-3 text-xs text-[#6F6678]">建议由 Ami AI 生成，业务事实以 Ami_Core 卡片数据为准</div>
+      </div>
+      {data.runId ? <AgentFeedback runId={data.runId} feedbackContext={feedbackContext} onFeedback={onFeedback} /> : null}
     </div>
   );
 }
@@ -638,7 +667,6 @@ export default function AppContent() {
   const [currentRole, setCurrentRole] = useState<Role>("reception");
   const [activePersonaCode, setActivePersonaCode] = useState<TerminalAgentPersonaCode>(getDefaultTerminalPersona("reception"));
   const [agentEngine, setAgentEngine] = useState<TerminalAgentEngine>(getStoredTerminalAgentEngine);
-  const [agentV2GrayMode, setAgentV2GrayMode] = useState<TerminalAgentV2GrayMode>(getStoredTerminalAgentV2GrayMode);
   const [agentPersonas, setAgentPersonas] = useState<AgentPersonaSummary[]>(BUILTIN_AGENT_PERSONAS);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -689,7 +717,6 @@ export default function AppContent() {
   const currentRoleRef = useRef<Role>(currentRole);
   const activePersonaCodeRef = useRef<TerminalAgentPersonaCode>(activePersonaCode);
   const agentEngineRef = useRef<TerminalAgentEngine>(agentEngine);
-  const agentV2GrayModeRef = useRef<TerminalAgentV2GrayMode>(agentV2GrayMode);
   const currentOperatorIdRef = useRef<number | null>(currentOperatorId);
   const conversationEpochRef = useRef(0);
   const refreshAgentPersonas = useCallback(async (isActive: () => boolean = () => true) => {
@@ -718,10 +745,6 @@ export default function AppContent() {
   useEffect(() => {
     agentEngineRef.current = agentEngine;
   }, [agentEngine]);
-
-  useEffect(() => {
-    agentV2GrayModeRef.current = agentV2GrayMode;
-  }, [agentV2GrayMode]);
 
   useEffect(() => {
     currentOperatorIdRef.current = currentOperatorId;
@@ -781,27 +804,6 @@ export default function AppContent() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY, nextEngine);
       }
-      advanceConversationEpoch();
-      clearAllMessages();
-      setConversationContext(createConversationContext(currentRoleRef.current, undefined));
-      setLoading(false);
-      setAgentLoading(false);
-      setSuppressBlockingLoading(false);
-      setLoadingText("正在接入 Ami_Core");
-      setError(null);
-    },
-    [clearAllMessages, setAgentLoading],
-  );
-
-  const handleAgentV2GrayModeChange = useCallback(
-    (nextMode: TerminalAgentV2GrayMode) => {
-      if (nextMode === agentV2GrayModeRef.current) return;
-      agentV2GrayModeRef.current = nextMode;
-      setAgentV2GrayMode(nextMode);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(TERMINAL_AGENT_V2_GRAY_MODE_STORAGE_KEY, nextMode);
-      }
-      if (agentEngineRef.current !== "agent_v2") return;
       advanceConversationEpoch();
       clearAllMessages();
       setConversationContext(createConversationContext(currentRoleRef.current, undefined));
@@ -884,6 +886,7 @@ export default function AppContent() {
     };
     const aiMessage = createMessage("ai", { kind: "ai", data: baseData });
     let text = "";
+    const startedAt = Date.now();
     const setTargetMessages = targetStream === "agent" ? setAgentMessages : setMessages;
     setTargetMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, aiMessage] : prev));
 
@@ -928,8 +931,44 @@ export default function AppContent() {
                   }
                 : message,
             )
+            : prev,
+      );
+    }
+    if (!isConversationEpochActive(epoch) || !text.trim()) return;
+    try {
+      const fallbackReason = stream.businessContext?.startsWith("Agent Runtime fallback:")
+        ? stream.businessContext.replace("Agent Runtime fallback:", "").trim()
+        : null;
+      const audit = await recordTerminalAmiAiAudit({
+        role: stream.role,
+        command: stream.command,
+        answer: text,
+        businessContext: stream.businessContext,
+        fallbackReason,
+        latencyMs: Date.now() - startedAt,
+      });
+      if (!isConversationEpochActive(epoch)) return;
+      setTargetMessages((prev) =>
+        isConversationEpochActive(epoch)
+          ? prev.map((message) =>
+              message.id === aiMessage.id
+                ? {
+                    ...message,
+                    payload: {
+                      kind: "ai",
+                      data: {
+                        ...baseData,
+                        text,
+                        runId: audit.runId,
+                      },
+                    },
+                  }
+                : message,
+            )
           : prev,
       );
+    } catch (error) {
+      console.warn("Ami AI audit record failed", error);
     }
   };
 
@@ -1385,7 +1424,11 @@ export default function AppContent() {
     }
   };
 
-  const handleCommand = async (command: string, source: AuraCommandSource = "text") => {
+  const handleCommand = async (
+    command: string,
+    source: AuraCommandSource = "text",
+    extraAgentContext?: Record<string, unknown>,
+  ) => {
     const epoch = getConversationEpoch();
 
     const intent = await resolveCommandIntent(
@@ -1455,10 +1498,15 @@ export default function AppContent() {
 
       const selectedPersonaCode = activePersonaCodeRef.current;
       const selectedAgentEngine = agentEngineRef.current;
-      const selectedAgentV2GrayMode = selectedAgentEngine === "agent_v2" ? agentV2GrayModeRef.current : undefined;
-      const agentV2Meta = selectedAgentV2GrayMode
-        ? { agentV2GrayMode: selectedAgentV2GrayMode, architecture: "kg_llm_agent" }
-        : {};
+      const agentEngineMeta = selectedAgentEngine === "agent_v2"
+        ? { architecture: "kg_llm_agent" }
+        : selectedAgentEngine === "agent_v3"
+          ? { architecture: "agent_v3_text_to_sql", agentV3Mode: "execute" }
+          : selectedAgentEngine === "agent_v5"
+            ? { architecture: "agent_v5_business_ontology_agent", agentV5Mode: "execute", boundary: "drafts_followups_and_approval_only" }
+          : selectedAgentEngine === "agent_v4"
+            ? { architecture: "agent_v4_lifecycle_business_agent", agentV4Mode: "execute", boundary: "drafts_and_approval_only" }
+            : {};
       const terminalFacts = buildTerminalFactContext(messagesRef.current, {
         store: bootstrap?.currentStore ?? session?.store ?? null,
         operator: bootstrap?.currentUser ?? session?.user ?? null,
@@ -1466,22 +1514,22 @@ export default function AppContent() {
           entrypoint: "terminal:kiosk",
           role: currentRoleRef.current,
           agentEngine: selectedAgentEngine,
-          ...agentV2Meta,
+          ...agentEngineMeta,
           ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
         },
       });
 
       const result = await runMicroAppIntent(intent, command, {
         agentEngine: selectedAgentEngine,
-        ...(selectedAgentV2GrayMode ? { agentV2GrayMode: selectedAgentV2GrayMode } : {}),
         agentContext: {
           ...(getLatestAgentContext() ?? {}),
           agentEngine: selectedAgentEngine,
-          ...agentV2Meta,
+          ...agentEngineMeta,
+          ...(extraAgentContext ?? {}),
           terminalFacts,
           terminal: {
             agentEngine: selectedAgentEngine,
-            ...agentV2Meta,
+            ...agentEngineMeta,
             ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
           },
         },
@@ -1602,8 +1650,8 @@ export default function AppContent() {
     }
   };
 
-  const handleAgentFeedback = async (runId: number, adopted: boolean) => {
-    await submitTerminalAgentFeedback({ runId, adopted });
+  const handleAgentFeedback = async (runId: number, adopted: boolean, feedbackContext?: AgentFeedbackContext) => {
+    await submitTerminalAgentFeedback({ runId, adopted, feedbackContext });
   };
 
   const appendOperationResult = (data: OperationResultData, epoch = getConversationEpoch()) => {
@@ -1632,6 +1680,11 @@ export default function AppContent() {
 
   const handleBusinessQueryAction = (action: string, label?: string) => handleStructuredAction(action, businessQueryActionToCommand, label);
   const handleAgentResultAction = async (action: string, label?: string) => {
+    if (action.startsWith("agent-v5:clarification:")) {
+      const selection = action.split(":").slice(2).join(":");
+      await handleCommand(label?.trim() || selection, "system", { agentV5ClarificationSelection: selection });
+      return;
+    }
     const approvalAction = parseAgentApprovalAction(action);
     if (approvalAction?.decision === "approve") {
       await handleAgentApprovalApprove(approvalAction.approvalId);
@@ -1663,13 +1716,11 @@ export default function AppContent() {
         currentUserId={currentOperatorId}
         availableUsers={availableUsers}
         agentEngine={agentEngine}
-        agentV2GrayMode={agentV2GrayMode}
         switchingStore={switchingStore}
         switchingUser={switchingUser}
         onStoreChange={handleStoreChange}
         onUserChange={handleUserChange}
         onAgentEngineChange={handleAgentEngineChange}
-        onAgentV2GrayModeChange={handleAgentV2GrayModeChange}
         onHistory={() => setShowConversationHistory(true)}
         onLock={handleLock}
         onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() })}
@@ -1726,7 +1777,16 @@ export default function AppContent() {
 
             if (message.type === "ai") {
               const payload = message.payload as Payload | undefined;
-              if (payload?.kind === "ai") return <AiSuggestionCard key={key} data={payload.data} />;
+              if (payload?.kind === "ai") {
+                return (
+                  <AiSuggestionCard
+                    key={key}
+                    data={payload.data}
+                    feedbackContext={buildMessageFeedbackContext(message, combinedMessages, payload.data.text)}
+                    onFeedback={handleAgentFeedback}
+                  />
+                );
+              }
             }
 
             if (message.type === "automation") {
@@ -1850,11 +1910,13 @@ export default function AppContent() {
                 );
               }
               if (payload.kind === "agentRun") {
+                const feedbackContext = buildMessageFeedbackContext(message, combinedMessages, payload.data.answer);
                 return (
                   <div key={key} className="grid gap-2">
                     <QueryStatusLine title={message.title} />
                     <AgentMessageItem
                       data={payload.data}
+                      feedbackContext={feedbackContext}
                       onCommand={(suggestion) => handleCommand(suggestion, "text")}
                       onAction={handleAgentResultAction}
                       onApprove={handleAgentApprovalApprove}

@@ -36,7 +36,7 @@ import {
   type TerminalQueryResult,
 } from '../services/terminalQueryClient';
 import { isTerminalAgentRuntimeEnabled, runTerminalAgentIntent, shouldUseTerminalAgentRuntime } from '../services/terminalAgentAdapter';
-import type { TerminalAgentEngine, TerminalAgentV2GrayMode } from '../services/agentRuntimeService';
+import type { TerminalAgentEngine } from '../services/agentRuntimeService';
 import type { MicroAppRunResult } from './microAppTypes';
 
 type CacheableMicroAppConfig<T> = {
@@ -50,7 +50,6 @@ type RunMicroAppIntentOptions = {
   businessQueryContext?: BusinessQueryContext;
   agentContext?: Record<string, unknown>;
   agentEngine?: TerminalAgentEngine;
-  agentV2GrayMode?: TerminalAgentV2GrayMode;
 };
 
 export function toTerminalDateKey(date: Date) {
@@ -425,9 +424,13 @@ export async function runMicroAppIntent(
       ...(options.agentContext ?? {}),
       ...(options.agentEngine ? { agentEngine: options.agentEngine } : {}),
       ...(options.agentEngine === 'agent_v2'
-        ? { agentV2GrayMode: options.agentV2GrayMode ?? 'kg_llm_preferred', architecture: 'kg_llm_agent' }
+        ? { architecture: 'kg_llm_agent' }
         : options.agentEngine === 'agent_v3'
           ? { architecture: 'agent_v3_text_to_sql', agentV3Mode: 'execute' }
+          : options.agentEngine === 'agent_v5'
+            ? { architecture: 'agent_v5_business_ontology_agent', agentV5Mode: 'execute', boundary: 'drafts_followups_and_approval_only' }
+          : options.agentEngine === 'agent_v4'
+            ? { architecture: 'agent_v4_lifecycle_business_agent', agentV4Mode: 'execute', boundary: 'drafts_and_approval_only' }
         : {}),
       ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     };

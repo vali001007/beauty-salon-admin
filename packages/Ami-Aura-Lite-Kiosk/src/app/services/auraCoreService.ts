@@ -45,10 +45,14 @@ import {
   appendAgentMessage,
   appendAgentV2Message,
   appendAgentV3Message,
+  appendAgentV4Message,
+  appendAgentV5Message,
   approveAgentApproval,
   createAgentRun,
   createAgentV2Run,
   createAgentV3Run,
+  createAgentV4Run,
+  createAgentV5Run,
   rejectAgentApproval,
   cancelTerminalReservation,
   confirmTerminalReservation,
@@ -1732,18 +1736,24 @@ function resolveAgentPersonaCode(role: Role, context?: Record<string, unknown>):
     : undefined;
 }
 
-function resolveAgentEngine(context?: Record<string, unknown>): 'agent_v1' | 'agent_v2' | 'agent_v3' {
+function resolveAgentEngine(context?: Record<string, unknown>): 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5' {
+  if (context?.agentEngine === 'agent_v5') return 'agent_v5';
+  if (context?.agentEngine === 'agent_v4') return 'agent_v4';
   if (context?.agentEngine === 'agent_v3') return 'agent_v3';
   return context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
 }
 
-function resolveAgentRunApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3') {
+function resolveAgentRunApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5') {
+  if (agentEngine === 'agent_v5') return createAgentV5Run;
+  if (agentEngine === 'agent_v4') return createAgentV4Run;
   if (agentEngine === 'agent_v3') return createAgentV3Run;
   if (agentEngine === 'agent_v2') return createAgentV2Run;
   return createAgentRun;
 }
 
-function resolveAgentAppendApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3') {
+function resolveAgentAppendApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5') {
+  if (agentEngine === 'agent_v5') return appendAgentV5Message;
+  if (agentEngine === 'agent_v4') return appendAgentV4Message;
   if (agentEngine === 'agent_v3') return appendAgentV3Message;
   if (agentEngine === 'agent_v2') return appendAgentV2Message;
   return appendAgentMessage;

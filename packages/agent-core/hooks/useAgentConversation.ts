@@ -123,7 +123,8 @@ export function useAgentConversation<TMessage extends AgentConversationMessage =
         setActiveRunId(result.runId);
         const displayModel = getAgentResultDisplayModel(result);
         const mappedPatch = options.mapAgentResult?.(result) ?? {};
-        updateMessage(agentMessageId, {
+        const mappedMetadata = (mappedPatch as { metadata?: Record<string, unknown> }).metadata;
+        const agentMessagePatch = {
           loading: false,
           text: result.answer,
           blocks: displayModel.blocks,
@@ -132,11 +133,17 @@ export function useAgentConversation<TMessage extends AgentConversationMessage =
           actions: displayModel.actions,
           limitations: displayModel.limitations,
           statusNotice: displayModel.statusNotice,
+          ...mappedPatch,
+          metadata: {
+            ...(mappedMetadata ?? {}),
+            feedbackScope: 'message',
+            feedbackQuestion: text,
+          },
           runId: result.runId,
           personaCode: result.personaCode,
           routeDecision: result.routeDecision,
-          ...mappedPatch,
-        } as Partial<TMessage>);
+        };
+        updateMessage(agentMessageId, agentMessagePatch as unknown as Partial<TMessage>);
         return result;
       } catch (error) {
         updateMessage(agentMessageId, {

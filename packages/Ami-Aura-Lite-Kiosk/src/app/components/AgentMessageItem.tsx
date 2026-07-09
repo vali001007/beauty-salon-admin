@@ -1,6 +1,7 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
 import { getAgentResultDisplayModel } from "@ami/agent-core";
+import type { AgentFeedbackContext } from "@ami/agent-core";
 import type { AgentRunResult, AuraResponseBlock } from "@/types/agent";
 import { FollowUpChips } from "./FollowUpChips";
 import { AgentFeedback } from "./AgentFeedback";
@@ -21,7 +22,8 @@ export interface AgentMessageItemProps {
   onAction?: (action: string, label?: string) => void;
   onApprove?: (approvalId: number) => void;
   onReject?: (approvalId: number) => void;
-  onFeedback?: (runId: number, adopted: boolean) => Promise<void> | void;
+  feedbackContext?: AgentFeedbackContext;
+  onFeedback?: (runId: number, adopted: boolean, context?: AgentFeedbackContext) => Promise<void> | void;
 }
 
 function getStatusLabel(status: AgentRunResult["status"]) {
@@ -71,9 +73,13 @@ function getArchitectureLabel(value: unknown) {
   const labels: Record<string, string> = {
     agent_v2_kg_llm: "KG+LLM",
     kg_llm_agent: "KG+LLM",
-    agent_v2_shadow: "V2 Shadow",
-    agent_v2_legacy_fallback: "V2 回退",
-    agent_v2_kg_llm_retired: "旧链退役",
+    agent_v2_shadow: "Agent V2",
+    agent_v2_legacy_fallback: "Agent V2",
+    agent_v2_kg_llm_retired: "Agent V2",
+    agent_v5_business_ontology_agent: "V5 全业务 Ontology",
+    agent_v5: "Agent V5",
+    agent_v4_lifecycle_business_agent: "V4 生命周期经营",
+    agent_v4: "Agent V4",
     agent_v2: "Agent V2",
     agent_v3_text_to_sql: "V3 数据分析",
     agent_v3: "Agent V3",
@@ -88,11 +94,11 @@ function getAgentArchitectureMeta(data: AgentRunWithBlocks) {
   const strategy = asRecord(businessTask.agentV2GrayStrategy);
   const architecture = businessTask.architecture ?? asRecord(data).architecture;
   const architectureLabel = architecture ? getArchitectureLabel(architecture) : "";
-  const mode = typeof strategy.mode === "string" ? strategy.mode : "";
+  const grayMode = typeof strategy.mode === "string" ? strategy.mode : "";
   const finalEngine = typeof strategy.finalEngine === "string" ? strategy.finalEngine : "";
   return {
     architectureLabel,
-    mode,
+    grayMode,
     finalEngine,
   };
 }
@@ -151,12 +157,24 @@ function getStatusNoticeClass(kind: string) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function buildFeedbackContext(data: AgentRunWithBlocks, context?: AgentFeedbackContext): AgentFeedbackContext {
+  return {
+    feedbackScope: "message",
+    messageId: context?.messageId ?? null,
+    question: context?.question ?? null,
+    answer: context?.answer ?? data.answer ?? "",
+    questionIndex: context?.questionIndex ?? null,
+    source: context?.source ?? "terminal:kiosk",
+  };
+}
+
 export function AgentMessageItem({
   data,
   onCommand,
   onAction,
   onApprove,
   onReject,
+  feedbackContext,
   onFeedback,
 }: AgentMessageItemProps) {
   const displayModel = getAgentResultDisplayModel(data);
@@ -179,6 +197,7 @@ export function AgentMessageItem({
     visibleActionKeys.add(action.label);
   });
   const followUps = displayModel.followUpSuggestions.filter((suggestion) => !visibleActionKeys.has(suggestion));
+  const messageFeedbackContext = buildFeedbackContext(data, feedbackContext);
 
   if (
     !blocks.length &&
@@ -193,7 +212,7 @@ export function AgentMessageItem({
     return (
       <div className="grid gap-2">
         <AgentRunResultCard data={data} onAction={onAction} onApprove={onApprove} onReject={onReject} />
-        <AgentFeedback runId={data.runId} onFeedback={onFeedback} />
+        <AgentFeedback runId={data.runId} feedbackContext={messageFeedbackContext} onFeedback={onFeedback} />
       </div>
     );
   }
@@ -221,12 +240,11 @@ export function AgentMessageItem({
               <span
                 className="rounded-full bg-[#C9956C]/10 px-3 py-1 text-xs font-medium text-[#8A5D38]"
                 title={[
-                  architectureMeta.mode ? `灰度：${architectureMeta.mode}` : "",
+                  architectureMeta.grayMode ? `灰度模式：${architectureMeta.grayMode}` : "",
                   architectureMeta.finalEngine ? `最终引擎：${architectureMeta.finalEngine}` : "",
                 ].filter(Boolean).join(" · ")}
               >
                 {architectureMeta.architectureLabel}
-                {architectureMeta.mode ? ` · ${architectureMeta.mode}` : ""}
               </span>
             ) : null}
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClass(data.status)}`}>
@@ -297,7 +315,7 @@ export function AgentMessageItem({
       </div>
 
       {followUps.length ? <FollowUpChips suggestions={followUps} onSelect={(suggestion) => onCommand?.(suggestion)} /> : null}
-      <AgentFeedback runId={data.runId} onFeedback={onFeedback} />
+      <AgentFeedback runId={data.runId} feedbackContext={messageFeedbackContext} onFeedback={onFeedback} />
     </div>
   );
 }
