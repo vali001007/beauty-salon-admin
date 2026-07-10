@@ -11,6 +11,8 @@ import { RouteErrorPage } from './pages/RouteErrorPage';
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })), 'RegisterPage');
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })), 'Dashboard');
+const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
+const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
 const CustomerData = lazyWithRetry(() => import('./pages/CustomerData').then(m => ({ default: m.CustomerData })), 'CustomerData');
 const CustomerInvitationScript = lazyWithRetry(() => import('./pages/CustomerInvitationScript').then(m => ({ default: m.CustomerInvitationScript })), 'CustomerInvitationScript');
 const ProjectManagement = lazyWithRetry(() => import('./pages/ProjectManagement').then(m => ({ default: m.ProjectManagement })), 'ProjectManagement');
@@ -142,6 +144,7 @@ export const router = createBrowserRouter([
 
       // Dashboard
       { path: 'dashboard', element: withSuspense(Dashboard) },
+      { path: 'brain', element: withGuard('core:brain:use', BrainWorkspace) },
 
       // Customers
       { path: 'customers/data', element: withGuard('core:customer:view', CustomerData) },
@@ -249,6 +252,7 @@ export const router = createBrowserRouter([
       { path: 'system/agent-governance/feedback', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
+      { path: 'brain-governance', element: withGuard('core:brain-governance:view', BrainGovernanceCenter) },
 
       // AI 智能体工作台
       { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },

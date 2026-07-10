@@ -6,7 +6,7 @@ import {
   MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
   Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
-  Database, BookOpen, CheckCircle2, ShieldCheck,
+  Database, BookOpen, CheckCircle2, ShieldCheck, BrainCircuit,
   type LucideIcon,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -41,6 +41,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/dashboard',
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
+      { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
       { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
     ],
   },
@@ -162,6 +163,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
       { title: 'AI 治理中心', path: '/system/agent-governance', icon: ShieldCheck, permission: 'core:agent-governance:view' },
+      { title: 'Brain 治理中心', path: '/brain-governance', icon: ShieldCheck, permission: 'core:brain-governance:view' },
     ],
   },
 ];
@@ -320,4 +322,3 @@ export function Layout() {
     </div>
   );
 }
-

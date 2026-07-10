@@ -179,6 +179,9 @@
     "agent:api-e2e": "ts-node --esm prisma/agent-api-e2e.ts",
     "agent:api-e2e:allow-missing-auth": "ts-node --esm prisma/agent-api-e2e.ts --allow-missing-auth",
     "agent:verification-plan": "ts-node --esm prisma/agent-verification-plan.ts",
+    "brain:mvp-seed": "set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/brain-mvp-seed.ts --apply --yes",
+    "brain:mvp-seed:dry-run": "set TS_NODE_TRANSPILE_ONLY=true&& node --loader ts-node/esm --experimental-specifier-resolution=node prisma/brain-mvp-seed.ts --dry-run",
+    "brain:mvp-readiness": "ts-node --esm prisma/brain-mvp-readiness.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

@@ -33,6 +33,7 @@
     "check:ami-glow-h5:real-write": "node scripts/check-ami-glow-h5-real-write.mjs",
     "check:ami-semantic-agent": "node scripts/check-ami-semantic-agent.mjs",
     "check:ami-query-hub": "node scripts/check-ami-query-hub.mjs",
+    "check:brain-mvp": "node scripts/check-brain-mvp.mjs",
     "agent-v2:capability-drafts": "npm.cmd --prefix packages/server-v2 run agent-v2:capability-drafts",
     "agent-v2:eval-gate": "npm.cmd --prefix packages/server-v2 run agent-v2:eval-gate",
     "agent-v2:knowledge:daily": "npm.cmd --prefix packages/server-v2 run agent-v2:knowledge:daily",

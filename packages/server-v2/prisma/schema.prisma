@@ -3935,3 +3935,381 @@ model AgentV2GrayRule {
   @@index([updatedAt])
   @@map("agent_v2_gray_rules")
 }
+
+// ─── Ami Brain Independent Namespace ─────────────────────────────────────────
+
+enum BrainMessageRole {
+  user
+  assistant
+  system
+  tool
+}
+
+enum BrainMemoryType {
+  working
+  session
+  episodic
+  semantic
+  procedural
+}
+
+enum BrainSkillType {
+  query
+  analysis
+  risk
+  action
+  prediction
+}
+
+enum BrainRiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+enum BrainRunStatus {
+  queued
+  running
+  needs_confirmation
+  completed
+  failed
+  cancelled
+}
+
+enum BrainReleaseStatus {
+  draft
+  active
+  rolled_back
+  archived
+}
+
+model BrainConversation {
+  id        Int       @id @default(autoincrement())
+  storeId   Int
+  userId    Int
+  title     String?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  messages BrainMessage[]
+  runs     BrainRun[]
+
+  @@index([storeId, userId, updatedAt])
+  @@map("brain_conversation")
+}
+
+model BrainMessage {
+  id             Int              @id @default(autoincrement())
+  conversationId Int
+  role           BrainMessageRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  conversation BrainConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@map("brain_message")
+}
+
+model BrainMemory {
+  id          Int             @id @default(autoincrement())
+  storeId     Int
+  userId      Int?
+  type        BrainMemoryType
+  subjectKey  String
+  content     Json
+  confidence  Float           @default(0.8)
+  validFrom   DateTime        @default(now())
+  expiresAt   DateTime?
+  sourceRunId Int?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  @@index([storeId, type, subjectKey])
+  @@index([expiresAt])
+  @@map("brain_memory")
+}
+
+model BrainOntologyEntity {
+  id         Int      @id @default(autoincrement())
+  domain     String
+  entityKey  String
+  name       String
+  synonyms   Json
+  attributes Json
+  tableMap   Json
+  status     String   @default("active")
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityKey, version])
+  @@index([domain, status])
+  @@map("brain_ontology_entity")
+}
+
+model BrainOntologyRelation {
+  id            Int      @id @default(autoincrement())
+  relationKey   String
+  fromEntityKey String
+  toEntityKey   String
+  name          String
+  joinPath      Json
+  status        String   @default("active")
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([relationKey, version])
+  @@index([fromEntityKey, toEntityKey])
+  @@map("brain_ontology_relation")
+}
+
+model BrainKgNode {
+  id        Int      @id @default(autoincrement())
+  storeId   Int?
+  nodeKey   String
+  entityKey String
+  label     String
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, nodeKey])
+  @@index([entityKey])
+  @@map("brain_kg_node")
+}
+
+model BrainKgEdge {
+  id          Int      @id @default(autoincrement())
+  storeId     Int?
+  edgeKey     String
+  fromNodeKey String
+  toNodeKey   String
+  relationKey String
+  payload     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([storeId, edgeKey])
+  @@index([fromNodeKey, toNodeKey])
+  @@map("brain_kg_edge")
+}
+
+model BrainMetric {
+  id             Int      @id @default(autoincrement())
+  metricKey      String
+  name           String
+  domain         String
+  formula        Json
+  sourceTables   Json
+  defaultFilters Json?
+  permissions    Json
+  description    String
+  status         String   @default("active")
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([metricKey, version])
+  @@index([domain, status])
+  @@map("brain_metric")
+}
+
+model BrainDimension {
+  id           Int      @id @default(autoincrement())
+  dimensionKey String
+  name         String
+  domain       String
+  source       Json
+  permissions  Json
+  status       String   @default("active")
+  version      Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([dimensionKey, version])
+  @@index([domain, status])
+  @@map("brain_dimension")
+}
+
+model BrainSkillRegistry {
+  id           Int            @id @default(autoincrement())
+  skillKey     String
+  name         String
+  type         BrainSkillType
+  inputSchema  Json
+  outputSchema Json
+  permissions  Json
+  riskLevel    BrainRiskLevel @default(low)
+  enabled      Boolean        @default(true)
+  version      Int            @default(1)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([skillKey, version])
+  @@index([type, enabled])
+  @@map("brain_skill_registry")
+}
+
+model BrainAgentProfile {
+  id             Int      @id @default(autoincrement())
+  roleKey        String
+  name           String
+  systemPrompt   String
+  allowedSkills  Json
+  dataScopeRules Json
+  knowledgePack  Json?
+  enabled        Boolean  @default(true)
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([roleKey, version])
+  @@index([enabled])
+  @@map("brain_agent_profile")
+}
+
+model BrainInspectionRule {
+  id            Int            @id @default(autoincrement())
+  ruleKey       String
+  name          String
+  domain        String
+  scheduleCron  String?
+  eventTrigger  String?
+  condition     Json
+  suggestionTpl Json
+  riskLevel     BrainRiskLevel
+  enabled       Boolean        @default(true)
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([ruleKey, version])
+  @@index([domain, enabled])
+  @@map("brain_inspection_rule")
+}
+
+model BrainRun {
+  id             Int            @id @default(autoincrement())
+  conversationId Int?
+  storeId        Int
+  userId         Int
+  status         BrainRunStatus @default(queued)
+  input          Json
+  output         Json?
+  cost           Json?
+  latencyMs      Int?
+  error          Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  conversation BrainConversation? @relation(fields: [conversationId], references: [id])
+  steps        BrainRunStep[]
+
+  @@index([storeId, userId, createdAt])
+  @@index([status])
+  @@map("brain_run")
+}
+
+model BrainRunStep {
+  id        Int      @id @default(autoincrement())
+  runId     Int
+  stepKey   String
+  layer     String
+  input     Json?
+  output    Json?
+  status    String
+  latencyMs Int?
+  error     Json?
+  createdAt DateTime @default(now())
+
+  run BrainRun @relation(fields: [runId], references: [id])
+
+  @@index([runId, createdAt])
+  @@map("brain_run_step")
+}
+
+model BrainEvalCase {
+  id            Int      @id @default(autoincrement())
+  caseKey       String   @unique
+  roleKey       String?
+  scenario      String
+  input         Json
+  expected      Json
+  assertionType String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([scenario, enabled])
+  @@map("brain_eval_case")
+}
+
+model BrainEvalRun {
+  id        Int      @id @default(autoincrement())
+  releaseId Int?
+  status    String
+  summary   Json
+  results   Json
+  createdAt DateTime @default(now())
+
+  @@index([releaseId, createdAt])
+  @@map("brain_eval_run")
+}
+
+model BrainRelease {
+  id         Int                @id @default(autoincrement())
+  releaseKey String             @unique
+  scope      String
+  versionMap Json
+  rollout    Json
+  status     BrainReleaseStatus @default(draft)
+  createdBy  Int
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([scope, status])
+  @@map("brain_release")
+}
+
+model BrainFeedback {
+  id         Int      @id @default(autoincrement())
+  runId      Int
+  userId     Int
+  storeId    Int
+  rating     String
+  correction Json?
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([storeId, status, createdAt])
+  @@map("brain_feedback")
+}
+
+model BrainActionConfirmation {
+  id          Int            @id @default(autoincrement())
+  actionId    String         @unique
+  runId       Int
+  userId      Int
+  storeId     Int
+  skillKey    String
+  riskLevel   BrainRiskLevel
+  preview     Json
+  payload     Json
+  status      String         @default("pending")
+  confirmedAt DateTime?
+  executedAt  DateTime?
+  result      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([runId, status])
+  @@map("brain_action_confirmation")
+}
