@@ -179,7 +179,7 @@ export class AiService {
     private config: ConfigService,
     @Optional() private industryService?: IndustryService,
   ) {
-    this.provider = String(config.get('LLM_PROVIDER', 'mock')).trim().toLowerCase();
+    this.provider = this.normalizeProviderName(String(config.get('LLM_PROVIDER', 'mock')));
     this.model = config.get('LLM_MODEL', 'deepseek-v4-flash');
     this.apiKey = config.get('LLM_API_KEY', '');
     this.baseUrl = config.get('LLM_BASE_URL', 'https://api.deepseek.com');
@@ -190,7 +190,7 @@ export class AiService {
     this.stream = String(config.get('LLM_STREAM', 'false')).toLowerCase() === 'true';
     this.thinking = String(config.get('LLM_THINKING', 'disabled')).toLowerCase();
     this.reasoningEffort = String(config.get('LLM_REASONING_EFFORT', 'high')).toLowerCase();
-    this.fallbackProvider = String(config.get('LLM_FALLBACK_PROVIDER', '')).trim().toLowerCase();
+    this.fallbackProvider = this.normalizeProviderName(String(config.get('LLM_FALLBACK_PROVIDER', '')));
     this.fallbackModel = String(config.get('LLM_FALLBACK_MODEL', '')).trim();
     this.fallbackApiKey = String(config.get('LLM_FALLBACK_API_KEY', '')).trim();
     this.fallbackBaseUrl = String(config.get('LLM_FALLBACK_BASE_URL', '')).trim();
@@ -1234,6 +1234,15 @@ export class AiService {
     return this.provider === 'mock';
   }
 
+  private normalizeProviderName(provider: string) {
+    const normalized = String(provider || '').trim().toLowerCase();
+    return normalized === 'openai-compat' ? 'openai_compatible' : normalized;
+  }
+
+  private isOpenAiCompatibleProvider(provider: string) {
+    return ['deepseek', 'openai_compatible', 'kimi'].includes(this.normalizeProviderName(provider));
+  }
+
   private validateProductionConfig() {
     if (process.env.NODE_ENV !== 'production') return;
 
@@ -1280,7 +1289,7 @@ export class AiService {
       return;
     }
 
-    if (this.provider === 'deepseek' || this.provider === 'openai_compatible') {
+    if (this.isOpenAiCompatibleProvider(this.provider)) {
       try {
         yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
           provider: this.provider,
@@ -1299,7 +1308,7 @@ export class AiService {
     if (this.hasFallbackProvider()) {
       try {
         yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
-          provider: this.fallbackProvider === 'openai-compat' ? 'openai_compatible' : this.fallbackProvider,
+          provider: this.normalizeProviderName(this.fallbackProvider),
           model: this.fallbackModel,
           apiKey: this.fallbackApiKey,
           baseUrl: this.fallbackBaseUrl,
@@ -1745,7 +1754,7 @@ export class AiService {
       throw new AiProviderError('CONFIG_MISSING', 'AI 服务尚未配置 API Key');
     }
 
-    if (this.provider === 'deepseek' || this.provider === 'openai_compatible') {
+    if (this.isOpenAiCompatibleProvider(this.provider)) {
       return this.callOpenAiCompatible(scenario, messages);
     }
 
@@ -1763,9 +1772,9 @@ export class AiService {
   }
 
   private async callFallbackLlm(scenario: string, messages: AiMessage[]) {
-    const normalizedProvider = this.fallbackProvider === 'openai-compat' ? 'openai_compatible' : this.fallbackProvider;
-    if (normalizedProvider !== 'openai_compatible' && normalizedProvider !== 'deepseek') {
-      throw new AiProviderError('FALLBACK_PROVIDER_UNSUPPORTED', 'Fallback AI Provider 仅支持 OpenAI-compatible 或 DeepSeek', 502);
+    const normalizedProvider = this.normalizeProviderName(this.fallbackProvider);
+    if (!this.isOpenAiCompatibleProvider(normalizedProvider)) {
+      throw new AiProviderError('FALLBACK_PROVIDER_UNSUPPORTED', 'Fallback AI Provider 仅支持 OpenAI-compatible、DeepSeek 或 Kimi', 502);
     }
     const result = await this.callOpenAiCompatibleWithConfig(scenario, messages, {
       provider: normalizedProvider,
@@ -1794,6 +1803,13 @@ export class AiService {
     const base = baseUrl.replace(/\/+$/, '');
     const path = chatPath.startsWith('/') ? chatPath : `/${chatPath}`;
     return base.endsWith(path) ? base : `${base}${path}`;
+  }
+
+  private getOpenAiCompatibleTemperature(provider: string, model: string) {
+    if (provider === 'kimi' && model.startsWith('kimi-k2.7-code')) {
+      return 1;
+    }
+    return this.temperature;
   }
 
   private normalizeMessages(messages: AiMessage[]) {
@@ -1826,15 +1842,16 @@ export class AiService {
       timeoutMs: number;
     },
   ) {
+    const provider = this.normalizeProviderName(providerConfig.provider);
     const body: Record<string, unknown> = {
       model: providerConfig.model,
       messages: this.normalizeMessages(messages),
       max_tokens: this.maxTokens,
-      temperature: this.temperature,
+      temperature: this.getOpenAiCompatibleTemperature(provider, providerConfig.model),
       stream: this.stream,
     };
 
-    if (providerConfig.provider === 'deepseek') {
+    if (provider === 'deepseek') {
       if (this.thinking === 'enabled') {
         body.thinking = { type: 'enabled' };
         if (this.reasoningEffort) {
@@ -1885,7 +1902,7 @@ export class AiService {
         reasons: [],
       },
       usage: {
-        provider: providerConfig.provider,
+        provider,
         model: providerConfig.model,
         inputTokens: data.usage?.prompt_tokens || 0,
         outputTokens: data.usage?.completion_tokens || 0,
@@ -1909,15 +1926,16 @@ export class AiService {
       throw new AiProviderError('CONFIG_MISSING', 'AI 服务尚未配置 API Key');
     }
 
+    const provider = this.normalizeProviderName(providerConfig.provider);
     const body: Record<string, unknown> = {
       model: providerConfig.model,
       messages: this.normalizeMessages(messages),
       max_tokens: this.maxTokens,
-      temperature: this.temperature,
+      temperature: this.getOpenAiCompatibleTemperature(provider, providerConfig.model),
       stream: true,
     };
 
-    if (providerConfig.provider === 'deepseek') {
+    if (provider === 'deepseek') {
       if (this.thinking === 'enabled') {
         body.thinking = { type: 'enabled' };
         if (this.reasoningEffort) {

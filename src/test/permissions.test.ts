@@ -35,6 +35,23 @@ describe('permission catalog helpers', () => {
     expect(systemMenu?.children.some((child) => child.path === '/system/agent-capabilities')).toBe(false);
   });
 
+  it('registers Ami Brain runtime and governance permissions', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        'core:brain:use',
+        'core:brain:execute',
+        'core:brain:sensitive:view',
+        'core:brain-governance:view',
+        'core:brain-governance:manage',
+      ]),
+    );
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:use')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:execute')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:brain-governance:view')).toBe(false);
+  });
+
   it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 

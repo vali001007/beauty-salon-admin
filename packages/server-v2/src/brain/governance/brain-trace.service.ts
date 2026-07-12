@@ -19,20 +19,21 @@ export class BrainTraceService {
     return this.prisma.brainRunStep.create({ data: input });
   }
 
-  getRunTrace(runId: number) {
-    return this.prisma.brainRun.findUnique({
-      where: { id: runId },
+  getRunTrace(input: { runId: number; storeId: number }) {
+    return this.prisma.brainRun.findFirst({
+      where: { id: input.runId, storeId: input.storeId },
       include: { steps: { orderBy: { createdAt: 'asc' } } },
     });
   }
 
-  async listTraces() {
+  async listTraces(input: { storeId: number }) {
     const [items, total] = await Promise.all([
       this.prisma.brainRun.findMany({
+        where: { storeId: input.storeId },
         orderBy: { id: 'desc' },
         take: 50,
       }),
-      this.prisma.brainRun.count(),
+      this.prisma.brainRun.count({ where: { storeId: input.storeId } }),
     ]);
 
     return { items, total };

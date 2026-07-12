@@ -2367,6 +2367,7 @@ describe('AgentToolRegistryService', () => {
           }),
         }),
       }),
+      1,
     );
   });
 

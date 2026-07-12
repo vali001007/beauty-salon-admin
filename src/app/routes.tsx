@@ -11,6 +11,7 @@ import { RouteErrorPage } from './pages/RouteErrorPage';
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })), 'RegisterPage');
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })), 'Dashboard');
+const AskDataWorkbench = lazyWithRetry(() => import('./pages/ask-data/AskDataWorkbench').then(m => ({ default: m.AskDataWorkbench })), 'AskDataWorkbench');
 const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
 const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
 const CustomerData = lazyWithRetry(() => import('./pages/CustomerData').then(m => ({ default: m.CustomerData })), 'CustomerData');
@@ -144,6 +145,7 @@ export const router = createBrowserRouter([
 
       // Dashboard
       { path: 'dashboard', element: withSuspense(Dashboard) },
+      { path: 'ask-data', element: withGuard('core:dashboard:view', AskDataWorkbench) },
       { path: 'brain', element: withGuard('core:brain:use', BrainWorkspace) },
 
       // Customers
@@ -159,7 +161,7 @@ export const router = createBrowserRouter([
       { path: 'customer-marketing/pages', element: withGuard('core:marketing:view', MarketingPageManagement) },
       { path: 'customer-marketing/promotions', element: withGuard('core:marketing:view', PromotionManagement) },
       { path: 'customer-marketing/activity-effect/:id', element: withGuard('core:marketing:view', MarketingActivityEffect) },
-      { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:recommend', MarketingRecommendation) },
+      { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:view', MarketingRecommendation) },
       { path: 'customer-marketing/assets', element: withGuard('core:marketing:view', MarketingAssets) },
       { path: 'customer-marketing/automation', element: withGuard('core:marketing:template', CreateMarketing) },
       { path: 'customer-marketing/strategy-templates', element: withGuard('core:marketing:template', CreateMarketing) },

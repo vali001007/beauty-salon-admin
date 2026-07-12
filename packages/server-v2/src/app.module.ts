@@ -29,6 +29,7 @@ import { HealthModule } from './health/health.module.js';
 import { BomModule } from './bom/bom.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { BusinessQueryModule } from './business-query/business-query.module.js';
+import { AskDataModule } from './ask-data/ask-data.module.js';
 import { BrainModule } from './brain/brain.module.js';
 import { AgentModule } from './agent/agent.module.js';
 import { AgentV2Module } from './agent-v2/agent-v2.module.js';
@@ -69,6 +70,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     CustomerAppModule,
     DashboardModule,
     BusinessQueryModule,
+    AskDataModule,
     BrainModule,
     AgentModule,
     AgentV2Module,

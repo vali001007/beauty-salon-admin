@@ -397,6 +397,80 @@ describe('AiService', () => {
     });
   });
 
+  it('calls Kimi through OpenAI-compatible chat completions without provider-specific thinking payload', async () => {
+    const prisma = {
+      aiAuditLog: {
+        create: jest.fn(),
+      },
+    };
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chatcmpl-kimi',
+        choices: [{ message: { content: 'Kimi 已返回经营建议。' } }],
+        usage: { prompt_tokens: 15, completion_tokens: 9 },
+      }),
+    });
+    global.fetch = fetchMock as any;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, fallback?: string) => {
+              const values: Record<string, string> = {
+                LLM_PROVIDER: 'kimi',
+                LLM_API_KEY: 'kimi-placeholder-key',
+                LLM_BASE_URL: 'https://api.moonshot.ai/v1',
+                LLM_CHAT_PATH: '/chat/completions',
+                LLM_MODEL: 'kimi-k2.7-code-highspeed',
+                LLM_TEMPERATURE: '0.3',
+                LLM_MAX_TOKENS: '8192',
+                LLM_STREAM: 'false',
+                LLM_THINKING: 'disabled',
+              };
+              return values[key] ?? fallback;
+            }),
+          },
+        },
+      ],
+    }).compile();
+    const kimiService = module.get<AiService>(AiService);
+
+    const result = await kimiService.chat([{ role: 'user', content: '今日经营怎么样' }]);
+    const request = fetchMock.mock.calls[0];
+    const body = JSON.parse(request[1].body);
+
+    expect(request[0]).toBe('https://api.moonshot.ai/v1/chat/completions');
+    expect(request[1].headers.Authorization).toBe('Bearer kimi-placeholder-key');
+    expect(body).toMatchObject({
+      model: 'kimi-k2.7-code-highspeed',
+      max_tokens: 8192,
+      temperature: 1,
+      stream: false,
+    });
+    expect(body.thinking).toBeUndefined();
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(result.text).toBe('Kimi 已返回经营建议。');
+    expect(result.usage).toMatchObject({
+      provider: 'kimi',
+      model: 'kimi-k2.7-code-highspeed',
+      inputTokens: 15,
+      outputTokens: 9,
+    });
+    expect(prisma.aiAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scenario: 'chat',
+        provider: 'kimi',
+        model: 'kimi-k2.7-code-highspeed',
+        status: 'success',
+      }),
+    });
+  });
+
   it('uses fallback provider when primary provider is unavailable', async () => {
     const prisma = {
       aiAuditLog: {

@@ -88,6 +88,9 @@ model Store {
   dailySettlements         DailySettlement[]
   amiPerformanceRecords    AmiPerformanceRecord[]
   marketingRuleTemplates   MarketingRuleTemplate[]
+  marketingActivities      MarketingActivity[]
+  marketingAutomationStrategies MarketingAutomationStrategy[]
+  marketingAutomationExecutions MarketingAutomationExecution[]
   amiMonthlyBills          AmiMonthlyBill[]
   procurementOrders        ProcurementOrder[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
@@ -107,6 +110,7 @@ model Store {
   operatingCosts           OperatingCost[]
   cardUsageRecords         CardUsageRecord[]
   cards                    Card[]
+  brainOperatingTargets    BrainStoreOperatingTarget[]
 
   @@index([status])
 }
@@ -135,6 +139,7 @@ model User {
   handledBalanceTransactions CustomerBalanceTransaction[] @relation("BalanceTransactionOperator")
   handledCustomerCards CustomerCard[] @relation("CustomerCardOperator")
   handledCardUsageRecords CardUsageRecord[] @relation("CardUsageOperator")
+  handledRefundRecords   RefundRecord[] @relation("RefundOperator")
   cashierShifts       CashierShift[]
   terminalConversations TerminalConversation[]
   beauticianProfiles Beautician[]
@@ -430,6 +435,8 @@ model StockMovement {
   sourceNo     String?
   remark       String?
   operatorId   Int?
+  orderItemId  Int?
+  refundItemId Int?
   occurredAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
@@ -437,6 +444,8 @@ model StockMovement {
   product  Product     @relation(fields: [productId], references: [id])
   batch    StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   operator User?       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  refundItem RefundItem? @relation(fields: [refundItemId], references: [id], onDelete: SetNull)
   lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, productId, occurredAt])
@@ -444,6 +453,8 @@ model StockMovement {
   @@index([sourceType, sourceId])
   @@index([batchId])
   @@index([operatorId])
+  @@index([orderItemId])
+  @@index([refundItemId])
 }
 
 // ─── Projects & Services ─────────────────────────────────────────────────────
@@ -1405,6 +1416,8 @@ model OrderItem {
   commissionRecords CommissionRecord[]
   sourceCustomerCards CustomerCard[]    @relation("CustomerCardSourceOrderItem")
   cardUsageSourceRecords CardUsageRecord[] @relation("CardUsageSourceOrderItem")
+  refundItems        RefundItem[]
+  stockMovements     StockMovement[]
 
   @@index([orderId])
   @@index([itemType, itemId])
@@ -1430,20 +1443,53 @@ model PaymentRecord {
 }
 
 model RefundRecord {
-  id         Int       @id @default(autoincrement())
-  orderId    Int
-  refundNo   String    @unique
-  amount     Decimal
-  reason     String?
-  status     String
-  refundedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  orderId         Int
+  refundNo        String    @unique
+  requestId       String    @unique
+  refundMode      String    @default("refund_only")
+  amount          Decimal
+  reason          String?
+  status          String
+  operatorId      Int?
+  operatorType    String?
+  inventoryStatus String    @default("not_required")
+  refundedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
-  order ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator User?        @relation("RefundOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  items    RefundItem[]
 
   @@index([orderId])
   @@index([status])
+  @@index([refundMode])
+  @@index([operatorId])
   @@index([refundedAt])
+}
+
+model RefundItem {
+  id              Int       @id @default(autoincrement())
+  refundId        Int
+  orderItemId     Int
+  itemType        String
+  itemId          Int?
+  quantity        Decimal
+  listAmount      Decimal   @default(0)
+  discountAmount  Decimal   @default(0)
+  refundAmount    Decimal
+  inventoryAction String    @default("none")
+  inventoryStatus String    @default("not_required")
+  payload         Json?
+  createdAt       DateTime  @default(now())
+
+  refund         RefundRecord    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  stockMovements StockMovement[]
+
+  @@index([refundId])
+  @@index([orderItemId])
+  @@index([itemType, itemId])
 }
 
 model Card {
@@ -1902,6 +1948,7 @@ model SkinTest {
 
 model MarketingActivity {
   id                     Int       @id @default(autoincrement())
+  storeId                Int
   title                  String
   description            String?
   status                 String    @default("draft")
@@ -1927,6 +1974,7 @@ model MarketingActivity {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
+  store            Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   primaryPromotion Promotion? @relation(fields: [primaryPromotionId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -2070,6 +2118,7 @@ model MarketingPageAttribution {
 
 model MarketingAutomationStrategy {
   id             Int                     @id @default(autoincrement())
+  storeId        Int
   name           String
   description    String?
   status         MarketingStrategyStatus @default(draft)
@@ -2086,12 +2135,13 @@ model MarketingAutomationStrategy {
   updatedAt      DateTime                @updatedAt
   lastExecutedAt DateTime?
 
+  store        Store                          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   executions   MarketingAutomationExecution[]
   touches      MarketingAutomationTouch[]
   attributions MarketingAttribution[]
   ruleTemplate MarketingRuleTemplate? @relation(fields: [ruleTemplateId], references: [id], onDelete: SetNull)
 
-  @@index([status])
+  @@index([storeId, status])
   @@index([source])
   @@index([ruleTemplateId])
 }
@@ -2139,19 +2189,26 @@ model MarketingRuleTemplate {
 
 model MarketingAutomationExecution {
   id             Int      @id @default(autoincrement())
+  storeId        Int
   strategyId     Int
+  idempotencyKey String
   strategyName   String
   status         String
   triggeredCount Int      @default(0)
+  queuedCount    Int      @default(0)
   reachedCount   Int      @default(0)
+  failedCount    Int      @default(0)
   channel        String?
   executedAt     DateTime @default(now())
   message        String?
 
+  store        Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   strategy     MarketingAutomationStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
   touches      MarketingAutomationTouch[]
   attributions MarketingAttribution[]
 
+  @@unique([strategyId, idempotencyKey])
+  @@index([storeId, executedAt])
   @@index([strategyId])
 }
 
@@ -2452,7 +2509,10 @@ model MarketingAutomationTouch {
   predictedConversionScore Int       @default(0)
   predictedRevenue         Decimal   @default(0)
   channel                  String?
-  status                   String    @default("reached")
+  status                   String    @default("queued")
+  attemptCount             Int       @default(0)
+  errorCode                String?
+  errorMessage             String?
   touchedAt                DateTime  @default(now())
   convertedAt              DateTime?
   conversionType           String?
@@ -2472,6 +2532,25 @@ model MarketingAutomationTouch {
   @@index([predictionSnapshotId])
   @@index([status])
   @@index([touchedAt])
+}
+
+model MarketingInAppNotification {
+  id          Int       @id @default(autoincrement())
+  storeId     Int
+  customerId  Int
+  strategyId  Int
+  executionId Int?
+  title       String
+  content     String
+  status      String    @default("queued")
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([storeId, customerId, createdAt])
+  @@index([strategyId, executionId])
+  @@index([status, createdAt])
 }
 
 model MarketingAttribution {
@@ -2546,6 +2625,28 @@ model MarketingRecommendationSnapshot {
   @@index([predictionRunId])
   @@index([generatedAt])
   @@index([expiresAt])
+}
+
+model MarketingRecommendationAdoption {
+  id               Int      @id @default(autoincrement())
+  storeId          Int
+  recommendationId Int
+  mode             String
+  status           String
+  activityId       Int?
+  pageId           Int?
+  strategyId       Int?
+  followUpTaskIds  Json?
+  predictionRunId  Int?
+  snapshotJson     Json
+  createdBy        Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([recommendationId, mode])
+  @@index([activityId])
+  @@index([strategyId])
 }
 
 model TerminalFollowUpTask {
@@ -3985,14 +4086,16 @@ enum BrainReleaseStatus {
 }
 
 model BrainConversation {
-  id        Int       @id @default(autoincrement())
-  storeId   Int
-  userId    Int
-  title     String?
-  status    String    @default("active")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id              Int       @id @default(autoincrement())
+  storeId         Int
+  userId          Int
+  title           String?
+  status          String    @default("active")
+  contextSnapshot Json?
+  contextVersion  Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   messages BrainMessage[]
   runs     BrainRun[]
@@ -4030,9 +4133,51 @@ model BrainMemory {
   updatedAt   DateTime        @updatedAt
   deletedAt   DateTime?
 
+  revisions BrainMemoryRevision[]
+
   @@index([storeId, type, subjectKey])
   @@index([expiresAt])
   @@map("brain_memory")
+}
+
+model BrainStoreOperatingTarget {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  periodType        String
+  periodStart       DateTime
+  periodEnd         DateTime
+  revenueTarget     Decimal  @default(0)
+  grossProfitTarget Decimal  @default(0)
+  appointmentTarget Int      @default(0)
+  newCustomerTarget Int      @default(0)
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, periodType, periodStart])
+  @@index([storeId, periodStart, periodEnd])
+  @@index([storeId, status])
+  @@map("brain_store_operating_target")
+}
+
+model BrainMemoryRevision {
+  id              Int      @id @default(autoincrement())
+  memoryId        Int
+  previousMemoryId Int?
+  revisionType    String
+  previousContent Json?
+  nextContent     Json?
+  changedByUserId Int
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  memory BrainMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId, createdAt])
+  @@index([previousMemoryId])
+  @@map("brain_memory_revision")
 }
 
 model BrainOntologyEntity {
@@ -4195,6 +4340,58 @@ model BrainInspectionRule {
   @@map("brain_inspection_rule")
 }
 
+model BrainInspectionRun {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  triggerType  String
+  status       String   @default("running")
+  ruleCount    Int      @default(0)
+  findingCount Int      @default(0)
+  error        Json?
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  findings BrainInspectionFinding[]
+
+  @@index([storeId, startedAt])
+  @@index([status, startedAt])
+  @@map("brain_inspection_run")
+}
+
+model BrainInspectionFinding {
+  id             Int            @id @default(autoincrement())
+  runId          Int?
+  storeId        Int
+  ruleKey        String
+  ruleVersion    Int
+  domain         String
+  objectType     String
+  objectId       String
+  severity       BrainRiskLevel
+  title          String
+  evidence       Json
+  suggestion     Json
+  dedupeKey      String
+  status         String         @default("open")
+  disposition    String?
+  dispositionNote String?
+  feedback       String?
+  firstDetectedAt DateTime      @default(now())
+  lastDetectedAt  DateTime      @default(now())
+  resolvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  run BrainInspectionRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, dedupeKey])
+  @@index([storeId, status, severity])
+  @@index([ruleKey, status])
+  @@index([runId])
+  @@map("brain_inspection_finding")
+}
+
 model BrainRun {
   id             Int            @id @default(autoincrement())
   conversationId Int?
@@ -4252,30 +4449,114 @@ model BrainEvalCase {
 }
 
 model BrainEvalRun {
-  id        Int      @id @default(autoincrement())
-  releaseId Int?
-  status    String
-  summary   Json
-  results   Json
-  createdAt DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  releaseId      Int?
+  storeId        Int?
+  roleKey        String?
+  modelVersion   String?
+  status         String
+  caseCount      Int      @default(0)
+  passedCount    Int      @default(0)
+  failedCount    Int      @default(0)
+  summary        Json
+  results        Json
+  error          Json?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  evalResults BrainEvalResult[]
 
   @@index([releaseId, createdAt])
+  @@index([storeId, status, createdAt])
   @@map("brain_eval_run")
 }
 
+model BrainEvalResult {
+  id                 Int      @id @default(autoincrement())
+  evalRunId          Int
+  caseId             Int?
+  caseKey            String
+  roleKey            String?
+  question           String
+  answer             String
+  citations          Json
+  deterministicGrade Json
+  deterministicPassed Boolean
+  llmJudge           Json?
+  latencyMs          Int?
+  failureCluster     String?
+  error              Json?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  evalRun BrainEvalRun @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+
+  @@unique([evalRunId, caseKey])
+  @@index([evalRunId, deterministicPassed])
+  @@index([failureCluster])
+  @@map("brain_eval_result")
+}
+
+model BrainResourceVersion {
+  id               Int      @id @default(autoincrement())
+  resourceType     String
+  resourceKey      String
+  version          Int
+  status           String   @default("draft")
+  snapshot         Json
+  checksum         String
+  sourceResourceId Int?
+  createdBy        Int
+  createdAt        DateTime @default(now())
+  activatedAt      DateTime?
+  archivedAt       DateTime?
+
+  releaseItems BrainReleaseItem[]
+
+  @@unique([resourceType, resourceKey, version])
+  @@index([resourceType, status])
+  @@index([resourceKey, createdAt])
+  @@map("brain_resource_version")
+}
+
 model BrainRelease {
-  id         Int                @id @default(autoincrement())
-  releaseKey String             @unique
-  scope      String
-  versionMap Json
-  rollout    Json
-  status     BrainReleaseStatus @default(draft)
-  createdBy  Int
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  id                Int                @id @default(autoincrement())
+  releaseKey        String             @unique
+  scope             String
+  versionMap        Json
+  rollout           Json
+  status            BrainReleaseStatus @default(draft)
+  createdBy         Int
+  previousReleaseId Int?
+  activatedAt       DateTime?
+  rolledBackAt      DateTime?
+  failureReason     String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  items BrainReleaseItem[]
 
   @@index([scope, status])
   @@map("brain_release")
+}
+
+model BrainReleaseItem {
+  id                Int      @id @default(autoincrement())
+  releaseId         Int
+  resourceVersionId Int
+  resourceType      String
+  resourceKey       String
+  version           Int
+  snapshot          Json
+  createdAt         DateTime @default(now())
+
+  release         BrainRelease         @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  resourceVersion BrainResourceVersion @relation(fields: [resourceVersionId], references: [id])
+
+  @@unique([releaseId, resourceType, resourceKey])
+  @@index([resourceVersionId])
+  @@map("brain_release_item")
 }
 
 model BrainFeedback {
@@ -4312,4 +4593,34 @@ model BrainActionConfirmation {
 
   @@index([runId, status])
   @@map("brain_action_confirmation")
+}
+
+model BrainActionExecution {
+  id                 Int            @id @default(autoincrement())
+  confirmationId     Int
+  actionId           String
+  runId              Int
+  storeId            Int
+  userId             Int
+  capabilityKey      String
+  idempotencyKey     String
+  riskLevel          BrainRiskLevel
+  status             String         @default("queued")
+  requestPayload     Json
+  previewPayload     Json?
+  receiptPayload     Json?
+  businessObjectType String?
+  businessObjectId   String?
+  errorCode          String?
+  errorMessage       String?
+  startedAt          DateTime       @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([storeId, capabilityKey, idempotencyKey])
+  @@index([confirmationId])
+  @@index([actionId])
+  @@index([status, createdAt])
+  @@map("brain_action_execution")
 }

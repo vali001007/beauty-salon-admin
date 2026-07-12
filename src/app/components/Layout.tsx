@@ -41,6 +41,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/dashboard',
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
+      { title: '智能问数', path: '/ask-data', icon: Database, permission: 'core:dashboard:view' },
       { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
       { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
     ],
@@ -61,7 +62,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/customer-marketing',
     children: [
       { title: '营销工作台', path: '/customer-marketing/workbench', icon: Sparkles, permission: 'core:marketing:view' },
-      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:recommend' },
+      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:view' },
       { title: '活动列表', path: '/customer-marketing/activity-management', icon: ClipboardList, permission: 'core:marketing:view' },
       { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:template' },
       { title: '推广资产', path: '/customer-marketing/assets', icon: Megaphone, permission: 'core:marketing:view' },

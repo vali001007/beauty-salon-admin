@@ -9,9 +9,13 @@ export class BrainSemanticQueryEngineService {
     private readonly executor: BrainReadonlyQueryExecutorService,
   ) {}
 
+  getRequiredPermission(metric: string) {
+    return this.compiler.getRequiredPermission(metric);
+  }
+
   async run(intent: Parameters<BrainQueryCompilerService['compile']>[0]) {
     const compiled = this.compiler.compile(intent);
-    const rows = await this.executor.execute(compiled.sql, compiled.params);
-    return { rows, citations: compiled.citations };
+    const rows = await this.executor.execute(compiled);
+    return { rows, citations: compiled.citations, compiled };
   }
 }
