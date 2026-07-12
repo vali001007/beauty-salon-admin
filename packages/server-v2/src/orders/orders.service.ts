@@ -4,6 +4,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { DiscountAllocationService, type DiscountAllocationInput } from './discount-allocation.service.js';
 import { deductStockItems } from '../common/inventory-stock-deduction.js';
+import { OrderRefundService } from './refund/order-refund.service.js';
+import { RefundInventoryReversalService } from './refund/refund-inventory-reversal.service.js';
+import type { CreateOrderRefundInput, OrderRefundMode } from './refund/refund.types.js';
 
 @Injectable()
 export class OrdersService {
@@ -16,6 +19,8 @@ export class OrdersService {
     private prisma: PrismaService,
     private commissionService: CommissionService,
     private discountAllocationService: DiscountAllocationService = new DiscountAllocationService(),
+    private orderRefundService: OrderRefundService = new OrderRefundService(),
+    private refundInventoryReversalService: RefundInventoryReversalService = new RefundInventoryReversalService(),
   ) {}
 
   private toNumber(value: unknown): number {
@@ -379,7 +384,7 @@ export class OrdersService {
   private async consumeProductItemsForOrder(
     tx: any,
     order: { id: number; orderNo?: string | null; storeId?: number | null },
-    items: Array<{ itemType?: string; itemId?: number | null; productId?: number | null; quantity?: unknown; payload?: any }>,
+    items: Array<{ id?: number; itemType?: string; itemId?: number | null; productId?: number | null; quantity?: unknown; payload?: any }>,
     remark?: string,
   ) {
     const storeId = this.toNumber(order.storeId);
@@ -408,6 +413,7 @@ export class OrdersService {
       items: productItems.map((item) => ({
         productId: Number(item.itemId ?? item.productId),
         quantity: this.toNumber(item.quantity ?? 1) || 1,
+        orderItemId: item.id,
         unit: item.payload?.packageUnit ?? item.payload?.unit,
         remark: remark ?? '商品订单自动扣库存',
       })),
@@ -417,7 +423,7 @@ export class OrdersService {
   private async consumeProjectBomForOrder(
     tx: any,
     order: { id: number; orderNo?: string | null; storeId?: number | null },
-    items: Array<{ itemType?: string; itemId?: number | null; quantity?: unknown; name?: string }>,
+    items: Array<{ id?: number; itemType?: string; itemId?: number | null; quantity?: unknown; name?: string }>,
     remark?: string,
   ) {
     const storeId = this.toNumber(order.storeId);
@@ -452,6 +458,7 @@ export class OrdersService {
         deductionItems.push({
           productId: bomItem.productId,
           quantity: this.toNumber(bomItem.standardQty) * multiplier,
+          orderItemId: item.id,
           remark: remark ?? (item.name ? `项目订单自动扣耗材：${item.name}` : '项目订单自动扣耗材'),
         });
       }
@@ -632,7 +639,7 @@ export class OrdersService {
 
   private async refreshDailySettlementForOrder(order: any, source: string) {
     const storeId = this.toNumber(order?.storeId);
-    if (!storeId || !['completed', 'paid', 'refunded'].includes(String(order?.status))) return;
+    if (!storeId || !['completed', 'paid', 'partially_refunded', 'refunded'].includes(String(order?.status))) return;
     if (typeof this.commissionService?.generateDailySettlement !== 'function') return;
     try {
       await this.commissionService.generateDailySettlement(storeId, order.createdAt ?? new Date());
@@ -752,7 +759,7 @@ export class OrdersService {
       where: {
         customerId: order.customerId,
         touchedAt: { lte: new Date() },
-        status: { in: ['reached', 'sent', 'delivered', 'clicked', 'opened', 'converted'] },
+        status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] },
       },
       orderBy: { touchedAt: 'desc' },
       take: 10,
@@ -1037,7 +1044,7 @@ export class OrdersService {
           store: { select: { id: true, name: true } },
           orderItems: { include: this.orderItemInclude },
           paymentRecords: true,
-          refundRecords: true,
+          refundRecords: { include: { items: true } },
           balanceTransactions: {
             where: { type: 'deduct', paymentMethod: 'member_balance' },
             orderBy: { createdAt: 'desc' },
@@ -1470,7 +1477,7 @@ export class OrdersService {
     };
   }
 
-  async createProductOrder(data: any) {
+  async createProductOrder(data: any, transactionClient?: any) {
     const orderNo = data.orderNo ?? `PO${Date.now()}`;
     const normalizedInputItems = this.normalizeOrderItems(Array.isArray(data.items) ? data.items : []);
     const allocation = data.preAllocatedDiscount
@@ -1481,7 +1488,7 @@ export class OrdersService {
     const status = this.normalizeOrderStatus(data.status);
     const payMethod = this.normalizePaymentMethod(data.payMethod ?? data.paymentMethod);
 
-    const createdOrder = await this.prisma.$transaction(async (tx) => {
+    const execute = async (tx: any) => {
       const customer = await this.resolveOrderCustomer(tx, data);
       const storeId = data.storeId ? Number(data.storeId) : undefined;
       const orderItems = await this.attachProductCostSnapshots(tx, storeId, items);
@@ -1513,6 +1520,7 @@ export class OrdersService {
         },
       });
 
+      let persistedOrderItems: any[] = orderItems;
       if (orderItems.length) {
         await tx.orderItem.createMany({
           data: orderItems.map((item) => ({
@@ -1538,6 +1546,10 @@ export class OrdersService {
             payload: item.payload,
           })),
         });
+        if (tx.orderItem.findMany) {
+          const createdItems = await tx.orderItem.findMany({ where: { orderId: order.id }, orderBy: { id: 'asc' } });
+          if (createdItems?.length === orderItems.length) persistedOrderItems = createdItems;
+        }
       }
 
       if (this.isPaidLikeStatus(status)) {
@@ -1549,8 +1561,8 @@ export class OrdersService {
           }
         }
 
-        await this.consumeProductItemsForOrder(tx, order, orderItems, data.remark);
-        await this.consumeProjectBomForOrder(tx, order, orderItems, data.remark);
+        await this.consumeProductItemsForOrder(tx, order, persistedOrderItems, data.remark);
+        await this.consumeProjectBomForOrder(tx, order, persistedOrderItems, data.remark);
 
         await tx.paymentRecord.createMany({
           data: paymentInputs.map((payment) => ({
@@ -1593,8 +1605,11 @@ export class OrdersService {
           },
           marketingAttributions: true,
         },
-      }).then((createdOrder) => this.serializeProductOrder(createdOrder));
-    }, { timeout: 20000 });
+      }).then((createdOrder: any) => this.serializeProductOrder(createdOrder));
+    };
+    const createdOrder = transactionClient
+      ? await execute(transactionClient)
+      : await this.prisma.$transaction(execute, { timeout: 20000 });
     if (!data.skipDailySettlementRefresh) {
       await this.refreshDailySettlementForOrder(createdOrder, data.dailySettlementSource ?? 'admin_order');
     }
@@ -1696,61 +1711,211 @@ export class OrdersService {
     });
   }
 
-  async refundOrder(id: number, reasonOrDto?: string | { reason?: string; amount?: number }) {
-    const order = await this.findProductOrderById(id);
-    const reason = typeof reasonOrDto === 'string' ? reasonOrDto : reasonOrDto?.reason;
-    const refundableAmount = this.toNumber((order as any).netAmount ?? order.totalAmount);
-    const refundedAmount = Array.isArray((order as any).refundRecords)
-      ? (order as any).refundRecords.reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0)
-      : 0;
-    const remainingRefundableAmount = this.round(Math.max(0, refundableAmount - refundedAmount));
-    const amount = typeof reasonOrDto === 'object' ? this.toNumber(reasonOrDto.amount ?? remainingRefundableAmount) : remainingRefundableAmount;
-    if (amount <= 0) throw new BadRequestException('退款金额必须大于 0');
-    if (amount > remainingRefundableAmount) throw new BadRequestException('退款金额不能大于订单剩余可退金额');
+  private refundOrderInclude() {
+    return {
+      customer: { select: { id: true, name: true, phone: true } },
+      store: { select: { id: true, name: true } },
+      orderItems: {
+        include: {
+          ...this.orderItemInclude,
+          stockMovements: true,
+        },
+      },
+      paymentRecords: true,
+      refundRecords: { include: { items: true } },
+      balanceTransactions: {
+        where: { type: 'deduct', paymentMethod: 'member_balance' },
+        orderBy: { createdAt: 'desc' as const },
+      },
+      marketingAttributions: true,
+      recommendationEvents: true,
+    };
+  }
 
-    const refundedOrder = await this.prisma.$transaction(async (tx) => {
-      await tx.refundRecord.create({
+  private async attachLegacyRefundInventoryTrace(tx: any, order: any) {
+    const items = Array.isArray(order?.orderItems) ? order.orderItems : [];
+    if (!items.length || !tx.stockMovement?.findMany) return order;
+    const legacyMovements = (await tx.stockMovement.findMany({
+      where: {
+        sourceId: order.id,
+        sourceType: { in: ['product_order', 'project_order'] },
+        movementType: { in: ['sale_out', 'service_consume', 'service_consumption'] },
+      },
+      orderBy: { id: 'asc' },
+    })) ?? [];
+    const projectItems = items.filter((item: any) => String(item.itemType).toLowerCase() === 'project');
+    return {
+      ...order,
+      orderItems: items.map((item: any) => {
+        const direct = Array.isArray(item.stockMovements) ? item.stockMovements : [];
+        if (direct.length) return item;
+        const type = String(item.itemType).toLowerCase();
+        if (['product', 'goods'].includes(type)) {
+          return { ...item, stockMovements: legacyMovements.filter((movement: any) => movement.movementType === 'sale_out' && Number(movement.productId) === Number(item.itemId)).map((movement: any) => ({ ...movement, orderItemId: item.id })) };
+        }
+        if (type === 'project' && projectItems.length === 1) {
+          return { ...item, stockMovements: legacyMovements.filter((movement: any) => ['service_consume', 'service_consumption'].includes(String(movement.movementType))).map((movement: any) => ({ ...movement, orderItemId: item.id })) };
+        }
+        return item;
+      }),
+    };
+  }
+
+  async getRefundPreview(id: number) {
+    const order = await this.prisma.productOrder.findUnique({ where: { id }, include: this.refundOrderInclude() as any });
+    if (!order) throw new NotFoundException('订单不存在');
+    const tracedOrder = await this.attachLegacyRefundInventoryTrace(this.prisma, order);
+    return this.orderRefundService.buildRefundPreview(tracedOrder);
+  }
+
+  private buildLegacyRefundItems(preview: any, amount?: number) {
+    const targetAmount = this.round(this.toNumber(amount ?? preview.remainingRefundableAmount));
+    if (targetAmount <= 0) throw new BadRequestException('退款金额必须大于 0');
+    if (targetAmount > preview.remainingRefundableAmount + 0.01) throw new BadRequestException('退款金额不能大于订单剩余可退金额');
+    let remaining = targetAmount;
+    const items = [];
+    for (const item of preview.items) {
+      if (remaining <= 0.01 || item.remainingRefundableAmount <= 0) continue;
+      const refundAmount = this.round(Math.min(remaining, item.remainingRefundableAmount));
+      const quantity = item.remainingRefundableAmount > 0
+        ? Math.min(item.remainingRefundableQuantity, (item.remainingRefundableQuantity * refundAmount) / item.remainingRefundableAmount)
+        : 0;
+      if (quantity > 0 && refundAmount > 0) items.push({ orderItemId: item.orderItemId, quantity, refundAmount });
+      remaining = this.round(remaining - refundAmount);
+    }
+    if (remaining > 0.01) throw new BadRequestException('退款金额无法分配到订单明细');
+    return items;
+  }
+
+  async refundOrder(
+    id: number,
+    reasonOrDto?: string | ({ reason?: string; amount?: number } & Partial<CreateOrderRefundInput>),
+    transactionClient?: any,
+  ) {
+    const inputObject = typeof reasonOrDto === 'object' && reasonOrDto ? reasonOrDto : {};
+    const requestId = inputObject.requestId || `legacy-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const refundDelegate = ((transactionClient ?? this.prisma) as any).refundRecord;
+    const existing = await refundDelegate?.findUnique?.({
+      where: { requestId },
+      include: { items: true, order: { include: this.refundOrderInclude() as any } },
+    });
+    if (existing?.order) {
+      const preview = this.orderRefundService.buildRefundPreview(existing.order);
+      return { ...this.serializeProductOrder(existing.order), refund: existing, refundItems: existing.items ?? [], remainingRefundableAmount: preview.remainingRefundableAmount, inventoryMovements: [] };
+    }
+
+    const execute = async (tx: any) => {
+      const rawOrder = await tx.productOrder.findUnique({ where: { id }, include: this.refundOrderInclude() as any });
+      if (!rawOrder) throw new NotFoundException('订单不存在');
+      const paidAmount = (rawOrder.paymentRecords ?? [])
+        .filter((payment: any) => !payment.status || payment.status === 'success')
+        .reduce((sum: number, payment: any) => sum + this.toNumber(payment.amount), 0);
+      if (paidAmount <= 0 && !['paid', 'completed', 'partially_refunded', 'refunded'].includes(String(rawOrder.status))) {
+        throw new BadRequestException('订单尚未支付，不能退款');
+      }
+      const order = await this.attachLegacyRefundInventoryTrace(tx, rawOrder);
+      const preview = this.orderRefundService.buildRefundPreview(order);
+      if (preview.remainingRefundableAmount <= 0) throw new BadRequestException('该订单没有剩余可退金额');
+      const refundMode = (inputObject.refundMode ?? 'refund_only') as OrderRefundMode;
+      const requestedItems = Array.isArray(inputObject.items) && inputObject.items.length
+        ? inputObject.items
+        : this.buildLegacyRefundItems(preview, inputObject.amount);
+      this.orderRefundService.validateRefundMode(preview, refundMode, requestedItems);
+      const validatedItems = this.orderRefundService.validateRefundItems(preview, requestedItems);
+      const amount = this.round(validatedItems.reduce((sum, item) => sum + item.refundAmount, 0));
+      if (amount > preview.remainingRefundableAmount + 0.01) throw new BadRequestException('退款金额不能大于订单剩余可退金额');
+      const reason = typeof reasonOrDto === 'string' ? reasonOrDto : inputObject.reason;
+      const refundedAt = new Date();
+      const refundRecord = await tx.refundRecord.create({
         data: {
           orderId: id,
           refundNo: this.createRefundNo(),
+          requestId,
+          refundMode,
           amount,
           reason,
           status: 'success',
-          refundedAt: new Date(),
+          operatorId: inputObject.operatorId,
+          operatorType: inputObject.operatorType,
+          inventoryStatus: refundMode === 'return_and_refund' ? 'pending' : 'not_required',
+          refundedAt,
         },
       });
-
-      const updated = await tx.productOrder.update({
-        where: { id },
-        data: { status: 'refunded', remark: reason },
-      });
-
-      if (updated.customerId) {
-        await tx.customer.update({
-          where: { id: updated.customerId },
-          data: { totalSpent: { decrement: amount } },
-        });
+      const refundItems = [];
+      for (const item of validatedItems) {
+        const previewItem = item.previewItem;
+        const refundItem = tx.refundItem?.create
+          ? await tx.refundItem.create({
+              data: {
+                refundId: refundRecord.id,
+                orderItemId: item.orderItemId,
+                itemType: previewItem.itemType,
+                itemId: previewItem.itemId,
+                quantity: item.quantity,
+                listAmount: previewItem.soldQuantity > 0 ? this.round((previewItem.netAmount + (previewItem.discountAmount ?? 0)) * item.quantity / previewItem.soldQuantity) : item.refundAmount,
+                discountAmount: 0,
+                refundAmount: item.refundAmount,
+                inventoryAction: refundMode === 'return_and_refund'
+                  ? String(previewItem.itemType).toLowerCase() === 'project' ? 'service_consume_reverse' : 'sale_return_in'
+                  : 'none',
+                inventoryStatus: refundMode === 'return_and_refund' ? 'pending' : 'not_required',
+                payload: { legacyPayload: !inputObject.items, inventoryTraceStatus: previewItem.inventoryTraceStatus },
+              },
+            })
+          : { id: 0, refundId: refundRecord?.id ?? 0, orderItemId: item.orderItemId, itemType: previewItem.itemType, itemId: previewItem.itemId, quantity: item.quantity, refundAmount: item.refundAmount };
+        refundItems.push({ ...refundItem, originalOrderItemQuantity: previewItem.soldQuantity });
       }
-      await this.restoreMemberBalanceForOrderRefund(tx, order, amount, refundableAmount, remainingRefundableAmount, reason);
+
+      const inventoryMovements = await this.refundInventoryReversalService.reverseForRefund(tx, {
+        ...refundRecord,
+        refundMode,
+        reason,
+        refundedAt,
+        order,
+        items: refundItems,
+      });
+      if (refundMode === 'return_and_refund' && tx.refundRecord.update) {
+        await tx.refundRecord.update({ where: { id: refundRecord.id }, data: { inventoryStatus: 'completed' } });
+        if (tx.refundItem?.updateMany) await tx.refundItem.updateMany({ where: { refundId: refundRecord.id }, data: { inventoryStatus: 'completed' } });
+      }
+
+      const refundedAfter = this.round(preview.refundedAmount + amount);
+      const status = this.orderRefundService.calculateNextOrderStatus(preview.netAmount, refundedAfter);
+      const updated = await tx.productOrder.update({ where: { id }, data: { status, remark: reason } });
+      if (updated.customerId && tx.customer?.update) {
+        await tx.customer.update({ where: { id: updated.customerId }, data: { totalSpent: { decrement: amount } } });
+      }
+      await this.restoreMemberBalanceForOrderRefund(tx, order, amount, preview.netAmount, preview.remainingRefundableAmount, reason);
       await this.reverseMarketingAttribution(tx, id, amount);
       await this.commissionService.reverseOrderCommissions(id, amount, tx);
+      const refreshed = await tx.productOrder.findUnique({ where: { id }, include: this.refundOrderInclude() as any });
+      return { order: refreshed ?? updated, refund: refundRecord, refundItems, inventoryMovements, remainingRefundableAmount: this.round(Math.max(0, preview.netAmount - refundedAfter)) };
+    };
+    const result = transactionClient
+      ? await execute(transactionClient)
+      : await this.prisma.$transaction(execute, { timeout: 20000 });
+    if (!transactionClient) await this.refreshDailySettlementForOrder(result.order, 'admin_order_refund');
+    return {
+      ...this.serializeProductOrder(result.order),
+      refund: result.refund,
+      refundItems: result.refundItems,
+      inventoryMovements: result.inventoryMovements,
+      remainingRefundableAmount: result.remainingRefundableAmount,
+    };
+  }
 
-      return tx.productOrder.findUnique({
-        where: { id },
-        include: {
-          orderItems: { include: this.orderItemInclude },
-          paymentRecords: true,
-          refundRecords: true,
-          balanceTransactions: {
-            where: { type: 'deduct', paymentMethod: 'member_balance' },
-            orderBy: { createdAt: 'desc' },
-          },
-          marketingAttributions: true,
-        },
-      });
-    });
-    await this.refreshDailySettlementForOrder(refundedOrder, 'admin_order_refund');
-    return this.serializeProductOrder(refundedOrder);
+  async refundCheckoutGroup(checkoutGroupNo: string, input: { refunds: Array<{ orderId: number } & CreateOrderRefundInput> }) {
+    if (!checkoutGroupNo?.trim()) throw new BadRequestException('收银组号不能为空');
+    if (!Array.isArray(input?.refunds) || !input.refunds.length) throw new BadRequestException('请选择收银组退款明细');
+    const results = await this.prisma.$transaction(async (tx) => {
+      const output = [];
+      for (const refund of input.refunds) {
+        output.push(await this.refundOrder(Number(refund.orderId), refund, tx));
+      }
+      return output;
+    }, { timeout: 30000 });
+    for (const result of results) await this.refreshDailySettlementForOrder(result, 'checkout_group_refund');
+    return { checkoutGroupNo, refunds: results, remainingRefundableAmount: this.round(results.reduce((sum, result: any) => sum + this.toNumber(result.remainingRefundableAmount), 0)) };
   }
 
   private createBalanceTransactionNo() {
@@ -2274,9 +2439,12 @@ export class OrdersService {
           data: {
             orderId: order.id,
             refundNo: this.createRefundNo(),
+            requestId: `member-card-refund-${order.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            refundMode: 'refund_only',
             amount: allocatedRefund,
             reason: data.remark ?? '会员卡余额退款',
             status: 'success',
+            inventoryStatus: 'not_required',
             refundedAt: new Date(),
           },
         });
@@ -2852,9 +3020,12 @@ export class OrdersService {
           data: {
             orderId: sourceOrderId,
             refundNo: this.createRefundNo(),
+            requestId: `card-void-refund-${sourceOrderId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            refundMode: 'refund_only',
             amount: refundAmount,
             reason,
             status: 'success',
+            inventoryStatus: 'not_required',
             refundedAt: new Date(),
           },
         });

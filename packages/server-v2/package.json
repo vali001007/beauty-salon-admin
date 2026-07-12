@@ -57,6 +57,8 @@
     "supply-platform:legacy-verify": "ts-node --esm prisma/supply-platform-migration-verify.ts",
     "supply-platform:legacy-audit": "ts-node --esm prisma/supply-platform-migration-audit.ts",
     "product-unit:audit": "ts-node --esm prisma/product-unit-consistency-audit.ts",
+    "refund:trace:audit": "ts-node --esm prisma/refund-inventory-trace-audit.ts",
+    "refund:trace:backfill": "ts-node --esm prisma/refund-inventory-trace-backfill.ts",
     "product-unit:repair": "ts-node --esm prisma/product-unit-repair.ts",
     "inventory:baseline": "ts-node --esm prisma/inventory-baseline-snapshot.ts",
     "inventory:baseline-compare": "ts-node --esm prisma/inventory-baseline-compare.ts",
