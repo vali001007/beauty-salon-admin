@@ -1,0 +1,361 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-11T10:48:19.957Z",
+    "startedAt": "2026-07-11T10:47:53.448Z",
+    "finishedAt": "2026-07-11T10:48:19.957Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 5,
+    "actualRunCount": 5,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 5,
+    "legacyUsableWithCitation": 2,
+    "legacyUsableRate": 0.4,
+    "trueUsable": 4,
+    "trueUsableRate": 0.8,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 4,
+        "usable": 4,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 5,
+        "usable": 4,
+        "usableRate": 0.8,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "经营概览",
+        "total": 5,
+        "usable": 4,
+        "usableRate": 0.8,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 1
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 2,
+      "dbSkillCount": 2,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 1
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 3
+      },
+      {
+        "reason": "store_manager",
+        "count": 2
+      }
+    ],
+    "latency": {
+      "avgMs": 5053,
+      "p95Ms": 7833,
+      "maxMs": 7833
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "40.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "5.8%",
+          "current": "80.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "63",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-business-overview-001",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 1,
+      "persona": "manager",
+      "question": "今天店里情况怎么样，给我来个总结",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6492,
+      "conversationId": 13815,
+      "runId": 13814,
+      "answer": "今天经营概览：实收流水 0.00 元，预约 0 个，活跃客户 0 人，毛利率 0.0%。风险：低库存：玻尿酸保湿精华。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_overview_summary",
+          "label": "店长经营概览"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-002",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 2,
+      "persona": "manager",
+      "question": "今天营业额到多少了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 7833,
+      "conversationId": 13816,
+      "runId": 13815,
+      "answer": "实收流水为 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "scalar_metric",
+        "reason": "direct_scalar_metric_question",
+        "grounding": "metric_query",
+        "confidence": 0.9,
+        "answerShape": "scalar_metric",
+        "expectedMetric": "paid_revenue",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-003",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 3,
+      "persona": "manager",
+      "question": "今天来了几个客人，现在还有几个在店",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5141,
+      "conversationId": 13817,
+      "runId": 13816,
+      "answer": "现在到今天结束经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "store_manager_operations_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-004",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 4,
+      "persona": "manager",
+      "question": "今天和昨天比营业额差多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2881,
+      "conversationId": 13818,
+      "runId": 13817,
+      "answer": "今天对比昨天：实收流水本期为 0.00 元，上期为 0.00 元，差值为 0.00 元，上期为 0，变化率不计算。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "metric_query",
+        "expectedShape": "comparison",
+        "actualShape": "comparison",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-005",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 5,
+      "persona": "manager",
+      "question": "本周跟上周比，哪天差距最大",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2917,
+      "conversationId": 13819,
+      "runId": 13818,
+      "answer": "这个问题需要对比口径。当前独立版 Ami Brain 尚未接入对比计算，不会返回单期或全量数值。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "comparison",
+        "reason": "comparison_question_requires_comparison_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "comparison",
+        "unsupportedReason": "这个问题需要对比口径。当前独立版 Ami Brain 尚未接入对比计算，不会返回单期或全量数值。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    }
+  ]
+}

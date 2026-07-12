@@ -1,0 +1,4568 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-11T07:52:26.459Z",
+    "startedAt": "2026-07-11T07:47:41.096Z",
+    "finishedAt": "2026-07-11T07:52:26.459Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 100,
+    "actualRunCount": 100,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 100,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 61,
+    "trueUsableRate": 0.61,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 61,
+        "usable": 61,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 39,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 39,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "marketing",
+        "total": 100,
+        "usable": 61,
+        "usableRate": 0.61,
+        "metricFailed": 0,
+        "unsupportedIntent": 39,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "话术与内容生成",
+        "total": 20,
+        "usable": 20,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "活动策划",
+        "total": 20,
+        "usable": 15,
+        "usableRate": 0.75,
+        "metricFailed": 0,
+        "unsupportedIntent": 5,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "客群识别与分析",
+        "total": 20,
+        "usable": 14,
+        "usableRate": 0.7,
+        "metricFailed": 0,
+        "unsupportedIntent": 6,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "权益与投入产出",
+        "total": 20,
+        "usable": 6,
+        "usableRate": 0.3,
+        "metricFailed": 0,
+        "unsupportedIntent": 14,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "自动化与触达规则",
+        "total": 20,
+        "usable": 6,
+        "usableRate": 0.3,
+        "metricFailed": 0,
+        "unsupportedIntent": 14,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 39
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 21,
+      "templateSkillCount": 39,
+      "previewActionCount": 1,
+      "noneCount": 39
+    },
+    "adapterDistribution": [
+      {
+        "reason": "marketing_growth",
+        "count": 56
+      },
+      {
+        "reason": "none",
+        "count": 39
+      },
+      {
+        "reason": "finance_risk",
+        "count": 3
+      },
+      {
+        "reason": "front_desk",
+        "count": 1
+      },
+      {
+        "reason": "inventory_procurement",
+        "count": 1
+      }
+    ],
+    "latency": {
+      "avgMs": 2621,
+      "p95Ms": 4501,
+      "maxMs": 9077
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "5.8%",
+          "current": "61.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "63",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-marketing-audience-analysis-001",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 1,
+      "persona": "marketing",
+      "question": "我想做个召回活动，哪些客户最值得联系",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5441,
+      "conversationId": 12647,
+      "runId": 12646,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "expectedMetric": "churn_risk_count",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "churn_risk_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-002",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 2,
+      "persona": "marketing",
+      "question": "帮我找一下45天没来的客户，大概有多少人",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2055,
+      "conversationId": 12648,
+      "runId": 12647,
+      "answer": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-003",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 3,
+      "persona": "marketing",
+      "question": "哪些客户买了次卡但最近一直不来用",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2163,
+      "conversationId": 12649,
+      "runId": 12648,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "expectedMetric": "card_liability",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-004",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 4,
+      "persona": "marketing",
+      "question": "有没有之前消费很多但突然消失的客户",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2756,
+      "conversationId": 12650,
+      "runId": 12649,
+      "answer": "高价值客户分层：\n1. 马美琳：钻石会员，累计消费 193322.00 元，到店 111 次\n2. 刘思琪：钻石会员，累计消费 193085.00 元，到店 82 次，近 30 天未到店\n3. 马语嫣：钻石会员，累计消费 192825.00 元，到店 168 次，近 30 天未到店\n4. 林雨薇：钻石会员，累计消费 192673.00 元，到店 140 次\n5. 王雅婷：钻石会员，累计消费 190532.00 元，到店 72 次\n6. 马佳慧：钻石会员，累计消费 189115.00 元，到店 143 次\n7. 刘婉清：钻石会员，累计消费 186301.00 元，到店 94 次，近 30 天未到店\n8. 高美琳：钻石会员，累计消费 186059.00 元，到店 71 次，近 30 天未到店\n9. 黄婉清：钻石会员，累计消费 185855.00 元，到店 124 次，近 30 天未到店\n10. 何思琪：钻石会员，累计消费 184887.00 元，到店 136 次",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-005",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 5,
+      "persona": "marketing",
+      "question": "新客中哪些人最有潜力转成长期客户",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2012,
+      "conversationId": 12651,
+      "runId": 12650,
+      "answer": "一次到店客户名单：\n1. 孙思琪：来源 朋友介绍，累计消费 5980.00 元，最近到店 2026-06-18\n2. 黄静怡：来源 门店，累计消费 4787.00 元，最近到店 2026-04-23\n3. 刘语嫣：来源 朋友介绍，累计消费 4744.00 元，最近到店 2026-05-20\n4. 杨雨薇：来源 朋友介绍，累计消费 4434.00 元，最近到店 2026-04-29\n5. 马芷若：来源 门店，累计消费 4382.00 元，最近到店 2026-05-08\n6. 陈晓雯：来源 门店，累计消费 4111.00 元，最近到店 2026-03-16\n7. 杨美琳：来源 门店，累计消费 4106.00 元，最近到店 2026-05-14\n8. 徐诗涵：来源 其他，累计消费 3680.00 元，最近到店 2026-06-09\n9. 王紫萱：来源 抖音，累计消费 3449.00 元，最近到店 2026-05-11\n10. 罗紫萱：来源 小红书，累计消费 3396.00 元，最近到店 2026-04-22",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-006",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 6,
+      "persona": "marketing",
+      "question": "帮我找一下对我们上次活动有响应的客户",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2198,
+      "conversationId": 12652,
+      "runId": 12651,
+      "answer": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "detail_lookup_requires_list_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-007",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 7,
+      "persona": "marketing",
+      "question": "哪些客户是只来一次就再没回来的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1942,
+      "conversationId": 12653,
+      "runId": 12652,
+      "answer": "一次到店客户名单：\n1. 孙思琪：来源 朋友介绍，累计消费 5980.00 元，最近到店 2026-06-18\n2. 黄静怡：来源 门店，累计消费 4787.00 元，最近到店 2026-04-23\n3. 刘语嫣：来源 朋友介绍，累计消费 4744.00 元，最近到店 2026-05-20\n4. 杨雨薇：来源 朋友介绍，累计消费 4434.00 元，最近到店 2026-04-29\n5. 马芷若：来源 门店，累计消费 4382.00 元，最近到店 2026-05-08\n6. 陈晓雯：来源 门店，累计消费 4111.00 元，最近到店 2026-03-16\n7. 杨美琳：来源 门店，累计消费 4106.00 元，最近到店 2026-05-14\n8. 徐诗涵：来源 其他，累计消费 3680.00 元，最近到店 2026-06-09\n9. 王紫萱：来源 抖音，累计消费 3449.00 元，最近到店 2026-05-11\n10. 罗紫萱：来源 小红书，累计消费 3396.00 元，最近到店 2026-04-22",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-008",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 8,
+      "persona": "marketing",
+      "question": "有没有客户对某个项目特别感兴趣但还没办卡",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4258,
+      "conversationId": 12654,
+      "runId": 12653,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-009",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 9,
+      "persona": "marketing",
+      "question": "帮我找下这个月快过生日的客户",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3001,
+      "conversationId": 12655,
+      "runId": 12654,
+      "answer": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "detail_lookup_requires_list_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-010",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 10,
+      "persona": "marketing",
+      "question": "哪些客户最近消费明显减少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2694,
+      "conversationId": 12656,
+      "runId": 12655,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-011",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 11,
+      "persona": "marketing",
+      "question": "我想做个高端护理套餐推广，找哪些客户合适",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2474,
+      "conversationId": 12657,
+      "runId": 12656,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-012",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 12,
+      "persona": "marketing",
+      "question": "帮我把客户按消费金额分一下层",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4006,
+      "conversationId": 12658,
+      "runId": 12657,
+      "answer": "高价值客户分层：\n1. 马美琳：钻石会员，累计消费 193322.00 元，到店 111 次\n2. 刘思琪：钻石会员，累计消费 193085.00 元，到店 82 次，近 30 天未到店\n3. 马语嫣：钻石会员，累计消费 192825.00 元，到店 168 次，近 30 天未到店\n4. 林雨薇：钻石会员，累计消费 192673.00 元，到店 140 次\n5. 王雅婷：钻石会员，累计消费 190532.00 元，到店 72 次\n6. 马佳慧：钻石会员，累计消费 189115.00 元，到店 143 次\n7. 刘婉清：钻石会员，累计消费 186301.00 元，到店 94 次，近 30 天未到店\n8. 高美琳：钻石会员，累计消费 186059.00 元，到店 71 次，近 30 天未到店\n9. 黄婉清：钻石会员，累计消费 185855.00 元，到店 124 次，近 30 天未到店\n10. 何思琪：钻石会员，累计消费 184887.00 元，到店 136 次",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-013",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 13,
+      "persona": "marketing",
+      "question": "最近新客转化效果好不好，问题出在哪",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1639,
+      "conversationId": 12659,
+      "runId": 12658,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-014",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 14,
+      "persona": "marketing",
+      "question": "有没有客户对优惠很敏感，老是等打折才来",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9077,
+      "conversationId": 12660,
+      "runId": 12659,
+      "answer": "优惠敏感客户候选名单：\n1. 张若兰：近 180 天 1 单中 1 单使用优惠，优惠订单占比 100%，累计优惠 1000.00 元，累计消费 50773.00 元，最近到店 2026-06-02\n2. 刘芷若：近 180 天 1 单中 1 单使用优惠，优惠订单占比 100%，累计优惠 200.00 元，累计消费 20198.00 元，最近到店 2026-06-23\n3. 王佳慧：近 180 天 1 单中 1 单使用优惠，优惠订单占比 100%，累计优惠 150.00 元，累计消费 3130.00 元，最近到店 2026-06-26\n4. 周晓雯：近 180 天 2 单中 2 单使用优惠，优惠订单占比 100%，累计优惠 109.10 元，累计消费 981.90 元，最近到店 2026-06-30\n5. 陈雨薇：近 180 天 4 单中 4 单使用优惠，优惠订单占比 100%，累计优惠 102.60 元，累计消费 30980.40 元，最近到店 2026-06-23\n6. 李雅婷：近 180 天 4 单中 4 单使用优惠，优惠订单占比 100%，累计优惠 102.05 元，累计消费 100901.95 元，最近到店 2026-07-01\n7. 孙思琪：近 180 天 1 单中 1 单使用优惠，优惠订单占比 100%，累计优惠 100.00 元，累计消费 116888.00 元，最近到店 2026-06-23\n8. 何思琪：近 180 天 1 单中 1 单使用优惠，优惠订单占比 100%，累计优惠 100.00 元，累计消费 184887.00 元，最近到店 2026-06-22\n9. 郭若兰：近 180 天 2 单中 2 单使用优惠，优惠订单占比 100%，累计优惠 98.56 元，累计消费 80180.44 元，最近到店 2026-06-22\n10. 罗若兰：近 180 天 2 单中 2 单使用优惠，优惠订单占比 100%，累计优惠 97.00 元，累计消费 16627.00 元，最近到店 2026-06-23",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-015",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 15,
+      "persona": "marketing",
+      "question": "哪些客户推荐过新人来，转介绍能力强",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3724,
+      "conversationId": 12661,
+      "runId": 12660,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "recommendation_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-016",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 16,
+      "persona": "marketing",
+      "question": "帮我找一下只做过基础项目没有升单的客户",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1992,
+      "conversationId": 12662,
+      "runId": 12661,
+      "answer": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "detail_lookup_requires_list_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-017",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 17,
+      "persona": "marketing",
+      "question": "有没有客户用过会员权益但感觉不是很满意",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3440,
+      "conversationId": 12663,
+      "runId": 12662,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-018",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 18,
+      "persona": "marketing",
+      "question": "最近哪个时间段新客最多，从哪些渠道来",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4153,
+      "conversationId": 12664,
+      "runId": 12663,
+      "answer": "近 90 天新客时间段与渠道：\n时间段分布：\n1. 2026-04-19 周：12 人\n2. 2026-04-26 周：9 人\n3. 2026-05-10 周：9 人\n4. 2026-04-12 周：8 人\n5. 2026-05-03 周：6 人\n渠道分布：\n1. 朋友介绍：12 人\n2. 门店：11 人\n3. 小红书：11 人\n4. 抖音：3 人\n5. 美团/大众点评：3 人",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-019",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 19,
+      "persona": "marketing",
+      "question": "帮我找一下办了卡但还没预约的新客",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3601,
+      "conversationId": 12665,
+      "runId": 12664,
+      "answer": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "detail_lookup_requires_list_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "客户或预约明细查询尚未接入真实列表口径，Ami Brain 不会用总数替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-audience-analysis-020",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 20,
+      "persona": "marketing",
+      "question": "疗程快结束的客户有多少，适合推续购",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2234,
+      "conversationId": 12666,
+      "runId": 12665,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "recommendation_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-021",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 21,
+      "persona": "marketing",
+      "question": "帮我策划一个母亲节的促销活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2188,
+      "conversationId": 12667,
+      "runId": 12666,
+      "answer": "母亲节活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-022",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 22,
+      "persona": "marketing",
+      "question": "国庆节前后我应该做什么活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2431,
+      "conversationId": 12668,
+      "runId": 12667,
+      "answer": "国庆活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "recommendation_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-023",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 23,
+      "persona": "marketing",
+      "question": "夏天快来了，有什么适合推的季节性项目",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2050,
+      "conversationId": 12669,
+      "runId": 12668,
+      "answer": "当前独立版 Ami Brain 尚未接入项目/商品推荐技能，不会用预约数等指标替代推荐结果。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "recommendation_request_before_metric_keyword",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入项目/商品推荐技能，不会用预约数等指标替代推荐结果。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-024",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 24,
+      "persona": "marketing",
+      "question": "我想做个老带新的活动，怎么设计比较合理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2847,
+      "conversationId": 12670,
+      "runId": 12669,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-025",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 25,
+      "persona": "marketing",
+      "question": "帮我策划一个针对沉睡客户的召回方案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2972,
+      "conversationId": 12671,
+      "runId": 12670,
+      "answer": "沉睡/不活跃客户名单：\n1. 刘思琪：累计消费 193085.00 元，到店 82 次，最近到店 2026-05-10\n2. 马语嫣：累计消费 192825.00 元，到店 168 次，最近到店 2026-04-19\n3. 刘婉清：累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n4. 高美琳：累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n5. 朱静怡：累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n6. 周若兰：累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 朱若兰：累计消费 154844.00 元，到店 71 次，最近到店 2026-05-06\n9. 黄美琳：累计消费 145308.00 元，到店 103 次，最近到店 2026-04-26\n10. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-026",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 26,
+      "persona": "marketing",
+      "question": "年底有哪些营销节点我应该提前准备",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4410,
+      "conversationId": 12672,
+      "runId": 12671,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-027",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 27,
+      "persona": "marketing",
+      "question": "我想推一个储值送赠品的活动，怎么设计",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3264,
+      "conversationId": 12673,
+      "runId": 12672,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-028",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 28,
+      "persona": "marketing",
+      "question": "帮我想个适合在朋友圈发的活动主题",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3793,
+      "conversationId": 12674,
+      "runId": 12673,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-029",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 29,
+      "persona": "marketing",
+      "question": "我想做一个次卡促销，折扣力度给多少合适",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2435,
+      "conversationId": 12675,
+      "runId": 12674,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-030",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 30,
+      "persona": "marketing",
+      "question": "帮我设计一个新客专属的欢迎礼包",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2036,
+      "conversationId": 12676,
+      "runId": 12675,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-031",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 31,
+      "persona": "marketing",
+      "question": "最近销售下滑，有什么活动可以拉动一下",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2439,
+      "conversationId": 12677,
+      "runId": 12676,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-032",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 32,
+      "persona": "marketing",
+      "question": "我们店三周年了，做什么活动比较有意义",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1641,
+      "conversationId": 12678,
+      "runId": 12677,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-033",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 33,
+      "persona": "marketing",
+      "question": "如何设计一个让客户主动发朋友圈的活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1799,
+      "conversationId": 12679,
+      "runId": 12678,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-034",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 34,
+      "persona": "marketing",
+      "question": "帮我策划一个回馈老客的感恩活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2211,
+      "conversationId": 12680,
+      "runId": 12679,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-035",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 35,
+      "persona": "marketing",
+      "question": "我想推一个疗程套餐，定价和权益怎么设计",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2601,
+      "conversationId": 12681,
+      "runId": 12680,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-036",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 36,
+      "persona": "marketing",
+      "question": "有没有不用打折也能吸引客户来的方法",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2968,
+      "conversationId": 12682,
+      "runId": 12681,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-037",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 37,
+      "persona": "marketing",
+      "question": "帮我做一个针对 VIP 客户的专属活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4977,
+      "conversationId": 12683,
+      "runId": 12682,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "appointment_schedule_detail_requires_list_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-038",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 38,
+      "persona": "marketing",
+      "question": "情人节快到了，适合推什么项目或活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3744,
+      "conversationId": 12684,
+      "runId": 12683,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "recommendation_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-039",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 39,
+      "persona": "marketing",
+      "question": "如何设计一个让客户愿意提前预约的方案",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2976,
+      "conversationId": 12685,
+      "runId": 12684,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-040",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 40,
+      "persona": "marketing",
+      "question": "帮我策划一个线上引流到线下体验的活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2551,
+      "conversationId": 12686,
+      "runId": 12685,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-041",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 41,
+      "persona": "marketing",
+      "question": "帮我写一条发给60天没来客户的召回消息",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2164,
+      "conversationId": 12687,
+      "runId": 12686,
+      "answer": "您好，最近护理节奏可以衔接起来了。方便的话回复我，我帮您安排合适时间。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-042",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 42,
+      "persona": "marketing",
+      "question": "给下周要来的客户写一条提醒消息",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2534,
+      "conversationId": 12688,
+      "runId": 12687,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-043",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 43,
+      "persona": "marketing",
+      "question": "帮我写个朋友圈文案推一下我们的新项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2536,
+      "conversationId": 12689,
+      "runId": 12688,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-044",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 44,
+      "persona": "marketing",
+      "question": "给刚来店体验过的新客写一条跟进话术",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2761,
+      "conversationId": 12690,
+      "runId": 12689,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-045",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 45,
+      "persona": "marketing",
+      "question": "帮我写一条推荐疗程续购的私信",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5489,
+      "conversationId": 12691,
+      "runId": 12690,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-046",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 46,
+      "persona": "marketing",
+      "question": "给即将到期的次卡客户写一条温馨提醒",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4501,
+      "conversationId": 12692,
+      "runId": 12691,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-047",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 47,
+      "persona": "marketing",
+      "question": "帮我写一个活动通知，发给全体会员",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2783,
+      "conversationId": 12693,
+      "runId": 12692,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-048",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 48,
+      "persona": "marketing",
+      "question": "写一条推荐客户带朋友来体验的邀请话术",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2553,
+      "conversationId": 12694,
+      "runId": 12693,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-049",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 49,
+      "persona": "marketing",
+      "question": "帮我写个生日祝福加优惠的消息模板",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2354,
+      "conversationId": 12695,
+      "runId": 12694,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-050",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 50,
+      "persona": "marketing",
+      "question": "写一条引导客户给好评或推荐的话术",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2160,
+      "conversationId": 12696,
+      "runId": 12695,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-051",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 51,
+      "persona": "marketing",
+      "question": "帮我写个给冷淡客户重新建立联系的话术",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1935,
+      "conversationId": 12697,
+      "runId": 12696,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-052",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 52,
+      "persona": "marketing",
+      "question": "给首次办卡的客户写一条欢迎词",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2486,
+      "conversationId": 12698,
+      "runId": 12697,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-053",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 53,
+      "persona": "marketing",
+      "question": "帮我写一段向客户介绍新员工的文案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2382,
+      "conversationId": 12699,
+      "runId": 12698,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-054",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 54,
+      "persona": "marketing",
+      "question": "写一条提醒客户预约空档时间的消息",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2470,
+      "conversationId": 12700,
+      "runId": 12699,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-055",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 55,
+      "persona": "marketing",
+      "question": "帮我写个针对男性客户的推广文案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1700,
+      "conversationId": 12701,
+      "runId": 12700,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-056",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 56,
+      "persona": "marketing",
+      "question": "写一条解释疗程效果需要坚持的话术",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2846,
+      "conversationId": 12702,
+      "runId": 12701,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-057",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 57,
+      "persona": "marketing",
+      "question": "给消费满额的客户写一条回馈感谢消息",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2525,
+      "conversationId": 12703,
+      "runId": 12702,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-058",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 58,
+      "persona": "marketing",
+      "question": "帮我写一条推荐产品的朋友圈文案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2156,
+      "conversationId": 12704,
+      "runId": 12703,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-059",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 59,
+      "persona": "marketing",
+      "question": "写一条适合私信给沉默了很久的老客户的话",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3650,
+      "conversationId": 12705,
+      "runId": 12704,
+      "answer": "您好，最近护理节奏可以衔接起来了。方便的话回复我，我帮您安排合适时间。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-content-generation-060",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "话术与内容生成",
+      "sourceIndex": 60,
+      "persona": "marketing",
+      "question": "帮我写个短视频脚本介绍我们的主打项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1755,
+      "conversationId": 12706,
+      "runId": 12705,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-061",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 61,
+      "persona": "marketing",
+      "question": "上次那个满减活动效果怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1781,
+      "conversationId": 12707,
+      "runId": 12706,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-062",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 62,
+      "persona": "marketing",
+      "question": "我给客户发了优惠券，核销率高不高",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2744,
+      "conversationId": 12708,
+      "runId": 12707,
+      "answer": "客户预约动作预览：待确认时间。确认前不会写入预约。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_action_preview",
+          "label": "前台动作预览"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "preview_action",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "db_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "action",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "preview_action"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-063",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 63,
+      "persona": "marketing",
+      "question": "这个月活动花了多少钱，带来了多少收入",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2371,
+      "conversationId": 12709,
+      "runId": 12708,
+      "answer": "活动成本和归因收入尚未接入真实口径，Ami Brain 不会用全店流水替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "marketing_activity_cost_and_attribution_not_registered",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "活动成本和归因收入尚未接入真实口径，Ami Brain 不会用全店流水替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-064",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 64,
+      "persona": "marketing",
+      "question": "哪种权益对客户吸引力最大",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2694,
+      "conversationId": 12710,
+      "runId": 12709,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-065",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 65,
+      "persona": "marketing",
+      "question": "帮我算一下如果打八折，毛利还剩多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2244,
+      "conversationId": 12711,
+      "runId": 12710,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "gross_margin",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-066",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 66,
+      "persona": "marketing",
+      "question": "免费体验活动来的客人转化率多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2004,
+      "conversationId": 12712,
+      "runId": 12711,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-067",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 67,
+      "persona": "marketing",
+      "question": "送赠品和打折哪种方式效果更好",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1988,
+      "conversationId": 12713,
+      "runId": 12712,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-068",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 68,
+      "persona": "marketing",
+      "question": "我们的优惠券平均核销周期是多久",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2322,
+      "conversationId": 12714,
+      "runId": 12713,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-069",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 69,
+      "persona": "marketing",
+      "question": "这个月进店的客人里有多少是被活动吸引来的",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2518,
+      "conversationId": 12715,
+      "runId": 12714,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-070",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 70,
+      "persona": "marketing",
+      "question": "帮我评估一下推疗程套餐和推单次消费哪个更划算",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2653,
+      "conversationId": 12716,
+      "runId": 12715,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-071",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 71,
+      "persona": "marketing",
+      "question": "储值赠送方案定在什么比例客户更愿意储值",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1611,
+      "conversationId": 12717,
+      "runId": 12716,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "card_liability",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-072",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 72,
+      "persona": "marketing",
+      "question": "最近一次活动有没有带来持续复购的客户",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4046,
+      "conversationId": 12718,
+      "runId": 12717,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "expectedMetric": "repurchase_rate",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "repurchase_rate",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-073",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 73,
+      "persona": "marketing",
+      "question": "帮我看一下这个季度营销投入回报情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2613,
+      "conversationId": 12719,
+      "runId": 12718,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-074",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 74,
+      "persona": "marketing",
+      "question": "哪个渠道带来的客户质量最好",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1612,
+      "conversationId": 12720,
+      "runId": 12719,
+      "answer": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "ranking",
+        "unsupportedReason": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-075",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 75,
+      "persona": "marketing",
+      "question": "拼团活动客户买单了但来了几次就不来了，怎么提升留存",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2738,
+      "conversationId": 12721,
+      "runId": 12720,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-076",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 76,
+      "persona": "marketing",
+      "question": "帮我分析一下为什么上次活动转化率低",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4716,
+      "conversationId": 12722,
+      "runId": 12721,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-077",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 77,
+      "persona": "marketing",
+      "question": "免费次卡换来的客户和付费客户的消费行为有什么差异",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3214,
+      "conversationId": 12723,
+      "runId": 12722,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "expectedMetric": "card_liability",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-078",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 78,
+      "persona": "marketing",
+      "question": "这个月发了多少优惠，有没有被滥用的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2126,
+      "conversationId": 12724,
+      "runId": 12723,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-079",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 79,
+      "persona": "marketing",
+      "question": "如果我把新客首单价格降低，长期来看划算吗",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2033,
+      "conversationId": 12725,
+      "runId": 12724,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-benefit-roi-080",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "权益与投入产出",
+      "sourceIndex": 80,
+      "persona": "marketing",
+      "question": "帮我评估一下现在的会员体系有没有问题",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1609,
+      "conversationId": 12726,
+      "runId": 12725,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-081",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 81,
+      "persona": "marketing",
+      "question": "帮我设置一个客户45天没来自动发提醒的规则",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2045,
+      "conversationId": 12727,
+      "runId": 12726,
+      "answer": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-082",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 82,
+      "persona": "marketing",
+      "question": "我想让系统自动给快过期次卡的客户发消息",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1879,
+      "conversationId": 12728,
+      "runId": 12727,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-083",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 83,
+      "persona": "marketing",
+      "question": "能不能在客户生日当天自动送一个小礼物",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1616,
+      "conversationId": 12729,
+      "runId": 12728,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-084",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 84,
+      "persona": "marketing",
+      "question": "帮我设置一个新客来店三天后自动跟进的流程",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1653,
+      "conversationId": 12730,
+      "runId": 12729,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-085",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 85,
+      "persona": "marketing",
+      "question": "如何让系统自动识别高流失风险的客户并提醒我",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1822,
+      "conversationId": 12731,
+      "runId": 12730,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "preview_action",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-086",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 86,
+      "persona": "marketing",
+      "question": "我想在每次服务结束后自动发一条感谢消息",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1810,
+      "conversationId": 12732,
+      "runId": 12731,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-087",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 87,
+      "persona": "marketing",
+      "question": "能不能根据客户消费习惯自动推荐下次预约时间",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1643,
+      "conversationId": 12733,
+      "runId": 12732,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-088",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 88,
+      "persona": "marketing",
+      "question": "帮我设置一个超过一定金额消费自动升级会员等级的规则",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1637,
+      "conversationId": 12734,
+      "runId": 12733,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-089",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 89,
+      "persona": "marketing",
+      "question": "有没有办法让系统自动识别客户的节假日并发关怀",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1828,
+      "conversationId": 12735,
+      "runId": 12734,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-090",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 90,
+      "persona": "marketing",
+      "question": "帮我设计一个从新客到老客的自动化培育流程",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1707,
+      "conversationId": 12736,
+      "runId": 12735,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-091",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 91,
+      "persona": "marketing",
+      "question": "能不能在客户消费后自动给她推荐下一个适合的项目",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1611,
+      "conversationId": 12737,
+      "runId": 12736,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-092",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 92,
+      "persona": "marketing",
+      "question": "我想自动收集每次服务后的客户满意度",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1659,
+      "conversationId": 12738,
+      "runId": 12737,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-093",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 93,
+      "persona": "marketing",
+      "question": "帮我设置一个低活跃度客户的自动唤醒流程",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2012,
+      "conversationId": 12739,
+      "runId": 12738,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-094",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 94,
+      "persona": "marketing",
+      "question": "能不能根据库存临期自动触发促销给合适的客户",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2328,
+      "conversationId": 12740,
+      "runId": 12739,
+      "answer": "临期产品处理建议：\n1. 先下架复核批次、开封状态和有效期，形成处理清单。\n2. 未过期且符合使用标准的产品，优先安排到适配项目中合规消耗。\n3. 已过期或状态异常的产品不得继续给客使用，按门店报损流程处理。\n4. 如需做促销消化，先确认毛利、库存数量和客户适配范围。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_disposal_advice",
+          "label": "临期过期处理建议"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-095",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 95,
+      "persona": "marketing",
+      "question": "帮我做一个疗程快结束时自动提醒续购的规则",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2396,
+      "conversationId": 12741,
+      "runId": 12740,
+      "answer": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-096",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 96,
+      "persona": "marketing",
+      "question": "如何自动识别并感谢转介绍新客的老客户",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2791,
+      "conversationId": 12742,
+      "runId": 12741,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-097",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 97,
+      "persona": "marketing",
+      "question": "帮我设置一个活动后自动复盘效果的提醒",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1637,
+      "conversationId": 12743,
+      "runId": 12742,
+      "answer": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-098",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 98,
+      "persona": "marketing",
+      "question": "能不能在员工空档时自动推送客户填满档期",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2001,
+      "conversationId": 12744,
+      "runId": 12743,
+      "answer": "预约空档、项目分类、VIP 准备和临时安排尚未接入真实列表口径，Ami Brain 不会用预约总数替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "appointment_schedule_detail_requires_list_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "预约空档、项目分类、VIP 准备和临时安排尚未接入真实列表口径，Ami Brain 不会用预约总数替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "appointment_count",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-099",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 99,
+      "persona": "marketing",
+      "question": "我想在特定节日前三天自动准备活动方案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1848,
+      "conversationId": 12745,
+      "runId": 12744,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-automation-touch-100",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 100,
+      "persona": "marketing",
+      "question": "帮我检查一下现在有哪些自动化规则在运行，效果怎么样",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1638,
+      "conversationId": 12746,
+      "runId": 12745,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "marketing",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    }
+  ]
+}

@@ -1,0 +1,1290 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-10T18:44:45.796Z",
+    "startedAt": "2026-07-10T18:43:44.932Z",
+    "finishedAt": "2026-07-10T18:44:45.796Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 40,
+    "actualRunCount": 40,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 40,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 7,
+    "trueUsableRate": 0.175,
+    "byStatus": [
+      {
+        "key": "unsupported_intent",
+        "total": 26,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 26,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "false_positive_granularity_mismatch",
+        "total": 7,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "usable_exact",
+        "total": 7,
+        "usable": 7,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "inventory",
+        "total": 40,
+        "usable": 7,
+        "usableRate": 0.175,
+        "metricFailed": 0,
+        "unsupportedIntent": 26,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "库存查询与风险",
+        "total": 25,
+        "usable": 4,
+        "usableRate": 0.16,
+        "metricFailed": 0,
+        "unsupportedIntent": 18,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "临期与损耗",
+        "total": 15,
+        "usable": 3,
+        "usableRate": 0.2,
+        "metricFailed": 0,
+        "unsupportedIntent": 8,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 26
+      },
+      {
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "count": 7
+      }
+    ],
+    "latency": {
+      "avgMs": 1521,
+      "p95Ms": 1740,
+      "maxMs": 2453
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "7.8%",
+          "current": "17.5%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "50",
+          "current": "7"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-inventory-inventory-query-risk-001",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 1,
+      "persona": "inventory",
+      "question": "现在哪些东西快没了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2453,
+      "conversationId": 3696,
+      "runId": 3696,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-002",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 2,
+      "persona": "inventory",
+      "question": "帮我看一下库存整体情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1379,
+      "conversationId": 3700,
+      "runId": 3700,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-003",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 3,
+      "persona": "inventory",
+      "question": "有没有什么产品只剩最后几瓶了",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1728,
+      "conversationId": 3703,
+      "runId": 3703,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-004",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 4,
+      "persona": "inventory",
+      "question": "这个月用了多少洗面奶，还剩多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1388,
+      "conversationId": 3706,
+      "runId": 3706,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-005",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 5,
+      "persona": "inventory",
+      "question": "精华液现在库存还有多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1382,
+      "conversationId": 3709,
+      "runId": 3709,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-006",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 6,
+      "persona": "inventory",
+      "question": "帮我看一下所有低于安全库存的产品",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1735,
+      "conversationId": 3711,
+      "runId": 3711,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-007",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 7,
+      "persona": "inventory",
+      "question": "仓库里有多少货，大概值多少钱",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1382,
+      "conversationId": 3714,
+      "runId": 3714,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-008",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 8,
+      "persona": "inventory",
+      "question": "哪些产品这周消耗特别快",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1721,
+      "conversationId": 3717,
+      "runId": 3717,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-009",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 9,
+      "persona": "inventory",
+      "question": "现在缺货最紧急的是什么",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1726,
+      "conversationId": 3720,
+      "runId": 3720,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-010",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 10,
+      "persona": "inventory",
+      "question": "有没有产品一直有但从来不用的",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1380,
+      "conversationId": 3723,
+      "runId": 3723,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-011",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 11,
+      "persona": "inventory",
+      "question": "这个月库存消耗和上个月比有没有异常",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1384,
+      "conversationId": 3726,
+      "runId": 3726,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-012",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 12,
+      "persona": "inventory",
+      "question": "帮我看一下补水系列产品的库存",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1383,
+      "conversationId": 3729,
+      "runId": 3729,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-013",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 13,
+      "persona": "inventory",
+      "question": "我们的防晒产品还有多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1373,
+      "conversationId": 3731,
+      "runId": 3731,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-014",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 14,
+      "persona": "inventory",
+      "question": "服务用的一次性耗材还够用多久",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1375,
+      "conversationId": 3734,
+      "runId": 3734,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-015",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 15,
+      "persona": "inventory",
+      "question": "哪些产品的安全库存线设得不合理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1732,
+      "conversationId": 3737,
+      "runId": 3737,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-016",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 16,
+      "persona": "inventory",
+      "question": "帮我查一下某个供应商上次送货的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1375,
+      "conversationId": 3739,
+      "runId": 3739,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-017",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 17,
+      "persona": "inventory",
+      "question": "这个月采购了多少钱的货",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1380,
+      "conversationId": 3742,
+      "runId": 3742,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-018",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 18,
+      "persona": "inventory",
+      "question": "有没有产品一直在消耗但一直没有采购",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1377,
+      "conversationId": 3745,
+      "runId": 3745,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-019",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 19,
+      "persona": "inventory",
+      "question": "现在门店和仓库的库存加起来有多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1382,
+      "conversationId": 3748,
+      "runId": 3748,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-020",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 20,
+      "persona": "inventory",
+      "question": "哪些产品的周转率最低",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1720,
+      "conversationId": 3751,
+      "runId": 3751,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "diagnosis",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-021",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 21,
+      "persona": "inventory",
+      "question": "帮我统计一下这季度每个产品的用量",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1377,
+      "conversationId": 3754,
+      "runId": 3754,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-022",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 22,
+      "persona": "inventory",
+      "question": "有没有最近需求突然增加的产品",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1385,
+      "conversationId": 3756,
+      "runId": 3756,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-023",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 23,
+      "persona": "inventory",
+      "question": "我们的理疗仪器耗材还够用多少次",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1385,
+      "conversationId": 3759,
+      "runId": 3759,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-024",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 24,
+      "persona": "inventory",
+      "question": "最贵的那几样耗材现在库存怎么样",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1378,
+      "conversationId": 3762,
+      "runId": 3762,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-025",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 25,
+      "persona": "inventory",
+      "question": "帮我看一下今天进出库的记录",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1381,
+      "conversationId": 3765,
+      "runId": 3765,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-026",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 26,
+      "persona": "inventory",
+      "question": "哪些产品快过期了，还有多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1728,
+      "conversationId": 3767,
+      "runId": 3767,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-027",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 27,
+      "persona": "inventory",
+      "question": "帮我看一下30天内要过期的东西",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1388,
+      "conversationId": 3770,
+      "runId": 3770,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-028",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 28,
+      "persona": "inventory",
+      "question": "有没有已经过期的产品还在用",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1385,
+      "conversationId": 3773,
+      "runId": 3773,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-029",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 29,
+      "persona": "inventory",
+      "question": "这批快过期的产品怎么处理最合适",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1727,
+      "conversationId": 3775,
+      "runId": 3775,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-030",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 30,
+      "persona": "inventory",
+      "question": "有没有办法在过期前把这些产品消耗掉",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1384,
+      "conversationId": 3778,
+      "runId": 3778,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-031",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 31,
+      "persona": "inventory",
+      "question": "我们一般临期产品是怎么处理的",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1740,
+      "conversationId": 3781,
+      "runId": 3781,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-032",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 32,
+      "persona": "inventory",
+      "question": "这个月有没有因为过期而损耗的产品",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1734,
+      "conversationId": 3785,
+      "runId": 3785,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-033",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 33,
+      "persona": "inventory",
+      "question": "哪些产品最容易过期，需要重点关注",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1740,
+      "conversationId": 3787,
+      "runId": 3787,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-034",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 34,
+      "persona": "inventory",
+      "question": "帮我制定一个临期产品的消化方案",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1384,
+      "conversationId": 3790,
+      "runId": 3790,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-035",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 35,
+      "persona": "inventory",
+      "question": "进货太多导致积压的产品有哪些",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1730,
+      "conversationId": 3793,
+      "runId": 3793,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-036",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 36,
+      "persona": "inventory",
+      "question": "有没有产品开了之后很长时间还没用完",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1384,
+      "conversationId": 3797,
+      "runId": 3797,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-037",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 37,
+      "persona": "inventory",
+      "question": "帮我计算一下这批临期货品的损失金额",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1407,
+      "conversationId": 3799,
+      "runId": 3799,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-038",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 38,
+      "persona": "inventory",
+      "question": "过期的护肤品怎么处理，有没有规定",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1775,
+      "conversationId": 3802,
+      "runId": 3802,
+      "answer": "低库存产品：\n1. 晒后舒缓凝胶：当前 0，安全库存 0。\n2. 舒缓修护膜：当前 0，安全库存 0。\n3. 手部温和磨砂膏：当前 0，安全库存 0。\n4. 手部滋养手膜：当前 0，安全库存 0。\n5. 手部滋润护理霜：当前 0，安全库存 0。\n6. 眼周紧致啫喱：当前 0，安全库存 0。\n7. 头皮净澈洗护液：当前 0，安全库存 0。\n8. 一次性丁腈手套：当前 0，安全库存 0。\n9. 玻尿酸保湿精华：当前 133，安全库存 143。\n10. 温和酵素去角质啫喱：当前 0，安全库存 0。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-039",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 39,
+      "persona": "inventory",
+      "question": "最近有没有因为保存不当导致产品变质",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1343,
+      "conversationId": 3805,
+      "runId": 3805,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-040",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 40,
+      "persona": "inventory",
+      "question": "帮我查一下我们的库存损耗率高不高",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1340,
+      "conversationId": 3808,
+      "runId": 3808,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    }
+  ]
+}
