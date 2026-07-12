@@ -66,11 +66,12 @@ function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentA
 }
 
 function resolveContextAgentEngine(context?: Record<string, unknown>): TerminalAgentEngine {
+  if (context?.agentEngine === 'ami_brain') return 'ami_brain';
   if (context?.agentEngine === 'agent_v5') return 'agent_v5';
   if (context?.agentEngine === 'agent_v4') return 'agent_v4';
   if (context?.agentEngine === 'agent_v3') return 'agent_v3';
   if (context?.agentEngine === 'agent_v2') return 'agent_v2';
-  return 'agent_v1';
+  return 'ami_brain';
 }
 
 function getPreviousRunId(options: TerminalAgentAdapterOptions): number | null {

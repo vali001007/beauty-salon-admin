@@ -92,6 +92,15 @@ const mocks = vi.hoisted(() => {
     createAgentRun: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
     createAgentV4Run: vi.fn(async (): Promise<any> => ({ runId: 4, status: "success" })),
     createAgentV5Run: vi.fn(async (): Promise<any> => ({ runId: 5, status: "success" })),
+    createBrainConversation: vi.fn(async (): Promise<any> => ({ id: 16 })),
+    sendBrainMessage: vi.fn(async (): Promise<any> => ({
+      conversationId: 16,
+      runId: 1,
+      status: "completed",
+      answer: "今日经营正常",
+      citations: [],
+      suggestedActions: [],
+    })),
     rejectAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "rejected" })),
     submitAgentFeedback: vi.fn(async (): Promise<any> => undefined),
     getProjects: vi.fn(async (): Promise<any[]> => []),
@@ -146,6 +155,12 @@ vi.mock("@/api", () => {
     createAgentV3Run: unusedApi,
     createAgentV4Run: mocks.api.createAgentV4Run,
     createAgentV5Run: mocks.api.createAgentV5Run,
+    createBrainConversation: mocks.api.createBrainConversation,
+    sendBrainMessage: mocks.api.sendBrainMessage,
+    getBrainRunContext: unusedApi,
+    createBrainFeedback: unusedApi,
+    confirmBrainAction: unusedApi,
+    rejectBrainAction: unusedApi,
     rejectAgentApproval: mocks.api.rejectAgentApproval,
     submitAgentFeedback: mocks.api.submitAgentFeedback,
     getTerminalBeauticianCommission: unusedApi,
@@ -229,6 +244,15 @@ async function resetMockState() {
   mocks.api.approveAgentApproval.mockResolvedValue({ id: 1, status: "approved" });
   mocks.api.appendAgentMessage.mockResolvedValue({ runId: 1, status: "success" });
   mocks.api.createAgentRun.mockResolvedValue({ runId: 1, status: "success" });
+  mocks.api.createBrainConversation.mockResolvedValue({ id: 16 });
+  mocks.api.sendBrainMessage.mockResolvedValue({
+    conversationId: 16,
+    runId: 1,
+    status: "completed",
+    answer: "今日经营正常",
+    citations: [],
+    suggestedActions: [],
+  });
   mocks.api.rejectAgentApproval.mockResolvedValue({ id: 1, status: "rejected" });
   mocks.api.submitAgentFeedback.mockResolvedValue(undefined);
   mocks.api.getTerminalCardVerificationContext.mockResolvedValue({ customers: [], storeName: mocks.store.name, generatedAt: "2026-06-11T09:00:00.000Z" });
@@ -377,9 +401,10 @@ describe("auraCoreService auth repair", () => {
       source: "text",
     });
 
-    expect(result).toMatchObject({ runId: 1, status: "success" });
+    expect(result).toMatchObject({ runId: 1, status: "completed" });
     expect(mocks.authState.login).toHaveBeenCalledTimes(1);
-    expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(1);
+    expect(mocks.api.createBrainConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.api.sendBrainMessage).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem("token")).toBe("fresh-token");
   });
 

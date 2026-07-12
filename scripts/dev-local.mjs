@@ -98,11 +98,14 @@ async function ensureApi(options = {}) {
 
 function spawnNpm(label, commandArgs, cwd = repoRoot) {
   const child = spawn(npmCommand, commandArgs, {
-    stdio: 'inherit',
-    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    shell: process.platform === 'win32',
     env: process.env,
     cwd,
   });
+
+  child.stdout?.pipe(process.stdout);
+  child.stderr?.pipe(process.stderr);
 
   child.on('error', (error) => {
     console.error(`[dev-local] Failed to start ${label}:`, error);

@@ -71,7 +71,12 @@ import {
   switchAuraStore,
   writeAuraStartupCache,
 } from "./services/auraCoreService";
-import { recordTerminalAmiAiAudit, submitTerminalAgentFeedback } from "./services/agentRuntimeService";
+import {
+  decideTerminalBrainAction,
+  parseTerminalBrainAction,
+  recordTerminalAmiAiAudit,
+  submitTerminalAgentFeedback,
+} from "./services/agentRuntimeService";
 import { buildTerminalFactContext } from "./services/terminalFactContext";
 import {
   getDefaultTerminalPersona,
@@ -1683,6 +1688,23 @@ export default function AppContent() {
     if (action.startsWith("agent-v5:clarification:")) {
       const selection = action.split(":").slice(2).join(":");
       await handleCommand(label?.trim() || selection, "system", { agentV5ClarificationSelection: selection });
+      return;
+    }
+    if (parseTerminalBrainAction(action)) {
+      const epoch = getConversationEpoch();
+      setLoading(true);
+      setLoadingText(action.endsWith(":cancel") ? "正在取消 Ami Brain 动作" : "正在执行 Ami Brain 动作");
+      try {
+        const data = await decideTerminalBrainAction(action);
+        appendMessage(createMessage("dashboard", { kind: "agentRun", data }, "Ami Brain 动作回执"), epoch);
+      } catch (err) {
+        appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "Ami Brain 动作处理失败", source: "agent" }), epoch);
+      } finally {
+        if (isConversationEpochActive(epoch)) {
+          setLoading(false);
+          setLoadingText("");
+        }
+      }
       return;
     }
     const approvalAction = parseAgentApprovalAction(action);

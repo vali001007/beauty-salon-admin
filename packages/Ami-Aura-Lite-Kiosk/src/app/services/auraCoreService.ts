@@ -66,6 +66,7 @@ import {
   createTerminalRechargeOrder,
   getTerminalPrintableDocumentsToday,
   voidCardOrder,
+  getProductOrderRefundPreview,
   refundProductOrder,
   createTerminalReservation,
   createTerminalServiceRecord,
@@ -4132,8 +4133,25 @@ function getRefundOrderItemSummary(order: CoreSnapshot['orders'][number]) {
 
 function toRefundOrderOption(order: CoreSnapshot['orders'][number]): RefundOrderOption | null {
   if (['已取消', '已退款', 'cancelled', 'canceled', 'refunded'].includes(String(order.status))) return null;
-  const refundableAmount = toMoney(order.netAmount ?? order.totalAmount);
+  const successfulRefunds = asList<any>((order as any).refundRecords).filter((record) => ['success', 'completed', 'refunded'].includes(String(record.status)));
+  const refundedAmount = successfulRefunds.reduce((sum, record) => sum + toMoney(record.amount), 0);
+  const refundableAmount = Math.max(0, toMoney(order.netAmount ?? order.totalAmount) - refundedAmount);
   if (refundableAmount <= 0) return null;
+  const rawItems = asList<any>(order.orderItems).length ? asList<any>(order.orderItems) : asList<any>(order.items);
+  const items = rawItems.map((item) => {
+    const refundItems = successfulRefunds.flatMap((record) => asList<any>(record.items)).filter((refundItem) => Number(refundItem.orderItemId) === Number(item.id));
+    const soldQuantity = Number(item.quantity ?? 1);
+    const itemNetAmount = toMoney(item.netAmount ?? item.subtotal ?? soldQuantity * Number(item.unitPrice ?? 0));
+    const refundedQuantity = refundItems.reduce((sum, refundItem) => sum + Number(refundItem.quantity ?? 0), 0);
+    const itemRefundedAmount = refundItems.reduce((sum, refundItem) => sum + toMoney(refundItem.refundAmount), 0);
+    return {
+      orderItemId: Number(item.id),
+      name: item.productName ?? item.name ?? '未命名明细',
+      itemType: String(item.itemType ?? 'product'),
+      remainingRefundableQuantity: Math.max(0, soldQuantity - refundedQuantity),
+      remainingRefundableAmount: Math.max(0, itemNetAmount - itemRefundedAmount),
+    };
+  }).filter((item) => item.orderItemId > 0 && item.remainingRefundableAmount > 0);
   return {
     id: order.id,
     orderNo: order.checkoutGroupNo ?? order.orderNo,
@@ -4146,6 +4164,8 @@ function toRefundOrderOption(order: CoreSnapshot['orders'][number]): RefundOrder
     paymentMethod: order.paymentMethod ?? order.payMethod ?? '',
     refundableAmount,
     createdAt: order.completedAt ?? order.createdAt,
+    allowedModes: ['refund_only', 'return_and_refund'],
+    items,
   };
 }
 
@@ -4275,14 +4295,25 @@ export async function confirmRefund(input: RefundConfirmInput): Promise<Operatio
   if (!input.orderId) throw new Error('请选择要退款的历史订单');
   if (input.amount <= 0) throw new Error('退款金额必须大于 0');
   const isCardOrder = String(input.orderKind) === 'card';
-  const refunded = isCardOrder
-    ? await runWithAuraAuthRepair(() => voidCardOrder(input.orderId, { reason: input.reason || 'Ami Aura Lite 次卡退款' }))
-    : await runWithAuraAuthRepair(() =>
-        refundProductOrder(Number(input.orderId), {
-          amount: input.amount,
-          reason: input.reason || 'Ami Aura Lite 退款',
-        }),
-      );
+  let refunded;
+  if (isCardOrder) {
+    refunded = await runWithAuraAuthRepair(() => voidCardOrder(input.orderId, { reason: input.reason || 'Ami Aura Lite 次卡退款' }));
+  } else {
+    const preview = await runWithAuraAuthRepair(() => getProductOrderRefundPreview(Number(input.orderId)));
+    const items = input.items?.length
+      ? input.items
+      : preview.items
+          .filter((item) => item.remainingRefundableQuantity > 0 && item.remainingRefundableAmount > 0)
+          .map((item) => ({ orderItemId: item.orderItemId, quantity: item.remainingRefundableQuantity, refundAmount: item.remainingRefundableAmount }));
+    refunded = await runWithAuraAuthRepair(() =>
+      refundProductOrder(Number(input.orderId), {
+        requestId: input.requestId ?? globalThis.crypto?.randomUUID?.() ?? `kiosk-refund-${Date.now()}`,
+        refundMode: input.refundMode ?? 'refund_only',
+        reason: input.reason || 'Ami Aura Lite 退款',
+        items,
+      }),
+    );
+  }
   invalidateCashierCaches();
   invalidateBusinessFlowCache(['operation.refund']);
   const latestRefundRecord = getLatestRefundRecord(refunded);

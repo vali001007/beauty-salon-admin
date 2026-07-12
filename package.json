@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite",
-    "predev": "node scripts/dev-local.mjs --check-only --quiet",
+    "dev": "node scripts/dev-local.mjs",
     "dev:web": "vite",
     "dev:api": "npm --prefix packages/server-v2 run dev",
     "dev:doctor": "node scripts/dev-local.mjs --check-only",

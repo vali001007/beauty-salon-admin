@@ -461,6 +461,14 @@ export interface RefundOrderOption {
   paymentMethod: string;
   refundableAmount: number;
   createdAt: string;
+  allowedModes?: Array<'refund_only' | 'return_and_refund'>;
+  items?: Array<{
+    orderItemId: number;
+    name: string;
+    itemType: string;
+    remainingRefundableQuantity: number;
+    remainingRefundableAmount: number;
+  }>;
 }
 
 export interface RefundFlowData {
@@ -476,6 +484,9 @@ export interface RefundConfirmInput {
   orderKind: 'product' | 'project' | 'mixed' | 'card' | string;
   amount: number;
   reason: string;
+  requestId?: string;
+  refundMode?: 'refund_only' | 'return_and_refund';
+  items?: Array<{ orderItemId: number; quantity: number; refundAmount?: number }>;
 }
 
 export interface OperationResultData {

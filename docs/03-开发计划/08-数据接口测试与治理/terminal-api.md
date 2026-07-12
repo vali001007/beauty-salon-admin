@@ -95,3 +95,8 @@ Request fields:
 | `items[].isGift` | Gift line, net revenue is zero and it is excluded from order discount allocation |
 
 Response fields include `listAmount`, `itemDiscountAmount`, `orderDiscountAmount`, `totalDiscountAmount`, `netAmount`, `discountSource`, `allocationMethod`, and the same line-level fields on `items[]`. Cashier receipts should display original amount, discount, and paid amount from these values.
+# Kiosk 退款闭环补充（2026-07-12）
+
+- Kiosk 退款入口按 `checkoutGroupNo` 聚合展示，但最终退款落到真实订单和订单明细。
+- 可退金额、可退数量和库存追溯状态统一读取订单退款预览，不再使用订单原始 `netAmount`。
+- 退款必须选择“仅退款”或“退款退货”；项目退款退货表示冲销原服务耗材，不撤销服务事实。
