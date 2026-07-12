@@ -20,6 +20,7 @@ export * from './terminal';
 export * from './recommendation';
 export * from './ai';
 export * from './dashboard';
+export * from './askData';
 export * from './brain';
 export * from './commission';
 export * from './financeMetrics';
