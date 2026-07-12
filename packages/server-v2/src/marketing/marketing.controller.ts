@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Headers, Patch } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Headers, Patch } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { MarketingService } from './marketing.service.js';
 import { TerminalService } from '../terminal/terminal.service.js';
@@ -21,6 +21,12 @@ export class MarketingController {
     private marketingService: MarketingService,
     private terminalService: TerminalService,
   ) {}
+
+  private requireStoreId(storeId?: string) {
+    const parsed = Number(storeId);
+    if (!Number.isInteger(parsed) || parsed <= 0) throw new BadRequestException('X-Store-Id is required');
+    return parsed;
+  }
 
   // Recommendations
   @Get('recommendations')
@@ -74,6 +80,17 @@ export class MarketingController {
   @ApiOperation({ summary: '采纳营销推荐' })
   adoptRecommendation(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
     return this.marketingService.adoptRecommendation(id, dto);
+  }
+
+  @Post('recommendations/:id/adoptions')
+  @Permissions('core:marketing:create')
+  @ApiOperation({ summary: '在当前门店事务化采纳营销推荐' })
+  adoptRecommendationTransaction(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.marketingService.adoptRecommendation(id, this.requireStoreId(storeId), dto);
   }
 
   @Post('recommendations/:id/activity-draft')
@@ -311,36 +328,36 @@ export class MarketingController {
   @Get('activities')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销活动列表' })
-  findActivities(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('status') status?: string) {
-    return this.marketingService.findActivities({ page, pageSize, status });
+  findActivities(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('status') status?: string, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.findActivities({ page, pageSize, status, storeId: this.requireStoreId(storeId) });
   }
 
   @Get('activities/:id')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销活动详情' })
-  getActivity(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.getActivityById(id);
+  getActivity(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getActivityById(id, this.requireStoreId(storeId));
   }
 
   @Post('activities')
   @Permissions('core:marketing:create')
   @ApiOperation({ summary: '创建营销活动' })
-  createActivity(@Body() dto: any) {
-    return this.marketingService.createActivity(dto);
+  createActivity(@Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.createActivity(dto, this.requireStoreId(storeId));
   }
 
   @Put('activities/:id')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '更新营销活动' })
-  updateActivity(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.marketingService.updateActivity(id, dto);
+  updateActivity(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.updateActivity(id, dto, this.requireStoreId(storeId));
   }
 
   @Delete('activities/:id')
   @Permissions('core:marketing:delete')
   @ApiOperation({ summary: '删除营销活动' })
-  deleteActivity(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.deleteActivity(id);
+  deleteActivity(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.deleteActivity(id, this.requireStoreId(storeId));
   }
 
   // Automation
@@ -426,50 +443,50 @@ export class MarketingController {
   @Get('automation/strategies/paginated')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '分页获取自动化策略' })
-  findStrategies(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('status') status?: string) {
-    return this.marketingService.findStrategies({ page, pageSize, status });
+  findStrategies(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('status') status?: string, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.findStrategies({ page, pageSize, status, storeId: this.requireStoreId(storeId) });
   }
 
   @Post('automation/strategies')
   @Permissions('core:marketing:create')
   @ApiOperation({ summary: '创建自动化策略' })
-  createStrategy(@Body() dto: any) {
-    return this.marketingService.createStrategy(dto);
+  createStrategy(@Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.createStrategy(dto, this.requireStoreId(storeId));
   }
 
   @Put('automation/strategies/:id')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '更新自动化策略' })
-  updateStrategy(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.marketingService.updateStrategy(id, dto);
+  updateStrategy(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.updateStrategy(id, dto, this.requireStoreId(storeId));
   }
 
   @Delete('automation/strategies/:id')
   @Permissions('core:marketing:delete')
   @ApiOperation({ summary: '删除自动化策略' })
-  deleteStrategy(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.deleteStrategy(id);
+  deleteStrategy(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.deleteStrategy(id, this.requireStoreId(storeId));
   }
 
   @Post('automation/strategies/:id/enable')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '启用策略' })
-  enableStrategy(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.enableStrategy(id);
+  enableStrategy(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.enableStrategy(id, this.requireStoreId(storeId));
   }
 
   @Post('automation/strategies/:id/pause')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '暂停策略' })
-  pauseStrategy(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.pauseStrategy(id);
+  pauseStrategy(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.pauseStrategy(id, this.requireStoreId(storeId));
   }
 
   @Post('automation/strategies/:id/execute')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '执行策略' })
-  executeStrategy(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.executeStrategy(id);
+  executeStrategy(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.executeStrategy(id, this.requireStoreId(storeId));
   }
 
   @Post('automation/strategies/:id/preview-audience')
@@ -489,22 +506,22 @@ export class MarketingController {
   @Get('automation/executions/paginated')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取执行记录' })
-  findExecutions(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('strategyId') strategyId?: number) {
-    return this.marketingService.findExecutions({ page, pageSize, strategyId });
+  findExecutions(@Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('strategyId') strategyId?: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.findExecutions({ page, pageSize, strategyId, storeId: this.requireStoreId(storeId) });
   }
 
   @Get('automation/executions/:id')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取执行记录详情' })
-  getExecutionById(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingService.getExecutionById(id);
+  getExecutionById(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getExecutionById(id, this.requireStoreId(storeId));
   }
 
   @Get('automation/effects')
   @Permissions('core:marketing:analytics')
   @ApiOperation({ summary: '获取策略效果' })
-  getEffects() {
-    return this.marketingService.getEffects();
+  getEffects(@Headers('x-store-id') storeId?: string) {
+    return this.marketingService.getEffects(this.requireStoreId(storeId));
   }
 
   @Get('effects/unified')
@@ -513,11 +530,9 @@ export class MarketingController {
   getUnifiedEffects(
     @Query('objectType') objectType?: string,
     @Query('objectId') objectId?: string,
-    @Query('storeId') storeId?: number,
     @Headers('x-store-id') headerStoreId?: string,
   ) {
-    const scopedStoreId = storeId ? Number(storeId) : headerStoreId ? Number(headerStoreId) : undefined;
-    return this.marketingService.getUnifiedEffects({ objectType, objectId, storeId: scopedStoreId });
+    return this.marketingService.getUnifiedEffects({ objectType, objectId, storeId: this.requireStoreId(headerStoreId) });
   }
 
   @Get('strategies/effects')

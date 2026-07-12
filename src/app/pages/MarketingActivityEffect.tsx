@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getMarketingActivityById, getUnifiedMarketingEffects } from '@/api/marketing';
 import type { MarketingActivity, UnifiedMarketingEffectItem } from '@/types';
+import { getMarketingActivityStatusLabel } from '@/utils/marketingStatus';
 
 function formatActivityDate(value?: string) {
   if (!value) return '-';
@@ -44,13 +45,13 @@ function getActivityPromotionLabel(activity: MarketingActivity) {
 
 function getStatusBadgeClass(status: string) {
   switch (status) {
-    case '进行中':
+    case 'active':
       return 'bg-green-100 text-green-700';
-    case '即将开始':
+    case 'scheduled':
       return 'bg-yellow-100 text-yellow-700';
-    case '已结束':
+    case 'ended':
       return 'bg-gray-100 text-gray-600';
-    case '草稿':
+    case 'draft':
       return 'bg-slate-100 text-slate-600';
     default:
       return 'bg-blue-100 text-blue-700';
@@ -58,7 +59,7 @@ function getStatusBadgeClass(status: string) {
 }
 
 function getRemainingText(activity: MarketingActivity) {
-  if (activity.status !== '进行中') return activity.status;
+  if (activity.status !== 'active') return getMarketingActivityStatusLabel(activity.status);
   const endTime = new Date(activity.endDate).getTime();
   if (Number.isNaN(endTime)) return '进行中';
   const days = Math.max(0, Math.ceil((endTime - Date.now()) / 86400000));

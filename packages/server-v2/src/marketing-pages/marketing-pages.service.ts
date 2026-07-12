@@ -462,6 +462,11 @@ export class MarketingPagesService {
     if (!dto.title?.trim()) throw new BadRequestException('页面标题不能为空');
     if (!dto.sourceType?.trim()) throw new BadRequestException('来源类型不能为空');
     if (!dto.pageSchema) throw new BadRequestException('页面 Schema 不能为空');
+    if (dto.activityId) {
+      if (!dto.storeId) throw new BadRequestException('活动营销页必须指定门店');
+      const activity = await this.prisma.marketingActivity.findFirst({ where: { id: Number(dto.activityId), storeId: Number(dto.storeId) }, select: { id: true } });
+      if (!activity) throw new BadRequestException('营销活动不存在或不属于当前门店');
+    }
     const slug = dto.slug || this.createSlug(dto.sourceType, dto.sourceId);
     const shareUrl = this.buildShareUrl(slug);
 

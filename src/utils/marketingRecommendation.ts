@@ -63,6 +63,12 @@ export interface Recommendation {
   modelVersion?: string;
   predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy' | string;
   predictionRunFinishedAt?: string;
+  predictionFreshness?: {
+    predictionRunId: number | null;
+    generatedAt: string | null;
+    ageHours: number | null;
+    status: 'fresh' | 'stale' | 'missing';
+  };
   totalCustomers?: number;
   priority?: RecommendationPriority;
   executionModes?: RecommendationExecutionMode[];

@@ -31,21 +31,18 @@ import { generateActivityPage, generateMarketingCopy } from '@/api/ai';
 import { getCustomerConsumptionRecords, getCustomerHealthProfiles, getCustomersPaginated } from '@/api/customer';
 import {
   batchCreateMarketingFollowUpTasks,
-  createMarketingActivity,
   getCustomerLifecycleQuality,
   getMarketingFollowUpTasks,
   getMarketingFollowUpTaskSummary,
   runPredictions,
 } from '@/api/marketing';
-import { createMarketingPage, publishMarketingPage } from '@/api/marketingPage';
-import { getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
+import { adoptMarketingRecommendationTransaction, getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
 import { createPromotion, matchPromotions } from '@/api/promotion';
 import type { Customer, CustomerLifecycleQualitySnapshot, RecommendedAction, RecommendedOffer, RecommendedPromotionMatch } from '@/types';
 import type { ActivityPageSchema, MarketingCopyChannel } from '@/types/ai';
 import type { TerminalFollowUpTask, TerminalFollowUpTaskSummary } from '@/types/terminal';
 import type { Recommendation, UrgencyLevel } from '@/utils/marketingRecommendation';
 import { computeBehaviorProfiles, type BehaviorProfile } from '@/utils/customerSegmentation';
-import { buildMarketingPagePayloadFromActivity } from '@/utils/marketingPageGenerator';
 import { addBusinessDays, formatBusinessDate, formatBusinessDateTime, formatBusinessMonthDayTime } from '@/utils/businessTime';
 
 type SelectedCustomerGroup = {
@@ -1335,54 +1332,22 @@ export function MarketingRecommendation() {
   const publishMiniPreview = async () => {
     if (!previewInitialData) return;
     const preview = createMiniPreviewData(previewInitialData);
+    const recommendationId = Number(previewInitialData.sourceRecommendationId);
+    if (!Number.isInteger(recommendationId) || recommendationId <= 0) {
+      toast.error('推荐来源无效，请刷新推荐后重试');
+      return;
+    }
     setIsPublishingPreview(true);
     try {
-      const activity = await createMarketingActivity({
-        title: preview.title,
-        description: preview.description,
-        image: preview.posterImage || '',
-        status: '进行中',
-        participants: 0,
-        conversion: '0%',
-        startDate: preview.startDate,
-        endDate: preview.endDate,
-        targetCustomers: preview.targetCustomers,
-        discount: preview.discount,
-        source: '策略自动创建',
-        strategyName: previewInitialData.originalTitle || previewInitialData.strategy || preview.title,
-        posterBg: preview.posterBg,
-        posterImage: preview.posterImage,
-        posterTitleColor: preview.posterTitleColor,
-        pageSchema: preview.pageSchema,
-        sourceRecommendationId: previewInitialData.sourceRecommendationId,
-        predictionRunId: previewInitialData.predictionRunId,
-        audienceSnapshotJson: parseJsonField(previewInitialData.audienceSnapshotJson),
-        sourceSignalsJson: {
-          signals: parseJsonField<string[]>(previewInitialData.sourceSignalsJson),
-          originalOffer: parseJsonField(previewInitialData.originalOfferJson),
-          selectedPromotion: parseJsonField(previewInitialData.selectedPromotionJson),
+      await adoptMarketingRecommendationTransaction(recommendationId, {
+        mode: 'activity',
+        activity: {
+          title: preview.title,
+          startDate: preview.startDate,
+          endDate: preview.endDate,
+          publishPage: true,
         },
-        offerJson: parseJsonField(previewInitialData.offerJson),
-        recommendedItemsJson: parseJsonField(previewInitialData.recommendedItemsJson),
-        aiGenerationId: previewInitialData.aiGenerationId,
-        publishStatus: 'published',
-        publishedAt: new Date().toISOString(),
       });
-      const page = await createMarketingPage(
-        buildMarketingPagePayloadFromActivity(activity, {
-          pageSchema: preview.pageSchema!,
-          activityType: previewInitialData.category,
-          selectedChannels: parseJsonField<Array<{ label?: string; channel?: string }>>(previewInitialData.recommendedChannelsJson)
-            ?.map((channel) => channel.label || channel.channel || '')
-            .filter(Boolean),
-          posterImage: preview.posterImage,
-          offerJson: parseJsonField(previewInitialData.offerJson),
-          audienceSnapshotJson: parseJsonField(previewInitialData.audienceSnapshotJson),
-          recommendedItemsJson: parseJsonField(previewInitialData.recommendedItemsJson),
-          sourceSignalsJson: parseJsonField<string[]>(previewInitialData.sourceSignalsJson),
-        }),
-      );
-      await publishMarketingPage(page.id);
       toast.success('活动和推广页已发布，可进入推广资产分发', {
         action: {
           label: '查看推广页',
@@ -1403,35 +1368,16 @@ export function MarketingRecommendation() {
     }
   };
 
-  const openAutomationFromRecommendation = (rec: Recommendation) => {
-    const triggerType = rec.triggerRule?.type || rec.triggerType!;
-    const channels = rec.recommendedChannels?.map((item) => item.channel).join(',') || 'sms,miniapp';
-    const selection = getOfferSelection(rec);
-    const selectedActions = buildActionsWithOffer(rec, selection);
-    const attribution = buildRecommendationAttribution(rec, selection);
-    const params = new URLSearchParams({
-      name: rec.title,
-      desc: rec.reason,
-      trigger: triggerType,
-      triggerParams: JSON.stringify(rec.triggerRule?.params || {}),
-      actions: JSON.stringify(selectedActions.map((action) => ({
-        type: action.type === 'consultant_task' ? 'push' : action.type,
-        value: action.value,
-        promotionId: action.promotionId,
-        promotionName: action.promotionName,
-      }))),
-      channels,
-      sourceRecommendationId: String(rec.id),
-      predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : '',
-      targetAudience: rec.targetCustomers || rec.title,
-      offer: selection.offer?.label || rec.discount,
-      strategyText: rec.strategy,
-      recommendedItems: JSON.stringify(rec.recommendedItems?.map((item) => item.name) || []),
-      sourceSignals: JSON.stringify(rec.sourceSignals || []),
-      attribution: JSON.stringify(attribution),
-      autoGenerate: 'true',
-    });
-    navigate(`/customer-marketing/automation?${params.toString()}`);
+  const openAutomationFromRecommendation = async (rec: Recommendation) => {
+    try {
+      await adoptMarketingRecommendationTransaction(rec.id, { mode: 'automation' });
+      toast.success('自动触达策略已创建并启用', {
+        action: { label: '查看策略', onClick: () => navigate('/customer-marketing/automation') },
+      });
+      void loadSourceData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '自动触达创建失败');
+    }
   };
 
   const runRecommendationAction = (kind: PendingRiskAction['kind'], rec: Recommendation) => {
@@ -1441,7 +1387,7 @@ export function MarketingRecommendation() {
     }
 
     if (kind === 'automation') {
-      openAutomationFromRecommendation(rec);
+      void openAutomationFromRecommendation(rec);
       return;
     }
 
@@ -1454,7 +1400,7 @@ export function MarketingRecommendation() {
     setPendingRiskAction(null);
 
     if (action.kind === 'automation') {
-      openAutomationFromRecommendation(action.recommendation);
+      void openAutomationFromRecommendation(action.recommendation);
       return;
     }
 
@@ -1725,7 +1671,9 @@ export function MarketingRecommendation() {
           {filtered.map((rec) => {
             const sl = sourceLabel(rec.source);
             const executionModes = rec.executionModes ?? (rec.preferAutoRule ? ['automation'] : ['activity']);
-            const canCreateAutomation = executionModes.includes('automation') && Boolean(rec.triggerType || rec.triggerRule?.type);
+            const canCreateAutomation = executionModes.includes('automation')
+              && Boolean(rec.triggerType || rec.triggerRule?.type)
+              && rec.predictionFreshness?.status === 'fresh';
             const canCreateActivity = executionModes.includes('activity');
             const followUpAction = getTerminalFollowUpActionState(rec);
             const offerSelection = getOfferSelection(rec);
@@ -1964,6 +1912,12 @@ export function MarketingRecommendation() {
                       <div className="flex-1 text-xs text-gray-400">
                         {rec.predictionRunFinishedAt && (
                           <span>批次 {formatBusinessDateTime(rec.predictionRunFinishedAt, { seconds: true })}</span>
+                        )}
+                        {rec.predictionFreshness?.status === 'stale' && (
+                          <span className="ml-2 font-medium text-amber-600">预测已过期，请刷新</span>
+                        )}
+                        {rec.predictionFreshness?.status === 'missing' && (
+                          <span className="ml-2 font-medium text-gray-500">暂无有效预测批次</span>
                         )}
                       </div>
                       <button

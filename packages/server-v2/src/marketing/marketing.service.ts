@@ -5,8 +5,10 @@ import { ProductProjectRecommendationService } from './product-project-recommend
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
 import { CustomerLifecycleOntologyService } from './customer-lifecycle-ontology.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
+import { MarketingChannelService } from './marketing-channel.service.js';
 
 type PageQuery = {
+  storeId?: number;
   page?: number;
   pageSize?: number;
   status?: string;
@@ -71,6 +73,7 @@ type UnifiedEffectItem = {
   detailPath?: string;
   emptyReason?: string;
   metricsSource: string;
+  metrics?: Record<string, { value: number; source: 'actual' | 'predicted' | 'estimated'; definition: string }>;
   relatedObjectName?: string;
   audienceName?: string;
   promotionName?: string;
@@ -99,6 +102,18 @@ const MODEL_VERSION = 'rules-v2.1';
 const DEFAULT_ATTRIBUTION_WINDOW_DAYS = 30;
 const RULE_TEMPLATE_VERSION = '1.0.0';
 const RECOMMENDATION_CACHE_TTL_MS = 5 * 60 * 1000;
+const ACTIVITY_STATUS_ALIASES: Record<string, string> = {
+  draft: 'draft',
+  '草稿': 'draft',
+  scheduled: 'scheduled',
+  '即将开始': 'scheduled',
+  active: 'active',
+  '进行中': 'active',
+  ended: 'ended',
+  '已结束': 'ended',
+  cancelled: 'cancelled',
+  '已取消': 'cancelled',
+};
 
 @Injectable()
 export class MarketingService {
@@ -128,6 +143,7 @@ export class MarketingService {
     @Optional() private productProjectRecommendationService?: ProductProjectRecommendationService,
     @Optional() private customerMarketingProfileService?: CustomerMarketingProfileService,
     @Optional() private customerLifecycleOntologyService?: CustomerLifecycleOntologyService,
+    @Optional() private marketingChannelService?: MarketingChannelService,
   ) {
     this.defaultRecommendationImage = this.config.get(
       'MARKETING_RECOMMENDATION_IMAGE_URL',
@@ -142,7 +158,11 @@ export class MarketingService {
       )
       : await this.getCachedRecommendationCards(storeId, options, async () => this.buildCustomerRecommendationCards(storeId, options));
 
-    return this.attachRecommendationExecutionStates(cards, storeId);
+    const withExecutionState = await this.attachRecommendationExecutionStates(cards, storeId);
+    return withExecutionState.map((card: any) => ({
+      ...card,
+      predictionFreshness: this.buildPredictionFreshness(card),
+    }));
   }
 
   private emptyRecommendationActionState(): RecommendationActionExecutionState {
@@ -1779,7 +1799,11 @@ export class MarketingService {
     return { success: true };
   }
 
-  async adoptRecommendation(id: number, dto: any = {}) {
+  async adoptRecommendation(id: number, storeIdOrDto: number | any = {}, adoptionDto?: any) {
+    if (typeof storeIdOrDto === 'number' && adoptionDto?.mode) {
+      return this.adoptRecommendationTransactional(id, storeIdOrDto, adoptionDto);
+    }
+    const dto = storeIdOrDto ?? {};
     const recommendation = await this.getRecommendationCardById(id);
     let event = null;
     if (dto.storeId && dto.customerId) {
@@ -1806,6 +1830,113 @@ export class MarketingService {
       preferredMode: recommendation.preferredMode,
       event,
     };
+  }
+
+  private async adoptRecommendationTransactional(id: number, storeId: number, dto: any) {
+    const recommendation = await this.getRecommendationCardById(id);
+    if (dto.mode === 'activity') {
+      return this.prisma.$transaction(async (tx) => {
+        const adoption = await tx.marketingRecommendationAdoption.create({
+          data: {
+            storeId,
+            recommendationId: id,
+            mode: 'activity',
+            status: 'draft',
+            predictionRunId: recommendation.predictionRunId ? Number(recommendation.predictionRunId) : null,
+            snapshotJson: recommendation,
+          },
+        });
+        const period = this.defaultActivityPeriod();
+        const activity = await tx.marketingActivity.create({
+          data: {
+            storeId,
+            title: dto.activity?.title || recommendation.title,
+            description: recommendation.reason ?? recommendation.description,
+            status: dto.activity?.publishPage ? 'active' : 'draft',
+            startDate: new Date(dto.activity?.startDate || period.startDate),
+            endDate: new Date(dto.activity?.endDate || period.endDate),
+            targetCustomers: recommendation.targetCustomers,
+            discount: recommendation.offer?.label ?? recommendation.discount,
+            sourceRecommendationId: String(id),
+            predictionRunId: recommendation.predictionRunId ? String(recommendation.predictionRunId) : null,
+            audienceSnapshotJson: recommendation.audienceSnapshot ?? {},
+            sourceSignalsJson: { signals: recommendation.sourceSignals ?? [], adoptionId: adoption.id },
+            offerJson: recommendation.offer ?? {},
+            recommendedItemsJson: recommendation.recommendedItems ?? [],
+            publishStatus: dto.activity?.publishPage ? 'published' : null,
+            publishedAt: dto.activity?.publishPage ? new Date() : null,
+          },
+        });
+
+        let page: any = null;
+        if (dto.activity?.publishPage) {
+          const slug = `recommendation-${id}-${storeId}-${adoption.id}`;
+          const pageSchema = recommendation.pageSchema ?? {
+            title: recommendation.title,
+            description: recommendation.reason ?? recommendation.description,
+            offer: recommendation.offer?.label ?? recommendation.discount,
+          };
+          page = await tx.marketingPage.create({
+            data: {
+              storeId,
+              activityId: activity.id,
+              sourceType: 'activity',
+              sourceId: String(activity.id),
+              title: activity.title,
+              slug,
+              pageSchema,
+              snapshotJson: { recommendationId: id, adoptionId: adoption.id },
+              status: 'published',
+              publishedAt: new Date(),
+            },
+          });
+          await tx.marketingPageVersion.create({
+            data: { pageId: page.id, version: 1, pageSchema, snapshotJson: { recommendationId: id, adoptionId: adoption.id }, changeSummary: '推荐采纳首次发布' },
+          });
+        }
+
+        const completed = await tx.marketingRecommendationAdoption.update({
+          where: { id: adoption.id },
+          data: { status: page ? 'published' : 'draft', activityId: activity.id, pageId: page?.id ?? null },
+        });
+        return {
+          adoptionId: completed.id,
+          recommendationId: id,
+          mode: 'activity',
+          status: completed.status,
+          activityId: activity.id,
+          pageId: page?.id,
+        };
+      });
+    }
+
+    if (dto.mode === 'automation') {
+      const freshness = this.buildPredictionFreshness(recommendation);
+      if (freshness.status !== 'fresh') throw new BadRequestException('预测数据已过期，刷新预测后才能启用自动策略');
+      const draft = await this.createRecommendationAutomationDraft(id);
+      return this.prisma.$transaction(async (tx) => {
+        const strategy = await tx.marketingAutomationStrategy.create({
+          data: { ...draft.strategyInput, storeId, status: 'enabled' } as any,
+        });
+        const adoption = await tx.marketingRecommendationAdoption.create({
+          data: { storeId, recommendationId: id, mode: 'automation', status: 'enabled', strategyId: strategy.id, predictionRunId: recommendation.predictionRunId ? Number(recommendation.predictionRunId) : null, snapshotJson: recommendation },
+        });
+        return { adoptionId: adoption.id, recommendationId: id, mode: 'automation', status: 'enabled', strategyId: strategy.id };
+      });
+    }
+
+    if (dto.mode === 'terminal_follow_up') {
+      const customerIds = [...new Set((dto.customerIds ?? recommendation.targetCustomerIds ?? recommendation.audienceSnapshot?.customerIds ?? []).map(Number).filter(Boolean))];
+      const deliveries = await Promise.all(customerIds.map((customerId: number) => this.marketingChannelService?.deliver({
+        channel: 'terminal', storeId, customerId, strategyId: 0, title: recommendation.title, content: recommendation.reason ?? recommendation.description,
+      })));
+      const taskIds = deliveries.filter((item) => item?.status === 'delivered' && item.externalId).map((item) => Number(item!.externalId));
+      const adoption = await this.prisma.marketingRecommendationAdoption.create({
+        data: { storeId, recommendationId: id, mode: 'terminal_follow_up', status: 'dispatched', followUpTaskIds: taskIds, predictionRunId: recommendation.predictionRunId ? Number(recommendation.predictionRunId) : null, snapshotJson: recommendation },
+      });
+      return { adoptionId: adoption.id, recommendationId: id, mode: 'terminal_follow_up', status: 'dispatched', followUpTaskIds: taskIds };
+    }
+    throw new BadRequestException('Unsupported recommendation adoption mode');
   }
 
   async createRecommendationActivityDraft(id: number) {
@@ -2002,6 +2133,17 @@ export class MarketingService {
   }
 
   async runPredictions(storeId?: number) {
+    const { start, end } = this.getShanghaiBusinessDayRange();
+    const existingRun = await this.prisma.predictionRun.findFirst({
+      where: {
+        storeId: storeId ? Number(storeId) : null,
+        status: 'completed',
+        startedAt: { gte: start, lt: end },
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+    if (existingRun) return { run: existingRun, summary: existingRun.summaryJson ?? {}, reused: true };
+
     const where = { deletedAt: null, ...(storeId ? { storeId: Number(storeId) } : {}) };
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
     const run = await this.prisma.predictionRun.create({
@@ -2052,6 +2194,21 @@ export class MarketingService {
       : { rebuilt: false, reason: 'customer_lifecycle_service_unavailable' };
 
     return { run: completed, summary, lifecycle };
+  }
+
+  private buildPredictionFreshness(source: any) {
+    if (!source?.predictionRunId) {
+      return { predictionRunId: null, generatedAt: null, ageHours: null, status: 'missing' as const };
+    }
+    const generatedAt = source?.predictionRunFinishedAt ?? source?.generatedAt ?? source?.audienceSnapshot?.generatedAt ?? null;
+    const timestamp = generatedAt ? new Date(generatedAt).getTime() : Number.NaN;
+    const ageHours = Number.isFinite(timestamp) ? Math.max(0, Math.round(((Date.now() - timestamp) / 3600000) * 10) / 10) : null;
+    return {
+      predictionRunId: source?.predictionRunId ? Number(source.predictionRunId) : null,
+      generatedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
+      ageHours,
+      status: ageHours == null ? 'missing' : ageHours <= 30 ? 'fresh' : 'stale',
+    } as const;
   }
 
   rebuildLifecycleOntology(storeId?: number, predictionRunId?: number, options: any = {}) {
@@ -2242,8 +2399,11 @@ export class MarketingService {
   }
 
   async findActivities(query: PageQuery = {}) {
-    const { page = 1, pageSize = 20, status } = query;
-    const where = status ? { status } : {};
+    const { page = 1, pageSize = 20, status, storeId } = query;
+    const where = {
+      ...(storeId ? { storeId } : {}),
+      ...(status ? { status: this.normalizeActivityStatus(status) } : {}),
+    };
     const [items, total] = await Promise.all([
       this.prisma.marketingActivity.findMany({
         where,
@@ -2258,8 +2418,11 @@ export class MarketingService {
     return { items: refreshedItems, data: refreshedItems, total, page, pageSize };
   }
 
-  async getActivityById(id: number) {
-    const activity = await this.prisma.marketingActivity.findUnique({ where: { id }, include: { primaryPromotion: true } });
+  async getActivityById(id: number, storeId?: number) {
+    const activity = await this.prisma.marketingActivity.findFirst({
+      where: { id, ...(storeId ? { storeId } : {}) },
+      include: { primaryPromotion: true },
+    });
     if (!activity) throw new NotFoundException('Marketing activity not found');
     return this.refreshActivityMetrics(id, activity);
   }
@@ -2456,6 +2619,7 @@ export class MarketingService {
     for (const field of stringFields) {
       if (dto[field] !== undefined) data[field] = dto[field];
     }
+    if (dto.status !== undefined) data.status = this.normalizeActivityStatus(dto.status);
 
     if (dto.participants !== undefined) {
       data.participants = Number(dto.participants) || 0;
@@ -2503,14 +2667,21 @@ export class MarketingService {
     return data;
   }
 
-  async createActivity(dto: any) {
+  private normalizeActivityStatus(status?: string) {
+    if (!status) return 'draft';
+    return ACTIVITY_STATUS_ALIASES[String(status)] ?? 'draft';
+  }
+
+  async createActivity(dto: any, storeId?: number) {
+    if (!storeId) throw new BadRequestException('storeId is required');
     return this.prisma.marketingActivity.create({
-      data: await this.normalizeActivityData(dto),
+      data: { ...(await this.normalizeActivityData(dto)), storeId },
       include: { primaryPromotion: true },
     });
   }
 
-  async updateActivity(id: number, dto: any) {
+  async updateActivity(id: number, dto: any, storeId?: number) {
+    if (storeId) await this.getActivityById(id, storeId);
     return this.prisma.marketingActivity.update({
       where: { id },
       data: await this.normalizeActivityData(dto),
@@ -2518,7 +2689,8 @@ export class MarketingService {
     });
   }
 
-  async deleteActivity(id: number) {
+  async deleteActivity(id: number, storeId?: number) {
+    if (storeId) await this.getActivityById(id, storeId);
     await this.prisma.marketingActivity.delete({ where: { id } });
     return { success: true };
   }
@@ -3114,8 +3286,8 @@ export class MarketingService {
   }
 
   async findStrategies(query: PageQuery = {}) {
-    const { page = 1, pageSize = 20, status } = query;
-    const where = status ? { status: status as any } : {};
+    const { page = 1, pageSize = 20, status, storeId } = query;
+    const where = { ...(storeId ? { storeId } : {}), ...(status ? { status: status as any } : {}) };
     const [items, total] = await Promise.all([
       this.prisma.marketingAutomationStrategy.findMany({
         where,
@@ -3128,11 +3300,13 @@ export class MarketingService {
     return { items, data: items, total, page, pageSize };
   }
 
-  async createStrategy(dto: any) {
+  async createStrategy(dto: any, storeId?: number) {
+    if (!storeId) throw new BadRequestException('storeId is required');
     const actions = this.attachStrategyAttributionToActions(dto.actions ?? [], dto);
     await this.assertUsableActionPromotions(actions);
     return this.prisma.marketingAutomationStrategy.create({
       data: {
+        storeId,
         name: dto.name,
         description: dto.description,
         status: dto.status ?? 'draft',
@@ -3147,7 +3321,16 @@ export class MarketingService {
     });
   }
 
-  async updateStrategy(id: number, dto: any) {
+  private async getStrategyById(id: number, storeId?: number) {
+    const strategy = storeId
+      ? await this.prisma.marketingAutomationStrategy.findFirst({ where: { id, storeId } })
+      : await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
+    if (!strategy) throw new NotFoundException('Strategy not found');
+    return strategy;
+  }
+
+  async updateStrategy(id: number, dto: any, storeId?: number) {
+    if (storeId) await this.getStrategyById(id, storeId);
     if (dto.actions !== undefined) {
       dto.actions = this.attachStrategyAttributionToActions(dto.actions, dto);
       await this.assertUsableActionPromotions(dto.actions);
@@ -3165,45 +3348,59 @@ export class MarketingService {
     }));
   }
 
-  async deleteStrategy(id: number) {
+  async deleteStrategy(id: number, storeId?: number) {
+    if (storeId) await this.getStrategyById(id, storeId);
     await this.prisma.marketingAutomationStrategy.delete({ where: { id } });
     return { success: true };
   }
 
-  async enableStrategy(id: number) {
-    const strategy = await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
-    if (!strategy) throw new NotFoundException('Strategy not found');
+  async enableStrategy(id: number, storeId?: number) {
+    const strategy = await this.getStrategyById(id, storeId);
     await this.assertUsableActionPromotions(strategy.actions);
     return this.prisma.marketingAutomationStrategy.update({ where: { id }, data: { status: 'enabled' } });
   }
 
-  pauseStrategy(id: number) {
+  async pauseStrategy(id: number, storeId?: number) {
+    if (storeId) await this.getStrategyById(id, storeId);
     return this.prisma.marketingAutomationStrategy.update({ where: { id }, data: { status: 'paused' } });
   }
 
-  async executeStrategy(id: number) {
-    const strategy = await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
+  async executeStrategy(id: number, storeId?: number, idempotencyKey = `manual-${Date.now()}`) {
+    const existingExecution = await this.prisma.marketingAutomationExecution.findUnique({
+      where: { strategyId_idempotencyKey: { strategyId: id, idempotencyKey } },
+    });
+    if (existingExecution) return existingExecution;
+
+    const strategy = storeId
+      ? await this.prisma.marketingAutomationStrategy.findFirst({ where: { id, storeId } })
+      : await this.prisma.marketingAutomationStrategy.findUnique({ where: { id } });
     if (!strategy) throw new NotFoundException('Strategy not found');
     await this.assertUsableActionPromotions(strategy.actions);
     const audience = await this.buildAutomationAudience(strategy.triggerRules as any[], strategy.ruleRelation, strategy.actions);
     const channel = this.extractPrimaryChannel(strategy.actions);
     const eligibleCustomers = await this.filterTouchFatigue(id, channel, audience.customers);
-    const reachedCount = eligibleCustomers.length;
     const actionPromotions = this.extractActionPromotions(strategy.actions);
 
     const execution = await this.prisma.marketingAutomationExecution.create({
       data: {
+        storeId: strategy.storeId ?? storeId ?? eligibleCustomers[0]?.storeId ?? 1,
         strategyId: id,
+        idempotencyKey,
         strategyName: strategy.name,
-        status: 'success',
+        status: 'running',
         triggeredCount: audience.total,
-        reachedCount,
+        queuedCount: eligibleCustomers.length,
+        reachedCount: 0,
+        failedCount: 0,
         channel,
-      },
+      } as any,
     });
-    if (eligibleCustomers.length) {
-      await this.prisma.marketingAutomationTouch.createMany({
-        data: eligibleCustomers.map((item: any) => ({
+
+    let reachedCount = 0;
+    let failedCount = 0;
+    for (const item of eligibleCustomers) {
+      const touch = await this.prisma.marketingAutomationTouch.create({
+        data: {
           executionId: execution.id,
           strategyId: id,
           customerId: item.id,
@@ -3211,18 +3408,56 @@ export class MarketingService {
           predictedConversionScore: item.predictedConversionScore,
           predictedRevenue: item.predictedRevenue,
           channel,
-          status: 'reached',
+          status: 'queued',
+          attemptCount: 1,
           touchedAt: new Date(),
           attributionWindowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-        })),
+        } as any,
       });
+
+      const delivery = this.marketingChannelService
+        ? await this.marketingChannelService.deliver({
+            channel: ['terminal', 'in_app', 'sms', 'wechat'].includes(channel) ? channel as any : 'in_app',
+            storeId: strategy.storeId ?? storeId ?? item.storeId ?? 1,
+            customerId: item.id,
+            strategyId: id,
+            executionId: execution.id,
+            title: strategy.name,
+            content: this.extractPrimaryActionContent(strategy.actions),
+          }).catch((error) => ({ status: 'failed' as const, errorCode: error?.code ?? 'delivery_failed' }))
+        : { status: 'failed' as const, errorCode: 'channel_service_unavailable' };
+
+      if (delivery.status === 'delivered') reachedCount += 1;
+      else failedCount += 1;
+      await this.prisma.marketingAutomationTouch.update({
+        where: { id: touch.id },
+        data: {
+          status: delivery.status,
+          errorCode: delivery.errorCode ?? null,
+          errorMessage: null,
+        } as any,
+      });
+    }
+
+    if (reachedCount > 0) {
       await this.recordAutomationPromotionClaims(strategy, execution, eligibleCustomers, actionPromotions, channel);
     }
+    const status = failedCount === 0 ? 'success' : reachedCount === 0 ? 'failed' : 'partial_failed';
+    const completedExecution = await this.prisma.marketingAutomationExecution.update({
+      where: { id: execution.id },
+      data: { status, reachedCount, failedCount } as any,
+    });
     await this.prisma.marketingAutomationStrategy.update({
       where: { id },
       data: { lastExecutedAt: new Date(), targetCount: audience.total },
     });
-    return execution;
+    return completedExecution;
+  }
+
+  private extractPrimaryActionContent(actions: any) {
+    if (!Array.isArray(actions)) return '您有一条门店服务提醒';
+    const action = actions[0] ?? {};
+    return String(action.content ?? action.value ?? action.message ?? '您有一条门店服务提醒');
   }
 
   private extractActionPromotions(actions: any) {
@@ -3357,8 +3592,8 @@ export class MarketingService {
   }
 
   async findExecutions(query: PageQuery = {}) {
-    const { page = 1, pageSize = 20, strategyId } = query;
-    const where = strategyId ? { strategyId: Number(strategyId) } : {};
+    const { page = 1, pageSize = 20, strategyId, storeId } = query;
+    const where = { ...(storeId ? { storeId } : {}), ...(strategyId ? { strategyId: Number(strategyId) } : {}) };
     const [items, total] = await Promise.all([
       this.prisma.marketingAutomationExecution.findMany({
         where,
@@ -3371,7 +3606,7 @@ export class MarketingService {
     return { items, data: items, total, page, pageSize };
   }
 
-  async getExecutionById(id: number) {
+  async getExecutionById(id: number, storeId?: number) {
     const execution = await this.prisma.marketingAutomationExecution.findUnique({
       where: { id },
       include: {
@@ -3381,7 +3616,7 @@ export class MarketingService {
         },
       },
     });
-    if (!execution) throw new NotFoundException('Execution not found');
+    if (!execution || (storeId && execution.storeId !== storeId)) throw new NotFoundException('Execution not found');
     return {
       ...execution,
       touches: execution.touches.map((touch: any) => ({
@@ -3402,8 +3637,9 @@ export class MarketingService {
     };
   }
 
-  async getEffects() {
+  async getEffects(storeId?: number) {
     const strategies = await this.prisma.marketingAutomationStrategy.findMany({
+      where: storeId ? { storeId } : undefined,
       include: {
         executions: true,
         touches: true,
@@ -3472,7 +3708,7 @@ export class MarketingService {
     const builders: Array<Promise<UnifiedEffectItem[]>> = [];
 
     if (!objectType || objectType === 'activity') builders.push(this.buildActivityEffectItems(query.storeId));
-    if (!objectType || objectType === 'auto') builders.push(this.buildAutomationEffectItems());
+    if (!objectType || objectType === 'auto') builders.push(this.buildAutomationEffectItems(query.storeId));
     if (!objectType || objectType === 'page') builders.push(this.buildPageEffectItems(query.storeId));
     if (!objectType || objectType === 'promotion') builders.push(this.buildPromotionEffectItems(query.storeId));
     if (!objectType || objectType === 'recommendation') builders.push(this.buildRecommendationEffectItems(query.storeId));
@@ -3481,7 +3717,8 @@ export class MarketingService {
     const allItems = (await Promise.all(builders))
       .flat()
       .sort((a, b) => b.revenue - a.revenue || b.exposureCount - a.exposureCount);
-    const items = objectId ? allItems.filter((item) => String(item.objectId) === objectId) : allItems;
+    const filteredItems = objectId ? allItems.filter((item) => String(item.objectId) === objectId) : allItems;
+    const items = filteredItems.map((item) => this.attachMetricSources(item));
     const summary = this.summarizeUnifiedEffectItems(items);
     const emptyReasons = this.buildUnifiedEffectEmptyReasons(items);
 
@@ -3490,6 +3727,18 @@ export class MarketingService {
       summary,
       emptyReasons,
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private attachMetricSources(item: UnifiedEffectItem): UnifiedEffectItem {
+    return {
+      ...item,
+      metrics: {
+        exposure: { value: item.exposureCount, source: 'actual', definition: '来自页面事件、终端任务或站内通知的真实触达记录' },
+        conversion: { value: item.conversionCount, source: 'actual', definition: '来自订单归因、预约或留资转化记录' },
+        revenue: { value: item.revenue, source: 'actual', definition: '已归因订单净收入，退款会同步冲减' },
+        cost: { value: item.cost, source: 'estimated', definition: '按曝光与点击单价估算，不代表实际渠道账单' },
+      },
     };
   }
 
@@ -3542,23 +3791,34 @@ export class MarketingService {
     return emptyReasons;
   }
 
-  private async buildActivityEffectItems(_storeId?: number): Promise<UnifiedEffectItem[]> {
-    const activities = await this.prisma.marketingActivity.findMany({ orderBy: { updatedAt: 'desc' } });
+  private async buildActivityEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
+    const activities = await this.prisma.marketingActivity.findMany({ where: storeId ? { storeId } : undefined, orderBy: { updatedAt: 'desc' } });
+    if (!activities.length) return [];
+    const activityIds = activities.map((activity: any) => activity.id);
+    const pages = await this.prisma.marketingPage.findMany({
+      where: {
+        ...(storeId ? { storeId } : {}),
+        OR: [
+          { activityId: { in: activityIds } },
+          { sourceType: 'activity', sourceId: { in: activityIds.map(String) } },
+        ],
+      },
+      include: { events: true, leads: true, attributions: true },
+    });
+    const pagesByActivityId = new Map<number, any[]>();
+    for (const page of pages as any[]) {
+      const activityId = Number(page.activityId ?? (page.sourceType === 'activity' ? page.sourceId : 0));
+      if (!activityId) continue;
+      const current = pagesByActivityId.get(activityId) ?? [];
+      current.push(page);
+      pagesByActivityId.set(activityId, current);
+    }
 
-    return Promise.all(
-      activities.map(async (activity: any) => {
-        const pages = await this.prisma.marketingPage.findMany({
-          where: {
-            OR: [
-              { activityId: activity.id },
-              { sourceType: 'activity', sourceId: String(activity.id) },
-            ],
-          },
-          include: { events: true, leads: true, attributions: true },
-        });
-        const events = pages.flatMap((page: any) => page.events ?? []);
-        const leads = pages.flatMap((page: any) => page.leads ?? []);
-        const attributions = pages.flatMap((page: any) => page.attributions ?? []);
+    return activities.map((activity: any) => {
+        const activityPages = pagesByActivityId.get(activity.id) ?? [];
+        const events = activityPages.flatMap((page: any) => page.events ?? []);
+        const leads = activityPages.flatMap((page: any) => page.leads ?? []);
+        const attributions = activityPages.flatMap((page: any) => page.attributions ?? []);
         const exposureCount = events.filter((event: any) => this.isExposureEvent(event.eventType)).length || activity.participants || 0;
         const clickCount = events.filter((event: any) => this.isClickEvent(event.eventType)).length;
         const attributedConversions = attributions.length;
@@ -3587,17 +3847,17 @@ export class MarketingService {
           lastEventAt,
           detailPath: `/customer-marketing/activity-effect/${activity.id}`,
           emptyReason: events.length === 0 && exposureCount === 0 ? '该活动暂无页面曝光或参与数据。' : undefined,
-          metricsSource: pages.length > 0 ? '活动关联营销页面事件、留资与归因' : '活动基础参与数据',
+          metricsSource: activityPages.length > 0 ? '活动关联营销页面事件、留资与归因' : '活动基础参与数据',
           audienceName: activity.targetCustomers,
           promotionName: activity.primaryPromotion?.name ?? activity.offerJson?.promotionName,
           channelName: this.extractChannelLabel(activity.recommendedChannelsJson ?? activity.sourceSignalsJson?.channels),
         };
-      }),
-    );
+      });
   }
 
-  private async buildAutomationEffectItems(): Promise<UnifiedEffectItem[]> {
+  private async buildAutomationEffectItems(storeId?: number): Promise<UnifiedEffectItem[]> {
     const strategies = await this.prisma.marketingAutomationStrategy.findMany({
+      where: storeId ? { storeId } : undefined,
       include: {
         executions: true,
         touches: true,

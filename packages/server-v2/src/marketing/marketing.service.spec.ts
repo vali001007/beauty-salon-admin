@@ -5,12 +5,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { ProductProjectRecommendationService } from './product-project-recommendation.service';
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service';
+import { MarketingChannelService } from './marketing-channel.service';
 
 describe('MarketingService', () => {
   let service: MarketingService;
   let prisma: jest.Mocked<any>;
   let productProjectService: { getCards: jest.Mock; isProductProjectRecommendationId: jest.Mock; getAudience: jest.Mock };
   let customerProfileService: { buildProfiles: jest.Mock };
+  let channelService: { deliver: jest.Mock };
 
   const mockActivity = {
     id: 1,
@@ -38,9 +40,10 @@ describe('MarketingService', () => {
   };
 
   beforeEach(async () => {
-    const mockPrisma = {
+    const mockPrisma: any = {
       marketingActivity: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         count: jest.fn(),
         create: jest.fn(),
@@ -62,7 +65,10 @@ describe('MarketingService', () => {
       },
       marketingPage: {
         findMany: jest.fn(),
+        create: jest.fn(),
       },
+      marketingPageVersion: { create: jest.fn() },
+      marketingRecommendationAdoption: { create: jest.fn(), update: jest.fn() },
       marketingPageLead: {
         count: jest.fn(),
       },
@@ -71,6 +77,7 @@ describe('MarketingService', () => {
       },
       marketingAutomationStrategy: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         count: jest.fn(),
         create: jest.fn(),
@@ -91,9 +98,12 @@ describe('MarketingService', () => {
         findUnique: jest.fn(),
         count: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
       },
       marketingAutomationTouch: {
         findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 1 }),
+        update: jest.fn(),
         createMany: jest.fn(),
       },
       terminalFollowUpTask: {
@@ -118,6 +128,7 @@ describe('MarketingService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
     };
+    mockPrisma.$transaction = jest.fn(async (callback: any): Promise<any> => callback(mockPrisma));
 
     productProjectService = {
       getCards: jest.fn().mockResolvedValue([]),
@@ -127,6 +138,9 @@ describe('MarketingService', () => {
     customerProfileService = {
       buildProfiles: jest.fn().mockResolvedValue([]),
     };
+    channelService = {
+      deliver: jest.fn().mockResolvedValue({ status: 'delivered', externalId: 'task-1' }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -134,6 +148,7 @@ describe('MarketingService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProductProjectRecommendationService, useValue: productProjectService },
         { provide: CustomerMarketingProfileService, useValue: customerProfileService },
+        { provide: MarketingChannelService, useValue: channelService },
         {
           provide: ConfigService,
           useValue: {
@@ -148,6 +163,18 @@ describe('MarketingService', () => {
   });
 
   describe('findActivities', () => {
+    it('should scope activity queries to the current store', async () => {
+      prisma.marketingActivity.findMany.mockResolvedValue([]);
+      prisma.marketingActivity.count.mockResolvedValue(0);
+
+      await service.findActivities({ page: 1, pageSize: 20, storeId: 6 });
+
+      expect(prisma.marketingActivity.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { storeId: 6 } }),
+      );
+      expect(prisma.marketingActivity.count).toHaveBeenCalledWith({ where: { storeId: 6 } });
+    });
+
     it('should return paginated activities', async () => {
       const activities = [mockActivity];
       prisma.marketingActivity.findMany.mockResolvedValue(activities);
@@ -187,15 +214,28 @@ describe('MarketingService', () => {
   });
 
   describe('createActivity', () => {
+    it('should persist the current store and normalize legacy activity status', async () => {
+      prisma.marketingActivity.create.mockImplementation(async ({ data }: any) => ({ id: 9, ...data }));
+
+      const result = await service.createActivity({ title: '门店召回', status: '进行中' }, 6);
+
+      expect(prisma.marketingActivity.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ storeId: 6, status: 'active' }),
+        }),
+      );
+      expect(result.status).toBe('active');
+    });
+
     it('should create a new marketing activity', async () => {
       const createData = { title: '新年活动', status: 'draft' };
       prisma.marketingActivity.create.mockResolvedValue({ id: 2, ...createData, description: null, participants: 0, conversion: null, startDate: null, endDate: null, targetCustomers: null, discount: null, createdAt: new Date(), updatedAt: new Date() });
 
-      const result = await service.createActivity(createData);
+      const result = await service.createActivity(createData, 1);
 
       expect(result.title).toBe('新年活动');
       expect(prisma.marketingActivity.create).toHaveBeenCalledWith({
-        data: createData,
+        data: { ...createData, storeId: 1 },
         include: { primaryPromotion: true },
       });
     });
@@ -223,7 +263,7 @@ describe('MarketingService', () => {
       prisma.promotion.findMany.mockResolvedValue([promotion]);
       prisma.marketingActivity.create.mockImplementation(async ({ data }: any) => ({ id: 12, ...data, primaryPromotion: promotion }));
 
-      const result = await service.createActivity(createData);
+      const result = await service.createActivity(createData, 1);
 
       expect(result.primaryPromotionId).toBe(12);
       expect(prisma.marketingActivity.create).toHaveBeenCalledWith({
@@ -256,7 +296,7 @@ describe('MarketingService', () => {
       };
       prisma.marketingActivity.create.mockResolvedValue({ id: 3, ...createData, publishedAt: new Date(createData.publishedAt) });
 
-      await service.createActivity(createData);
+      await service.createActivity(createData, 1);
 
       expect(prisma.marketingActivity.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -414,6 +454,18 @@ describe('MarketingService', () => {
   });
 
   describe('findStrategies', () => {
+    it('should scope strategy queries to the current store', async () => {
+      prisma.marketingAutomationStrategy.findMany.mockResolvedValue([]);
+      prisma.marketingAutomationStrategy.count.mockResolvedValue(0);
+
+      await service.findStrategies({ page: 1, pageSize: 20, storeId: 6 });
+
+      expect(prisma.marketingAutomationStrategy.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { storeId: 6 } }),
+      );
+      expect(prisma.marketingAutomationStrategy.count).toHaveBeenCalledWith({ where: { storeId: 6 } });
+    });
+
     it('should return paginated strategies', async () => {
       const strategies = [mockStrategy];
       prisma.marketingAutomationStrategy.findMany.mockResolvedValue(strategies);
@@ -470,7 +522,7 @@ describe('MarketingService', () => {
         triggerRules: [{ type: 'care_cycle', params: { cycleDays: 28 } }],
         actions: [{ type: 'coupon', value: '护理周期券', promotionId: 12 }],
         targetCount: 18,
-      });
+      }, 1);
 
       expect(prisma.marketingAutomationStrategy.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -487,6 +539,51 @@ describe('MarketingService', () => {
   });
 
   describe('executeStrategy', () => {
+    it('returns the existing execution for the same schedule window', async () => {
+      prisma.marketingAutomationExecution.findUnique.mockResolvedValue({ id: 88, status: 'success' });
+
+      const result = await service.executeStrategy(7, 6, 'daily-2026-07-12-09:00');
+
+      expect(result).toEqual({ id: 88, status: 'success' });
+      expect(prisma.marketingAutomationStrategy.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('counts only successful channel delivery as reached', async () => {
+      prisma.marketingAutomationStrategy.findFirst.mockResolvedValue({
+        ...mockStrategy,
+        storeId: 6,
+        actions: [{ type: 'push', channel: 'terminal', value: '护理提醒' }],
+      }, 1);
+      prisma.customer.count.mockResolvedValue(2);
+      prisma.predictionRun.findFirst.mockResolvedValue(null);
+      prisma.customer.findMany.mockResolvedValue([
+        { id: 11, storeId: 6, totalSpent: 100, lastVisitDate: new Date() },
+        { id: 12, storeId: 6, totalSpent: 100, lastVisitDate: new Date() },
+      ]);
+      prisma.marketingAutomationTouch.create
+        .mockResolvedValueOnce({ id: 21 })
+        .mockResolvedValueOnce({ id: 22 });
+      prisma.marketingAutomationTouch.update.mockResolvedValue({});
+      prisma.marketingAutomationExecution.create.mockResolvedValue({ id: 10 });
+      prisma.marketingAutomationExecution.update.mockImplementation(async ({ data }: any) => ({ id: 10, strategyName: mockStrategy.name, queuedCount: 2, ...data }));
+      prisma.marketingAutomationStrategy.update.mockResolvedValue({});
+      channelService.deliver
+        .mockResolvedValueOnce({ status: 'delivered', externalId: '91' })
+        .mockResolvedValueOnce({ status: 'failed', errorCode: 'channel_not_configured' });
+
+      const result = await service.executeStrategy(1, 6, 'window-20260712');
+
+      expect(result).toEqual(expect.objectContaining({ status: 'partial_failed', queuedCount: 2, reachedCount: 1, failedCount: 1 }));
+      expect(prisma.marketingAutomationTouch.update).toHaveBeenCalledWith({
+        where: { id: 21 },
+        data: expect.objectContaining({ status: 'delivered', errorCode: null }),
+      });
+      expect(prisma.marketingAutomationTouch.update).toHaveBeenCalledWith({
+        where: { id: 22 },
+        data: expect.objectContaining({ status: 'failed', errorCode: 'channel_not_configured' }),
+      });
+    });
+
     it('should execute a strategy and create an execution record', async () => {
       prisma.marketingAutomationStrategy.findUnique.mockResolvedValue(mockStrategy);
       prisma.customer.count.mockResolvedValue(0);
@@ -500,6 +597,9 @@ describe('MarketingService', () => {
         triggeredCount: 0,
         reachedCount: 0,
         channel: 'sms',
+      });
+      prisma.marketingAutomationExecution.update.mockResolvedValue({
+        id: 1, strategyName: '沉睡客户唤醒', status: 'success', queuedCount: 0, reachedCount: 0, failedCount: 0,
       });
       prisma.marketingAutomationStrategy.update.mockResolvedValue({});
 
@@ -553,18 +653,18 @@ describe('MarketingService', () => {
         reachedCount: 2,
         channel: 'sms',
       });
+      prisma.marketingAutomationExecution.update.mockResolvedValue({ id: 9, status: 'success', reachedCount: 2, failedCount: 0 });
       prisma.marketingAutomationStrategy.update.mockResolvedValue({});
 
       await service.executeStrategy(7);
 
-      expect(prisma.marketingAutomationTouch.createMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.arrayContaining([
-            expect.objectContaining({ customerId: 11, strategyId: 7, status: 'reached' }),
-            expect.objectContaining({ customerId: 12, strategyId: 7, status: 'reached' }),
-          ]),
-        }),
-      );
+      expect(prisma.marketingAutomationTouch.create).toHaveBeenCalledTimes(2);
+      expect(prisma.marketingAutomationTouch.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ customerId: 11, strategyId: 7, status: 'queued' }),
+      }));
+      expect(prisma.marketingAutomationTouch.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'delivered' }),
+      }));
       expect(prisma.customerAppEvent.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.arrayContaining([
@@ -596,6 +696,36 @@ describe('MarketingService', () => {
       prisma.marketingAutomationStrategy.findUnique.mockResolvedValue(null);
 
       await expect(service.executeStrategy(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('adoptRecommendation', () => {
+    it('creates activity, page, version and adoption in one transaction', async () => {
+      jest.spyOn(service as any, 'getRecommendationCardById').mockResolvedValue({
+        id: 22,
+        title: '沉睡客户召回',
+        reason: '超过90天未到店',
+        targetCustomers: '高流失客户',
+        predictionRunId: 53,
+        audienceSnapshot: { customerIds: [11, 12], totalCustomers: 2 },
+        sourceSignals: ['prediction'],
+        offer: { label: '回店护理礼' },
+        recommendedItems: [],
+      });
+      prisma.marketingActivity.create.mockResolvedValue({ id: 31, title: '沉睡客户召回' });
+      prisma.marketingPage.create.mockResolvedValue({ id: 41, slug: 'recommendation-22-6' });
+      prisma.marketingPageVersion.create.mockResolvedValue({ id: 1 });
+      prisma.marketingRecommendationAdoption.create.mockResolvedValue({ id: 51 });
+      prisma.marketingRecommendationAdoption.update.mockResolvedValue({ id: 51, status: 'published', activityId: 31, pageId: 41 });
+
+      const result = await service.adoptRecommendation(22, 6, {
+        mode: 'activity', activity: { publishPage: true },
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.marketingActivity.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ storeId: 6, status: 'active' }) }));
+      expect(prisma.marketingPage.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ storeId: 6, activityId: 31, status: 'published' }) }));
+      expect(result).toEqual(expect.objectContaining({ adoptionId: 51, recommendationId: 22, status: 'published', activityId: 31, pageId: 41 }));
     });
   });
 
@@ -659,6 +789,21 @@ describe('MarketingService', () => {
   });
 
   describe('unified effects', () => {
+    it('loads activity pages in one batch instead of querying once per activity', async () => {
+      prisma.marketingActivity.findMany.mockResolvedValue([
+        { ...mockActivity, id: 1, storeId: 6 },
+        { ...mockActivity, id: 2, storeId: 6 },
+      ]);
+      prisma.marketingPage.findMany.mockResolvedValue([]);
+
+      await service.getUnifiedEffects({ objectType: 'activity', storeId: 6 });
+
+      expect(prisma.marketingPage.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.marketingPage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6 }),
+      }));
+    });
+
     it('should aggregate effects by source recommendation', async () => {
       const attribution = {
         source: 'recommendation',
@@ -742,6 +887,10 @@ describe('MarketingService', () => {
           selectedPromotion: expect.objectContaining({ promotionId: 32 }),
           originalOffer: expect.objectContaining({ label: '护理券' }),
           selectedOffer: expect.objectContaining({ label: '低峰到店礼' }),
+        }),
+        metrics: expect.objectContaining({
+          revenue: expect.objectContaining({ value: 1160, source: 'actual', definition: expect.any(String) }),
+          cost: expect.objectContaining({ source: 'estimated', definition: expect.any(String) }),
         }),
       });
       expect(result.summary).toMatchObject({
@@ -828,6 +977,16 @@ describe('MarketingService', () => {
   });
 
   describe('recommendations', () => {
+    it('reuses a completed prediction run from the same business day', async () => {
+      const completed = { id: 53, storeId: 6, status: 'completed', customerCount: 10, summaryJson: { customerCount: 10 } };
+      prisma.predictionRun.findFirst.mockResolvedValue(completed);
+
+      const result = await service.runPredictions(6);
+
+      expect(result).toEqual({ run: completed, summary: completed.summaryJson, reused: true });
+      expect(prisma.predictionRun.create).not.toHaveBeenCalled();
+    });
+
     it('should return compatible recommendation cards', async () => {
       prisma.customer.count.mockResolvedValue(10);
 
@@ -843,6 +1002,7 @@ describe('MarketingService', () => {
         offer: expect.objectContaining({ label: expect.any(String) }),
         recommendedItems: expect.any(Array),
         recommendedChannels: expect.any(Array),
+        predictionFreshness: expect.objectContaining({ status: 'missing', predictionRunId: null }),
       });
     });
 

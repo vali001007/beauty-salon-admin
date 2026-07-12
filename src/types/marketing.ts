@@ -5,7 +5,7 @@ export interface MarketingActivity {
   title: string;
   description: string;
   image: string;
-  status: '进行中' | '即将开始' | '已结束' | '草稿';
+  status: MarketingActivityStatus;
   participants: number;
   conversion: string;
   startDate: string;
@@ -113,6 +113,8 @@ export interface MarketingRecommendation {
   fulfillment?: RecommendationFulfillmentSummary;
   attributionSummary?: RecommendationAttributionSummary;
 }
+
+export type MarketingActivityStatus = 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
 
 export interface RecommendationFulfillmentSummary {
   inventoryReady: boolean;
@@ -362,6 +364,8 @@ export interface PredictionRunSummary {
 }
 
 export type MarketingEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'recommendation' | 'glow';
+export type MarketingMetricSource = 'actual' | 'predicted' | 'estimated';
+export type MarketingMetric = { value: number; source: MarketingMetricSource; definition: string };
 
 export interface UnifiedMarketingEffectItem {
   id: string;
@@ -382,6 +386,12 @@ export interface UnifiedMarketingEffectItem {
   detailPath?: string;
   emptyReason?: string;
   metricsSource: string;
+  metrics?: {
+    exposure: MarketingMetric;
+    conversion: MarketingMetric;
+    revenue: MarketingMetric;
+    cost: MarketingMetric;
+  };
   relatedObjectName?: string;
   audienceName?: string;
   promotionName?: string;

@@ -5,11 +5,13 @@ import { ProductProjectRecommendationService } from './product-project-recommend
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
 import { CustomerLifecycleOntologyService } from './customer-lifecycle-ontology.service.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
+import { MarketingChannelService } from './marketing-channel.service.js';
+import { MarketingSchedulerService } from './marketing-scheduler.service.js';
 
 @Module({
   imports: [TerminalModule],
   controllers: [MarketingController],
-  providers: [MarketingService, ProductProjectRecommendationService, CustomerMarketingProfileService, CustomerLifecycleOntologyService],
-  exports: [MarketingService, ProductProjectRecommendationService, CustomerMarketingProfileService, CustomerLifecycleOntologyService],
+  providers: [MarketingService, MarketingChannelService, MarketingSchedulerService, ProductProjectRecommendationService, CustomerMarketingProfileService, CustomerLifecycleOntologyService],
+  exports: [MarketingService, MarketingChannelService, ProductProjectRecommendationService, CustomerMarketingProfileService, CustomerLifecycleOntologyService],
 })
 export class MarketingModule {}

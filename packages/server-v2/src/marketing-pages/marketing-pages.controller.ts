@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
@@ -21,6 +21,12 @@ import { MarketingPagesService } from './marketing-pages.service.js';
 export class MarketingPagesController {
   constructor(private readonly marketingPagesService: MarketingPagesService) {}
 
+  private requireStoreId(storeId?: string) {
+    const parsed = Number(storeId);
+    if (!Number.isInteger(parsed) || parsed <= 0) throw new BadRequestException('X-Store-Id is required');
+    return parsed;
+  }
+
   @Get('marketing/pages')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '分页获取营销页面' })
@@ -39,7 +45,7 @@ export class MarketingPagesController {
       keyword,
       status,
       sourceType,
-      storeId: storeId ? Number(storeId) : headerStoreId ? Number(headerStoreId) : undefined,
+      storeId: this.requireStoreId(headerStoreId),
     });
   }
 
@@ -66,7 +72,7 @@ export class MarketingPagesController {
     return this.marketingPagesService.createPage(
       {
         ...dto,
-        storeId: dto.storeId ?? (storeId ? Number(storeId) : undefined),
+        storeId: this.requireStoreId(storeId),
       },
       userId,
     );
