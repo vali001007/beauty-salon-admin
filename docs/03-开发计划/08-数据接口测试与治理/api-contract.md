@@ -557,3 +557,9 @@ AI Gateway 环境变量：
 | `LLM_API_KEY` | 仅后端保存的模型 Key |
 | `LLM_TIMEOUT_MS` | 模型调用超时时间 |
 | `LLM_DAILY_BUDGET` | 每日预算上限，第一阶段先记录配置 |
+# 订单退款退货接口补充（2026-07-12）
+
+- `GET /orders/product/:id/refund-preview`：返回订单剩余可退净额、每条明细已退/可退数量与库存追溯状态。
+- `POST /orders/product/:id/refund`：按明细提交 `requestId`、`refundMode`、数量、净额和原因；`return_and_refund` 恢复原商品批次或冲销原项目耗材，`refund_only` 不改库存。
+- `POST /orders/checkout-groups/:checkoutGroupNo/refund`：同一收银组按真实拆分订单提交退款，整组在一个事务内成功或回滚。
+- 订单状态新增 `partially_refunded`。重复 `requestId` 返回第一次结果，超额退款和库存追溯歧义的退款退货请求会被拒绝。
