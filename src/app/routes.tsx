@@ -11,6 +11,9 @@ import { RouteErrorPage } from './pages/RouteErrorPage';
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })), 'RegisterPage');
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })), 'Dashboard');
+const AskDataWorkbench = lazyWithRetry(() => import('./pages/ask-data/AskDataWorkbench').then(m => ({ default: m.AskDataWorkbench })), 'AskDataWorkbench');
+const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
+const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
 const CustomerData = lazyWithRetry(() => import('./pages/CustomerData').then(m => ({ default: m.CustomerData })), 'CustomerData');
 const CustomerInvitationScript = lazyWithRetry(() => import('./pages/CustomerInvitationScript').then(m => ({ default: m.CustomerInvitationScript })), 'CustomerInvitationScript');
 const ProjectManagement = lazyWithRetry(() => import('./pages/ProjectManagement').then(m => ({ default: m.ProjectManagement })), 'ProjectManagement');
@@ -52,7 +55,8 @@ const PermissionManagement = lazyWithRetry(() => import('./pages/system/Permissi
 const StoreSettings = lazyWithRetry(() => import('./pages/system/StoreSettings').then(m => ({ default: m.StoreSettings })), 'StoreSettings');
 const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManagement').then(m => ({ default: m.DeviceManagement })), 'DeviceManagement');
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
-const AgentAuditPage = lazyWithRetry(() => import('./pages/system/AgentAuditPage').then(m => ({ default: m.AgentAuditPage })), 'AgentAuditPage');
+const AgentGovernanceCenter = lazyWithRetry(() => import('./pages/system/AgentGovernanceCenter').then(m => ({ default: m.AgentGovernanceCenter })), 'AgentGovernanceCenter');
+const AgentCapabilityCenter = lazyWithRetry(() => import('./pages/system/AgentCapabilityCenter').then(m => ({ default: m.AgentCapabilityCenter })), 'AgentCapabilityCenter');
 const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
 const FinanceOverview = lazyWithRetry(() => import('./pages/finance/FinanceOverview').then(m => ({ default: m.FinanceOverview })), 'FinanceOverview');
 const CashierReconciliation = lazyWithRetry(() => import('./pages/finance/CashierReconciliation').then(m => ({ default: m.CashierReconciliation })), 'CashierReconciliation');
@@ -73,9 +77,6 @@ const PrepaidLiabilityAnalysis = lazyWithRetry(() => import('./pages/operation-p
 const CardPackageLiabilityAnalysis = lazyWithRetry(() => import('./pages/operation-profit/PrepaidLiabilityAnalysis').then(m => ({ default: m.CardPackageLiabilityAnalysis })), 'CardPackageLiabilityAnalysis');
 const BeauticianPerformance = lazyWithRetry(() => import('./pages/operation-profit/BeauticianPerformance').then(m => ({ default: m.BeauticianPerformance })), 'BeauticianPerformance');
 const OperationCostSettings = lazyWithRetry(() => import('./pages/operation-profit/OperationCostSettings').then(m => ({ default: m.OperationCostSettings })), 'OperationCostSettings');
-const SupplierManagement = lazyWithRetry(() => import('./pages/supply-chain/SupplierManagement').then(m => ({ default: m.SupplierManagement })), 'SupplierManagement');
-const PurchaseOrders = lazyWithRetry(() => import('./pages/supply-chain/PurchaseOrders').then(m => ({ default: m.PurchaseOrders })), 'PurchaseOrders');
-const SupplierSettlements = lazyWithRetry(() => import('./pages/supply-chain/SupplierSettlements').then(m => ({ default: m.SupplierSettlements })), 'SupplierSettlements');
 const SupplyPlatformMvp = lazyWithRetry(() => import('./pages/supply-platform/SupplyPlatformMvp').then(m => ({ default: m.SupplyPlatformMvp })), 'SupplyPlatformMvp');
 const IndustryServiceTemplates = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryServiceTemplates })), 'IndustryServiceTemplates');
 const IndustryProductTemplates = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryProductTemplates })), 'IndustryProductTemplates');
@@ -84,7 +85,6 @@ const IndustryKnowledge = lazyWithRetry(() => import('./pages/IndustryDataPlatfo
 const IndustrySalaryBenchmarks = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustrySalaryBenchmarks })), 'IndustrySalaryBenchmarks');
 const IndustryDataSources = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryDataSources })), 'IndustryDataSources');
 const IndustryAdoptions = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustryAdoptions })), 'IndustryAdoptions');
-const IndustrySupplyMappings = lazyWithRetry(() => import('./pages/IndustryDataPlatform').then(m => ({ default: m.IndustrySupplyMappings })), 'IndustrySupplyMappings');
 
 // Placeholder for unbuilt pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -145,6 +145,8 @@ export const router = createBrowserRouter([
 
       // Dashboard
       { path: 'dashboard', element: withSuspense(Dashboard) },
+      { path: 'ask-data', element: withGuard('core:dashboard:view', AskDataWorkbench) },
+      { path: 'brain', element: withGuard('core:brain:use', BrainWorkspace) },
 
       // Customers
       { path: 'customers/data', element: withGuard('core:customer:view', CustomerData) },
@@ -159,7 +161,7 @@ export const router = createBrowserRouter([
       { path: 'customer-marketing/pages', element: withGuard('core:marketing:view', MarketingPageManagement) },
       { path: 'customer-marketing/promotions', element: withGuard('core:marketing:view', PromotionManagement) },
       { path: 'customer-marketing/activity-effect/:id', element: withGuard('core:marketing:view', MarketingActivityEffect) },
-      { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:recommend', MarketingRecommendation) },
+      { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:view', MarketingRecommendation) },
       { path: 'customer-marketing/assets', element: withGuard('core:marketing:view', MarketingAssets) },
       { path: 'customer-marketing/automation', element: withGuard('core:marketing:template', CreateMarketing) },
       { path: 'customer-marketing/strategy-templates', element: withGuard('core:marketing:template', CreateMarketing) },
@@ -221,9 +223,6 @@ export const router = createBrowserRouter([
 
       // Supply Chain
       { path: 'supply-platform', element: withGuard('core:supply:view', SupplyPlatformMvp) },
-      { path: 'supply-chain/suppliers', element: withGuard('core:supply:view', SupplierManagement) },
-      { path: 'supply-chain/orders', element: withGuard('core:supply:view', PurchaseOrders) },
-      { path: 'supply-chain/settlements', element: withGuard('core:supply:view', SupplierSettlements) },
 
       // Industry Data Platform
       { path: 'industry', element: <Navigate to="/industry/service-templates" replace /> },
@@ -234,7 +233,6 @@ export const router = createBrowserRouter([
       { path: 'industry/salary-benchmarks', handle: { permission: 'core:industry:salary' }, element: withGuard('core:industry:salary', IndustrySalaryBenchmarks) },
       { path: 'industry/data-sources', handle: { permission: 'core:industry:data-source' }, element: withGuard('core:industry:data-source', IndustryDataSources) },
       { path: 'industry/adoptions', handle: { permission: 'core:industry:adoption' }, element: withGuard('core:industry:adoption', IndustryAdoptions) },
-      { path: 'industry/supply-mappings', handle: { permission: 'core:industry:supply-mapping' }, element: withGuard('core:industry:supply-mapping', IndustrySupplyMappings) },
 
       // System Settings
       { path: 'system/users', element: withGuard('core:system:users', UserManagement) },
@@ -243,7 +241,20 @@ export const router = createBrowserRouter([
       { path: 'system/stores', element: withGuard('core:system:stores', StoreSettings) },
       { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
-      { path: 'system/agent-audit', element: withGuard('core:system:view', AgentAuditPage) },
+      { path: 'system/agent-audit', element: <Navigate to="/system/agent-governance/runs" replace /> },
+      { path: 'system/agent-governance', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/runs', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/runs/:id', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/knowledge-graph', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/knowledge-graph/visualize', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/knowledge-graph/synonyms', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/capabilities', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/auto-publish', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/eval', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/feedback', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
+      { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
+      { path: 'brain-governance', element: withGuard('core:brain-governance:view', BrainGovernanceCenter) },
 
       // AI 智能体工作台
       { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },

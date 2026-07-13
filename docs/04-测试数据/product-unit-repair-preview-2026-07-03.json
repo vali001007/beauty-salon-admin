@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-07-03T07:23:42.492Z",
+  "mode": "dry-run",
+  "scope": {
+    "storeId": 6,
+    "onlyBomItemIds": [],
+    "note": "仅修复服务 BOM 单位到产品规格单位，不修改历史库存流水、订单明细或库存主数量。"
+  },
+  "totals": {
+    "checkedBomItems": 71,
+    "repairableBomItems": 0,
+    "appliedBomItems": 0
+  },
+  "repairItems": []
+}

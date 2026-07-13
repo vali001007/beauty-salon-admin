@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-07-02T12:41:22.133Z",
+  "scope": {
+    "storeId": null,
+    "adoptionWhere": {
+      "productTemplateId": {
+        "not": null
+      },
+      "localProductId": {
+        "not": null
+      }
+    }
+  },
+  "summary": {
+    "totalAdoptions": 10,
+    "validActive": 9,
+    "invalid": 1,
+    "missingProduct": 0,
+    "deletedProduct": 1,
+    "missingSpecFields": 1,
+    "storeMismatch": 0,
+    "missingTemplate": 0,
+    "deletedTemplate": 0
+  },
+  "issues": [
+    {
+      "adoptionId": 22,
+      "storeId": 6,
+      "adoptionType": "product",
+      "productTemplateId": 22,
+      "standardProductCode": "STD-MASK-MEDICAL-001",
+      "templateName": "一次性医用口罩",
+      "localProductId": 136,
+      "productName": "一次性医用口罩",
+      "productSku": "IND-6-STD-MASK-MEDICAL-001-NO-PRICE-136",
+      "issueCodes": [
+        "deleted_product",
+        "missing_spec_fields"
+      ],
+      "issueLabels": [
+        "本地商品已软删除",
+        "规格数量/规格单位/包装缺失"
+      ],
+      "createdAt": "2026-06-29T08:55:15.188Z"
+    }
+  ]
+}

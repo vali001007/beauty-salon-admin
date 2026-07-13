@@ -13,6 +13,8 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter }) as any;
 
+type Row = Record<string, any>;
+
 function parseArgs() {
   const args = new Map<string, string>();
   for (const raw of process.argv.slice(2)) {
@@ -20,76 +22,84 @@ function parseArgs() {
     args.set(key, value.join('='));
   }
   return {
-    storeId: args.get('storeId') ? Number(args.get('storeId')) : undefined,
+    storeId: args.get('store-id') ? Number(args.get('store-id')) : undefined,
     limit: args.get('limit') ? Number(args.get('limit')) : 20,
   };
 }
 
-function legacySupplierKey(id: number) {
-  return `legacy-supplier:${id}`;
+async function query<T = Row>(sql: string, ...params: unknown[]): Promise<T[]> {
+  return prisma.$queryRawUnsafe<T[]>(sql, ...params);
 }
 
 async function main() {
   const { storeId, limit } = parseArgs();
-  const supplierWhere = { deletedAt: null, ...(storeId ? { storeId } : {}) };
-  const orderWhere = { ...(storeId ? { storeId } : {}) };
+  const supplierWhere = storeId ? `WHERE s."storeId" = ${Number(storeId)} AND s."deletedAt" IS NULL` : `WHERE s."deletedAt" IS NULL`;
+  const orderWhere = storeId ? `WHERE o."storeId" = ${Number(storeId)}` : '';
 
-  const [legacySuppliers, legacyProductLinks, legacySupplierOrders, legacySettlements, platformSuppliers, platformOrders] = await Promise.all([
-    prisma.supplier.findMany({ where: supplierWhere, include: { products: true }, take: limit, orderBy: { id: 'asc' } }),
-    prisma.productSupplier.findMany({ where: { supplier: supplierWhere }, include: { product: true, supplier: true }, take: limit, orderBy: { id: 'asc' } }),
-    prisma.supplierOrder.findMany({ where: orderWhere, include: { items: true, supplier: true }, take: limit, orderBy: { id: 'asc' } }),
-    prisma.supplierSettlement.findMany({ where: { supplier: supplierWhere }, include: { supplier: true }, take: limit, orderBy: { id: 'asc' } }),
-    prisma.supplySupplier.findMany({ where: { companyName: { startsWith: 'legacy-supplier:' } }, select: { id: true, companyName: true } }),
-    prisma.procurementOrder.findMany({ where: { sourceNo: { startsWith: 'legacy-supplier-order:' } }, select: { id: true, sourceNo: true } }),
-  ]);
+  const unmigratedSuppliers = await query<Row>(
+    `
+      SELECT s."id", s."name", s."storeId"
+      FROM "Supplier" s
+      LEFT JOIN "SupplyLegacyMigrationMap" map
+        ON map."legacyModel" = 'Supplier' AND map."legacyId" = s."id" AND map."targetModel" = 'SupplySupplier'
+      ${supplierWhere}
+        AND map."id" IS NULL
+      ORDER BY s."id" ASC
+      LIMIT $1
+    `,
+    limit,
+  );
+  const unmigratedProductLinks = await query<Row>(
+    `
+      SELECT ps."id", ps."supplierId", s."name" AS "supplierName", ps."productId", p."name" AS "productName", ps."supplyPrice"
+      FROM "ProductSupplier" ps
+      JOIN "Supplier" s ON s."id" = ps."supplierId"
+      JOIN "Product" p ON p."id" = ps."productId"
+      LEFT JOIN "SupplyLegacyMigrationMap" map
+        ON map."legacyModel" = 'ProductSupplier' AND map."legacyId" = ps."id" AND map."targetModel" = 'SupplyCatalogMapping'
+      ${storeId ? `WHERE s."storeId" = ${Number(storeId)} AND map."id" IS NULL` : `WHERE map."id" IS NULL`}
+      ORDER BY ps."id" ASC
+      LIMIT $1
+    `,
+    limit,
+  );
+  const unmigratedOrders = await query<Row>(
+    `
+      SELECT o."id", o."orderNo", o."supplierId", s."name" AS "supplierName", o."storeId", o."status"
+      FROM "SupplierOrder" o
+      JOIN "Supplier" s ON s."id" = o."supplierId"
+      LEFT JOIN "SupplyLegacyMigrationMap" map
+        ON map."legacyModel" = 'SupplierOrder' AND map."legacyId" = o."id" AND map."targetModel" = 'ProcurementOrder'
+      ${orderWhere ? `${orderWhere} AND map."id" IS NULL` : `WHERE map."id" IS NULL`}
+      ORDER BY o."id" ASC
+      LIMIT $1
+    `,
+    limit,
+  );
 
-  const migratedSupplierKeys = new Set(platformSuppliers.map((item: any) => item.companyName));
-  const migratedOrderKeys = new Set(platformOrders.map((item: any) => item.sourceNo));
-  const unmigratedSuppliers = legacySuppliers.filter((item: any) => !migratedSupplierKeys.has(legacySupplierKey(item.id)));
-  const unmigratedOrders = legacySupplierOrders.filter((item: any) => !migratedOrderKeys.has(`legacy-supplier-order:${item.id}`));
-
-  const report = {
-    mode: 'audit',
-    storeId: storeId ?? null,
-    sampledLimit: limit,
-    counts: {
-      sampledLegacySuppliers: legacySuppliers.length,
-      sampledLegacyProductLinks: legacyProductLinks.length,
-      sampledLegacySupplierOrders: legacySupplierOrders.length,
-      sampledLegacySettlements: legacySettlements.length,
-      migratedPlatformSuppliers: platformSuppliers.length,
-      migratedPlatformOrders: platformOrders.length,
-      sampledUnmigratedSuppliers: unmigratedSuppliers.length,
-      sampledUnmigratedOrders: unmigratedOrders.length,
-    },
-    samples: {
-      unmigratedSuppliers: unmigratedSuppliers.slice(0, 10).map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        storeId: item.storeId,
-        productLinks: item.products?.length ?? 0,
-      })),
-      unmigratedProductLinks: legacyProductLinks.slice(0, 10).map((item: any) => ({
-        id: item.id,
-        supplierId: item.supplierId,
-        supplierName: item.supplier?.name,
-        productId: item.productId,
-        productName: item.product?.name,
-        supplyPrice: Number(item.supplyPrice ?? 0),
-      })),
-      unmigratedOrders: unmigratedOrders.slice(0, 10).map((item: any) => ({
-        id: item.id,
-        orderNo: item.orderNo,
-        supplierId: item.supplierId,
-        supplierName: item.supplier?.name,
-        storeId: item.storeId,
-        status: item.status,
-        itemCount: item.items?.length ?? 0,
-      })),
-    },
+  const counts = {
+    unmigratedSuppliers: unmigratedSuppliers.length,
+    unmigratedProductLinks: unmigratedProductLinks.length,
+    unmigratedOrders: unmigratedOrders.length,
   };
 
-  console.log(JSON.stringify(report, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        mode: 'audit',
+        storeId: storeId ?? null,
+        sampledLimit: limit,
+        counts,
+        samples: {
+          unmigratedSuppliers,
+          unmigratedProductLinks,
+          unmigratedOrders,
+        },
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main()

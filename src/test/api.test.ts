@@ -9,6 +9,8 @@ afterEach(() => {
   vi.doUnmock('@/api/real/terminal');
   vi.doUnmock('@/api/real/ai');
   vi.doUnmock('@/api/real/agent');
+  vi.doUnmock('@/api/real/agentV4');
+  vi.doUnmock('@/api/real/agentV5');
   vi.doUnmock('@/api/real/operationProfit');
   vi.doUnmock('@/api/real/supplyPlatform');
   vi.unstubAllEnvs();
@@ -39,6 +41,77 @@ describe('API contract helpers', () => {
 });
 
 describe('API facades', () => {
+  it('routes Agent V4 calls to the real implementation', async () => {
+    const createAgentV4Run = vi.fn(async (data) => ({ runId: 1, status: 'completed', answer: 'ok', ...data }));
+    const appendAgentV4Message = vi.fn(async (id, data) => ({ runId: id, status: 'completed', answer: 'next', ...data }));
+    const getAgentV4RunDetail = vi.fn(async (id) => ({ run: { id, agentCode: 'agent_v4' }, messages: [], steps: [], toolCalls: [], approvals: [] }));
+    const getAgentV4RunsPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+
+    vi.doMock('@/api/real/agentV4', () => ({
+      createAgentV4Run,
+      appendAgentV4Message,
+      getAgentV4Run: vi.fn(),
+      getAgentV4RunDetail,
+      getAgentV4RunsPaginated,
+    }));
+    vi.resetModules();
+
+    const api = await import('@/api/agentV4');
+    const facade = await import('@/api');
+
+    await api.createAgentV4Run({ message: '生成本周经营计划' });
+    await api.appendAgentV4Message(1, { message: '提交经营计划 31 审批' });
+    await facade.getAgentV4RunDetail(1);
+    await facade.getAgentV4RunsPaginated({ page: 1, pageSize: 10 });
+
+    expect(createAgentV4Run).toHaveBeenCalledWith({ message: '生成本周经营计划' });
+    expect(appendAgentV4Message).toHaveBeenCalledWith(1, { message: '提交经营计划 31 审批' });
+    expect(getAgentV4RunDetail).toHaveBeenCalledWith(1);
+    expect(getAgentV4RunsPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+  });
+
+  it('routes Agent V5 calls to the real implementation', async () => {
+    const createAgentV5Run = vi.fn(async (data) => ({ runId: 5, status: 'completed', answer: 'ok', ...data }));
+    const appendAgentV5Message = vi.fn(async (id, data) => ({ runId: id, status: 'completed', answer: 'next', ...data }));
+    const getAgentV5RunDetail = vi.fn(async (id) => ({ run: { id, agentCode: 'agent_v5' }, messages: [], steps: [], toolCalls: [], approvals: [] }));
+    const getAgentV5RunsPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const getAgentV5GovernanceOverview = vi.fn(async () => ({ agentCode: 'agent_v5', totalRuns: 1 }));
+    const getAgentV5GovernanceAdapters = vi.fn(async () => ({ adapters: [] }));
+
+    vi.doMock('@/api/real/agentV5', () => ({
+      createAgentV5Run,
+      appendAgentV5Message,
+      getAgentV5Run: vi.fn(),
+      getAgentV5RunDetail,
+      getAgentV5RunsPaginated,
+      getAgentV5GovernanceOverview,
+      getAgentV5GovernanceRoutes: vi.fn(),
+      getAgentV5GovernanceAdapters,
+      getAgentV5GovernanceClarifications: vi.fn(),
+      getAgentV5GovernanceMemory: vi.fn(),
+      getAgentV5GovernanceFailures: vi.fn(),
+      getAgentV5GovernanceEval: vi.fn(),
+    }));
+    vi.resetModules();
+
+    const api = await import('@/api/agentV5');
+    const facade = await import('@/api');
+
+    await api.createAgentV5Run({ message: '今天店里情况怎么样' });
+    await api.appendAgentV5Message(5, { message: '生成本周经营计划' });
+    await facade.getAgentV5RunDetail(5);
+    await facade.getAgentV5RunsPaginated({ page: 1, pageSize: 10 });
+    await facade.getAgentV5GovernanceOverview();
+    await facade.getAgentV5GovernanceAdapters();
+
+    expect(createAgentV5Run).toHaveBeenCalledWith({ message: '今天店里情况怎么样' });
+    expect(appendAgentV5Message).toHaveBeenCalledWith(5, { message: '生成本周经营计划' });
+    expect(getAgentV5RunDetail).toHaveBeenCalledWith(5);
+    expect(getAgentV5RunsPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(getAgentV5GovernanceOverview).toHaveBeenCalled();
+    expect(getAgentV5GovernanceAdapters).toHaveBeenCalled();
+  });
+
   it('routes project order profit calls to the real implementation', async () => {
     const realGetProjectOrderProfit = vi.fn(async (id) => ({ orderId: id, totalIncome: 680 }));
 
@@ -49,6 +122,7 @@ describe('API facades', () => {
       realUpdateProductOrder: vi.fn(),
       realDeleteProductOrder: vi.fn(),
       realRefundProductOrder: vi.fn(),
+      realGetProductOrderRefundPreview: vi.fn(),
       realGetProductOrderProfit: vi.fn(),
       realGetProjectOrders: vi.fn(),
       realGetProjectOrderById: vi.fn(),
@@ -127,9 +201,13 @@ describe('API facades', () => {
     const realGetSupplyQuotes = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
     const realCreateSupplyQuote = vi.fn(async (data) => ({ id: 3, status: 'draft', auditStatus: 'draft', ...data }));
     const realAuditSupplyQuote = vi.fn(async (id, data) => ({ id, supplySkuId: 2, supplierId: 1, ...data }));
+    const realGetSupplyCatalogMappings = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realCreateSupplyCatalogMapping = vi.fn(async (data) => ({ id: 7, mappingStatus: 'mapped', purchasableStatus: 'available', ...data }));
+    const realUpdateSupplyCatalogMapping = vi.fn(async (id, data) => ({ id, mappingStatus: 'mapped', purchasableStatus: 'available', ...data }));
     const realGetProcurementOrders = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
     const realGetProcurementOrder = vi.fn(async (id) => ({ id, orderNo: 'SP-1', storeId: 1, supplierId: 1, status: 'shipped', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, sourceType: 'replenishment', items: [], shipments: [] }));
     const realCreateProcurementOrder = vi.fn(async (data) => ({ id: 4, orderNo: 'SP-2', status: 'pending_supplier_confirm', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, items: [], ...data }));
+    const realCreateProcurementOrdersFromReplenishment = vi.fn(async (data) => [{ id: 8, orderNo: 'SP-8', status: 'draft', totalAmount: 0, platformFee: 0, rebateAmount: 0, netAmount: 0, items: [], ...data }]);
     const realUpdateProcurementOrderStatus = vi.fn(async (id, status) => ({ id, status }));
     const realCreateSupplierShipment = vi.fn(async (id, data) => ({ id: 5, orderId: id, supplierId: 1, shipmentNo: 'SH-1', status: 'shipped', items: [], ...data }));
     const realReceiveProcurementOrder = vi.fn(async (id, data) => ({ id, orderNo: 'SP-1', storeId: 1, supplierId: 1, status: 'received', totalAmount: 10, platformFee: 0, rebateAmount: 0, netAmount: 10, sourceType: 'replenishment', items: [], shipments: [], receipt: data }));
@@ -147,9 +225,13 @@ describe('API facades', () => {
       realGetSupplyQuotes,
       realCreateSupplyQuote,
       realAuditSupplyQuote,
+      realGetSupplyCatalogMappings,
+      realCreateSupplyCatalogMapping,
+      realUpdateSupplyCatalogMapping,
       realGetProcurementOrders,
       realGetProcurementOrder,
       realCreateProcurementOrder,
+      realCreateProcurementOrdersFromReplenishment,
       realUpdateProcurementOrderStatus,
       realCreateSupplierShipment,
       realReceiveProcurementOrder,
@@ -170,9 +252,13 @@ describe('API facades', () => {
     await api.getSupplyQuotes({ supplierId: 1, availableOnly: true });
     await api.createSupplyQuote({ supplySkuId: 2, supplierId: 1, price: 88 });
     await api.auditSupplyQuote(3, { auditStatus: 'approved', status: 'active' });
+    await api.getSupplyCatalogMappings({ page: 1, pageSize: 10, storeId: 1 });
+    await api.createSupplyCatalogMapping({ supplySkuId: 2, storeId: 1, productId: 10 });
+    await api.updateSupplyCatalogMapping(7, { purchasableStatus: 'available' });
     await api.getProcurementOrders({ page: 1, pageSize: 10, storeId: 1 });
     await api.getProcurementOrder(4);
     await api.createProcurementOrder({ storeId: 1, supplierId: 1, items: [{ supplySkuId: 2, quantity: 1 }] });
+    await api.createProcurementOrdersFromReplenishment({ storeId: 1, productIds: [10] });
     await api.updateProcurementOrderStatus(4, 'accepted');
     await api.createSupplierShipment(4, { items: [{ orderItemId: 1, supplySkuId: 2, shippedQty: 1 }] });
     await api.receiveProcurementOrder(4, { items: [{ shipmentItemId: 1, receivedQty: 1 }] });
@@ -189,9 +275,13 @@ describe('API facades', () => {
     expect(realGetSupplyQuotes).toHaveBeenCalledWith({ supplierId: 1, availableOnly: true });
     expect(realCreateSupplyQuote).toHaveBeenCalledWith({ supplySkuId: 2, supplierId: 1, price: 88 });
     expect(realAuditSupplyQuote).toHaveBeenCalledWith(3, { auditStatus: 'approved', status: 'active' });
+    expect(realGetSupplyCatalogMappings).toHaveBeenCalledWith({ page: 1, pageSize: 10, storeId: 1 });
+    expect(realCreateSupplyCatalogMapping).toHaveBeenCalledWith({ supplySkuId: 2, storeId: 1, productId: 10 });
+    expect(realUpdateSupplyCatalogMapping).toHaveBeenCalledWith(7, { purchasableStatus: 'available' });
     expect(realGetProcurementOrders).toHaveBeenCalledWith({ page: 1, pageSize: 10, storeId: 1 });
     expect(realGetProcurementOrder).toHaveBeenCalledWith(4);
     expect(realCreateProcurementOrder).toHaveBeenCalledWith({ storeId: 1, supplierId: 1, items: [{ supplySkuId: 2, quantity: 1 }] });
+    expect(realCreateProcurementOrdersFromReplenishment).toHaveBeenCalledWith({ storeId: 1, productIds: [10] });
     expect(realUpdateProcurementOrderStatus).toHaveBeenCalledWith(4, 'accepted');
     expect(realCreateSupplierShipment).toHaveBeenCalledWith(4, { items: [{ orderItemId: 1, supplySkuId: 2, shippedQty: 1 }] });
     expect(realReceiveProcurementOrder).toHaveBeenCalledWith(4, { items: [{ shipmentItemId: 1, receivedQty: 1 }] });
@@ -301,6 +391,19 @@ describe('API facades', () => {
     const realUpdateAutomationStrategy = vi.fn(async (_id, data) => ({ id: 1, ...data }));
     const realDeleteAutomationStrategy = vi.fn(async () => undefined);
     const realRecordCustomerBehaviorEvent = vi.fn(async (data) => ({ id: 1, ...data }));
+    const realRebuildCustomerLifecycleOntology = vi.fn(async (data) => ({ rebuilt: true, snapshotCount: 1, opportunityCount: 2, ...data }));
+    const realGetCustomerLifecycleOpportunities = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetCustomerLifecycleContext = vi.fn(async (id) => ({ snapshot: null, opportunities: [], events: [], serviceCycles: [], attributionEvents: [], customerId: id }));
+    const realGetCustomerLifecycleServiceCycles = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
+    const realGetCustomerLifecycleOpportunityFulfillment = vi.fn(async () => []);
+    const realGetCustomerLifecycleAttribution = vi.fn(async () => []);
+    const realGetCustomerLifecycleQuality = vi.fn(async () => null);
+    const realGetCustomerLifecycleRules = vi.fn(async () => []);
+    const realCreateCustomerLifecycleRule = vi.fn(async (data) => ({ id: 1, status: 'draft', ...data }));
+    const realPublishCustomerLifecycleRule = vi.fn(async (id) => ({ id, status: 'active' }));
+    const realRollbackCustomerLifecycleRule = vi.fn(async (id) => ({ id, status: 'rolled_back' }));
+    const realCreateLifecycleBusinessPlan = vi.fn(async (data) => ({ id: 1, approvalStatus: 'draft', ...data }));
+    const realSubmitLifecycleBusinessPlanActions = vi.fn(async (id) => ({ id, approvalStatus: 'pending' }));
     const realGetMarketingActivityById = vi.fn(async (id) => ({ id, title: '活动详情' }));
     const realGetInvitationCandidates = vi.fn(async () => ({ items: [], generatedAt: '2026-06-15T00:00:00.000Z', source: 'prediction' }));
     const realGetMarketingRuleTemplatesPaginated = vi.fn(async (params) => ({ items: [], data: [], total: 0, ...params }));
@@ -335,6 +438,19 @@ describe('API facades', () => {
       realGetLatestPredictionSummary: vi.fn(),
       realGetPredictionCustomers: vi.fn(),
       realGetCustomerPrediction: vi.fn(),
+      realRebuildCustomerLifecycleOntology,
+      realGetCustomerLifecycleOpportunities,
+      realGetCustomerLifecycleContext,
+      realGetCustomerLifecycleServiceCycles,
+      realGetCustomerLifecycleOpportunityFulfillment,
+      realGetCustomerLifecycleAttribution,
+      realGetCustomerLifecycleQuality,
+      realGetCustomerLifecycleRules,
+      realCreateCustomerLifecycleRule,
+      realPublishCustomerLifecycleRule,
+      realRollbackCustomerLifecycleRule,
+      realCreateLifecycleBusinessPlan,
+      realSubmitLifecycleBusinessPlanActions,
       realGetInvitationCandidates,
       realRecordCustomerBehaviorEvent,
       realGetMarketingRuleTemplatesPaginated,
@@ -375,6 +491,19 @@ describe('API facades', () => {
     await api.deleteAutomationStrategy(1);
     await api.getMarketingActivityById(3);
     await api.recordCustomerBehaviorEvent({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
+    await api.rebuildCustomerLifecycleOntology({ storeId: 1 });
+    await api.getCustomerLifecycleOpportunities({ page: 1, pageSize: 10, opportunityType: 'care_cycle_due' });
+    await api.getCustomerLifecycleContext(2);
+    await api.getCustomerLifecycleServiceCycles({ page: 1, pageSize: 10, customerId: 2 });
+    await api.getCustomerLifecycleOpportunityFulfillment(9);
+    await api.getCustomerLifecycleAttribution({ customerId: 2 });
+    await api.getCustomerLifecycleQuality(1);
+    await api.getCustomerLifecycleRules({ status: 'active' });
+    await api.createCustomerLifecycleRule({ ruleType: 'opportunity', ruleJson: {} });
+    await api.publishCustomerLifecycleRule(7);
+    await api.rollbackCustomerLifecycleRule(7);
+    await api.createLifecycleBusinessPlan({ storeId: 1 });
+    await api.submitLifecycleBusinessPlanActions(1);
     await api.getInvitationCandidates({ limit: 10 });
     await api.getMarketingRuleTemplatesPaginated({ page: 1, pageSize: 10 });
     await api.cloneMarketingRuleTemplate(1);
@@ -386,6 +515,19 @@ describe('API facades', () => {
     expect(realDeleteAutomationStrategy).toHaveBeenCalledWith(1);
     expect(realGetMarketingActivityById).toHaveBeenCalledWith(3);
     expect(realRecordCustomerBehaviorEvent).toHaveBeenCalledWith({ storeId: 1, customerId: 2, eventType: 'miniapp_project_viewed' });
+    expect(realRebuildCustomerLifecycleOntology).toHaveBeenCalledWith({ storeId: 1 });
+    expect(realGetCustomerLifecycleOpportunities).toHaveBeenCalledWith({ page: 1, pageSize: 10, opportunityType: 'care_cycle_due' });
+    expect(realGetCustomerLifecycleContext).toHaveBeenCalledWith(2);
+    expect(realGetCustomerLifecycleServiceCycles).toHaveBeenCalledWith({ page: 1, pageSize: 10, customerId: 2 });
+    expect(realGetCustomerLifecycleOpportunityFulfillment).toHaveBeenCalledWith(9);
+    expect(realGetCustomerLifecycleAttribution).toHaveBeenCalledWith({ customerId: 2 });
+    expect(realGetCustomerLifecycleQuality).toHaveBeenCalledWith(1);
+    expect(realGetCustomerLifecycleRules).toHaveBeenCalledWith({ status: 'active' });
+    expect(realCreateCustomerLifecycleRule).toHaveBeenCalledWith({ ruleType: 'opportunity', ruleJson: {} });
+    expect(realPublishCustomerLifecycleRule).toHaveBeenCalledWith(7);
+    expect(realRollbackCustomerLifecycleRule).toHaveBeenCalledWith(7);
+    expect(realCreateLifecycleBusinessPlan).toHaveBeenCalledWith({ storeId: 1 });
+    expect(realSubmitLifecycleBusinessPlanActions).toHaveBeenCalledWith(1);
     expect(realGetInvitationCandidates).toHaveBeenCalledWith({ limit: 10 });
     expect(realGetMarketingRuleTemplatesPaginated).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
     expect(realCloneMarketingRuleTemplate).toHaveBeenCalledWith(1);

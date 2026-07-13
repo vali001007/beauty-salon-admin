@@ -11,7 +11,7 @@ import {
   receivePurchaseOrder,
   getStockMovements,
 } from '@/api/inventory';
-import { createProcurementOrder, getProcurementOrder, getProcurementOrders, receiveProcurementOrder } from '@/api/supplyPlatform';
+import { createProcurementOrdersFromReplenishment, getProcurementOrder, getProcurementOrders, receiveProcurementOrder } from '@/api/supplyPlatform';
 import { usePagination } from '@/hooks/usePagination';
 import { useStoreStore } from '@/stores/storeStore';
 import { toast } from 'sonner';
@@ -26,6 +26,7 @@ type PurchaseOrderDraft = PurchaseOrderFormData & {
   savingAmount: number;
   platformItems: Array<{
     productId: number;
+    mappingId?: number;
     supplySkuId: number;
     quoteId?: number;
     quantity: number;
@@ -124,7 +125,7 @@ function toUnifiedPlatformOrder(order: ProcurementOrder): UnifiedPurchaseOrder {
     orderNo: order.orderNo,
     itemLabels: getProcurementItemLabels(order),
     supplierName: order.supplier?.name || `供应商 #${order.supplierId}`,
-    sourceLabel: order.sourceType === 'replenishment' ? '智能补货-平台供货' : order.sourceType || '平台采购',
+    sourceLabel: ['inventory_replenishment', 'replenishment'].includes(order.sourceType) ? '智能补货-平台供货' : order.sourceType || '平台采购',
     amount: Number(order.netAmount ?? order.totalAmount ?? 0),
     receivedSummary: `${receivedQty}/${totalQty}`,
     statusLabel: getProcurementStatusLabel(order.status),
@@ -268,9 +269,10 @@ export function PurchaseManagement() {
         quantity: suggestion.suggestedQty,
         unitPrice,
       });
-      if (suggestion.supplySkuId && suggestion.supplierId) {
+      if ((suggestion.canCreatePlatformOrder ?? Boolean(suggestion.supplySkuId && suggestion.supplierId)) && suggestion.supplySkuId && suggestion.supplierId) {
         existing.platformItems.push({
           productId: suggestion.productId ?? suggestion.id,
+          mappingId: suggestion.mappingId,
           supplySkuId: suggestion.supplySkuId,
           quoteId: suggestion.quoteId,
           quantity: suggestion.suggestedQty,
@@ -322,17 +324,15 @@ export function PurchaseManagement() {
         }))
         .filter((draft) => draft.items.length > 0);
       await Promise.all([
-        ...platformDrafts.map((draft) => createProcurementOrder({
+        ...platformDrafts.map((draft) => createProcurementOrdersFromReplenishment({
           storeId: currentStoreId ?? 1,
-          supplierId: draft.supplierId!,
           expectedArrivalDate: draft.expectedDate,
-          sourceType: 'replenishment',
           items: draft.platformItems.map((item) => ({
             productId: item.productId,
+            mappingId: item.mappingId,
             supplySkuId: item.supplySkuId,
             quoteId: item.quoteId,
             quantity: item.quantity,
-            unitPrice: item.unitPrice,
           })),
         })),
         ...manualDrafts.map((draft) => createPurchaseOrder({
@@ -1069,7 +1069,7 @@ export function PurchaseManagement() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">来源</div>
-                  <div className="font-medium text-gray-800 mt-1">{selectedOrder.sourceType === 'replenishment' ? '智能补货' : selectedOrder.sourceType}</div>
+                  <div className="font-medium text-gray-800 mt-1">{['inventory_replenishment', 'replenishment'].includes(selectedOrder.sourceType) ? '智能补货' : selectedOrder.sourceType}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">状态</div>

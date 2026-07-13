@@ -43,8 +43,16 @@ import {
   analyzeSkinPhoto,
   askBusinessQuery,
   appendAgentMessage,
+  appendAgentV2Message,
+  appendAgentV3Message,
+  appendAgentV4Message,
+  appendAgentV5Message,
   approveAgentApproval,
   createAgentRun,
+  createAgentV2Run,
+  createAgentV3Run,
+  createAgentV4Run,
+  createAgentV5Run,
   rejectAgentApproval,
   cancelTerminalReservation,
   confirmTerminalReservation,
@@ -58,6 +66,7 @@ import {
   createTerminalRechargeOrder,
   getTerminalPrintableDocumentsToday,
   voidCardOrder,
+  getProductOrderRefundPreview,
   refundProductOrder,
   createTerminalReservation,
   createTerminalServiceRecord,
@@ -1728,14 +1737,39 @@ function resolveAgentPersonaCode(role: Role, context?: Record<string, unknown>):
     : undefined;
 }
 
+function resolveAgentEngine(context?: Record<string, unknown>): 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5' {
+  if (context?.agentEngine === 'agent_v5') return 'agent_v5';
+  if (context?.agentEngine === 'agent_v4') return 'agent_v4';
+  if (context?.agentEngine === 'agent_v3') return 'agent_v3';
+  return context?.agentEngine === 'agent_v2' ? 'agent_v2' : 'agent_v1';
+}
+
+function resolveAgentRunApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5') {
+  if (agentEngine === 'agent_v5') return createAgentV5Run;
+  if (agentEngine === 'agent_v4') return createAgentV4Run;
+  if (agentEngine === 'agent_v3') return createAgentV3Run;
+  if (agentEngine === 'agent_v2') return createAgentV2Run;
+  return createAgentRun;
+}
+
+function resolveAgentAppendApi(agentEngine: 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5') {
+  if (agentEngine === 'agent_v5') return appendAgentV5Message;
+  if (agentEngine === 'agent_v4') return appendAgentV4Message;
+  if (agentEngine === 'agent_v3') return appendAgentV3Message;
+  if (agentEngine === 'agent_v2') return appendAgentV2Message;
+  return appendAgentMessage;
+}
+
 export async function runBusinessAgent(
   command: string,
   role: Role,
   context?: Record<string, unknown>,
 ): Promise<AgentRunResult> {
   const personaCode = resolveAgentPersonaCode(role, context);
+  const agentEngine = resolveAgentEngine(context);
+  const runApi = resolveAgentRunApi(agentEngine);
   return runWithAuraAuthRepair(() =>
-    createAgentRun({
+    runApi({
       message: command,
       role: toAgentRole(role),
       entrypoint: 'terminal:kiosk',
@@ -1743,11 +1777,13 @@ export async function runBusinessAgent(
       operatorId: getActiveOperatorParams()?.operatorId ?? null,
       context: {
         ...(context ?? {}),
+        agentEngine,
         terminal: {
           ...(((context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
           entrypoint: 'terminal:kiosk',
           role,
           command,
+          agentEngine,
           ...(personaCode ? { personaCode } : {}),
         },
       },
@@ -1762,8 +1798,10 @@ export async function appendBusinessAgentMessage(
   context?: Record<string, unknown>,
 ): Promise<AgentRunResult> {
   const personaCode = resolveAgentPersonaCode(role, context);
+  const agentEngine = resolveAgentEngine(context);
+  const appendApi = resolveAgentAppendApi(agentEngine);
   return runWithAuraAuthRepair(() =>
-    appendAgentMessage(runId, {
+    appendApi(runId, {
       message: command,
       role: toAgentRole(role),
       entrypoint: 'terminal:kiosk',
@@ -1771,12 +1809,14 @@ export async function appendBusinessAgentMessage(
       operatorId: getActiveOperatorParams()?.operatorId ?? null,
       context: {
         ...(context ?? {}),
+        agentEngine,
         terminal: {
           ...(((context ?? {}).terminal as Record<string, unknown> | undefined) ?? {}),
           entrypoint: 'terminal:kiosk',
           role,
           command,
           previousRunId: runId,
+          agentEngine,
           ...(personaCode ? { personaCode } : {}),
         },
       },
@@ -4093,8 +4133,25 @@ function getRefundOrderItemSummary(order: CoreSnapshot['orders'][number]) {
 
 function toRefundOrderOption(order: CoreSnapshot['orders'][number]): RefundOrderOption | null {
   if (['已取消', '已退款', 'cancelled', 'canceled', 'refunded'].includes(String(order.status))) return null;
-  const refundableAmount = toMoney(order.netAmount ?? order.totalAmount);
+  const successfulRefunds = asList<any>((order as any).refundRecords).filter((record) => ['success', 'completed', 'refunded'].includes(String(record.status)));
+  const refundedAmount = successfulRefunds.reduce((sum, record) => sum + toMoney(record.amount), 0);
+  const refundableAmount = Math.max(0, toMoney(order.netAmount ?? order.totalAmount) - refundedAmount);
   if (refundableAmount <= 0) return null;
+  const rawItems = asList<any>(order.orderItems).length ? asList<any>(order.orderItems) : asList<any>(order.items);
+  const items = rawItems.map((item) => {
+    const refundItems = successfulRefunds.flatMap((record) => asList<any>(record.items)).filter((refundItem) => Number(refundItem.orderItemId) === Number(item.id));
+    const soldQuantity = Number(item.quantity ?? 1);
+    const itemNetAmount = toMoney(item.netAmount ?? item.subtotal ?? soldQuantity * Number(item.unitPrice ?? 0));
+    const refundedQuantity = refundItems.reduce((sum, refundItem) => sum + Number(refundItem.quantity ?? 0), 0);
+    const itemRefundedAmount = refundItems.reduce((sum, refundItem) => sum + toMoney(refundItem.refundAmount), 0);
+    return {
+      orderItemId: Number(item.id),
+      name: item.productName ?? item.name ?? '未命名明细',
+      itemType: String(item.itemType ?? 'product'),
+      remainingRefundableQuantity: Math.max(0, soldQuantity - refundedQuantity),
+      remainingRefundableAmount: Math.max(0, itemNetAmount - itemRefundedAmount),
+    };
+  }).filter((item) => item.orderItemId > 0 && item.remainingRefundableAmount > 0);
   return {
     id: order.id,
     orderNo: order.checkoutGroupNo ?? order.orderNo,
@@ -4107,6 +4164,8 @@ function toRefundOrderOption(order: CoreSnapshot['orders'][number]): RefundOrder
     paymentMethod: order.paymentMethod ?? order.payMethod ?? '',
     refundableAmount,
     createdAt: order.completedAt ?? order.createdAt,
+    allowedModes: ['refund_only', 'return_and_refund'],
+    items,
   };
 }
 
@@ -4236,14 +4295,25 @@ export async function confirmRefund(input: RefundConfirmInput): Promise<Operatio
   if (!input.orderId) throw new Error('请选择要退款的历史订单');
   if (input.amount <= 0) throw new Error('退款金额必须大于 0');
   const isCardOrder = String(input.orderKind) === 'card';
-  const refunded = isCardOrder
-    ? await runWithAuraAuthRepair(() => voidCardOrder(input.orderId, { reason: input.reason || 'Ami Aura Lite 次卡退款' }))
-    : await runWithAuraAuthRepair(() =>
-        refundProductOrder(Number(input.orderId), {
-          amount: input.amount,
-          reason: input.reason || 'Ami Aura Lite 退款',
-        }),
-      );
+  let refunded;
+  if (isCardOrder) {
+    refunded = await runWithAuraAuthRepair(() => voidCardOrder(input.orderId, { reason: input.reason || 'Ami Aura Lite 次卡退款' }));
+  } else {
+    const preview = await runWithAuraAuthRepair(() => getProductOrderRefundPreview(Number(input.orderId)));
+    const items = input.items?.length
+      ? input.items
+      : preview.items
+          .filter((item) => item.remainingRefundableQuantity > 0 && item.remainingRefundableAmount > 0)
+          .map((item) => ({ orderItemId: item.orderItemId, quantity: item.remainingRefundableQuantity, refundAmount: item.remainingRefundableAmount }));
+    refunded = await runWithAuraAuthRepair(() =>
+      refundProductOrder(Number(input.orderId), {
+        requestId: input.requestId ?? globalThis.crypto?.randomUUID?.() ?? `kiosk-refund-${Date.now()}`,
+        refundMode: input.refundMode ?? 'refund_only',
+        reason: input.reason || 'Ami Aura Lite 退款',
+        items,
+      }),
+    );
+  }
   invalidateCashierCaches();
   invalidateBusinessFlowCache(['operation.refund']);
   const latestRefundRecord = getLatestRefundRecord(refunded);

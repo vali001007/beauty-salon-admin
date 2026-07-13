@@ -12,6 +12,7 @@ export type {
   AgentApprovalSummary,
   AgentCreateRunRequest,
   AgentEvidence,
+  AgentFeedbackContext,
   AgentFeedbackRequest,
   AgentPersonaCode,
   AgentPersonaSummary,
@@ -33,6 +34,26 @@ export interface AgentApprovalDecisionRequest {
   operatorId?: number | null;
   comment?: string;
   args?: Record<string, unknown>;
+}
+
+export interface AmiAiAuditRequest {
+  message: string;
+  answer?: string;
+  role?: AgentRole | string;
+  entrypoint?: string;
+  operatorId?: number | null;
+  fallbackReason?: string | null;
+  businessContext?: string | null;
+  latencyMs?: number | null;
+  source?: string | null;
+}
+
+export interface AmiAiAuditResult {
+  runId: number;
+  id: number;
+  runNo: string;
+  agentCode: 'ami_ai' | string;
+  status: string;
 }
 
 export interface AgentCompileBusinessTaskRequest {
@@ -491,6 +512,38 @@ export interface AgentKnowledgeGovernance {
       recommendation: string;
     }>;
   } | null;
+  knowledgeReports?: {
+    scan: {
+      generatedAt: string | null;
+      gate: {
+        passed: boolean;
+        blockers: string[];
+        warnings: string[];
+      } | null;
+      schema: {
+        schemaModelCount: number;
+        generatedModelCount: number;
+        missingBusinessObjectMappings: string[];
+        missingDisplayNames: Array<{ model: string; field: string; type: string; risk: string; reason: string }>;
+      };
+      api: {
+        endpoints: number;
+        dtoFieldCandidates: number;
+        realApiMethods: number;
+      };
+      frontend: {
+        routes: Array<{ path: string; file: string; candidatePersona?: string; missingCapability: boolean; reason: string }>;
+      };
+      agent: {
+        missingSkillMappings: string[];
+        missingEvalCases: string[];
+        missingExecutionMappings: string[];
+        missingToolRegistryMappings: string[];
+      };
+    } | null;
+    daily: AgentKnowledgeGovernanceReportSummary | null;
+    weekly: AgentKnowledgeGovernanceReportSummary | null;
+  };
   entityDebug?: {
     status: string;
     query: string;
@@ -538,6 +591,38 @@ export interface AgentKnowledgeGovernance {
     }>;
     deprecationPolicy: string[];
   };
+}
+
+export interface AgentKnowledgeGovernanceReportSummary {
+  generatedAt: string | null;
+  mode: string | null;
+  summary: {
+    gatePassed: boolean;
+    blockerCount: number;
+    warningCount: number;
+    p0PassRate?: number | null;
+    p0Failed?: number | null;
+    missingBusinessObjectMappings: number;
+    missingDisplayNames: number;
+    missingSkillMappings: number;
+    missingEvalCases: number;
+    fallbackReasonCount: number;
+    legacyFallbackRuns: number;
+  } | null;
+  businessDictionaryCandidates: Array<{ type: string; key: string; priority: string; reason: string }>;
+  agentCapabilityGaps: Array<{ type: string; key: string; priority: string; reason: string }>;
+  evalFailureTop: Array<{ reason: string; count: number; priority: string }>;
+  legacyFallback: {
+    available: boolean;
+    scannedRuns: number;
+    legacyFallbackRuns: number;
+    usageByReason: Array<{ reason: string; count: number; trend: string }>;
+    deprecationCandidates: Array<{ reason: string; latestCount: number; previousCount: number; action: string }>;
+    dataGap?: string;
+  } | null;
+  reviewChecklist: string[];
+  markdownPath: string;
+  markdownContent?: string | null;
 }
 
 export interface AgentAutomationTriggerTemplate {

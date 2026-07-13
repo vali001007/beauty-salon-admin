@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AiModule } from '../ai/ai.module.js';
 import { BusinessQueryModule } from '../business-query/business-query.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
+import { IndustryModule } from '../industry/industry.module.js';
 import { MarketingModule } from '../marketing/marketing.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
@@ -52,6 +53,7 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     BusinessQueryModule,
     MarketingModule,
     InventoryModule,
+    IndustryModule,
     TerminalModule,
     SchedulingModule,
     JwtModule.registerAsync({

@@ -1,0 +1,190 @@
+{
+  "generatedAt": "2026-07-06 10:39:11 Asia/Shanghai",
+  "summary": {
+    "pass": false,
+    "gateCount": 16,
+    "blockerCount": 2,
+    "githubSecretCount": 2,
+    "githubTokenSecretPresent": true,
+    "githubHookUrlSecretPresent": true,
+    "backendTokenPresent": true,
+    "backendTokenFingerprint": "f568081a8d177c5d",
+    "backendHookUrlPresent": true,
+    "productionApiHealthReady": true,
+    "productionApiHealthStatus": 200,
+    "productionBackendEnvConfirmed": false,
+    "githubProductionHookEnabled": false,
+    "productionHookTriggerReady": false,
+    "recommendation": "生产 API hook URL 已配置且 health 可达；当前策略改为 GitHub main 提交后自动触发 Agent V2 auto-publish，后端 Cron 保持 false。下一步需先在 Zeabur 后端确认同轮 deploy token，再受控打开 GitHub 生产 hook 开关并做 hook smoke。"
+  },
+  "source": {
+    "githubRepo": "vali001007/beauty-salon-admin",
+    "backendEnv": "packages/server-v2/.env",
+    "serverGitignore": "packages/server-v2/.gitignore",
+    "workflow": ".github/workflows/agent-v2.yml",
+    "productionHealthProbe": "https://ami-service.zeabur.app/api/health"
+  },
+  "productionApiHealth": {
+    "attempted": true,
+    "url": "https://ami-service.zeabur.app/api/health",
+    "ok": true,
+    "statusCode": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyPreview": "{\"status\":\"ok\",\"timestamp\":\"2026-07-06T02:39:11.295Z\"}",
+    "error": null
+  },
+  "gates": [
+    {
+      "id": "github_secret_readback",
+      "title": "可只读读取 GitHub Secret 名称",
+      "expected": "`gh secret list` 成功执行",
+      "actual": "secrets=AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN, AGENT_V2_DEPLOY_HOOK_URL",
+      "status": "pass",
+      "impact": "证明后续配置不是只写本地文档，而是能从 GitHub 回读 Secret 名称。"
+    },
+    {
+      "id": "github_deploy_token_secret_present",
+      "title": "GitHub 已配置 deploy token Secret",
+      "expected": "`AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN` 存在",
+      "actual": "present",
+      "status": "pass",
+      "impact": "GitHub workflow 触发生产 hook 时具备鉴权 token 来源。"
+    },
+    {
+      "id": "github_variable_readback",
+      "title": "可只读读取 GitHub Variable",
+      "expected": "`gh variable list` 成功执行",
+      "actual": "AGENT_V2_PRODUCTION_HOOK_ENABLED=false",
+      "status": "pass",
+      "impact": "生产 hook 显式开关使用 GitHub Variable，避免 URL/token 配好后自动误触发。"
+    },
+    {
+      "id": "github_production_hook_switch_safe",
+      "title": "GitHub 生产 hook 显式开关当前保持关闭",
+      "expected": "`AGENT_V2_PRODUCTION_HOOK_ENABLED` 未设置为 true",
+      "actual": "false",
+      "status": "pass",
+      "impact": "按 GitHub 提交触发 auto-publish 的策略启用前，先确认 Zeabur 后端同轮 token，避免下一次 main push 误触发失败。"
+    },
+    {
+      "id": "github_hook_url_secret_present",
+      "title": "GitHub 已配置生产 hook URL Secret",
+      "expected": "`AGENT_V2_DEPLOY_HOOK_URL` 存在",
+      "actual": "present",
+      "status": "pass",
+      "impact": "缺少该 Secret 时 workflow 条件不会满足，生产 hook 不会触发；当前仍需生产 API 域名。"
+    },
+    {
+      "id": "backend_env_ignored",
+      "title": "后端真实 env 文件不进入 Git",
+      "expected": "`packages/server-v2/.gitignore` 忽略 `.env`",
+      "actual": "ignored",
+      "status": "pass",
+      "impact": "真实 deploy token 不会因本机 env 同步被提交到仓库。"
+    },
+    {
+      "id": "backend_deploy_token_present",
+      "title": "后端 env 已配置同轮 deploy token",
+      "expected": "`AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN` 非空",
+      "actual": "present fingerprint=f568081a8d177c5d",
+      "status": "pass",
+      "impact": "后端 deploy hook guard 能校验来自 GitHub 的专用 token。"
+    },
+    {
+      "id": "backend_hook_url_present",
+      "title": "后端 env 已配置生产 hook URL",
+      "expected": "`AGENT_V2_DEPLOY_HOOK_URL` 非空",
+      "actual": "https://ami-service.zeabur.app/api/agent-v2/capability-center/auto-publish/deploy-hook",
+      "status": "pass",
+      "impact": "本机配置和 GitHub Secret 采用同一个生产 hook URL，便于审计和后续 smoke。"
+    },
+    {
+      "id": "production_api_health_reachable",
+      "title": "生产 API health 只读可达",
+      "expected": "`GET <生产 API>/api/health` 返回 2xx",
+      "actual": "status=200, url=https://ami-service.zeabur.app/api/health, body={\"status\":\"ok\",\"timestamp\":\"2026-07-06T02:39:11.295Z\"}",
+      "status": "pass",
+      "impact": "证明该域名是可访问的 server-v2 后端，而不是前端站点或错误域名。"
+    },
+    {
+      "id": "zeabur_backend_env_confirmed",
+      "title": "Zeabur 后端同轮 token 环境变量已确认",
+      "expected": "`AGENT_V2_PRODUCTION_BACKEND_ENV_CONFIRMED=true`",
+      "actual": "false",
+      "status": "fail",
+      "impact": "只有确认部署平台后端也持有同轮 token，GitHub workflow 才能安全进入 hook smoke。"
+    },
+    {
+      "id": "backend_cron_disabled",
+      "title": "后端 Cron 自动发布保持关闭",
+      "expected": "`AGENT_V2_AUTO_PUBLISH_CRON=false`",
+      "actual": "false",
+      "status": "pass",
+      "impact": "当前策略是 GitHub 提交触发 auto-publish，平时不做后端定时自动发布。"
+    },
+    {
+      "id": "github_commit_trigger_policy",
+      "title": "auto-publish 采用 GitHub 提交触发",
+      "expected": "workflow 有 push 入口、无 schedule；生产 hook 限 main push 或 workflow_dispatch；push 默认 git_diff",
+      "actual": "push=present, schedule=absent, hook=main_or_manual, pushScan=git_diff",
+      "status": "pass",
+      "impact": "把能力治理 auto-publish 绑定到 GitHub 提交流水线，不启用日常定时自动发布。"
+    },
+    {
+      "id": "backend_gray_mode_safe",
+      "title": "生产灰度默认仍走旧链路",
+      "expected": "`AGENT_V2_GRAY_MODE=legacy_regex` 且 `AGENT_INTENT_ENGINE=legacy_regex`",
+      "actual": "gray=legacy_regex, engine=legacy_regex",
+      "status": "pass",
+      "impact": "配置 token 不会把生产问答直接切到 KG/LLM 正式接管。"
+    },
+    {
+      "id": "legacy_retirement_still_locked",
+      "title": "旧正则退役确认开关保持关闭",
+      "expected": "`AGENT_V2_LEGACY_RETIREMENT_CONFIRMED=false`",
+      "actual": "false",
+      "status": "pass",
+      "impact": "即使后续误配 legacy_retired，也不会绕过生产证据和授权。"
+    },
+    {
+      "id": "workflow_requires_url_and_token",
+      "title": "workflow 仍要求显式开关、URL 和 token 同时满足才触发 hook",
+      "expected": "条件包含 explicit enable、URL/token 非空、非 PR、main 或 workflow_dispatch",
+      "actual": "condition present",
+      "status": "pass",
+      "impact": "当前显式开关未打开时，即使 URL/token 已配置也不会调用生产 hook。"
+    },
+    {
+      "id": "production_hook_not_overclaimed",
+      "title": "生产 hook 不在后端 env 未确认时误放行",
+      "expected": "hook trigger ready 需要 GitHub URL/token、后端 URL/token、health 和 Zeabur env 确认同时满足",
+      "actual": "githubUrl=true, githubToken=true, hookEnabled=false, backendUrl=true, backendToken=true, health=true, zeaburEnv=false",
+      "status": "fail",
+      "impact": "把“URL 已配置”和“可触发生产 hook”拆开，避免仅凭 GitHub Secret 就误判生产已接通。"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "zeabur_backend_env_confirmed",
+      "title": "Zeabur 后端同轮 token 环境变量已确认",
+      "expected": "`AGENT_V2_PRODUCTION_BACKEND_ENV_CONFIRMED=true`",
+      "actual": "false",
+      "status": "fail",
+      "impact": "只有确认部署平台后端也持有同轮 token，GitHub workflow 才能安全进入 hook smoke。"
+    },
+    {
+      "id": "production_hook_not_overclaimed",
+      "title": "生产 hook 不在后端 env 未确认时误放行",
+      "expected": "hook trigger ready 需要 GitHub URL/token、后端 URL/token、health 和 Zeabur env 确认同时满足",
+      "actual": "githubUrl=true, githubToken=true, hookEnabled=false, backendUrl=true, backendToken=true, health=true, zeaburEnv=false",
+      "status": "fail",
+      "impact": "把“URL 已配置”和“可触发生产 hook”拆开，避免仅凭 GitHub Secret 就误判生产已接通。"
+    }
+  ],
+  "boundaries": [
+    "本审计只读取 GitHub Secret 名称和本机后端 env 键状态，不读取 GitHub Secret 明文。",
+    "本审计只对生产 API 执行 GET /api/health 只读探测，不触发 deploy hook，不连接生产数据库，不删除旧正则。",
+    "token 只输出 SHA-256 短指纹用于同轮配置核对，不输出明文。",
+    "Zeabur 后端是否已设置同轮 token 需要通过部署平台环境变量确认，本审计不会读取 Zeabur Secret 明文。"
+  ]
+}

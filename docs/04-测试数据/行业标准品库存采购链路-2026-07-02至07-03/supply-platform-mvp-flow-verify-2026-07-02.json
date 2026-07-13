@@ -1,0 +1,50 @@
+{
+  "mode": "verify",
+  "dryRun": false,
+  "applyAllowed": false,
+  "flowKey": "supply-platform-mvp-flow",
+  "store": {
+    "id": 6,
+    "name": "Ami 全量演示门店"
+  },
+  "product": {
+    "id": 82,
+    "name": "玻尿酸保湿精华",
+    "sku": "AMI-DEMO-FULL-SKU-001",
+    "currentStock": 128
+  },
+  "readiness": {
+    "storeCheckSkipped": false,
+    "productCheckSkipped": false,
+    "reason": null
+  },
+  "schema": {
+    "SupplySupplier": true,
+    "SupplySku": true,
+    "SupplyQuote": true,
+    "SupplyCatalogMapping": true,
+    "ProcurementOrder": true,
+    "ProcurementOrderItem": true,
+    "SupplierShipment": true,
+    "SupplierShipmentItem": true,
+    "SupplySettlement": true,
+    "StockMovement": true
+  },
+  "blockers": [],
+  "plannedSteps": [
+    "ensure active SupplySupplier",
+    "ensure approved SupplySku and SupplyQuote",
+    "ensure SupplyCatalogMapping to Ami_Core Product",
+    "create or reuse ProcurementOrder",
+    "supplier accepts order",
+    "supplier ships order",
+    "store receives order and writes StockBatch + StockMovement",
+    "generate SupplySettlement"
+  ],
+  "verification": {
+    "complete": false,
+    "order": null,
+    "stockMovements": [],
+    "settlement": null
+  }
+}

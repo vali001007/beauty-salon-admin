@@ -47,11 +47,14 @@ export class InventoryService {
     const availableStock = this.toNonNegativeStock(item.availableStock ?? currentStock - reserved);
     const safetyStock = this.toNonNegativeStock(item.safetyStock);
     const lastBatch = Array.isArray(item.batches) ? item.batches[0] : undefined;
+    const primarySupplier = Array.isArray(item.suppliers) ? item.suppliers[0] : undefined;
+    const supplierName = item.supplier ?? primarySupplier?.supplier?.name ?? '';
     return {
       ...item,
       productName: item.productName ?? item.name,
       storeName: item.storeName ?? item.store?.name ?? '',
       categoryName: item.categoryName ?? item.category?.name ?? '',
+      supplier: supplierName,
       currentStock,
       reserved,
       availableStock,
@@ -280,7 +283,7 @@ export class InventoryService {
       id: true,
       name: true,
       sku: true,
-      unit: true,
+      unit: true, specUnit: true,
       costPrice: true,
       supplier: true,
       currentStock: true,
@@ -290,6 +293,12 @@ export class InventoryService {
       categoryId: true,
       store: { select: { name: true } },
       category: { select: { name: true } },
+      suppliers: {
+        where: { supplier: { status: 'active', deletedAt: null } },
+        select: { supplier: { select: { name: true } } },
+        orderBy: [{ isPrimary: 'desc' as const }, { supplyPrice: 'asc' as const }],
+        take: 1,
+      },
       batches: { select: { createdAt: true }, orderBy: { createdAt: 'desc' as const }, take: 1 },
     };
 
@@ -359,7 +368,7 @@ export class InventoryService {
               name: true,
               sku: true,
               storeId: true,
-              unit: true,
+              unit: true, specUnit: true,
               costPrice: true,
               retailPrice: true,
               supplier: true,
@@ -516,11 +525,20 @@ export class InventoryService {
       const existingBatch = await tx.stockBatch.findFirst({
         where: { productId, batchNo },
       });
+      const existingStock = existingBatch ? this.toNonNegativeStock(existingBatch.stock) : 0;
+      const existingUnitCost = this.toNumber(existingBatch?.unitCost);
+      const existingTotalAmount = this.toNumber(existingBatch?.totalAmount) || existingStock * existingUnitCost;
+      const newBatchStock = existingStock + quantity;
+      const newTotalAmount = existingTotalAmount + totalAmount;
+      const newUnitCost = newBatchStock > 0 ? newTotalAmount / newBatchStock : unitCost;
       const batch = existingBatch
         ? await tx.stockBatch.update({
             where: { id: existingBatch.id },
             data: {
-              stock: this.toNonNegativeStock(existingBatch.stock) + quantity,
+              stock: newBatchStock,
+              unitCost: newUnitCost,
+              totalAmount: newTotalAmount,
+              supplierName: supplier || existingBatch.supplierName,
               ...(productionDate ? { productionDate } : {}),
               ...(expiryDate ? { expiryDate } : {}),
             },
@@ -530,6 +548,9 @@ export class InventoryService {
               productId,
               batchNo,
               stock: quantity,
+              unitCost,
+              totalAmount,
+              supplierName: supplier || undefined,
               productionDate,
               expiryDate,
             },
@@ -550,7 +571,10 @@ export class InventoryService {
           quantity,
           beforeStock,
           afterStock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
+          unitCost,
+          costAmount: totalAmount,
+          costSource: 'inbound_cost',
           sourceType: 'stock_batch',
           sourceId: batch.id,
           sourceNo: batchNo,
@@ -658,7 +682,7 @@ export class InventoryService {
           quantity: signedQuantity,
           beforeStock,
           afterStock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           sourceType,
           sourceId: product.id,
           sourceNo: batch?.batchNo ?? product.sku,
@@ -694,7 +718,7 @@ export class InventoryService {
         where,
         include: {
           store: { select: { id: true, name: true } },
-          product: { select: { id: true, name: true, sku: true, unit: true } },
+          product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true } },
           batch: { select: { id: true, batchNo: true } },
           operator: { select: { id: true, name: true, username: true } },
         },
@@ -871,7 +895,7 @@ export class InventoryService {
             quantity: receiveQty,
             beforeStock,
             afterStock,
-            unit: product.unit,
+            unit: product.specUnit ?? product.unit,
             sourceType: 'purchase_order',
             sourceId: order.id,
             sourceNo: order.orderNo,
@@ -917,7 +941,7 @@ export class InventoryService {
         name: true,
         currentStock: true,
         safetyStock: true,
-        unit: true,
+        unit: true, specUnit: true,
         store: { select: { id: true, name: true } },
       },
       orderBy: [{ sku: 'asc' }, { storeId: 'asc' }],
@@ -965,8 +989,8 @@ export class InventoryService {
             targetStock: targetCurrent,
             safetyStock: targetSafety,
             suggestedQty,
-            unit: target.unit ?? source.unit,
-            reason: `${target.store?.name ?? '目标门店'}库存 ${targetCurrent}，低于安全库存 ${targetSafety}；${source.store?.name ?? '来源门店'}库存 ${sourceCurrent}，高于安全库存 4 倍，可调拨 ${suggestedQty}${target.unit ?? ''}。`,
+            unit: target.specUnit ?? source.specUnit ?? target.unit ?? source.unit,
+            reason: `${target.store?.name ?? '目标门店'}库存 ${targetCurrent}，低于安全库存 ${targetSafety}；${source.store?.name ?? '来源门店'}库存 ${sourceCurrent}，高于安全库存 4 倍，可调拨 ${suggestedQty}${target.specUnit ?? target.unit ?? ''}。`,
           });
           break;
         }
@@ -1106,7 +1130,7 @@ export class InventoryService {
             quantity: -appliedQty,
             beforeStock: fromBefore,
             afterStock: fromAfter,
-            unit: fromProduct.unit,
+            unit: fromProduct.specUnit ?? fromProduct.unit,
             sourceType: 'transfer_order',
             sourceId: order.id,
             sourceNo: order.orderNo,
@@ -1131,7 +1155,7 @@ export class InventoryService {
             quantity: appliedQty,
             beforeStock: toBefore,
             afterStock: toAfter,
-            unit: toProduct.unit,
+            unit: toProduct.specUnit ?? toProduct.unit,
             sourceType: 'transfer_order',
             sourceId: order.id,
             sourceNo: order.orderNo,
@@ -1153,17 +1177,7 @@ export class InventoryService {
     const where: any = { deletedAt: null };
     if (storeId) where.storeId = storeId;
 
-    const products = await this.prisma.product.findMany({
-      where,
-      include: {
-        suppliers: {
-          where: { supplier: { status: 'active', deletedAt: null } },
-          include: { supplier: { select: { id: true, name: true } } },
-          orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
-          take: 1,
-        },
-      },
-    });
+    const products = await this.prisma.product.findMany({ where });
 
     const productIds = products.map((product) => product.id);
     const thirtyDaysAgo = new Date();
@@ -1189,6 +1203,7 @@ export class InventoryService {
     ]);
     const consumptionByProduct = this.getConsumptionStats(consumptionMovements, productIds);
     const manualInTransitBySku = this.getManualPurchaseInTransitBySku(manualPurchaseOrders);
+    const now = new Date();
     const platformMappings = productIds.length
       ? await this.prisma.supplyCatalogMapping.findMany({
           where: {
@@ -1205,7 +1220,8 @@ export class InventoryService {
                     status: 'active',
                     auditStatus: 'approved',
                     deletedAt: null,
-                    OR: [{ validTo: null }, { validTo: { gte: new Date() } }],
+                    stockStatus: { notIn: ['out_of_stock', 'unavailable'] },
+                    AND: [{ OR: [{ validFrom: null }, { validFrom: { lte: now } }] }, { OR: [{ validTo: null }, { validTo: { gte: now } }] }],
                   },
                   orderBy: [{ price: 'asc' }],
                   take: 1,
@@ -1218,22 +1234,26 @@ export class InventoryService {
       : [];
     const mappingByProduct = new Map<number, (typeof platformMappings)[number]>();
     for (const mapping of platformMappings) {
-      if (mapping.productId && !mappingByProduct.has(mapping.productId)) mappingByProduct.set(mapping.productId, mapping);
+      if (!mapping.productId) continue;
+      const current = mappingByProduct.get(mapping.productId);
+      const hasQuote = (mapping.supplySku?.quotes?.length ?? 0) > 0;
+      const currentHasQuote = (current?.supplySku?.quotes?.length ?? 0) > 0;
+      if (!current || (!currentHasQuote && hasQuote)) mappingByProduct.set(mapping.productId, mapping);
     }
 
     const suggestions = products
       .map((product) => {
-        const primarySupplier = product.suppliers?.[0];
         const platformMapping = mappingByProduct.get(product.id);
         const platformSku = platformMapping?.supplySku;
         const platformQuote = platformSku?.quotes?.[0];
+        const platformAvailable = Boolean(platformSku && platformQuote);
         const currentStock = this.toNonNegativeStock(product.currentStock);
         const safetyStock = this.toNonNegativeStock(product.safetyStock);
         const platformInTransit = platformInTransitByProduct.get(product.id) ?? 0;
         const manualInTransit = manualInTransitBySku.get(product.sku) ?? 0;
         const inTransit = platformInTransit + manualInTransit;
-        const moq = platformQuote?.moq ?? primarySupplier?.moq ?? product.minPurchaseQty ?? null;
-        const leadDays = platformQuote?.leadDays ?? primarySupplier?.leadDays ?? null;
+        const moq = platformAvailable ? platformQuote?.moq : product.minPurchaseQty ?? null;
+        const leadDays = platformAvailable ? platformQuote?.leadDays : null;
         const consumption = consumptionByProduct.get(product.id) ?? { consumed7Days: 0, consumed30Days: 0 };
         const decision = this.buildReplenishmentDecision({
           currentStock,
@@ -1244,10 +1264,14 @@ export class InventoryService {
           moq,
           leadDays,
         });
-        const supplyPrice = Number(platformQuote?.price ?? primarySupplier?.supplyPrice ?? product.costPrice ?? 0);
-        const supplierId = platformSku?.supplierId ?? primarySupplier?.supplierId;
-        const supplierName = platformSku?.supplier?.name ?? primarySupplier?.supplier?.name ?? product.supplier ?? '默认供应商';
-        const availabilityStatus = platformQuote ? 'platform_available' : primarySupplier ? 'legacy_supplier_available' : 'manual_purchase';
+        const supplyPrice = Number(platformAvailable ? platformQuote?.price : product.costPrice ?? 0);
+        const supplierId = platformAvailable ? platformSku?.supplierId : undefined;
+        const supplierName = platformAvailable ? platformSku?.supplier?.name : product.supplier ?? '手动采购';
+        const availabilityStatus = platformAvailable
+          ? 'platform_available'
+          : platformMapping
+            ? 'platform_mapped_no_quote'
+            : 'manual_purchase';
         const reasonParts = [
           `当前库存 ${currentStock}`,
           `安全库存 ${safetyStock}`,
@@ -1275,18 +1299,21 @@ export class InventoryService {
           platformInTransit,
           manualInTransit,
           suggestedQty: decision.suggestedQty,
+          mappingId: platformMapping?.id,
           supplierId,
           supplier: supplierName,
           supplierName,
-          supplySkuId: platformSku?.id,
-          supplySkuName: platformSku?.name,
-          quoteId: platformQuote?.id,
+          supplySkuId: platformAvailable ? platformSku?.id : undefined,
+          supplySkuName: platformAvailable ? platformSku?.name : undefined,
+          quoteId: platformAvailable ? platformQuote?.id : undefined,
           supplyPrice,
           moq,
           leadDays,
           estimatedAmount: decision.suggestedQty * supplyPrice,
           reason: reasonParts.join('，'),
           availabilityStatus,
+          canCreatePlatformOrder: platformAvailable,
+          canCreateManualOrder: !platformAvailable,
         };
       })
       .filter((item) => item.suggestedQty > 0);

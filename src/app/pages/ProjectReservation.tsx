@@ -37,6 +37,7 @@ interface Reservation {
   createTime: string;
   customerPhone?: string;
   remark?: string;
+  sourceLabel?: string;
 }
 
 interface ReservationFormState {
@@ -690,6 +691,7 @@ export function ProjectReservation() {
                 <TableHead>美容师</TableHead>
                 <TableHead>预约时间</TableHead>
                 <TableHead>状态</TableHead>
+                <TableHead>来源</TableHead>
                 <TableHead>创建时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -714,6 +716,11 @@ export function ProjectReservation() {
                         className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-md border ${statusConfig.color}`}
                       >
                         {statusConfig.text}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-md border ${reservation.sourceLabel === 'Ami Glow H5' ? 'border-pink-200 bg-pink-50 text-pink-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                        {reservation.sourceLabel || '管理端'}
                       </span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{reservation.createTime}</TableCell>
@@ -957,6 +964,10 @@ export function ProjectReservation() {
               <div>
                 <span className="text-gray-500">预约时间：</span>
                 {viewReservation.appointmentTime}
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-500">来源：</span>
+                {viewReservation.sourceLabel || '管理端'}
               </div>
               <div className="col-span-2">
                 <span className="text-gray-500">备注：</span>

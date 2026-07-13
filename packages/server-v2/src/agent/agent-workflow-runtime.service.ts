@@ -46,6 +46,7 @@ export class AgentWorkflowRuntimeService {
     role?: string;
     personaCode?: string;
     entrypoint?: string;
+    agentCode?: string;
     keyword?: string;
     storeId?: number;
   }) {
@@ -58,6 +59,7 @@ export class AgentWorkflowRuntimeService {
       ...(query.role ? { role: String(query.role) } : {}),
       ...(query.personaCode ? { personaCode: String(query.personaCode) } : {}),
       ...(query.entrypoint ? { entrypoint: String(query.entrypoint) } : {}),
+      ...(query.agentCode ? { agentCode: String(query.agentCode) } : {}),
       ...(keyword
         ? {
             OR: [

@@ -18,11 +18,17 @@ import type {
   BusinessQueryPlannerTrace,
   BusinessQueryResponse,
   BusinessQueryRole,
+  BusinessQueryRuntimeBoundary,
 } from './business-query.types.js';
 
 const DAY_MS = 86_400_000;
 const PAID_ORDER_STATUSES = ['completed', 'paid', '已完成', '已付款'];
 const CANCELLED_ORDER_STATUSES = ['cancelled', 'canceled', 'refunded', '已取消', '已退款'];
+const BUSINESS_QUERY_LEGACY_BOUNDARY: BusinessQueryRuntimeBoundary = {
+  family: 'agent_v1_legacy',
+  lifecycle: 'legacy_internal',
+  note: '旧 business-query/semantic-* 问数底座，仅作为 Agent V1 内部遗留能力保留；新智能体能力应进入 Agent V3 或 Agent V2 能力中心。',
+};
 
 @Injectable()
 export class BusinessQueryService {
@@ -35,7 +41,13 @@ export class BusinessQueryService {
   ) {}
 
   capabilities(role?: BusinessQueryRole) {
-    return BUSINESS_QUERY_CAPABILITIES.filter((item) => !role || item.allowedRoles.includes(role));
+    return BUSINESS_QUERY_CAPABILITIES
+      .filter((item) => !role || item.allowedRoles.includes(role))
+      .map((item) => ({
+        ...item,
+        runtimeFamily: BUSINESS_QUERY_LEGACY_BOUNDARY.family,
+        runtimeBoundary: BUSINESS_QUERY_LEGACY_BOUNDARY,
+      }));
   }
 
   async ask(params: { question: string; storeId: number; role?: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext }) {
@@ -43,26 +55,28 @@ export class BusinessQueryService {
     const role = params.role ?? 'manager';
     const knowledgeQueryResponse = await this.tryKnowledgeQueryFirst(params, role);
     if (knowledgeQueryResponse) {
+      const response = this.withLegacyRuntimeMetadata(knowledgeQueryResponse);
       await this.logAudit({
-        queryPlan: knowledgeQueryResponse.queryPlan,
-        response: knowledgeQueryResponse,
+        queryPlan: response.queryPlan,
+        response,
         operatorId: params.operatorId,
         storeId: params.storeId,
         latencyMs: Date.now() - startedAt,
       });
-      return knowledgeQueryResponse;
+      return response;
     }
 
     const unifiedQueryResponse = await this.tryUnifiedSemanticQueryFirst(params, role);
     if (unifiedQueryResponse) {
+      const response = this.withLegacyRuntimeMetadata(unifiedQueryResponse);
       await this.logAudit({
-        queryPlan: unifiedQueryResponse.queryPlan,
-        response: unifiedQueryResponse,
+        queryPlan: response.queryPlan,
+        response,
         operatorId: params.operatorId,
         storeId: params.storeId,
         latencyMs: Date.now() - startedAt,
       });
-      return unifiedQueryResponse;
+      return response;
     }
 
     const queryPlan = this.resolve({
@@ -177,6 +191,7 @@ export class BusinessQueryService {
           }
         }
       }
+      response = this.withLegacyRuntimeMetadata(response);
       await this.logAudit({ queryPlan, response, operatorId: params.operatorId, storeId: params.storeId, latencyMs: Date.now() - startedAt });
       return response;
     } catch (error) {
@@ -191,6 +206,14 @@ export class BusinessQueryService {
       });
       throw error;
     }
+  }
+
+  private withLegacyRuntimeMetadata(response: BusinessQueryResponse): BusinessQueryResponse {
+    return {
+      ...response,
+      runtimeFamily: BUSINESS_QUERY_LEGACY_BOUNDARY.family,
+      runtimeBoundary: BUSINESS_QUERY_LEGACY_BOUNDARY,
+    };
   }
 
   private async tryKnowledgeQueryFirst(
@@ -522,10 +545,69 @@ export class BusinessQueryService {
       role: params.role,
       context: params.context as Record<string, unknown> | undefined,
     });
+    const forcedCapability = this.resolveForcedCapability(params.context);
+    if (forcedCapability) {
+      return this.forcedCapabilityPlan(params, forcedCapability, parsed?.task);
+    }
     if (parsed && parsed.task.domain !== 'unknown' && parsed.task.taskType !== 'clarify' && parsed.task.metrics.length) {
       return this.businessQueryPlanFromBusinessTask(parsed.task, params, params.role);
     }
     return this.legacyResolve(params, parsed ? 'business_task_preparser_no_executable_plan' : 'business_task_preparser_unavailable');
+  }
+
+  private resolveForcedCapability(context?: BusinessQueryContext): BusinessQueryCapabilityId | null {
+    const capabilityId = context?.forcedCapabilityId;
+    if (!capabilityId || capabilityId === 'unsupported') return null;
+    return getBusinessQueryCapability(capabilityId) ? capabilityId : null;
+  }
+
+  private forcedCapabilityPlan(
+    params: { question: string; storeId: number; role: BusinessQueryRole; operatorId?: number; context?: BusinessQueryContext },
+    capability: BusinessQueryCapabilityId,
+    task?: BusinessTask,
+  ): BusinessQueryPlan {
+    const capabilityDefinition = getBusinessQueryCapability(capability);
+    const domain = params.context?.forcedDomain ?? capabilityDefinition?.domain ?? this.businessQueryDomainFromTaskDomain(task?.domain ?? 'unknown');
+    const text = this.normalize(params.question);
+    const dateRange = this.resolveDateRange(text, capability);
+    const contextProductIds = this.extractContextProductIds(params.context);
+    const requestId = `bq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+    return {
+      requestId,
+      originalQuestion: params.question,
+      domain,
+      capability,
+      intent: 'query',
+      metrics: task?.metrics.length ? task.metrics : this.metricsForCapability(capability),
+      dimensions: task?.entities.length ? task.entities.map((entity) => entity.type).filter((item) => item !== 'metric') : this.dimensionsForCapability(capability),
+      filters: {
+        ...(task?.filters ?? {}),
+        storeId: params.storeId,
+        role: params.role,
+        operatorId: params.operatorId,
+        contextProductIds,
+        contextCapability: params.context?.previousResponse?.capability,
+        dateRange,
+        status: PAID_ORDER_STATUSES,
+      },
+      sort: task?.sort?.[0] ?? this.sortForCapability(capability),
+      limit: task?.limit ?? this.getDefaultLimit(capability),
+      needClarification: false,
+      clarificationQuestion: null,
+      plannerTrace: {
+        parserVersion: task ? 'business-task-preparser' : 'legacy-rule',
+        entityMatches: [],
+        actionIntent: task?.outputMode,
+        capabilityId: this.mapBusinessQueryCapabilityToUnifiedCapability(capability),
+        queryTemplateId: capability,
+        executionPath: 'knowledge_graph',
+        fallbackReason: 'forced_capability_from_skill',
+        schemaPath: [domain],
+        confidence: Math.max(task?.confidence ?? 0.5, 0.8),
+      },
+      fallbackReason: 'forced_capability_from_skill',
+    };
   }
 
   private legacyResolve(
@@ -855,7 +937,7 @@ export class BusinessQueryService {
     const products = productIds.length
       ? await this.prisma.product.findMany({
           where: { id: { in: productIds }, storeId, deletedAt: null },
-          select: { id: true, name: true, currentStock: true, safetyStock: true, unit: true },
+          select: { id: true, name: true, currentStock: true, safetyStock: true, unit: true, specUnit: true },
         })
       : [];
     const productById = new Map(products.map((item: any) => [Number(item.id), item]));
@@ -1180,7 +1262,7 @@ export class BusinessQueryService {
         name: true,
         price: true,
         duration: true,
-        bomItems: { select: { standardQty: true, unit: true, product: { select: { id: true, name: true, costPrice: true, unit: true } } } },
+        bomItems: { select: { standardQty: true, unit: true, product: { select: { id: true, name: true, costPrice: true, unit: true, specUnit: true } } } },
       },
       take: 500,
     });
@@ -1527,7 +1609,7 @@ export class BusinessQueryService {
     }
     const products = await this.prisma.product.findMany({
       where: { storeId, deletedAt: null, ...(contextProductIds.length ? { id: { in: contextProductIds } } : {}) },
-      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
+      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
       orderBy: { currentStock: 'asc' },
       take: 120,
     });
@@ -1538,7 +1620,7 @@ export class BusinessQueryService {
         sku: product.sku,
         currentStock: this.toNumber(product.currentStock),
         safetyStock: this.toNumber(product.safetyStock),
-        unit: product.unit,
+        unit: product.specUnit ?? product.unit,
         status: product.status,
         stockGap: this.toNumber(product.safetyStock) - this.toNumber(product.currentStock),
         stockEnough: this.toNumber(product.currentStock) > this.toNumber(product.safetyStock),
@@ -1583,7 +1665,7 @@ export class BusinessQueryService {
         stock: true,
         productionDate: true,
         expiryDate: true,
-        product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, safetyStock: true, status: true } },
+        product: { select: { id: true, name: true, sku: true, unit: true, specUnit: true, currentStock: true, safetyStock: true, status: true } },
       },
       orderBy: [{ expiryDate: 'asc' }, { stock: 'desc' }],
       take: Math.max(queryPlan.limit, 20),
@@ -1649,7 +1731,7 @@ export class BusinessQueryService {
     const [products, orderItems] = await Promise.all([
       this.prisma.product.findMany({
         where: { storeId, deletedAt: null },
-        select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
+        select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
         take: 1000,
       }),
       this.prisma.orderItem.findMany({
@@ -1690,7 +1772,7 @@ export class BusinessQueryService {
           sku: product.sku,
           currentStock,
           safetyStock,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           salesQuantity: sales.salesQuantity,
           salesAmount: sales.salesAmount,
           orderCount: sales.orderIds.size,
@@ -3395,18 +3477,25 @@ export class BusinessQueryService {
           sku: true,
           currentStock: true,
           safetyStock: true,
-          unit: true,
+          unit: true, specUnit: true,
           costPrice: true,
           supplier: true,
           minPurchaseQty: true,
-          suppliers: {
-            where: { supplier: { status: 'active', deletedAt: null } },
+          supplyMappings: {
+            where: { storeId, mappingStatus: 'active', supplySku: { supplier: { status: 'active', deletedAt: null } } },
             select: {
-              supplyPrice: true,
-              moq: true,
-              leadDays: true,
-              isPrimary: true,
-              supplier: { select: { id: true, name: true, paymentTerms: true } },
+              isPreferred: true,
+              supplySku: {
+                select: {
+                  supplier: { select: { id: true, name: true, paymentTerms: true } },
+                  quotes: {
+                    where: { status: 'active', auditStatus: 'approved', deletedAt: null },
+                    orderBy: [{ validFrom: 'desc' }, { id: 'desc' }],
+                    take: 1,
+                    select: { id: true, price: true, moq: true, leadDays: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -3427,40 +3516,43 @@ export class BusinessQueryService {
     }
     const items = (products as any[])
       .map((product) => {
-        const supplier = [...(product.suppliers ?? [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))[0];
+        const mapping = [...(product.supplyMappings ?? [])].sort((a: any, b: any) => Number(b.isPreferred) - Number(a.isPreferred))[0];
+        const legacySupplier = [...(product.suppliers ?? [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))[0];
+        const supplier = mapping?.supplySku?.supplier ?? legacySupplier?.supplier;
+        const quote = mapping?.supplySku?.quotes?.[0] ?? legacySupplier;
         const currentStock = this.toNumber(product.currentStock);
         const safetyStock = this.toNumber(product.safetyStock);
         const salesQuantity = salesByProduct.get(Number(product.id)) ?? 0;
         const suggestedBase = Math.max(0, safetyStock - currentStock, Math.ceil((salesQuantity / 30) * 14) - currentStock);
-        const moq = Number(supplier?.moq ?? product.minPurchaseQty ?? 0);
+        const moq = Number(quote?.moq ?? product.minPurchaseQty ?? 0);
         const suggestedQty = moq > 0 ? Math.max(suggestedBase, moq) : suggestedBase;
-        const supplyPrice = this.toNumber(supplier?.supplyPrice ?? product.costPrice);
+        const supplyPrice = this.toNumber(quote?.price ?? quote?.supplyPrice ?? product.costPrice);
         return {
           productId: product.id,
           productName: product.name,
           sku: product.sku,
-          supplierId: supplier?.supplier?.id,
-          supplierName: supplier?.supplier?.name ?? product.supplier ?? '未配置供应商',
+          supplierId: supplier?.id,
+          supplierName: supplier?.name ?? product.supplier ?? '未配置供应商',
           currentStock,
           safetyStock,
           salesQuantity,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           suggestedQty,
           moq,
-          leadDays: supplier?.leadDays ?? null,
+          leadDays: quote?.leadDays ?? null,
           supplyPrice,
           estimatedAmount: suggestedQty * supplyPrice,
-          priorityScore: suggestedBase * 10 + salesQuantity + (supplier?.isPrimary ? 5 : 0),
+          priorityScore: suggestedBase * 10 + salesQuantity + (mapping?.isPreferred || legacySupplier?.isPrimary ? 5 : 0),
         };
       })
       .filter((item) => item.suggestedQty > 0)
       .sort((a, b) => b.priorityScore - a.priorityScore)
       .slice(0, queryPlan.limit);
     const evidence = this.buildEvidence({
-      source: ['Product', 'ProductSupplier', 'Supplier', 'OrderItem'],
-      metricDefinition: '供应链采购建议 = 补货需求结合主供应商、供货价、起订量和交期生成采购优先级。',
+      source: ['Product', 'SupplyCatalogMapping', 'SupplyQuote', 'SupplySupplier', 'OrderItem'],
+      metricDefinition: '供应链采购建议 = 补货需求结合平台供货映射、供货价、起订量和交期生成采购优先级。',
       dateRange: this.formatRange(start, end),
-      filters: ['storeId=当前门店', 'Supplier.status=active', 'OrderItem.itemType=product'],
+      filters: ['storeId=当前门店', 'SupplyCatalogMapping.mappingStatus=active', 'OrderItem.itemType=product'],
       sampleSize: products.length + orderItems.length,
       limitations: ['仅生成采购建议，不自动创建采购单；未配置供应商的商品会标记为未配置供应商。'],
     });

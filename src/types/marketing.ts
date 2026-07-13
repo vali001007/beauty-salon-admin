@@ -5,7 +5,7 @@ export interface MarketingActivity {
   title: string;
   description: string;
   image: string;
-  status: '进行中' | '即将开始' | '已结束' | '草稿';
+  status: MarketingActivityStatus;
   participants: number;
   conversion: string;
   startDate: string;
@@ -64,8 +64,21 @@ export interface MarketingRecommendation {
   image: string;
   tags: string[];
   category: string;
-  source?: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project';
-  recommendationType?: 'product_expiry_clearance' | 'project_idle_capacity' | 'product_replenishment' | 'project_cycle_due' | string;
+  source?: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project' | 'customer_lifecycle';
+  recommendationType?:
+    | 'product_expiry_clearance'
+    | 'project_idle_capacity'
+    | 'product_replenishment'
+    | 'project_cycle_due'
+    | 'homecare_bundle'
+    | 'service_upgrade'
+    | 'inventory_clearance'
+    | 'care_cycle_due'
+    | 'card_expiring'
+    | 'dormant_winback'
+    | 'coupon_claimed_unused'
+    | 'browse_abandonment'
+    | string;
   recommendationKey?: string;
   predictionRunId?: number;
   modelVersion?: string;
@@ -96,6 +109,22 @@ export interface MarketingRecommendation {
   expectedLossAvoided?: string;
   riskWarnings?: string[];
   executionState?: RecommendationExecutionState;
+  opportunityIds?: number[];
+  fulfillment?: RecommendationFulfillmentSummary;
+  attributionSummary?: RecommendationAttributionSummary;
+}
+
+export type MarketingActivityStatus = 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
+
+export interface RecommendationFulfillmentSummary {
+  inventoryReady: boolean;
+  capacityReady: boolean;
+  latestChecks?: Array<Record<string, unknown>>;
+}
+
+export interface RecommendationAttributionSummary {
+  eventCount: number;
+  hasAttribution: boolean;
 }
 
 export interface RecommendationActionExecutionState {
@@ -335,6 +364,8 @@ export interface PredictionRunSummary {
 }
 
 export type MarketingEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'recommendation' | 'glow';
+export type MarketingMetricSource = 'actual' | 'predicted' | 'estimated';
+export type MarketingMetric = { value: number; source: MarketingMetricSource; definition: string };
 
 export interface UnifiedMarketingEffectItem {
   id: string;
@@ -355,6 +386,12 @@ export interface UnifiedMarketingEffectItem {
   detailPath?: string;
   emptyReason?: string;
   metricsSource: string;
+  metrics?: {
+    exposure: MarketingMetric;
+    conversion: MarketingMetric;
+    revenue: MarketingMetric;
+    cost: MarketingMetric;
+  };
   relatedObjectName?: string;
   audienceName?: string;
   promotionName?: string;
@@ -393,7 +430,9 @@ export type MarketingTriggerType =
   | 'holiday'
   | 'seasonal'
   | 'care_cycle'
+  | 'care_cycle_due'
   | 'card_expiry'
+  | 'card_expiring'
   | 'coupon_expiry'
   | 'coupon_claimed_unused'
   | 'browse_abandonment'
@@ -415,6 +454,7 @@ export type MarketingTriggerType =
   | 'visit_gap'
   | 'service_interest'
   | 'dormant'
+  | 'dormant_winback'
   | 'member_level'
   | 'new_customer'
   | 'skin_type'

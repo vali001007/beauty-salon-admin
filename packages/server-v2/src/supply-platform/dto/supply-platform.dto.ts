@@ -399,6 +399,49 @@ export class CreateSupplyCatalogMappingDto {
   isPreferred?: boolean;
 }
 
+export class QuerySupplyCatalogMappingsDto extends SupplyPlatformPaginationDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  productId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  storeId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  supplySkuId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  standardProductTemplateId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  mappingStatus?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  keyword?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  purchasableStatus?: string;
+}
+
+export class UpdateSupplyCatalogMappingDto extends PartialType(CreateSupplyCatalogMappingDto) {}
+
 export class QueryProcurementOrdersDto extends SupplyPlatformPaginationDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -487,6 +530,61 @@ export class CreateProcurementOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateProcurementOrderItemDto)
   items: CreateProcurementOrderItemDto[];
+}
+
+export class CreateReplenishmentProcurementOrderItemDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  productId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  mappingId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  supplySkuId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  quoteId?: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity: number;
+}
+
+export class CreateProcurementOrdersFromReplenishmentDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  storeId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expectedArrivalDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sourceNo?: string;
+
+  @ApiProperty({ type: [CreateReplenishmentProcurementOrderItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateReplenishmentProcurementOrderItemDto)
+  items: CreateReplenishmentProcurementOrderItemDto[];
 }
 
 export class UpdateProcurementOrderStatusDto {

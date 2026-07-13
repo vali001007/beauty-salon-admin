@@ -14,7 +14,15 @@ import type {
   MarketingTriggerOption,
   MarketingTriggerRule,
   CustomerPredictionSnapshot,
+  CustomerLifecycleContext,
+  CustomerLifecycleQualitySnapshot,
+  CustomerLifecycleRuleVersion,
+  CustomerOpportunity,
+  CustomerOpportunityFulfillmentCheck,
+  CustomerServiceCycleState,
   InvitationCandidateResponse,
+  LifecycleAttributionEvent,
+  LifecycleBusinessPlan,
   PredictionRunSummary,
   UnifiedMarketingEffectsResponse,
 } from '@/types';
@@ -256,6 +264,111 @@ export async function realGetCustomerPrediction(customerId: number): Promise<{
   history: Array<Pick<CustomerPredictionSnapshot, 'id' | 'runId' | 'churnScore' | 'repurchase30dScore' | 'marketingResponseScore' | 'ltv6m' | 'ltv12m' | 'createdAt'>>;
 }> {
   return apiClient.get(`/marketing/predictions/customers/${customerId}`);
+}
+
+export async function realRebuildCustomerLifecycleOntology(data: {
+  storeId?: number;
+  predictionRunId?: number;
+  includeServiceCycles?: boolean;
+  includeFulfillmentChecks?: boolean;
+  includeAttribution?: boolean;
+} = {}): Promise<{
+  rebuilt: boolean;
+  reason?: string | null;
+  predictionRunId?: number | null;
+  snapshotCount: number;
+  opportunityCount: number;
+  serviceCycleCount?: number;
+  fulfillmentCheckCount?: number;
+  attributionEventCount?: number;
+}> {
+  return apiClient.post('/marketing/lifecycle/rebuild', data);
+}
+
+export async function realGetCustomerLifecycleOpportunities(
+  params: PaginationParams & {
+    opportunityType?: string;
+    priority?: string;
+    status?: string;
+    customerId?: number;
+    inventoryReady?: boolean;
+    capacityReady?: boolean;
+    projectId?: number;
+    hasAttribution?: boolean;
+  },
+): Promise<PaginatedResponse<CustomerOpportunity>> {
+  return apiClient.get('/marketing/lifecycle/opportunities', { params });
+}
+
+export async function realGetCustomerLifecycleContext(customerId: number): Promise<CustomerLifecycleContext | null> {
+  return apiClient.get(`/marketing/lifecycle/customers/${customerId}`);
+}
+
+export async function realGetCustomerLifecycleServiceCycles(
+  params: PaginationParams & {
+    customerId?: number;
+    projectId?: number;
+    dueBefore?: string;
+  },
+): Promise<PaginatedResponse<CustomerServiceCycleState>> {
+  return apiClient.get('/marketing/lifecycle/service-cycles', { params });
+}
+
+export async function realGetCustomerLifecycleOpportunityFulfillment(
+  opportunityId: number,
+): Promise<CustomerOpportunityFulfillmentCheck[]> {
+  return apiClient.get(`/marketing/lifecycle/opportunities/${opportunityId}/fulfillment`);
+}
+
+export async function realGetCustomerLifecycleAttribution(params?: {
+  customerId?: number;
+  opportunityId?: number;
+  recommendationKey?: string;
+  eventType?: string;
+}): Promise<LifecycleAttributionEvent[]> {
+  return apiClient.get('/marketing/lifecycle/attribution', { params });
+}
+
+export async function realGetCustomerLifecycleQuality(storeId?: number): Promise<CustomerLifecycleQualitySnapshot | null> {
+  return apiClient.get('/marketing/lifecycle/quality', { params: storeId ? { storeId } : undefined });
+}
+
+export async function realGetCustomerLifecycleRules(params?: {
+  ruleType?: string;
+  status?: string;
+}): Promise<CustomerLifecycleRuleVersion[]> {
+  return apiClient.get('/marketing/lifecycle/rules', { params });
+}
+
+export async function realCreateCustomerLifecycleRule(data: {
+  ruleType: string;
+  ruleJson: Record<string, unknown>;
+  rolloutRatio?: number;
+  changeLog?: string;
+  storeId?: number;
+}): Promise<CustomerLifecycleRuleVersion> {
+  return apiClient.post('/marketing/lifecycle/rules', data);
+}
+
+export async function realPublishCustomerLifecycleRule(id: number): Promise<CustomerLifecycleRuleVersion> {
+  return apiClient.post(`/marketing/lifecycle/rules/${id}/publish`);
+}
+
+export async function realRollbackCustomerLifecycleRule(id: number): Promise<CustomerLifecycleRuleVersion> {
+  return apiClient.post(`/marketing/lifecycle/rules/${id}/rollback`);
+}
+
+export async function realCreateLifecycleBusinessPlan(data: {
+  storeId?: number;
+  planPeriod?: string;
+  title?: string;
+  goalsJson?: Record<string, unknown>;
+} = {}): Promise<LifecycleBusinessPlan> {
+  return apiClient.post('/marketing/lifecycle/business-plans', data);
+}
+
+export async function realSubmitLifecycleBusinessPlanActions(id: number): Promise<LifecycleBusinessPlan> {
+  return apiClient.post(`/marketing/lifecycle/business-plans/${id}/submit-actions`);
 }
 
 export async function realGetInvitationCandidates(params?: {

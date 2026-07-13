@@ -4,9 +4,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CommissionController, TerminalCommissionController } from './commission.controller.js';
 import { CommissionService } from './commission.service.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
+import { FinanceMetricsModule } from '../finance-metrics/finance-metrics.module.js';
 
 @Module({
   imports: [
+    FinanceMetricsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

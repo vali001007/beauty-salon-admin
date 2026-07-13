@@ -6,9 +6,12 @@ type ApiProduct = Omit<Partial<Product>, 'status'> & {
   category?: { id?: number; name?: string };
   store?: { name?: string };
   status?: Product['status'] | 'active' | 'inactive' | 'disabled';
+  unit?: string | null;
   salePrice?: number | string | null;
   discountRate?: number | string | null;
   miniappPublishedAt?: string | Date | null;
+  industrySource?: Product['industrySource'];
+  supplyMapping?: Product['supplyMapping'];
 };
 type ApiCategory = Partial<Category> & {
   _count?: { products?: number };
@@ -25,7 +28,9 @@ function normalizeProduct(item: ApiProduct): Product {
     sku: item.sku ?? '',
     brand: item.brand ?? '',
     spec: item.spec ?? '',
-    unit: (item.unit ?? '瓶') as Product['unit'],
+    specQuantity: item.specQuantity === undefined || item.specQuantity === null ? null : Number(item.specQuantity),
+    specUnit: item.specUnit ?? null,
+    packageUnit: item.packageUnit ?? item.unit ?? '瓶',
     costPrice: Number(item.costPrice ?? 0),
     retailPrice: Number(item.retailPrice ?? 0),
     shelfLife: Number(item.shelfLife ?? 0),
@@ -41,12 +46,25 @@ function normalizeProduct(item: ApiProduct): Product {
     salesDescription: item.salesDescription ?? null,
     miniappStatus: item.miniappStatus ?? 'unpublished',
     miniappPublishedAt: item.miniappPublishedAt ? String(item.miniappPublishedAt) : null,
+    industrySource: item.industrySource ?? null,
+    supplyMapping: item.supplyMapping ?? {
+      mappingId: null,
+      mappingStatus: null,
+      supplySkuId: null,
+      supplierName: null,
+      latestQuotePrice: null,
+      moq: null,
+      leadDays: null,
+      stockStatus: null,
+      availabilityStatus: 'not_mapped',
+    },
   };
 }
 
 function normalizeProductPayload(data: Omit<Product, 'id' | 'sku'> | Partial<Product>) {
   const payload = { ...data } as Record<string, unknown>;
   delete payload.categoryName;
+  delete payload.unit;
   payload.status =
     data.status === '在售'
       ? 'active'

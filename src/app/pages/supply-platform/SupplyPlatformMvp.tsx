@@ -11,20 +11,21 @@ import {
   createSupplySupplier,
   generateSupplySettlement,
   getProcurementOrders,
+  getSupplyCatalogMappings,
   getSupplyQuotes,
   getSupplySettlements,
   getSupplySkus,
   getSupplySuppliers,
   updateProcurementOrderStatus,
 } from '@/api/supplyPlatform';
-import type { ProcurementOrder, SupplyQuote, SupplySettlement, SupplySku, SupplySupplier } from '@/types/supplyPlatform';
+import type { ProcurementOrder, SupplyCatalogMapping, SupplyQuote, SupplySettlement, SupplySku, SupplySupplier } from '@/types/supplyPlatform';
 import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Badge } from '../../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { useAuthStore } from '@/stores/authStore';
 
-type PlatformTab = 'suppliers' | 'skus' | 'quotes' | 'orders' | 'settlements';
+type PlatformTab = 'suppliers' | 'skus' | 'mappings' | 'quotes' | 'orders' | 'settlements';
 type AuditTarget = { kind: 'sku'; item: SupplySku } | { kind: 'quote'; item: SupplyQuote };
 
 const auditLabels: Record<string, string> = {
@@ -75,6 +76,7 @@ export function SupplyPlatformMvp() {
   const [loading, setLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplySupplier[]>([]);
   const [skus, setSkus] = useState<SupplySku[]>([]);
+  const [mappings, setMappings] = useState<SupplyCatalogMapping[]>([]);
   const [quotes, setQuotes] = useState<SupplyQuote[]>([]);
   const [orders, setOrders] = useState<ProcurementOrder[]>([]);
   const [settlements, setSettlements] = useState<SupplySettlement[]>([]);
@@ -99,15 +101,17 @@ export function SupplyPlatformMvp() {
     setLoading(true);
     try {
       const supplierParams = boundSupplierId ? { page: 1, pageSize: 100, supplierId: boundSupplierId } : { page: 1, pageSize: 100 };
-      const [supplierPage, skuPage, quotePage, orderPage, settlementPage] = await Promise.all([
+      const [supplierPage, skuPage, mappingPage, quotePage, orderPage, settlementPage] = await Promise.all([
         getSupplySuppliers({ page: 1, pageSize: 100 }),
         getSupplySkus(supplierParams),
+        getSupplyCatalogMappings({ page: 1, pageSize: 100 }),
         getSupplyQuotes(supplierParams),
         getProcurementOrders(supplierParams),
         getSupplySettlements(supplierParams),
       ]);
       setSuppliers(supplierPage.items);
       setSkus(skuPage.items);
+      setMappings(mappingPage.items);
       setQuotes(quotePage.items);
       setOrders(orderPage.items);
       setSettlements(settlementPage.items);
@@ -333,8 +337,8 @@ export function SupplyPlatformMvp() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">供应链平台 MVP</h1>
-          <p className="mt-1 text-sm text-muted-foreground">供应商自助上架、报价、履约、收货联动和供应商月结的最小闭环。</p>
+          <h1 className="text-xl font-semibold text-foreground">供应链工作台</h1>
+          <p className="mt-1 text-sm text-muted-foreground">统一管理供应商、供货商品、商品映射、报价审核、采购履约和供应商结算。</p>
           {isSupplierAccount ? (
             <p className="mt-1 text-xs text-muted-foreground">当前供应商：{currentUser?.supplySupplierName || `#${boundSupplierId}`}</p>
           ) : null}
@@ -346,12 +350,13 @@ export function SupplyPlatformMvp() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PlatformTab)} className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-gray-100 p-1 md:grid-cols-5">
-          <TabsTrigger value="suppliers">供应商</TabsTrigger>
-          <TabsTrigger value="skus">商品上架</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-gray-100 p-1 md:grid-cols-6">
+          <TabsTrigger value="suppliers">供应商管理</TabsTrigger>
+          <TabsTrigger value="skus">供货商品</TabsTrigger>
+          <TabsTrigger value="mappings">商品映射</TabsTrigger>
           <TabsTrigger value="quotes">报价审核</TabsTrigger>
-          <TabsTrigger value="orders">履约发货</TabsTrigger>
-          <TabsTrigger value="settlements">结算</TabsTrigger>
+          <TabsTrigger value="orders">采购履约</TabsTrigger>
+          <TabsTrigger value="settlements">供应商结算</TabsTrigger>
         </TabsList>
 
         <TabsContent value="suppliers" className="space-y-3">
@@ -443,6 +448,39 @@ export function SupplyPlatformMvp() {
                         </Button>
                       </div>
                     ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TabsContent>
+
+        <TabsContent value="mappings" className="space-y-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>本地产品</TableHead>
+                <TableHead>行业标准品</TableHead>
+                <TableHead>供应 SKU</TableHead>
+                <TableHead>最新报价</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {mappings.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="font-medium">{item.product?.name || '-'}</div>
+                    <div className="text-xs text-muted-foreground">{item.product?.sku || (item.storeId ? `门店 #${item.storeId}` : '全局')}</div>
+                  </TableCell>
+                  <TableCell>{item.industryProductTemplate?.name || '-'}</TableCell>
+                  <TableCell>
+                    <div>{item.supplySku?.name || skuMap.get(item.supplySkuId)?.name || `SKU#${item.supplySkuId}`}</div>
+                    <div className="text-xs text-muted-foreground">{item.supplySku?.supplier?.name || '-'}</div>
+                  </TableCell>
+                  <TableCell>{item.latestQuote ? `${money(item.latestQuote.price)} / MOQ ${item.latestQuote.moq}` : '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant(item.mappingStatus)}>{item.isPreferred ? '首选' : item.mappingStatus}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

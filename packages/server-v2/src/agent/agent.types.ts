@@ -32,6 +32,7 @@ export type AgentToolExecutionContext = {
   userId?: number;
   deviceId?: number;
   role: AgentRole;
+  permissions?: string[];
 };
 
 export type AgentFieldScopeValue = 'visible' | 'masked' | 'hidden' | string;
@@ -76,12 +77,27 @@ export type AgentPhaseOutput = {
 
 export type AgentEvidence = {
   source: string[];
+  sourceModels?: string[];
+  sourceApis?: string[];
   sourceTables?: string[];
+  timeRange?: string;
   dateRange?: string;
+  storeScope?: string;
   metricDefinition: string;
   filters: string[];
   sampleSize?: number;
   limitations?: string[];
+  fieldPolicyApplied?: Record<string, unknown>;
+  queryTraceId?: string;
+  fieldPolicy?: {
+    allowedFields: string[];
+    maskedFields: string[];
+    deniedFields: string[];
+    droppedFields: string[];
+  };
+  evidencePolicy?: Record<string, unknown>;
+  queryTraces?: Record<string, unknown>[];
+  sqlSummaries?: Record<string, unknown>[];
 };
 
 export type AgentToolPlanItem = {

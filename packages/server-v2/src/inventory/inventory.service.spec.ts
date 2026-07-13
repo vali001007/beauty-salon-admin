@@ -99,6 +99,48 @@ describe('InventoryService terminal dashboard cache', () => {
     });
   });
 
+  it('writes inbound cost snapshots to batch and stock movement', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 10,
+      storeId: 2,
+      currentStock: 3,
+      unit: '瓶',
+      costPrice: 12,
+      supplier: '默认供应商',
+    });
+    prisma.stockBatch.findFirst.mockResolvedValue(null);
+    prisma.stockBatch.create.mockResolvedValue({ id: 101, productId: 10, batchNo: 'B-001', stock: 5 });
+
+    await service.inbound({
+      productId: 10,
+      batchNo: 'B-001',
+      quantity: 5,
+      unitCost: 8,
+      totalAmount: 40,
+      supplier: '核心耗材供应商',
+    });
+
+    expect(prisma.stockBatch.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productId: 10,
+        batchNo: 'B-001',
+        stock: 5,
+        unitCost: 8,
+        totalAmount: 40,
+        supplierName: '核心耗材供应商',
+      }),
+    });
+    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        movementType: 'inbound',
+        unitCost: 8,
+        costAmount: 40,
+        costSource: 'inbound_cost',
+        remark: expect.stringContaining('供应商 核心耗材供应商'),
+      }),
+    });
+  });
+
   it('returns non-negative stock values for historical negative products', async () => {
     prisma.product.findMany.mockResolvedValue([
       {
@@ -121,6 +163,45 @@ describe('InventoryService terminal dashboard cache', () => {
         availableStock: 0,
         safetyStock: 0,
         status: '缺货',
+      }),
+    );
+  });
+
+  it('falls back to primary supplier relation for stock supplier display', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 10,
+        name: '射频仪器导入凝胶',
+        sku: 'IND-6-STD-GEL-RF-001',
+        unit: '支',
+        costPrice: 50,
+        supplier: null,
+        currentStock: 100,
+        safetyStock: 10,
+        status: 'active',
+        suppliers: [{ supplier: { name: '核心耗材供应商' } }],
+      },
+    ]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.getStock({ storeId: 1 });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          supplier: true,
+          suppliers: {
+            where: { supplier: { status: 'active', deletedAt: null } },
+            select: { supplier: { select: { name: true } } },
+            orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
+            take: 1,
+          },
+        }),
+      }),
+    );
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        supplier: '核心耗材供应商',
       }),
     );
   });
@@ -164,7 +245,11 @@ describe('InventoryService terminal dashboard cache', () => {
     expect(prisma.stockBatch.create).not.toHaveBeenCalled();
     expect(prisma.stockBatch.update).toHaveBeenCalledWith({
       where: { id: 101 },
-      data: { stock: 9 },
+      data: expect.objectContaining({
+        stock: 9,
+        unitCost: 0,
+        totalAmount: 0,
+      }),
     });
   });
 
@@ -824,14 +909,6 @@ describe('InventoryService terminal dashboard cache', () => {
         costPrice: 20,
         minPurchaseQty: 3,
         supplier: '旧供应商文本',
-        suppliers: [
-          {
-            supplierId: 88,
-            supplyPrice: 18,
-            moq: 12,
-            supplier: { id: 88, name: '正式主供应商' },
-          },
-        ],
       },
     ]);
     prisma.stockMovement.findMany.mockResolvedValue([
@@ -839,20 +916,26 @@ describe('InventoryService terminal dashboard cache', () => {
       { productId: 10, quantity: -4, movementType: 'service_consume', occurredAt: new Date() },
     ]);
     prisma.purchaseOrder.findMany.mockResolvedValue([]);
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
+      {
+        id: 501,
+        productId: 10,
+        isPreferred: true,
+        supplySku: {
+          id: 601,
+          supplierId: 88,
+          name: '平台精华液',
+          supplier: { id: 88, name: '正式主供应商', status: 'active' },
+          quotes: [{ id: 701, price: 18, moq: 12, leadDays: 3 }],
+        },
+      },
+    ]);
 
     const result = await service.getReplenishment(1);
 
     expect(result).toHaveLength(1);
     expect(prisma.product.findMany).toHaveBeenCalledWith({
       where: { deletedAt: null, storeId: 1 },
-      include: {
-        suppliers: {
-          where: { supplier: { status: 'active', deletedAt: null } },
-          include: { supplier: { select: { id: true, name: true } } },
-          orderBy: [{ isPrimary: 'desc' }, { supplyPrice: 'asc' }],
-          take: 1,
-        },
-      },
     });
     expect(result[0]).toEqual(
       expect.objectContaining({
@@ -912,5 +995,50 @@ describe('InventoryService terminal dashboard cache', () => {
       suggestedQty: 3,
       reason: expect.stringContaining('在途 15 已抵扣'),
     }));
+  });
+
+  it('does not generate platform purchase fields when a supply mapping has no available quote', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 12,
+        name: '修护精华',
+        sku: 'SKU-12',
+        currentStock: 0,
+        safetyStock: 10,
+        costPrice: 9,
+        minPurchaseQty: 0,
+        supplier: '本地供应商',
+        suppliers: [],
+      },
+    ]);
+    prisma.stockMovement.findMany.mockResolvedValue([]);
+    prisma.purchaseOrder.findMany.mockResolvedValue([]);
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
+      {
+        id: 301,
+        productId: 12,
+        isPreferred: true,
+        supplySku: {
+          id: 1001,
+          supplierId: 8,
+          name: '平台修护精华',
+          supplier: { id: 8, name: '平台供应商' },
+          quotes: [],
+        },
+      },
+    ]);
+
+    const result = await service.getReplenishment(1);
+
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        productId: 12,
+        supplier: '本地供应商',
+        availabilityStatus: 'platform_mapped_no_quote',
+        supplySkuId: undefined,
+        quoteId: undefined,
+        supplyPrice: 9,
+      }),
+    );
   });
 });

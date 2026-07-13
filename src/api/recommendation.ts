@@ -2,6 +2,7 @@ import type { BehaviorProfile } from '@/utils/customerSegmentation';
 import type { Recommendation } from '@/utils/marketingRecommendation';
 import {
   realAdoptMarketingRecommendation,
+  realAdoptMarketingRecommendationTransaction,
   realCreateMarketingRecommendationActivityDraft,
   realCreateMarketingRecommendationAutomationDraft,
   realCreateRecommendation,
@@ -10,6 +11,8 @@ import {
   realGetMarketingRecommendations,
   realUpdateRecommendation,
   type MarketingRecommendationQuery,
+  type AdoptRecommendationRequest,
+  type AdoptRecommendationResponse,
 } from './real/recommendation';
 
 export const getMarketingRecommendations: (params?: MarketingRecommendationQuery) => Promise<Recommendation[]> =
@@ -32,6 +35,13 @@ export const adoptMarketingRecommendation: (
   data: { targetType?: 'activity' | 'automation'; storeId?: number; customerId?: number; audienceSnapshotId?: number | string },
 ) => Promise<{ success: boolean; recommendationId: number; adoptedAt: string }> =
   realAdoptMarketingRecommendation;
+
+export const adoptMarketingRecommendationTransaction: (
+  id: number,
+  data: AdoptRecommendationRequest,
+) => Promise<AdoptRecommendationResponse> = realAdoptMarketingRecommendationTransaction;
+
+export type { AdoptRecommendationRequest, AdoptRecommendationResponse };
 
 export const createMarketingRecommendationActivityDraft: (id: number) => Promise<Record<string, unknown>> =
   realCreateMarketingRecommendationActivityDraft;

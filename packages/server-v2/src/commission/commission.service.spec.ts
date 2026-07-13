@@ -17,8 +17,8 @@ describe('CommissionService', () => {
       productOrder: { findMany: jest.fn() },
       customerBalanceTransaction: { findMany: jest.fn() },
       store: { findMany: jest.fn(), count: jest.fn() },
-      paymentRecord: { findMany: jest.fn(), count: jest.fn() },
-      refundRecord: { findMany: jest.fn(), count: jest.fn() },
+      paymentRecord: { findMany: jest.fn(), count: jest.fn(), aggregate: jest.fn() },
+      refundRecord: { findMany: jest.fn(), count: jest.fn(), aggregate: jest.fn() },
       commissionRule: {
         create: jest.fn(),
         count: jest.fn(),
@@ -81,7 +81,7 @@ describe('CommissionService', () => {
         count: jest.fn(),
         findUnique: jest.fn(),
       },
-      supplierSettlement: {
+      supplySettlement: {
         findMany: jest.fn(),
       },
     };
@@ -1530,6 +1530,7 @@ describe('CommissionService', () => {
       },
     ]);
     prisma.paymentRecord.count.mockResolvedValue(1);
+    prisma.paymentRecord.aggregate.mockResolvedValue({ _sum: { amount: '128.50' } });
 
     const result = await service.getPaymentRecords({
       page: '1',
@@ -1561,6 +1562,7 @@ describe('CommissionService', () => {
       take: 10,
       orderBy: { paidAt: 'desc' },
     });
+    expect(result.summary).toEqual(expect.objectContaining({ paymentAmount: 128.5, paymentCount: 1 }));
     expect(prisma.paymentRecord.count).toHaveBeenCalledWith({ where });
     expect(result.items[0]).toEqual(expect.objectContaining({ amount: 128.5, orderNo: 'PO-8', checkoutGroupNo: 'PO-GROUP-8', source: 'terminal', customerName: '王敏', storeName: 'Store A' }));
   });
@@ -1629,6 +1631,7 @@ describe('CommissionService', () => {
         storeId: 3,
         settleDate: new Date('2026-06-01T00:00:00.000Z'),
         totalRevenue: '100',
+        summary: { total: 200 },
         refundAmount: '20',
         status: 'draft',
         updatedAt: new Date('2026-06-01T09:00:00.000Z'),
@@ -1682,7 +1685,10 @@ describe('CommissionService', () => {
     });
     expect(prisma.refundRecord.findMany).toHaveBeenCalledWith({
       where: { status: { in: ['success', 'completed', 'refunded'] }, refundedAt: { gte: dateFrom, lt: dateToExclusive }, order: { storeId: 3 } },
-      include: { order: { select: { id: true, orderNo: true, customerName: true, storeId: true } } },
+      include: {
+        items: { include: { stockMovements: true } },
+        order: { select: { id: true, orderNo: true, customerName: true, storeId: true, netAmount: true, status: true, refundRecords: { where: { status: { in: ['success', 'completed', 'refunded'] } }, select: { amount: true } } } },
+      },
     });
     expect(prisma.cashierShift.findMany).toHaveBeenCalledWith({
       where: { storeId: 3, startedAt: { gte: dateFrom, lt: dateToExclusive }, status: { in: ['closed', 'reconciled'] } },
@@ -1693,16 +1699,46 @@ describe('CommissionService', () => {
       },
       orderBy: { startedAt: 'desc' },
     });
-    expect(result.total).toBe(4);
+    expect(result.total).toBe(5);
     expect(result.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'daily_unconfirmed', severity: 'medium', actionTarget: 'daily' }),
-        expect.objectContaining({ type: 'daily_amount_mismatch', severity: 'high', actionTarget: 'daily', amountDiff: -50 }),
+        expect.objectContaining({ type: 'daily_amount_mismatch', severity: 'high', actionTarget: 'daily', amountDiff: -30 }),
         expect.objectContaining({ type: 'refund_after_daily_settlement', severity: 'medium', actionTarget: 'refunds', sourceId: 51 }),
         expect.objectContaining({ type: 'cash_shift_diff', severity: 'high', actionTarget: 'shifts', amountDiff: 60 }),
+        expect.objectContaining({ type: 'refund_without_items', severity: 'high', actionTarget: 'refunds', sourceId: 51 }),
       ]),
     );
-    expect(result.summary).toEqual({ high: 2, medium: 2, low: 0 });
+    expect(result.summary).toEqual({ high: 3, medium: 2, low: 0 });
+  });
+
+  it('does not compare prepaid payment cash flow with operating revenue', async () => {
+    prisma.dailySettlement.findMany.mockResolvedValue([{
+      id: 1,
+      storeId: 3,
+      settleDate: new Date('2026-06-01T00:00:00.000Z'),
+      totalRevenue: '0',
+      rechargeIncome: '100',
+      refundAmount: '0',
+      status: 'confirmed',
+      summary: { total: 100, prepaidAmount: 100 },
+      updatedAt: new Date('2026-06-01T12:00:00.000Z'),
+      store: { id: 3, name: 'Store A' },
+    }]);
+    prisma.paymentRecord.findMany.mockResolvedValue([{
+      id: 1,
+      orderId: 10,
+      amount: '100',
+      status: 'success',
+      paidAt: new Date('2026-06-01T08:00:00.000Z'),
+      order: { id: 10, orderNo: 'RC10', orderKind: 'member_card_recharge', storeId: 3 },
+    }]);
+    prisma.refundRecord.findMany.mockResolvedValue([]);
+    prisma.cashierShift.findMany.mockResolvedValue([]);
+
+    const result = await service.getReconciliationExceptions({ page: 1, pageSize: 20, storeId: 3, dateFrom: '2026-06-01', dateTo: '2026-06-01' });
+
+    expect(result.items.some((item) => item.type === 'daily_amount_mismatch')).toBe(false);
   });
 
   it('generates daily settlement with net revenue, payment split, costs and commissions', async () => {
@@ -2170,7 +2206,7 @@ describe('CommissionService', () => {
         store: { id: 12, name: 'Store B' },
       },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       {
         id: 10,
         supplierId: 21,
@@ -2199,7 +2235,7 @@ describe('CommissionService', () => {
       include: { store: { select: { id: true, name: true } } },
       orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
     });
-    expect(prisma.supplierSettlement.findMany).toHaveBeenCalledWith({
+    expect(prisma.supplySettlement.findMany).toHaveBeenCalledWith({
       where: { settleMonth: '2026-06' },
       include: { supplier: { select: { id: true, name: true } } },
       orderBy: [{ settleMonth: 'asc' }, { supplierId: 'asc' }],
@@ -2266,7 +2302,7 @@ describe('CommissionService', () => {
       { id: 1, storeId: 11, settleMonth: '2026-05', baseFee: 500, commissionFee: 100, store: { id: 11, name: 'Store A' } },
       { id: 2, storeId: 12, settleMonth: '2026-06', baseFee: 700, commissionFee: 150, store: { id: 12, name: 'Store B' } },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       { id: 10, supplierId: 21, settleMonth: '2026-05', orderCount: 2, rebateAmount: 300, platformFee: 100, supplier: { id: 21, name: 'Supplier A' } },
       { id: 11, supplierId: 22, settleMonth: '2026-06', orderCount: 3, rebateAmount: 400, platformFee: 250, supplier: { id: 22, name: 'Supplier B' } },
     ]);
@@ -2279,7 +2315,7 @@ describe('CommissionService', () => {
         where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] } },
       }),
     );
-    expect(prisma.supplierSettlement.findMany).toHaveBeenCalledWith(
+    expect(prisma.supplySettlement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] } },
       }),
@@ -2307,7 +2343,7 @@ describe('CommissionService', () => {
       { id: 1, storeId: 11, settleMonth: '2026-01', baseFee: 600, commissionFee: 100, store: { id: 11, name: 'Store A' } },
       { id: 2, storeId: 12, settleMonth: '2026-12', baseFee: 700, commissionFee: 200, store: { id: 12, name: 'Store B' } },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       { id: 10, supplierId: 21, settleMonth: '2026-12', orderCount: 4, rebateAmount: 300, platformFee: 100, supplier: { id: 21, name: 'Supplier A' } },
     ]);
     prisma.store.count.mockResolvedValue(2);

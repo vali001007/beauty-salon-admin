@@ -1,0 +1,922 @@
+{
+  "generatedAt": "2026-07-02T09:11:52.914Z",
+  "mode": "weekly",
+  "scanReportPath": "docs/04-测试数据/agent-knowledge-scan-report.json",
+  "evalReportPath": "docs/04-测试数据/agent-eval-knowledge-map-report.json",
+  "summary": {
+    "gatePassed": true,
+    "blockerCount": 0,
+    "warningCount": 4,
+    "p0PassRate": 1,
+    "p0Failed": 0,
+    "missingBusinessObjectMappings": 99,
+    "missingDisplayNames": 66,
+    "missingSkillMappings": 29,
+    "missingEvalCases": 8,
+    "fallbackReasonCount": 0,
+    "legacyFallbackRuns": 0
+  },
+  "businessDictionaryCandidates": [
+    {
+      "type": "business_object_mapping",
+      "key": "AgentApproval",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentAutomationEffect",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentDailyArchive",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentDefinition",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentEvalCase",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentEvalRun",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentFeedback",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentMemory",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentMessage",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentPersona",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentRenderedBlock",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentStep",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AgentToolCall",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AiAuditLog",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AmiGlowDisplayConfig",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AmiMonthlyBill",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AmiPerformanceRecord",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AppointmentGapCandidate",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AppointmentGapOpportunity",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "AppointmentGapOpportunityEvent",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "BeauticianAvailability",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "BeauticianLevel",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "BeauticianProjectSkill",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "BeauticianTimeOff",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "Card",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CashierShift",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "Category",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CommissionRecord",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CommissionRule",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CommissionRuleAssignment",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CommissionSettlement",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CommissionSettlementRecord",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "ConsumptionRecord",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerAppEvent",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerAppIdentity",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerBalanceAccount",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerBalanceTransaction",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerBehaviorEvent",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerHealthProfile",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "CustomerPredictionSnapshot",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "DailySettlement",
+      "priority": "P1",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryAdoptionRecord",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryDataSource",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryEvidence",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryKnowledgeItem",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryProductTemplate",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryProjectBomItemTemplate",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryProjectBomTemplate",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustrySalaryBenchmark",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "business_object_mapping",
+      "key": "IndustryServiceTemplate",
+      "priority": "P2",
+      "reason": "Prisma model 尚未映射到 BusinessObjectCatalog，需要确认是否是 Agent 可查询业务对象。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Customer.phone",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Customer.maritalStatus",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Customer.totalSpent",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Customer.visitCount",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Customer.skinType",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.costPrice",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.retailPrice",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.status",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.salePrice",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.discountRate",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.discountLabel",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Product.miniappStatus",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Supplier.phone",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Supplier.rebateRate",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Supplier.paymentTerms",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Supplier.status",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "PurchaseOrder.totalAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "PurchaseOrder.status",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Project.typeId",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Project.price",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Project.status",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "Beautician.phone",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "ProductOrder.listAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "ProductOrder.itemDiscountAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "ProductOrder.orderDiscountAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "ProductOrder.totalDiscountAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "ProductOrder.discountSource",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "ProductOrder.discountPayload",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.itemType",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.unitPrice",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.listAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.subtotal",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.discount",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.itemDiscountAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.orderAllocatedDiscountAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.totalDiscountAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.netAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.discountSource",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.discountPayload",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.isGift",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "OrderItem.eligibleForOrderDiscount",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "PaymentRecord.paymentNo",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "PaymentRecord.amount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "PaymentRecord.status",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "RefundRecord.refundNo",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "RefundRecord.amount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "RefundRecord.status",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "RefundRecord.refundedAt",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "CustomerCard.totalTimes",
+      "priority": "P2",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    },
+    {
+      "type": "display_field_name",
+      "key": "CustomerCard.paidAmount",
+      "priority": "P1",
+      "reason": "重要展示字段缺少人工确认中文名，需要确认业务含义、金额口径或状态口径。"
+    }
+  ],
+  "agentCapabilityGaps": [
+    {
+      "type": "skill_exposure_missing",
+      "key": "automation_execution_summary",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "business_anomaly_alert",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "business_overview",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "card_expiry_risk",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "card_usage_analysis",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "customer_card_benefit_summary",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "customer_churn_risk",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "customer_growth_opportunity",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "customer_profile_lookup",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "customer_reservation_today",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "finance_cashflow_summary",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "finance_order_lookup",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "finance_today_transaction_list",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "inventory_alert",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "marketing_activity_link_lookup",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "marketing_activity_list",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "marketing_conversion",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "member_balance_analysis",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "member_card_lookup",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "multi_store_comparison",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "product_customer_distribution",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "product_replenishment_opportunity",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "product_sales_trend",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "project_material_margin",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "project_service_trend",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "reservation_today",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "schedule_utilization",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "staff_performance",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "skill_exposure_missing",
+      "key": "supplier_purchase_advice",
+      "priority": "P1",
+      "reason": "CapabilityCatalog 已有能力，但 SkillRegistry 未暴露成可规划技能。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "automation_execution_summary",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "business_anomaly_alert",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "business_overview",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "member_balance_analysis",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "multi_store_comparison",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "product_customer_distribution",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "product_sales_trend",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    },
+    {
+      "type": "eval_case_missing",
+      "key": "project_material_margin",
+      "priority": "P1",
+      "reason": "已实现能力缺少 Eval 覆盖，后续改动容易回归。"
+    }
+  ],
+  "evalFailureTop": [],
+  "legacyFallback": {
+    "available": true,
+    "scannedRuns": 191,
+    "legacyFallbackRuns": 0,
+    "usageByReason": [],
+    "samples": [],
+    "deprecationCandidates": [
+      {
+        "reason": "business_query_capability_missing",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "business_query_capability_not_implemented",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "business_query_role_not_allowed",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "business_task_preparser_no_executable_plan",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "business_task_preparser_unavailable",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "capability_confidence_below_threshold",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "capability_not_found",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "legacy_fallback",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "legacy_rule_fallback",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      },
+      {
+        "reason": "required_entity_not_resolved",
+        "latestCount": 0,
+        "previousCount": 0,
+        "action": "move_to_deprecated_candidate"
+      }
+    ]
+  },
+  "reviewChecklist": [
+    "确认 P0 阻断项为 0；如不为 0，先修复再发布。",
+    "按 P1 优先级确认 BusinessObjectCatalog 与字段中文名候选。",
+    "补齐 SkillRegistry 暴露缺口和 Eval 覆盖缺口。",
+    "复核前端页面候选是否需要 Agent 能力入口。",
+    "复核 legacy fallback 废弃候选，确认无保留价值后进入清理计划。"
+  ]
+}

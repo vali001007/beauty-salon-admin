@@ -1,5 +1,7 @@
 import type {
+  CreateSupplyCatalogMappingPayload,
   CreateProcurementOrderPayload,
+  CreateProcurementOrdersFromReplenishmentPayload,
   CreateSupplierShipmentPayload,
   CreateSupplierQualificationPayload,
   CreateSupplyQuotePayload,
@@ -8,16 +10,20 @@ import type {
   GetProcurementOrders,
   ProcurementOrder,
   ReceiveProcurementOrderPayload,
+  SupplyCatalogMapping,
   SupplierShipment,
   SupplyQuote,
   SupplySettlement,
   SupplySku,
   SupplySupplier,
+  UpdateSupplyCatalogMappingPayload,
 } from '@/types/supplyPlatform';
 import {
   realAuditSupplyQuote,
   realAuditSupplySku,
+  realCreateSupplyCatalogMapping,
   realCreateProcurementOrder,
+  realCreateProcurementOrdersFromReplenishment,
   realCreateSupplierQualification,
   realCreateSupplierShipment,
   realCreateSupplyQuote,
@@ -26,11 +32,13 @@ import {
   realGenerateSupplySettlement,
   realGetProcurementOrder,
   realGetProcurementOrders,
+  realGetSupplyCatalogMappings,
   realGetSupplyQuotes,
   realGetSupplySettlements,
   realGetSupplySkus,
   realGetSupplySuppliers,
   realReceiveProcurementOrder,
+  realUpdateSupplyCatalogMapping,
   realUpdateProcurementOrderStatus,
   realUpdateSupplySupplierStatus,
 } from './real/supplyPlatform';
@@ -86,12 +94,36 @@ export const auditSupplyQuote: (
   data: { auditStatus: string; status?: string; rejectReason?: string },
 ) => Promise<SupplyQuote> = realAuditSupplyQuote;
 
+export const getSupplyCatalogMappings: (params?: {
+  page?: number;
+  pageSize?: number;
+  productId?: number;
+  storeId?: number;
+  supplySkuId?: number;
+  standardProductTemplateId?: number;
+  mappingStatus?: string;
+  keyword?: string;
+  purchasableStatus?: string;
+}) => Promise<{ items: SupplyCatalogMapping[]; total: number; page: number; pageSize: number }> = realGetSupplyCatalogMappings;
+
+export const createSupplyCatalogMapping: (data: CreateSupplyCatalogMappingPayload) => Promise<SupplyCatalogMapping> =
+  realCreateSupplyCatalogMapping;
+
+export const updateSupplyCatalogMapping: (
+  id: number,
+  data: UpdateSupplyCatalogMappingPayload,
+) => Promise<SupplyCatalogMapping> = realUpdateSupplyCatalogMapping;
+
 export const getProcurementOrders: GetProcurementOrders = realGetProcurementOrders;
 
 export const getProcurementOrder: (id: number) => Promise<ProcurementOrder> = realGetProcurementOrder;
 
 export const createProcurementOrder: (data: CreateProcurementOrderPayload) => Promise<ProcurementOrder> =
   realCreateProcurementOrder;
+
+export const createProcurementOrdersFromReplenishment: (
+  data: CreateProcurementOrdersFromReplenishmentPayload,
+) => Promise<ProcurementOrder[]> = realCreateProcurementOrdersFromReplenishment;
 
 export const updateProcurementOrderStatus: (id: number, status: string) => Promise<ProcurementOrder> =
   realUpdateProcurementOrderStatus;

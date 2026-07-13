@@ -1,4 +1,4 @@
-export type ProductOrderStatus = '待付款' | '已付款' | '已完成' | '已取消' | '已退款';
+export type ProductOrderStatus = '待付款' | '已付款' | '已完成' | '部分退款' | '已取消' | '已退款';
 export type ProductOrderPaymentMethod = '现金' | '微信' | '支付宝' | '银行卡' | '会员卡划扣';
 
 export interface MemberBalanceDeduction {
@@ -303,9 +303,13 @@ export interface RefundRecord {
   id: number;
   orderId: number;
   refundNo: string;
+  requestId?: string;
+  refundMode?: OrderRefundMode;
   amount: number;
   reason?: string | null;
   status: string;
+  inventoryStatus?: string;
+  items?: RefundItem[];
   refundedAt?: string | null;
   createdAt: string;
 }
@@ -446,6 +450,47 @@ export interface MemberCardGiftPayload {
   remark?: string;
 }
 
+export type OrderRefundMode = 'refund_only' | 'return_and_refund';
+
+export interface RefundItem {
+  id: number;
+  refundId: number;
+  orderItemId: number;
+  itemType: string;
+  itemId?: number;
+  quantity: number;
+  refundAmount: number;
+  inventoryAction: string;
+  inventoryStatus: string;
+}
+
+export interface OrderRefundPreviewItem {
+  orderItemId: number;
+  itemType: string;
+  itemId?: number;
+  name: string;
+  soldQuantity: number;
+  refundedQuantity: number;
+  remainingRefundableQuantity: number;
+  netAmount: number;
+  refundedAmount: number;
+  remainingRefundableAmount: number;
+  inventoryTraceStatus: 'complete' | 'ambiguous' | 'missing' | 'not_required';
+}
+
+export interface OrderRefundPreview {
+  orderId: number;
+  orderNo: string;
+  checkoutGroupNo?: string;
+  status: string;
+  netAmount: number;
+  refundedAmount: number;
+  remainingRefundableAmount: number;
+  inventoryTraceStatus: 'complete' | 'ambiguous' | 'missing';
+  allowedModes: OrderRefundMode[];
+  items: OrderRefundPreviewItem[];
+}
+
 export interface MemberCardDeductItemPayload {
   itemType: 'project' | 'product';
   itemId?: number;
@@ -471,6 +516,12 @@ export interface MemberCardRefundPayload {
 }
 
 export interface ProductOrderRefundPayload {
-  amount?: number;
-  reason?: string;
+  requestId: string;
+  refundMode: OrderRefundMode;
+  reason: string;
+  items: Array<{
+    orderItemId: number;
+    quantity: number;
+    refundAmount?: number;
+  }>;
 }

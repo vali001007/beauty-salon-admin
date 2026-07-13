@@ -1,0 +1,315 @@
+# Agent V2 GitHub 发布交接包
+
+生成时间：2026-07-06 11:57:34 Asia/Shanghai
+
+## 结论
+
+- 交接就绪：是
+- 仍需授权：是
+- 改动条目：161
+- 发布批次：6
+- 疑似 Secret：0
+- 本地完成度：通过
+- 生产 rollout：就绪
+- 生产配置策略：通过
+- 生产 hook 触发就绪：否
+- 生产部署同步已证明：否
+- Stage manifest：就绪
+- Stage manifest 文件：`docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.txt`
+- Stage dry-run：通过 (161/161)
+- 推荐发布形态：单个 Agent V2 发布 PR，必要时按报告批次拆分提交。
+- 建议：GitHub 发布交接已就绪；下一步需要用户授权 stage/commit/PR，再由 Zeabur 自动部署 GitHub 提交。
+
+## 门禁
+
+| 门禁 | 状态 | 期望 | 当前 | 交付影响 |
+| --- | --- | --- | --- | --- |
+| 发布前安全审计已生成 | 通过 | release readiness audit report exists | present | 发布交接必须基于最新可提交文件和 Secret 扫描结果。 |
+| 发布范围未发现疑似 Secret | 通过 | secretFindingCount=0 | secretFindingCount=0 | 避免 deploy token、Zeabur token、私钥或 API key 进入 GitHub。 |
+| 本地完成度审计通过 | 通过 | localClosureReady=true | localClosureReady=true | 证明 task.md 本地开发闭环已收口，剩余项属于生产/真实流量/旧正则退役。 |
+| 生产 rollout runbook 就绪 | 通过 | rolloutPlanReady=true | rolloutPlanReady=true | 发布后能继续按 D0-D9 证据链推进生产灰度。 |
+| 生产配置策略门禁通过 | 通过 | production config readiness pass=true | pass=true | 确认 GitHub 提交触发 auto-publish、无 schedule、Cron 关闭和旧正则退役锁均已审计。 |
+| 待发布改动已分组 | 通过 | changedEntryCount>0 且所有改动都进入发布批次 | changedEntryCount=161, releaseBatchCount=6, grouped=161 | 后续授权提交时可按批次检查范围，避免把无关脏改混入 Agent V2 发布。 |
+| Stage manifest 可被 Git dry-run 识别 | 通过 | git add --dry-run --pathspec-from-file 成功，输出数量等于 manifest 文件数 | ok=true, entries=161/161 | 授权后使用同一 pathspec 文件执行 git add 的风险已提前验证；本门禁不实际 stage 文件。 |
+
+## 推荐发布批次
+
+### 发布控制、workflow 与环境样例
+
+- 批次 ID：release_controls
+- 文件数：6
+- 目的：让 GitHub gate、auto-publish hook 条件、无定时发布策略和脚本入口可随代码一起交付。
+- 风险：会影响 CI 和后续生产 auto-publish 条件；当前仍不会打开生产 hook。
+
+验证：
+
+- `npm.cmd --prefix packages/server-v2 run agent-v2:production-config-readiness:strict`
+- `npm.cmd --prefix packages/server-v2 run agent-v2:release-readiness-audit`
+
+文件：
+
+- `.env.production.example`
+- `.github/workflows/agent-v2.yml`
+- `package-lock.json`
+- `package.json`
+- `packages/server-v2/.env.example`
+- `packages/server-v2/package.json`
+
+### 后端 schema、migration 与审计脚本
+
+- 批次 ID：server_schema_scripts
+- 文件数：23
+- 目的：交付知识图谱、灰度规则、治理观测、生产 runbook、发布审计和旧正则退役证据链。
+- 风险：包含 Prisma migration 和生产证据脚本；提交后仍不能自动写生产库。
+
+验证：
+
+- `npm.cmd --prefix packages/server-v2 run db:generate`
+- `npm.cmd --prefix packages/server-v2 run agent-v2:local-completion-audit:strict`
+- `npm.cmd --prefix packages/server-v2 run agent-v2:production-rollout-plan:strict`
+
+文件：
+
+- `packages/server-v2/prisma/agent-v2-eval-gate.ts`
+- `packages/server-v2/prisma/agent-v2-github-release-handoff.ts`
+- `packages/server-v2/prisma/agent-v2-knowledge-graph-enhance.ts`
+- `packages/server-v2/prisma/agent-v2-knowledge-graph.ts`
+- `packages/server-v2/prisma/agent-v2-legacy-dependency-audit.ts`
+- `packages/server-v2/prisma/agent-v2-legacy-diff-attribution.ts`
+- `packages/server-v2/prisma/agent-v2-legacy-retirement-preflight.ts`
+- `packages/server-v2/prisma/agent-v2-legacy-retirement-production-evidence.ts`
+- `packages/server-v2/prisma/agent-v2-legacy-retirement-shadow-evidence.ts`
+- `packages/server-v2/prisma/agent-v2-legacy-retirement-shadow-export.ts`
+- `packages/server-v2/prisma/agent-v2-local-completion-audit.ts`
+- `packages/server-v2/prisma/agent-v2-post-merge-deploy-verify.ts`
+- `packages/server-v2/prisma/agent-v2-production-config-readiness.ts`
+- `packages/server-v2/prisma/agent-v2-production-deployment-sync-audit.ts`
+- `packages/server-v2/prisma/agent-v2-production-live-config-audit.ts`
+- `packages/server-v2/prisma/agent-v2-production-rollout-plan.ts`
+- `packages/server-v2/prisma/agent-v2-release-readiness-audit.ts`
+- `packages/server-v2/prisma/agent-v2-retirement-handoff.ts`
+- `packages/server-v2/prisma/agent-v2-rollback-drill.ts`
+- `packages/server-v2/prisma/migrations/20260705190000_agent_knowledge_graph_overrides/migration.sql`
+- `packages/server-v2/prisma/migrations/20260705212500_agent_v2_gray_rules/migration.sql`
+- `packages/server-v2/prisma/migrations/20260706043000_agent_governance_observability/migration.sql`
+- `packages/server-v2/prisma/schema.prisma`
+
+### Agent V2 后端运行时和治理服务
+
+- 批次 ID：server_runtime
+- 文件数：59
+- 目的：交付图谱 + LLM 意图抽取、能力映射、通用查询、Policy/Evidence/Contract、治理 API 和 health 部署元信息。
+- 风险：影响 Agent V2 主运行链路；生产默认仍由 gray mode 保持旧链路回退。
+
+验证：
+
+- `npm.cmd --prefix packages/server-v2 run test -- --runTestsByPath src/agent-v2/agent-v2-runtime.service.spec.ts src/agent-v2/intent/agent-v2-intent-extraction.service.spec.ts src/agent-v2/query-engine/generic-query-engine.service.spec.ts src/agent-v2/governance/agent-v2-governance.service.spec.ts src/health/health.controller.spec.ts --runInBand`
+- `npm.cmd --prefix packages/server-v2 run build`
+
+文件：
+
+- `packages/server-v2/src/agent-v2/agent-v2-gray-strategy.service.spec.ts`
+- `packages/server-v2/src/agent-v2/agent-v2-gray-strategy.service.ts`
+- `packages/server-v2/src/agent-v2/agent-v2-orchestrator.service.spec.ts`
+- `packages/server-v2/src/agent-v2/agent-v2-orchestrator.service.ts`
+- `packages/server-v2/src/agent-v2/agent-v2-runtime.service.spec.ts`
+- `packages/server-v2/src/agent-v2/agent-v2-runtime.service.ts`
+- `packages/server-v2/src/agent-v2/agent-v2.module.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-auto-publish.service.spec.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-auto-publish.service.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.controller.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.dto.spec.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.dto.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.service.spec.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-capability-center.service.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-deploy-hook.guard.spec.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-deploy-hook.guard.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-manifest-provider.service.spec.ts`
+- `packages/server-v2/src/agent-v2/capability-center/agent-v2-manifest-provider.service.ts`
+- `packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.spec.ts`
+- `packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.ts`
+- `packages/server-v2/src/agent-v2/capability/agent-v2-capability-manifest.ts`
+- `packages/server-v2/src/agent-v2/capability/agent-v2-capability-mapping.service.ts`
+- `packages/server-v2/src/agent-v2/capability/agent-v2-capability.types.ts`
+- `packages/server-v2/src/agent-v2/contracts/agent-v2-answer-contract-validator.service.spec.ts`
+- `packages/server-v2/src/agent-v2/contracts/agent-v2-answer-contract-validator.service.ts`
+- `packages/server-v2/src/agent-v2/evidence/agent-v2-evidence.service.spec.ts`
+- `packages/server-v2/src/agent-v2/evidence/agent-v2-evidence.service.ts`
+- `packages/server-v2/src/agent-v2/governance/agent-v2-governance.controller.ts`
+- `packages/server-v2/src/agent-v2/governance/agent-v2-governance.service.spec.ts`
+- `packages/server-v2/src/agent-v2/governance/agent-v2-governance.service.ts`
+- `packages/server-v2/src/agent-v2/intent/agent-v2-intent-extraction.service.spec.ts`
+- `packages/server-v2/src/agent-v2/intent/agent-v2-intent-extraction.service.ts`
+- `packages/server-v2/src/agent-v2/intent/agent-v2-intent.types.ts`
+- `packages/server-v2/src/agent-v2/intent/knowledge-graph-intent-context.service.ts`
+- `packages/server-v2/src/agent-v2/knowledge-graph/generated/knowledge-graph.generated.ts`
+- `packages/server-v2/src/agent-v2/knowledge-graph/knowledge-graph-builder.spec.ts`
+- `packages/server-v2/src/agent-v2/knowledge-graph/knowledge-graph-builder.ts`
+- `packages/server-v2/src/agent-v2/knowledge-graph/knowledge-graph.types.ts`
+- `packages/server-v2/src/agent-v2/policy/agent-v2-policy-gateway.service.spec.ts`
+- `packages/server-v2/src/agent-v2/policy/agent-v2-policy-gateway.service.ts`
+- `packages/server-v2/src/agent-v2/query-engine/generic-query-engine.service.spec.ts`
+- `packages/server-v2/src/agent-v2/query-engine/generic-query-engine.service.ts`
+- `packages/server-v2/src/agent-v2/query-engine/generic-query-engine.types.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-action-draft.service.spec.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-action-draft.service.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-detail-query.service.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-metric-query.service.spec.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-metric-query.service.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-record-query.service.spec.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-record-query.service.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-business-trend-query.service.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-navigation.service.spec.ts`
+- `packages/server-v2/src/agent-v2/tools/agent-v2-navigation.service.ts`
+- `packages/server-v2/src/agent/agent.types.ts`
+- `packages/server-v2/src/agent/knowledge/business-object.catalog.ts`
+- `packages/server-v2/src/agent/knowledge/business-semantic-lexicon.ts`
+- `packages/server-v2/src/agent/knowledge/knowledge.types.ts`
+- `packages/server-v2/src/health/health.controller.spec.ts`
+- `packages/server-v2/src/health/health.controller.ts`
+
+### 管理端治理中心、API 与权限入口
+
+- 批次 ID：admin_governance
+- 文件数：15
+- 目的：交付 Agent 治理中心、前端 API facade、路由、菜单和权限测试。
+- 风险：影响系统菜单和治理入口；普通门店角色仍不默认开放治理权限。
+
+验证：
+
+- `npx.cmd vitest run src/app/pages/system/AgentGovernanceCenter.test.tsx src/test/permissions.test.ts`
+- `npm.cmd run build`
+
+文件：
+
+- `src/api/agentGovernance.ts`
+- `src/api/index.ts`
+- `src/api/real/agentGovernance.ts`
+- `src/api/real/inventory.ts`
+- `src/api/real/product.ts`
+- `src/api/real/project.ts`
+- `src/app/components/Layout.tsx`
+- `src/app/pages/ami-agent/AmiAgentWorkspace.tsx`
+- `src/app/pages/system/AgentGovernanceCenter.test.tsx`
+- `src/app/pages/system/AgentGovernanceCenter.tsx`
+- `src/app/routes.tsx`
+- `src/config/permissions.ts`
+- `src/test/permissions.test.ts`
+- `src/types/agentGovernance.ts`
+- `src/types/product.ts`
+
+### Kiosk Agent 入口与终端适配
+
+- 批次 ID：kiosk_agent_entry
+- 文件数：8
+- 目的：交付终端 agent_v1/agent_v2 选择、KG/LLM 架构透传和快捷动作保护。
+- 风险：影响终端 Agent 使用体验；快捷收银/核销动作仍保留。
+
+验证：
+
+- `npm.cmd --prefix packages/Ami-Aura-Lite-Kiosk run build`
+
+文件：
+
+- `packages/Ami-Aura-Lite-Kiosk/src/app/AppContent.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/components/AgentMessageItem.test.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/components/AgentMessageItem.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/components/TopStatusBar.tsx`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/microApps/runMicroApp.test.ts`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/microApps/runMicroApp.ts`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/services/agentRuntimeService.ts`
+- `packages/Ami-Aura-Lite-Kiosk/src/app/services/terminalAgentAdapter.ts`
+
+### 开发计划、方案与测试证据
+
+- 批次 ID：docs_and_evidence
+- 文件数：50
+- 目的：交付 task.md 计划闭环、方案来源、评测报告、图谱报告、发布审计和生产 runbook 证据。
+- 风险：主要是交付证据；报告应与代码门禁结果保持同步。
+
+验证：
+
+- `npm.cmd --prefix packages/server-v2 run agent-v2:release-readiness-audit`
+- `npm.cmd --prefix packages/server-v2 run agent-v2:github-release-handoff:strict`
+
+文件：
+
+- `docs/03-开发计划/01-AI智能体与问数能力/Agent新一代架构方案-知识图谱+LLM+全自动能力发布-2026-07-05.md`
+- `docs/03-开发计划/01-AI智能体与问数能力/task.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-drafts.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-drafts.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-governance-report.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-capability-governance-report.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-drafts.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-pr-brief.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-release-handoff.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-release-handoff.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.txt`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-dependency-audit.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-dependency-audit.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-preflight.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-preflight.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence-check.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence-check.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.candidate.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.example.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-shadow-evidence-aggregate.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-shadow-evidence-aggregate.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-local-completion-audit.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-local-completion-audit.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-post-merge-deploy-verify.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-post-merge-deploy-verify.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-retirement-handoff.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-retirement-handoff.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-rollback-drill.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-rollback-drill.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-shadow-evidence-export.example.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph-enhancement-candidates.json`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph-enhancement-candidates.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph-report.md`
+- `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/knowledge-graph.json`
+
+## 授权后建议命令
+
+```powershell
+git diff --check
+npm.cmd --prefix packages/server-v2 run agent-v2:release-readiness-audit
+npm.cmd --prefix packages/server-v2 run agent-v2:github-release-handoff:strict
+git add --pathspec-from-file "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.txt"
+git diff --cached --stat
+git diff --cached --check
+git commit -m "feat(agent-v2): complete knowledge graph llm governance rollout"
+git push origin <branch>
+```
+
+## 来源
+
+- releaseReadinessAudit: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.json`
+- localCompletionAudit: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-local-completion-audit.json`
+- productionRolloutPlan: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.json`
+- productionConfigReadiness: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.json`
+- productionLiveConfigAudit: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.json`
+- productionDeploymentSyncAudit: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.json`
+- stageDryRunCommand: `git add --dry-run --pathspec-from-file "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-stage-manifest.txt"`
+
+## 边界
+
+- 本交接报告只读取本地 Git 状态和已有 Agent V2 报告，不 stage、不 commit、不 push。
+- handoffReady=true 只代表提交/PR 交接材料齐备，不代表生产已上线。
+- 生产 hook、生产 DB 写入、旧正则删除和 Zeabur 配置变更仍必须等待明确授权。

@@ -15,9 +15,12 @@ export type DataQualityStatus = 'complete' | 'estimated' | 'missing_cost' | 'mis
 export type MissingCostReason =
   | 'missing_cost'
   | 'missing_bom'
+  | 'missing_batch_cost'
   | 'missing_commission'
   | 'missing_project_master'
   | 'missing_actual_consumption'
+  | 'product_master_estimate'
+  | 'legacy_missing_snapshot'
   | 'missing_card_unit_value';
 
 export type OperationAlertLevel = 'info' | 'warning' | 'critical';
@@ -205,7 +208,7 @@ export interface ProjectMarginRow {
   missingCostReasons: MissingCostReason[];
 }
 
-export type ProductCostSource = 'order_snapshot' | 'stock_movement' | 'product_master' | 'missing' | 'mixed';
+export type ProductCostSource = 'batch_snapshot' | 'order_snapshot' | 'product_master_estimate' | 'legacy_missing_snapshot' | 'missing' | 'mixed';
 
 export interface ProductMarginSourceOrder {
   orderId: number;
@@ -217,6 +220,10 @@ export interface ProductMarginSourceOrder {
   salesAmount: number;
   refundAmount: number;
   netSalesAmount: number;
+  unitCost?: number;
+  productCost?: number;
+  costSource?: ProductCostSource;
+  costSourceNo?: string;
   commissionCost: number;
 }
 

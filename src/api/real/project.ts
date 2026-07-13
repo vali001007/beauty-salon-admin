@@ -15,6 +15,7 @@ type ApiProjectBomItem = Partial<ProjectBomItem> & {
       name?: string;
       sku?: string;
       unit?: string;
+      specUnit?: string | null;
       costPrice?: number | string;
       status?: string;
     };
@@ -33,7 +34,7 @@ function normalizeProjectBomItem(item: ApiProjectBomItem): NonNullable<Project['
     productName: item.productName ?? item.product?.name ?? '',
     sku: item.sku ?? item.product?.sku ?? '',
     standardQty: Number(item.standardQty ?? 0),
-    unit: item.unit ?? item.product?.unit ?? '',
+    unit: item.unit ?? item.product?.specUnit ?? item.product?.unit ?? '',
     costPrice: Number(item.costPrice ?? item.product?.costPrice ?? 0),
     productStatus: item.productStatus ?? item.product?.status,
   };
@@ -110,6 +111,14 @@ export async function realGetProjectsPaginated(params: PaginationParams & { keyw
 
 type ApiReservation = Record<string, any>;
 
+function inferReservationSource(item: ApiReservation) {
+  const remark = String(item.remark ?? '');
+  const source = String(item.source ?? item.channel ?? '');
+  if (/ami[_\s-]?glow[_\s-]?h5|Ami Glow H5|h5/i.test(`${source} ${remark}`)) return 'Ami Glow H5';
+  if (/Ami Glow|ami[_\s-]?glow/i.test(`${source} ${remark}`)) return 'Ami Glow';
+  return item.sourceLabel ?? item.channel ?? '管理端';
+}
+
 function normalizeReservation(item: ApiReservation) {
   const customerName = item.userName ?? item.customerName ?? item.customer?.name ?? '';
   const projectName = item.projectName ?? item.project?.name ?? '';
@@ -131,6 +140,7 @@ function normalizeReservation(item: ApiReservation) {
     appointmentTime,
     status: item.status ?? 'pending',
     createTime: item.createTime ?? item.createdAt ?? '',
+    sourceLabel: inferReservationSource(item),
   };
 }
 

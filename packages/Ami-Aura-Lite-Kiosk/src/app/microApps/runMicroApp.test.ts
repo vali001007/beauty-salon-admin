@@ -392,6 +392,33 @@ describe('runMicroApp cache and prefetch behavior', () => {
     });
   });
 
+  it('passes Agent V2 architecture meta into terminal Agent Runtime', async () => {
+    const intent = parseRuleIntent('今天经营有什么风险', 'manager', definition('manager'), 'text');
+
+    await runMicroAppIntent(intent, '今天经营有什么风险', {
+      agentEngine: 'agent_v2',
+      agentContext: { terminal: { personaCode: 'manager' } },
+    });
+
+    expect(state.businessAgentLoader).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: '今天经营有什么风险',
+        role: 'manager',
+        agentEngine: 'agent_v2',
+        context: expect.objectContaining({
+          agentEngine: 'agent_v2',
+          architecture: 'kg_llm_agent',
+          terminal: expect.objectContaining({
+            agentEngine: 'agent_v2',
+            architecture: 'kg_llm_agent',
+            personaCode: 'manager',
+          }),
+          intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
+        }),
+      }),
+    );
+  });
+
   it('routes yesterday consumption customer list questions into Agent Runtime', async () => {
     const intent = parseRuleIntent('昨天有哪些消费的客户，列出清单', 'manager', definition('manager'), 'text');
 

@@ -1,0 +1,1040 @@
+import type {
+  AgentApprovalRecord,
+  AgentMessageRecord,
+  AgentRunRecord,
+  AgentStepRecord,
+  AgentToolCallRecord,
+} from './agent';
+
+export type AgentGovernanceStatus = 'completed' | 'failed' | 'running' | 'waiting_approval' | 'cancelled' | string;
+export type AgentGovernanceEngineFilter = 'all' | 'ami_ai' | 'agent_v1' | 'agent_v2' | 'agent_v3' | 'agent_v4' | 'agent_v5';
+
+export interface AgentGovernanceListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  keyword?: string;
+  storeId?: number;
+  engine?: AgentGovernanceEngineFilter;
+}
+
+export interface AgentGovernanceListResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AgentGovernanceRunStats {
+  total: number;
+  byStatus: Record<string, number>;
+  activeManifestVersion?: string | null;
+  engine?: AgentGovernanceEngineFilter;
+}
+
+export interface AgentV5GovernanceRunSummary {
+  runId: number;
+  runNo: string;
+  status: string;
+  intent: string;
+  adapter: string;
+  answer?: string;
+  createdAt?: string;
+}
+
+export interface AgentV5GovernanceOverview {
+  agentCode: 'agent_v5' | string;
+  totalRuns: number;
+  failedRuns: number;
+  failureRate: number;
+  clarificationRuns: number;
+  clarificationRate: number;
+  memoryRuns: number;
+  memoryUsageRate: number;
+  adapterCounts: Record<string, number>;
+  recentRuns: AgentV5GovernanceRunSummary[];
+  limitations?: string[];
+}
+
+export interface AgentV5GovernanceRoutes {
+  intentCounts: Record<string, number>;
+  capabilities: Array<{
+    code: string;
+    label: string;
+    domain: string;
+    adapter: string;
+    riskLevel: string;
+    evidenceRequired: boolean;
+    hitCount: number;
+  }>;
+}
+
+export interface AgentV5GovernanceAdapters {
+  adapters: Array<{
+    adapterCode: string;
+    capabilityCount: number;
+    capabilities: string[];
+  }>;
+  verticalAdapters: string[];
+  boundary: string;
+}
+
+export interface AgentV5GovernanceClarifications {
+  total: number;
+  items: Array<{
+    runId: number;
+    runNo: string;
+    status: string;
+    question: string;
+    candidates: string[];
+    createdAt?: string;
+  }>;
+}
+
+export interface AgentV5GovernanceMemory {
+  snapshotCount: number;
+  workingKeyCounts: Record<string, number>;
+  preferenceKeyCounts: Record<string, number>;
+  policy: string;
+}
+
+export interface AgentV5GovernanceFailures {
+  total: number;
+  items: Array<{
+    runId: number;
+    runNo: string;
+    intent: string;
+    adapter: string;
+    errorMessage?: string;
+    createdAt?: string;
+  }>;
+}
+
+export interface AgentV5GovernanceEval {
+  sampleSize: number;
+  completionRate: number;
+  failureRate: number;
+  clarificationRate: number;
+  memoryUsageRate: number;
+  adapterCoverage: AgentV5GovernanceAdapters;
+  recommendation: string;
+}
+
+export interface AgentGovernanceHealthMetrics {
+  generatedAt: string;
+  activeManifestVersion?: string | null;
+  window: {
+    days: number;
+    since: string;
+    until: string;
+    storeId?: number | null;
+    engine?: AgentGovernanceEngineFilter;
+  };
+  runs: {
+    total: number;
+    completed: number;
+    failed: number;
+    successRate: number;
+    byStatus: Record<string, number>;
+    runLatencyP99Ms: number | null;
+    latencySampleCount: number;
+  };
+  tools: {
+    total: number;
+    failed: number;
+    highRiskAutoExecutionCount: number;
+    byStatus: Record<string, number>;
+    byRiskLevel: Record<string, number>;
+    topTools: Array<{ key: string; count: number }>;
+    toolLatencyP99Ms: number | null;
+    latencySampleCount: number;
+  };
+  approvals: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+  strategy: {
+    byMode: Record<string, number>;
+    byFinalEngine: Record<string, number>;
+    legacyFallbackCount: number;
+    shadowCount: number;
+    sampleCount: number;
+  };
+  cache: {
+    status: 'measured' | 'not_measured' | string;
+    hitRate: number | null;
+    sampleCount: number;
+    reason?: string;
+  };
+  cost?: {
+    status: 'measured' | 'estimated' | 'not_measured' | string;
+    sampleCount: number;
+    totalTokens: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalChars: number;
+    estimatedUsd: number;
+    source?: string;
+    reason?: string;
+  };
+  eval: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+  risks: {
+    unauthorizedEvidenceCount: number;
+    highRiskAutoExecutionCount: number;
+  };
+}
+
+export interface AgentGovernanceRunDetail {
+  run: AgentRunRecord;
+  messages: AgentMessageRecord[];
+  steps: AgentStepRecord[];
+  toolCalls: AgentToolCallRecord[];
+  approvals: AgentApprovalRecord[];
+  replay?: Record<string, unknown>;
+}
+
+export type AgentFeedbackDiagnosisCategory =
+  | 'all'
+  | 'semantic_route'
+  | 'presentation_format'
+  | 'semantic_view_gap'
+  | 'data_scope'
+  | 'permission_or_policy'
+  | 'runtime_error'
+  | 'missing_trace'
+  | 'wrong_answer';
+
+export interface AgentFeedbackDiagnosticItem {
+  feedbackId: number;
+  runId: number;
+  feedbackScope?: 'run' | 'message' | string;
+  messageId?: string | number | null;
+  questionIndex?: number | null;
+  runNo?: string | null;
+  storeId?: number | null;
+  engine: string;
+  role: string;
+  personaCode?: string | null;
+  entrypoint?: string | null;
+  rating?: number | null;
+  adopted?: boolean | null;
+  feedbackText?: string | null;
+  question: string;
+  answerPreview: string;
+  runStatus: string;
+  runError?: string | null;
+  createdAt: string;
+  runCreatedAt?: string | null;
+  trace: {
+    capabilityId?: string;
+    skillId?: string;
+    selectedViews: string[];
+    toolNames: string[];
+    auditRunId?: string;
+    responseMode?: unknown;
+    answerContract?: unknown;
+  };
+  diagnosis: {
+    category: Exclude<AgentFeedbackDiagnosisCategory, 'all'>;
+    label: string;
+    severity: 'blocker' | 'warning' | 'info' | string;
+    rootCause: string;
+    suggestedFixes: string[];
+    nextAction: {
+      label: string;
+      target: 'debug' | 'knowledge_graph' | 'text_sql' | 'capability_center' | 'runtime_log' | string;
+      url?: string;
+    };
+  };
+}
+
+export interface AgentFeedbackDiagnosticReport {
+  range: {
+    days: number;
+    since: string;
+    until: string;
+    storeId?: number | null;
+    engine?: AgentGovernanceEngineFilter;
+  };
+  kpis: {
+    totalNegativeFeedback: number;
+    returned: number;
+    blockerCount: number;
+    warningCount: number;
+    byCategory: Record<string, number>;
+    byEngine: Record<string, number>;
+  };
+  items: AgentFeedbackDiagnosticItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AgentV2TextToSqlSemanticView {
+  id: string;
+  viewName: string;
+  domain: string;
+  description: string;
+  status: 'enabled' | 'planned' | 'disabled' | string;
+  batch: 'P0' | 'P1' | 'P2' | string;
+  adminOnly?: boolean;
+  requiredPermissions: string[];
+  storeScopeField?: string;
+  defaultTimeField?: string;
+  fields: Array<{
+    name: string;
+    type: string;
+    description: string;
+    policy: 'allow' | 'mask' | 'deny' | string;
+    roles?: string[];
+  }>;
+  sampleQuestions: string[];
+}
+
+export interface AgentV2TextToSqlRun {
+  id: number;
+  question: string;
+  normalizedIntentJson?: Record<string, unknown> | null;
+  userId?: number | null;
+  storeScopeJson: unknown;
+  selectedViewsJson: unknown;
+  generatedSqlHash?: string | null;
+  redactedSql?: string | null;
+  safeSqlHash?: string | null;
+  status: string;
+  blockedReason?: string | null;
+  rowCount: number;
+  executionMs?: number | null;
+  evidenceJson?: Record<string, unknown> | null;
+  queryTraceJson?: Record<string, unknown> | null;
+  promotedCapabilityId?: string | null;
+  createdAt: string;
+  feedback?: AgentV2TextToSqlFeedback[];
+}
+
+export interface AgentV2TextToSqlFeedback {
+  id: number;
+  runId: number;
+  userId?: number | null;
+  rating?: number | null;
+  feedbackText?: string | null;
+  isUseful?: boolean | null;
+  isWrongAnswer: boolean;
+  isPermissionConcern: boolean;
+  createdAt: string;
+}
+
+export interface AgentV2TextToSqlRunResult {
+  status: 'success' | 'no_data' | 'blocked' | 'failed' | 'dry_run' | string;
+  answer?: string;
+  rows: Array<Record<string, unknown>>;
+  evidence: {
+    sourceViews: string[];
+    dateRange?: string;
+    storeScope: string;
+    fieldPolicies: Array<{ field: string; policy: string }>;
+    limitations: string[];
+  };
+  queryTrace: Record<string, unknown>;
+  auditRunId?: string;
+  blockedReason?: string;
+}
+
+export interface AgentV2TextToSqlGuardInspectResult {
+  status: 'pass' | 'blocked' | string;
+  safeSql?: string;
+  redactedSql?: string;
+  reasonCode?: string;
+  message?: string;
+  params?: Record<string, unknown>;
+  selectedViews?: AgentV2TextToSqlSemanticView[];
+  appliedPolicies: string[];
+  parsed?: Record<string, unknown>;
+}
+
+export interface AgentV2TextToSqlStatus {
+  enabled: boolean;
+  adminOnly: boolean;
+  maxLimit: number;
+  timeoutMs: number;
+  maxRangeDays: number;
+  maxEstimatedCost: number;
+  readonlyExecutionReady: boolean;
+  executeMode: 'readonly_execute_ready' | 'dry_run_only' | string;
+  readinessCommands?: {
+    localGate: string;
+    completionAudit: string;
+    strictReadiness: string;
+  };
+  deploymentReadiness?: {
+    primaryMigrationName: string;
+    completionAuditRequired: boolean;
+    readonlyUrlRequired: boolean;
+  };
+  viewReadiness?: {
+    totalViews: number;
+    enabledViews: number;
+    plannedViews: number;
+    adminViews: number;
+    enabledViewNames?: string[];
+  };
+  executeBlockers?: string[];
+  nextActions?: string[];
+}
+
+export interface AgentV2TextToSqlCandidate {
+  clusterKey: string;
+  normalizedIntent?: Record<string, unknown>;
+  selectedViews: string[];
+  safeSqlHash?: string | null;
+  generatedSqlHash?: string | null;
+  sampleQuestions: string[];
+  hitCount: number;
+  successCount: number;
+  blockedCount: number;
+  failedCount: number;
+  usefulFeedbackCount: number;
+  feedbackCount: number;
+  successRate: number;
+  blockedRate: number;
+  feedbackUsefulRate?: number | null;
+  riskLevel: 'low' | 'medium' | 'high' | string;
+  status: 'candidate' | 'blocked_report' | string;
+  reason: string;
+  suggestedCapabilityId: string;
+  displayName: string;
+}
+
+export interface AgentGovernanceUncoveredQuestion {
+  question: string;
+  count: number;
+  latestAt?: string;
+  lastError?: string | null;
+}
+
+export type AgentKnowledgeGraphNodeType =
+  | 'Domain'
+  | 'BusinessObject'
+  | 'DataModel'
+  | 'Field'
+  | 'Capability'
+  | 'ActionIntent'
+  | 'Word'
+  | 'PermissionCode'
+  | string;
+
+export type AgentKnowledgeGraphEdgeType =
+  | 'BELONGS_TO'
+  | 'COMPOSED_OF'
+  | 'HAS_FIELD'
+  | 'FK_RELATION'
+  | 'SYNONYM_OF'
+  | 'TRIGGERS'
+  | 'SUPPORTS_ACTION'
+  | 'EXCLUDES'
+  | 'REQUIRES_PERM'
+  | string;
+
+export interface AgentKnowledgeGraphSummary {
+  generatedAt: string;
+  schemaHash: string;
+  nodeCount: number;
+  edgeCount: number;
+  nodeCountsByType: Record<string, number>;
+  edgeCountsByType: Record<string, number>;
+  businessObjectCount: number;
+  dataModelCount: number;
+  activeCapabilityCount: number;
+  permissionCodeCount: number;
+  passed: boolean;
+  blockerCount: number;
+  warningCount: number;
+}
+
+export interface AgentKnowledgeGraphNode {
+  id: string;
+  type: AgentKnowledgeGraphNodeType;
+  name: string;
+  displayName?: string;
+  description?: string;
+  source: string;
+  sourcePath?: string;
+  confidence: number;
+  updatedAt: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface AgentKnowledgeGraphEdge {
+  id: string;
+  type: AgentKnowledgeGraphEdgeType;
+  from: string;
+  to: string;
+  label?: string;
+  source: string;
+  sourcePath?: string;
+  confidence: number;
+  updatedAt: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface AgentKnowledgeGraphNodeDetail {
+  node: AgentKnowledgeGraphNode;
+  outgoing: AgentKnowledgeGraphEdge[];
+  incoming: AgentKnowledgeGraphEdge[];
+  relatedNodes?: AgentKnowledgeGraphNode[];
+}
+
+export interface AgentKnowledgeGraphGap {
+  code: string;
+  severity: 'blocker' | 'warning' | 'info' | string;
+  title: string;
+  detail: string;
+  targetId?: string;
+  sourcePath?: string;
+  suggestedFix: string;
+}
+
+export interface AgentKnowledgeGraphVisualizeResult {
+  focusId?: string;
+  depth?: number;
+  nodes: AgentKnowledgeGraphNode[];
+  edges: AgentKnowledgeGraphEdge[];
+}
+
+export interface AgentKnowledgeGraphPathResult {
+  found: boolean;
+  path: string[];
+  maxDepth: number;
+}
+
+export interface AgentKnowledgeGraphOverride {
+  id: number;
+  overrideType: 'synonym' | 'exclude' | string;
+  relationType: string;
+  sourceNodeId?: string | null;
+  targetNodeId?: string | null;
+  value?: string | null;
+  label?: string | null;
+  reason?: string | null;
+  status: string;
+  source: string;
+  confidence: number;
+  payload?: Record<string, unknown> | null;
+  createdBy?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  nextGraphMerge?: string;
+}
+
+export interface CreateAgentKnowledgeGraphSynonymInput {
+  targetNodeId: string;
+  synonym: string;
+  reason?: string;
+  confidence?: number;
+}
+
+export interface CreateAgentKnowledgeGraphExcludeInput {
+  sourceNodeId: string;
+  targetNodeId: string;
+  reason?: string;
+  confidence?: number;
+}
+
+export interface AgentGovernanceCapabilityHealth {
+  activeManifestVersion?: string | null;
+  total: number;
+  enabled: number;
+  disabled: number;
+  byReleaseStrategy: Record<string, number>;
+  byRiskLevel: Record<string, number>;
+}
+
+export interface AgentGovernanceCapabilityHeatMapItem {
+  domain: string;
+  releaseStrategy: string;
+  count: number;
+}
+
+export interface AgentGovernanceAutoPublishRun {
+  id: number;
+  runNo: string;
+  status: AgentGovernanceStatus;
+  requestedBy?: number | null;
+  sourceVersionId?: number | null;
+  targetVersionId?: number | null;
+  input?: Record<string, unknown> | null;
+  result?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  startedAt?: string;
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export type AgentV2GrayMode =
+  | 'legacy_regex'
+  | 'shadow'
+  | 'kg_llm_preferred'
+  | 'kg_llm_only'
+  | 'legacy_retired'
+  | string;
+
+export interface AgentV2GrayRule {
+  id: number;
+  name: string;
+  mode: AgentV2GrayMode;
+  status: string;
+  priority: number;
+  storeIds: number[];
+  personaCodes: string[];
+  roles: string[];
+  entrypoints: string[];
+  capabilityIds: string[];
+  scopeSummary: string;
+  reason?: string | null;
+  source: string;
+  payload?: Record<string, unknown> | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  deletedBy?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  nextRuntimeRefresh?: string;
+}
+
+export interface CreateAgentV2GrayRuleInput {
+  name: string;
+  mode: AgentV2GrayMode;
+  priority?: number;
+  storeIds?: number[];
+  personaCodes?: string[];
+  roles?: string[];
+  entrypoints?: string[];
+  capabilityIds?: string[];
+  reason?: string;
+}
+
+export interface AgentGovernanceEvalCase {
+  id: string;
+  source?: string;
+  question: string;
+  roleGroup?: string;
+  expectedCapabilityId?: string;
+  expectedIntent?: string;
+  expectedPersonaCodes?: string[];
+  expectedOutputKinds?: string[];
+  permissionResult?: string;
+  contractResult?: string;
+  failureCategory?: string;
+  priority: string;
+}
+
+export interface AgentGovernanceEvalCaseInput {
+  question: string;
+  scenario?: string;
+  role?: string;
+  roleGroup?: string;
+  expectedCapabilityId?: string;
+  expectedIntent?: string;
+  expectedPersonaCodes?: string[];
+  expectedOutputKinds?: string[];
+  permissionResult?: string;
+  contractResult?: string;
+  failureCategory?: string;
+  priority?: string;
+  status?: string;
+}
+
+export interface AgentGovernanceEvalGate {
+  gate: string;
+  expected: string;
+  actual: string;
+  pass: boolean;
+  level?: string;
+}
+
+export interface AgentGovernanceEvalMetricStatus {
+  status: string;
+  reason?: string;
+}
+
+export interface AgentGovernanceEvalGateReport {
+  generatedAt: string;
+  source?: Record<string, string>;
+  summary: Record<string, number | boolean | string>;
+  metrics?: Record<string, number | string | AgentGovernanceEvalMetricStatus>;
+  gates: AgentGovernanceEvalGate[];
+  samples?: Record<string, unknown[]>;
+}
+
+export interface AgentGovernanceEvalRunRecord {
+  id: number;
+  caseId?: number | null;
+  runId?: number | null;
+  status: string;
+  score?: number | string | null;
+  resultJson?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  createdAt: string;
+}
+
+export interface AgentGovernanceEvalRunFailure {
+  type: string;
+  category: string;
+  index?: number;
+  id?: string | number | null;
+  title?: string;
+  question?: string;
+  expected?: string;
+  actual?: string;
+  expectedCapabilityId?: string | null;
+  actualCapabilityId?: string | null;
+  reason?: string;
+  severity?: string;
+  sample?: Record<string, unknown>;
+}
+
+export interface AgentGovernanceEvalRunDetail extends AgentGovernanceEvalRunRecord {
+  source?: unknown;
+  importedAt?: string | null;
+  summary?: Record<string, unknown>;
+  metrics?: Record<string, unknown>;
+  gates?: AgentGovernanceEvalGate[];
+  failedGates?: AgentGovernanceEvalGate[];
+  samples?: Record<string, unknown>;
+  failureCount: number;
+  failures: AgentGovernanceEvalRunFailure[];
+}
+
+export interface AgentGovernanceEvalRunFailureList extends AgentGovernanceListResult<AgentGovernanceEvalRunFailure> {
+  categories: Record<string, number>;
+  run: Pick<AgentGovernanceEvalRunRecord, 'id' | 'status' | 'score' | 'createdAt'>;
+  summary: string;
+}
+
+export interface AgentGovernanceQueryReplay {
+  requested: boolean;
+  available: boolean;
+  source?: string;
+  toolCount?: number;
+  reason?: string;
+  queryTraces?: Array<Record<string, unknown>>;
+  sqlSummaries?: Array<Record<string, unknown>>;
+  note?: string;
+}
+
+export interface AgentGovernancePolicyTrace {
+  available: boolean;
+  overallStatus: 'pass' | 'review' | 'deny' | 'not_applicable' | string;
+  allowed?: boolean;
+  requiresApproval?: boolean;
+  actor?: Record<string, unknown>;
+  capability?: Record<string, unknown> | null;
+  tool?: Record<string, unknown> | null;
+  fieldPolicySummary?: {
+    allow?: string[];
+    mask?: string[];
+    deny?: string[];
+  };
+  checks?: Array<{
+    name: string;
+    status: 'pass' | 'review' | 'deny' | string;
+    reason: string;
+  }>;
+  note?: string;
+}
+
+export interface AgentGovernanceEvalFailureReplayRequest {
+  category?: string;
+  index?: number;
+  failureId?: string | number;
+  storeId?: number;
+  role?: 'manager' | 'reception' | 'beautician' | string;
+  entrypoint?: string;
+  grayMode?: string;
+  toolReplay?: boolean;
+}
+
+export interface AgentGovernanceEvalFailureReplayResult {
+  run: Pick<AgentGovernanceEvalRunRecord, 'id' | 'status' | 'score' | 'createdAt'>;
+  failure: AgentGovernanceEvalRunFailure;
+  replay: AgentGovernanceDebugResult;
+  comparison: {
+    expectedCapabilityId: string | null;
+    previousActualCapabilityId: string | null;
+    replayCapabilityId: string | null;
+    previousMatchedExpected: boolean | null;
+    replayMatchedExpected: boolean | null;
+    changedFromPrevious: boolean | null;
+  };
+  diagnosis: {
+    category: string;
+    status: string;
+    message: string;
+  };
+  safety: {
+    dryRun: boolean;
+    toolExecution: boolean;
+    readOnlyToolReplay?: boolean;
+    writeExecution: boolean;
+    note?: string;
+  };
+  toolReplay?: {
+    requested: boolean;
+    executed: boolean;
+    mode?: string;
+    allowedTools?: string[];
+    skipped?: Array<Record<string, unknown>>;
+    results?: Array<Record<string, unknown>>;
+    note?: string;
+  };
+  queryReplay?: AgentGovernanceQueryReplay;
+  contractReplay?: {
+    requested: boolean;
+    executed: boolean;
+    reason?: string;
+    answer?: string | null;
+    renderedBlocks?: Array<Record<string, unknown>>;
+    answerContract?: {
+      valid: boolean;
+      errors: string[];
+      warnings: string[];
+    } | null;
+    phaseOutputs?: Array<Record<string, unknown>>;
+    note?: string;
+  };
+}
+
+export interface AgentGovernanceEvalRunImportResult {
+  id: number;
+  status: string;
+  score?: number | string | null;
+  totalQuestions: number;
+  p0Questions: number;
+  createdAt: string;
+  source?: string;
+  trigger?: string;
+}
+
+export interface AgentGovernanceEvalDryRunBatchRequest {
+  priority?: string;
+  limit?: number;
+  role?: 'manager' | 'reception' | 'beautician' | string;
+  storeId?: number;
+  entrypoint?: string;
+  grayMode?: string;
+  note?: string;
+}
+
+export interface AgentGovernanceEvalDryRunBatchResult extends AgentGovernanceEvalRunImportResult {
+  summary?: Record<string, unknown>;
+  gates?: AgentGovernanceEvalGate[];
+  samples?: Record<string, unknown[]>;
+}
+
+export interface AgentGovernanceDebugContext {
+  question: string;
+  storeId?: number | null;
+  role?: string;
+  entrypoint?: string;
+  grayMode?: string;
+  manifestVersion?: string | null;
+  activeManifestVersion?: string | null;
+  manifestVersionSource?: string;
+  permissions?: string[];
+  dryRun?: boolean;
+}
+
+export interface AgentGovernanceGraphTrace {
+  available: boolean;
+  source?: string;
+  cacheHit?: boolean;
+  normalizedQuestion?: string | null;
+  graphContextCounts?: {
+    objectHints?: number;
+    domainHints?: number;
+    capabilityHints?: number;
+    exclusions?: number;
+    fieldHints?: number;
+  };
+  selectedIntent?: {
+    objects?: string[];
+    domain?: string;
+    action?: string;
+    timeIntent?: string;
+    candidateCapabilities?: string[];
+    confidence?: number;
+  } | null;
+  objectHints?: Array<Record<string, unknown>>;
+  domainHints?: Array<Record<string, unknown>>;
+  capabilityHints?: Array<Record<string, unknown>>;
+  exclusions?: Array<Record<string, unknown>>;
+  reason?: string;
+  note?: string;
+}
+
+export interface AgentGovernanceDebugComparison {
+  manifestVersions?: {
+    active?: string | null;
+    target?: string | null;
+    targetAvailable?: boolean | null;
+    selectedByMode?: Record<string, string | null>;
+    selectedByVersion?: Record<string, string | null>;
+    changedAcrossModes?: boolean;
+  };
+  graphContext?: {
+    withGraphMode?: string;
+    withoutGraphMode?: string;
+    withGraph?: Record<string, unknown> | null;
+    withoutGraph?: Record<string, unknown> | null;
+  };
+  legacyVsKgLlm?: {
+    legacy?: Record<string, unknown> | null;
+    kgLlm?: Record<string, unknown> | null;
+    changedCapability?: boolean;
+    changedOutputShape?: boolean;
+    changedEvidence?: boolean;
+  };
+  consistency?: {
+    mode?: string;
+    iterations?: number;
+    stable?: boolean;
+    capabilityCounts?: Record<string, number>;
+    finalEngineCounts?: Record<string, number>;
+    outputShapeCounts?: Record<string, number>;
+    evidenceCounts?: Record<string, number>;
+    latencyMs?: Record<string, number>;
+    costEstimate?: Record<string, unknown>;
+    samples?: Array<Record<string, unknown>>;
+  };
+  differences?: Record<string, unknown>;
+  manifestVersionComparison?: {
+    requestedVersion?: string;
+    activeVersion?: string | null;
+    targetVersion?: string | null;
+    targetAvailable?: boolean;
+    targetStatus?: string | null;
+    source?: string;
+    itemCount?: number;
+    active?: Record<string, unknown> | null;
+    target?: Record<string, unknown> | null;
+    targetResult?: AgentGovernanceDebugResult;
+    changedManifestVersion?: boolean;
+    changedCapability?: boolean;
+    changedOutputShape?: boolean;
+    changedEvidence?: boolean;
+    addedCapabilities?: string[];
+    removedCapabilities?: string[];
+    reason?: string | null;
+    note?: string;
+  } | null;
+  verdict?: {
+    localDryRunStable?: boolean;
+    canJudgeNewArchitectureMoreStable?: boolean;
+    reasons?: string[];
+    productionEvidenceRequired?: string;
+  };
+}
+
+export interface AgentGovernanceManifestSimulation {
+  activeManifestVersion?: string | null;
+  temporaryOnly?: boolean;
+  applied?: boolean;
+  capabilityId?: string | null;
+  baseSelectedCapabilityId?: string | null;
+  simulatedSelectedCapabilityId?: string | null;
+  changedFields?: string[];
+  patch?: {
+    enabled?: boolean;
+    triggerKeywords?: string[];
+    negativeExamples?: string[];
+    outputKinds?: string[];
+    [key: string]: unknown;
+  };
+  triggerMatched?: boolean;
+  negativeMatched?: boolean;
+  effect?: string;
+  reason?: string;
+  formalEditUrl?: string;
+  note?: string;
+}
+
+export interface AgentGovernanceDebugResult {
+  question: string;
+  dryRun?: boolean;
+  grayMode?: string;
+  debugContext?: AgentGovernanceDebugContext;
+  selectedCapabilityId?: string | null;
+  confidence?: number;
+  reason?: string;
+  plan?: unknown;
+  decision?: unknown;
+  strategy?: unknown;
+  intentTrace?: Record<string, unknown> | null;
+  graphTrace?: AgentGovernanceGraphTrace;
+  llmTrace?: {
+    available: boolean;
+    source?: string;
+    fallbackReason?: string | null;
+    prompt?: Record<string, unknown> | null;
+    response?: Record<string, unknown> | null;
+    reason?: string;
+  };
+  policyTrace?: AgentGovernancePolicyTrace;
+  replay?: Record<string, unknown>;
+  current?: AgentGovernanceDebugResult;
+  legacyRegex?: AgentGovernanceDebugResult;
+  modes?: Record<string, AgentGovernanceDebugResult>;
+  comparison?: AgentGovernanceDebugComparison;
+  differences?: Record<string, unknown>;
+  simulation?: AgentGovernanceManifestSimulation;
+  safety?: {
+    dryRun: boolean;
+    toolExecution: boolean;
+    readOnlyToolReplay?: boolean;
+    writeExecution: boolean;
+    note?: string;
+  };
+  toolReplay?: {
+    requested: boolean;
+    executed: boolean;
+    mode?: string;
+    allowedTools?: string[];
+    skipped?: Array<Record<string, unknown>>;
+    results?: Array<Record<string, unknown>>;
+    note?: string;
+  };
+  queryReplay?: AgentGovernanceQueryReplay;
+  contractReplay?: {
+    requested: boolean;
+    executed: boolean;
+    reason?: string;
+    answer?: string | null;
+    renderedBlocks?: Array<Record<string, unknown>>;
+    answerContract?: {
+      valid: boolean;
+      errors: string[];
+      warnings: string[];
+    } | null;
+    phaseOutputs?: Array<Record<string, unknown>>;
+    note?: string;
+  };
+  note?: string;
+}
+
+export interface AgentGovernanceDebugRequest {
+  question: string;
+  storeId?: number;
+  role?: 'manager' | 'reception' | 'beautician' | string;
+  entrypoint?: string;
+  grayMode?: string;
+  toolReplay?: boolean;
+  compareManifestVersion?: string;
+  capabilityId?: string;
+  enabled?: boolean;
+  triggerKeywords?: string[];
+  negativeExamples?: string[];
+  outputKinds?: string[];
+}

@@ -1611,6 +1611,88 @@ export function CustomerData() {
                     )) : <div className="text-sm text-gray-500">暂无预测原因，需先运行营销预测。</div>}
                   </div>
                 </div>
+
+                <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">生命周期与下一步机会</h3>
+                      <p className="mt-1 text-xs text-gray-500">来自客户全生命周期服务营销小本体，当前只生成建议和草稿。</p>
+                    </div>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                      {customerProfile.lifecycle?.snapshot?.lifecycleStageLabel ?? '待计算'}
+                    </span>
+                  </div>
+                  {customerProfile.lifecycle ? (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl bg-emerald-50 p-3">
+                          <div className="text-xs text-emerald-700">LTV层级</div>
+                          <div className="mt-1 text-lg font-semibold text-emerald-900">{customerProfile.lifecycle.snapshot?.ltvTier ?? '-'}</div>
+                        </div>
+                        <div className="rounded-xl bg-amber-50 p-3">
+                          <div className="text-xs text-amber-700">流失风险</div>
+                          <div className="mt-1 text-lg font-semibold text-amber-900">{customerProfile.lifecycle.snapshot?.churnRiskLevel ?? '-'}</div>
+                        </div>
+                        <div className="rounded-xl bg-blue-50 p-3">
+                          <div className="text-xs text-blue-700">触达疲劳</div>
+                          <div className="mt-1 text-lg font-semibold text-blue-900">{Math.round((customerProfile.lifecycle.snapshot?.touchFatigueScore ?? 0) * 100)}%</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-medium text-gray-500">服务周期与承接状态</div>
+                        <div className="space-y-2">
+                          {customerProfile.lifecycle.serviceCycles?.length ? customerProfile.lifecycle.serviceCycles.slice(0, 3).map((cycle) => (
+                            <div key={cycle.id} className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                              <div className="font-medium">项目 #{cycle.projectId ?? '-'} · {cycle.cycleDays} 天周期</div>
+                              <div className="mt-1 text-xs text-emerald-700">上次服务 {cycle.lastServiceAt?.slice(0, 10) ?? '-'}，下次建议 {cycle.nextDueAt?.slice(0, 10) ?? '-'}</div>
+                            </div>
+                          )) : <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">暂无服务周期，需有项目服务、划卡或预约记录后生成。</div>}
+                          {customerProfile.lifecycle.opportunities?.some((item) => item.fulfillment) ? (
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {customerProfile.lifecycle.opportunities.filter((item) => item.fulfillment).slice(0, 3).map((opportunity) => (
+                                <span key={`fulfillment-${opportunity.id}`} className={`rounded-full px-3 py-1 font-medium ${opportunity.fulfillment?.inventoryReady && opportunity.fulfillment?.capacityReady ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                  {opportunity.opportunityTypeLabel} · 库存{opportunity.fulfillment?.inventoryReady ? '可承接' : '有风险'} · 产能{opportunity.fulfillment?.capacityReady ? '可承接' : '有风险'}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-medium text-gray-500">当前机会</div>
+                        <div className="flex flex-wrap gap-2">
+                          {customerProfile.lifecycle.opportunities.length ? customerProfile.lifecycle.opportunities.map((opportunity) => (
+                            <span key={opportunity.id} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                              {opportunity.opportunityTypeLabel} · {opportunity.priority} · {opportunity.score}分
+                            </span>
+                          )) : <span className="text-sm text-gray-500">暂无下一步机会</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-medium text-gray-500">关键证据</div>
+                        <div className="space-y-1 text-sm text-gray-600">
+                          {customerProfile.lifecycle.snapshot?.evidence.length ? customerProfile.lifecycle.snapshot.evidence.slice(0, 4).map((item, index) => (
+                            <div key={`${item}-${index}`} className="rounded-lg bg-gray-50 px-3 py-2">{item}</div>
+                          )) : <div className="text-gray-500">暂无生命周期证据</div>}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-medium text-gray-500">归因事件</div>
+                        <div className="space-y-1 text-sm text-gray-600">
+                          {customerProfile.lifecycle.attributionEvents?.length ? customerProfile.lifecycle.attributionEvents.slice(0, 4).map((event) => (
+                            <div key={event.id} className="rounded-lg bg-gray-50 px-3 py-2">
+                              {event.eventType} · {event.sourceType} · {event.occurredAt?.slice(0, 16).replace('T', ' ') ?? '-'}
+                            </div>
+                          )) : <div className="text-gray-500">暂无归因事件，触达、预约、核销或订单产生后会沉淀证据链。</div>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+                      暂无生命周期证据，运行营销预测或重建生命周期小本体后会自动生成。
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-5">

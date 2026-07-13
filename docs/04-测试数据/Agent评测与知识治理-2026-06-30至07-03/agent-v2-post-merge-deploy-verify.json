@@ -1,0 +1,210 @@
+{
+  "generatedAt": "2026-07-06 11:46:58 Asia/Shanghai",
+  "summary": {
+    "verifierReady": true,
+    "postMergeProductionVerified": false,
+    "gateCount": 12,
+    "blockerCount": 5,
+    "targetBranch": "main",
+    "targetCommit": "a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+    "currentBranch": "codex/local-save-2026-07-02-latest-dev",
+    "localHead": "d01f836fbbb4be8b674c4b3dceb5663bf844400d",
+    "originTargetBranch": "a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+    "localChangedEntryCount": 161,
+    "githubWorkflowChecked": true,
+    "githubWorkflowOk": false,
+    "githubWorkflowHeadSha": null,
+    "githubWorkflowConclusion": null,
+    "productionHealthReady": true,
+    "productionCommit": null,
+    "productionCommitMatchesTarget": false,
+    "productionHookTriggerReady": false,
+    "githubProductionHookEnabled": false,
+    "recommendation": "当前仍有 161 个本地改动条目，尚未形成合并后的干净 GitHub 提交；先获得授权 stage/commit/PR，再由 Zeabur 自动部署。"
+  },
+  "source": {
+    "reports": {
+      "githubReleaseHandoff": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-github-release-handoff.json",
+      "releaseReadinessAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-release-readiness-audit.json",
+      "productionRolloutPlan": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-rollout-plan.json",
+      "productionLiveConfigAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-live-config-audit.json",
+      "productionDeploymentSyncAudit": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-deployment-sync-audit.json",
+      "productionConfigReadiness": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-production-config-readiness.json"
+    },
+    "productionHealth": "https://ami-service.zeabur.app/api/health",
+    "targetBranch": "main",
+    "backendEnv": "packages/server-v2/.env"
+  },
+  "git": {
+    "currentBranch": "codex/local-save-2026-07-02-latest-dev",
+    "localHead": "d01f836fbbb4be8b674c4b3dceb5663bf844400d",
+    "upstream": "origin/codex/local-save-2026-07-02-latest-dev",
+    "originTargetBranch": "a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+    "changedEntryCount": 161
+  },
+  "workflow": {
+    "attempted": true,
+    "ok": false,
+    "command": "gh run list --workflow \"Agent V2 Gate\" --branch main --limit 1 --json status,conclusion,headSha,createdAt,url,event,databaseId",
+    "run": null,
+    "error": "no workflow runs returned"
+  },
+  "health": {
+    "attempted": true,
+    "url": "https://ami-service.zeabur.app/api/health",
+    "ok": true,
+    "statusCode": 200,
+    "body": {
+      "status": "ok",
+      "timestamp": "2026-07-06T03:46:56.630Z"
+    },
+    "rawPreview": "{\"status\":\"ok\",\"timestamp\":\"2026-07-06T03:46:56.630Z\"}",
+    "error": null
+  },
+  "gates": [
+    {
+      "id": "required_reports_present",
+      "title": "发布后验收依赖报告已生成",
+      "expected": "release handoff、rollout、live config、deployment sync、config readiness 报告存在",
+      "actual": "all present",
+      "status": "pass",
+      "impact": "缺少前置报告时，无法判断发布后验收是否覆盖了本地闭环、生产配置和部署同步。"
+    },
+    {
+      "id": "github_release_handoff_ready",
+      "title": "GitHub 发布交接包仍就绪",
+      "expected": "handoffReady=true",
+      "actual": "handoffReady=true",
+      "status": "pass",
+      "impact": "证明待发布文件清单、PR brief 和 stage dry-run 仍可复用。"
+    },
+    {
+      "id": "rollout_plan_ready",
+      "title": "生产 rollout runbook 仍就绪",
+      "expected": "rolloutPlanReady=true",
+      "actual": "rolloutPlanReady=true",
+      "status": "pass",
+      "impact": "发布后继续进入 Zeabur 部署确认、shadow 和旧正则退役证据链。"
+    },
+    {
+      "id": "clean_post_merge_worktree",
+      "title": "运行环境是合并后的干净提交",
+      "expected": "git status changedEntryCount=0",
+      "actual": "changedEntryCount=161",
+      "status": "fail",
+      "impact": "Zeabur 只能部署 GitHub 提交；本地仍有改动时，不能证明这些改动已经进入生产。"
+    },
+    {
+      "id": "target_commit_resolved",
+      "title": "Zeabur 跟踪分支目标提交可解析",
+      "expected": "origin/main 或 AGENT_V2_POST_MERGE_TARGET_COMMIT 非空",
+      "actual": "a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+      "status": "pass",
+      "impact": "没有目标 commit，就无法判断生产 health 返回的 commit 是否正确。"
+    },
+    {
+      "id": "local_head_matches_target_commit",
+      "title": "本地运行上下文对齐目标提交",
+      "expected": "localHead 与 targetCommit 匹配",
+      "actual": "local=d01f836fbbb4be8b674c4b3dceb5663bf844400d, target=a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+      "status": "fail",
+      "impact": "发布后验收应在合入后的目标提交上运行，避免拿未合并分支判断生产状态。"
+    },
+    {
+      "id": "github_agent_v2_gate_success",
+      "title": "GitHub Agent V2 Gate 在目标提交成功",
+      "expected": "最近 main 分支 Agent V2 Gate completed/success 且 headSha=targetCommit",
+      "actual": "no workflow runs returned",
+      "status": "fail",
+      "impact": "Zeabur 自动部署前必须先确认 GitHub 侧 Agent V2 gate 对目标提交放行。"
+    },
+    {
+      "id": "production_health_reachable",
+      "title": "Zeabur 生产 health 可达",
+      "expected": "GET /api/health 返回 2xx",
+      "actual": "status=200",
+      "status": "pass",
+      "impact": "证明生产后端在线；不可达时无法继续判断部署版本。"
+    },
+    {
+      "id": "production_health_exposes_commit",
+      "title": "生产 health 暴露部署 commit",
+      "expected": "response.deployment.commit 非空",
+      "actual": "<missing>",
+      "status": "fail",
+      "impact": "没有 commit 元信息时，只能证明服务在线，不能证明 Zeabur 已部署目标提交。"
+    },
+    {
+      "id": "production_commit_matches_target",
+      "title": "生产运行 commit 匹配目标提交",
+      "expected": "production deployment.commit 与 targetCommit 匹配",
+      "actual": "production=<missing>, target=a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+      "status": "fail",
+      "impact": "这是证明 Zeabur 已部署目标 GitHub 提交的核心证据。"
+    },
+    {
+      "id": "commit_driven_no_schedule_policy",
+      "title": "自动发布策略仍是 GitHub 提交触发且无定时发布",
+      "expected": "production config readiness pass=true",
+      "actual": "pass=true",
+      "status": "pass",
+      "impact": "确认 workflow 无 schedule、后端 Cron 关闭，符合“提交后发布、平时不定时发布”的产品口径。"
+    },
+    {
+      "id": "production_hook_state_explicit",
+      "title": "生产 hook 开关状态可审计",
+      "expected": "live config audit present，hook enabled/ready 状态明确",
+      "actual": "enabled=false, triggerReady=false",
+      "status": "pass",
+      "impact": "发布代码不等于开启运营自动发布；hook 是否打开必须有独立证据。"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "clean_post_merge_worktree",
+      "title": "运行环境是合并后的干净提交",
+      "expected": "git status changedEntryCount=0",
+      "actual": "changedEntryCount=161",
+      "status": "fail",
+      "impact": "Zeabur 只能部署 GitHub 提交；本地仍有改动时，不能证明这些改动已经进入生产。"
+    },
+    {
+      "id": "local_head_matches_target_commit",
+      "title": "本地运行上下文对齐目标提交",
+      "expected": "localHead 与 targetCommit 匹配",
+      "actual": "local=d01f836fbbb4be8b674c4b3dceb5663bf844400d, target=a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+      "status": "fail",
+      "impact": "发布后验收应在合入后的目标提交上运行，避免拿未合并分支判断生产状态。"
+    },
+    {
+      "id": "github_agent_v2_gate_success",
+      "title": "GitHub Agent V2 Gate 在目标提交成功",
+      "expected": "最近 main 分支 Agent V2 Gate completed/success 且 headSha=targetCommit",
+      "actual": "no workflow runs returned",
+      "status": "fail",
+      "impact": "Zeabur 自动部署前必须先确认 GitHub 侧 Agent V2 gate 对目标提交放行。"
+    },
+    {
+      "id": "production_health_exposes_commit",
+      "title": "生产 health 暴露部署 commit",
+      "expected": "response.deployment.commit 非空",
+      "actual": "<missing>",
+      "status": "fail",
+      "impact": "没有 commit 元信息时，只能证明服务在线，不能证明 Zeabur 已部署目标提交。"
+    },
+    {
+      "id": "production_commit_matches_target",
+      "title": "生产运行 commit 匹配目标提交",
+      "expected": "production deployment.commit 与 targetCommit 匹配",
+      "actual": "production=<missing>, target=a84af6bf5cd3f3056bbca9f063e71347d3b1bf90",
+      "status": "fail",
+      "impact": "这是证明 Zeabur 已部署目标 GitHub 提交的核心证据。"
+    }
+  ],
+  "boundaries": [
+    "本验收器只读取本地 Git 状态、已有 Agent V2 报告、GitHub workflow 最近运行和 Zeabur GET /api/health。",
+    "本验收器不会执行 git add / commit / push，不触发 deploy hook，不写生产库，不删除旧正则。",
+    "Zeabur 自动部署负责代码同步、构建和服务重启；Agent V2 deploy hook 只负责可选的能力治理 auto-publish。",
+    "当前策略为 GitHub main 提交后触发 auto-publish，workflow 不配置 schedule，后端 AGENT_V2_AUTO_PUBLISH_CRON 保持 false。"
+  ]
+}

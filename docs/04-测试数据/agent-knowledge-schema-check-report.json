@@ -1,0 +1,722 @@
+{
+  "generatedAt": "2026-07-04T06:10:08.556Z",
+  "schemaHash": "c1c9bc0fe215830f676289c63495aae7dca90dccdd4e76e7e31f609e9501984e",
+  "generatedHash": "c1c9bc0fe215830f676289c63495aae7dca90dccdd4e76e7e31f609e9501984e",
+  "generatedInSync": true,
+  "generatedModelCount": 122,
+  "schemaModelCount": 122,
+  "missingGeneratedModels": [],
+  "missingBusinessObjectMappings": [
+    "AgentApproval",
+    "AgentAutomationEffect",
+    "AgentCapabilityDraft",
+    "AgentCapabilityManifestItem",
+    "AgentCapabilityManifestVersion",
+    "AgentCapabilityPublishRun",
+    "AgentCapabilityReview",
+    "AgentDailyArchive",
+    "AgentDefinition",
+    "AgentEvalCase",
+    "AgentEvalRun",
+    "AgentFeedback",
+    "AgentMemory",
+    "AgentMessage",
+    "AgentPersona",
+    "AgentRenderedBlock",
+    "AgentStep",
+    "AgentToolCall",
+    "AgentToolQueryKeyRegistry",
+    "AiAuditLog",
+    "AmiGlowDisplayConfig",
+    "AppointmentGapOpportunityEvent",
+    "BeauticianProjectSkill",
+    "ConsumptionRecord",
+    "CustomerAppEvent",
+    "CustomerAppIdentity",
+    "CustomerBehaviorEvent",
+    "CustomerPredictionSnapshot",
+    "IndustryAdoptionRecord",
+    "IndustryDataSource",
+    "IndustryEvidence",
+    "IndustryKnowledgeItem",
+    "IndustryProductTemplate",
+    "IndustryProjectBomItemTemplate",
+    "IndustryProjectBomTemplate",
+    "IndustrySalaryBenchmark",
+    "IndustryServiceTemplate",
+    "IndustrySupplyMappingRequest",
+    "MarketingAttribution",
+    "MarketingPageAttribution",
+    "MarketingPageEvent",
+    "MarketingPageLead",
+    "MarketingPageVersion",
+    "MarketingRecommendationSnapshot",
+    "PredictionRun",
+    "RecommendationEvent",
+    "RefreshToken",
+    "Role",
+    "ScheduleVersion",
+    "SmartSchedulingRun",
+    "SupplyLegacyMigrationMap",
+    "User",
+    "UserRole",
+    "UserStore"
+  ],
+  "missingDisplayNames": [
+    {
+      "model": "Store",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Customer",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Customer",
+      "field": "maritalStatus",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Customer",
+      "field": "totalSpent",
+      "type": "Decimal",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Customer",
+      "field": "visitCount",
+      "type": "Int",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Customer",
+      "field": "skinType",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "sku",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "costPrice",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "retailPrice",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "salePrice",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "discountRate",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "discountLabel",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Product",
+      "field": "miniappStatus",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "StockBatch",
+      "field": "batchNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "PurchaseOrder",
+      "field": "orderNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "TransferOrder",
+      "field": "orderNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "StockMovement",
+      "field": "movementNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "StockMovement",
+      "field": "sourceNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySupplier",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySupplier",
+      "field": "companyName",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySupplier",
+      "field": "contactName",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplierQualification",
+      "field": "fileName",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySku",
+      "field": "barcode",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplyQuote",
+      "field": "supplySkuId",
+      "type": "Int",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplyCatalogMapping",
+      "field": "supplySkuId",
+      "type": "Int",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "ProcurementOrder",
+      "field": "orderNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "ProcurementOrder",
+      "field": "sourceNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "ProcurementOrderItem",
+      "field": "supplySkuId",
+      "type": "Int",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplierShipment",
+      "field": "shipmentNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplierShipment",
+      "field": "trackingNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplierShipmentItem",
+      "field": "supplySkuId",
+      "type": "Int",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplierShipmentItem",
+      "field": "batchNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySettlement",
+      "field": "totalAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySettlement",
+      "field": "rebateAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySettlement",
+      "field": "adjustmentAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "SupplySettlement",
+      "field": "netPayable",
+      "type": "Decimal",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "itemType",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "unitPrice",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "listAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "subtotal",
+      "type": "Decimal",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "discount",
+      "type": "Decimal",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "itemDiscountAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "orderAllocatedDiscountAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "totalDiscountAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "netAmount",
+      "type": "Decimal",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "discountSource",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "discountPayload",
+      "type": "Json",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "isGift",
+      "type": "Boolean",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "OrderItem",
+      "field": "eligibleForOrderDiscount",
+      "type": "Boolean",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "PaymentRecord",
+      "field": "paymentNo",
+      "type": "String",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "PaymentRecord",
+      "field": "transactionNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "RefundRecord",
+      "field": "refundNo",
+      "type": "String",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "RefundRecord",
+      "field": "refundedAt",
+      "type": "DateTime",
+      "risk": "high",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Card",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "CardUsageRecord",
+      "field": "customerName",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "CardUsageRecord",
+      "field": "projectName",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "StoreResource",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "TerminalDevice",
+      "field": "activationCode",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "TerminalDevice",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "ServiceTask",
+      "field": "taskNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "MarketingPage",
+      "field": "sourceType",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "MarketingPage",
+      "field": "runtimeType",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "MarketingPage",
+      "field": "shareTitle",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "MarketingAutomationStrategy",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "MarketingRuleTemplate",
+      "field": "code",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "MarketingRuleTemplate",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "TerminalFollowUpTask",
+      "field": "title",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "TerminalFollowUpTask",
+      "field": "note",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "TerminalFollowUpTask",
+      "field": "resultNote",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "CustomerBalanceTransaction",
+      "field": "transactionNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Promotion",
+      "field": "code",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "Promotion",
+      "field": "name",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "PrintJob",
+      "field": "jobNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "PrintJob",
+      "field": "title",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "AgentRun",
+      "field": "runNo",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "AgentRun",
+      "field": "agentCode",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "AgentRun",
+      "field": "personaCode",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "AgentAutomationDefinition",
+      "field": "personaCode",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "AgentAutomationRun",
+      "field": "personaCode",
+      "type": "String",
+      "risk": "low",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    },
+    {
+      "model": "AgentAutomationRun",
+      "field": "triggerType",
+      "type": "String",
+      "risk": "medium",
+      "reason": "重要业务字段缺少人工确认的中文展示名，当前只能使用自动 humanize 结果。"
+    }
+  ],
+  "sensitiveFields": [
+    {
+      "model": "Store",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "User",
+      "field": "passwordHash",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "User",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "User",
+      "field": "refreshTokens",
+      "type": "RefreshToken",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "RefreshToken",
+      "field": "token",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "Customer",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "SupplySupplier",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "Beautician",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "MarketingPageLead",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    },
+    {
+      "model": "CustomerAppIdentity",
+      "field": "phone",
+      "type": "String",
+      "risk": "high",
+      "reason": "敏感字段必须在 SchemaGraph 中标记，防止 Agent 输出原始隐私数据。"
+    }
+  ],
+  "sensitiveFieldsWithoutMark": [],
+  "gate": {
+    "passed": true,
+    "blockers": [],
+    "warnings": [
+      "存在 54 个 Prisma model 未映射到 BusinessObjectCatalog。",
+      "存在 82 个重要字段缺少人工中文名。"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-07-03T00:32:58.389Z",
+  "scope": {
+    "storeId": 6,
+    "storeName": "Ami 全量演示门店"
+  },
+  "complete": true,
+  "counts": {
+    "activeMappings": 1,
+    "preferredMappings": 1,
+    "mappingsWithQuote": 1,
+    "replenishmentOrders": 1,
+    "procurementOrderItems": 1,
+    "shipments": 1,
+    "shipmentItems": 1,
+    "receivedOrders": 1,
+    "stockMovements": 1,
+    "settlements": 1
+  },
+  "gates": {
+    "mappingReady": true,
+    "replenishmentOrderReady": true,
+    "shipmentReady": true,
+    "receiptReady": true,
+    "settlementReady": true,
+    "latestOrderTraceable": true
+  },
+  "latestOrder": {
+    "id": 1,
+    "orderNo": "SP-MVP-1783038772440",
+    "sourceType": "supply-platform-mvp-flow",
+    "status": "received",
+    "storeName": "Ami 全量演示门店",
+    "supplierName": "Ami MVP 供应商",
+    "itemCount": 1,
+    "shipmentCount": 1,
+    "totalAmount": 60,
+    "netAmount": 57
+  },
+  "latestMovements": [
+    {
+      "id": 553,
+      "productName": "玻尿酸保湿精华",
+      "sku": "AMI-DEMO-FULL-SKU-001",
+      "batchNo": "B-MVP-1",
+      "quantity": 5,
+      "sourceType": "supply_platform_order",
+      "sourceId": 1,
+      "sourceNo": "SP-MVP-1783038772440"
+    }
+  ],
+  "latestSettlement": {
+    "id": 1,
+    "settleMonth": "2026-07",
+    "orderCount": 1,
+    "totalAmount": 60,
+    "netPayable": 57,
+    "status": "generated"
+  }
+}

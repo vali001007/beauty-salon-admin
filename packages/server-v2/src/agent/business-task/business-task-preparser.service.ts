@@ -157,6 +157,8 @@ export class BusinessTaskPreParserService {
     if (/供应商|供货|采购|入库|到货|交期|起订|供应链|结算供应商/.test(text)) return 'supplyChain';
     if (/自动化|自动触达|自动提醒|触达任务|自动任务|策略执行/.test(text)) return 'automation';
     if (/小程序|ami glow|客户端|会员端|绑定|openid|渠道来源/.test(text)) return /渠道|来源/.test(text) ? 'channel' : 'customerApp';
+    if (/(商品|产品|品项|sku).*(购买客户|谁买过|买过|客户分布)|(购买客户|谁买过|买过|客户分布).*(商品|产品|品项|sku)/.test(text)) return 'product';
+    if (/会员.*储值|储值.*沉淀|会员.*沉淀|会员.*余额/.test(text)) return 'memberCard';
     if (/(卡|次卡|卡项|会员卡|疗程卡).*(权益|剩余|次数|核销)|(权益|剩余|次数|核销).*(卡|次卡|卡项|会员卡|疗程卡)/.test(text)) return 'card';
     if (/优惠券|权益|券|满减|满赠|折扣|促销|优惠码|活动权益/.test(text)) return 'promotion';
     if (/渠道|来源|投放|引流|转化路径/.test(text)) return 'channel';
@@ -164,6 +166,8 @@ export class BusinessTaskPreParserService {
     if (/终端|设备|平板|收银机|打印机|扫码器|摄像头|会话|对话失败|问答失败|高频问题/.test(text)) return 'terminal';
     if (/服务质量|服务评价|满意|客户满意|护理效果|护理记录|服务记录|服务任务|护理完成|服务完成|服务记录质量/.test(text)) return 'serviceQuality';
     if (/调拨/.test(text)) return 'inventory';
+    if (/(各|多|哪些|哪家).*(门店|店铺|分店)|(门店|店铺|分店).*(对比|比较|排行)|店铺.*(异常|风险)/.test(text)) return 'store';
+    if (/经营.*风险|经营.*异常|门店.*风险|门店.*异常/.test(text) && !/库存/.test(text)) return 'business';
     if (/门店|多店|分店|店铺/.test(text)) return 'store';
     if (/(项目|护理|服务|疗程).*(毛利|耗材|成本|利润)|(毛利|耗材|成本|利润).*(项目|护理|服务|疗程)/.test(text)) return 'project';
     if (/(商品|产品|品项|sku).*(毛利|成本|利润)|(毛利|成本|利润).*(商品|产品|品项|sku)/.test(text)) return 'product';
@@ -289,6 +293,7 @@ export class BusinessTaskPreParserService {
     if (/ltv|累计价值|高价值/.test(text)) metrics.add('ltv');
     if (/rfm|活跃价值|活跃度/.test(text)) metrics.add('rfm_score');
     if (/销量|销售|增长|卖得|卖/.test(text) && domain === 'product') metrics.add('product_sales_growth');
+    if (domain === 'product' && /购买客户|谁买过|买过|客户分布/.test(text)) metrics.add('product_customer_distribution');
     if (domain === 'product' && /销售额|收入|成交额/.test(text)) metrics.add('product_sales_amount');
     if (domain === 'product' && /毛利|利润/.test(text)) metrics.add('product_gross_margin');
     if (domain === 'product' && /卖不动|滞销|动销|清一清/.test(text)) metrics.add('slow_moving_days');
@@ -313,12 +318,14 @@ export class BusinessTaskPreParserService {
       metrics.add('revenue');
       metrics.add('order_count');
     }
-    if (/异常/.test(text)) metrics.add('business_anomaly_count');
+    if ((domain === 'business' && /异常|风险|预警/.test(text)) || /异常/.test(text)) metrics.add('business_anomaly_count');
     if (domain === 'finance' && /毛利|利润|盈利|亏损/.test(text)) metrics.add('gross_margin');
     if (domain === 'finance' && /成本|耗材/.test(text)) metrics.add('material_cost');
     if (domain === 'finance' && /提成/.test(text)) metrics.add('commission_cost');
     if (domain === 'finance' && /现金流|实收|收款|净额|净收入/.test(text)) metrics.add('net_revenue');
-    if (/库存|补货|缺货|临期|不够|风险|预警|调拨|OCR|图片|识别|采购单|入库单|语音|口述|出库|盘点|报废|元数据|资料补全|保质期|安全库存/.test(text)) metrics.add('stock_risk_score');
+    if (domain === 'inventory' || /库存|补货|缺货|临期|不够|预警|调拨|OCR|图片|识别|采购单|入库单|语音|口述|出库|盘点|报废|元数据|资料补全|保质期|安全库存/.test(text)) {
+      metrics.add('stock_risk_score');
+    }
     if (domain === 'inventory' && /周转/.test(text)) metrics.add('stock_turnover_days');
     if (domain === 'inventory' && /批次|临期|过期/.test(text)) metrics.add('batch_expiry_risk');
     if (/预约|到店|爽约/.test(text)) metrics.add('reservation_count');
@@ -575,6 +582,7 @@ export class BusinessTaskPreParserService {
   }
 
   private isOrderCustomerConsumptionListRequest(text: string) {
+    if (!/项目或商品|商品或项目/.test(text) && /这些商品|哪些商品|商品.*客户买过|产品.*客户买过|品项.*客户买过|sku.*客户买过/.test(text)) return false;
     if (/小程序|ami glow|客户端|会员端|渠道|来源|投放|引流|退款|退费|售后|门店|多店|分店/.test(text)) return false;
     const hasConsumptionSignal = /消费|成交|订单|流水|付款|支付|购买|买过|买单|收银/.test(text);
     const hasListSignal = /名单|清单|明细|列出|列一下|有哪些|哪些|哪几位|哪几个|谁/.test(text);

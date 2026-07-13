@@ -42,11 +42,13 @@ type CountKey =
   | 'orderItems'
   | 'paymentRecords'
   | 'refundRecords'
-  | 'suppliers'
-  | 'productSuppliers'
-  | 'supplierOrders'
-  | 'supplierOrderItems'
-  | 'supplierSettlements'
+  | 'supplySuppliers'
+  | 'supplySkus'
+  | 'supplyQuotes'
+  | 'supplyCatalogMappings'
+  | 'procurementOrders'
+  | 'procurementOrderItems'
+  | 'supplySettlements'
   | 'dailySettlements'
   | 'balanceAccounts'
   | 'balanceTransactions'
@@ -194,11 +196,13 @@ async function getCounts(): Promise<Record<CountKey, number>> {
     orderItems: await prisma.orderItem.count(),
     paymentRecords: await prisma.paymentRecord.count(),
     refundRecords: await prisma.refundRecord.count(),
-    suppliers: await (prisma as any).supplier.count(),
-    productSuppliers: await (prisma as any).productSupplier.count(),
-    supplierOrders: await (prisma as any).supplierOrder.count(),
-    supplierOrderItems: await (prisma as any).supplierOrderItem.count(),
-    supplierSettlements: await (prisma as any).supplierSettlement.count(),
+    supplySuppliers: await prisma.supplySupplier.count(),
+    supplySkus: await prisma.supplySku.count(),
+    supplyQuotes: await prisma.supplyQuote.count(),
+    supplyCatalogMappings: await prisma.supplyCatalogMapping.count(),
+    procurementOrders: await prisma.procurementOrder.count(),
+    procurementOrderItems: await prisma.procurementOrderItem.count(),
+    supplySettlements: await prisma.supplySettlement.count(),
     dailySettlements: await (prisma as any).dailySettlement.count(),
     balanceAccounts: await prisma.customerBalanceAccount.count(),
     balanceTransactions: await prisma.customerBalanceTransaction.count(),
@@ -245,11 +249,15 @@ async function syncPostgresSequences() {
     'OrderItem',
     'PaymentRecord',
     'RefundRecord',
-    'Supplier',
-    'ProductSupplier',
-    'SupplierOrder',
-    'SupplierOrderItem',
-    'SupplierSettlement',
+    'SupplySupplier',
+    'SupplySku',
+    'SupplyQuote',
+    'SupplyCatalogMapping',
+    'ProcurementOrder',
+    'ProcurementOrderItem',
+    'SupplierShipment',
+    'SupplierShipmentItem',
+    'SupplySettlement',
     'DailySettlement',
     'CustomerBalanceAccount',
     'CustomerBalanceTransaction',
@@ -1158,79 +1166,132 @@ async function ensureMarketingAttribution(customerId: number, orderId: number, a
 async function seedSupplierPerformance(stores: Awaited<ReturnType<typeof ensureStores>>, productsByStoreSku: Map<string, any>) {
   for (const store of stores.slice(0, 3)) {
     const supplierName = `${store.name} 核心耗材供应商`;
-    let supplier = await (prisma as any).supplier.findFirst({ where: { storeId: store.id, name: supplierName } });
+    let supplier = await prisma.supplySupplier.findFirst({ where: { name: supplierName, deletedAt: null } });
     if (supplier) {
-      inc(report.skippedCounts, 'suppliers');
+      inc(report.skippedCounts, 'supplySuppliers');
     } else if (dryRun) {
-      inc(report.createdCounts, 'suppliers');
-      supplier = { id: DRY_RUN_ID_BASE + store.id * 100 + 11, name: supplierName, storeId: store.id } as any;
+      inc(report.createdCounts, 'supplySuppliers');
+      supplier = { id: DRY_RUN_ID_BASE + store.id * 100 + 11, name: supplierName } as any;
     } else {
-      supplier = await (prisma as any).supplier.create({
+      supplier = await prisma.supplySupplier.create({
         data: {
-          storeId: store.id,
           name: supplierName,
+          companyName: supplierName,
           contactName: 'Ami 供应链顾问',
           phone: `1390000${String(store.id).padStart(4, '0')}`,
-          category: '美容耗材',
+          categories: ['美容耗材'],
+          qualificationStatus: 'approved',
           rebateRate: 3,
           paymentTerms: '月结 30 天',
           status: 'active',
         },
       });
-      inc(report.createdCounts, 'suppliers');
+      inc(report.createdCounts, 'supplySuppliers');
     }
 
     const productRefs = productCatalog
       .slice(0, 4)
       .map((product) => productsByStoreSku.get(`${store.id}:${product.sku}`))
       .filter((product) => product?.id);
+    const supplyLinks = new Map<number, { supplySkuId: number; quoteId: number | null }>();
     for (const [index, product] of productRefs.entries()) {
       if (!supplier?.id || supplier.id <= 0 || product.id <= 0) {
-        if (dryRun) inc(report.createdCounts, 'productSuppliers');
+        if (dryRun) {
+          inc(report.createdCounts, 'supplySkus');
+          inc(report.createdCounts, 'supplyQuotes');
+          inc(report.createdCounts, 'supplyCatalogMappings');
+        }
         continue;
       }
-      const existing = await (prisma as any).productSupplier.findUnique({
-        where: { productId_supplierId: { productId: product.id, supplierId: supplier.id } },
+      let supplySku = await prisma.supplySku.findFirst({
+        where: { supplierId: supplier.id, name: product.name, deletedAt: null },
       });
-      if (existing) {
-        inc(report.skippedCounts, 'productSuppliers');
+      if (supplySku) {
+        inc(report.skippedCounts, 'supplySkus');
       } else if (dryRun) {
-        inc(report.createdCounts, 'productSuppliers');
+        inc(report.createdCounts, 'supplySkus');
+        supplySku = { id: DRY_RUN_ID_BASE + store.id * 1000 + index, supplierId: supplier.id, name: product.name } as any;
       } else {
-        await (prisma as any).productSupplier.create({
+        supplySku = await prisma.supplySku.create({
           data: {
-            productId: product.id,
             supplierId: supplier.id,
-            supplyPrice: Number(product.costPrice ?? 80),
-            moq: 10 + index * 5,
-            leadDays: index % 2 === 0 ? 4 : 9,
-            isPrimary: index === 0,
+            name: product.name,
+            brand: product.brand,
+            spec: product.spec,
+            unit: product.unit,
+            shelfLife: product.shelfLife,
+            status: 'active',
+            auditStatus: 'approved',
           },
         });
-        inc(report.createdCounts, 'productSuppliers');
+        inc(report.createdCounts, 'supplySkus');
       }
+
+      let quote = supplySku?.id && supplySku.id > 0
+        ? await prisma.supplyQuote.findFirst({ where: { supplySkuId: supplySku.id, supplierId: supplier.id, deletedAt: null } })
+        : null;
+      if (quote) {
+        inc(report.skippedCounts, 'supplyQuotes');
+      } else if (dryRun) {
+        inc(report.createdCounts, 'supplyQuotes');
+        quote = { id: DRY_RUN_ID_BASE + store.id * 2000 + index, supplySkuId: supplySku.id, supplierId: supplier.id } as any;
+      } else {
+        quote = await prisma.supplyQuote.create({
+          data: {
+            supplySkuId: supplySku.id,
+            supplierId: supplier.id,
+            price: Number(product.costPrice ?? 80),
+            moq: 10 + index * 5,
+            leadDays: index % 2 === 0 ? 4 : 9,
+            status: 'active',
+            auditStatus: 'approved',
+          },
+        });
+        inc(report.createdCounts, 'supplyQuotes');
+      }
+
+      const existingMapping = await prisma.supplyCatalogMapping.findFirst({
+        where: { supplySkuId: supplySku.id, productId: product.id, storeId: store.id },
+      });
+      if (existingMapping) {
+        inc(report.skippedCounts, 'supplyCatalogMappings');
+      } else if (dryRun) {
+        inc(report.createdCounts, 'supplyCatalogMappings');
+      } else {
+        await prisma.supplyCatalogMapping.create({
+          data: {
+            supplySkuId: supplySku.id,
+            productId: product.id,
+            storeId: store.id,
+            mappingStatus: 'active',
+            isPreferred: index === 0,
+          },
+        });
+        inc(report.createdCounts, 'supplyCatalogMappings');
+      }
+      supplyLinks.set(product.id, { supplySkuId: supplySku.id, quoteId: quote?.id ?? null });
     }
 
     const receivedOrderNo = `MVP-SUP-${store.id}-RECEIVED`;
     const delayedOrderNo = `MVP-SUP-${store.id}-DELAYED`;
-    const supplierOrders = [
+    const procurementOrders = [
       { orderNo: receivedOrderNo, status: 'received', orderedAt: daysFromNow(-12), receivedAt: daysFromNow(-4), quantity: 20, receivedQty: 20 },
-      { orderNo: delayedOrderNo, status: 'pending', orderedAt: daysFromNow(-11), receivedAt: null, quantity: 16, receivedQty: 0 },
+      { orderNo: delayedOrderNo, status: 'pending_supplier_confirm', orderedAt: daysFromNow(-11), receivedAt: null, quantity: 16, receivedQty: 0 },
     ];
-    for (const [orderIndex, orderSeed] of supplierOrders.entries()) {
-      const existing = await (prisma as any).supplierOrder.findUnique({ where: { orderNo: orderSeed.orderNo } });
+    for (const [orderIndex, orderSeed] of procurementOrders.entries()) {
+      const existing = await prisma.procurementOrder.findUnique({ where: { orderNo: orderSeed.orderNo } });
       if (existing) {
-        inc(report.skippedCounts, 'supplierOrders');
+        inc(report.skippedCounts, 'procurementOrders');
         continue;
       }
       const orderProducts = productRefs.slice(orderIndex, orderIndex + 2).filter((product) => product?.id && product.id > 0);
       const totalAmount = orderProducts.reduce((sum, product) => sum + Number(product.costPrice ?? 80) * orderSeed.quantity, 0);
       if (dryRun || !supplier?.id || supplier.id <= 0 || !orderProducts.length) {
-        inc(report.createdCounts, 'supplierOrders');
-        inc(report.createdCounts, 'supplierOrderItems', Math.max(1, orderProducts.length));
+        inc(report.createdCounts, 'procurementOrders');
+        inc(report.createdCounts, 'procurementOrderItems', Math.max(1, orderProducts.length));
         continue;
       }
-      await (prisma as any).supplierOrder.create({
+      const createdOrder = await prisma.procurementOrder.create({
         data: {
           orderNo: orderSeed.orderNo,
           supplierId: supplier.id,
@@ -1240,35 +1301,65 @@ async function seedSupplierPerformance(stores: Awaited<ReturnType<typeof ensureS
           rebateAmount: Math.round(totalAmount * 0.03),
           netAmount: Math.round(totalAmount * 0.98),
           status: orderSeed.status,
-          orderedAt: orderSeed.orderedAt,
+          sourceType: 'mvp_seed',
+          sourceNo: orderSeed.orderNo,
+          createdAt: orderSeed.orderedAt,
           receivedAt: orderSeed.receivedAt,
           settledAt: orderSeed.status === 'received' ? daysFromNow(-2) : undefined,
           items: {
-            create: orderProducts.map((product) => ({
-              productId: product.id,
-              quantity: orderSeed.quantity,
-              unitPrice: Number(product.costPrice ?? 80),
-              subtotal: Number(product.costPrice ?? 80) * orderSeed.quantity,
-              receivedQty: orderSeed.receivedQty,
-            })),
+            create: orderProducts.map((product) => {
+              const link = supplyLinks.get(product.id);
+              if (!link) throw new Error(`商品 ${product.id} 缺少供应链 SKU 映射，无法创建演示采购单。`);
+              return {
+                productId: product.id,
+                supplySkuId: link.supplySkuId,
+                quoteId: link.quoteId,
+                quantity: orderSeed.quantity,
+                unitPrice: Number(product.costPrice ?? 80),
+                subtotal: Number(product.costPrice ?? 80) * orderSeed.quantity,
+                receivedQty: orderSeed.receivedQty,
+              };
+            }),
           },
         },
+        include: { items: true },
       });
-      inc(report.createdCounts, 'supplierOrders');
-      inc(report.createdCounts, 'supplierOrderItems', orderProducts.length);
+      if (orderSeed.receivedQty > 0) {
+        await prisma.supplierShipment.create({
+          data: {
+            orderId: createdOrder.id,
+            supplierId: supplier.id,
+            shipmentNo: `MVP-SHP-${store.id}-${orderIndex + 1}`,
+            status: 'received',
+            shippedAt: daysFromNow(-5),
+            receivedAt: orderSeed.receivedAt,
+            items: {
+              create: createdOrder.items.map((item) => ({
+                orderItemId: item.id,
+                supplySkuId: item.supplySkuId,
+                shippedQty: orderSeed.receivedQty,
+                receivedQty: orderSeed.receivedQty,
+                batchNo: `MVP-BATCH-${store.id}-${item.id}`,
+              })),
+            },
+          },
+        });
+      }
+      inc(report.createdCounts, 'procurementOrders');
+      inc(report.createdCounts, 'procurementOrderItems', orderProducts.length);
     }
 
     if (!supplier?.id || supplier.id <= 0) continue;
     const settleMonth = daysFromNow(-1).toISOString().slice(0, 7);
-    const existingSettlement = await (prisma as any).supplierSettlement.findUnique({
+    const existingSettlement = await prisma.supplySettlement.findUnique({
       where: { supplierId_settleMonth: { supplierId: supplier.id, settleMonth } },
     });
     if (existingSettlement) {
-      inc(report.skippedCounts, 'supplierSettlements');
+      inc(report.skippedCounts, 'supplySettlements');
     } else if (dryRun) {
-      inc(report.createdCounts, 'supplierSettlements');
+      inc(report.createdCounts, 'supplySettlements');
     } else {
-      await (prisma as any).supplierSettlement.create({
+      await prisma.supplySettlement.create({
         data: {
           supplierId: supplier.id,
           settleMonth,
@@ -1281,7 +1372,7 @@ async function seedSupplierPerformance(stores: Awaited<ReturnType<typeof ensureS
           confirmedAt: store.id % 2 === 0 ? daysFromNow(-1) : undefined,
         },
       });
-      inc(report.createdCounts, 'supplierSettlements');
+      inc(report.createdCounts, 'supplySettlements');
     }
   }
 }

@@ -335,7 +335,7 @@ export interface DailySettlement {
   summary?: Record<string, number>;
 }
 
-function normalizePaginated<T>(response: any): PaginatedResponse<T> {
+function normalizePaginated<T>(response: any): PaginatedResponse<T> & { summary?: any } {
   const items = (response?.items ?? response?.data ?? []) as T[];
   return {
     items,
@@ -343,6 +343,7 @@ function normalizePaginated<T>(response: any): PaginatedResponse<T> {
     total: Number(response?.total ?? items.length),
     page: Number(response?.page ?? 1),
     pageSize: Number(response?.pageSize ?? (items.length || 20)),
+    summary: response?.summary,
   };
 }
 

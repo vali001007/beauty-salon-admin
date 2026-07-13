@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
+import { FinanceMetricsService } from '../finance-metrics/finance-metrics.service.js';
 import {
   QueryBeauticianPerformanceDto,
   QueryOperationProfitDto,
@@ -11,11 +12,17 @@ import {
 import type { CostBreakdownKey, DataQualityStatus, DateRange, MissingCostReason, OperationAlert } from './operation-profit.types.js';
 
 type NumberMap = Map<string | number, number>;
-type ProductCostSource = 'order_snapshot' | 'stock_movement' | 'product_master' | 'missing' | 'mixed';
+type ProductCostSource = 'batch_snapshot' | 'order_snapshot' | 'product_master_estimate' | 'legacy_missing_snapshot' | 'missing' | 'mixed';
+type ProductMovementCost = {
+  unitCost: number;
+  costAmount: number;
+  source: ProductCostSource;
+  sourceNo?: string;
+};
 
 @Injectable()
 export class OperationProfitService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly financeMetricsService?: FinanceMetricsService) {}
 
   private toNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
@@ -214,9 +221,13 @@ export class OperationProfitService {
         movementType: { in: ['service_consume', 'service_consumption'] },
         occurredAt: { gte: range.from, lte: range.to },
       },
-      select: { productId: true, sourceType: true, sourceId: true, quantity: true, remark: true, product: { select: { costPrice: true } } },
+      select: { productId: true, sourceType: true, sourceId: true, quantity: true, costAmount: true, remark: true, product: { select: { costPrice: true } } },
     });
-    return movements.reduce((sum, movement) => sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice), 0);
+    return movements.reduce((sum, movement) => {
+      const snapshotCost = this.toNumber(movement.costAmount);
+      if (snapshotCost > 0) return sum + snapshotCost;
+      return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+    }, 0);
   }
 
   private async getProductCostFromItems(orderItems: any[], storeId?: number) {
@@ -232,7 +243,7 @@ export class OperationProfitService {
     return orderItems.reduce(
       (summary, item) => {
         if (!this.isProductItem(item.itemType) || !item.itemId) return summary;
-        const resolved = this.resolveProductItemCost(item, productCostById, new Set<number>());
+        const resolved = this.resolveProductItemCost(item, productCostById, new Map());
         summary.cost += resolved.costAmount;
         if (resolved.source === 'missing') summary.missingCostCount += 1;
         return summary;
@@ -241,8 +252,12 @@ export class OperationProfitService {
     );
   }
 
-  private resolveProductItemCost(item: any, productCostById: Map<number, number>, stockMovementProductIds: Set<number>) {
+  private resolveProductItemCost(item: any, productCostById: Map<number, number>, movementCostByOrderProduct: Map<string, ProductMovementCost>) {
     const quantity = this.toNumber(item.quantity || 1) || 1;
+    const productId = Number(item.itemId);
+    const movementCost = movementCostByOrderProduct.get(`${item.orderId}:${productId}`);
+    if (movementCost && movementCost.costAmount > 0) return movementCost;
+
     const snapshotUnitCost = this.getPayloadNumber(item.payload, ['costPrice', 'unitCost', 'productCostPrice']);
     const snapshotCostAmount = this.getPayloadNumber(item.payload, ['costAmount', 'productCostAmount']);
     if (snapshotCostAmount !== undefined) {
@@ -260,17 +275,53 @@ export class OperationProfitService {
       };
     }
 
-    const productId = Number(item.itemId);
     const masterUnitCost = this.toNumber(productCostById.get(productId));
     if (masterUnitCost > 0) {
       return {
         unitCost: masterUnitCost,
         costAmount: masterUnitCost * quantity,
-        source: stockMovementProductIds.has(productId) ? ('stock_movement' as ProductCostSource) : ('product_master' as ProductCostSource),
+        source: 'product_master_estimate' as ProductCostSource,
       };
     }
 
     return { unitCost: 0, costAmount: 0, source: 'missing' as ProductCostSource };
+  }
+
+  private resolveMovementMaterialCost(movement: any) {
+    const snapshotCost = this.toNumber(movement.costAmount);
+    if (snapshotCost > 0) return snapshotCost;
+    return Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+  }
+
+  private buildProductMovementCostMap(movements: any[]) {
+    const map = new Map<string, ProductMovementCost>();
+    for (const movement of movements) {
+      const sourceId = Number(movement.sourceId);
+      const productId = Number(movement.productId);
+      if (!sourceId || !productId) continue;
+      const quantity = Math.abs(this.toNumber(movement.quantity)) || 1;
+      const snapshotAmount = this.toNumber(movement.costAmount);
+      const unitCost = this.toNumber(movement.unitCost) || (quantity > 0 ? snapshotAmount / quantity : 0);
+      if (snapshotAmount > 0) {
+        map.set(`${sourceId}:${productId}`, {
+          unitCost,
+          costAmount: snapshotAmount,
+          source: 'batch_snapshot',
+          sourceNo: movement.sourceNo,
+        });
+        continue;
+      }
+      const fallbackUnitCost = this.toNumber(movement.product?.costPrice);
+      if (fallbackUnitCost > 0) {
+        map.set(`${sourceId}:${productId}`, {
+          unitCost: fallbackUnitCost,
+          costAmount: fallbackUnitCost * quantity,
+          source: 'legacy_missing_snapshot',
+          sourceNo: movement.sourceNo,
+        });
+      }
+    }
+    return map;
   }
 
   private movementBelongsToProject(movement: any, project: any) {
@@ -500,11 +551,18 @@ export class OperationProfitService {
   async getOverview(query: QueryOperationProfitDto, headerStoreId?: string) {
     const storeId = this.asOptionalStoreId(query.storeId ?? headerStoreId);
     const range = this.parseDateRange(query.from, query.to);
-    const [orders, cardUsageRecords, costs, cardUnitValueByName] = await Promise.all([
+    const [orders, cardUsageRecords, costs, cardUnitValueByName, financeMetrics] = await Promise.all([
       this.getOrders(range, storeId),
       this.getCardUsageRecords(range, storeId),
       this.getOperatingCosts(range, storeId),
       this.getCardUnitValueByName(),
+      this.financeMetricsService
+        ? this.financeMetricsService.getDailyMetrics({
+            dateFrom: query.from,
+            dateTo: query.to,
+            storeId,
+          })
+        : Promise.resolve(null),
     ]);
 
     const allOrderItems = orders.flatMap((order) => order.orderItems.map((item) => ({ ...item, order })));
@@ -571,6 +629,21 @@ export class OperationProfitService {
     const avgTicket = customerCount > 0 ? operatingIncome / customerCount : 0;
     const prepaidAdditions = cardSales + rechargeIncome;
     const cardConsumptionRate = prepaidAdditions > 0 ? cardConsumptionIncome / prepaidAdditions : 0;
+    const metricSummary = financeMetrics?.summary;
+    if (metricSummary?.dataQuality?.missingReasons?.length) {
+      for (const reason of metricSummary.dataQuality.missingReasons) missingReasons.add(reason as MissingCostReason);
+    }
+    const overviewCashIncome = metricSummary ? metricSummary.cashIncome : cashIncome;
+    const overviewOperatingIncome = metricSummary ? metricSummary.operatingRevenue : operatingIncome;
+    const overviewGrossProfit = metricSummary ? metricSummary.grossProfit : grossProfit;
+    const overviewGrossMargin = metricSummary ? metricSummary.grossMargin : grossMargin;
+    const overviewCustomerCount = metricSummary ? metricSummary.customerCount : customerCount;
+    const overviewAvgTicket = metricSummary ? metricSummary.avgTicket : avgTicket;
+    const overviewOperatingProfit = overviewGrossProfit - operatingCostTotal;
+    const overviewNetMargin = overviewOperatingIncome > 0 ? overviewOperatingProfit / overviewOperatingIncome : 0;
+    const overviewPrepaidAdditions = metricSummary ? metricSummary.prepaidAmount : prepaidAdditions;
+    const overviewCardConsumptionRate =
+      overviewPrepaidAdditions > 0 ? (metricSummary ? metricSummary.cardUsageRecognized : cardConsumptionIncome) / overviewPrepaidAdditions : cardConsumptionRate;
 
     const trendByDate = new Map<string, { date: string; cashIncome: number; operatingIncome: number; grossProfit: number; operatingProfit: number }>();
     const ensureTrend = (date: string) => {
@@ -606,15 +679,15 @@ export class OperationProfitService {
       period: { from: query.from, to: query.to },
       basis: query.basis ?? 'operating',
       summary: {
-        cashIncome: this.round(cashIncome),
-        operatingIncome: this.round(operatingIncome),
-        grossProfit: this.round(grossProfit),
-        operatingProfit: this.round(operatingProfit),
-        grossMargin: this.round(grossMargin, 4),
-        netMargin: this.round(netMargin, 4),
-        customerCount,
-        avgTicket: this.round(avgTicket),
-        cardConsumptionRate: this.round(cardConsumptionRate, 4),
+        cashIncome: this.round(overviewCashIncome),
+        operatingIncome: this.round(overviewOperatingIncome),
+        grossProfit: this.round(overviewGrossProfit),
+        operatingProfit: this.round(overviewOperatingProfit),
+        grossMargin: this.round(overviewGrossMargin, 4),
+        netMargin: this.round(overviewNetMargin, 4),
+        customerCount: overviewCustomerCount,
+        avgTicket: this.round(overviewAvgTicket),
+        cardConsumptionRate: this.round(overviewCardConsumptionRate, 4),
       },
       incomeBreakdown: [
         { key: 'single_service', label: '单次服务收入', amount: this.round(singleServiceIncome) },
@@ -723,14 +796,14 @@ export class OperationProfitService {
           sourceId: { in: orders.map((order) => order.id) },
           occurredAt: { gte: range.from, lte: range.to },
         },
-        select: { productId: true, sourceId: true },
+        select: { productId: true, sourceId: true, sourceNo: true, quantity: true, unitCost: true, costAmount: true, costSource: true, product: { select: { costPrice: true } } },
       }),
     ]);
 
     const allowedProductIds = new Set(products.map((product) => product.id));
     const productById = new Map(products.map((product) => [product.id, product]));
     const productCostById = new Map(products.map((product) => [product.id, this.toNumber(product.costPrice)]));
-    const stockMovementProductIds = new Set(stockMovements.map((movement) => Number(movement.productId)));
+    const movementCostByOrderProduct = this.buildProductMovementCostMap(stockMovements);
     const commissionByOrderItemId = new Map<number, number>();
     for (const record of commissionRecords) {
       if (!record.orderItemId) continue;
@@ -746,7 +819,7 @@ export class OperationProfitService {
       const salesAmount = this.getItemNetAmount(item);
       const listAmount = this.getItemListAmount(item);
       const refundAmount = this.getRefundShare(item);
-      const cost = this.resolveProductItemCost(item, productCostById, stockMovementProductIds);
+      const cost = this.resolveProductItemCost(item, productCostById, movementCostByOrderProduct);
       const commissionCost = this.toNumber(commissionByOrderItemId.get(item.id));
       const current =
         rowsByProduct.get(productId) ??
@@ -794,6 +867,9 @@ export class OperationProfitService {
         discountAmount: 0,
         refundAmount: 0,
         netSalesAmount: 0,
+        productCost: 0,
+        costSource: cost.source,
+        costSourceNo: cost.sourceNo,
         commissionCost: 0,
       };
       sourceOrder.quantity += quantity;
@@ -802,9 +878,15 @@ export class OperationProfitService {
       sourceOrder.discountAmount += Math.max(0, listAmount - salesAmount);
       sourceOrder.refundAmount += refundAmount;
       sourceOrder.netSalesAmount += Math.max(0, salesAmount - refundAmount);
+      sourceOrder.productCost += cost.costAmount;
+      sourceOrder.unitCost = sourceOrder.quantity > 0 ? sourceOrder.productCost / sourceOrder.quantity : cost.unitCost;
+      if (sourceOrder.costSource !== cost.source) sourceOrder.costSource = 'mixed';
+      sourceOrder.costSourceNo = sourceOrder.costSourceNo || cost.sourceNo;
       sourceOrder.commissionCost += commissionCost;
       current.sourceOrderById.set(item.orderId, sourceOrder);
-      if (cost.source === 'missing') current.missingCostReasons.add('missing_cost');
+      if (cost.source === 'missing') current.missingCostReasons.add('missing_batch_cost');
+      if (cost.source === 'product_master_estimate') current.missingCostReasons.add('product_master_estimate');
+      if (cost.source === 'legacy_missing_snapshot') current.missingCostReasons.add('legacy_missing_snapshot');
       if (salesAmount > 0 && commissionCost <= 0) current.missingCostReasons.add('missing_commission');
       rowsByProduct.set(productId, current);
     }
@@ -856,6 +938,10 @@ export class OperationProfitService {
             discountAmount: this.round(source.discountAmount),
             refundAmount: this.round(source.refundAmount),
             netSalesAmount: this.round(source.netSalesAmount),
+            unitCost: this.round(source.unitCost),
+            productCost: this.round(source.productCost),
+            costSource: source.costSource,
+            costSourceNo: source.costSourceNo,
             commissionCost: this.round(source.commissionCost),
           }))
           .sort((a: any, b: any) => String(b.orderedAt ?? '').localeCompare(String(a.orderedAt ?? '')) || Number(b.orderId) - Number(a.orderId))
@@ -887,7 +973,7 @@ export class OperationProfitService {
     const [projects, allProjectIds, total] = await Promise.all([
       this.prisma.project.findMany({
         where,
-        include: { type: true, bomItems: { include: { product: { select: { id: true, name: true, costPrice: true, unit: true } } } } },
+        include: { type: true, bomItems: { include: { product: { select: { id: true, name: true, costPrice: true, unit: true, specUnit: true } } } } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.project.findMany({
@@ -917,7 +1003,7 @@ export class OperationProfitService {
         occurredAt: { gte: range.from, lte: range.to },
         sourceType: { in: ['project_order', 'card_usage', 'service_task'] },
       },
-      include: { product: { select: { costPrice: true } } },
+      include: { product: { select: { id: true, name: true, costPrice: true } } },
     });
     const commissionSourceWhere = cardUsageRecordIds.length
       ? [
@@ -962,13 +1048,13 @@ export class OperationProfitService {
         if (movement.sourceType === 'project_order' && !orderIds.has(Number(movement.sourceId))) return sum;
         if (movement.sourceType !== 'project_order') return sum;
         if (!this.movementBelongsToProject(movement, project)) return sum;
-        return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+        return sum + this.resolveMovementMaterialCost(movement);
       }, 0);
       const cardUsageMaterialCost = movements.reduce((sum, movement) => {
         if (movement.sourceType === 'card_usage' && !cardUsageIds.has(Number(movement.sourceId))) return sum;
         if (movement.sourceType !== 'card_usage') return sum;
         if (!this.movementBelongsToProject(movement, project)) return sum;
-        return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+        return sum + this.resolveMovementMaterialCost(movement);
       }, 0);
       const actualMaterialCost = orderMaterialCost + cardUsageMaterialCost;
       if (serviceCount > 0 && actualMaterialCost <= 0) missingReasons.add('missing_actual_consumption');
@@ -998,7 +1084,7 @@ export class OperationProfitService {
         const itemMaterialCost = movements.reduce((sum, movement) => {
           if (movement.sourceType !== 'project_order' || Number(movement.sourceId) !== itemOrderId) return sum;
           if (!this.movementBelongsToProject(movement, project)) return sum;
-          return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+          return sum + this.resolveMovementMaterialCost(movement);
         }, 0);
         const materialCostForItem = itemMaterialCost > 0 ? itemMaterialCost : standardMaterialUnitCost * quantity;
         const commissionCostForItem = commissionRecords
@@ -1026,7 +1112,7 @@ export class OperationProfitService {
         const materialCostForUsage = movements.reduce((sum, movement) => {
           if (movement.sourceType !== 'card_usage' || Number(movement.sourceId) !== usageId) return sum;
           if (!this.movementBelongsToProject(movement, project)) return sum;
-          return sum + Math.abs(this.toNumber(movement.quantity)) * this.toNumber(movement.product?.costPrice);
+          return sum + this.resolveMovementMaterialCost(movement);
         }, 0);
         const fallbackMaterialCost = materialCostForUsage > 0 ? materialCostForUsage : standardMaterialUnitCost * (this.toNumber(record.times) || 1);
         const commissionCostForUsage = commissionRecords

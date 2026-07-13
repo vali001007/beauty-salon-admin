@@ -1,0 +1,114 @@
+import { BrainCapabilityGatewayService } from './skills/brain-capability-gateway.service.js';
+
+describe('BrainCapabilityGatewayService', () => {
+  it('requires manage permission for high-risk purchase order creation', () => {
+    const service = new BrainCapabilityGatewayService();
+
+    expect(service.resolve('create_purchase_order')).toMatchObject({
+      permission: 'core:supply:manage',
+      riskLevel: 'high',
+    });
+  });
+
+  it('executes reservation creation through ReservationsService and forces current store scope', async () => {
+    const reservations = { create: jest.fn().mockResolvedValue({ id: 101, storeId: 6, status: 'pending' }) };
+    const service = new BrainCapabilityGatewayService(reservations as never, undefined, undefined, undefined);
+
+    const receipt = await service.execute({
+      skillKey: 'create_reservation',
+      payload: { storeId: 99, customerId: 11, projectId: 22, appointmentTime: '2026-07-12T10:00:00+08:00' },
+      context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'] },
+    });
+
+    expect(reservations.create).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6, customerId: 11, projectId: 22 }),
+    );
+    expect(receipt).toMatchObject({ capabilityKey: 'create_reservation', businessObjectType: 'reservation', businessObjectId: 101 });
+  });
+
+  it('rejects cross-store reservation updates before invoking the business service', async () => {
+    const reservations = {
+      findById: jest.fn().mockResolvedValue({ id: 101, storeId: 7 }),
+      update: jest.fn(),
+    };
+    const service = new BrainCapabilityGatewayService(reservations as never, undefined, undefined, undefined);
+
+    await expect(
+      service.execute({
+        skillKey: 'reschedule_reservation',
+        payload: { reservationId: 101, appointmentTime: '2026-07-12T10:00:00+08:00' },
+        context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'] },
+      }),
+    ).rejects.toThrow('cross_store_business_object');
+    expect(reservations.update).not.toHaveBeenCalled();
+  });
+
+  it('creates a purchase draft and submits it for approval through InventoryService', async () => {
+    const inventory = {
+      createPurchaseOrder: jest.fn().mockResolvedValue({ id: 88, orderNo: 'PUR88', status: '草稿' }),
+      updatePurchaseOrderStatus: jest.fn().mockResolvedValue({ id: 88, orderNo: 'PUR88', status: '待审核' }),
+    };
+    const prisma = {
+      product: { count: jest.fn().mockResolvedValue(1) },
+    };
+    const service = new BrainCapabilityGatewayService(undefined, inventory as never, undefined, prisma as never);
+
+    const receipt = await service.execute({
+      skillKey: 'create_purchase_order',
+      payload: {
+        supplier: '供应商A',
+        submitForApproval: true,
+        items: [{ productId: 1, productName: '精华液', sku: 'SKU1', quantity: 10, unitPrice: 20 }],
+      },
+      context: { userId: 9, storeId: 6, permissions: ['core:supply:manage'] },
+    });
+
+    expect(inventory.createPurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6, status: '草稿' }));
+    expect(inventory.updatePurchaseOrderStatus).toHaveBeenCalledWith(88, { status: '待审核' });
+    expect(receipt).toMatchObject({ businessObjectType: 'purchase_order', businessObjectId: 88 });
+  });
+
+  it('creates follow-up and marketing-touch drafts through TerminalService', async () => {
+    const terminal = {
+      createFollowUpTask: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 31, status: 'pending' })
+        .mockResolvedValueOnce({ id: 32, status: 'pending' }),
+    };
+    const service = new BrainCapabilityGatewayService(undefined, undefined, terminal as never, undefined);
+    const context = { userId: 9, storeId: 6, permissions: ['assist:followup:create', 'core:marketing:create'] };
+
+    const followup = await service.execute({
+      skillKey: 'create_customer_followup',
+      payload: { customerId: 11, title: '七天回访', note: '确认护理反馈' },
+      context,
+    });
+    const touch = await service.execute({
+      skillKey: 'create_marketing_touch_draft',
+      payload: { customerId: 11, title: '召回触达', script: '您好，近期护理节奏可以衔接。' },
+      context,
+    });
+
+    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(1, 6, undefined, expect.objectContaining({ customerId: 11, source: 'brain_followup' }), 9);
+    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(2, 6, undefined, expect.objectContaining({ customerId: 11, source: 'brain_marketing_touch_draft' }), 9);
+    expect(followup.businessObjectId).toBe(31);
+    expect(touch.businessObjectId).toBe(32);
+  });
+
+  it('saves an in-progress service record through TerminalService after store validation', async () => {
+    const terminal = {
+      getTaskById: jest.fn().mockResolvedValue({ id: 41, storeId: 6, status: 'in_progress' }),
+      completeTask: jest.fn().mockResolvedValue({ id: 41, storeId: 6, status: 'completed' }),
+    };
+    const service = new BrainCapabilityGatewayService(undefined, undefined, terminal as never, undefined);
+
+    const receipt = await service.execute({
+      skillKey: 'save_service_record',
+      payload: { taskId: 41, remark: '客户肤况稳定', consumptionItems: [] },
+      context: { userId: 9, storeId: 6, permissions: ['aura:service-record:create'] },
+    });
+
+    expect(terminal.completeTask).toHaveBeenCalledWith(41, expect.objectContaining({ remark: '客户肤况稳定' }));
+    expect(receipt).toMatchObject({ businessObjectType: 'service_task', businessObjectId: 41 });
+  });
+});

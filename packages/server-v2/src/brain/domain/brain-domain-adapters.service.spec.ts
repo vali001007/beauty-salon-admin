@@ -1,0 +1,743 @@
+import { BrainBeauticianDomainAdapter } from './adapters/brain-beautician-domain.adapter.js';
+import { BrainFinanceDomainAdapter } from './adapters/brain-finance-domain.adapter.js';
+import { BrainFrontDeskDomainAdapter } from './adapters/brain-front-desk-domain.adapter.js';
+import { BrainInventoryDomainAdapter } from './adapters/brain-inventory-domain.adapter.js';
+import { BrainMarketingDomainAdapter } from './adapters/brain-marketing-domain.adapter.js';
+import { BrainStoreManagerDomainAdapter } from './adapters/brain-store-manager-domain.adapter.js';
+import { BrainCustomerServiceDomainAdapter } from './adapters/brain-customer-service-domain.adapter.js';
+import type { BrainDomainAdapterExecution, BrainRoleIntentPlan } from './brain-domain-adapter.types.js';
+
+describe('Brain domain adapters', () => {
+  const context = {
+    userId: 9,
+    storeId: 2,
+    visibleStoreIds: [2],
+    permissions: ['*'],
+    deniedPermissions: [],
+    requestId: 'req',
+    timezone: 'Asia/Shanghai',
+  };
+  const cognition = {
+    normalizedText: '',
+    terms: [],
+    metrics: [],
+    dimensions: [],
+    entities: [],
+    unsupportedTerms: [],
+    intent: { key: 'metric_query', confidence: 0.8, reason: 'test' },
+    needsClarification: false,
+  };
+  const runtimeIntent = {
+    intent: 'diagnosis',
+    expectedShape: 'non_metric',
+    allowsScalarMetric: false,
+    reason: 'test',
+  };
+  const plan = (adapterKey: BrainRoleIntentPlan['adapterKey'], intent = 'diagnosis'): BrainRoleIntentPlan =>
+    ({
+      role: 'store_manager',
+      domain: 'store_operation',
+      intent,
+      answerShape: intent === 'list' ? 'list' : 'non_metric',
+      adapterKey,
+      requiredPermissions: [],
+      confidence: 0.9,
+      grounding: intent === 'draft' || intent === 'recommendation' ? 'template_skill' : 'db_skill',
+      reason: 'test',
+    }) as BrainRoleIntentPlan;
+  const execution = (message: string, adapterKey: BrainRoleIntentPlan['adapterKey'], intent = 'diagnosis') =>
+    ({
+      context,
+      dto: { message, timezone: 'Asia/Shanghai' },
+      runId: 1,
+      cognition,
+      runtimeIntent,
+      plan: plan(adapterKey, intent),
+    }) as BrainDomainAdapterExecution;
+
+  const skillRuntime = {
+    buildManagerDailyOverview: jest.fn().mockResolvedValue({
+      revenue: 1200,
+      appointmentCount: 3,
+      activeCustomerCount: 2,
+      grossMarginRate: 0.5,
+      riskItems: ['低库存：补水面膜'],
+    }),
+    buildManagerOperationsAnalysis: jest.fn().mockResolvedValue({
+      revenue: 1000,
+      orderCount: 5,
+      customerCount: 4,
+      avgTransaction: 200,
+      inStoreCount: 2,
+      newCustomerCount: 1,
+      returningCustomerCount: 3,
+      paymentBreakdown: [{ method: '微信', amount: 700 }, { method: '现金', amount: 300 }],
+      dailyTrend: [{ date: '2026-07-11', revenue: 1000 }],
+      projectRanking: [{ name: '补水护理', count: 3 }],
+      beauticianRanking: [{ name: '王美容师', count: 3 }],
+      largestOrder: { orderNo: 'PO001', amount: 400 },
+      target: { revenueTarget: 2000, appointmentTarget: 10, newCustomerTarget: 2 },
+    }),
+    buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+      staff: [
+        { beauticianId: 1, name: '王美容师', serviceCount: 6, completedCount: 5, uniqueCustomerCount: 4, repeatCustomerCount: 2, revenueAmount: 3000, commissionAmount: 300, timeOffHours: 0 },
+        { beauticianId: 2, name: '李美容师', serviceCount: 3, completedCount: 3, uniqueCustomerCount: 3, repeatCustomerCount: 0, revenueAmount: 1500, commissionAmount: 150, timeOffHours: 2 },
+      ],
+    }),
+    buildManagerRevenueForecastBaseline: jest.fn().mockResolvedValue({
+      modelVersion: 'deterministic_daily_revenue_v1',
+      generatedAt: '2026-07-11T04:00:00.000Z',
+      historyStart: '2026-04-13T00:00:00.000Z',
+      historyEnd: '2026-07-11T23:59:59.999Z',
+      forecastStart: '2026-10-01T00:00:00.000Z',
+      forecastEnd: '2026-12-31T23:59:59.999Z',
+      sampleDays: 90,
+      forecastDays: 92,
+      averageDailyRevenue: 100,
+      estimatedRevenue: 9200,
+      lowerBound: 7360,
+      upperBound: 11040,
+      confidence: 0.75,
+    }),
+    listReceptionReservations: jest.fn().mockResolvedValue({
+      count: 1,
+      reservations: [{ date: '2026-07-11', startTime: '10:00', customerName: '李女士', projectName: '补水护理', projectTypeName: '面部护理', beauticianName: '王美容师', remark: '准备舒缓产品' }],
+    }),
+    buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({
+      total: 5,
+      checkedIn: 2,
+      pendingArrival: 2,
+      noShow: 1,
+      cancelled: 1,
+      arrivalRate: 0.4,
+      noShowRate: 0.2,
+      arrivedCustomers: [{ customerName: '赵女士', startTime: '10:00', projectName: '清洁护理', status: 'checked_in' }],
+      pendingCustomers: [{ customerName: '李女士', startTime: '14:00', projectName: '补水护理', status: 'confirmed' }],
+      resources: [{ name: '1号床', type: 'bed', booked: false }],
+      staff: [
+        { name: '李美容师', appointmentCount: 2, inService: true, onTimeOff: false, available: false, nextAvailableAt: '15:00' },
+        { name: '王美容师', appointmentCount: 0, inService: false, onTimeOff: false, available: true },
+      ],
+    }),
+    buildReceptionServiceOverrunAnalysis: jest.fn().mockResolvedValue({
+      overrunCount: 1,
+      impactedCount: 1,
+      items: [
+        {
+          beauticianName: '王美容师',
+          customerName: '李女士',
+          projectName: '补水护理',
+          plannedEnd: '15:00',
+          actualEnd: '15:20',
+          overrunMinutes: 20,
+          impactedReservation: { startTime: '15:00', customerName: '赵女士', projectName: '肩颈护理' },
+        },
+      ],
+    }),
+    buildReceptionCatalogSnapshot: jest.fn().mockResolvedValue({
+      cards: [{ name: '补水护理 10 次卡', totalTimes: 10, price: 3000, validDays: 365 }],
+      promotions: [{ name: '新客体验礼', discountText: '首单减 100', endAt: '2026-07-31' }],
+    }),
+    previewReservationAction: jest.fn(() => ({
+      actionId: 'preview_reschedule_reservation',
+      actionType: 'reschedule_reservation',
+      riskLevel: 'high',
+      requiresConfirmation: true,
+      summary: '客户预约动作预览：明天下午。确认前不会写入预约。',
+    })),
+    draftAppointmentReminder: jest.fn(() => '您好，店里近期有可预约空档，方便的话可以回复我帮您安排。'),
+    draftCustomerRecall: jest.fn(() => '您好，最近护理节奏可以衔接起来了。方便的话回复我，我帮您安排合适时间。'),
+    draftCampaignPlan: jest.fn(() => '活动方案：\n1. 目标客群：老客和会员。\n2. 执行前先确认毛利和库存。'),
+    buildBeauticianServiceSummary: jest.fn().mockResolvedValue({
+      serviceCount: 1,
+      nextTasks: [{ appointmentTime: '2026-07-11 10:00', customerName: '李女士', projectName: '补水护理', attentionItems: [] }],
+    }),
+    buildBeauticianPersonalPerformance: jest.fn().mockResolvedValue({
+      beauticianName: '王美容师',
+      serviceCount: 4,
+      completedCount: 3,
+      scheduledMinutes: 240,
+      actualMinutes: 210,
+      revenueAmount: 1800,
+      commissionAmount: 180,
+      uniqueCustomerCount: 4,
+      repeatCustomerCount: 1,
+      projectRanking: [{ name: '补水护理', count: 3 }],
+    }),
+    composeBeauticianFollowUpAdvice: jest.fn(() => '客户本次项目结束后，建议记录反馈并在 7 天内安排一次跟进。'),
+    buildInventoryRiskSummary: jest.fn().mockResolvedValue({
+      expiringStockValue: 80,
+      lowStockProducts: [{ name: '补水面膜', currentStock: 2, safetyStock: 5 }],
+      expiringProducts: [],
+      suggestedAction: '先复核低于安全库存的 SKU，再人工确认补货单。',
+    }),
+    buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({
+      totalSku: 1,
+      totalStockValue: 500,
+      products: [{ productId: 1, sku: 'SKU1', name: '精华液', stock: 10, safetyStock: 5, stockValue: 500, outboundQty: 3, inboundQty: 5, coverageDays: 20 }],
+      movements: [{ occurredAt: '2026-07-11T10:00:00.000Z', productName: '精华液', type: 'outbound', quantity: 1, costAmount: 50 }],
+    }),
+    buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+      suggestions: [
+        { productId: 1, sku: 'SKU1', productName: '精华液', currentStock: 2, safetyStock: 5, suggestedQty: 8, supplierName: '供应商A', unitPrice: 20, estimatedCost: 160, leadDays: 3 },
+      ],
+      recentOrders: [{ orderNo: 'PO001', supplierName: '供应商A', amount: 160, status: 'received', createdAt: '2026-07-10' }],
+      suppliers: [{ supplierName: '供应商A', qualificationStatus: 'approved', leadDays: 3, quoteCount: 1 }],
+    }),
+    composeInventoryDisposalAdvice: jest.fn(() => '临期产品处理建议：\n1. 先下架复核批次。\n2. 已过期不得给客使用。'),
+    buildFinanceRiskSummary: jest.fn().mockResolvedValue({
+      refundAmount: 200,
+      refundCount: 2,
+      discountAmount: 50,
+      grossMarginRate: 0.35,
+      riskItems: ['退款金额 200.00 元，需要复核原因。'],
+    }),
+    buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
+      totalCollected: 1000,
+      paymentBreakdown: [{ method: 'wechat', amount: 700, count: 2 }, { method: 'member_balance', amount: 300, count: 1 }],
+      dailyTrend: [{ date: '2026-07-11', revenue: 1000, orderCount: 5, customerCount: 4, avgTransaction: 200 }],
+      orderKindBreakdown: [{ kind: 'project', amount: 800 }, { kind: 'product', amount: 200 }],
+      largestOrder: { orderNo: 'PO001', amount: 400, customerName: '李女士', createdAt: new Date() },
+    }),
+    buildFinanceCostAnalysis: jest.fn().mockResolvedValue({
+      revenue: 10000,
+      materialCost: 2000,
+      commissionCost: 1000,
+      operatingCost: 1500,
+      grossProfit: 8000,
+      grossMarginRate: 0.8,
+      cardLiability: 5000,
+      costCategories: [{ category: '房租', amount: 1000 }, { category: '水电', amount: 500 }],
+    }),
+    buildMarketingAnalytics: jest.fn().mockResolvedValue({
+      reachedCount: 100,
+      convertedCount: 20,
+      conversionRate: 0.2,
+      attributedRevenue: 5000,
+      channels: [{ channel: 'wechat', reached: 80, converted: 18, revenue: 4500, conversionRate: 0.225 }],
+      strategies: [{ id: 1, name: '沉睡客户召回', status: 'active', executionType: 'scheduled' }],
+      attributionByStrategy: [{ id: 1, name: '沉睡客户召回', revenue: 5000 }],
+    }),
+  };
+  const timeRangeParser = {
+    parse: jest.fn(() => ({
+      range: {
+        label: '今天',
+        startDate: new Date('2026-07-11T00:00:00.000Z'),
+        endDate: new Date('2026-07-11T23:59:59.999Z'),
+        granularity: 'day',
+      },
+      filters: [],
+      mentionedTime: true,
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    })),
+  };
+  const actionConfirmation = {
+    createPreview: jest.fn().mockResolvedValue({ actionId: 'persisted_action' }),
+  };
+  const customerFacts = {
+    answerCustomerFactQuestion: jest.fn().mockResolvedValue('客户分层：\n1. VIP 客户 2 人。\n2. 沉睡客户 1 人。'),
+    answerExactCustomerQuestion: jest.fn().mockResolvedValue('客户：张雯，会员等级 VIP，最近服务补水护理。'),
+    summarizeCustomerSegments: jest.fn().mockResolvedValue('客户分层：\n1. VIP 客户 2 人。\n2. 沉睡客户 1 人。'),
+  };
+  const actionTargets = {
+    resolveCustomer: jest.fn().mockResolvedValue({ ok: true, value: { id: 7, name: '张女士', maskedPhone: '***1234' } }),
+    resolveProject: jest.fn().mockResolvedValue({ ok: true, value: { id: 3, name: '补水护理', duration: 60 } }),
+    resolveReservation: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { id: 18, customerId: 7, customerName: '张女士', projectName: '补水护理', appointmentTime: '2026-07-11T10:00:00' },
+    }),
+    resolveAppointmentTime: jest.fn(() => new Date('2026-07-12T07:00:00.000Z')),
+    resolveServiceTask: jest.fn().mockResolvedValue({ ok: true, value: { id: 51, customerName: '张女士', projectName: '补水护理' } }),
+  };
+  const predictionSkills = {
+    getCustomerPrediction: jest.fn().mockResolvedValue({
+      status: 'available',
+      snapshotId: 31,
+      customerName: '张女士',
+      modelVersion: 'customer-value-v3',
+      generatedAt: '2026-07-10T08:00:00.000Z',
+      ageDays: 1,
+      churn: { score: 0.82, level: 'high' },
+      repurchase30d: { score: 0.64 },
+      marketingResponse: { score: 0.57 },
+      customerValue: { ltv6m: 6800, ltv12m: 12000, tier: 'A' },
+      reasons: ['距上次到店 75 天'],
+      recommendedActions: ['一对一回访'],
+      lifecycleStage: 'at_risk',
+      boundary: '预测用于优先级和建议，不是确定事实。',
+    }),
+  };
+
+  it('store manager adapter returns db-skill overview citation', async () => {
+    const adapter = new BrainStoreManagerDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('今天店里情况怎么样，给我来个总结', 'store_manager'));
+    expect(answer?.grounding).toBe('db_skill');
+    expect(answer?.citations[0]).toMatchObject({ sourceType: 'skill', sourceId: 'store_manager_overview_summary' });
+  });
+
+  it('store manager adapter returns target, trend and ranking analysis', async () => {
+    const adapter = new BrainStoreManagerDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('这个月目标完成率多少，还差多远', 'store_manager', 'diagnosis'));
+    expect(answer?.answer).toContain('完成率');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'store_operating_target' });
+  });
+
+  it('store manager adapter returns staff service, repeat, revenue, commission and time-off facts', async () => {
+    const adapter = new BrainStoreManagerDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('哪个美容师接的客人最多，这周谁请假了', 'store_manager', 'ranking'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'store_manager_staff_analysis' });
+    expect(answer?.answer).toContain('王美容师');
+    expect(answer?.answer).toContain('关联业绩 3000.00');
+    expect(answer?.answer).toContain('请假 2.0 小时');
+  });
+
+  it('store manager adapter returns a transparent revenue forecast baseline', async () => {
+    const adapter = new BrainStoreManagerDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('帮我预测下个季度的营业额', 'store_manager', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'store_manager_revenue_forecast_baseline' });
+    expect(answer?.answer).toContain('9200.00 元');
+    expect(answer?.answer).toContain('deterministic_daily_revenue_v1');
+    expect(answer?.answer).toContain('不是承诺值');
+  });
+
+  it('front desk adapter returns preview actions without writing business state', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const answer = await adapter.execute(execution('把张女士的预约改到明天下午3点', 'front_desk', 'action'));
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionId: 'persisted_action', actionType: 'reschedule_reservation' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'reschedule_reservation',
+      payload: expect.objectContaining({ reservationId: 18, appointmentTime: '2026-07-12T07:00:00.000Z' }),
+    }));
+  });
+
+  it('front desk adapter does not expose an executable confirmation for unopened card redemption', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我打开核销界面，客人要用次卡', 'front_desk', 'action'));
+
+    expect(answer?.suggestedActions).toEqual([]);
+    expect(answer?.answer).toContain('尚未开放 Ami Brain 真实执行');
+  });
+
+  it('front desk adapter returns reception service advice for onsite questions', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('有客人说要投诉，我应该怎么处理', 'front_desk', 'recommendation'));
+    expect(answer?.grounding).toBe('template_skill');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_service_advice' });
+    expect(answer?.answer).toContain('投诉接待建议');
+  });
+
+  it('front desk adapter handles wait-time and new-customer reception advice', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('客人等待时间太长，我能给她什么补偿或安抚', 'front_desk', 'recommendation'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_service_advice' });
+    expect(answer?.answer).toContain('等待');
+    expect(answer?.answer).toContain('店长');
+  });
+
+  it.each([
+    ['这个客人要退款，原因是项目没做完，怎么处理', '退款/退卡处理建议'],
+    ['这个客人想换一个美容师，怎么处理比较好', '更换美容师建议'],
+    ['有个客人说她想试一个新项目，适合她吗', '新项目咨询建议'],
+  ])('front desk adapter returns controlled service guidance: %s', async (message, expected) => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution(message, 'front_desk', 'recommendation'));
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_service_advice' });
+    expect(answer?.answer).toContain(expected);
+  });
+
+  it('front desk adapter performs scoped exact customer lookup', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我查一下张雯，她上次来是什么项目', 'front_desk', 'list'));
+    expect(answer?.answer).toContain('张雯');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_customer_exact_lookup' });
+  });
+
+  it('front desk adapter does not treat a generic reservation lookup as a customer lookup', async () => {
+    customerFacts.answerExactCustomerQuestion.mockClear();
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我查一下明天的预约情况', 'front_desk', 'list'));
+
+    expect(customerFacts.answerExactCustomerQuestion).not.toHaveBeenCalled();
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_reservation_schedule' });
+  });
+
+  it('front desk adapter treats appointment date correction as a schedule query', async () => {
+    customerFacts.answerExactCustomerQuestion.mockClear();
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('不是今天的预约，是明天的', 'front_desk', 'list'));
+
+    expect(customerFacts.answerExactCustomerQuestion).not.toHaveBeenCalled();
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_reservation_schedule' });
+  });
+
+  it('front desk adapter groups reservation categories and preparation notes', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const categoryAnswer = await adapter.execute(execution('今天有几个预约是做面部的，几个是身体的', 'front_desk', 'list'));
+    const preparationAnswer = await adapter.execute(execution('今天有没有需要特别准备物品的预约', 'front_desk', 'list'));
+
+    expect(categoryAnswer?.answer).toContain('面部 1 个');
+    expect(categoryAnswer?.answer).toContain('身体 0 个');
+    expect(preparationAnswer?.answer).toContain('准备舒缓产品');
+  });
+
+  it('front desk adapter ranks reservation density by date', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我看一下这个月预约最多的是哪几天', 'front_desk', 'ranking'));
+
+    expect(answer?.answer).toContain('预约密度排行');
+    expect(answer?.answer).toContain('2026-07-11：1 个');
+  });
+
+  it('front desk adapter returns recharge packages and active promotion facts', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const packageAnswer = await adapter.execute(execution('客人要充值，帮我看一下充值套餐有哪些', 'front_desk', 'list'));
+    const promotionAnswer = await adapter.execute(execution('这个客人问最近有没有什么优惠活动', 'front_desk', 'list'));
+
+    expect(packageAnswer?.citations[0]).toMatchObject({ sourceId: 'front_desk_catalog_snapshot' });
+    expect(packageAnswer?.answer).toContain('补水护理 10 次卡');
+    expect(promotionAnswer?.answer).toContain('新客体验礼');
+  });
+
+  it('front desk adapter returns arrival, no-show and resource facts', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('今天预约了但还没来的客人有哪些，床位有空吗', 'front_desk', 'list'));
+    expect(answer?.answer).toContain('待到店 2 个');
+    expect(answer?.answer).toContain('1号床');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_operations_snapshot' });
+  });
+
+  it('front desk adapter returns staff busy, time-off and availability facts', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我看一下今天哪个美容师可以接新单', 'front_desk', 'list'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_operations_snapshot' });
+    expect(answer?.answer).toContain('李美容师：服务中');
+    expect(answer?.answer).toContain('王美容师：可接新单');
+  });
+
+  it('front desk adapter reports arrival and no-show rates from real reservation facts', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我统计一下今天的到店率，爽约了几个', 'front_desk', 'diagnosis'));
+
+    expect(answer?.answer).toContain('到店率 40.0%');
+    expect(answer?.answer).toContain('爽约率 20.0%');
+    expect(answer?.answer).toContain('爽约 1 个');
+  });
+
+  it('front desk adapter returns arrived customer details instead of only a count', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我看一下今天所有到店客人的基本信息', 'front_desk', 'list'));
+
+    expect(answer?.answer).toContain('到店客户');
+    expect(answer?.answer).toContain('赵女士');
+    expect(answer?.answer).toContain('清洁护理');
+  });
+
+  it('front desk adapter explains service overruns and the impacted next reservation', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('今天有没有超时的预约影响到下一个', 'front_desk', 'diagnosis'));
+
+    expect(skillRuntime.buildReceptionServiceOverrunAnalysis).toHaveBeenCalled();
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_service_overrun_analysis' });
+    expect(answer?.answer).toContain('影响 15:00 赵女士');
+  });
+
+  it('front desk adapter evaluates walk-in availability from staff and resource state', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('有个客人临时来了没预约，现在还能安排吗', 'front_desk', 'recommendation'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'front_desk_walk_in_availability' });
+    expect(answer?.answer).toContain('王美容师');
+    expect(answer?.answer).toContain('1号床');
+  });
+
+  it('front desk adapter filters a named beautician reservation schedule', async () => {
+    skillRuntime.listReceptionReservations.mockResolvedValueOnce({
+      count: 2,
+      reservations: [
+        { date: '2026-07-11', startTime: '10:00', customerName: '李女士', projectName: '补水护理', beauticianName: '赵美容师' },
+        { date: '2026-07-11', startTime: '11:00', customerName: '王女士', projectName: '肩颈护理', beauticianName: '王美容师' },
+      ],
+    });
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
+    const answer = await adapter.execute(execution('帮我看一下今天赵美容师的预约安排', 'front_desk', 'list'));
+
+    expect(answer?.answer).toContain('赵美容师预约清单');
+    expect(answer?.answer).toContain('李女士');
+    expect(answer?.answer).not.toContain('王女士');
+  });
+
+  it('customer service adapter returns grounded customer lists and care scripts', async () => {
+    const adapter = new BrainCustomerServiceDomainAdapter(customerFacts as never, actionConfirmation as never);
+
+    const listAnswer = await adapter.execute(execution('找出好久没来的客户名单', 'customer_service', 'list'));
+    const scriptAnswer = await adapter.execute(execution('写一条生日关怀话术', 'customer_service', 'draft'));
+
+    expect(listAnswer?.grounding).toBe('db_skill');
+    expect(customerFacts.answerCustomerFactQuestion).toHaveBeenCalled();
+    expect(scriptAnswer?.grounding).toBe('template_skill');
+    expect(scriptAnswer?.answer).toContain('生日关怀话术');
+  });
+
+  it('customer service write requests create an executable customer-scoped follow-up preview', async () => {
+    const adapter = new BrainCustomerServiceDomainAdapter(customerFacts as never, actionConfirmation as never, actionTargets as never);
+    const answer = await adapter.execute(execution('给张女士创建跟进任务', 'customer_service', 'action'));
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionId: 'persisted_action', actionType: 'create_customer_followup', requiresConfirmation: true });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'create_customer_followup',
+      payload: expect.objectContaining({ customerId: 7 }),
+    }));
+  });
+
+  it('beautician adapter returns personal service and commission facts', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('我这个月个人业绩和服务时长怎么样', 'beautician_service', 'diagnosis'));
+    expect(answer?.answer).toContain('关联业绩');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_personal_performance' });
+  });
+
+  it('beautician adapter answers best-project and repeat-customer performance questions', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('我这个月做得最好的项目是什么，老客户占多少', 'beautician_service', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_personal_performance' });
+    expect(answer?.answer).toContain('补水护理 3 单');
+    expect(answer?.answer).toContain('重复服务客户 1 人');
+  });
+
+  it('beautician adapter compares personal repeat rate with the store average', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('我的复购率在店里算高还是低', 'beautician_service', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_personal_performance' });
+    expect(answer?.answer).toContain('个人复购率 25.0%');
+    expect(answer?.answer).toContain('店内平均 25.0%');
+    expect(answer?.answer).toContain('持平');
+  });
+
+  it('beautician adapter requests customer facts before diagnosing an effect complaint', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('这个客人问为什么护理效果没有朋友说的好', 'beautician_service', 'diagnosis'));
+
+    expect(answer?.citations).toEqual([]);
+    expect(answer?.answer).toContain('客户身份');
+    expect(answer?.answer).toContain('本次项目');
+    expect(answer?.answer).not.toContain('24 小时内发送护理提醒');
+  });
+
+  it('beautician adapter prioritizes care advice over pronoun-based exact lookup', async () => {
+    customerFacts.answerExactCustomerQuestion.mockClear();
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(
+      execution('这个客人有过敏史，做项目前我需要注意什么', 'beautician_service', 'recommendation'),
+    );
+
+    expect(customerFacts.answerExactCustomerQuestion).not.toHaveBeenCalled();
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_follow_up_advice' });
+    expect(answer?.answer).toContain('过敏');
+  });
+
+  it('beautician adapter answers post-care advice instead of falling back to service schedule', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('这次护理后我应该给她什么建议', 'beautician_service', 'recommendation'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_follow_up_advice' });
+    expect(answer?.citations[0]).not.toMatchObject({ sourceId: 'beautician_service_summary' });
+  });
+
+  it('beautician adapter still requires exact customer facts for card and treatment history queries', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('这个客人的疗程还有几次', 'beautician_service', 'list'));
+
+    expect(customerFacts.answerExactCustomerQuestion).toHaveBeenCalled();
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_customer_care_facts' });
+  });
+
+  it('inventory adapter returns SKU, consumption and coverage facts', async () => {
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('精华液现在库存还有多少，够用多久', 'inventory_procurement', 'list'));
+    expect(answer?.answer).toContain('预计覆盖 20 天');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'inventory_detail_analysis' });
+  });
+
+  it('inventory adapter returns quantity, supplier quote and lead-time based procurement advice', async () => {
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('这批补水精华买多少量比较合适，哪个供应商报价更好', 'inventory_procurement', 'recommendation'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'inventory_procurement_analysis' });
+    expect(answer?.answer).toContain('建议采购 8');
+    expect(answer?.answer).toContain('供应商A');
+    expect(answer?.answer).toContain('160.00');
+  });
+
+  it('finance adapter returns payment split and daily income trend', async () => {
+    const adapter = new BrainFinanceDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('今天现金、微信、支付宝各收了多少', 'finance_risk', 'list'));
+    expect(answer?.answer).toContain('支付拆分');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_income_analysis' });
+  });
+
+  it('finance adapter returns stored-value payment count and amount', async () => {
+    const adapter = new BrainFinanceDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('今天有几笔是用储值卡消费的', 'finance_risk', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_income_analysis' });
+    expect(answer?.answer).toContain('member_balance 1 笔 300.00');
+  });
+
+  it('finance adapter simulates discount margin from real current margin facts', async () => {
+    const adapter = new BrainFinanceDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('帮我算一下如果打八折，毛利还剩多少', 'finance_risk', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_discount_margin_simulation' });
+    expect(answer?.answer).toContain('8 折');
+    expect(answer?.answer).toContain('18.8%');
+  });
+
+  it('finance adapter returns real cost, commission and card liability facts', async () => {
+    const adapter = new BrainFinanceDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('这个月耗材成本、员工提成和储值负债分别多少', 'finance_risk', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_cost_liability_analysis' });
+    expect(answer?.answer).toContain('耗材成本 2000.00');
+    expect(answer?.answer).toContain('提成 1000.00');
+    expect(answer?.answer).toContain('卡项未履约负债 5000.00');
+  });
+
+  it('marketing adapter returns template-skill draft citation', async () => {
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never);
+    const answer = await adapter.execute(execution('写一条提醒客户预约空档的消息', 'marketing_growth', 'draft'));
+    expect(answer?.grounding).toBe('template_skill');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'marketing_draft_appointment_reminder' });
+  });
+
+  it('marketing adapter returns customer segment summary for customer list questions', async () => {
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never);
+    const answer = await adapter.execute(execution('有没有之前消费很多但突然消失的客户', 'marketing_growth', 'list'));
+    expect(answer?.grounding).toBe('db_skill');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'marketing_customer_segment_summary' });
+    expect(answer?.answer).toContain('客户分层');
+  });
+
+  it('marketing adapter keeps fact and diagnosis questions on customer fact resolver', async () => {
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never);
+    const answer = await adapter.execute(execution('有没有客户对优惠很敏感，老是等打折才来', 'marketing_growth', 'diagnosis'));
+    expect(answer?.grounding).toBe('db_skill');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'marketing_customer_segment_summary' });
+    expect(skillRuntime.draftCampaignPlan).not.toHaveBeenCalledWith(expect.objectContaining({ theme: undefined }));
+    expect(customerFacts.answerCustomerFactQuestion).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('优惠很敏感') }));
+  });
+
+  it('marketing adapter returns real touch, conversion and attribution facts without inventing cost', async () => {
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never);
+    const answer = await adapter.execute(execution('这个月活动带来了多少收入，转化率怎么样', 'marketing_growth', 'diagnosis'));
+    expect(answer?.answer).toContain('归因收入');
+    expect(answer?.answer).toContain('不计算虚假的 ROI');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'marketing_attribution_analytics' });
+  });
+
+  it('marketing adapter explains a real customer prediction snapshot with version and boundary', async () => {
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+    );
+    const answer = await adapter.execute(execution('预测张女士的流失风险和复购概率', 'marketing_growth', 'diagnosis'));
+
+    expect(answer?.citations[0]).toMatchObject({ sourceType: 'prediction', sourceId: '31' });
+    expect(answer?.answer).toContain('customer-value-v3');
+    expect(answer?.answer).toContain('流失风险 82%');
+    expect(answer?.answer).toContain('不是确定事实');
+  });
+
+  it('marketing adapter shows an automation rule preview without exposing an unsupported confirmation', async () => {
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never);
+    const answer = await adapter.execute(execution('帮我设置一个新客来店三天后自动跟进的流程', 'marketing_growth', 'action'));
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions).toEqual([]);
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'marketing_automation_rule_preview' });
+    expect(answer?.answer).toContain('新客到店 3 天后');
+    expect(answer?.answer).toContain('不会生成不可执行的确认按钮');
+  });
+
+  it('marketing adapter creates a customer-scoped touch task draft preview', async () => {
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never, actionTargets as never);
+    const answer = await adapter.execute(execution('给张女士创建一个召回触达任务', 'marketing_growth', 'action'));
+
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionType: 'create_marketing_touch_draft' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'create_marketing_touch_draft',
+      payload: expect.objectContaining({ customerId: 7 }),
+    }));
+  });
+
+  it('beautician adapter returns service schedule citation', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(skillRuntime as never, timeRangeParser as never, customerFacts as never);
+    const answer = await adapter.execute(execution('下一个客人有什么注意事项', 'beautician_service', 'list'));
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_service_summary' });
+    expect(answer?.answer).toContain('今日服务安排');
+  });
+
+  it('beautician adapter creates an exact service-task record preview', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(
+      skillRuntime as never,
+      timeRangeParser as never,
+      customerFacts as never,
+      actionConfirmation as never,
+      actionTargets as never,
+    );
+    const answer = await adapter.execute(execution('记录张女士本次服务记录：补水护理完成，皮肤状态稳定', 'beautician_service', 'action'));
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionType: 'save_service_record' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'save_service_record',
+      payload: expect.objectContaining({ taskId: 51 }),
+    }));
+  });
+
+  it('inventory adapter returns low-stock list citation', async () => {
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('现在哪些产品库存不够了', 'inventory_procurement', 'list'));
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'inventory_risk_summary' });
+    expect(answer?.answer).toContain('低库存产品');
+  });
+
+  it('inventory adapter keeps purchase suggestions grounded as procurement analysis', async () => {
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('下次采购需要补什么货', 'inventory_procurement', 'list'));
+    expect(answer?.grounding).toBe('db_skill');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'inventory_procurement_analysis' });
+  });
+
+  it('inventory adapter creates a priced purchase order approval preview', async () => {
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never);
+    const answer = await adapter.execute(execution('按建议生成采购单并提交审批', 'inventory_procurement', 'action'));
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionType: 'create_purchase_order', riskLevel: 'high' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'create_purchase_order',
+      payload: expect.objectContaining({ supplier: '供应商A', submitForApproval: true }),
+    }));
+  });
+
+  it('finance adapter returns finance-risk citation', async () => {
+    const adapter = new BrainFinanceDomainAdapter(skillRuntime as never, timeRangeParser as never);
+    const answer = await adapter.execute(execution('今天退款有几笔，金额多少', 'finance_risk'));
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_risk_summary' });
+    expect(answer?.answer).toContain('退款 2 笔');
+  });
+});

@@ -227,11 +227,11 @@ function getDefaultActivityPeriod() {
   };
 }
 
-function getActivityStatusFromPeriod(startDate: string, endDate: string): '进行中' | '即将开始' | '已结束' {
+function getActivityStatusFromPeriod(startDate: string, endDate: string): 'active' | 'scheduled' | 'ended' {
   const today = toDateInputValue(new Date());
-  if (startDate && startDate > today) return '即将开始';
-  if (endDate && endDate < today) return '已结束';
-  return '进行中';
+  if (startDate && startDate > today) return 'scheduled';
+  if (endDate && endDate < today) return 'ended';
+  return 'active';
 }
 
 function normalizeBooleanValue(value: boolean | string | undefined) {

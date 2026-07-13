@@ -203,7 +203,7 @@ export function MarketingWorkbench() {
   }, [loadWorkbench]);
 
   const activeActivities = useMemo(
-    () => state.activities.filter((item) => item.status === '进行中'),
+    () => state.activities.filter((item) => item.status === 'active'),
     [state.activities],
   );
   const enabledStrategies = useMemo(

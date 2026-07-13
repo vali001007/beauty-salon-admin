@@ -18,7 +18,41 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:customer:export')).toBe(false);
   });
 
-  it('registers financial and supply-chain permission codes', () => {
+  it('keeps Agent governance behind dedicated permissions', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+    const systemMenu = MENU_ITEMS.find((menu) => menu.path === '/system');
+
+    expect(codes).toEqual(expect.arrayContaining(['core:agent-governance:view', 'core:agent-governance:manage']));
+    expect(hasPermission(ROLE_PERMISSIONS.super_admin, 'core:agent-governance:view')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:agent-governance:view')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:agent-governance:manage')).toBe(false);
+    expect(systemMenu?.children.find((child) => child.path === '/system/agent-governance')).toMatchObject({
+      title: 'AI 治理中心',
+      permission: 'core:agent-governance:view',
+    });
+    expect(systemMenu?.children.some((child) => child.path === '/system/ai-audit')).toBe(false);
+    expect(systemMenu?.children.some((child) => child.path === '/system/agent-audit')).toBe(false);
+    expect(systemMenu?.children.some((child) => child.path === '/system/agent-capabilities')).toBe(false);
+  });
+
+  it('registers Ami Brain runtime and governance permissions', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        'core:brain:use',
+        'core:brain:execute',
+        'core:brain:sensitive:view',
+        'core:brain-governance:view',
+        'core:brain-governance:manage',
+      ]),
+    );
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:use')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:execute')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:brain-governance:view')).toBe(false);
+  });
+
+  it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 
     expect(codes).toEqual(

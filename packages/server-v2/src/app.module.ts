@@ -20,7 +20,6 @@ import { MarketingModule } from './marketing/marketing.module.js';
 import { MarketingPagesModule } from './marketing-pages/marketing-pages.module.js';
 import { PromotionsModule } from './promotions/promotions.module.js';
 import { CommissionModule } from './commission/commission.module.js';
-import { SupplyChainModule } from './supply-chain/supply-chain.module.js';
 import { SupplyPlatformModule } from './supply-platform/supply-platform.module.js';
 import { IndustryModule } from './industry/industry.module.js';
 import { AiModule } from './ai/ai.module.js';
@@ -30,8 +29,15 @@ import { HealthModule } from './health/health.module.js';
 import { BomModule } from './bom/bom.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { BusinessQueryModule } from './business-query/business-query.module.js';
+import { AskDataModule } from './ask-data/ask-data.module.js';
+import { BrainModule } from './brain/brain.module.js';
 import { AgentModule } from './agent/agent.module.js';
+import { AgentV2Module } from './agent-v2/agent-v2.module.js';
+import { AgentV3Module } from './agent-v3/agent-v3.module.js';
+import { AgentV4Module } from './agent-v4/agent-v4.module.js';
+import { AgentV5Module } from './agent-v5/agent-v5.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
+import { FinanceMetricsModule } from './finance-metrics/finance-metrics.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
 @Module({
@@ -57,7 +63,6 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     MarketingPagesModule,
     PromotionsModule,
     CommissionModule,
-    SupplyChainModule,
     SupplyPlatformModule,
     IndustryModule,
     AiModule,
@@ -65,7 +70,14 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     CustomerAppModule,
     DashboardModule,
     BusinessQueryModule,
+    AskDataModule,
+    BrainModule,
     AgentModule,
+    AgentV2Module,
+    AgentV3Module,
+    AgentV4Module,
+    AgentV5Module,
+    FinanceMetricsModule,
     OperationProfitModule,
     BomModule,
     HealthModule,

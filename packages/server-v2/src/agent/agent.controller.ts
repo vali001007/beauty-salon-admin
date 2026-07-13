@@ -1,5 +1,7 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import { CurrentDevice } from '../terminal/decorators/current-device.decorator.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -29,6 +31,30 @@ import { CapabilityCatalogService } from './knowledge/capability-catalog.service
 import { EntityResolverService } from './knowledge/entity-resolver.service.js';
 import { SchemaGraphService } from './knowledge/schema-graph.service.js';
 import { readKnowledgeMapEvalReport } from './agent-eval-knowledge-map.js';
+
+type RecordAmiAiAuditBody = {
+  message?: string;
+  answer?: string;
+  role?: string;
+  entrypoint?: string;
+  operatorId?: number | null;
+  fallbackReason?: string | null;
+  businessContext?: string | null;
+  latencyMs?: number | null;
+  source?: string | null;
+};
+
+type AgentFeedbackBody = {
+  rating?: number;
+  adopted?: boolean;
+  comment?: string;
+  businessActionJson?: unknown;
+  feedbackScope?: string;
+  messageId?: string | number | null;
+  question?: string | null;
+  answer?: string | null;
+  questionIndex?: number | null;
+};
 
 @ApiTags('Agent')
 @ApiBearerAuth()
@@ -90,11 +116,105 @@ export class AgentController {
 
   // ─── Feedback ────────────────────────────────────────────────────────────
 
+  @Post('ami-ai/audit')
+  @ApiOperation({ summary: '记录 Ami AI 兜底回答到统一运行审计' })
+  async recordAmiAiAudit(
+    @CurrentDevice('storeId') storeId: number,
+    @CurrentDevice('userId') userId: number | undefined,
+    @CurrentDevice('id') deviceId: number | undefined,
+    @CurrentDevice('permissions') permissions: string[] | undefined,
+    @CurrentDevice('fieldScopes') fieldScopes: AgentFieldScopes | undefined,
+    @Body() body: RecordAmiAiAuditBody,
+    @CurrentDevice('availableRoles') availableRoles?: AgentRole[],
+  ) {
+    const message = String(body.message ?? '').trim();
+    if (!message) throw new BadRequestException('Ami AI 审计缺少用户问题。');
+    const answer = String(body.answer ?? '').trim();
+    const completedAt = new Date();
+    const latencyMs = Number(body.latencyMs);
+    const startedAt = new Date(completedAt.getTime() - (Number.isFinite(latencyMs) && latencyMs > 0 ? Math.floor(latencyMs) : 0));
+    const actorContext = await this.resolveActorContext({
+      storeId,
+      authenticatedUserId: userId,
+      requestedOperatorId: body.operatorId,
+      requestedRole: body.role,
+      permissions,
+      fieldScopes,
+      availableRoles,
+    });
+    const runNo = `ar_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const fallbackReason = String(body.fallbackReason ?? '').trim() || null;
+    const businessContext = String(body.businessContext ?? '').trim() || null;
+    const resultJson = this.toJsonObject({
+      answer,
+      architecture: 'ami_ai_fallback',
+      agentEngine: 'ami_ai',
+      responseMode: 'ami_ai',
+      fallback: true,
+      fallbackReason,
+      source: body.source ?? 'terminal_ami_ai_fallback',
+    });
+    const contextJson = this.toJsonObject({
+      agentEngine: 'ami_ai',
+      architecture: 'ami_ai_fallback',
+      fallbackReason,
+      businessContext,
+      source: body.source ?? 'terminal_ami_ai_fallback',
+    });
+    const run = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.agentRun.create({
+        data: {
+          runNo,
+          storeId,
+          userId: actorContext.userId ?? null,
+          deviceId: deviceId ?? null,
+          role: actorContext.role,
+          entrypoint: body.entrypoint ?? 'terminal:kiosk',
+          agentCode: 'ami_ai',
+          personaCode: null,
+          status: 'completed',
+          userInput: message,
+          contextJson,
+          resultJson,
+          errorMessage: null,
+          startedAt,
+          completedAt,
+        },
+      });
+      await tx.agentMessage.create({
+        data: {
+          runId: created.id,
+          role: 'user',
+          content: message,
+          metadata: this.toJsonObject({ entrypoint: body.entrypoint ?? 'terminal:kiosk', agentEngine: 'ami_ai' }),
+        },
+      });
+      if (answer) {
+        await tx.agentMessage.create({
+          data: {
+            runId: created.id,
+            role: 'assistant',
+            content: answer,
+            metadata: this.toJsonObject({ architecture: 'ami_ai_fallback', fallbackReason }),
+          },
+        });
+      }
+      return created;
+    });
+    return {
+      runId: Number(run.id),
+      id: Number(run.id),
+      runNo: run.runNo,
+      agentCode: run.agentCode,
+      status: run.status,
+    };
+  }
+
   @Post('runs/:id/feedback')
   @ApiOperation({ summary: '提交 Agent Run 的用户反馈和采纳记录' })
   async submitFeedback(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
+    @Body() body: AgentFeedbackBody,
     @CurrentDevice() device: any,
   ) {
     const run = await this.prisma.agentRun.findFirst({
@@ -215,10 +335,19 @@ export class AgentController {
     @CurrentDevice() device: any,
     @Query('capabilityId') capabilityId?: string,
     @Query('q') query?: string,
+    @Query('personaCode') personaCode?: string,
+    @Query('riskLevel') riskLevel?: string,
+    @Query('domain') domain?: string,
   ) {
+    const normalizedPersona = personaCode?.trim();
+    const normalizedRisk = riskLevel?.trim();
+    const normalizedDomain = domain?.trim().toLowerCase();
     const capabilities = this.capabilityCatalog
       .list()
-      .filter((item) => !capabilityId || item.capabilityId === capabilityId || item.businessQueryCapabilityId === capabilityId);
+      .filter((item) => !capabilityId || item.capabilityId === capabilityId || item.businessQueryCapabilityId === capabilityId)
+      .filter((item) => !normalizedPersona || item.personaCodes.includes(normalizedPersona as any))
+      .filter((item) => !normalizedRisk || item.riskLevel === normalizedRisk)
+      .filter((item) => !normalizedDomain || this.stringifyJson([item.displayName, item.description, item.objectTypes, item.actions]).toLowerCase().includes(normalizedDomain));
     const nodes = this.schemaGraph.listNodes();
     const evalReport = readKnowledgeMapEvalReport();
     const filteredFailures = (evalReport?.failures ?? []).filter((item) =>
@@ -278,9 +407,97 @@ export class AgentController {
             improvementBacklog: filteredBacklog.slice(0, 20),
           }
         : null,
+      knowledgeReports: this.readKnowledgeGovernanceReports({ personaCode: normalizedPersona, riskLevel: normalizedRisk, domain: normalizedDomain }),
       entityDebug,
       legacyRules: await this.buildLegacyRuleGovernance(),
     };
+  }
+
+  private readKnowledgeGovernanceReports(filters: { personaCode?: string; riskLevel?: string; domain?: string }) {
+    const docsDir = this.resolveKnowledgeDocsDir();
+    const scan = this.readJsonReport(resolve(docsDir, 'agent-knowledge-scan-report.json'));
+    const daily = this.readJsonReport(resolve(docsDir, 'agent-knowledge-daily-governance-report.json'));
+    const weekly = this.readJsonReport(resolve(docsDir, 'agent-knowledge-weekly-governance-report.json'));
+    return {
+      scan: scan
+        ? {
+            generatedAt: scan.generatedAt ?? null,
+            gate: scan.gate ?? null,
+            schema: {
+              schemaModelCount: scan.schema?.schemaModelCount ?? 0,
+              generatedModelCount: scan.schema?.generatedModelCount ?? 0,
+              missingBusinessObjectMappings: this.asArray(scan.schema?.missingBusinessObjectMappings).slice(0, 30),
+              missingDisplayNames: this.asArray(scan.schema?.missingDisplayNames).slice(0, 30),
+            },
+            api: {
+              endpoints: this.asArray(scan.api?.endpoints).length,
+              dtoFieldCandidates: this.asArray(scan.api?.dtoFieldCandidates).length,
+              realApiMethods: this.asArray(scan.api?.realApiMethods).length,
+            },
+            frontend: {
+              routes: this.filterReportItems(this.asArray(scan.frontend?.routes), filters).slice(0, 30),
+            },
+            agent: {
+              missingSkillMappings: this.asArray(scan.agent?.missingSkillMappings).slice(0, 50),
+              missingEvalCases: this.asArray(scan.agent?.missingEvalCases).slice(0, 50),
+              missingExecutionMappings: this.asArray(scan.agent?.missingExecutionMappings),
+              missingToolRegistryMappings: this.asArray(scan.agent?.missingToolRegistryMappings),
+            },
+          }
+        : null,
+      daily: this.toGovernanceReportSummary(daily, 'agent-knowledge-daily-governance-report.md', filters),
+      weekly: this.toGovernanceReportSummary(weekly, 'agent-knowledge-weekly-governance-report.md', filters),
+    };
+  }
+
+  private toGovernanceReportSummary(report: any, markdownFile: string, filters: { personaCode?: string; riskLevel?: string; domain?: string }) {
+    if (!report) return null;
+    const markdownPath = resolve(this.resolveKnowledgeDocsDir(), markdownFile);
+    return {
+      generatedAt: report.generatedAt ?? null,
+      mode: report.mode ?? null,
+      summary: report.summary ?? null,
+      businessDictionaryCandidates: this.filterReportItems(this.asArray(report.businessDictionaryCandidates), filters).slice(0, 30),
+      agentCapabilityGaps: this.filterReportItems(this.asArray(report.agentCapabilityGaps), filters).slice(0, 30),
+      evalFailureTop: this.filterReportItems(this.asArray(report.evalFailureTop), filters).slice(0, 20),
+      legacyFallback: report.legacyFallback ?? null,
+      reviewChecklist: this.asArray(report.reviewChecklist).slice(0, 20),
+      markdownPath: `docs/04-测试数据/${markdownFile}`,
+      markdownContent: this.readTextReport(markdownPath),
+    };
+  }
+
+  private resolveKnowledgeDocsDir() {
+    const candidates = [resolve(process.cwd(), '../../docs/04-测试数据'), resolve(process.cwd(), 'docs/04-测试数据')];
+    return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+  }
+
+  private filterReportItems<T>(items: T[], filters: { personaCode?: string; riskLevel?: string; domain?: string }): T[] {
+    return items.filter((item: any) => {
+      const text = this.stringifyJson(item).toLowerCase();
+      if (filters.personaCode && !text.includes(filters.personaCode.toLowerCase())) return false;
+      if (filters.riskLevel && item?.priority !== filters.riskLevel && item?.riskLevel !== filters.riskLevel && !text.includes(filters.riskLevel.toLowerCase())) return false;
+      if (filters.domain && !text.includes(filters.domain.toLowerCase())) return false;
+      return true;
+    });
+  }
+
+  private readJsonReport(path: string) {
+    try {
+      if (!existsSync(path)) return null;
+      return JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  private readTextReport(path: string) {
+    try {
+      if (!existsSync(path)) return null;
+      return readFileSync(path, 'utf8');
+    } catch {
+      return null;
+    }
   }
 
   // ─── Automation Engine ───────────────────────────────────────────────────
@@ -582,7 +799,7 @@ export class AgentController {
   }
 
   @Post('semantic-sql/execute')
-  @ApiOperation({ summary: '执行受控 Semantic SQL Beta 预览' })
+  @ApiOperation({ summary: 'Agent V1 legacy 内部 Semantic SQL Beta 预览（不作为 V2/V3 新能力入口）' })
   executeSemanticSql(@CurrentDevice('storeId') storeId: number, @Body() dto: ExecuteSemanticSqlDto) {
     return this.semanticSqlExecutor.execute({
       taskId: dto.taskId,
@@ -599,7 +816,7 @@ export class AgentController {
   }
 
   @Post('query-plan/preview')
-  @ApiOperation({ summary: '预览统一查询中枢 QueryPlan，不执行查库' })
+  @ApiOperation({ summary: 'Agent V1 legacy QueryPlan 预览，不执行查库' })
   async previewQueryPlan(@CurrentDevice('storeId') storeId: number, @Body() dto: PreviewQueryPlanDto) {
     const role = (dto.role ?? 'manager') as AgentRole;
     const compiled = await this.businessTaskCompiler.compile({
@@ -626,7 +843,7 @@ export class AgentController {
   }
 
   @Post('semantic-query/execute')
-  @ApiOperation({ summary: '执行统一查询中枢受控只读查询' })
+  @ApiOperation({ summary: 'Agent V1 legacy 内部受控只读查询（不作为 V2/V3 新能力入口）' })
   async executeSemanticQuery(@CurrentDevice('storeId') storeId: number, @Body() dto: PreviewQueryPlanDto) {
     const role = (dto.role ?? 'manager') as AgentRole;
     const compiled = await this.businessTaskCompiler.compile({
@@ -854,7 +1071,7 @@ export class AgentController {
       resultJson?: unknown;
       errorMessage?: string | null;
     } | null,
-    body: { rating?: number; adopted?: boolean; comment?: string; businessActionJson?: unknown },
+    body: AgentFeedbackBody,
   ) {
     const plan = this.asObject(run?.planJson);
     const result = this.asObject(run?.resultJson);
@@ -868,11 +1085,40 @@ export class AgentController {
       ...toolResults.map((item) => String(this.asObject(item)?.title ?? '')).filter(Boolean),
     ];
     const userProvided = this.asObject(body.businessActionJson);
+    const feedbackContext = this.asObject(userProvided?.feedbackContext);
+    const previousSnapshot = this.asObject(userProvided?.snapshot);
+    const messageId = body.messageId ?? feedbackContext?.messageId ?? previousSnapshot?.messageId ?? null;
+    const questionIndex = body.questionIndex ?? feedbackContext?.questionIndex ?? previousSnapshot?.questionIndex ?? null;
+    const question = this.firstNonEmptyText(
+      body.question,
+      feedbackContext?.question,
+      previousSnapshot?.question,
+      userProvided?.question,
+      run?.userInput,
+    );
+    const answer = this.firstNonEmptyText(
+      body.answer,
+      feedbackContext?.answer,
+      previousSnapshot?.answer,
+      userProvided?.answer,
+      result?.answer,
+      run?.errorMessage,
+    );
+    const feedbackScope = this.firstNonEmptyText(
+      body.feedbackScope,
+      feedbackContext?.feedbackScope,
+      previousSnapshot?.feedbackScope,
+      userProvided?.feedbackScope,
+      messageId ? 'message' : 'run',
+    );
     return this.toJsonObject({
       ...(userProvided ? { userProvided } : {}),
       snapshot: {
-        question: run?.userInput ?? '',
-        answer: String(result?.answer ?? run?.errorMessage ?? ''),
+        feedbackScope,
+        messageId,
+        questionIndex,
+        question,
+        answer,
         skillId: String(traceSummary?.skillId ?? skillPlan?.skillId ?? ''),
         capabilityId: String(traceSummary?.capabilityId ?? skillPlan?.capabilityId ?? capabilityPlan?.capabilityId ?? ''),
         toolNames: [...new Set(toolNames)].slice(0, 8),
@@ -1047,6 +1293,18 @@ export class AgentController {
 
   private asObject(value: unknown): Record<string, any> | null {
     return typeof value === 'object' && value !== null ? (value as Record<string, any>) : null;
+  }
+
+  private asArray(value: unknown): any[] {
+    return Array.isArray(value) ? value : [];
+  }
+
+  private firstNonEmptyText(...values: unknown[]): string {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    }
+    return '';
   }
 
   private toJsonObject(value: Record<string, unknown>) {

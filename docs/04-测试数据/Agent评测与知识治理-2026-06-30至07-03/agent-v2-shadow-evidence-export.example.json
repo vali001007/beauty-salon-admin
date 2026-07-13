@@ -1,0 +1,143 @@
+{
+  "generatedAt": "2026-07-13 10:00:00 Asia/Shanghai",
+  "source": {
+    "environment": "production",
+    "window": "2026-07-06 10:00:00 Asia/Shanghai ~ 2026-07-13 10:00:00 Asia/Shanghai",
+    "exportedBy": "agent-governance-observability-job"
+  },
+  "runs": [
+    {
+      "id": 1001,
+      "runNo": "agent-run-example-1001",
+      "status": "success",
+      "createdAt": "2026-07-06T10:15:00+08:00",
+      "completedAt": "2026-07-06T10:15:03+08:00",
+      "contextJson": {
+        "agentV2GrayMode": "shadow"
+      },
+      "planJson": {
+        "strategy": {
+          "mode": "shadow",
+          "finalEngine": "legacy_regex"
+        }
+      }
+    },
+    {
+      "id": 1002,
+      "runNo": "agent-run-example-1002",
+      "status": "success",
+      "createdAt": "2026-07-06T10:20:00+08:00",
+      "completedAt": "2026-07-06T10:20:04+08:00",
+      "contextJson": {
+        "agentV2GrayMode": "kg_llm_preferred"
+      },
+      "planJson": {
+        "strategy": {
+          "mode": "kg_llm_preferred",
+          "finalEngine": "kg_llm"
+        }
+      }
+    },
+    {
+      "id": 1003,
+      "runNo": "agent-run-example-1003",
+      "status": "success",
+      "createdAt": "2026-07-06T10:25:00+08:00",
+      "completedAt": "2026-07-06T10:25:02+08:00",
+      "contextJson": {
+        "agentV2GrayMode": "legacy_regex"
+      },
+      "planJson": {
+        "strategy": {
+          "mode": "legacy_regex",
+          "finalEngine": "legacy_regex"
+        }
+      }
+    }
+  ],
+  "auditDetails": [
+    {
+      "runId": 1001,
+      "status": "success",
+      "capabilityId": "finance.revenue.summary",
+      "createdAt": "2026-07-06T10:15:00+08:00",
+      "llmPromptJson": {
+        "contextCount": 12
+      },
+      "llmResponseJson": {
+        "parsed": true
+      },
+      "latencyBreakdownJson": {
+        "llmLatencyMs": 520
+      },
+      "costJson": {
+        "inputTokens": 900,
+        "outputTokens": 120,
+        "estimatedCostCny": 0.05
+      }
+    },
+    {
+      "runId": 1002,
+      "status": "success",
+      "capabilityId": "finance.staff-efficiency.metric",
+      "createdAt": "2026-07-06T10:20:00+08:00",
+      "llmPromptJson": {
+        "contextCount": 18
+      },
+      "llmResponseJson": {
+        "parsed": true
+      },
+      "latencyBreakdownJson": {
+        "llmLatencyMs": 610
+      },
+      "costJson": {
+        "inputTokens": 1100,
+        "outputTokens": 160,
+        "estimatedCostCny": 0.07
+      }
+    }
+  ],
+  "toolCalls": [
+    {
+      "runId": 1001,
+      "toolName": "business.metric.query",
+      "riskLevel": "low",
+      "status": "success",
+      "latencyMs": 120
+    },
+    {
+      "runId": 1002,
+      "toolName": "business.metric.query",
+      "riskLevel": "low",
+      "status": "success",
+      "latencyMs": 180
+    }
+  ],
+  "feedbacks": [
+    {
+      "runId": 1001,
+      "rating": 4,
+      "adopted": true,
+      "createdAt": "2026-07-06T10:18:00+08:00"
+    },
+    {
+      "runId": 1002,
+      "rating": 5,
+      "adopted": true,
+      "createdAt": "2026-07-06T10:22:00+08:00"
+    },
+    {
+      "runId": 1003,
+      "rating": 4,
+      "adopted": true,
+      "createdAt": "2026-07-06T10:27:00+08:00"
+    }
+  ],
+  "regressions": [],
+  "rollback": {
+    "verified": false,
+    "lastVerifiedAt": null,
+    "method": null,
+    "notes": "示例文件不代表真实回滚验证。"
+  }
+}

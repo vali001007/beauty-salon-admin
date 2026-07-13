@@ -62,6 +62,37 @@ export interface SupplyQuote {
   validTo?: string | null;
 }
 
+export type SupplyCatalogPurchasableStatus = 'not_mapped' | 'mapped_no_quote' | 'quote_unavailable' | 'available' | string;
+
+export interface SupplyCatalogMapping {
+  id: number;
+  supplySkuId: number;
+  productId?: number | null;
+  storeId?: number | null;
+  standardProductTemplateId?: number | null;
+  mappingStatus: string;
+  isPreferred: boolean;
+  product?: {
+    id: number;
+    sku: string;
+    name: string;
+    storeId: number;
+    store?: { id: number; name: string };
+  } | null;
+  industryProductTemplate?: {
+    id: number;
+    standardProductCode: string;
+    name: string;
+    category?: string | null;
+  } | null;
+  supplySku?: SupplySku;
+  latestQuote?: SupplyQuote | null;
+  quoteCount?: number;
+  purchasableStatus: SupplyCatalogPurchasableStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SupplierShipmentItem {
   id: number;
   shipmentId: number;
@@ -182,6 +213,17 @@ export interface CreateSupplyQuotePayload {
   validTo?: string;
 }
 
+export interface CreateSupplyCatalogMappingPayload {
+  supplySkuId: number;
+  productId?: number;
+  storeId?: number;
+  standardProductTemplateId?: number;
+  mappingStatus?: string;
+  isPreferred?: boolean;
+}
+
+export type UpdateSupplyCatalogMappingPayload = Partial<CreateSupplyCatalogMappingPayload>;
+
 export interface CreateProcurementOrderPayload {
   storeId: number;
   supplierId: number;
@@ -194,6 +236,19 @@ export interface CreateProcurementOrderPayload {
     quoteId?: number;
     quantity: number;
     unitPrice?: number;
+  }>;
+}
+
+export interface CreateProcurementOrdersFromReplenishmentPayload {
+  storeId: number;
+  expectedArrivalDate?: string;
+  sourceNo?: string;
+  items: Array<{
+    productId: number;
+    mappingId?: number;
+    supplySkuId?: number;
+    quoteId?: number;
+    quantity: number;
   }>;
 }
 

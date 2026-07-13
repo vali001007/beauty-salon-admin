@@ -38,18 +38,37 @@ export interface Recommendation {
   image: string;
   tags: string[];
   category: 'high-conversion' | 'customer-wake' | 'viral' | 'member-care' | 'seasonal' | 'trend' | 'cross-sell' | 'churn-alert' | 'ltv-nurture' | 'inventory-opportunity' | 'capacity-opportunity' | 'product-replenishment' | 'project-cycle' | string;
-  recommendationType?: 'product_expiry_clearance' | 'project_idle_capacity' | 'product_replenishment' | 'project_cycle_due' | string;
+  recommendationType?:
+    | 'product_expiry_clearance'
+    | 'project_idle_capacity'
+    | 'product_replenishment'
+    | 'project_cycle_due'
+    | 'homecare_bundle'
+    | 'service_upgrade'
+    | 'inventory_clearance'
+    | 'care_cycle_due'
+    | 'card_expiring'
+    | 'dormant_winback'
+    | 'coupon_claimed_unused'
+    | 'browse_abandonment'
+    | string;
   recommendationKey?: string;
   triggerType?: MarketingTriggerType;
   preferAutoRule: boolean;
   urgency: UrgencyLevel;
   urgencyLabel: string;
   dataEvidence?: string[];    // 数据依据（折叠展示）
-  source: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project';
+  source: 'strategy' | 'association' | 'churn' | 'ltv' | 'inventory' | 'capacity' | 'product' | 'project' | 'customer_lifecycle';
   predictionRunId?: number;
   modelVersion?: string;
   predictionType?: 'churn' | 'repurchase' | 'marketing_response' | 'ltv' | 'strategy' | string;
   predictionRunFinishedAt?: string;
+  predictionFreshness?: {
+    predictionRunId: number | null;
+    generatedAt: string | null;
+    ageHours: number | null;
+    status: 'fresh' | 'stale' | 'missing';
+  };
   totalCustomers?: number;
   priority?: RecommendationPriority;
   executionModes?: RecommendationExecutionMode[];
@@ -89,6 +108,16 @@ export interface Recommendation {
   expectedLossAvoided?: string;
   riskWarnings?: string[];
   executionState?: RecommendationExecutionState;
+  opportunityIds?: number[];
+  fulfillment?: {
+    inventoryReady: boolean;
+    capacityReady: boolean;
+    latestChecks?: Array<Record<string, unknown>>;
+  };
+  attributionSummary?: {
+    eventCount: number;
+    hasAttribution: boolean;
+  };
 }
 
 export interface RecommendationActionExecutionState {

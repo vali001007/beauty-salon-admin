@@ -14,6 +14,83 @@ export type CustomerProfilePredictionDto = {
   updatedAt: string;
 };
 
+export type CustomerLifecycleSnapshotDto = {
+  id: number;
+  lifecycleStage: string;
+  lifecycleStageLabel: string;
+  ltvTier?: string | null;
+  churnRiskLevel?: string | null;
+  touchFatigueScore: number;
+  assetSummary: any;
+  servicePreference: any;
+  evidence: string[];
+  computedAt: string;
+};
+
+export type CustomerLifecycleOpportunityDto = {
+  id: number;
+  opportunityType: string;
+  opportunityTypeLabel: string;
+  priority: string;
+  status: string;
+  score: number;
+  recommendedExecutionMode: string;
+  recommendedChannels: any[];
+  recommendedOffer: any;
+  recommendedItems: any[];
+  evidence: string[];
+  fulfillment?: CustomerOpportunityFulfillmentCheckDto | null;
+  attributionEventCount?: number;
+  attributionEvents?: LifecycleAttributionEventDto[];
+  expiresAt?: string | null;
+};
+
+export type CustomerServiceCycleStateDto = {
+  id: number;
+  projectId?: number | null;
+  lastServiceAt?: string | null;
+  cycleDays: number;
+  nextDueAt?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  evidence: string[];
+  updatedAt: string;
+};
+
+export type CustomerOpportunityFulfillmentCheckDto = {
+  id: number;
+  opportunityId: number;
+  inventoryReady: boolean;
+  capacityReady: boolean;
+  requiredProducts: any[];
+  capacitySnapshot: any;
+  risks: any[];
+  checkedAt: string;
+};
+
+export type LifecycleAttributionEventDto = {
+  id: number;
+  eventType: string;
+  sourceType: string;
+  sourceId?: string | null;
+  opportunityId?: number | null;
+  recommendationKey?: string | null;
+  touchId?: number | null;
+  orderId?: number | null;
+  reservationId?: number | null;
+  stockMovementId?: number | null;
+  evidence: any;
+  occurredAt: string;
+};
+
+export type CustomerLifecycleContextDto = {
+  snapshot: CustomerLifecycleSnapshotDto | null;
+  opportunities: CustomerLifecycleOpportunityDto[];
+  events: any[];
+  serviceCycles: CustomerServiceCycleStateDto[];
+  attributionEvents: LifecycleAttributionEventDto[];
+} | null;
+
 export type CustomerProfileDto = {
   customerId: number;
   storeId: number;
@@ -64,6 +141,7 @@ export type CustomerProfileDto = {
     usedUpCards: any[];
   };
   prediction: CustomerProfilePredictionDto | null;
+  lifecycle: CustomerLifecycleContextDto;
   touchHistory: any[];
   recommendationEvents: any[];
 };

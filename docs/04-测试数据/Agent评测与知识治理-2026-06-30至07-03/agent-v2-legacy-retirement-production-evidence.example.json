@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-07-13 10:00:00 Asia/Shanghai",
+  "source": {
+    "environment": "production",
+    "window": "2026-07-06 10:00:00 Asia/Shanghai ~ 2026-07-13 10:00:00 Asia/Shanghai",
+    "exportedBy": "agent-governance-observability-job"
+  },
+  "shadow": {
+    "observedDays": 7,
+    "totalRuns": 0,
+    "shadowRuns": 0,
+    "kgLlmPreferredRuns": 0,
+    "kgLlmOnlyRuns": 0,
+    "majorRegressionCount": 0,
+    "highRiskAutoExecutionCount": 0,
+    "notes": "填写真实 7 天生产 shadow/灰度观测，不要用本地 dry-run 替代。"
+  },
+  "usefulness": {
+    "relativeToLegacy": "equal",
+    "sampleCount": 0,
+    "kgHelpfulRate": 0,
+    "legacyHelpfulRate": 0,
+    "notes": "relativeToLegacy 只能填 better/equal/worse/unknown。旧正则退役要求 better 或 equal。"
+  },
+  "llmObservability": {
+    "enabled": true,
+    "latencyP99Ms": 0,
+    "failureRate": 0,
+    "costObserved": true,
+    "failureSamplesCaptured": true,
+    "notes": "必须来自生产 LLM 调用链路，至少覆盖延迟、失败率、成本和失败样本。"
+  },
+  "rollback": {
+    "verified": true,
+    "lastVerifiedAt": "2026-07-13 09:30:00 Asia/Shanghai",
+    "method": "AGENT_V2_GRAY_MODE 从 kg_llm_only/legacy_retired 回退到 kg_llm_preferred 或 legacy_regex",
+    "notes": "必须在生产或准生产验证，不要只写理论方案。"
+  }
+}

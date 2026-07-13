@@ -59,6 +59,7 @@ describe('MarketingPagesService', () => {
       marketingPageAttribution: {
         findMany: jest.fn(),
       },
+      marketingActivity: { findFirst: jest.fn() },
       customer: {
         findFirst: jest.fn(),
       },
@@ -124,6 +125,19 @@ describe('MarketingPagesService', () => {
         select: { pageId: true, attributedRevenue: true },
       });
     });
+  });
+
+  it('rejects linking a marketing page to an activity from another store', async () => {
+    prisma.marketingActivity.findFirst.mockResolvedValue(null);
+
+    await expect(service.createPage({
+      storeId: 8,
+      activityId: 31,
+      sourceType: 'activity',
+      sourceId: '31',
+      title: '跨店活动页',
+      pageSchema: { sections: [] },
+    } as any)).rejects.toThrow(BadRequestException);
   });
 
   describe('createPage', () => {

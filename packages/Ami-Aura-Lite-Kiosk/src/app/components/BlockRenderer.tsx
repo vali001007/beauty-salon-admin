@@ -29,37 +29,70 @@ interface BlockRendererProps {
 
 const TABLE_COLUMN_LABELS: Record<string, string> = {
   id: 'ID',
+  ID: 'ID',
   customerId: '客户ID',
+  customer_id: '客户ID',
   customerName: '客户',
+  customer_name: '客户',
+  customer_name_masked: '客户',
   phone: '手机号',
   phoneMasked: '手机号',
+  phone_last4: '手机号后四位',
   memberLevel: '会员等级',
+  member_level: '会员等级',
   totalSpent: '累计消费',
+  total_spent: '累计消费',
+  total_paid_amount: '累计实收',
   visitCount: '到店次数',
+  visit_count: '到店次数',
   lastVisitDate: '最近到店',
+  last_visit_at: '最近到店',
   lastOrderTimeText: '最近消费',
+  last_order_at: '最近消费',
   paidAmount: '消费金额',
   paidAmountText: '消费金额',
+  paid_amount: '消费金额',
   amount: '金额',
   totalAmount: '订单金额',
+  total_amount: '订单金额',
   revenue: '实收金额',
   refundAmount: '退款金额',
+  refund_amount: '退款金额',
   netAmount: '净额',
+  net_amount: '净额',
   payMethod: '支付方式',
+  pay_method: '支付方式',
   paymentMethod: '支付方式',
+  payment_method: '支付方式',
   orderCount: '订单数',
+  order_count: '订单数',
   customerCount: '客户数',
+  customer_count: '客户数',
   salesAmount: '销售额',
   salesAmountText: '销售额',
+  sales_amount: '销售额',
+  net_sales_amount: '净销售额',
   averageOrderValue: '客单价',
+  average_order_amount: '客单价',
   quantity: '数量',
+  quantity_sold: '销量',
+  service_quantity: '服务次数',
   growthRate: '增长率',
   growthRateText: '增长',
+  growth_rate: '增长率',
   productName: '商品',
+  product_id: '商品ID',
+  product_name: '商品',
   projectName: '项目',
+  project_id: '项目ID',
+  project_name: '项目',
+  project_type: '项目分类',
   cardName: '卡项',
+  card_name: '卡项',
   activityId: '活动ID',
+  activity_id: '活动ID',
   activityName: '活动名称',
+  activity_title: '活动名称',
   campaignId: '活动ID',
   campaignName: '活动名称',
   publishStatus: '发布状态',
@@ -72,8 +105,11 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   linkCount: '链接数',
   publishedAt: '发布时间',
   updatedAt: '更新时间',
+  updated_at: '更新时间',
   beauticianId: '员工ID',
   beauticianName: '员工姓名',
+  staff_id: '员工ID',
+  staff_name: '员工姓名',
   levelName: '等级',
   status: '状态',
   performanceScore: '表现分',
@@ -105,28 +141,306 @@ const TABLE_COLUMN_LABELS: Record<string, string> = {
   suggestedAction: '建议动作',
   recommendation: '建议',
   orderId: '订单ID',
+  order_id: '订单ID',
   orderNo: '订单号',
+  order_no: '订单号',
+  order_status: '订单状态',
   checkoutGroupNo: '收银组号',
+  checkout_group_no: '收银组号',
   transactionType: '交易类型',
   itemSummary: '项目/商品',
   paymentCount: '支付记录',
   refundCount: '退款记录',
   createdAt: '创建时间',
+  created_at: '创建时间',
   printable: '可打印',
   batchId: '批次ID',
   batchNo: '批次号',
   sku: 'SKU',
+  SKU: 'SKU',
   stock: '批次数量',
   unit: '单位',
   productionDate: '生产日期',
   expiryDate: '有效期',
   daysToExpire: '剩余天数',
   currentStock: '当前库存',
+  current_stock: '当前库存',
   safetyStock: '安全库存',
+  safety_stock: '安全库存',
+  stock_value: '库存金额',
+  scrap_quantity: '报废数量',
+  estimated_material_cost: '预估耗材成本',
+  estimated_margin: '预估毛利',
+};
+
+const V3_SQL_COLUMN_LABELS: Record<string, string> = {
+  activity_id: '活动ID',
+  activity_title: '活动名称',
+  after_stock: '变动后库存',
+  allocation_type: '分摊类型',
+  amount: '金额',
+  app_version: '应用版本',
+  appointment_time: '预约时间',
+  attributed_revenue: '归因收入',
+  audit_id: '审计ID',
+  automation_source: '自动化来源',
+  available_capacity: '可用容量',
+  average_order_amount: '客单价',
+  avg_delivery_days: '平均交付天数',
+  beautician_id: '美容师ID',
+  beautician_name: '美容师姓名',
+  before_stock: '变动前库存',
+  booking_count: '预约占用次数',
+  candidate_count: '候选客户数',
+  card_count: '卡片数',
+  card_name: '卡项',
+  care_cycle_weeks: '护理周期周数',
+  cash_balance: '现金余额',
+  cash_diff: '现金差异',
+  cashier_name: '收银员',
+  category: '分类',
+  category_name: '分类',
+  channel: '渠道',
+  checked_at: '检查时间',
+  city: '城市',
+  closed_at: '交班时间',
+  commission_amount: '提成金额',
+  completed_at: '完成时间',
+  completed_count: '完成数',
+  conversion_count: '转化数',
+  copies: '份数',
+  cost_date: '成本日期',
+  cost_id: '成本ID',
+  created_at: '创建时间',
+  current_stock: '当前库存',
+  customer_card_id: '客户卡ID',
+  customer_count: '客户数',
+  customer_id: '客户ID',
+  customer_name_masked: '客户',
+  date: '日期',
+  device_code: '设备编码',
+  device_id: '设备ID',
+  device_name: '设备名称',
+  discount_amount: '优惠金额',
+  discount_text: '优惠说明',
+  duration: '服务时长',
+  end_at: '结束时间',
+  end_time: '结束时间',
+  error_message: '错误摘要',
+  estimated_margin: '预估毛利',
+  estimated_material_cost: '预估耗材成本',
+  estimated_revenue: '预估收入',
+  event_at: '行为时间',
+  event_count: '事件数',
+  event_source: '行为来源',
+  event_type: '行为类型',
+  expected_arrival_date: '预计到货日期',
+  expires_at: '过期时间',
+  expiry_date: '到期日期',
+  generated_at: '生成时间',
+  gift_balance: '赠送余额',
+  gross_amount: '销售原额',
+  issued_count: '发放数',
+  job_no: '任务编号',
+  last_online_at: '最近在线时间',
+  last_order_at: '最近消费时间',
+  last_procurement_at: '最近采购时间',
+  last_visit_at: '最近到店时间',
+  latest_booking_date: '最近预约日期',
+  latest_event_at: '最近事件时间',
+  latest_task_at: '最近任务时间',
+  lead_count: '线索数',
+  level_name: '员工等级',
+  loss_amount: '报废损耗金额',
+  member_level: '会员等级',
+  missing_phone_customer_count: '缺手机号客户数',
+  model: '设备型号',
+  model_name: '模型名称',
+  movement_id: '流水ID',
+  movement_type: '流水类型',
+  nearest_expiry_date: '最近效期',
+  net_amount: '净额',
+  occurred_at: '发生时间',
+  opened_at: '开班时间',
+  operator_name: '操作人',
+  opportunity_id: '机会ID',
+  order_count: '订单数',
+  order_created_at: '订单时间',
+  order_id: '订单ID',
+  order_status: '订单状态',
+  paid_amount: '实收金额',
+  paid_at: '支付时间',
+  participants: '参与人数',
+  pay_method: '支付方式',
+  payment_amount: '支付金额',
+  payment_method: '支付方式',
+  payment_status: '支付状态',
+  period_month: '所属月份',
+  permissions: '权限摘要',
+  phone_last4: '手机号后四位',
+  price: '项目价格',
+  price_range: '参考价格区间',
+  print_job_id: '打印任务ID',
+  printer_status: '打印机状态',
+  procurement_amount: '采购金额',
+  procurement_count: '采购次数',
+  procurement_id: '采购单ID',
+  procurement_no: '采购单号',
+  product_count: '商品数',
+  product_id: '商品ID',
+  product_name: '商品',
+  project_id: '项目ID',
+  project_name: '项目',
+  project_type: '项目分类',
+  promotion_id: '促销ID',
+  promotion_name: '促销名称',
+  publish_status: '发布状态',
+  quantity: '数量',
+  received_at: '到货时间',
+  recognized_amount: '确认收入金额',
+  recommendation_summary: '建议摘要',
+  refund_amount: '退款金额',
+  refund_reason_category: '退款原因分类',
+  refund_status: '退款状态',
+  refunded_at: '退款时间',
+  remaining_times: '剩余次数',
+  remark_summary: '报废备注摘要',
+  reservation_id: '预约ID',
+  resource_id: '资源ID',
+  resource_name: '资源名称',
+  resource_type: '资源类型',
+  revenue_amount: '营收金额',
+  role_key: '角色编码',
+  role_name: '角色名称',
+  run_id: '运行ID',
+  run_no: '运行编号',
+  safety_stock: '安全库存',
+  scenario: '场景',
+  scope: '推荐范围',
+  scrap_quantity: '报废数量',
+  service_count: '服务次数',
+  service_quantity: '服务次数',
+  service_task_id: '服务任务ID',
+  settle_month: '结算月份',
+  settlement_date: '日结日期',
+  shift_id: '班次ID',
+  shift_status: '班次状态',
+  skin_condition_summary: '肤况摘要',
+  skin_type: '肤质',
+  sku: 'SKU',
+  source_type: '来源类型',
+  source_version: '来源版本',
+  source_version_id: '来源版本',
+  staff_id: '员工ID',
+  staff_name: '员工姓名',
+  start_at: '开始时间',
+  start_time: '开始时间',
+  started_at: '开始时间',
+  status: '状态',
+  stock_value: '库存金额',
+  store_id: '门店ID',
+  store_name: '门店',
+  supplier_id: '供应商ID',
+  supplier_name: '供应商名称',
+  system_cash: '系统现金',
+  tags_summary: '标签摘要',
+  target_version_id: '目标版本',
+  task_count: '任务数',
+  template_id: '模板ID',
+  template_name: '模板名称',
+  test_at: '测试时间',
+  times: '核销次数',
+  title: '标题',
+  total_amount: '订单总额',
+  total_paid_amount: '累计实收金额',
+  total_times: '总次数',
+  treatment_course_times: '疗程次数',
+  trigger_type: '触发类型',
+  type: '类型',
+  unit: '单位',
+  updated_at: '更新时间',
+  used_count: '使用数',
+  user_id: '用户ID',
+  user_name: '用户姓名',
+  user_status: '用户状态',
+  verified_at: '核销时间',
+};
+
+const TABLE_COLUMN_TOKEN_LABELS: Record<string, string> = {
+  activity: '活动',
+  after: '后',
+  amount: '金额',
+  appointment: '预约',
+  at: '时间',
+  audit: '审计',
+  average: '平均',
+  avg: '平均',
+  balance: '余额',
+  before: '前',
+  booking: '预约',
+  card: '卡',
+  category: '分类',
+  channel: '渠道',
+  count: '数',
+  created: '创建',
+  customer: '客户',
+  date: '日期',
+  delivery: '交付',
+  device: '设备',
+  discount: '优惠',
+  end: '结束',
+  event: '事件',
+  expiry: '效期',
+  gross: '原额',
+  id: 'ID',
+  item: '明细',
+  latest: '最近',
+  level: '等级',
+  margin: '毛利',
+  material: '耗材',
+  method: '方式',
+  name: '名称',
+  net: '净额',
+  no: '编号',
+  order: '订单',
+  paid: '实收',
+  pay: '支付',
+  payment: '支付',
+  phone: '手机号',
+  price: '价格',
+  product: '商品',
+  project: '项目',
+  quantity: '数量',
+  refund: '退款',
+  refunded: '退款',
+  reservation: '预约',
+  revenue: '收入',
+  service: '服务',
+  sku: 'SKU',
+  staff: '员工',
+  status: '状态',
+  stock: '库存',
+  store: '门店',
+  supplier: '供应商',
+  time: '时间',
+  total: '总',
+  type: '类型',
+  updated: '更新',
+  user: '用户',
 };
 
 const TABLE_CELL_VALUE_LABELS: Record<string, Record<string, string>> = {
   payMethod: {
+    wechat: '微信',
+    alipay: '支付宝',
+    card: '会员卡余额',
+    balance: '会员卡余额',
+    cash: '现金',
+    bank: '银行卡',
+    bank_card: '银行卡',
+    mixed: '组合支付',
+  },
+  pay_method: {
     wechat: '微信',
     alipay: '支付宝',
     card: '会员卡余额',
@@ -146,6 +460,16 @@ const TABLE_CELL_VALUE_LABELS: Record<string, Record<string, string>> = {
     bank_card: '银行卡',
     mixed: '组合支付',
   },
+  payment_method: {
+    wechat: '微信',
+    alipay: '支付宝',
+    card: '会员卡余额',
+    balance: '会员卡余额',
+    cash: '现金',
+    bank: '银行卡',
+    bank_card: '银行卡',
+    mixed: '组合支付',
+  },
   status: {
     active: '启用',
     inactive: '停用',
@@ -153,6 +477,13 @@ const TABLE_CELL_VALUE_LABELS: Record<string, Record<string, string>> = {
     disabled: '停用',
     pending: '待处理',
     completed: '已完成',
+    cancelled: '已取消',
+    refunded: '已退款',
+  },
+  order_status: {
+    paid: '已付款',
+    completed: '已完成',
+    pending: '待付款',
     cancelled: '已取消',
     refunded: '已退款',
   },
@@ -658,7 +989,7 @@ function normalizeTableColumns(columns: string[], rows: string[][]) {
   return source.map((column, index) => {
     const label = String(column ?? '').trim();
     if (!label || /^\d+$/.test(label)) return inferTableColumnLabel(rows, index) ?? `业务字段 ${index + 1}`;
-    return TABLE_COLUMN_LABELS[label] ?? label;
+    return tableColumnLabel(label);
   });
 }
 
@@ -690,8 +1021,145 @@ function formatTableCellValue(column: string | undefined, value: unknown) {
   const text = String(value ?? '').trim();
   if (!text) return '';
   const key = String(column ?? '').trim();
+  const normalizedKey = normalizeColumnKey(key);
   const normalizedValue = text.toLowerCase();
-  return TABLE_CELL_VALUE_LABELS[key]?.[normalizedValue] ?? text;
+  const mappedValue = TABLE_CELL_VALUE_LABELS[key]?.[normalizedValue] ?? TABLE_CELL_VALUE_LABELS[normalizedKey]?.[normalizedValue];
+  if (mappedValue) return mappedValue;
+  const formattedDate = formatTableDateValue(normalizedKey, text);
+  if (formattedDate) return formattedDate;
+  const numeric = parseNumericText(text);
+  if (!numeric) return text;
+  if (isIdColumn(normalizedKey) || isIntegerColumn(normalizedKey)) return formatInteger(numeric.value);
+  if (isPercentColumn(normalizedKey)) return `${formatDecimal(numeric.value * (Math.abs(numeric.value) <= 1 ? 100 : 1))}%`;
+  if (isTwoDecimalColumn(normalizedKey) || numeric.hasDecimal) return formatDecimal(numeric.value);
+  return text;
+}
+
+function tableColumnLabel(label: string) {
+  const normalized = normalizeColumnKey(label);
+  return TABLE_COLUMN_LABELS[label] ?? TABLE_COLUMN_LABELS[normalized] ?? V3_SQL_COLUMN_LABELS[label] ?? V3_SQL_COLUMN_LABELS[normalized] ?? humanizeTableColumnLabel(normalized, label);
+}
+
+function normalizeColumnKey(column: string) {
+  const trimmed = column.trim();
+  return trimmed
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s.-]+/g, '_')
+    .toLowerCase();
+}
+
+function humanizeTableColumnLabel(normalized: string, original: string) {
+  if (!normalized || !/[a-z]/i.test(normalized)) return original;
+  const parts = normalized.split('_').filter(Boolean);
+  if (!parts.length) return original;
+
+  if (parts.at(-1) === 'id') {
+    const entity = parts.slice(0, -1).map(tableColumnTokenLabel).join('');
+    return entity ? `${entity}ID` : 'ID';
+  }
+
+  if (parts.at(-1) === 'at') {
+    const entity = parts.slice(0, -1).map(tableColumnTokenLabel).join('');
+    return entity ? `${entity}时间` : '时间';
+  }
+
+  if (parts.at(-1) === 'date') {
+    const entity = parts.slice(0, -1).map(tableColumnTokenLabel).join('');
+    return entity ? `${entity}日期` : '日期';
+  }
+
+  const translated = parts.map(tableColumnTokenLabel).join('');
+  return translated || original;
+}
+
+function tableColumnTokenLabel(token: string) {
+  return TABLE_COLUMN_TOKEN_LABELS[token] ?? token;
+}
+
+function parseNumericText(text: string) {
+  const cleaned = text.replace(/[¥￥,\s]/g, '');
+  if (!/^-?\d+(?:\.\d+)?$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) return null;
+  return { value, hasDecimal: cleaned.includes('.') };
+}
+
+function formatTableDateValue(column: string, text: string) {
+  if (!isDateColumn(column) && !isDateLikeText(text)) return null;
+  const date = parseTableDate(text);
+  if (!date) return null;
+  return hasDateTimeSignal(column, text) ? formatChineseDateTime(date) : formatChineseDate(date);
+}
+
+function isDateColumn(column: string) {
+  return /(^date$|_date$|_at$|_time$|month$|period_month$|settle_month$)/.test(column);
+}
+
+function isDateLikeText(text: string) {
+  return /^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(text) || /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i.test(text);
+}
+
+function hasDateTimeSignal(column: string, text: string) {
+  return /(_at$|_time$|created_at$|updated_at$|started_at$|completed_at$|paid_at$|refunded_at$|verified_at$|appointment_time$)/.test(column) || /\d{1,2}:\d{2}/.test(text);
+}
+
+function parseTableDate(text: string) {
+  const trimmed = text.trim();
+  if (!isDateLikeText(trimmed)) return null;
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatChineseDate(date: Date) {
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const byType = new Map(parts.map((part) => [part.type, part.value]));
+  return `${byType.get('year') ?? ''}年${byType.get('month') ?? ''}月${byType.get('day') ?? ''}日`;
+}
+
+function formatChineseDateTime(date: Date) {
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const byType = new Map(parts.map((part) => [part.type, part.value]));
+  return `${byType.get('year') ?? ''}年${byType.get('month') ?? ''}月${byType.get('day') ?? ''}日 ${byType.get('hour') ?? ''}:${byType.get('minute') ?? ''}`;
+}
+
+function isIdColumn(column: string) {
+  return column === 'id' || column.endsWith('_id') || column.endsWith('id');
+}
+
+function isIntegerColumn(column: string) {
+  return /(count|times|days|visit|order_count|customer_count|reservation_count|service_count|completed_task_count|available_count|busy_count|leave_count)$/.test(column);
+}
+
+function isPercentColumn(column: string) {
+  return /(rate|ratio|percent|conversion|completion_rate|growth_rate)$/.test(column);
+}
+
+function isTwoDecimalColumn(column: string) {
+  return /(amount|revenue|sales|price|cost|margin|balance|stock_value|quantity|score|value|commission|refund|paid|net|total|average)/.test(column);
+}
+
+function formatDecimal(value: number) {
+  return value.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatInteger(value: number) {
+  return Math.trunc(value).toLocaleString('zh-CN');
 }
 
 // ─── Chart ────────────────────────────────────────────────────────────────────

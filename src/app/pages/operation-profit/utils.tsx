@@ -17,9 +17,12 @@ export const costCategoryLabels: Record<OperationCostCategory, string> = {
 export const missingReasonLabels: Record<MissingCostReason, string> = {
   missing_cost: '经营成本未录完整',
   missing_bom: '项目 BOM 缺失',
+  missing_batch_cost: '商品批次成本缺失',
   missing_commission: '提成记录缺失',
   missing_project_master: '项目档案缺失',
   missing_actual_consumption: '实际耗材流水缺失',
+  product_master_estimate: '商品主档估算',
+  legacy_missing_snapshot: '旧流水缺少快照',
   missing_card_unit_value: '卡项单次价值缺失',
 };
 

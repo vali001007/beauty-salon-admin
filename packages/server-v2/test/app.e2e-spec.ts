@@ -378,11 +378,11 @@ describe('App (e2e)', () => {
         .send({ username: 'frontdesk', password: 'password123' });
 
       await request(app.getHttpServer())
-        .get('/api/supply-chain/suppliers')
+        .get('/api/supply-platform/suppliers')
         .set('Authorization', `Bearer ${loginRes.body.token}`)
         .expect(403);
 
-      expect(prisma.supplier.findMany).not.toHaveBeenCalled();
+      expect(prisma.supplySupplier.findMany).not.toHaveBeenCalled();
     });
   });
 });
@@ -537,7 +537,7 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
     },
-    supplier: {
+    supplySupplier: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -545,27 +545,43 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
     },
-    supplierOrder: {
+    supplySku: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    supplyQuote: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    supplyCatalogMapping: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    procurementOrder: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
       create: jest.fn(),
       update: jest.fn(),
     },
-    supplierSettlement: {
+    supplySettlement: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
       upsert: jest.fn(),
       update: jest.fn(),
     },
-    productSupplier: {
-      findUnique: jest.fn(),
-      updateMany: jest.fn(),
-      upsert: jest.fn(),
-      delete: jest.fn(),
+    supplierShipment: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
     },
-    supplierOrderItem: {
+    supplierShipmentItem: {
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
     },

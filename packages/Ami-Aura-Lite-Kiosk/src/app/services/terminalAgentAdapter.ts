@@ -3,11 +3,16 @@ import type { Role } from '../types';
 import type { MicroAppRunResult } from '../microApps/microAppTypes';
 import type { BusinessQueryContext } from '@/types/businessQuery';
 import type { AgentRunResult } from '@/types/agent';
-import { appendTerminalAgentMessage, createTerminalAgentRun } from './agentRuntimeService';
+import {
+  appendTerminalAgentMessage,
+  createTerminalAgentRun,
+  type TerminalAgentEngine,
+} from './agentRuntimeService';
 
 export interface TerminalAgentAdapterOptions {
   businessQueryContext?: BusinessQueryContext;
   agentContext?: Record<string, unknown>;
+  agentEngine?: TerminalAgentEngine;
 }
 
 export function isTerminalAgentRuntimeEnabled(): boolean {
@@ -29,8 +34,26 @@ export function shouldUseTerminalAgentRuntime(intent: AuraResolvedIntent): boole
 }
 
 function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentAdapterOptions): Record<string, unknown> {
+  const agentEngine = options.agentEngine ?? resolveContextAgentEngine(options.agentContext);
+  const agentEngineMeta = agentEngine === 'agent_v2'
+    ? { architecture: 'kg_llm_agent' }
+    : agentEngine === 'agent_v3'
+      ? { architecture: 'agent_v3_text_to_sql', agentV3Mode: 'execute' }
+      : agentEngine === 'agent_v5'
+        ? { architecture: 'agent_v5_business_ontology_agent', agentV5Mode: 'execute', boundary: 'drafts_followups_and_approval_only' }
+      : agentEngine === 'agent_v4'
+        ? { architecture: 'agent_v4_lifecycle_business_agent', agentV4Mode: 'execute', boundary: 'drafts_and_approval_only' }
+      : {};
+  const terminalContext = ((options.agentContext ?? {}).terminal as Record<string, unknown> | undefined) ?? {};
   return {
     ...(options.agentContext ?? {}),
+    agentEngine,
+    ...agentEngineMeta,
+    terminal: {
+      ...terminalContext,
+      agentEngine,
+      ...agentEngineMeta,
+    },
     ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
     intent: {
       name: intent.name,
@@ -40,6 +63,15 @@ function buildAdapterContext(intent: AuraResolvedIntent, options: TerminalAgentA
       source: intent.source,
     },
   };
+}
+
+function resolveContextAgentEngine(context?: Record<string, unknown>): TerminalAgentEngine {
+  if (context?.agentEngine === 'ami_brain') return 'ami_brain';
+  if (context?.agentEngine === 'agent_v5') return 'agent_v5';
+  if (context?.agentEngine === 'agent_v4') return 'agent_v4';
+  if (context?.agentEngine === 'agent_v3') return 'agent_v3';
+  if (context?.agentEngine === 'agent_v2') return 'agent_v2';
+  return 'ami_brain';
 }
 
 function getPreviousRunId(options: TerminalAgentAdapterOptions): number | null {
@@ -57,6 +89,7 @@ export async function runTerminalAgentIntent(
 ): Promise<MicroAppRunResult> {
   const context = buildAdapterContext(intent, options);
   const previousRunId = getPreviousRunId(options);
+  const agentEngine = options.agentEngine ?? resolveContextAgentEngine(context);
   const data: AgentRunResult = previousRunId
     ? await appendTerminalAgentMessage({
         activeRunId: previousRunId,
@@ -64,6 +97,7 @@ export async function runTerminalAgentIntent(
         role,
         sourceAction: intent.action ?? null,
         source: intent.source,
+        agentEngine,
         context,
       })
     : await createTerminalAgentRun({
@@ -71,6 +105,7 @@ export async function runTerminalAgentIntent(
         role,
         sourceAction: intent.action ?? null,
         source: intent.source,
+        agentEngine,
         context,
       });
 

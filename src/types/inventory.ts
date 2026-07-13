@@ -116,6 +116,7 @@ export interface ReplenishmentSuggestion {
   supplierId?: number;
   supplierName?: string;
   supplier: string;
+  mappingId?: number;
   supplySkuId?: number;
   supplySkuName?: string;
   quoteId?: number;
@@ -125,6 +126,8 @@ export interface ReplenishmentSuggestion {
   estimatedAmount: number;
   reason?: string;
   availabilityStatus?: 'platform_available' | 'legacy_supplier_available' | 'manual_purchase' | string;
+  canCreatePlatformOrder?: boolean;
+  canCreateManualOrder?: boolean;
   checked: boolean;
 }
 

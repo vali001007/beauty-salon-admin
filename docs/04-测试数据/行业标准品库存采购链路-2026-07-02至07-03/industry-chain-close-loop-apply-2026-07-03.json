@@ -1,0 +1,270 @@
+{
+  "generatedAt": "2026-07-03T00:33:06.148Z",
+  "generatedAtLocal": "2026-07-03 08:33:06 Asia/Shanghai",
+  "businessDate": "2026-07-03",
+  "mode": "apply",
+  "applyAllowed": true,
+  "executionReady": true,
+  "businessComplete": true,
+  "completionGate": {
+    "available": true,
+    "complete": true,
+    "checkedAt": "2026-07-03T00:33:06.027Z",
+    "statusCounts": {
+      "pass": 10,
+      "fail": 0,
+      "warning": 0,
+      "not_applicable": 0
+    },
+    "blockingItems": []
+  },
+  "parameters": {
+    "storeId": "6",
+    "strategy": "mark-invalid",
+    "quantity": null,
+    "skipLowStockSample": false
+  },
+  "applyPreview": [
+    {
+      "id": "1",
+      "title": "收口前链路基线快照",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-sku-chain-baseline.ts --store-id=6"
+    },
+    {
+      "id": "2",
+      "title": "收口前单位一致性巡检",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/product-unit-consistency-audit.ts --store-id=6"
+    },
+    {
+      "id": "3",
+      "title": "真实写库前影响面快照",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-chain-apply-readiness.ts --strategy=mark-invalid --store-id=6 --strict"
+    },
+    {
+      "id": "4",
+      "title": "修复失效采用记录",
+      "type": "写库",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-adoption-repair.ts --strategy=mark-invalid --store-id=6 --apply --yes"
+    },
+    {
+      "id": "5",
+      "title": "修复 BOM 单位到规格单位",
+      "type": "写库",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/product-unit-repair.ts --store-id=6 --apply --yes"
+    },
+    {
+      "id": "6",
+      "title": "执行供应链平台采购履约 MVP flow",
+      "type": "写库",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/supply-platform-mvp-flow.ts --apply --yes --storeId=6"
+    },
+    {
+      "id": "7",
+      "title": "供应链履约就绪度复验",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/supply-platform-fulfillment-readiness.ts --store-id=6"
+    },
+    {
+      "id": "8",
+      "title": "MVP flow verify 复验",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/supply-platform-mvp-flow.ts --verify --storeId=6"
+    },
+    {
+      "id": "9",
+      "title": "样本级闭环闸门",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-chain-sample-gate.ts --store-id=6 --strict"
+    },
+    {
+      "id": "10",
+      "title": "行业链路完成度闸门",
+      "type": "只读/预览",
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-chain-completion-gate.ts --store-id=6 --strict"
+    }
+  ],
+  "steps": [
+    {
+      "id": "1",
+      "title": "收口前链路基线快照",
+      "script": "industry-chain:baseline",
+      "args": [
+        "--store-id=6"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-sku-chain-baseline.ts --store-id=6",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ◈ encrypted .env [www.dotenvx.com]\n行业 SKU 链路基线生成完成：D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-sku-chain-baseline-2026-07-03.md",
+      "stderrTail": "(node:7480) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "2",
+      "title": "收口前单位一致性巡检",
+      "script": "product-unit:audit",
+      "args": [
+        "--store-id=6"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/product-unit-consistency-audit.ts --store-id=6",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ◈ encrypted .env [www.dotenvx.com]\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\product-unit-consistency-audit-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\product-unit-consistency-audit-2026-07-03.json",
+      "stderrTail": "(node:32808) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "3",
+      "title": "真实写库前影响面快照",
+      "script": "industry-chain:apply-readiness",
+      "args": [
+        "--strategy=mark-invalid",
+        "--store-id=6",
+        "--strict"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-chain-apply-readiness.ts --strategy=mark-invalid --store-id=6 --strict",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ override existing { override: true }\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-apply-readiness-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-apply-readiness-2026-07-03.json\nreadiness brokenAdoptions=1 bomUnitRepairs=1 sampleProduct=82 guard=true",
+      "stderrTail": "(node:2324) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "4",
+      "title": "修复失效采用记录",
+      "script": "industry-chain:repair",
+      "args": [
+        "--strategy=mark-invalid",
+        "--store-id=6",
+        "--apply",
+        "--yes"
+      ],
+      "writes": true,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-adoption-repair.ts --strategy=mark-invalid --store-id=6 --apply --yes",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ enable debugging { debug: true }\n{\n  \"mode\": \"apply\",\n  \"strategy\": \"mark-invalid\",\n  \"brokenAdoptions\": 1,\n  \"actions\": [\n    {\n      \"adoptionId\": 22,\n      \"action\": \"mark_invalid\",\n      \"localProductId\": 136\n    }\n  ]\n}",
+      "stderrTail": "(node:17344) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "5",
+      "title": "修复 BOM 单位到规格单位",
+      "script": "product-unit:repair",
+      "args": [
+        "--store-id=6",
+        "--apply",
+        "--yes"
+      ],
+      "writes": true,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/product-unit-repair.ts --store-id=6 --apply --yes",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ override existing { override: true }\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\product-unit-repair-preview-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\product-unit-repair-preview-2026-07-03.json",
+      "stderrTail": "(node:30452) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "6",
+      "title": "执行供应链平台采购履约 MVP flow",
+      "script": "supply-platform:mvp-flow",
+      "args": [
+        "--storeId=6"
+      ],
+      "writes": true,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/supply-platform-mvp-flow.ts --apply --yes --storeId=6",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "mary\": \"创建发货明细 supplySkuId=1 shippedQty=5\",\n      \"rollbackHint\": \"如需回滚，先恢复采购明细/发货明细 receivedQty，再删除该发货明细。\",\n      \"before\": null\n    },\n    {\n      \"model\": \"ProcurementOrder\",\n      \"action\": \"update\",\n      \"id\": 1,\n      \"summary\": \"采购单状态 accepted -> shipped\",\n      \"rollbackHint\": \"如需回滚，恢复采购单 status/shippedAt。\",\n      \"before\": {\n        \"status\": \"accepted\",\n        \"shippedAt\": null\n      }\n    },\n    {\n      \"model\": \"SupplierShipmentItem\",\n      \"action\": \"reuse\",\n      \"id\": 1,\n      \"summary\": \"复用匹配当前采购明细的发货明细 orderItemId=1 supplySkuId=1\",\n      \"rollbackHint\": \"复用对象不需要删除。\",\n      \"before\": null\n    },\n    {\n      \"model\": \"StockBatch\",\n      \"action\": \"create\",\n      \"id\": 203,\n      \"summary\": \"创建入库批次 B-MVP-1 stock=5\",\n      \"rollbackHint\": \"如需回滚，先删除引用该批次的库存流水，再删除批次。\",\n      \"before\": null\n    },\n    {\n      \"model\": \"Product\",\n      \"action\": \"update\",\n      \"id\": 82,\n      \"summary\": \"产品库存 128 -> 133\",\n      \"rollbackHint\": \"如需回滚，扣回本次入库数量并恢复 currentStock。\",\n      \"before\": {\n        \"currentStock\": 128\n      }\n    },\n    {\n      \"model\": \"StockMovement\",\n      \"action\": \"create\",\n      \"id\": 553,\n      \"summary\": \"创建平台采购入库流水 SPI-MVP-1783038774368\",\n      \"rollbackHint\": \"如需回滚，删除该入库流水并同步回滚产品库存/批次库存。\",\n      \"before\": null\n    },\n    {\n      \"model\": \"SupplierShipmentItem\",\n      \"action\": \"update\",\n      \"id\": 1,\n      \"summary\": \"发货明细已收 0 -> 5\",\n      \"rollbackHint\": \"如需回滚，恢复发货明细 receivedQty。\",\n      \"before\": {\n        \"receivedQty\": 0\n      }\n    },\n    {\n      \"model\": \"ProcurementOrderItem\",\n      \"action\": \"update\",\n      \"id\": 1,\n      \"summary\": \"采购明细已收 0 -> 5\",\n      \"rollbackHint\": \"如需回滚，恢复采购明细 receivedQty。\",\n      \"before\": {\n        \"receivedQty\": 0\n      }\n    },\n    {\n      \"model\": \"ProcurementOrder\",\n      \"action\": \"update\",\n      \"id\": 1,\n      \"summary\": \"采购单状态 shipped -> received\",\n      \"rollbackHint\": \"如需回滚，恢复采购单 status/receivedAt。\",\n      \"before\": {\n        \"status\": \"shipped\",\n        \"receivedAt\": null\n      }\n    },\n    {\n      \"model\": \"Product\",\n      \"action\": \"update\",\n      \"id\": 82,\n      \"summary\": \"产品安全库存 45 -> 143\",\n      \"rollbackHint\": \"如需回滚，恢复产品 safetyStock。\",\n      \"before\": {\n        \"safetyStock\": 45\n      }\n    },\n    {\n      \"model\": \"SupplySettlement\",\n      \"action\": \"create\",\n      \"id\": 1,\n      \"summary\": \"创建供应商 2026-07 月结算单\",\n      \"rollbackHint\": \"如需回滚，删除该结算单。\",\n      \"before\": null\n    }\n  ]\n}",
+      "stderrTail": "(node:8504) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "7",
+      "title": "供应链履约就绪度复验",
+      "script": "supply-platform:fulfillment-readiness",
+      "args": [
+        "--store-id=6"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/supply-platform-fulfillment-readiness.ts --store-id=6",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\supply-platform-fulfillment-readiness-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\supply-platform-fulfillment-readiness-2026-07-03.json",
+      "stderrTail": "(node:19108) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "8",
+      "title": "MVP flow verify 复验",
+      "script": "supply-platform:mvp-flow:verify",
+      "args": [
+        "--storeId=6"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/supply-platform-mvp-flow.ts --verify --storeId=6",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ enable debugging { debug: true }\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\supply-platform-mvp-flow-verify-2026-07-03.md\nWrote D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\supply-platform-mvp-flow-verify-2026-07-03.json\n{\n  \"mode\": \"verify\",\n  \"dryRun\": false,\n  \"applyAllowed\": false,\n  \"flowKey\": \"supply-platform-mvp-flow\",\n  \"lowStockSample\": {\n    \"enabled\": true,\n    \"currentStock\": 133,\n    \"currentSafetyStock\": 143,\n    \"targetSafetyStockAfterReceipt\": 148\n  },\n  \"store\": {\n    \"id\": 6,\n    \"name\": \"Ami 全量演示门店\"\n  },\n  \"product\": {\n    \"id\": 82,\n    \"name\": \"玻尿酸保湿精华\",\n    \"sku\": \"AMI-DEMO-FULL-SKU-001\",\n    \"currentStock\": 133\n  },\n  \"readiness\": {\n    \"storeCheckSkipped\": false,\n    \"productCheckSkipped\": false,\n    \"reason\": null\n  },\n  \"schema\": {\n    \"SupplySupplier\": true,\n    \"SupplySku\": true,\n    \"SupplyQuote\": true,\n    \"SupplyCatalogMapping\": true,\n    \"ProcurementOrder\": true,\n    \"ProcurementOrderItem\": true,\n    \"SupplierShipment\": true,\n    \"SupplierShipmentItem\": true,\n    \"SupplySettlement\": true,\n    \"StockMovement\": true\n  },\n  \"blockers\": [],\n  \"plannedSteps\": [\n    \"ensure active SupplySupplier\",\n    \"ensure approved SupplySku and SupplyQuote\",\n    \"ensure SupplyCatalogMapping to Ami_Core Product\",\n    \"create or reuse ProcurementOrder\",\n    \"supplier accepts order\",\n    \"supplier ships order\",\n    \"store receives order and writes StockBatch + StockMovement\",\n    \"set sample product safetyStock above currentStock for low-stock routing verification\",\n    \"generate SupplySettlement\"\n  ],\n  \"verification\": {\n    \"complete\": true,\n    \"order\": {\n      \"id\": 1,\n      \"orderNo\": \"SP-MVP-1783038772440\",\n      \"storeName\": \"Ami 全量演示门店\",\n      \"supplierName\": \"Ami MVP 供应商\",\n      \"status\": \"received\",\n      \"itemCount\": 1,\n      \"shipmentCount\": 1,\n      \"totalAmount\": 60,\n      \"netAmount\": 57\n    },\n    \"stockMovements\": [\n      {\n        \"id\": 553,\n        \"movementNo\": \"SPI-MVP-1783038774368\",\n        \"productName\": \"玻尿酸保湿精华\",\n        \"batchNo\": \"B-MVP-1\",\n        \"quantity\": 5,\n        \"sourceType\": \"supply_platform_order\",\n        \"sourceId\": 1,\n        \"sourceNo\": \"SP-MVP-1783038772440\"\n      }\n    ],\n    \"settlement\": {\n      \"id\": 1,\n      \"settleMonth\": \"2026-07\",\n      \"orderCount\": 1,\n      \"totalAmount\": 60,\n      \"netPayable\": 57,\n      \"status\": \"generated\"\n    }\n  }\n}",
+      "stderrTail": "(node:5972) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "9",
+      "title": "样本级闭环闸门",
+      "script": "industry-chain:sample-gate",
+      "args": [
+        "--store-id=6",
+        "--strict"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-chain-sample-gate.ts --store-id=6 --strict",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ suppress logs { quiet: true }\n样本级闸门报告生成完成：D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-sample-gate-2026-07-03.md\n总状态：已完成\n通过 10，未通过 0，待关注 0",
+      "stderrTail": "(node:18500) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    {
+      "id": "10",
+      "title": "行业链路完成度闸门",
+      "script": "industry-chain:completion-gate",
+      "args": [
+        "--store-id=6",
+        "--strict"
+      ],
+      "writes": false,
+      "requiredForCompletion": true,
+      "command": "C:\\Program Files\\nodejs\\node.exe node_modules/ts-node/dist/bin-esm.js prisma/industry-chain-completion-gate.ts --store-id=6 --strict",
+      "status": "passed",
+      "failureType": "none",
+      "exitCode": 0,
+      "attempts": 1,
+      "stdoutTail": "◇ injected env (27) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }\n完成度闸门报告生成完成：D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\industry-chain-completion-gate-2026-07-03.md\n总状态：已完成\n通过 10，未通过 0，待关注 0，当前无样本 0",
+      "stderrTail": "(node:37848) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    }
+  ]
+}

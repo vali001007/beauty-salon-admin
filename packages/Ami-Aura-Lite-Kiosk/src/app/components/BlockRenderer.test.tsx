@@ -159,6 +159,63 @@ describe('BlockRenderer', () => {
     expect(container.textContent).toContain('数据来源 · 订单、收款记录、退款记录');
   });
 
+  it('renders V3 snake_case SQL result columns in Chinese and formats decimals globally', () => {
+    act(() => {
+      root.render(
+        <BlockRenderer
+          blocks={[
+            {
+              kind: 'table',
+              columns: ['product_id', 'product_name', 'SKU', 'quantity_sold', 'net_sales_amount'],
+              rows: [[
+                '86',
+                '抗衰紧致眼霜',
+                'AMI-DEMO-FULL-SKU-005',
+                '14.000000000000000000000000000000',
+                '6758.340000000000000000000000000000',
+              ]],
+            },
+          ]}
+        />,
+      );
+    });
+
+    const headers = Array.from(container.querySelectorAll('th')).map((node) => node.textContent);
+    expect(headers).toEqual(['商品ID', '商品', 'SKU', '销量', '净销售额']);
+    expect(container.textContent).toContain('14.00');
+    expect(container.textContent).toContain('6,758.34');
+    expect(container.textContent).not.toContain('quantity_sold');
+    expect(container.textContent).not.toContain('6758.340000000000000000000000000000');
+  });
+
+  it('renders V3 order time columns and date values in Chinese', () => {
+    act(() => {
+      root.render(
+        <BlockRenderer
+          blocks={[
+            {
+              kind: 'table',
+              columns: ['order_created_at', 'gross_amount', 'discount_amount', 'net_amount'],
+              rows: [[
+                'Tue Jul 07 2026 08:19:42 GMT+0800 (中国标准时间)',
+                '2000.000000000000000000000000000000',
+                '0',
+                '2000.000000000000000000000000000000',
+              ]],
+            },
+          ]}
+        />,
+      );
+    });
+
+    const headers = Array.from(container.querySelectorAll('th')).map((node) => node.textContent);
+    expect(headers).toEqual(['订单时间', '销售原额', '优惠金额', '净额']);
+    expect(container.textContent).toContain('2026年07月07日 08:19');
+    expect(container.textContent).toContain('2,000.00');
+    expect(container.textContent).not.toContain('order_created_at');
+    expect(container.textContent).not.toContain('Tue Jul');
+  });
+
   it('renders entity badge and marketing link card without falling back to a table', () => {
     act(() => {
       root.render(

@@ -135,8 +135,27 @@ export class OrdersController {
   @Post('product/:id/refund')
   @Permissions('core:order:refund')
   @ApiOperation({ summary: '订单退款' })
-  refundOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.ordersService.refundOrder(id, dto);
+  refundOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @CurrentUser('id') userId?: number) {
+    return this.ordersService.refundOrder(id, { ...dto, operatorId: userId, operatorType: 'user' });
+  }
+
+  @Get('product/:id/refund-preview')
+  @Permissions('core:order:refund')
+  @ApiOperation({ summary: '获取订单退款预览' })
+  getRefundPreview(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.getRefundPreview(id);
+  }
+
+  @Post('checkout-groups/:checkoutGroupNo/refund')
+  @Permissions('core:order:refund')
+  @ApiOperation({ summary: '按收银组原子退款' })
+  refundCheckoutGroup(@Param('checkoutGroupNo') checkoutGroupNo: string, @Body() dto: any, @CurrentUser('id') userId?: number) {
+    return this.ordersService.refundCheckoutGroup(checkoutGroupNo, {
+      ...dto,
+      refunds: Array.isArray(dto?.refunds)
+        ? dto.refunds.map((refund: any) => ({ ...refund, operatorId: userId, operatorType: 'user' }))
+        : [],
+    });
   }
 
   @Get('member-cards/paginated')

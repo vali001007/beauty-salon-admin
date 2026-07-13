@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-07-06 07:51:32 Asia/Shanghai",
+  "summary": {
+    "pass": true,
+    "gateCount": 10,
+    "blockerCount": 0,
+    "recommendation": "本地回滚演练通过：生产默认、全局/规则/DB 回退、DB 规则刷新和 legacy_retired 防误启均可用。真实生产回滚仍需在生产或准生产执行并写入生产证据。"
+  },
+  "source": {
+    "grayStrategy": "packages/server-v2/src/agent-v2/agent-v2-gray-strategy.service.ts",
+    "productionEnvExample": ".env.production.example"
+  },
+  "gates": [
+    {
+      "id": "production_default_rollback_baseline",
+      "title": "生产无显式灰度配置时默认回到旧链路",
+      "expected": "defaultAgentV2GrayMode() 在 production 下返回 legacy_regex",
+      "actual": "mode=legacy_regex",
+      "status": "pass",
+      "impact": "生产配置缺失或被清空时，默认不直接切新架构。"
+    },
+    {
+      "id": "non_production_default_new_chain",
+      "title": "非生产默认保持新链路优先",
+      "expected": "defaultAgentV2GrayMode() 在 test/development 下返回 kg_llm_preferred",
+      "actual": "mode=kg_llm_preferred",
+      "status": "pass",
+      "impact": "本地和 CI 继续靠近新架构验收，不影响生产默认。"
+    },
+    {
+      "id": "production_env_example_rollback_ready",
+      "title": "生产环境样例保留回滚基线",
+      "expected": "AGENT_V2_GRAY_MODE=legacy_regex，AGENT_INTENT_ENGINE=legacy_regex，AGENT_V2_LEGACY_RETIREMENT_CONFIRMED=false",
+      "actual": "gray=legacy_regex, engine=legacy_regex, confirmed=false",
+      "status": "pass",
+      "impact": "后续生产配置可通过环境变量回到旧链路，且默认不确认最终退役。"
+    },
+    {
+      "id": "context_rollback_override",
+      "title": "调试上下文可临时回退旧链路",
+      "expected": "context.agentV2GrayMode=legacy_regex 优先于 AGENT_V2_GRAY_MODE=kg_llm_only",
+      "actual": "mode=legacy_regex, source=context, engine=legacy_regex, fallback=false, shadow=false, retired=false, rule=-",
+      "status": "pass",
+      "impact": "治理调试和人工排障可以临时验证旧链路。"
+    },
+    {
+      "id": "env_global_rollback",
+      "title": "全局环境变量可回退旧链路",
+      "expected": "AGENT_V2_GRAY_MODE=legacy_regex 返回 legacy_regex",
+      "actual": "mode=legacy_regex, source=env_global, engine=legacy_regex, fallback=false, shadow=false, retired=false, rule=-",
+      "status": "pass",
+      "impact": "生产异常时可先用全局开关恢复旧链路。"
+    },
+    {
+      "id": "env_rule_scoped_rollback",
+      "title": "环境规则可按入口/能力回退旧链路",
+      "expected": "匹配 capabilityId + entrypoint 的 AGENT_V2_GRAY_RULES 优先于全局 kg_llm_only",
+      "actual": "mode=legacy_regex, source=env_rule, engine=legacy_regex, fallback=false, shadow=false, retired=false, rule=rollback-card-capability",
+      "status": "pass",
+      "impact": "可对单能力或单入口回滚，避免全量切回影响新链路灰度。"
+    },
+    {
+      "id": "db_rule_scoped_rollback",
+      "title": "治理表规则可优先于环境规则回退旧链路",
+      "expected": "active DB rule 匹配时返回 legacy_regex/db_rule",
+      "actual": "mode=legacy_regex, source=db_rule, engine=legacy_regex, fallback=false, shadow=false, retired=false, rule=db-rollback-card",
+      "status": "pass",
+      "impact": "后续生产治理中心可用更细粒度规则回滚，不必修改全局环境变量。"
+    },
+    {
+      "id": "db_rule_refresh_rollback",
+      "title": "DB 灰度规则刷新后可从新链路回滚旧链路",
+      "expected": "refreshDbRules() 后由 kg_llm_only 变为 legacy_regex",
+      "actual": "before=kg_llm_only/db_rule/db-canary-kg-only, after=legacy_regex/db_rule/db-refresh-rollback",
+      "status": "pass",
+      "impact": "治理中心改规则后，Runtime 可刷新缓存并快速回退。"
+    },
+    {
+      "id": "legacy_retired_unconfirmed_guard",
+      "title": "未确认退役时 legacy_retired 自动降级",
+      "expected": "生产 legacy_retired 且未设置确认开关时返回 kg_llm_preferred",
+      "actual": "mode=kg_llm_preferred, source=env_global, engine=kg_llm, fallback=true, shadow=false, retired=false, rule=-",
+      "status": "pass",
+      "impact": "误配置最终退役不会直接切到不可回退状态。"
+    },
+    {
+      "id": "legacy_retired_confirmed_allowed",
+      "title": "证据确认后才允许 legacy_retired",
+      "expected": "生产 legacy_retired + AGENT_V2_LEGACY_RETIREMENT_CONFIRMED=true 返回 legacy_retired",
+      "actual": "mode=legacy_retired, source=env_global, engine=kg_llm, fallback=false, shadow=false, retired=true, rule=-",
+      "status": "pass",
+      "impact": "最终退役需要显式确认，避免把本地演练当生产授权。"
+    }
+  ],
+  "blockers": [],
+  "boundary": {
+    "connectsDatabase": false,
+    "callsProductionApi": false,
+    "mutatesProductionState": false,
+    "writesCanonicalProductionEvidence": false
+  }
+}

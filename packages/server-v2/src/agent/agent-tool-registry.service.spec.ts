@@ -7,12 +7,13 @@ describe('AgentToolRegistryService', () => {
   let inventoryService: jest.Mocked<any>;
   let terminalService: jest.Mocked<any>;
   let smartSchedulingService: jest.Mocked<any>;
+  let industryService: jest.Mocked<any>;
   let service: AgentToolRegistryService;
 
   beforeEach(() => {
     prisma = {
       product: { findMany: jest.fn() },
-      productSupplier: { findMany: jest.fn() },
+      supplyCatalogMapping: { findMany: jest.fn() },
       project: { findMany: jest.fn() },
       orderItem: { findMany: jest.fn() },
       productOrder: { findMany: jest.fn() },
@@ -31,9 +32,9 @@ describe('AgentToolRegistryService', () => {
       cardUsageRecord: { findMany: jest.fn() },
       customerBalanceAccount: { findMany: jest.fn() },
       customerBalanceTransaction: { findMany: jest.fn() },
-      supplier: { findMany: jest.fn() },
-      supplierOrder: { findMany: jest.fn() },
-      supplierSettlement: { findMany: jest.fn() },
+      supplySupplier: { findMany: jest.fn() },
+      procurementOrder: { findMany: jest.fn() },
+      supplySettlement: { findMany: jest.fn() },
       marketingPage: { findMany: jest.fn() },
       marketingPageEvent: { findMany: jest.fn() },
       promotion: { findMany: jest.fn() },
@@ -65,6 +66,9 @@ describe('AgentToolRegistryService', () => {
     smartSchedulingService = {
       preview: jest.fn(),
     };
+    industryService = {
+      productTemplateChainOperationalReport: jest.fn(),
+    };
     service = new AgentToolRegistryService(
       prisma,
       businessQueryService,
@@ -72,6 +76,7 @@ describe('AgentToolRegistryService', () => {
       inventoryService,
       terminalService,
       smartSchedulingService,
+      industryService,
     );
   });
 
@@ -93,6 +98,7 @@ describe('AgentToolRegistryService', () => {
         'inventory.product.metadata.suggest',
         'inventory.consumption.trend',
         'inventory.project.bom.risk',
+        'industry.chain.operational.report',
         'inventory.transfer.suggestion',
         'inventory.expiring.clearance.draft',
         'supplier.purchase.link',
@@ -135,6 +141,7 @@ describe('AgentToolRegistryService', () => {
     expect(service.list().find((tool) => tool.name === 'finance.report.draft')?.consumedSlots).toEqual(['timeRange']);
     expect(service.list().find((tool) => tool.name === 'product.sales.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
     expect(service.list().find((tool) => tool.name === 'inventory.risk.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
+    expect(service.list().find((tool) => tool.name === 'industry.chain.operational.report')?.consumedSlots).toEqual(['limit']);
     expect(service.list().find((tool) => tool.name === 'staff.performance.rank')?.consumedSlots).toEqual(['timeRange', 'limit']);
     for (const toolName of [
       'schedule.diagnose',
@@ -195,6 +202,56 @@ describe('AgentToolRegistryService', () => {
     expect(prisma.product.findMany).not.toHaveBeenCalled();
     expect(prisma.stockBatch.findMany).not.toHaveBeenCalled();
     expect(prisma.orderItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns industry chain operational report with evidence and handling actions', async () => {
+    industryService.productTemplateChainOperationalReport.mockResolvedValue({
+      storeId: 6,
+      generatedAt: '2026-07-02T12:00:00.000Z',
+      summary: {
+        publishedTemplates: 34,
+        validAdoptions: 9,
+        missingLocalSku: 25,
+        activeProducts: 45,
+        productsMissingSupplyMapping: 45,
+        bomProductsWithoutStock: 13,
+        lowStockProducts: 0,
+        lowStockPlatformPurchasable: 0,
+        lowStockManualOnly: 0,
+      },
+      missingLocalSku: [{ productTemplateId: 1, name: '标准精华', nextAction: '批量采用' }],
+      productsMissingSupplyMapping: [{ productId: 10, name: '玻尿酸保湿精华', sku: 'SKU-001' }],
+      bomProductsWithoutStock: [{ bomItemId: 20, projectName: '补水护理', productName: '棉片', currentStock: 0 }],
+      lowStockPlatformPurchasable: [],
+      lowStockManualOnly: [],
+    });
+
+    const result = await service.execute(
+      'industry.chain.operational.report',
+      { question: '哪些标准品还没有本地 SKU，哪些产品没有供应链映射', limit: 5 },
+      { runId: 33, storeId: 6, userId: 7, role: 'manager' },
+    );
+
+    expect(industryService.productTemplateChainOperationalReport).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6, page: 1, pageSize: 50 }),
+      6,
+    );
+    expect(result).toMatchObject({
+      status: 'success',
+      title: '标准品到库存采购链路运营报表',
+      data: expect.objectContaining({
+        requestedLimit: 5,
+        totalIssueCount: 83,
+      }),
+      evidence: expect.objectContaining({
+        sourceTables: expect.arrayContaining(['IndustryProductTemplate', 'SupplyCatalogMapping', 'ProjectBomItem']),
+      }),
+      actions: expect.arrayContaining([
+        expect.objectContaining({ action: 'industry:product-template-chain:open' }),
+        expect.objectContaining({ action: 'industry:supply-mappings:open' }),
+      ]),
+    });
+    expect((result.data as any).items.missingLocalSku).toHaveLength(1);
   });
 
   it('ranks customer follow-up priorities with evidence without creating tasks', async () => {
@@ -660,20 +717,21 @@ describe('AgentToolRegistryService', () => {
   });
 
   it('diagnoses supply chain delivery and settlement without falling back to business query', async () => {
-    prisma.supplier.findMany.mockResolvedValue([
-      { id: 601, name: '华东耗材', category: '耗材', status: 'active', paymentTerms: '月结' },
-      { id: 602, name: '本地用品', category: '用品', status: 'active', paymentTerms: '现结' },
+    prisma.supplySupplier.findMany.mockResolvedValue([
+      { id: 601, name: '华东耗材', categories: ['耗材'], status: 'active', paymentTerms: '月结' },
+      { id: 602, name: '本地用品', categories: ['用品'], status: 'active', paymentTerms: '现结' },
     ]);
-    prisma.supplierOrder.findMany.mockResolvedValue([
+    prisma.procurementOrder.findMany.mockResolvedValue([
       {
         id: 701,
         supplierId: 601,
         totalAmount: 3000,
         netAmount: 2800,
         status: 'received',
-        orderedAt: new Date(Date.now() - 6 * 86_400_000),
+        createdAt: new Date(Date.now() - 6 * 86_400_000),
+        acceptedAt: new Date(Date.now() - 6 * 86_400_000),
         receivedAt: new Date(Date.now() - 2 * 86_400_000),
-        supplier: { id: 601, name: '华东耗材', category: '耗材', status: 'active' },
+        supplier: { id: 601, name: '华东耗材', categories: ['耗材'], status: 'active' },
         items: [{ quantity: 20, receivedQty: 20, subtotal: 3000 }],
       },
       {
@@ -682,20 +740,21 @@ describe('AgentToolRegistryService', () => {
         totalAmount: 1200,
         netAmount: 1200,
         status: 'pending',
-        orderedAt: new Date(Date.now() - 10 * 86_400_000),
+        createdAt: new Date(Date.now() - 10 * 86_400_000),
+        acceptedAt: null,
         receivedAt: null,
-        supplier: { id: 602, name: '本地用品', category: '用品', status: 'active' },
+        supplier: { id: 602, name: '本地用品', categories: ['用品'], status: 'active' },
         items: [{ quantity: 10, receivedQty: 0, subtotal: 1200 }],
       },
     ]);
-    prisma.supplierSettlement.findMany.mockResolvedValue([
+    prisma.supplySettlement.findMany.mockResolvedValue([
       {
         id: 801,
         supplierId: 602,
         netPayable: 1200,
         totalAmount: 1200,
         status: 'draft',
-        supplier: { id: 602, name: '本地用品', category: '用品', status: 'active' },
+        supplier: { id: 602, name: '本地用品', categories: ['用品'], status: 'active' },
       },
     ]);
 
@@ -715,7 +774,7 @@ describe('AgentToolRegistryService', () => {
       unpaidSettlementCount: 1,
     });
     expect(result.evidence).toMatchObject({
-      source: ['Supplier', 'SupplierOrder', 'SupplierOrderItem', 'SupplierSettlement'],
+      source: ['SupplySupplier', 'ProcurementOrder', 'ProcurementOrderItem', 'SupplySettlement'],
       sampleSize: 5,
     });
     expect(businessQueryService.ask).not.toHaveBeenCalled();
@@ -1585,15 +1644,15 @@ describe('AgentToolRegistryService', () => {
     prisma.product.findMany.mockResolvedValue([
       { id: 301, name: '补水面膜', sku: 'P301', currentStock: 2, safetyStock: 10, supplier: '旧供应商', minPurchaseQty: 5, unit: '片' },
     ]);
-    prisma.productSupplier.findMany.mockResolvedValue([
+    prisma.supplyCatalogMapping.findMany.mockResolvedValue([
       {
         productId: 301,
-        supplierId: 601,
-        supplyPrice: 12,
-        moq: 10,
-        leadDays: 3,
-        isPrimary: true,
-        supplier: { id: 601, name: '华东耗材', category: '耗材', status: 'active', paymentTerms: '月结', phone: '13800000000' },
+        isPreferred: true,
+        supplySku: {
+          supplierId: 601,
+          supplier: { id: 601, name: '华东耗材', status: 'active', paymentTerms: '月结', phone: '13800000000' },
+          quotes: [{ price: 12, moq: 10, leadDays: 3 }],
+        },
       },
     ]);
 
@@ -2308,6 +2367,7 @@ describe('AgentToolRegistryService', () => {
           }),
         }),
       }),
+      1,
     );
   });
 

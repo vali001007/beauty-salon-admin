@@ -128,9 +128,23 @@ export interface AgentAppendMessageRequest {
   context?: Record<string, unknown>;
 }
 
+export interface AgentFeedbackContext {
+  feedbackScope?: 'run' | 'message' | string;
+  messageId?: string | number | null;
+  question?: string | null;
+  answer?: string | null;
+  questionIndex?: number | null;
+  source?: string | null;
+}
+
 export interface AgentFeedbackRequest {
   rating?: number;
   adopted?: boolean;
   comment?: string;
   businessActionJson?: unknown;
+  feedbackScope?: 'run' | 'message' | string;
+  messageId?: string | number | null;
+  question?: string | null;
+  answer?: string | null;
+  questionIndex?: number | null;
 }

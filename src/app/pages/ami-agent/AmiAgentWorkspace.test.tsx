@@ -133,6 +133,46 @@ describe('AmiAgentWorkspace MessageItem', () => {
     expect(Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === '查看排班表')).toHaveLength(1);
     expect(Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === '生成排班优化预览')).toHaveLength(1);
   });
+
+  it('submits feedback with the current question context', () => {
+    const onFollowUp = vi.fn();
+    const onFeedback = vi.fn();
+    const onAction = vi.fn();
+
+    act(() => {
+      root.render(
+        <MessageItem
+          msg={{
+            id: 'agent-msg-2',
+            role: 'agent',
+            text: '需要重点跟进 3 位客户。',
+            runId: 101,
+            metadata: {
+              feedbackScope: 'message',
+              feedbackQuestion: '今天哪些客户需要跟进',
+            },
+          }}
+          onFollowUp={onFollowUp}
+          onFeedback={onFeedback}
+          onAction={onAction}
+        />,
+      );
+    });
+
+    act(() => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('无用'))
+        ?.click();
+    });
+
+    expect(onFeedback).toHaveBeenCalledWith(101, false, expect.objectContaining({
+      feedbackScope: 'message',
+      messageId: 'agent-msg-2',
+      question: '今天哪些客户需要跟进',
+      answer: '需要重点跟进 3 位客户。',
+      source: 'ami-agent:workspace',
+    }));
+  });
 });
 
 describe('AmiAgentWorkspace AgentQualityTab', () => {

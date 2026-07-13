@@ -693,7 +693,7 @@ export class AgentEvalService {
         title: '补货草稿',
         summary: '已根据 stock_risk_score 生成补货建议。',
         data: { items: [{ productName: '补水面膜', currentStock: 2, safetyStock: 8, suggestedQty: 12, status: 'draft' }] },
-        evidence: commonEvidence(['AgentApproval', 'Product', 'ProductSupplier', 'PurchaseOrder'], 'stock_risk_score 综合库存、安全库存和销量。'),
+        evidence: commonEvidence(['AgentApproval', 'Product', 'SupplyCatalogMapping', 'PurchaseOrder'], 'stock_risk_score 综合库存、安全库存和销量。'),
         actions: [{ label: '确认 agent:tool:inventory.replenishment.draft', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' }],
       },
       'inventory.risk.rank': {
@@ -733,7 +733,7 @@ export class AgentEvalService {
         title: '供应商采购链接',
         summary: '已整理 5 个采购建议，优先处理补水面膜：已绑定华东耗材。',
         data: { items: [{ productName: '补水面膜', supplierName: '华东耗材', supplyPriceText: '¥12', leadDays: 3, status: 'linked' }] },
-        evidence: commonEvidence(['Product', 'ProductSupplier', 'Supplier'], '供应商采购链接只返回建议，不创建采购单。'),
+        evidence: commonEvidence(['Product', 'SupplyCatalogMapping', 'SupplyQuote', 'SupplySupplier'], '供应商采购链接只返回建议，不创建采购单。'),
         actions: [{ label: '生成补货草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' }],
       },
       'service.record.draft': {
@@ -894,7 +894,7 @@ export class AgentEvalService {
         title: '供应链采购诊断',
         summary: '按 supplier_delivery_cycle 和 supplier_settlement_amount 识别供应商风险。',
         data: { items: [{ supplierName: '华东美业供应商', averageDeliveryDays: 8, receiveRate: 0.72, settlementAmount: 5600, riskLevel: 'medium' }] },
-        evidence: commonEvidence(['Supplier', 'SupplierOrder', 'SupplierOrderItem', 'SupplierSettlement'], '供应商交付周期、到货率和结算金额。'),
+        evidence: commonEvidence(['SupplySupplier', 'ProcurementOrder', 'ProcurementOrderItem', 'SupplySettlement'], '供应商交付周期、到货率和结算金额。'),
         actions: [{ label: '联系供应商', action: 'agent:tool:supply_chain.diagnose', riskLevel: 'low' }],
       },
       'marketing.conversion.diagnose': {

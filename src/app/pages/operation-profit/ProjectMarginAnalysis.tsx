@@ -333,6 +333,23 @@ export function ProjectMarginAnalysis() {
             </DialogDescription>
           </DialogHeader>
 
+          {selectedRow ? (
+            <section className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-xs text-muted-foreground">实际耗材流水</div>
+                <div className="mt-1 text-lg font-semibold">{money(selectedRow.actualMaterialCost)}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-xs text-muted-foreground">标准 BOM 估算</div>
+                <div className="mt-1 text-lg font-semibold">{money(selectedRow.standardMaterialCost)}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-xs text-muted-foreground">成本口径</div>
+                <div className="mt-1 text-lg font-semibold">{selectedRow.actualMaterialCost > 0 ? '实际成本' : selectedRow.standardMaterialCost > 0 ? 'BOM 估算' : '成本缺失'}</div>
+              </div>
+            </section>
+          ) : null}
+
           {selectedSources.length ? (
             <div className="overflow-x-auto rounded-lg border border-border">
               <Table>

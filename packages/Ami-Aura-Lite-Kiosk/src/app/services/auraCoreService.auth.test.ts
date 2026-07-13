@@ -87,7 +87,20 @@ const mocks = vi.hoisted(() => {
     askBusinessQuery: vi.fn(async (): Promise<any> => ({ status: "success", title: "Ami 问数", summary: "ok" })),
     approveAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "approved" })),
     appendAgentMessage: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
+    appendAgentV4Message: vi.fn(async (): Promise<any> => ({ runId: 4, status: "success" })),
+    appendAgentV5Message: vi.fn(async (): Promise<any> => ({ runId: 5, status: "success" })),
     createAgentRun: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
+    createAgentV4Run: vi.fn(async (): Promise<any> => ({ runId: 4, status: "success" })),
+    createAgentV5Run: vi.fn(async (): Promise<any> => ({ runId: 5, status: "success" })),
+    createBrainConversation: vi.fn(async (): Promise<any> => ({ id: 16 })),
+    sendBrainMessage: vi.fn(async (): Promise<any> => ({
+      conversationId: 16,
+      runId: 1,
+      status: "completed",
+      answer: "今日经营正常",
+      citations: [],
+      suggestedActions: [],
+    })),
     rejectAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "rejected" })),
     submitAgentFeedback: vi.fn(async (): Promise<any> => undefined),
     getProjects: vi.fn(async (): Promise<any[]> => []),
@@ -133,7 +146,21 @@ vi.mock("@/api", () => {
     askBusinessQuery: mocks.api.askBusinessQuery,
     approveAgentApproval: mocks.api.approveAgentApproval,
     appendAgentMessage: mocks.api.appendAgentMessage,
+    appendAgentV2Message: unusedApi,
+    appendAgentV3Message: unusedApi,
+    appendAgentV4Message: mocks.api.appendAgentV4Message,
+    appendAgentV5Message: mocks.api.appendAgentV5Message,
     createAgentRun: mocks.api.createAgentRun,
+    createAgentV2Run: unusedApi,
+    createAgentV3Run: unusedApi,
+    createAgentV4Run: mocks.api.createAgentV4Run,
+    createAgentV5Run: mocks.api.createAgentV5Run,
+    createBrainConversation: mocks.api.createBrainConversation,
+    sendBrainMessage: mocks.api.sendBrainMessage,
+    getBrainRunContext: unusedApi,
+    createBrainFeedback: unusedApi,
+    confirmBrainAction: unusedApi,
+    rejectBrainAction: unusedApi,
     rejectAgentApproval: mocks.api.rejectAgentApproval,
     submitAgentFeedback: mocks.api.submitAgentFeedback,
     getTerminalBeauticianCommission: unusedApi,
@@ -217,6 +244,15 @@ async function resetMockState() {
   mocks.api.approveAgentApproval.mockResolvedValue({ id: 1, status: "approved" });
   mocks.api.appendAgentMessage.mockResolvedValue({ runId: 1, status: "success" });
   mocks.api.createAgentRun.mockResolvedValue({ runId: 1, status: "success" });
+  mocks.api.createBrainConversation.mockResolvedValue({ id: 16 });
+  mocks.api.sendBrainMessage.mockResolvedValue({
+    conversationId: 16,
+    runId: 1,
+    status: "completed",
+    answer: "今日经营正常",
+    citations: [],
+    suggestedActions: [],
+  });
   mocks.api.rejectAgentApproval.mockResolvedValue({ id: 1, status: "rejected" });
   mocks.api.submitAgentFeedback.mockResolvedValue(undefined);
   mocks.api.getTerminalCardVerificationContext.mockResolvedValue({ customers: [], storeName: mocks.store.name, generatedAt: "2026-06-11T09:00:00.000Z" });
@@ -365,10 +401,68 @@ describe("auraCoreService auth repair", () => {
       source: "text",
     });
 
-    expect(result).toMatchObject({ runId: 1, status: "success" });
+    expect(result).toMatchObject({ runId: 1, status: "completed" });
     expect(mocks.authState.login).toHaveBeenCalledTimes(1);
-    expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(1);
+    expect(mocks.api.createBrainConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.api.sendBrainMessage).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem("token")).toBe("fresh-token");
+  });
+
+  it("routes terminal runtime agent_v4 runs to Agent V4 API with lifecycle context", async () => {
+    window.localStorage.setItem("token", "fresh-token");
+    mocks.authState.token = "fresh-token";
+    mocks.authState.user = mocks.user;
+    mocks.authState.isAuthenticated = true;
+
+    const runtimeService = await import("./agentRuntimeService");
+    const result = await runtimeService.createTerminalAgentRun({
+      command: "生成本周经营计划",
+      role: "manager",
+      agentEngine: "agent_v4",
+      sourceAction: "business.query",
+      source: "text",
+    });
+
+    expect(result).toMatchObject({ runId: 4, status: "success" });
+    expect(mocks.api.createAgentV4Run).toHaveBeenCalledWith(expect.objectContaining({
+      message: "生成本周经营计划",
+      context: expect.objectContaining({
+        agentEngine: "agent_v4",
+        architecture: "agent_v4_lifecycle_business_agent",
+        agentV4Mode: "execute",
+        boundary: "drafts_and_approval_only",
+      }),
+    }));
+    expect(mocks.api.createAgentRun).not.toHaveBeenCalled();
+  });
+
+  it("routes terminal runtime agent_v5 runs to Agent V5 API with full-business ontology context", async () => {
+    window.localStorage.setItem("token", "fresh-token");
+    mocks.authState.token = "fresh-token";
+    mocks.authState.user = mocks.user;
+    mocks.authState.isAuthenticated = true;
+
+    const runtimeService = await import("./agentRuntimeService");
+    const result = await runtimeService.createTerminalAgentRun({
+      command: "今天店里情况怎么样",
+      role: "manager",
+      agentEngine: "agent_v5",
+      sourceAction: "business.query",
+      source: "text",
+    });
+
+    expect(result).toMatchObject({ runId: 5, status: "success" });
+    expect(mocks.api.createAgentV5Run).toHaveBeenCalledWith(expect.objectContaining({
+      message: "今天店里情况怎么样",
+      context: expect.objectContaining({
+        agentEngine: "agent_v5",
+        architecture: "agent_v5_business_ontology_agent",
+        agentV5Mode: "execute",
+        boundary: "drafts_followups_and_approval_only",
+      }),
+    }));
+    expect(mocks.api.createAgentV4Run).not.toHaveBeenCalled();
+    expect(mocks.api.createAgentRun).not.toHaveBeenCalled();
   });
 
   it("repairs auth and retries business query once when runtime device token expires", async () => {

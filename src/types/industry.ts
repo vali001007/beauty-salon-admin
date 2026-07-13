@@ -44,6 +44,20 @@ export interface IndustryProductTemplate {
   version: number;
   createdAt?: string;
   updatedAt?: string;
+  adoptionSummary?: {
+    status: 'unadopted' | 'adopted' | 'invalid' | string;
+    adoptionId?: number | null;
+    adoptedAt?: string | null;
+    localProductId?: number | null;
+    localProductName?: string | null;
+    localProductSku?: string | null;
+  };
+  supplySummary?: {
+    status: 'not_mapped' | 'mapped_no_quote' | 'available' | string;
+    mappingCount: number;
+    availableQuoteCount: number;
+    preferredSupplierName?: string | null;
+  };
 }
 
 export interface IndustryProjectBomItemTemplate {
@@ -86,6 +100,8 @@ export interface IndustryServiceTemplate {
   targetStoreTypes?: string[];
   recommendedDurationMin?: number | null;
   recommendedDurationMax?: number | null;
+  careCycleWeeks?: number | null;
+  treatmentCourseTimes?: number | null;
   referencePriceMin?: number | null;
   referencePriceMax?: number | null;
   targetCustomers?: string[];
@@ -199,6 +215,8 @@ export interface IndustryAdoptProjectPayload {
   typeName?: string;
   price?: number;
   duration?: number;
+  careCycleWeeks?: number;
+  treatmentCourseTimes?: number;
   status?: string;
   adoptBom?: boolean;
   createMissingProducts?: boolean;
@@ -218,6 +236,206 @@ export interface IndustryAdoptProductPayload {
   retailPrice?: number;
   currentStock?: number;
   safetyStock?: number;
+  supplier?: string;
+  minPurchaseQty?: number;
+}
+
+export interface IndustryProductTemplateCoverage {
+  total: number;
+  published: number;
+  adopted: number;
+  invalid: number;
+  unadopted: number;
+  mappedSupply: number;
+  available: number;
+  adoptionRate: number;
+  supplyAvailableRate: number;
+}
+
+export interface IndustryProductTemplateChainSummary {
+  total: number;
+  published: number;
+  adopted: number;
+  adoptionBroken: number;
+  bomLinked: number;
+  inventoryReady: number;
+  supplyMapped: number;
+  supplyAvailable: number;
+  procurementOrdered: number;
+  procurementReceived: number;
+  salesOrServiceTouched: number;
+}
+
+export interface IndustryProductTemplateChainItem {
+  productTemplateId: number;
+  standardProductCode: string;
+  name: string;
+  category?: string | null;
+  productType?: string | null;
+  status: string;
+  adoption: {
+    status: 'missing' | 'ready' | 'broken' | string;
+    adoptionId?: number | null;
+    adoptionType?: string | null;
+    localProductId?: number | null;
+    localProductName?: string | null;
+    localProductSku?: string | null;
+  };
+  localProduct?: {
+    id: number;
+    storeId: number;
+    name: string;
+    sku: string;
+    currentStock: number;
+    safetyStock: number;
+    packageUnit?: string | null;
+    specUnit?: string | null;
+  } | null;
+  counters: {
+    industryBomItemCount: number;
+    localBomItemCount: number;
+    stockMovementCount: number;
+    inboundMovementCount: number;
+    serviceConsumptionCount: number;
+    saleMovementCount: number;
+    supplyMappingCount: number;
+    availableQuoteCount: number;
+    procurementOrderCount: number;
+    orderedQty: number;
+    receivedQty: number;
+    productOrderItemCount: number;
+  };
+  statuses: {
+    adoption: string;
+    bom: string;
+    inventory: string;
+    supply: string;
+    procurement: string;
+    salesService: string;
+  };
+  blockers: string[];
+  nextAction: string;
+  latestActivityAt?: string | null;
+}
+
+export interface IndustryProductTemplateChainOverview {
+  storeId: number;
+  summary: IndustryProductTemplateChainSummary;
+  items: IndustryProductTemplateChainItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface IndustryProductTemplateChainDetail {
+  storeId: number;
+  item: IndustryProductTemplateChainItem;
+  template: IndustryProductTemplate;
+  adoption?: IndustryAdoptionRecord | null;
+  localProduct?: IndustryProductTemplateChainItem['localProduct'];
+  industryBomItems: Array<Record<string, unknown>>;
+  localBomItems: Array<Record<string, unknown>>;
+  stockMovements: Array<Record<string, unknown>>;
+  supplyMappings: Array<Record<string, unknown>>;
+  procurementItems: Array<Record<string, unknown>>;
+  orderItems: Array<Record<string, unknown>>;
+}
+
+export interface IndustryChainOperationalReport {
+  storeId: number;
+  generatedAt: string;
+  summary: {
+    publishedTemplates: number;
+    validAdoptions: number;
+    missingLocalSku: number;
+    activeProducts: number;
+    productsMissingSupplyMapping: number;
+    bomProductsWithoutStock: number;
+    lowStockProducts: number;
+    lowStockPlatformPurchasable: number;
+    lowStockManualOnly: number;
+  };
+  missingLocalSku: Array<{
+    productTemplateId: number;
+    standardProductCode: string;
+    name: string;
+    category?: string | null;
+    status?: string | null;
+    nextAction: string;
+  }>;
+  productsMissingSupplyMapping: Array<{
+    productId: number;
+    sku: string;
+    name: string;
+    currentStock: number;
+    safetyStock: number;
+    nextAction: string;
+  }>;
+  bomProductsWithoutStock: Array<{
+    bomItemId: number;
+    projectId: number;
+    projectName: string;
+    productId: number;
+    productName: string;
+    sku: string;
+    currentStock: number;
+    standardQty: number;
+    unit: string;
+    nextAction: string;
+  }>;
+  lowStockPlatformPurchasable: Array<{
+    productId: number;
+    sku: string;
+    name: string;
+    currentStock: number;
+    safetyStock: number;
+    mappingId: number;
+    supplySkuId: number;
+    supplierName: string;
+    quoteId: number;
+    price: number;
+    moq: number;
+    leadDays?: number | null;
+    nextAction: string;
+  }>;
+  lowStockManualOnly: Array<{
+    productId: number;
+    sku: string;
+    name: string;
+    currentStock: number;
+    safetyStock: number;
+    supplier?: string | null;
+    nextAction: string;
+  }>;
+}
+
+export interface IndustryBatchAdoptProductPayload {
+  storeId?: number;
+  adoptedByUserId?: number;
+  productTemplateIds: number[];
+  categoryStrategy?: string;
+  defaultSafetyStock?: number;
+  defaultMinPurchaseQty?: number;
+  defaultSupplier?: string;
+  overwriteExisting?: boolean;
+  dryRun?: boolean;
+}
+
+export interface IndustryBatchAdoptProductResult {
+  mode: 'dry-run' | 'apply' | string;
+  storeId: number;
+  total: number;
+  createCount: number;
+  skipCount: number;
+  conflictCount: number;
+  items: Array<Record<string, unknown>>;
+}
+
+export interface IndustryLinkProductPayload {
+  storeId?: number;
+  adoptedByUserId?: number;
+  productId: number;
+  reason?: string;
 }
 
 export interface IndustryAdoptProjectResult {

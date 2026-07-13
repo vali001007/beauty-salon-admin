@@ -8,6 +8,16 @@ import type { Store } from "../../../../../src/types";
 import { getTerminalQueryMetrics, type TerminalQueryMetric, type TerminalQuerySource } from "../services/terminalQueryClient";
 import type { Role } from "../types";
 
+type AgentEngine = "agent_v1" | "agent_v2" | "agent_v3" | "agent_v4" | "agent_v5";
+
+const AGENT_ENGINE_OPTIONS: Array<{ value: AgentEngine; label: string; title: string }> = [
+  { value: "agent_v1", label: "V1", title: "Agent V1：旧工具链" },
+  { value: "agent_v2", label: "V2", title: "Agent V2：能力目录" },
+  { value: "agent_v3", label: "V3", title: "Agent V3：Text-to-SQL 数据分析" },
+  { value: "agent_v4", label: "V4", title: "Agent V4：客户生命周期经营 Agent" },
+  { value: "agent_v5", label: "V5", title: "Agent V5：全业务 Ontology 经营 Agent" },
+];
+
 function DeviceBadge({
   icon: Icon,
   status,
@@ -291,6 +301,35 @@ function QueryDiagnostics() {
   );
 }
 
+function AgentEngineSwitch({
+  value,
+  onChange,
+}: {
+  value: AgentEngine;
+  onChange: (engine: AgentEngine) => void;
+}) {
+  return (
+    <div className="hidden items-center rounded-full border border-black/10 bg-[#F7F5F2] p-0.5 md:flex" title="Agent 架构切换">
+      {AGENT_ENGINE_OPTIONS.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`h-8 min-w-10 rounded-full px-3 text-xs font-semibold transition-colors ${
+              active ? "bg-[#2D1B69] text-white shadow-sm" : "text-[#6F6678] hover:bg-white hover:text-[#1F1B2D]"
+            }`}
+            title={option.title}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TopStatusBar({
   storeName,
   currentStoreId,
@@ -299,10 +338,12 @@ export function TopStatusBar({
   currentRole,
   currentUserId,
   availableUsers,
+  agentEngine,
   switchingStore,
   switchingUser,
   onStoreChange,
   onUserChange,
+  onAgentEngineChange,
   onHistory,
   onLock,
   onFingerprint,
@@ -314,10 +355,12 @@ export function TopStatusBar({
   currentRole: Role;
   currentUserId: number | null;
   availableUsers: AuraTerminalUser[];
+  agentEngine: AgentEngine;
   switchingStore?: boolean;
   switchingUser?: boolean;
   onStoreChange: (storeId: number) => void;
   onUserChange: (userId: number) => void;
+  onAgentEngineChange: (engine: AgentEngine) => void;
   onHistory: () => void;
   onLock: () => void;
   onFingerprint: () => void;
@@ -359,6 +402,7 @@ export function TopStatusBar({
           <DeviceBadge icon={ScanLine} status="success" label="扫码器" />
         </div>
         <div className="h-4 w-px bg-black/10" />
+        <AgentEngineSwitch value={agentEngine} onChange={onAgentEngineChange} />
         <QueryDiagnostics />
         <button
           type="button"

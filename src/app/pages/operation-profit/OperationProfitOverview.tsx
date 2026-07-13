@@ -46,10 +46,18 @@ export function OperationProfitOverview() {
 
   const summaryCards = useMemo(() => {
     const summary = data?.summary;
+    const qualityHint =
+      data?.dataQuality.status === 'complete'
+        ? '成本完整'
+        : data?.dataQuality.status === 'estimated'
+          ? '含估算'
+          : data?.dataQuality.status
+            ? '成本缺失'
+            : '';
     return [
       { label: '现金收入', value: money(summary?.cashIncome), hint: '订单实收 + 办卡/充值 - 退款' },
       { label: '经营收入', value: money(summary?.operatingIncome), hint: '服务 + 消课 + 产品销售' },
-      { label: '毛利', value: money(summary?.grossProfit), hint: `毛利率 ${percent(summary?.grossMargin)}` },
+      { label: '毛利', value: money(summary?.grossProfit), hint: `毛利率 ${percent(summary?.grossMargin)}${qualityHint ? ` / ${qualityHint}` : ''}` },
       { label: '经营利润', value: money(summary?.operatingProfit), hint: `净利率 ${percent(summary?.netMargin)}` },
       { label: '服务顾客', value: String(summary?.customerCount ?? 0), hint: `客单价 ${money(summary?.avgTicket)}` },
       { label: '消课转化', value: percent(summary?.cardConsumptionRate), hint: '消课价值 / 新增预收现金流' },

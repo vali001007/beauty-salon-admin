@@ -1,0 +1,256 @@
+{
+  "mode": "apply",
+  "dryRun": false,
+  "applyAllowed": true,
+  "flowKey": "supply-platform-mvp-flow",
+  "lowStockSample": {
+    "enabled": true,
+    "currentStock": 128,
+    "currentSafetyStock": 45,
+    "targetSafetyStockAfterReceipt": 143
+  },
+  "store": {
+    "id": 6,
+    "name": "Ami 全量演示门店"
+  },
+  "product": {
+    "id": 82,
+    "name": "玻尿酸保湿精华",
+    "sku": "AMI-DEMO-FULL-SKU-001",
+    "currentStock": 128
+  },
+  "readiness": {
+    "storeCheckSkipped": false,
+    "productCheckSkipped": false,
+    "reason": null
+  },
+  "schema": {
+    "SupplySupplier": true,
+    "SupplySku": true,
+    "SupplyQuote": true,
+    "SupplyCatalogMapping": true,
+    "ProcurementOrder": true,
+    "ProcurementOrderItem": true,
+    "SupplierShipment": true,
+    "SupplierShipmentItem": true,
+    "SupplySettlement": true,
+    "StockMovement": true
+  },
+  "blockers": [],
+  "plannedSteps": [
+    "ensure active SupplySupplier",
+    "ensure approved SupplySku and SupplyQuote",
+    "ensure SupplyCatalogMapping to Ami_Core Product",
+    "create or reuse ProcurementOrder",
+    "supplier accepts order",
+    "supplier ships order",
+    "store receives order and writes StockBatch + StockMovement",
+    "set sample product safetyStock above currentStock for low-stock routing verification",
+    "generate SupplySettlement"
+  ],
+  "verification": {
+    "complete": true,
+    "order": {
+      "id": 1,
+      "orderNo": "SP-MVP-1783038772440",
+      "storeName": "Ami 全量演示门店",
+      "supplierName": "Ami MVP 供应商",
+      "status": "received",
+      "itemCount": 1,
+      "shipmentCount": 1,
+      "totalAmount": 60,
+      "netAmount": 57
+    },
+    "stockMovements": [
+      {
+        "id": 553,
+        "movementNo": "SPI-MVP-1783038774368",
+        "productName": "玻尿酸保湿精华",
+        "batchNo": "B-MVP-1",
+        "quantity": 5,
+        "sourceType": "supply_platform_order",
+        "sourceId": 1,
+        "sourceNo": "SP-MVP-1783038772440"
+      }
+    ],
+    "settlement": {
+      "id": 1,
+      "settleMonth": "2026-07",
+      "orderCount": 1,
+      "totalAmount": 60,
+      "netPayable": 57,
+      "status": "generated"
+    }
+  },
+  "writeAudit": [
+    {
+      "model": "SupplySupplier",
+      "action": "create",
+      "id": 1,
+      "summary": "创建供应链 MVP 验收供应商",
+      "rollbackHint": "如需回滚，先删除依赖的结算、发货、采购、报价、SKU、映射后再删除该供应商。",
+      "before": null
+    },
+    {
+      "model": "SupplySku",
+      "action": "create",
+      "id": 1,
+      "summary": "创建供应链 MVP 验收 SKU",
+      "rollbackHint": "如需回滚，先删除依赖报价、映射、采购明细后再删除该 SKU。",
+      "before": null
+    },
+    {
+      "model": "SupplyQuote",
+      "action": "create",
+      "id": 1,
+      "summary": "创建供应链 MVP 验收报价",
+      "rollbackHint": "如需回滚，删除依赖采购明细后再删除该报价。",
+      "before": null
+    },
+    {
+      "model": "SupplyCatalogMapping",
+      "action": "create",
+      "id": 1,
+      "summary": "创建本地产品到供应链 SKU 的首选映射",
+      "rollbackHint": "如需回滚，删除该映射并恢复原首选映射。",
+      "before": null
+    },
+    {
+      "model": "ProcurementOrder",
+      "action": "create",
+      "id": 1,
+      "summary": "创建 MVP 验收平台采购单 SP-MVP-1783038772440",
+      "rollbackHint": "如需回滚，先删除入库流水、批次、发货、结算和采购明细后再删除采购单。",
+      "before": null
+    },
+    {
+      "model": "ProcurementOrderItem",
+      "action": "create",
+      "id": 1,
+      "summary": "创建采购明细 productId=82 quantity=5",
+      "rollbackHint": "如需回滚，先删除依赖发货明细和入库记录后再删除采购明细。",
+      "before": null
+    },
+    {
+      "model": "ProcurementOrder",
+      "action": "update",
+      "id": 1,
+      "summary": "采购单状态 pending_supplier_confirm -> accepted",
+      "rollbackHint": "如需回滚，恢复采购单 status/acceptedAt。",
+      "before": {
+        "status": "pending_supplier_confirm",
+        "acceptedAt": null
+      }
+    },
+    {
+      "model": "SupplierShipment",
+      "action": "create",
+      "id": 1,
+      "summary": "创建供应商发货单 SHP-MVP-1783038773343",
+      "rollbackHint": "如需回滚，先删除发货明细及相关入库记录后再删除发货单。",
+      "before": null
+    },
+    {
+      "model": "SupplierShipmentItem",
+      "action": "create",
+      "id": 1,
+      "summary": "创建发货明细 supplySkuId=1 shippedQty=5",
+      "rollbackHint": "如需回滚，先恢复采购明细/发货明细 receivedQty，再删除该发货明细。",
+      "before": null
+    },
+    {
+      "model": "ProcurementOrder",
+      "action": "update",
+      "id": 1,
+      "summary": "采购单状态 accepted -> shipped",
+      "rollbackHint": "如需回滚，恢复采购单 status/shippedAt。",
+      "before": {
+        "status": "accepted",
+        "shippedAt": null
+      }
+    },
+    {
+      "model": "SupplierShipmentItem",
+      "action": "reuse",
+      "id": 1,
+      "summary": "复用匹配当前采购明细的发货明细 orderItemId=1 supplySkuId=1",
+      "rollbackHint": "复用对象不需要删除。",
+      "before": null
+    },
+    {
+      "model": "StockBatch",
+      "action": "create",
+      "id": 203,
+      "summary": "创建入库批次 B-MVP-1 stock=5",
+      "rollbackHint": "如需回滚，先删除引用该批次的库存流水，再删除批次。",
+      "before": null
+    },
+    {
+      "model": "Product",
+      "action": "update",
+      "id": 82,
+      "summary": "产品库存 128 -> 133",
+      "rollbackHint": "如需回滚，扣回本次入库数量并恢复 currentStock。",
+      "before": {
+        "currentStock": 128
+      }
+    },
+    {
+      "model": "StockMovement",
+      "action": "create",
+      "id": 553,
+      "summary": "创建平台采购入库流水 SPI-MVP-1783038774368",
+      "rollbackHint": "如需回滚，删除该入库流水并同步回滚产品库存/批次库存。",
+      "before": null
+    },
+    {
+      "model": "SupplierShipmentItem",
+      "action": "update",
+      "id": 1,
+      "summary": "发货明细已收 0 -> 5",
+      "rollbackHint": "如需回滚，恢复发货明细 receivedQty。",
+      "before": {
+        "receivedQty": 0
+      }
+    },
+    {
+      "model": "ProcurementOrderItem",
+      "action": "update",
+      "id": 1,
+      "summary": "采购明细已收 0 -> 5",
+      "rollbackHint": "如需回滚，恢复采购明细 receivedQty。",
+      "before": {
+        "receivedQty": 0
+      }
+    },
+    {
+      "model": "ProcurementOrder",
+      "action": "update",
+      "id": 1,
+      "summary": "采购单状态 shipped -> received",
+      "rollbackHint": "如需回滚，恢复采购单 status/receivedAt。",
+      "before": {
+        "status": "shipped",
+        "receivedAt": null
+      }
+    },
+    {
+      "model": "Product",
+      "action": "update",
+      "id": 82,
+      "summary": "产品安全库存 45 -> 143",
+      "rollbackHint": "如需回滚，恢复产品 safetyStock。",
+      "before": {
+        "safetyStock": 45
+      }
+    },
+    {
+      "model": "SupplySettlement",
+      "action": "create",
+      "id": 1,
+      "summary": "创建供应商 2026-07 月结算单",
+      "rollbackHint": "如需回滚，删除该结算单。",
+      "before": null
+    }
+  ]
+}

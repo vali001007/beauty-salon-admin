@@ -101,7 +101,7 @@ export class SemanticSqlExecutorService {
   private async queryStockRisk(request: SemanticSqlRequest, limit: number, auditId: string): Promise<SemanticSqlResult> {
     const products = await (this.prisma as any).product.findMany({
       where: { storeId: request.storeId, deletedAt: null },
-      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, status: true },
+      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
       take: 5000,
     });
     const rows = (products as any[])
@@ -116,7 +116,7 @@ export class SemanticSqlExecutorService {
           currentStock,
           safetyStock,
           stockGap,
-          unit: product.unit,
+          unit: product.specUnit ?? product.unit,
           riskScore: stockGap > 0 ? Math.min(100, 50 + stockGap * 5) : 0,
         };
       })

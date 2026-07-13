@@ -1,9 +1,11 @@
 import type {
+  CreateSupplyCatalogMappingPayload,
   CreateSupplierShipmentPayload,
   CreateSupplierQualificationPayload,
   CreateSupplyQuotePayload,
   CreateSupplySkuPayload,
   CreateSupplySupplierPayload,
+  CreateProcurementOrdersFromReplenishmentPayload,
   CreateProcurementOrderPayload,
   GetProcurementOrders,
   ProcurementOrder,
@@ -13,8 +15,10 @@ import type {
   SupplierShipmentItem,
   SupplySettlement,
   SupplyQuote,
+  SupplyCatalogMapping,
   SupplySku,
   SupplySupplier,
+  UpdateSupplyCatalogMappingPayload,
 } from '@/types/supplyPlatform';
 import apiClient from '../client';
 import { normalizePaginatedResponse } from './response';
@@ -30,6 +34,15 @@ type ApiSupplyQuote = Partial<SupplyQuote> & {
   leadDays?: number | string | null;
   sku?: ApiSupplySku;
   supplier?: ApiSupplySupplier;
+};
+type ApiSupplyCatalogMapping = Partial<Omit<SupplyCatalogMapping, 'supplySku' | 'latestQuote'>> & {
+  id: number;
+  supplySkuId: number;
+  productId?: number | null;
+  storeId?: number | null;
+  standardProductTemplateId?: number | null;
+  supplySku?: ApiSupplySku;
+  latestQuote?: ApiSupplyQuote | null;
 };
 type ApiProcurementOrderItem = Partial<ProcurementOrderItem> & {
   id: number;
@@ -133,6 +146,26 @@ function normalizeQuote(item: ApiSupplyQuote): SupplyQuote {
     rejectReason: item.rejectReason ?? null,
     validFrom: item.validFrom ?? null,
     validTo: item.validTo ?? null,
+  };
+}
+
+function normalizeCatalogMapping(item: ApiSupplyCatalogMapping): SupplyCatalogMapping {
+  return {
+    id: Number(item.id),
+    supplySkuId: Number(item.supplySkuId),
+    productId: item.productId ?? null,
+    storeId: item.storeId ?? null,
+    standardProductTemplateId: item.standardProductTemplateId ?? null,
+    mappingStatus: item.mappingStatus ?? 'active',
+    isPreferred: Boolean(item.isPreferred),
+    product: item.product ?? null,
+    industryProductTemplate: item.industryProductTemplate ?? null,
+    supplySku: item.supplySku ? normalizeSku(item.supplySku) : undefined,
+    latestQuote: item.latestQuote ? normalizeQuote(item.latestQuote) : null,
+    quoteCount: Number(item.quoteCount ?? 0),
+    purchasableStatus: item.purchasableStatus ?? 'mapped_no_quote',
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
 
@@ -284,6 +317,31 @@ export async function realAuditSupplyQuote(id: number, data: { auditStatus: stri
   return normalizeQuote(response);
 }
 
+export async function realGetSupplyCatalogMappings(params: {
+  page?: number;
+  pageSize?: number;
+  productId?: number;
+  storeId?: number;
+  supplySkuId?: number;
+  standardProductTemplateId?: number;
+  mappingStatus?: string;
+  keyword?: string;
+  purchasableStatus?: string;
+} = {}) {
+  const response = await apiClient.get<unknown, unknown>('/supply-platform/catalog-mappings', { params });
+  return normalizePaginatedResponse<ApiSupplyCatalogMapping, SupplyCatalogMapping>(response, normalizeCatalogMapping);
+}
+
+export async function realCreateSupplyCatalogMapping(data: CreateSupplyCatalogMappingPayload): Promise<SupplyCatalogMapping> {
+  const response = await apiClient.post<unknown, ApiSupplyCatalogMapping>('/supply-platform/catalog-mappings', data);
+  return normalizeCatalogMapping(response);
+}
+
+export async function realUpdateSupplyCatalogMapping(id: number, data: UpdateSupplyCatalogMappingPayload): Promise<SupplyCatalogMapping> {
+  const response = await apiClient.patch<unknown, ApiSupplyCatalogMapping>(`/supply-platform/catalog-mappings/${id}`, data);
+  return normalizeCatalogMapping(response);
+}
+
 export const realGetProcurementOrders: GetProcurementOrders = async (params) => {
   const response = await apiClient.get<unknown, unknown>('/supply-platform/procurement/orders', { params });
   return normalizePaginatedResponse<ApiProcurementOrder, ProcurementOrder>(response, normalizeOrder);
@@ -297,6 +355,11 @@ export async function realGetProcurementOrder(id: number): Promise<ProcurementOr
 export async function realCreateProcurementOrder(data: CreateProcurementOrderPayload): Promise<ProcurementOrder> {
   const response = await apiClient.post<unknown, ApiProcurementOrder>('/supply-platform/procurement/orders', data);
   return normalizeOrder(response);
+}
+
+export async function realCreateProcurementOrdersFromReplenishment(data: CreateProcurementOrdersFromReplenishmentPayload): Promise<ProcurementOrder[]> {
+  const response = await apiClient.post<unknown, unknown>('/supply-platform/procurement-orders/from-replenishment', data);
+  return normalizePaginatedResponse<ApiProcurementOrder, ProcurementOrder>(response, normalizeOrder).items;
 }
 
 export async function realUpdateProcurementOrderStatus(id: number, status: string): Promise<ProcurementOrder> {

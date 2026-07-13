@@ -6,7 +6,7 @@ import {
   MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
   Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
-  Database, BookOpen, CheckCircle2,
+  Database, BookOpen, CheckCircle2, ShieldCheck, BrainCircuit,
   type LucideIcon,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -41,6 +41,8 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/dashboard',
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
+      { title: '智能问数', path: '/ask-data', icon: Database, permission: 'core:dashboard:view' },
+      { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
       { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
     ],
   },
@@ -60,7 +62,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/customer-marketing',
     children: [
       { title: '营销工作台', path: '/customer-marketing/workbench', icon: Sparkles, permission: 'core:marketing:view' },
-      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:recommend' },
+      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:view' },
       { title: '活动列表', path: '/customer-marketing/activity-management', icon: ClipboardList, permission: 'core:marketing:view' },
       { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:template' },
       { title: '推广资产', path: '/customer-marketing/assets', icon: Megaphone, permission: 'core:marketing:view' },
@@ -133,10 +135,7 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: PackagePlus,
     path: '/supply-platform',
     children: [
-      { title: '平台 MVP', path: '/supply-platform', icon: PackagePlus, permission: 'core:supply:view' },
-      { title: '过渡供应商后台', path: '/supply-chain/suppliers', icon: Building2, permission: 'core:supply:view' },
-      { title: '过渡采购订单', path: '/supply-chain/orders', icon: ShoppingCart, permission: 'core:supply:view' },
-      { title: '过渡供应商结算', path: '/supply-chain/settlements', icon: WalletCards, permission: 'core:supply:view' },
+      { title: '供应链工作台', path: '/supply-platform', icon: PackagePlus, permission: 'core:supply:view' },
     ],
   },
   {
@@ -151,7 +150,6 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '服务知识库', path: '/industry/knowledge', icon: BookOpen, permission: 'core:industry:knowledge' },
       { title: '数据源管理', path: '/industry/data-sources', icon: Database, permission: 'core:industry:data-source' },
       { title: '采用记录', path: '/industry/adoptions', icon: CheckCircle2, permission: 'core:industry:adoption' },
-      { title: '供应链预留映射', path: '/industry/supply-mappings', icon: PackagePlus, permission: 'core:industry:supply-mapping' },
     ],
   },
   {
@@ -165,8 +163,8 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
-      { title: 'AI 审计', path: '/system/ai-audit', icon: FileText, permission: 'core:system:view' },
-      { title: 'Agent 审计', path: '/system/agent-audit', icon: Sparkles, permission: 'core:system:view' },
+      { title: 'AI 治理中心', path: '/system/agent-governance', icon: ShieldCheck, permission: 'core:agent-governance:view' },
+      { title: 'Brain 治理中心', path: '/brain-governance', icon: ShieldCheck, permission: 'core:brain-governance:view' },
     ],
   },
 ];
@@ -325,4 +323,3 @@ export function Layout() {
     </div>
   );
 }
-

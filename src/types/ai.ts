@@ -1,4 +1,4 @@
-export type AiProvider = 'mock' | 'deepseek' | 'openai_compatible' | 'claude_compatible';
+export type AiProvider = 'mock' | 'deepseek' | 'kimi' | 'openai_compatible' | 'claude_compatible';
 
 export type AiScenario =
   | 'assistant_chat'

@@ -1250,7 +1250,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     const execution = await this.prisma.marketingAutomationExecution.create({
       data: {
+        storeId,
         strategyId: strategy.id,
+        idempotencyKey: `terminal-${strategy.id}-${Date.now()}`,
         strategyName: strategy.name,
         status: 'success',
         triggeredCount: targetCount,
@@ -1280,11 +1282,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return finalExecution;
   }
 
-  private async createFailedTerminalAutomationExecution(strategy: any, error: unknown) {
+  private async createFailedTerminalAutomationExecution(strategy: any, storeId: number, error: unknown) {
     const message = error instanceof Error ? error.message : '自动化执行失败，请稍后复核';
     return this.prisma.marketingAutomationExecution.create({
       data: {
+        storeId,
         strategyId: strategy.id,
+        idempotencyKey: `terminal-failed-${strategy.id}-${Date.now()}`,
         strategyName: strategy.name,
         status: 'failed',
         triggeredCount: 0,
@@ -4262,50 +4266,47 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }
 
     const ordersService = this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
-    const createdOrders: any[] = [];
-    for (const [index, group] of itemGroups.entries()) {
-      const summary = groupSummaries[index];
-      const payments = groupPayments[index] ?? [];
-      const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
-      const orderNo =
-        itemGroups.length > 1
-          ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}`
-          : checkoutGroupNo;
-      const groupOrder = await ordersService.createProductOrder({
-        orderNo,
-        checkoutGroupNo,
-        orderKind: group.kind,
-        customerId: dto.customerId,
-        customerName,
-        customerPhone,
-        storeId,
-        status: 'completed',
-        payMethod: orderPayMethod,
-        paymentMethod: orderPayMethod,
-        payments,
-        paidAmount: summary.netAmount,
-        source: 'terminal',
-        preAllocatedDiscount: true,
-        items: group.items.map((item) => ({
-          ...item,
-          beauticianId: this.toNumber(item.beauticianId ?? dto.beauticianId) || undefined,
-        })),
-        discountMode: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
-        discountAmount: summary.orderDiscountAmount,
-        allocationMethod: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
-        discountSource: allocation.order.discountSource,
-        promotionId: allocation.order.promotionId,
-        couponId: allocation.order.couponId,
-        packageId: allocation.order.packageId,
-        discountReason: dto.remark,
-        beauticianId: dto.beauticianId,
-        isDesignated: dto.isDesignated,
-        remark: dto.remark,
-        skipDailySettlementRefresh: true,
-        dailySettlementSource: 'terminal_checkout',
-      });
-      createdOrders.push(groupOrder);
-    }
+    const createdOrders: any[] = await this.prisma.$transaction(async (tx) => {
+      const transactionOrders: any[] = [];
+      for (const [index, group] of itemGroups.entries()) {
+        const summary = groupSummaries[index];
+        const payments = groupPayments[index] ?? [];
+        const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
+        const orderNo = itemGroups.length > 1 ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}` : checkoutGroupNo;
+        const groupOrder = await ordersService.createProductOrder({
+          orderNo,
+          checkoutGroupNo,
+          orderKind: group.kind,
+          customerId: dto.customerId,
+          customerName,
+          customerPhone,
+          storeId,
+          status: 'completed',
+          payMethod: orderPayMethod,
+          paymentMethod: orderPayMethod,
+          payments,
+          paidAmount: summary.netAmount,
+          source: 'terminal',
+          preAllocatedDiscount: true,
+          items: group.items.map((item) => ({ ...item, beauticianId: this.toNumber(item.beauticianId ?? dto.beauticianId) || undefined })),
+          discountMode: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
+          discountAmount: summary.orderDiscountAmount,
+          allocationMethod: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
+          discountSource: allocation.order.discountSource,
+          promotionId: allocation.order.promotionId,
+          couponId: allocation.order.couponId,
+          packageId: allocation.order.packageId,
+          discountReason: dto.remark,
+          beauticianId: dto.beauticianId,
+          isDesignated: dto.isDesignated,
+          remark: dto.remark,
+          skipDailySettlementRefresh: true,
+          dailySettlementSource: 'terminal_checkout',
+        }, tx);
+        transactionOrders.push(groupOrder);
+      }
+      return transactionOrders;
+    }, { timeout: 30000 });
     const result = { order: createdOrders[0], orders: createdOrders, customer, customerName, customerPhone, checkoutGroupNo };
     for (const order of result.orders) {
       this.scheduleCheckoutPostCommitTasks({
@@ -5428,7 +5429,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         expiryDate: batch.expiryDate?.toISOString(),
         remainingDays,
         stock: this.toNumber(batch.stock),
-        unit: batch.product.unit,
+        unit: batch.product.specUnit ?? batch.product.unit,
         retailPrice: this.toNumber(batch.product.retailPrice),
         costPrice: this.toNumber(batch.product.costPrice),
         costAmount: this.toNumber(batch.stock) * this.toNumber(batch.product.costPrice),
@@ -7658,7 +7659,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           });
           if (execution) executions.push(execution);
         } catch (error) {
-          executions.push(await this.createFailedTerminalAutomationExecution(strategy, error));
+          executions.push(await this.createFailedTerminalAutomationExecution(strategy, resolvedStoreId, error));
         }
       }
 

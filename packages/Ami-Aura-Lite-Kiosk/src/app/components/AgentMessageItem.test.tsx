@@ -223,6 +223,34 @@ describe("AgentMessageItem", () => {
     expect(container.textContent).toContain("由 库存采购 Agent 处理");
   });
 
+  it("renders Agent V2 KG+LLM architecture and gray mode badges", () => {
+    act(() => {
+      root.render(
+        <AgentMessageItem
+          data={createAgentResult({
+            plan: {
+              intentType: "analysis_and_recommendation",
+              goal: "识别今日经营风险",
+              toolPlan: [],
+              confidence: 0.9,
+              clarificationNeeded: false,
+              businessTask: {
+                architecture: "agent_v2_kg_llm",
+                agentV2GrayStrategy: {
+                  mode: "kg_llm_preferred",
+                  finalEngine: "kg_llm",
+                },
+              },
+            },
+          })}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("KG+LLM");
+    expect(container.querySelector('[title*="kg_llm_preferred"]')).not.toBeNull();
+  });
+
   it("does not duplicate answer, evidence, or actions already represented by blocks", async () => {
     const onAction = vi.fn();
 
@@ -278,13 +306,21 @@ describe("AgentMessageItem", () => {
     expect(onAction).toHaveBeenCalledWith("inventory.alerts.view", "查看库存预警");
   });
 
-  it("submits negative feedback with run id for quality analytics", async () => {
+  it("submits negative feedback with message context for quality analytics", async () => {
     const onFeedback = vi.fn().mockResolvedValue(undefined);
 
     await act(async () => {
       root.render(
         <AgentMessageItem
           data={createAgentResult({ runId: 101 })}
+          feedbackContext={{
+            feedbackScope: "message",
+            messageId: "msg-a-1",
+            question: "最近一个月哪些客户需要跟进",
+            answer: "已找到 3 位客户。",
+            questionIndex: 1,
+            source: "terminal:kiosk",
+          }}
           onFeedback={onFeedback}
         />,
       );
@@ -296,7 +332,13 @@ describe("AgentMessageItem", () => {
         ?.click();
     });
 
-    expect(onFeedback).toHaveBeenCalledWith(101, false);
+    expect(onFeedback).toHaveBeenCalledWith(101, false, expect.objectContaining({
+      feedbackScope: "message",
+      messageId: "msg-a-1",
+      question: "最近一个月哪些客户需要跟进",
+      answer: "已找到 3 位客户。",
+      questionIndex: 1,
+    }));
     expect(container.textContent).toContain("已记录");
   });
 });

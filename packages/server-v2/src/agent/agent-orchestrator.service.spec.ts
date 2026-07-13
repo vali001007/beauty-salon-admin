@@ -1256,7 +1256,7 @@ describe('AgentOrchestratorService', () => {
         }],
         consumedSlots: { limit: 10 },
       },
-      evidence: { source: ['Product', 'ProductSupplier', 'Supplier'], metricDefinition: '供应商采购链接。', filters: ['当前门店'] },
+      evidence: { source: ['Product', 'SupplyCatalogMapping', 'SupplyQuote', 'SupplySupplier'], metricDefinition: '供应商采购链接。', filters: ['当前门店'] },
       actions: [{ label: '生成补货采购草稿', action: 'agent:tool:inventory.replenishment.draft', riskLevel: 'medium' }],
     });
 

@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from '../../components/UI';
 import { getCommissionSummary, getDailySettlements, type CommissionSummary, type DailySettlement } from '@/api/commission';
+import { getFinanceDailyMetrics, type FinanceMetricResponse } from '@/api/financeMetrics';
 import { getOperationProfitOverview, getPrepaidLiabilities } from '@/api/operationProfit';
 import { useStoreStore } from '@/stores/storeStore';
 import type { OperationProfitOverview, PrepaidLiabilitySummary } from '@/types/operationProfit';
@@ -37,7 +38,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export type FinanceOverviewAlert = { title: string; detail: string; to: string };
-type FinanceOverviewSectionKey = 'dailySettlement' | 'commissionSummary' | 'profitOverview' | 'memberAssets';
+type FinanceOverviewSectionKey = 'dailySettlement' | 'financeMetrics' | 'commissionSummary' | 'profitOverview' | 'memberAssets';
 type FinanceOverviewSectionError = { key: FinanceOverviewSectionKey; title: string; message: string };
 
 export function buildFinanceOverviewAlerts(input: {
@@ -87,6 +88,7 @@ export function FinanceOverview() {
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const [loading, setLoading] = useState(false);
   const [dailySettlement, setDailySettlement] = useState<DailySettlement | null>(null);
+  const [financeMetrics, setFinanceMetrics] = useState<FinanceMetricResponse | null>(null);
   const [commissionSummary, setCommissionSummary] = useState<CommissionSummary | null>(null);
   const [profitOverview, setProfitOverview] = useState<OperationProfitOverview | null>(null);
   const [memberAssets, setMemberAssets] = useState<PrepaidLiabilitySummary | null>(null);
@@ -102,9 +104,15 @@ export function FinanceOverview() {
       const requests = [
         {
           key: 'dailySettlement' as const,
-          title: '今日收款与日结',
+          title: '今日日结状态',
           run: () => getDailySettlements({ page: 1, pageSize: 1, dateFrom: date, dateTo: date, ...baseStoreParams }),
           apply: (dailyPage: Awaited<ReturnType<typeof getDailySettlements>>) => setDailySettlement(dailyPage.items[0] ?? null),
+        },
+        {
+          key: 'financeMetrics' as const,
+          title: '今日财务指标',
+          run: () => getFinanceDailyMetrics({ dateFrom: date, dateTo: date, ...baseStoreParams }),
+          apply: (metrics: FinanceMetricResponse) => setFinanceMetrics(metrics),
         },
         {
           key: 'commissionSummary' as const,
@@ -170,7 +178,7 @@ export function FinanceOverview() {
       </div>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricTile label="今日净收款" value={money((dailySettlement?.totalRevenue ?? 0) - (dailySettlement?.refundAmount ?? 0))} hint={`退款 ${money(dailySettlement?.refundAmount)}`} to="/finance/reconciliation" />
+        <MetricTile label="今日现金收入" value={money(financeMetrics?.summary.cashIncome)} hint={`营业收入 ${money(financeMetrics?.summary.operatingRevenue)} / 退款 ${money(financeMetrics?.summary.refundAmount)}`} to="/finance/reconciliation" />
         <MetricTile label="本月提成" value={money(commissionSummary?.totalAmount)} hint={`${commissionSummary?.count ?? 0} 条流水`} to="/finance/staff-commission" />
         <MetricTile label="本月经营利润" value={money(profitOverview?.summary?.operatingProfit)} hint={`净利率 ${percent(profitOverview?.summary?.netMargin)}`} to="/finance/profit" />
         <MetricTile label="会员履约负债" value={money(memberAssets?.totalLiability)} hint={`高风险 ${memberAssets?.highRisk ?? 0} 个`} to="/finance/member-assets" />

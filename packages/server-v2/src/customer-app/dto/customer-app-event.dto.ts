@@ -21,6 +21,11 @@ export class CustomerAppEventDto {
   @IsString()
   channel?: string;
 
+  @ApiPropertyOptional({ description: '事件来源端，如 ami_glow、ami_glow_h5' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
   @ApiPropertyOptional({ description: '目标类型' })
   @IsOptional()
   @IsString()

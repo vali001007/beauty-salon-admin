@@ -2,6 +2,8 @@ import type {
   IndustryAdoptionRecord,
   IndustryAdoptProductPayload,
   IndustryAdoptProductResult,
+  IndustryBatchAdoptProductPayload,
+  IndustryBatchAdoptProductResult,
   IndustryAdoptProjectPayload,
   IndustryAdoptProjectResult,
   IndustryBomPayload,
@@ -9,7 +11,13 @@ import type {
   IndustryDataSourcePayload,
   IndustryKnowledgeItem,
   IndustryKnowledgePayload,
+  IndustryChainOperationalReport,
+  IndustryProductTemplateChainDetail,
+  IndustryProductTemplateChainItem,
+  IndustryProductTemplateChainOverview,
+  IndustryProductTemplateChainSummary,
   IndustryProductTemplate,
+  IndustryProductTemplateCoverage,
   IndustryProductTemplatePayload,
   IndustryProjectBomItemTemplate,
   IndustryProjectBomTemplate,
@@ -18,6 +26,7 @@ import type {
   IndustryServiceTemplate,
   IndustryServiceTemplatePayload,
   IndustrySupplyMapping,
+  IndustryLinkProductPayload,
   Project,
   PaginatedResponse,
   PaginationParams,
@@ -94,6 +103,117 @@ function normalizeProductTemplate(item: ApiRecord): IndustryProductTemplate {
     version: toNumber(item.version, 1),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    adoptionSummary: item.adoptionSummary,
+    supplySummary: item.supplySummary,
+  };
+}
+
+function normalizeCoverage(item: ApiRecord): IndustryProductTemplateCoverage {
+  return {
+    total: toNumber(item.total),
+    published: toNumber(item.published),
+    adopted: toNumber(item.adopted),
+    invalid: toNumber(item.invalid),
+    unadopted: toNumber(item.unadopted),
+    mappedSupply: toNumber(item.mappedSupply),
+    available: toNumber(item.available),
+    adoptionRate: toNumber(item.adoptionRate),
+    supplyAvailableRate: toNumber(item.supplyAvailableRate),
+  };
+}
+
+function normalizeChainSummary(item: ApiRecord = {}): IndustryProductTemplateChainSummary {
+  return {
+    total: toNumber(item.total),
+    published: toNumber(item.published),
+    adopted: toNumber(item.adopted),
+    adoptionBroken: toNumber(item.adoptionBroken),
+    bomLinked: toNumber(item.bomLinked),
+    inventoryReady: toNumber(item.inventoryReady),
+    supplyMapped: toNumber(item.supplyMapped),
+    supplyAvailable: toNumber(item.supplyAvailable),
+    procurementOrdered: toNumber(item.procurementOrdered),
+    procurementReceived: toNumber(item.procurementReceived),
+    salesOrServiceTouched: toNumber(item.salesOrServiceTouched),
+  };
+}
+
+function normalizeChainItem(item: ApiRecord): IndustryProductTemplateChainItem {
+  return {
+    productTemplateId: toNumber(item.productTemplateId),
+    standardProductCode: item.standardProductCode ?? '',
+    name: item.name ?? '',
+    category: item.category ?? null,
+    productType: item.productType ?? null,
+    status: item.status ?? 'draft',
+    adoption: {
+      status: item.adoption?.status ?? 'missing',
+      adoptionId: item.adoption?.adoptionId ?? null,
+      adoptionType: item.adoption?.adoptionType ?? null,
+      localProductId: item.adoption?.localProductId ?? null,
+      localProductName: item.adoption?.localProductName ?? null,
+      localProductSku: item.adoption?.localProductSku ?? null,
+    },
+    localProduct: item.localProduct
+      ? {
+          id: toNumber(item.localProduct.id),
+          storeId: toNumber(item.localProduct.storeId),
+          name: item.localProduct.name ?? '',
+          sku: item.localProduct.sku ?? '',
+          currentStock: toNumber(item.localProduct.currentStock),
+          safetyStock: toNumber(item.localProduct.safetyStock),
+          packageUnit: item.localProduct.packageUnit ?? null,
+          specUnit: item.localProduct.specUnit ?? null,
+        }
+      : null,
+    counters: {
+      industryBomItemCount: toNumber(item.counters?.industryBomItemCount),
+      localBomItemCount: toNumber(item.counters?.localBomItemCount),
+      stockMovementCount: toNumber(item.counters?.stockMovementCount),
+      inboundMovementCount: toNumber(item.counters?.inboundMovementCount),
+      serviceConsumptionCount: toNumber(item.counters?.serviceConsumptionCount),
+      saleMovementCount: toNumber(item.counters?.saleMovementCount),
+      supplyMappingCount: toNumber(item.counters?.supplyMappingCount),
+      availableQuoteCount: toNumber(item.counters?.availableQuoteCount),
+      procurementOrderCount: toNumber(item.counters?.procurementOrderCount),
+      orderedQty: toNumber(item.counters?.orderedQty),
+      receivedQty: toNumber(item.counters?.receivedQty),
+      productOrderItemCount: toNumber(item.counters?.productOrderItemCount),
+    },
+    statuses: {
+      adoption: item.statuses?.adoption ?? 'missing',
+      bom: item.statuses?.bom ?? 'missing',
+      inventory: item.statuses?.inventory ?? 'blocked',
+      supply: item.statuses?.supply ?? 'missing',
+      procurement: item.statuses?.procurement ?? 'blocked',
+      salesService: item.statuses?.salesService ?? 'missing',
+    },
+    blockers: Array.isArray(item.blockers) ? item.blockers : [],
+    nextAction: item.nextAction ?? '',
+    latestActivityAt: item.latestActivityAt ?? null,
+  };
+}
+
+function normalizeOperationalReport(response: ApiRecord): IndustryChainOperationalReport {
+  return {
+    storeId: toNumber(response.storeId),
+    generatedAt: response.generatedAt ?? '',
+    summary: {
+      publishedTemplates: toNumber(response.summary?.publishedTemplates),
+      validAdoptions: toNumber(response.summary?.validAdoptions),
+      missingLocalSku: toNumber(response.summary?.missingLocalSku),
+      activeProducts: toNumber(response.summary?.activeProducts),
+      productsMissingSupplyMapping: toNumber(response.summary?.productsMissingSupplyMapping),
+      bomProductsWithoutStock: toNumber(response.summary?.bomProductsWithoutStock),
+      lowStockProducts: toNumber(response.summary?.lowStockProducts),
+      lowStockPlatformPurchasable: toNumber(response.summary?.lowStockPlatformPurchasable),
+      lowStockManualOnly: toNumber(response.summary?.lowStockManualOnly),
+    },
+    missingLocalSku: Array.isArray(response.missingLocalSku) ? response.missingLocalSku : [],
+    productsMissingSupplyMapping: Array.isArray(response.productsMissingSupplyMapping) ? response.productsMissingSupplyMapping : [],
+    bomProductsWithoutStock: Array.isArray(response.bomProductsWithoutStock) ? response.bomProductsWithoutStock : [],
+    lowStockPlatformPurchasable: Array.isArray(response.lowStockPlatformPurchasable) ? response.lowStockPlatformPurchasable : [],
+    lowStockManualOnly: Array.isArray(response.lowStockManualOnly) ? response.lowStockManualOnly : [],
   };
 }
 
@@ -142,6 +262,8 @@ function normalizeServiceTemplate(item: ApiRecord): IndustryServiceTemplate {
     targetStoreTypes: toArray(item.targetStoreTypes),
     recommendedDurationMin: toNullableNumber(item.recommendedDurationMin),
     recommendedDurationMax: toNullableNumber(item.recommendedDurationMax),
+    careCycleWeeks: toNullableNumber(item.careCycleWeeks),
+    treatmentCourseTimes: toNullableNumber(item.treatmentCourseTimes),
     referencePriceMin: toNullableNumber(item.referencePriceMin),
     referencePriceMax: toNullableNumber(item.referencePriceMax),
     targetCustomers: toArray(item.targetCustomers),
@@ -236,7 +358,7 @@ function normalizeProjectBomItem(item: ApiProjectBomItem): NonNullable<Project['
     productName: item.productName ?? item.product?.name ?? '',
     sku: item.sku ?? item.product?.sku ?? '',
     standardQty: toNumber(item.standardQty),
-    unit: item.unit ?? item.product?.unit ?? '',
+    unit: item.unit ?? item.product?.specUnit ?? item.product?.unit ?? '',
     costPrice: toNumber(item.costPrice ?? item.product?.costPrice),
   };
 }
@@ -349,10 +471,58 @@ export async function realGetIndustryProductTemplates(params?: { keyword?: strin
 }
 
 export async function realGetIndustryProductTemplatesPaginated(
-  params?: PaginationParams & { keyword?: string; category?: string; productType?: string; status?: string },
+  params?: PaginationParams & { keyword?: string; category?: string; productType?: string; status?: string; adoptionStatus?: string },
 ): Promise<PaginatedResponse<IndustryProductTemplate>> {
   const response = await apiClient.get<unknown, unknown>('/industry/product-templates/paginated', { params });
   return normalizePaginatedResponse<ApiRecord, IndustryProductTemplate>(response, normalizeProductTemplate);
+}
+
+export async function realGetIndustryProductTemplateCoverage(
+  params?: { keyword?: string; category?: string; productType?: string; status?: string; adoptionStatus?: string },
+): Promise<{ coverage: IndustryProductTemplateCoverage; items: IndustryProductTemplate[] }> {
+  const response = await apiClient.get<unknown, ApiRecord>('/industry/product-templates/adoption-coverage', { params });
+  return {
+    coverage: normalizeCoverage(response.coverage ?? {}),
+    items: Array.isArray(response.items) ? response.items.map(normalizeProductTemplate) : [],
+  };
+}
+
+export async function realGetIndustryProductTemplateChainOverview(
+  params?: PaginationParams & { keyword?: string; category?: string; productType?: string; status?: string },
+): Promise<IndustryProductTemplateChainOverview> {
+  const response = await apiClient.get<unknown, ApiRecord>('/industry/product-template-chain/overview', { params });
+  return {
+    storeId: toNumber(response.storeId),
+    summary: normalizeChainSummary(response.summary ?? {}),
+    items: Array.isArray(response.items) ? response.items.map(normalizeChainItem) : [],
+    total: toNumber(response.total),
+    page: toNumber(response.page, 1),
+    pageSize: toNumber(response.pageSize, 20),
+  };
+}
+
+export async function realGetIndustryProductTemplateChainOperationalReport(
+  params?: { keyword?: string; category?: string; productType?: string; status?: string },
+): Promise<IndustryChainOperationalReport> {
+  const response = await apiClient.get<unknown, ApiRecord>('/industry/product-template-chain/operational-report', { params });
+  return normalizeOperationalReport(response);
+}
+
+export async function realGetIndustryProductTemplateChain(id: number): Promise<IndustryProductTemplateChainDetail> {
+  const response = await apiClient.get<unknown, ApiRecord>(`/industry/product-templates/${id}/chain`);
+  return {
+    storeId: toNumber(response.storeId),
+    item: normalizeChainItem(response.item ?? {}),
+    template: normalizeProductTemplate(response.template ?? {}),
+    adoption: response.adoption ? normalizeAdoptionRecord(response.adoption) : null,
+    localProduct: response.localProduct ?? null,
+    industryBomItems: Array.isArray(response.industryBomItems) ? response.industryBomItems : [],
+    localBomItems: Array.isArray(response.localBomItems) ? response.localBomItems : [],
+    stockMovements: Array.isArray(response.stockMovements) ? response.stockMovements : [],
+    supplyMappings: Array.isArray(response.supplyMappings) ? response.supplyMappings : [],
+    procurementItems: Array.isArray(response.procurementItems) ? response.procurementItems : [],
+    orderItems: Array.isArray(response.orderItems) ? response.orderItems : [],
+  };
 }
 
 export async function realCreateIndustryProductTemplate(data: IndustryProductTemplatePayload) {
@@ -375,6 +545,24 @@ export async function realAdoptIndustryProductTemplateAsProduct(
   data: IndustryAdoptProductPayload,
 ): Promise<IndustryAdoptProductResult> {
   const response = await apiClient.post<unknown, ApiRecord>(`/industry/product-templates/${id}/adopt-product`, data);
+  return {
+    product: response.product,
+    adoption: normalizeAdoptionRecord(response.adoption ?? {}),
+    reused: Boolean(response.reused),
+  };
+}
+
+export async function realBatchAdoptIndustryProductTemplates(
+  data: IndustryBatchAdoptProductPayload,
+): Promise<IndustryBatchAdoptProductResult> {
+  return apiClient.post<unknown, IndustryBatchAdoptProductResult>('/industry/product-templates/batch-adopt-products', data);
+}
+
+export async function realLinkIndustryProductTemplateToProduct(
+  id: number,
+  data: IndustryLinkProductPayload,
+): Promise<IndustryAdoptProductResult> {
+  const response = await apiClient.post<unknown, ApiRecord>(`/industry/product-templates/${id}/link-product`, data);
   return {
     product: response.product,
     adoption: normalizeAdoptionRecord(response.adoption ?? {}),

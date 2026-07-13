@@ -5,10 +5,12 @@ import { AiService } from './ai.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 
 @ApiTags('AI')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('core:agent:view')
 @Controller('ai')
 export class AiController {
   constructor(private aiService: AiService) {}

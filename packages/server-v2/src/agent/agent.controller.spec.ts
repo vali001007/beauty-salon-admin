@@ -124,6 +124,10 @@ describe('AgentController', () => {
       },
       agentRun: {
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
+      },
+      agentFeedback: {
+        create: jest.fn(),
       },
     };
     controller = new AgentController(
@@ -144,6 +148,48 @@ describe('AgentController', () => {
       semanticQueryExecutor,
       responseComposer,
     );
+  });
+
+  it('stores message-level question and answer snapshot when submitting feedback', async () => {
+    prisma.agentRun.findFirst.mockResolvedValue({
+      id: 101,
+      storeId: 6,
+      userId: 2,
+      userInput: '第一问：今天营收多少',
+      planJson: {},
+      resultJson: { answer: '第一问回答' },
+      errorMessage: null,
+    });
+    prisma.agentFeedback.create.mockResolvedValue({ id: 301 });
+
+    await controller.submitFeedback(
+      101,
+      {
+        adopted: false,
+        feedbackScope: 'message',
+        messageId: 'a-2',
+        questionIndex: 2,
+        question: '第二问：哪些客户今天要跟进',
+        answer: '第二问回答',
+      },
+      { storeId: 6, userId: 2 },
+    );
+
+    expect(prisma.agentFeedback.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        runId: 101,
+        adopted: false,
+        businessActionJson: expect.objectContaining({
+          snapshot: expect.objectContaining({
+            feedbackScope: 'message',
+            messageId: 'a-2',
+            questionIndex: 2,
+            question: '第二问：哪些客户今天要跟进',
+            answer: '第二问回答',
+          }),
+        }),
+      }),
+    }));
   });
 
   it('returns Agent schema readiness status without mutating business data', async () => {

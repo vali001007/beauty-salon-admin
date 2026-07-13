@@ -746,7 +746,60 @@ describe('OperationProfitService', () => {
       status: 'cost_missing',
       costSource: 'missing',
     });
-    expect(result.items[0].missingCostReasons).toEqual(expect.arrayContaining(['missing_cost', 'missing_commission']));
+    expect(result.items[0].missingCostReasons).toEqual(expect.arrayContaining(['missing_batch_cost', 'missing_commission']));
+  });
+
+  it('uses sale stock movement cost snapshot for product margin details', async () => {
+    const prisma = createPrisma();
+    prisma.productOrder.findMany.mockResolvedValue([
+      {
+        id: 13,
+        orderNo: 'O13',
+        customerId: 3,
+        customerName: '李女士',
+        totalAmount: 198,
+        status: 'completed',
+        createdAt: new Date('2026-06-13T10:00:00.000Z'),
+        orderItems: [{ id: 13, orderId: 13, itemType: 'product', itemId: 203, name: '批次商品', quantity: 2, subtotal: 198 }],
+        paymentRecords: [],
+        refundRecords: [],
+      },
+    ]);
+    prisma.product.findMany.mockResolvedValue([
+      { id: 203, name: '批次商品', sku: 'SKU-203', costPrice: 80, retailPrice: 99, category: null },
+    ]);
+    prisma.commissionRecord.findMany.mockResolvedValue([{ id: 13, orderItemId: 13, amount: 8, type: 'product', status: 'pending' }]);
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        sourceId: 13,
+        sourceNo: 'O13',
+        productId: 203,
+        quantity: -2,
+        unitCost: 12,
+        costAmount: 24,
+        costSource: 'batch_snapshot',
+        product: { costPrice: 80 },
+      },
+    ]);
+
+    const service = new OperationProfitService(prisma as any);
+    const result = await service.getProductMargins({ storeId: 1, from: '2026-06-01', to: '2026-06-30' });
+
+    expect(result.items[0]).toMatchObject({
+      productId: 203,
+      costSource: 'batch_snapshot',
+      unitCost: 12,
+      productCost: 24,
+      sourceOrders: [
+        expect.objectContaining({
+          orderNo: 'O13',
+          unitCost: 12,
+          productCost: 24,
+          costSource: 'batch_snapshot',
+          costSourceNo: 'O13',
+        }),
+      ],
+    });
   });
 
   it('filters product margin status after refund, gross profit, and pagination calculations', async () => {

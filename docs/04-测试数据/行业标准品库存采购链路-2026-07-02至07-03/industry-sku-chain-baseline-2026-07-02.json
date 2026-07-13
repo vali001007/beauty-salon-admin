@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-07-02T16:11:39.890Z",
+  "scope": {
+    "storeId": 6,
+    "storeName": "Ami 全量演示门店"
+  },
+  "summary": {
+    "productTemplates": 34,
+    "publishedTemplates": 34,
+    "adoptionTotal": 10,
+    "adoptionValidActive": 9,
+    "adoptionInvalid": 1,
+    "activeProducts": 46,
+    "productsWithSpecFields": 46,
+    "productsInBom": 28,
+    "projectBomItems": 69,
+    "stockBatches": 81,
+    "stockMovements": 452,
+    "manualPurchaseOrders": 18,
+    "manualPurchaseOrdersScope": "legacy_global_table_without_store_id",
+    "supplyMappings": 0,
+    "supplyMappingsWithQuote": 0,
+    "procurementOrders": 0,
+    "procurementOrderItems": 0,
+    "productOrders": 637,
+    "productOrderItems": 305
+  },
+  "movementTypes": [
+    {
+      "movementType": "inbound",
+      "count": 74
+    },
+    {
+      "movementType": "inventory_adjustment",
+      "count": 11
+    },
+    {
+      "movementType": "manual_outbound",
+      "count": 2
+    },
+    {
+      "movementType": "sale_out",
+      "count": 45
+    },
+    {
+      "movementType": "scrap_out",
+      "count": 6
+    },
+    {
+      "movementType": "service_consume",
+      "count": 222
+    },
+    {
+      "movementType": "service_consumption",
+      "count": 40
+    },
+    {
+      "movementType": "stock_adjustment",
+      "count": 40
+    },
+    {
+      "movementType": "stocktake_gain",
+      "count": 10
+    },
+    {
+      "movementType": "transfer_out",
+      "count": 2
+    }
+  ]
+}

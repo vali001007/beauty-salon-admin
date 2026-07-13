@@ -54,6 +54,14 @@ model Store {
   customers                Customer[]
   predictionRuns           PredictionRun[]
   predictionSnapshots      CustomerPredictionSnapshot[]
+  lifecycleSnapshots        CustomerLifecycleSnapshot[]
+  lifecycleEvents           CustomerLifecycleEvent[]
+  customerOpportunities     CustomerOpportunity[]
+  customerServiceCycles      CustomerServiceCycleState[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
+  lifecycleRuleVersions      CustomerLifecycleRuleVersion[]
+  lifecycleQualitySnapshots  CustomerLifecycleQualitySnapshot[]
+  lifecycleBusinessPlans     LifecycleBusinessPlan[]
   products                 Product[]
   projects                 Project[]
   beauticians              Beautician[]
@@ -80,9 +88,10 @@ model Store {
   dailySettlements         DailySettlement[]
   amiPerformanceRecords    AmiPerformanceRecord[]
   marketingRuleTemplates   MarketingRuleTemplate[]
+  marketingActivities      MarketingActivity[]
+  marketingAutomationStrategies MarketingAutomationStrategy[]
+  marketingAutomationExecutions MarketingAutomationExecution[]
   amiMonthlyBills          AmiMonthlyBill[]
-  suppliers                Supplier[]
-  supplierOrders           SupplierOrder[]
   procurementOrders        ProcurementOrder[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
   beauticianAvailabilities BeauticianAvailability[]
@@ -101,6 +110,7 @@ model Store {
   operatingCosts           OperatingCost[]
   cardUsageRecords         CardUsageRecord[]
   cards                    Card[]
+  brainOperatingTargets    BrainStoreOperatingTarget[]
 
   @@index([status])
 }
@@ -129,6 +139,7 @@ model User {
   handledBalanceTransactions CustomerBalanceTransaction[] @relation("BalanceTransactionOperator")
   handledCustomerCards CustomerCard[] @relation("CustomerCardOperator")
   handledCardUsageRecords CardUsageRecord[] @relation("CardUsageOperator")
+  handledRefundRecords   RefundRecord[] @relation("RefundOperator")
   cashierShifts       CashierShift[]
   terminalConversations TerminalConversation[]
   beauticianProfiles Beautician[]
@@ -140,6 +151,8 @@ model User {
   commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
   commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
   commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
+  publishedLifecycleRules CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
+  createdLifecycleBusinessPlans LifecycleBusinessPlan[] @relation("LifecycleBusinessPlanCreator")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -240,6 +253,11 @@ model Customer {
   cardUsageRecords      CardUsageRecord[]
   skinTests             SkinTest[]
   predictionSnapshots   CustomerPredictionSnapshot[]
+  lifecycleSnapshots    CustomerLifecycleSnapshot[]
+  lifecycleEvents       CustomerLifecycleEvent[]
+  opportunities         CustomerOpportunity[]
+  serviceCycleStates    CustomerServiceCycleState[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
   amiPerformanceRecords AmiPerformanceRecord[]
   marketingTouches      MarketingAutomationTouch[]
   marketingAttributions MarketingAttribution[]
@@ -312,6 +330,9 @@ model Product {
   brand              String?
   spec               String?
   unit               String?
+  specQuantity       Decimal?
+  specUnit           String?
+  packageUnit        String?
   costPrice          Decimal   @default(0)
   retailPrice        Decimal   @default(0)
   shelfLife          Int?
@@ -336,8 +357,6 @@ model Product {
   batches        StockBatch[]
   bomItems       ProjectBomItem[]
   stockMovements StockMovement[]
-  suppliers      ProductSupplier[]
-  supplierItems  SupplierOrderItem[]
   supplyMappings SupplyCatalogMapping[]
   procurementItems ProcurementOrderItem[]
 
@@ -353,6 +372,9 @@ model StockBatch {
   productId      Int
   batchNo        String
   stock          Decimal   @default(0)
+  unitCost       Decimal?
+  totalAmount    Decimal?
+  supplierName   String?
   productionDate DateTime?
   expiryDate     DateTime?
   createdAt      DateTime  @default(now())
@@ -362,117 +384,6 @@ model StockBatch {
 
   @@index([productId])
   @@index([expiryDate])
-}
-
-model Supplier {
-  id           Int       @id @default(autoincrement())
-  storeId      Int?
-  name         String
-  contactName  String?
-  phone        String?
-  email        String?
-  address      String?
-  category     String?
-  rebateRate   Decimal?
-  paymentTerms String?
-  status       String    @default("active")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
-
-  store       Store?               @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  products    ProductSupplier[]
-  orders      SupplierOrder[]
-  settlements SupplierSettlement[]
-
-  @@index([storeId])
-  @@index([status])
-  @@index([category])
-  @@index([name])
-}
-
-model ProductSupplier {
-  id          Int      @id @default(autoincrement())
-  productId   Int
-  supplierId  Int
-  supplyPrice Decimal  @default(0)
-  moq         Int?
-  leadDays    Int?
-  isPrimary   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-
-  @@unique([productId, supplierId])
-  @@index([supplierId])
-  @@index([productId, isPrimary])
-}
-
-model SupplierOrder {
-  id           Int       @id @default(autoincrement())
-  orderNo      String    @unique
-  supplierId   Int
-  storeId      Int
-  totalAmount  Decimal   @default(0)
-  platformFee  Decimal   @default(0)
-  rebateAmount Decimal   @default(0)
-  netAmount    Decimal   @default(0)
-  status       String    @default("pending")
-  orderedAt    DateTime  @default(now())
-  receivedAt   DateTime?
-  settledAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  supplier Supplier            @relation(fields: [supplierId], references: [id])
-  store    Store               @relation(fields: [storeId], references: [id])
-  items    SupplierOrderItem[]
-
-  @@index([supplierId, status])
-  @@index([storeId])
-  @@index([status])
-  @@index([orderedAt])
-}
-
-model SupplierOrderItem {
-  id          Int     @id @default(autoincrement())
-  orderId     Int
-  productId   Int
-  quantity    Int
-  unitPrice   Decimal @default(0)
-  subtotal    Decimal @default(0)
-  receivedQty Int?
-
-  order   SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product       @relation(fields: [productId], references: [id])
-
-  @@index([orderId])
-  @@index([productId])
-}
-
-model SupplierSettlement {
-  id             Int       @id @default(autoincrement())
-  supplierId     Int
-  settleMonth    String
-  orderCount     Int       @default(0)
-  totalAmount    Decimal   @default(0)
-  rebateAmount   Decimal   @default(0)
-  platformFee    Decimal   @default(0)
-  netPayable     Decimal   @default(0)
-  status         String    @default("draft")
-  confirmedAt    DateTime?
-  paidAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  supplier Supplier @relation(fields: [supplierId], references: [id])
-
-  @@unique([supplierId, settleMonth])
-  @@index([supplierId])
-  @@index([settleMonth])
-  @@index([status])
 }
 
 model PurchaseOrder {
@@ -516,11 +427,16 @@ model StockMovement {
   beforeStock  Decimal?
   afterStock   Decimal?
   unit         String?
+  unitCost     Decimal?
+  costAmount   Decimal?
+  costSource   String?
   sourceType   String?
   sourceId     Int?
   sourceNo     String?
   remark       String?
   operatorId   Int?
+  orderItemId  Int?
+  refundItemId Int?
   occurredAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
@@ -528,12 +444,17 @@ model StockMovement {
   product  Product     @relation(fields: [productId], references: [id])
   batch    StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   operator User?       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  refundItem RefundItem? @relation(fields: [refundItemId], references: [id], onDelete: SetNull)
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, productId, occurredAt])
   @@index([movementType])
   @@index([sourceType, sourceId])
   @@index([batchId])
   @@index([operatorId])
+  @@index([orderItemId])
+  @@index([refundItemId])
 }
 
 // ─── Projects & Services ─────────────────────────────────────────────────────
@@ -569,6 +490,7 @@ model Project {
   store            Store                    @relation(fields: [storeId], references: [id])
   type             ProjectType?             @relation(fields: [typeId], references: [id])
   bomItems         ProjectBomItem[]
+  serviceCycleStates CustomerServiceCycleState[]
   serviceTasks     ServiceTask[]
   reservations     Reservation[]
   beauticianSkills BeauticianProjectSkill[]
@@ -644,6 +566,8 @@ model IndustryServiceTemplate {
   targetStoreTypes       Json?
   recommendedDurationMin Int?
   recommendedDurationMax Int?
+  careCycleWeeks         Int?
+  treatmentCourseTimes   Int?
   referencePriceMin      Decimal?
   referencePriceMax      Decimal?
   targetCustomers        Json?
@@ -974,6 +898,18 @@ model SupplySettlement {
   @@index([supplierId])
   @@index([settleMonth])
   @@index([status])
+}
+
+model SupplyLegacyMigrationMap {
+  id          Int      @id @default(autoincrement())
+  legacyModel String
+  legacyId    Int
+  targetModel String
+  targetId    Int
+  createdAt   DateTime @default(now())
+
+  @@unique([legacyModel, legacyId, targetModel])
+  @@index([targetModel, targetId])
 }
 
 model IndustryProjectBomTemplate {
@@ -1434,6 +1370,7 @@ model ProductOrder {
   marketingAttributions MarketingAttribution[]
   pageAttributions      MarketingPageAttribution[]
   recommendationEvents  RecommendationEvent[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
   terminalFollowUpTasks TerminalFollowUpTask[]
   balanceTransactions   CustomerBalanceTransaction[]
   commissionRecords     CommissionRecord[]
@@ -1479,6 +1416,8 @@ model OrderItem {
   commissionRecords CommissionRecord[]
   sourceCustomerCards CustomerCard[]    @relation("CustomerCardSourceOrderItem")
   cardUsageSourceRecords CardUsageRecord[] @relation("CardUsageSourceOrderItem")
+  refundItems        RefundItem[]
+  stockMovements     StockMovement[]
 
   @@index([orderId])
   @@index([itemType, itemId])
@@ -1504,20 +1443,53 @@ model PaymentRecord {
 }
 
 model RefundRecord {
-  id         Int       @id @default(autoincrement())
-  orderId    Int
-  refundNo   String    @unique
-  amount     Decimal
-  reason     String?
-  status     String
-  refundedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  orderId         Int
+  refundNo        String    @unique
+  requestId       String    @unique
+  refundMode      String    @default("refund_only")
+  amount          Decimal
+  reason          String?
+  status          String
+  operatorId      Int?
+  operatorType    String?
+  inventoryStatus String    @default("not_required")
+  refundedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
-  order ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator User?        @relation("RefundOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  items    RefundItem[]
 
   @@index([orderId])
   @@index([status])
+  @@index([refundMode])
+  @@index([operatorId])
   @@index([refundedAt])
+}
+
+model RefundItem {
+  id              Int       @id @default(autoincrement())
+  refundId        Int
+  orderItemId     Int
+  itemType        String
+  itemId          Int?
+  quantity        Decimal
+  listAmount      Decimal   @default(0)
+  discountAmount  Decimal   @default(0)
+  refundAmount    Decimal
+  inventoryAction String    @default("none")
+  inventoryStatus String    @default("not_required")
+  payload         Json?
+  createdAt       DateTime  @default(now())
+
+  refund         RefundRecord    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  stockMovements StockMovement[]
+
+  @@index([refundId])
+  @@index([orderItemId])
+  @@index([itemType, itemId])
 }
 
 model Card {
@@ -1672,6 +1644,7 @@ model Reservation {
   project    Project     @relation(fields: [projectId], references: [id])
   beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   followUpTasks TerminalFollowUpTask[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, date])
   @@index([customerId])
@@ -1975,6 +1948,7 @@ model SkinTest {
 
 model MarketingActivity {
   id                     Int       @id @default(autoincrement())
+  storeId                Int
   title                  String
   description            String?
   status                 String    @default("draft")
@@ -2000,6 +1974,7 @@ model MarketingActivity {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
+  store            Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   primaryPromotion Promotion? @relation(fields: [primaryPromotionId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -2143,6 +2118,7 @@ model MarketingPageAttribution {
 
 model MarketingAutomationStrategy {
   id             Int                     @id @default(autoincrement())
+  storeId        Int
   name           String
   description    String?
   status         MarketingStrategyStatus @default(draft)
@@ -2159,12 +2135,13 @@ model MarketingAutomationStrategy {
   updatedAt      DateTime                @updatedAt
   lastExecutedAt DateTime?
 
+  store        Store                          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   executions   MarketingAutomationExecution[]
   touches      MarketingAutomationTouch[]
   attributions MarketingAttribution[]
   ruleTemplate MarketingRuleTemplate? @relation(fields: [ruleTemplateId], references: [id], onDelete: SetNull)
 
-  @@index([status])
+  @@index([storeId, status])
   @@index([source])
   @@index([ruleTemplateId])
 }
@@ -2212,19 +2189,26 @@ model MarketingRuleTemplate {
 
 model MarketingAutomationExecution {
   id             Int      @id @default(autoincrement())
+  storeId        Int
   strategyId     Int
+  idempotencyKey String
   strategyName   String
   status         String
   triggeredCount Int      @default(0)
+  queuedCount    Int      @default(0)
   reachedCount   Int      @default(0)
+  failedCount    Int      @default(0)
   channel        String?
   executedAt     DateTime @default(now())
   message        String?
 
+  store        Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   strategy     MarketingAutomationStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
   touches      MarketingAutomationTouch[]
   attributions MarketingAttribution[]
 
+  @@unique([strategyId, idempotencyKey])
+  @@index([storeId, executedAt])
   @@index([strategyId])
 }
 
@@ -2240,6 +2224,8 @@ model PredictionRun {
 
   store     Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
   snapshots CustomerPredictionSnapshot[]
+  lifecycleSnapshots CustomerLifecycleSnapshot[]
+  opportunities CustomerOpportunity[]
 
   @@index([storeId])
   @@index([modelVersion])
@@ -2269,12 +2255,248 @@ model CustomerPredictionSnapshot {
   customer Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   store    Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   touches  MarketingAutomationTouch[]
+  lifecycleSnapshots CustomerLifecycleSnapshot[]
+  opportunities CustomerOpportunity[]
 
   @@index([runId])
   @@index([customerId])
   @@index([storeId])
   @@index([churnLevel])
   @@index([ltvTier])
+  @@index([createdAt])
+}
+
+model CustomerLifecycleSnapshot {
+  id                     Int      @id @default(autoincrement())
+  storeId                Int
+  customerId             Int
+  predictionRunId        Int?
+  predictionSnapshotId   Int?
+  lifecycleStage         String
+  ltvTier                String?
+  churnRiskLevel         String?
+  touchFatigueScore      Decimal  @default(0)
+  assetSummaryJson       Json?
+  servicePreferenceJson  Json?
+  evidenceJson           Json
+  computedAt             DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionRun      PredictionRun?              @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  predictionSnapshot CustomerPredictionSnapshot? @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, customerId])
+  @@index([storeId, lifecycleStage])
+  @@index([customerId])
+  @@index([predictionRunId])
+  @@index([predictionSnapshotId])
+  @@index([computedAt])
+}
+
+model CustomerLifecycleEvent {
+  id            Int      @id @default(autoincrement())
+  storeId       Int
+  customerId    Int
+  fromStage     String?
+  toStage       String
+  eventType     String
+  sourceType    String
+  sourceId      String?
+  evidenceJson  Json
+  occurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, occurredAt])
+  @@index([customerId, occurredAt])
+  @@index([toStage])
+  @@index([eventType])
+  @@index([sourceType, sourceId])
+}
+
+model CustomerOpportunity {
+  id                         Int      @id @default(autoincrement())
+  storeId                    Int
+  customerId                 Int
+  predictionRunId            Int?
+  predictionSnapshotId       Int?
+  opportunityType            String
+  priority                   String   @default("P1")
+  status                     String   @default("open")
+  score                      Int      @default(0)
+  recommendedExecutionMode   String   @default("automation")
+  recommendedChannelsJson    Json
+  recommendedOfferJson       Json?
+  recommendedItemsJson       Json?
+  evidenceJson               Json
+  expiresAt                  DateTime?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionRun      PredictionRun?              @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  predictionSnapshot CustomerPredictionSnapshot? @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+  fulfillmentChecks  CustomerOpportunityFulfillmentCheck[]
+  attributionEvents  LifecycleAttributionEvent[]
+
+  @@unique([storeId, customerId, opportunityType])
+  @@index([storeId, opportunityType, status])
+  @@index([customerId])
+  @@index([predictionRunId])
+  @@index([predictionSnapshotId])
+  @@index([priority])
+  @@index([expiresAt])
+}
+
+model CustomerServiceCycleState {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  customerId   Int
+  projectId    Int
+  lastServiceAt DateTime?
+  cycleDays    Int      @default(28)
+  nextDueAt    DateTime?
+  sourceType   String?
+  sourceId     String?
+  evidenceJson Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, customerId, projectId])
+  @@index([storeId, nextDueAt])
+  @@index([customerId, nextDueAt])
+  @@index([projectId])
+  @@index([sourceType, sourceId])
+}
+
+model CustomerOpportunityFulfillmentCheck {
+  id                   Int      @id @default(autoincrement())
+  opportunityId        Int
+  inventoryReady       Boolean  @default(true)
+  capacityReady        Boolean  @default(true)
+  requiredProductsJson Json?
+  capacitySnapshotJson Json?
+  riskJson             Json?
+  checkedAt            DateTime @default(now())
+  createdAt            DateTime @default(now())
+
+  opportunity CustomerOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId, checkedAt])
+  @@index([inventoryReady, capacityReady])
+  @@index([checkedAt])
+}
+
+model LifecycleAttributionEvent {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  customerId        Int
+  opportunityId     Int?
+  recommendationKey String?
+  eventType         String
+  sourceType        String
+  sourceId          String?
+  touchId           Int?
+  orderId           Int?
+  reservationId     Int?
+  stockMovementId   Int?
+  eventValue        Decimal  @default(0)
+  evidenceJson      Json?
+  occurredAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer      Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  opportunity   CustomerOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  touch         MarketingAutomationTouch? @relation(fields: [touchId], references: [id], onDelete: SetNull)
+  order         ProductOrder?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  reservation   Reservation?     @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  stockMovement StockMovement?   @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, occurredAt])
+  @@index([customerId, occurredAt])
+  @@index([opportunityId])
+  @@index([recommendationKey])
+  @@index([eventType, occurredAt])
+  @@index([touchId])
+  @@index([orderId])
+  @@index([reservationId])
+  @@index([stockMovementId])
+}
+
+model CustomerLifecycleRuleVersion {
+  id             Int       @id @default(autoincrement())
+  storeId        Int?
+  ruleType       String
+  version        Int       @default(1)
+  status         String    @default("draft")
+  grayPercent    Int       @default(100)
+  ruleJson       Json
+  evidenceJson   Json?
+  publishedBy    Int?
+  publishedAt    DateTime?
+  rolledBackFromId Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  store     Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  publisher User?  @relation("LifecycleRulePublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, ruleType, version])
+  @@index([storeId, ruleType, status])
+  @@index([status])
+  @@index([publishedAt])
+}
+
+model CustomerLifecycleQualitySnapshot {
+  id                         Int      @id @default(autoincrement())
+  storeId                    Int
+  snapshotDate               DateTime @default(now())
+  fieldCoverageRate          Decimal  @default(0)
+  ruleHitRate                Decimal  @default(0)
+  attributionCompletenessRate Decimal @default(0)
+  fulfillmentReadyRate       Decimal  @default(0)
+  metricsJson                Json
+  createdAt                  DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, snapshotDate])
+}
+
+model LifecycleBusinessPlan {
+  id             Int      @id @default(autoincrement())
+  storeId        Int
+  planPeriod     String
+  title          String
+  status         String   @default("draft")
+  goalsJson      Json
+  actionsJson    Json
+  evidenceJson   Json
+  approvalJson   Json?
+  resultJson     Json?
+  createdBy      Int?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  executedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store   Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  creator User? @relation("LifecycleBusinessPlanCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([storeId, planPeriod])
+  @@index([storeId, status])
   @@index([createdAt])
 }
 
@@ -2287,7 +2509,10 @@ model MarketingAutomationTouch {
   predictedConversionScore Int       @default(0)
   predictedRevenue         Decimal   @default(0)
   channel                  String?
-  status                   String    @default("reached")
+  status                   String    @default("queued")
+  attemptCount             Int       @default(0)
+  errorCode                String?
+  errorMessage             String?
   touchedAt                DateTime  @default(now())
   convertedAt              DateTime?
   conversionType           String?
@@ -2299,6 +2524,7 @@ model MarketingAutomationTouch {
   customer           Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   predictionSnapshot CustomerPredictionSnapshot?  @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
   attributions       MarketingAttribution[]
+  lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([executionId])
   @@index([strategyId])
@@ -2306,6 +2532,25 @@ model MarketingAutomationTouch {
   @@index([predictionSnapshotId])
   @@index([status])
   @@index([touchedAt])
+}
+
+model MarketingInAppNotification {
+  id          Int       @id @default(autoincrement())
+  storeId     Int
+  customerId  Int
+  strategyId  Int
+  executionId Int?
+  title       String
+  content     String
+  status      String    @default("queued")
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([storeId, customerId, createdAt])
+  @@index([strategyId, executionId])
+  @@index([status, createdAt])
 }
 
 model MarketingAttribution {
@@ -2380,6 +2625,28 @@ model MarketingRecommendationSnapshot {
   @@index([predictionRunId])
   @@index([generatedAt])
   @@index([expiresAt])
+}
+
+model MarketingRecommendationAdoption {
+  id               Int      @id @default(autoincrement())
+  storeId          Int
+  recommendationId Int
+  mode             String
+  status           String
+  activityId       Int?
+  pageId           Int?
+  strategyId       Int?
+  followUpTaskIds  Json?
+  predictionRunId  Int?
+  snapshotJson     Json
+  createdBy        Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([recommendationId, mode])
+  @@index([activityId])
+  @@index([strategyId])
 }
 
 model TerminalFollowUpTask {
@@ -2877,6 +3144,43 @@ model AgentRun {
   @@map("agent_runs")
 }
 
+model AgentRunAuditDetail {
+  id                     Int      @id @default(autoincrement())
+  runId                  Int      @unique
+  storeId                Int?
+  userId                 Int?
+  role                   String?
+  entrypoint             String?
+  agentCode              String?
+  personaCode            String?
+  question               String?
+  status                 String   @default("pending")
+  capabilityId           String?
+  knowledgeGraphJson     Json?
+  llmPromptJson          Json?
+  llmResponseJson        Json?
+  structuredIntentJson   Json?
+  capabilityMappingJson  Json?
+  policyDecisionJson     Json?
+  toolTraceJson          Json?
+  contractValidationJson Json?
+  latencyBreakdownJson   Json?
+  costJson               Json?
+  riskJson               Json?
+  errorCode              String?
+  errorMessage           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([userId])
+  @@index([status])
+  @@index([capabilityId])
+  @@index([agentCode])
+  @@index([personaCode])
+  @@map("agent_run_audit_details")
+}
+
 model AgentMessage {
   id        Int      @id @default(autoincrement())
   runId     Int
@@ -2972,10 +3276,48 @@ model AgentEvalRun {
   errorMessage String?
   createdAt  DateTime @default(now())
 
+  caseResults AgentEvalCaseResult[]
+
   @@index([caseId])
   @@index([runId])
   @@index([status])
   @@map("agent_eval_runs")
+}
+
+model AgentEvalCaseResult {
+  id                   Int      @id @default(autoincrement())
+  evalRunId            Int?
+  caseId               Int?
+  questionId           String?
+  question             String
+  roleGroup            String?
+  expectedCapabilityId String?
+  actualCapabilityId   String?
+  expectedOutputKind   String?
+  actualOutputKind     String?
+  status               String
+  pass                 Boolean  @default(false)
+  score                Float?
+  failureCategory      String?
+  errorMessage         String?
+  latencyMs            Int?
+  cacheHit             Boolean?
+  fallbackUsed         Boolean?
+  resultJson           Json?
+  traceJson            Json?
+  createdAt            DateTime @default(now())
+
+  evalRun AgentEvalRun? @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+
+  @@index([evalRunId])
+  @@index([caseId])
+  @@index([questionId])
+  @@index([status])
+  @@index([pass])
+  @@index([expectedCapabilityId])
+  @@index([actualCapabilityId])
+  @@index([failureCategory])
+  @@map("agent_eval_case_results")
 }
 
 // ─── Agent Persona（六大角色 Agent 配置）────────────────────────────────────
@@ -3172,4 +3514,1113 @@ model AgentAutomationEffect {
   @@index([customerId])
   @@index([status])
   @@map("agent_automation_effects")
+}
+
+// ─── Agent V2 Capability Center（能力候选、审核与发布）────────────────────────
+
+model AgentCapabilityDraft {
+  id                 Int       @id @default(autoincrement())
+  capabilityId       String    @unique
+  status             String    @default("draft")
+  source             String    @default("auto_scan_draft")
+  displayName        String
+  displayNameZh      String?
+  description        String?
+  domain             String
+  businessObject     String
+  actionCodes        Json?
+  personaCodes       Json?
+  releaseStrategy    String    @default("approval_required")
+  riskLevel          String    @default("low")
+  permissionSource   String?
+  permissionCodes    Json?
+  sourceModels       Json?
+  sourceApis         Json?
+  sourceDtos         Json?
+  sourceRoutes       Json?
+  outputKinds        Json?
+  executorJson       Json?
+  storeScope         String?
+  fieldPoliciesJson  Json?
+  triggerKeywords    Json?
+  examples           Json?
+  negativeExamples   Json?
+  boundaryNotes      Json?
+  governanceIssues   Json?
+  scannerFingerprint String?
+  reviewedBy         Int?
+  reviewedAt         DateTime?
+  publishedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([domain])
+  @@index([riskLevel])
+  @@index([releaseStrategy])
+  @@index([updatedAt])
+  @@map("agent_capability_drafts")
+}
+
+model AgentCapabilityReview {
+  id           Int      @id @default(autoincrement())
+  draftId      Int?
+  capabilityId String
+  decision     String
+  comment      String?
+  changesJson  Json?
+  reviewerId   Int?
+  createdAt    DateTime @default(now())
+
+  @@index([draftId])
+  @@index([capabilityId])
+  @@index([decision])
+  @@index([reviewerId])
+  @@map("agent_capability_reviews")
+}
+
+model AgentCapabilityManifestVersion {
+  id                    Int      @id @default(autoincrement())
+  version               String   @unique
+  status                String   @default("draft")
+  source                String   @default("capability_center")
+  title                 String?
+  summary               String?
+  itemCount             Int      @default(0)
+  autoPublishedCount    Int      @default(0)
+  approvalRequiredCount Int      @default(0)
+  writeBlockedCount     Int      @default(0)
+  evalReportJson        Json?
+  publishedBy           Int?
+  publishedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  items AgentCapabilityManifestItem[]
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("agent_capability_manifest_versions")
+}
+
+model AgentCapabilityManifestItem {
+  id              Int      @id @default(autoincrement())
+  versionId       Int
+  capabilityId    String
+  status          String   @default("enabled")
+  source          String   @default("capability_center")
+  releaseStrategy String
+  riskLevel       String
+  permissionCodes Json?
+  manifestJson    Json
+  draftId         Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  version AgentCapabilityManifestVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, capabilityId])
+  @@index([capabilityId])
+  @@index([status])
+  @@index([releaseStrategy])
+  @@index([riskLevel])
+  @@map("agent_capability_manifest_items")
+}
+
+model AgentCapabilityPublishRun {
+  id              Int       @id @default(autoincrement())
+  runNo           String    @unique
+  status          String
+  sourceVersionId Int?
+  targetVersionId Int?
+  requestedBy     Int?
+  inputJson       Json?
+  resultJson      Json?
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([status])
+  @@index([requestedBy])
+  @@index([startedAt])
+  @@map("agent_capability_publish_runs")
+}
+
+model AgentToolQueryKeyRegistry {
+  id                  Int      @id @default(autoincrement())
+  queryKey            String   @unique
+  toolName            String
+  domain              String
+  businessObject      String?
+  status              String   @default("draft")
+  source              String   @default("auto_scan")
+  requiredPermissions Json?
+  sourceModels        Json?
+  sourceApis          Json?
+  outputKinds         Json?
+  implementationRef   String?
+  validationJson      Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([toolName])
+  @@index([domain])
+  @@index([status])
+  @@map("agent_tool_query_key_registry")
+}
+
+model AgentAutoPublishLog {
+  id              Int       @id @default(autoincrement())
+  runNo           String?
+  source          String    @default("ci")
+  scanMode        String    @default("hash")
+  status          String
+  capabilityId    String?
+  draftId         Int?
+  publishRunId    Int?
+  releaseStrategy String?
+  riskLevel       String?
+  decision        String?
+  summary         String?
+  inputJson       Json?
+  resultJson      Json?
+  errorMessage    String?
+  triggeredBy     Int?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([runNo])
+  @@index([source])
+  @@index([scanMode])
+  @@index([status])
+  @@index([capabilityId])
+  @@index([draftId])
+  @@index([publishRunId])
+  @@index([triggeredBy])
+  @@index([startedAt])
+  @@map("agent_auto_publish_logs")
+}
+
+model AgentHealthMetric {
+  id             Int      @id @default(autoincrement())
+  storeId        Int?
+  metricKey      String
+  metricType     String   @default("gauge")
+  valueFloat     Float?
+  valueInt       Int?
+  valueText      String?
+  unit           String?
+  windowStart    DateTime?
+  windowEnd      DateTime?
+  dimensionsJson Json?
+  status         String   @default("normal")
+  source         String   @default("agent_v2_governance")
+  collectedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([storeId, collectedAt])
+  @@index([metricKey, collectedAt])
+  @@index([metricType])
+  @@index([status])
+  @@index([source])
+  @@index([collectedAt])
+  @@map("agent_health_metrics")
+}
+
+// ─── Agent V2 Controlled Text-to-SQL ────────────────────────────────────────
+
+model AgentV2TextToSqlRun {
+  id                   Int      @id @default(autoincrement())
+  question             String
+  normalizedIntentJson Json?
+  userId               Int?
+  storeScopeJson       Json
+  selectedViewsJson    Json
+  generatedSqlHash     String?
+  redactedSql          String?  @db.Text
+  safeSqlHash          String?
+  status               String
+  blockedReason        String?
+  rowCount             Int      @default(0)
+  executionMs          Int?
+  evidenceJson         Json?
+  queryTraceJson       Json?
+  promotedCapabilityId String?
+  createdAt            DateTime @default(now())
+
+  feedback AgentV2TextToSqlFeedback[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([blockedReason])
+  @@index([promotedCapabilityId])
+  @@index([createdAt])
+  @@map("agent_v2_text_to_sql_runs")
+}
+
+model AgentV2TextToSqlSemanticView {
+  id                      Int      @id @default(autoincrement())
+  viewName                String   @unique
+  domain                  String
+  description             String
+  requiredPermissionsJson Json
+  storeScopeField         String?
+  defaultTimeField        String?
+  fieldPoliciesJson       Json
+  isEnabled               Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([domain])
+  @@index([isEnabled])
+  @@map("agent_v2_text_to_sql_semantic_views")
+}
+
+model AgentV2TextToSqlFeedback {
+  id                  Int      @id @default(autoincrement())
+  runId               Int
+  userId              Int?
+  rating              Int?
+  feedbackText        String?  @db.Text
+  isUseful            Boolean?
+  isWrongAnswer       Boolean  @default(false)
+  isPermissionConcern Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  run AgentV2TextToSqlRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([userId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("agent_v2_text_to_sql_feedback")
+}
+
+// ─── Agent V3 Pure Text-to-SQL ─────────────────────────────────────────────
+
+model AgentV3TextToSqlRun {
+  id                   Int      @id @default(autoincrement())
+  question             String
+  normalizedIntentJson Json?
+  userId               Int?
+  storeScopeJson       Json
+  selectedViewsJson    Json
+  generatedSqlHash     String?
+  redactedSql          String?  @db.Text
+  safeSqlHash          String?
+  status               String
+  blockedReason        String?
+  rowCount             Int      @default(0)
+  executionMs          Int?
+  evidenceJson         Json?
+  queryTraceJson       Json?
+  createdAt            DateTime @default(now())
+
+  feedback AgentV3TextToSqlFeedback[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([blockedReason])
+  @@index([createdAt])
+  @@map("agent_v3_text_to_sql_runs")
+}
+
+model AgentV3TextToSqlSemanticView {
+  id                      Int      @id @default(autoincrement())
+  viewName                String   @unique
+  domain                  String
+  description             String
+  requiredPermissionsJson Json
+  storeScopeField         String?
+  defaultTimeField        String?
+  fieldPoliciesJson       Json
+  isEnabled               Boolean  @default(false)
+  adminOnly               Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([domain])
+  @@index([isEnabled])
+  @@index([adminOnly])
+  @@map("agent_v3_text_to_sql_semantic_views")
+}
+
+model AgentV3TextToSqlFeedback {
+  id                  Int      @id @default(autoincrement())
+  runId               Int
+  userId              Int?
+  rating              Int?
+  feedbackText        String?  @db.Text
+  isUseful            Boolean?
+  isWrongAnswer       Boolean  @default(false)
+  isPermissionConcern Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  run AgentV3TextToSqlRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([userId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("agent_v3_text_to_sql_feedback")
+}
+
+model AgentV3SemanticKgSnapshot {
+  id                   Int       @id @default(autoincrement())
+  version              String    @unique
+  source               String    @default("v3_kg_local_fixture")
+  status               String    @default("draft")
+  snapshotJson         Json
+  statsJson            Json?
+  generatedFromVersion String?
+  activatedAt          DateTime?
+  createdBy            Int?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status])
+  @@index([source])
+  @@index([createdAt])
+  @@map("agent_v3_semantic_kg_snapshots")
+}
+
+model AgentV3SemanticEntity {
+  id              Int      @id @default(autoincrement())
+  entityType      String   @unique
+  canonicalName   String
+  domain          String
+  aliasesJson     Json
+  expectedFields  Json
+  forbiddenFields Json
+  status          String   @default("active")
+  source          String   @default("v3_kg_snapshot")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([domain])
+  @@index([status])
+  @@map("agent_v3_semantic_entities")
+}
+
+model AgentV3SemanticMetric {
+  id              Int      @id @default(autoincrement())
+  canonicalName   String   @unique
+  metricType      String
+  aliasesJson     Json
+  fieldsJson      Json
+  sortDirection   String?
+  defaultByEntity Json?
+  status          String   @default("active")
+  source          String   @default("v3_kg_snapshot")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([metricType])
+  @@index([status])
+  @@map("agent_v3_semantic_metrics")
+}
+
+model AgentV3SemanticViewBinding {
+  id             Int      @id @default(autoincrement())
+  entityType     String
+  metricName     String
+  viewName       String
+  score          Float    @default(0)
+  reasonsJson    Json
+  status         String   @default("active")
+  source         String   @default("v3_kg_snapshot")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([entityType, metricName, viewName])
+  @@index([entityType])
+  @@index([metricName])
+  @@index([viewName])
+  @@index([status])
+  @@map("agent_v3_semantic_view_bindings")
+}
+
+model AgentV3SemanticRoutingExample {
+  id                Int      @id @default(autoincrement())
+  question          String
+  expectedEntity    String?
+  expectedMetric    String?
+  expectedView      String?
+  negativeViewsJson Json?
+  source            String   @default("manual")
+  status            String   @default("active")
+  createdBy         Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([expectedEntity])
+  @@index([expectedMetric])
+  @@index([expectedView])
+  @@index([status])
+  @@map("agent_v3_semantic_routing_examples")
+}
+
+model AgentV3SemanticRoutingFeedback {
+  id              Int       @id @default(autoincrement())
+  question        String
+  routeIntentJson Json?
+  selectedView    String?
+  expectedView    String?
+  isWrongAnswer   Boolean   @default(false)
+  feedbackText    String?   @db.Text
+  status          String    @default("open")
+  createdBy       Int?
+  resolvedBy      Int?
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([selectedView])
+  @@index([expectedView])
+  @@index([isWrongAnswer])
+  @@index([status])
+  @@index([createdAt])
+  @@map("agent_v3_semantic_routing_feedback")
+}
+
+model AgentKnowledgeGraphOverride {
+  id           Int      @id @default(autoincrement())
+  overrideType String
+  relationType String
+  sourceNodeId String?
+  targetNodeId String?
+  value        String?
+  label        String?
+  reason       String?
+  status       String   @default("active")
+  source       String   @default("manual_override")
+  confidence   Float    @default(1)
+  payloadJson  Json?
+  createdBy    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([overrideType, status])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+  @@index([createdBy])
+  @@index([updatedAt])
+  @@map("agent_knowledge_graph_overrides")
+}
+
+model AgentV2GrayRule {
+  id            Int      @id @default(autoincrement())
+  name          String
+  mode          String
+  status        String   @default("active")
+  priority      Int      @default(100)
+  storeIds      Json?
+  personaCodes  Json?
+  roles         Json?
+  entrypoints   Json?
+  capabilityIds Json?
+  reason        String?
+  source        String   @default("governance_config")
+  payloadJson   Json?
+  createdBy     Int?
+  updatedBy     Int?
+  deletedBy     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([mode])
+  @@index([priority])
+  @@index([updatedAt])
+  @@map("agent_v2_gray_rules")
+}
+
+// ─── Ami Brain Independent Namespace ─────────────────────────────────────────
+
+enum BrainMessageRole {
+  user
+  assistant
+  system
+  tool
+}
+
+enum BrainMemoryType {
+  working
+  session
+  episodic
+  semantic
+  procedural
+}
+
+enum BrainSkillType {
+  query
+  analysis
+  risk
+  action
+  prediction
+}
+
+enum BrainRiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+enum BrainRunStatus {
+  queued
+  running
+  needs_confirmation
+  completed
+  failed
+  cancelled
+}
+
+enum BrainReleaseStatus {
+  draft
+  active
+  rolled_back
+  archived
+}
+
+model BrainConversation {
+  id              Int       @id @default(autoincrement())
+  storeId         Int
+  userId          Int
+  title           String?
+  status          String    @default("active")
+  contextSnapshot Json?
+  contextVersion  Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  messages BrainMessage[]
+  runs     BrainRun[]
+
+  @@index([storeId, userId, updatedAt])
+  @@map("brain_conversation")
+}
+
+model BrainMessage {
+  id             Int              @id @default(autoincrement())
+  conversationId Int
+  role           BrainMessageRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  conversation BrainConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@map("brain_message")
+}
+
+model BrainMemory {
+  id          Int             @id @default(autoincrement())
+  storeId     Int
+  userId      Int?
+  type        BrainMemoryType
+  subjectKey  String
+  content     Json
+  confidence  Float           @default(0.8)
+  validFrom   DateTime        @default(now())
+  expiresAt   DateTime?
+  sourceRunId Int?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  revisions BrainMemoryRevision[]
+
+  @@index([storeId, type, subjectKey])
+  @@index([expiresAt])
+  @@map("brain_memory")
+}
+
+model BrainStoreOperatingTarget {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  periodType        String
+  periodStart       DateTime
+  periodEnd         DateTime
+  revenueTarget     Decimal  @default(0)
+  grossProfitTarget Decimal  @default(0)
+  appointmentTarget Int      @default(0)
+  newCustomerTarget Int      @default(0)
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, periodType, periodStart])
+  @@index([storeId, periodStart, periodEnd])
+  @@index([storeId, status])
+  @@map("brain_store_operating_target")
+}
+
+model BrainMemoryRevision {
+  id              Int      @id @default(autoincrement())
+  memoryId        Int
+  previousMemoryId Int?
+  revisionType    String
+  previousContent Json?
+  nextContent     Json?
+  changedByUserId Int
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  memory BrainMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId, createdAt])
+  @@index([previousMemoryId])
+  @@map("brain_memory_revision")
+}
+
+model BrainOntologyEntity {
+  id         Int      @id @default(autoincrement())
+  domain     String
+  entityKey  String
+  name       String
+  synonyms   Json
+  attributes Json
+  tableMap   Json
+  status     String   @default("active")
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityKey, version])
+  @@index([domain, status])
+  @@map("brain_ontology_entity")
+}
+
+model BrainOntologyRelation {
+  id            Int      @id @default(autoincrement())
+  relationKey   String
+  fromEntityKey String
+  toEntityKey   String
+  name          String
+  joinPath      Json
+  status        String   @default("active")
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([relationKey, version])
+  @@index([fromEntityKey, toEntityKey])
+  @@map("brain_ontology_relation")
+}
+
+model BrainKgNode {
+  id        Int      @id @default(autoincrement())
+  storeId   Int?
+  nodeKey   String
+  entityKey String
+  label     String
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, nodeKey])
+  @@index([entityKey])
+  @@map("brain_kg_node")
+}
+
+model BrainKgEdge {
+  id          Int      @id @default(autoincrement())
+  storeId     Int?
+  edgeKey     String
+  fromNodeKey String
+  toNodeKey   String
+  relationKey String
+  payload     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([storeId, edgeKey])
+  @@index([fromNodeKey, toNodeKey])
+  @@map("brain_kg_edge")
+}
+
+model BrainMetric {
+  id             Int      @id @default(autoincrement())
+  metricKey      String
+  name           String
+  domain         String
+  formula        Json
+  sourceTables   Json
+  defaultFilters Json?
+  permissions    Json
+  description    String
+  status         String   @default("active")
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([metricKey, version])
+  @@index([domain, status])
+  @@map("brain_metric")
+}
+
+model BrainDimension {
+  id           Int      @id @default(autoincrement())
+  dimensionKey String
+  name         String
+  domain       String
+  source       Json
+  permissions  Json
+  status       String   @default("active")
+  version      Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([dimensionKey, version])
+  @@index([domain, status])
+  @@map("brain_dimension")
+}
+
+model BrainSkillRegistry {
+  id           Int            @id @default(autoincrement())
+  skillKey     String
+  name         String
+  type         BrainSkillType
+  inputSchema  Json
+  outputSchema Json
+  permissions  Json
+  riskLevel    BrainRiskLevel @default(low)
+  enabled      Boolean        @default(true)
+  version      Int            @default(1)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([skillKey, version])
+  @@index([type, enabled])
+  @@map("brain_skill_registry")
+}
+
+model BrainAgentProfile {
+  id             Int      @id @default(autoincrement())
+  roleKey        String
+  name           String
+  systemPrompt   String
+  allowedSkills  Json
+  dataScopeRules Json
+  knowledgePack  Json?
+  enabled        Boolean  @default(true)
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([roleKey, version])
+  @@index([enabled])
+  @@map("brain_agent_profile")
+}
+
+model BrainInspectionRule {
+  id            Int            @id @default(autoincrement())
+  ruleKey       String
+  name          String
+  domain        String
+  scheduleCron  String?
+  eventTrigger  String?
+  condition     Json
+  suggestionTpl Json
+  riskLevel     BrainRiskLevel
+  enabled       Boolean        @default(true)
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([ruleKey, version])
+  @@index([domain, enabled])
+  @@map("brain_inspection_rule")
+}
+
+model BrainInspectionRun {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  triggerType  String
+  status       String   @default("running")
+  ruleCount    Int      @default(0)
+  findingCount Int      @default(0)
+  error        Json?
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  findings BrainInspectionFinding[]
+
+  @@index([storeId, startedAt])
+  @@index([status, startedAt])
+  @@map("brain_inspection_run")
+}
+
+model BrainInspectionFinding {
+  id             Int            @id @default(autoincrement())
+  runId          Int?
+  storeId        Int
+  ruleKey        String
+  ruleVersion    Int
+  domain         String
+  objectType     String
+  objectId       String
+  severity       BrainRiskLevel
+  title          String
+  evidence       Json
+  suggestion     Json
+  dedupeKey      String
+  status         String         @default("open")
+  disposition    String?
+  dispositionNote String?
+  feedback       String?
+  firstDetectedAt DateTime      @default(now())
+  lastDetectedAt  DateTime      @default(now())
+  resolvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  run BrainInspectionRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, dedupeKey])
+  @@index([storeId, status, severity])
+  @@index([ruleKey, status])
+  @@index([runId])
+  @@map("brain_inspection_finding")
+}
+
+model BrainRun {
+  id             Int            @id @default(autoincrement())
+  conversationId Int?
+  storeId        Int
+  userId         Int
+  status         BrainRunStatus @default(queued)
+  input          Json
+  output         Json?
+  cost           Json?
+  latencyMs      Int?
+  error          Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  conversation BrainConversation? @relation(fields: [conversationId], references: [id])
+  steps        BrainRunStep[]
+
+  @@index([storeId, userId, createdAt])
+  @@index([status])
+  @@map("brain_run")
+}
+
+model BrainRunStep {
+  id        Int      @id @default(autoincrement())
+  runId     Int
+  stepKey   String
+  layer     String
+  input     Json?
+  output    Json?
+  status    String
+  latencyMs Int?
+  error     Json?
+  createdAt DateTime @default(now())
+
+  run BrainRun @relation(fields: [runId], references: [id])
+
+  @@index([runId, createdAt])
+  @@map("brain_run_step")
+}
+
+model BrainEvalCase {
+  id            Int      @id @default(autoincrement())
+  caseKey       String   @unique
+  roleKey       String?
+  scenario      String
+  input         Json
+  expected      Json
+  assertionType String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([scenario, enabled])
+  @@map("brain_eval_case")
+}
+
+model BrainEvalRun {
+  id             Int      @id @default(autoincrement())
+  releaseId      Int?
+  storeId        Int?
+  roleKey        String?
+  modelVersion   String?
+  status         String
+  caseCount      Int      @default(0)
+  passedCount    Int      @default(0)
+  failedCount    Int      @default(0)
+  summary        Json
+  results        Json
+  error          Json?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  evalResults BrainEvalResult[]
+
+  @@index([releaseId, createdAt])
+  @@index([storeId, status, createdAt])
+  @@map("brain_eval_run")
+}
+
+model BrainEvalResult {
+  id                 Int      @id @default(autoincrement())
+  evalRunId          Int
+  caseId             Int?
+  caseKey            String
+  roleKey            String?
+  question           String
+  answer             String
+  citations          Json
+  deterministicGrade Json
+  deterministicPassed Boolean
+  llmJudge           Json?
+  latencyMs          Int?
+  failureCluster     String?
+  error              Json?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  evalRun BrainEvalRun @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+
+  @@unique([evalRunId, caseKey])
+  @@index([evalRunId, deterministicPassed])
+  @@index([failureCluster])
+  @@map("brain_eval_result")
+}
+
+model BrainResourceVersion {
+  id               Int      @id @default(autoincrement())
+  resourceType     String
+  resourceKey      String
+  version          Int
+  status           String   @default("draft")
+  snapshot         Json
+  checksum         String
+  sourceResourceId Int?
+  createdBy        Int
+  createdAt        DateTime @default(now())
+  activatedAt      DateTime?
+  archivedAt       DateTime?
+
+  releaseItems BrainReleaseItem[]
+
+  @@unique([resourceType, resourceKey, version])
+  @@index([resourceType, status])
+  @@index([resourceKey, createdAt])
+  @@map("brain_resource_version")
+}
+
+model BrainRelease {
+  id                Int                @id @default(autoincrement())
+  releaseKey        String             @unique
+  scope             String
+  versionMap        Json
+  rollout           Json
+  status            BrainReleaseStatus @default(draft)
+  createdBy         Int
+  previousReleaseId Int?
+  activatedAt       DateTime?
+  rolledBackAt      DateTime?
+  failureReason     String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  items BrainReleaseItem[]
+
+  @@index([scope, status])
+  @@map("brain_release")
+}
+
+model BrainReleaseItem {
+  id                Int      @id @default(autoincrement())
+  releaseId         Int
+  resourceVersionId Int
+  resourceType      String
+  resourceKey       String
+  version           Int
+  snapshot          Json
+  createdAt         DateTime @default(now())
+
+  release         BrainRelease         @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  resourceVersion BrainResourceVersion @relation(fields: [resourceVersionId], references: [id])
+
+  @@unique([releaseId, resourceType, resourceKey])
+  @@index([resourceVersionId])
+  @@map("brain_release_item")
+}
+
+model BrainFeedback {
+  id         Int      @id @default(autoincrement())
+  runId      Int
+  userId     Int
+  storeId    Int
+  rating     String
+  correction Json?
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([storeId, status, createdAt])
+  @@map("brain_feedback")
+}
+
+model BrainActionConfirmation {
+  id          Int            @id @default(autoincrement())
+  actionId    String         @unique
+  runId       Int
+  userId      Int
+  storeId     Int
+  skillKey    String
+  riskLevel   BrainRiskLevel
+  preview     Json
+  payload     Json
+  status      String         @default("pending")
+  confirmedAt DateTime?
+  executedAt  DateTime?
+  result      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([runId, status])
+  @@map("brain_action_confirmation")
+}
+
+model BrainActionExecution {
+  id                 Int            @id @default(autoincrement())
+  confirmationId     Int
+  actionId           String
+  runId              Int
+  storeId            Int
+  userId             Int
+  capabilityKey      String
+  idempotencyKey     String
+  riskLevel          BrainRiskLevel
+  status             String         @default("queued")
+  requestPayload     Json
+  previewPayload     Json?
+  receiptPayload     Json?
+  businessObjectType String?
+  businessObjectId   String?
+  errorCode          String?
+  errorMessage       String?
+  startedAt          DateTime       @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([storeId, capabilityKey, idempotencyKey])
+  @@index([confirmationId])
+  @@index([actionId])
+  @@index([status, createdAt])
+  @@map("brain_action_execution")
 }

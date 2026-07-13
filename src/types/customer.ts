@@ -264,6 +264,13 @@ export interface CustomerProfilePredictionRow {
   ltvTier: string;
   ltv12m: number;
   reasons: string[];
+  lifecycleStage?: string;
+  lifecycleStageLabel?: string;
+  opportunityTypes?: string[];
+  opportunityTypeLabels?: string[];
+  serviceCycleSummary?: Array<{ projectId?: number | null; nextDueAt?: string | null; cycleDays: number }>;
+  fulfillmentRiskLabels?: string[];
+  topLifecycleEvidence?: string[];
 }
 
 export interface CustomerProfileAnalytics {
@@ -334,6 +341,141 @@ export interface CustomerProfilePrediction {
   updatedAt: string;
 }
 
+export interface CustomerLifecycleSnapshot {
+  id: number;
+  storeId?: number;
+  customerId?: number;
+  predictionRunId?: number | null;
+  predictionSnapshotId?: number | null;
+  lifecycleStage: string;
+  lifecycleStageLabel: string;
+  ltvTier?: string | null;
+  churnRiskLevel?: string | null;
+  touchFatigueScore: number;
+  assetSummary: Record<string, unknown>;
+  servicePreference: Record<string, unknown>;
+  evidence: string[];
+  computedAt: string;
+}
+
+export interface CustomerOpportunity {
+  id: number;
+  storeId?: number;
+  customerId: number;
+  opportunityType: string;
+  opportunityTypeLabel: string;
+  priority: 'P0' | 'P1' | 'P2' | string;
+  status: string;
+  score: number;
+  recommendedExecutionMode: string;
+  recommendedChannels: Array<Record<string, unknown>>;
+  recommendedOffer: Record<string, unknown> | null;
+  recommendedItems: Array<Record<string, unknown>>;
+  evidence: string[];
+  fulfillment?: CustomerOpportunityFulfillmentCheck | null;
+  attributionEventCount?: number;
+  attributionEvents?: LifecycleAttributionEvent[];
+  expiresAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerServiceCycleState {
+  id: number;
+  storeId?: number;
+  customerId?: number;
+  projectId?: number | null;
+  lastServiceAt?: string | null;
+  cycleDays: number;
+  nextDueAt?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  evidence: string[];
+  updatedAt: string;
+}
+
+export interface CustomerOpportunityFulfillmentCheck {
+  id: number;
+  opportunityId: number;
+  inventoryReady: boolean;
+  capacityReady: boolean;
+  requiredProducts: Array<Record<string, unknown>>;
+  capacitySnapshot: Record<string, unknown>;
+  risks: Array<Record<string, unknown> | string>;
+  checkedAt: string;
+}
+
+export interface LifecycleAttributionEvent {
+  id: number;
+  storeId?: number;
+  customerId?: number;
+  opportunityId?: number | null;
+  recommendationKey?: string | null;
+  eventType: string;
+  sourceType: string;
+  sourceId?: string | null;
+  touchId?: number | null;
+  orderId?: number | null;
+  reservationId?: number | null;
+  stockMovementId?: number | null;
+  evidence: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface CustomerLifecycleRuleVersion {
+  id: number;
+  storeId?: number | null;
+  ruleType: string;
+  version: number;
+  status: 'draft' | 'active' | 'archived' | 'rolled_back' | string;
+  rolloutRatio: number;
+  ruleJson: Record<string, unknown>;
+  publishedAt?: string | null;
+  publishedBy?: number | null;
+  rollbackFromId?: number | null;
+  changeLog?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerLifecycleQualitySnapshot {
+  id: number;
+  storeId: number;
+  fieldCoverageRate: number;
+  ruleHitRate: number;
+  attributionCompletenessRate: number;
+  fulfillmentReadyRate: number;
+  metricsJson: Record<string, unknown>;
+  computedAt: string;
+}
+
+export interface LifecycleBusinessPlan {
+  id: number;
+  storeId: number;
+  planPeriod: string;
+  title: string;
+  status: 'draft' | 'waiting_approval' | 'approved' | 'rejected' | 'executed' | string;
+  goalsJson: Record<string, unknown>;
+  actionsJson: Array<Record<string, unknown>>;
+  evidenceJson: Array<string> | Record<string, unknown>;
+  approvalJson?: Record<string, unknown> | null;
+  resultJson?: Record<string, unknown> | null;
+  createdBy?: number | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  executedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerLifecycleContext {
+  snapshot: CustomerLifecycleSnapshot | null;
+  opportunities: CustomerOpportunity[];
+  events: Array<Record<string, unknown>>;
+  serviceCycles: CustomerServiceCycleState[];
+  attributionEvents: LifecycleAttributionEvent[];
+}
+
 export interface CustomerProfile {
   customerId: number;
   storeId: number;
@@ -384,6 +526,7 @@ export interface CustomerProfile {
     usedUpCards: Array<Record<string, unknown>>;
   };
   prediction: CustomerProfilePrediction | null;
+  lifecycle: CustomerLifecycleContext | null;
   touchHistory: Array<Record<string, unknown>>;
   recommendationEvents: Array<Record<string, unknown>>;
 }

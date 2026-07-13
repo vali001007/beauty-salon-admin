@@ -16,6 +16,7 @@ import {
   CustomerAppCancelReservationDto,
   CustomerAppCreateReservationDto,
   CustomerAppEventDto,
+  CustomerAppH5GuestDto,
   CustomerAppHomeQueryDto,
   CustomerAppPaginationDto,
   CustomerAppProjectQueryDto,
@@ -33,6 +34,12 @@ export class CustomerAppController {
   @ApiOperation({ summary: 'Ami Glow 微信登录' })
   wechatLogin(@Body() dto: CustomerAppWechatLoginDto) {
     return this.customerAppService.wechatLogin(dto);
+  }
+
+  @Post('auth/h5-guest')
+  @ApiOperation({ summary: 'Ami Glow H5 游客登录' })
+  h5Guest(@Body() dto: CustomerAppH5GuestDto) {
+    return this.customerAppService.h5Guest(dto);
   }
 
   @Post('auth/bind-phone')
@@ -185,7 +192,7 @@ export class CustomerAppController {
   claimPromotion(
     @CurrentCustomerAppUser() user: CustomerAppTokenPayload,
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: { storeId?: number; channel?: string; sessionId?: string },
+    @Body() dto: { storeId?: number; channel?: string; source?: string; sessionId?: string },
   ) {
     return this.customerAppService.claimPromotion(user, id, dto);
   }

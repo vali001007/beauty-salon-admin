@@ -5,6 +5,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateCommissionRuleAssignmentDto, CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
 import { UpdateCommissionRuleDto } from './dto/update-commission-rule.dto.js';
 import { UpdateCommissionRuleAssignmentDto } from './dto/update-commission-rule-assignment.dto.js';
+import { FinanceMetricsService } from '../finance-metrics/finance-metrics.service.js';
 
 type PrismaLike = PrismaService | any;
 
@@ -83,7 +84,7 @@ const PREPAID_ORDER_ITEM_TYPES = new Set(['recharge', 'card', 'open']);
 export class CommissionService {
   private readonly logger = new Logger(CommissionService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly financeMetricsService?: FinanceMetricsService) {}
 
   private db(client: PrismaLike = this.prisma): PrismaLike {
     return client as PrismaLike;
@@ -338,10 +339,14 @@ export class CommissionService {
   private serializeDailySettlement(settlement: any) {
     if (!settlement) return settlement;
     const cardUsageRevenue = this.toNumber(settlement.cardUsageRevenue ?? settlement._cardUsageRevenue);
-    const totalRevenue = Math.round((this.toNumber(settlement.totalRevenue) + cardUsageRevenue) * 100) / 100;
-    const materialCost = this.toNumber(settlement.materialCost);
+    const isUnifiedMetric = settlement.summary?.metricVersion === 'finance_metrics_v1';
+    const totalRevenue = isUnifiedMetric
+      ? this.toNumber(settlement.totalRevenue)
+      : Math.round((this.toNumber(settlement.totalRevenue) + cardUsageRevenue) * 100) / 100;
+    const materialCost = this.toNumber(settlement.summary?.materialCost ?? settlement.materialCost);
+    const productCost = this.toNumber(settlement.summary?.productCost);
     const commissionTotal = this.toNumber(settlement.commissionTotal);
-    const grossProfit = Math.round((totalRevenue - materialCost - commissionTotal) * 100) / 100;
+    const grossProfit = Math.round((totalRevenue - materialCost - productCost - commissionTotal) * 100) / 100;
     const grossMargin = totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 10000) / 100 : 0;
     const orderCount = this.toNumber(settlement.orderCount);
     return {
@@ -354,16 +359,18 @@ export class CommissionService {
       cardRevenue: this.toNumber(settlement.cardRevenue),
       balanceRevenue: this.toNumber(settlement.balanceRevenue),
       rechargeIncome: this.toNumber(settlement.rechargeIncome),
-      prepaidIncome: this.toNumber(settlement.prepaidIncome ?? settlement._prepaidIncome ?? settlement.rechargeIncome),
+      prepaidIncome: this.toNumber(settlement.summary?.prepaidAmount ?? settlement.prepaidIncome ?? settlement._prepaidIncome ?? settlement.rechargeIncome),
       refundAmount: this.toNumber(settlement.refundAmount),
       avgTransaction: orderCount > 0 ? Math.round((totalRevenue / orderCount) * 100) / 100 : this.toNumber(settlement.avgTransaction),
       materialCost,
       grossProfit,
       grossMargin,
       commissionTotal,
-      cardUsageRevenue,
+      productCost,
+      cardUsageRevenue: this.toNumber(settlement.summary?.cardUsageRecognized ?? cardUsageRevenue),
       memberBalanceCashDeduct: this.toNumber(settlement.summary?.memberBalanceCashDeduct),
       memberBalanceGiftDeduct: this.toNumber(settlement.summary?.memberBalanceGiftDeduct),
+      dataQuality: settlement.summary?.dataQuality,
       storeName: settlement.store?.name,
     };
   }
@@ -893,7 +900,7 @@ export class CommissionService {
         include: { store: { select: { id: true, name: true } } },
         orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
       }),
-      this.prisma.supplierSettlement.findMany({
+      this.prisma.supplySettlement.findMany({
         where: settleMonthWhere,
         include: { supplier: { select: { id: true, name: true } } },
         orderBy: [{ settleMonth: 'asc' }, { supplierId: 'asc' }],
@@ -2144,7 +2151,7 @@ export class CommissionService {
     }
     if (storeId > 0) where.order = { storeId };
 
-    const [items, total] = await Promise.all([
+    const [items, total, aggregate] = await Promise.all([
       this.prisma.paymentRecord.findMany({
         where,
         include: {
@@ -2166,9 +2173,20 @@ export class CommissionService {
         orderBy: { paidAt: 'desc' },
       }),
       this.prisma.paymentRecord.count({ where }),
+      this.prisma.paymentRecord.aggregate({ where, _sum: { amount: true } }),
     ]);
     const normalizedItems = items.map((item: any) => this.serializePaymentRecord(item));
-    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
+    return {
+      items: normalizedItems,
+      data: normalizedItems,
+      total,
+      page,
+      pageSize,
+      summary: {
+        paymentAmount: this.toNumber(aggregate?._sum?.amount),
+        paymentCount: total,
+      },
+    };
   }
 
   async getRefundRecords(query: {
@@ -2195,7 +2213,7 @@ export class CommissionService {
     if (query.method) orderWhere.payMethod = query.method;
     if (Object.keys(orderWhere).length) where.order = orderWhere;
 
-    const [items, total] = await Promise.all([
+    const [items, total, aggregate] = await Promise.all([
       this.prisma.refundRecord.findMany({
         where,
         include: {
@@ -2216,9 +2234,20 @@ export class CommissionService {
         orderBy: { refundedAt: 'desc' },
       }),
       this.prisma.refundRecord.count({ where }),
+      this.prisma.refundRecord.aggregate({ where, _sum: { amount: true } }),
     ]);
     const normalizedItems = items.map((item: any) => this.serializeRefundRecord(item));
-    return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
+    return {
+      items: normalizedItems,
+      data: normalizedItems,
+      total,
+      page,
+      pageSize,
+      summary: {
+        refundAmount: this.toNumber(aggregate?._sum?.amount),
+        refundCount: total,
+      },
+    };
   }
 
   async getReconciliationExceptions(query: {
@@ -2257,7 +2286,20 @@ export class CommissionService {
           refundedAt: { gte: rangeStart, lt: rangeEnd },
           order: { storeId },
         },
-        include: { order: { select: { id: true, orderNo: true, customerName: true, storeId: true } } },
+        include: {
+          items: { include: { stockMovements: true } },
+          order: {
+            select: {
+              id: true,
+              orderNo: true,
+              customerName: true,
+              storeId: true,
+              netAmount: true,
+              status: true,
+              refundRecords: { where: { status: { in: ['success', 'completed', 'refunded'] } }, select: { amount: true } },
+            },
+          },
+        },
       }),
       this.db().cashierShift.findMany({
         where: {
@@ -2345,20 +2387,30 @@ export class CommissionService {
         });
       }
 
-      const settlementNet = Math.round(this.toNumber(settlement.totalRevenue) * 100) / 100;
-      const amountDiff = Math.round((settlementNet - expectedNet) * 100) / 100;
+      const settlementSummary = settlement.summary && typeof settlement.summary === 'object' ? settlement.summary : {};
+      const settlementPayment = Math.round(
+        this.toNumber(
+          settlementSummary.total ??
+            (this.toNumber(settlement.cashRevenue) +
+              this.toNumber(settlement.wechatRevenue) +
+              this.toNumber(settlement.alipayRevenue) +
+              this.toNumber(settlement.cardRevenue) +
+              this.toNumber(settlement.balanceRevenue)),
+        ) * 100,
+      ) / 100;
+      const paymentDiff = Math.round((settlementPayment - paymentAmount) * 100) / 100;
       const settlementRefund = Math.round(this.toNumber(settlement.refundAmount) * 100) / 100;
       const refundDiff = Math.round((settlementRefund - refundAmount) * 100) / 100;
-      if (Math.abs(amountDiff) >= 0.01 || Math.abs(refundDiff) >= 0.01) {
+      if (Math.abs(paymentDiff) >= 0.01 || Math.abs(refundDiff) >= 0.01) {
         pushException({
           date,
           type: 'daily_amount_mismatch',
           severity: 'high',
           title: '日结金额与支付/退款流水不一致',
-          detail: `日结净收 ${settlementNet.toFixed(2)}，流水重算净收 ${expectedNet.toFixed(2)}；日结退款 ${settlementRefund.toFixed(2)}，退款流水 ${refundAmount.toFixed(2)}。`,
+          detail: `日结支付 ${settlementPayment.toFixed(2)}，成功支付流水 ${paymentAmount.toFixed(2)}；日结退款 ${settlementRefund.toFixed(2)}，成功退款流水 ${refundAmount.toFixed(2)}。营业收入与预收资金不参与支付现金流勾稽。`,
           actionTarget: 'daily',
           sourceId: settlement.id,
-          amountDiff,
+          amountDiff: Math.abs(paymentDiff) >= 0.01 ? paymentDiff : refundDiff,
         });
       }
 
@@ -2373,6 +2425,40 @@ export class CommissionService {
           actionTarget: 'refunds',
           sourceId: latestRefund.id,
         });
+      }
+    }
+
+    const checkedOrders = new Set<number>();
+    for (const refund of refunds) {
+      const date = this.normalizeBusinessDateText(refund.refundedAt ?? refund.createdAt);
+      const refundItems = Array.isArray(refund.items) ? refund.items : [];
+      if (!refundItems.length) {
+        pushException({
+          date,
+          type: 'refund_without_items',
+          severity: 'high',
+          title: '退款缺少明细',
+          detail: `退款 ${refund.refundNo ?? refund.id} 无退款明细，无法核对退款数量和库存动作。`,
+          actionTarget: 'refunds',
+          sourceId: refund.id,
+        });
+      }
+      if (refund.refundMode === 'return_and_refund' && refundItems.some((item: any) => item.inventoryAction !== 'none' && !(item.stockMovements ?? []).length)) {
+        pushException({ date, type: 'return_refund_without_stock_movement', severity: 'high', title: '退货缺少库存流水', detail: `退款 ${refund.refundNo ?? refund.id} 选择退款退货，但未形成完整反向库存流水。`, actionTarget: 'refunds', sourceId: refund.id });
+      }
+      if (refund.refundMode === 'refund_only' && refundItems.some((item: any) => (item.stockMovements ?? []).length)) {
+        pushException({ date, type: 'refund_only_with_stock_movement', severity: 'high', title: '仅退款误写库存', detail: `退款 ${refund.refundNo ?? refund.id} 为仅退款，但存在反向库存流水。`, actionTarget: 'refunds', sourceId: refund.id });
+      }
+
+      const order = refund.order;
+      if (!order?.id || checkedOrders.has(order.id)) continue;
+      checkedOrders.add(order.id);
+      const refundedAmount = (order.refundRecords ?? []).reduce((sum: number, record: any) => sum + this.toNumber(record.amount), 0);
+      const netAmount = this.toNumber(order.netAmount);
+      if (netAmount > 0 && refundedAmount - netAmount >= 0.01) {
+        pushException({ date, type: 'over_refunded', severity: 'high', title: '订单累计退款超额', detail: `订单 ${order.orderNo ?? order.id} 实收 ${netAmount.toFixed(2)}，累计成功退款 ${refundedAmount.toFixed(2)}。`, actionTarget: 'refunds', sourceId: order.id, amountDiff: Math.round((refundedAmount - netAmount) * 100) / 100 });
+      } else if (order.status === 'refunded' && netAmount - refundedAmount >= 0.01) {
+        pushException({ date, type: 'partial_refund_marked_full', severity: 'high', title: '部分退款被标记为全退', detail: `订单 ${order.orderNo ?? order.id} 尚有 ${(netAmount - refundedAmount).toFixed(2)} 未退，但状态已是 refunded。`, actionTarget: 'refunds', sourceId: order.id });
       }
     }
 
@@ -2401,9 +2487,84 @@ export class CommissionService {
     return { items, data: items, total: sorted.length, page, pageSize, summary: { high: sorted.filter((item) => item.severity === 'high').length, medium: sorted.filter((item) => item.severity === 'medium').length, low: sorted.filter((item) => item.severity === 'low').length } };
   }
 
+  private dailyMetricSummary(metric: any) {
+    return {
+      metricVersion: 'finance_metrics_v1',
+      cash: this.toNumber(metric.paymentBreakdown?.cash),
+      wechat: this.toNumber(metric.paymentBreakdown?.wechat),
+      alipay: this.toNumber(metric.paymentBreakdown?.alipay),
+      card: this.toNumber(metric.paymentBreakdown?.card),
+      total: this.toNumber(metric.paymentBreakdown?.total ?? metric.cashIncome),
+      member_balance: this.toNumber(metric.memberBalanceDeductTotal),
+      memberBalanceCashDeduct: this.toNumber(metric.memberBalanceDeductCash),
+      memberBalanceGiftDeduct: this.toNumber(metric.memberBalanceDeductGift),
+      prepaidAmount: this.toNumber(metric.prepaidAmount),
+      cardUsageRecognized: this.toNumber(metric.cardUsageRecognized),
+      refund: this.toNumber(metric.refundAmount),
+      materialCost: this.toNumber(metric.materialCost),
+      productCost: this.toNumber(metric.productCost),
+      commissionCost: this.toNumber(metric.commissionCost),
+      dataQuality: metric.dataQuality,
+    };
+  }
+
+  private async upsertDailySettlementFromMetric(storeId: number, settleDate: Date, metric: any) {
+    const summary = this.dailyMetricSummary(metric);
+    const materialCostTotal = this.toNumber(metric.materialCost) + this.toNumber(metric.productCost);
+    const grossMarginPercent = this.toNumber(metric.grossMargin) * 100;
+    const settlement = await this.db().dailySettlement.upsert({
+      where: { storeId_settleDate: { storeId, settleDate } },
+      create: {
+        storeId,
+        settleDate,
+        totalRevenue: this.toNumber(metric.operatingRevenue),
+        cashRevenue: this.toNumber(metric.paymentBreakdown?.cash),
+        wechatRevenue: this.toNumber(metric.paymentBreakdown?.wechat),
+        alipayRevenue: this.toNumber(metric.paymentBreakdown?.alipay),
+        cardRevenue: this.toNumber(metric.paymentBreakdown?.card),
+        balanceRevenue: this.toNumber(metric.memberBalanceDeductTotal),
+        rechargeIncome: this.toNumber(metric.prepaidAmount),
+        refundAmount: this.toNumber(metric.refundAmount),
+        orderCount: this.toNumber(metric.orderCount),
+        customerCount: this.toNumber(metric.customerCount),
+        avgTransaction: this.toNumber(metric.avgTicket),
+        materialCost: materialCostTotal,
+        grossProfit: this.toNumber(metric.grossProfit),
+        grossMargin: grossMarginPercent,
+        commissionTotal: this.toNumber(metric.commissionCost),
+        status: 'draft',
+        summary,
+      },
+      update: {
+        totalRevenue: this.toNumber(metric.operatingRevenue),
+        cashRevenue: this.toNumber(metric.paymentBreakdown?.cash),
+        wechatRevenue: this.toNumber(metric.paymentBreakdown?.wechat),
+        alipayRevenue: this.toNumber(metric.paymentBreakdown?.alipay),
+        cardRevenue: this.toNumber(metric.paymentBreakdown?.card),
+        balanceRevenue: this.toNumber(metric.memberBalanceDeductTotal),
+        rechargeIncome: this.toNumber(metric.prepaidAmount),
+        refundAmount: this.toNumber(metric.refundAmount),
+        orderCount: this.toNumber(metric.orderCount),
+        customerCount: this.toNumber(metric.customerCount),
+        avgTransaction: this.toNumber(metric.avgTicket),
+        materialCost: materialCostTotal,
+        grossProfit: this.toNumber(metric.grossProfit),
+        grossMargin: grossMarginPercent,
+        commissionTotal: this.toNumber(metric.commissionCost),
+        summary,
+      },
+      include: { store: { select: { id: true, name: true } } },
+    });
+    return this.serializeDailySettlement(settlement);
+  }
+
   async generateDailySettlement(storeIdInput: number | string | undefined, dateInput: string | Date) {
     const storeId = this.asStoreId(storeIdInput);
     const { start: dayStart, end: dayEnd, settleDate } = this.getBusinessDayRange(dateInput);
+    if (this.financeMetricsService) {
+      const metric = await this.financeMetricsService.getDailyMetricForStoreDate(storeId, settleDate);
+      return this.upsertDailySettlementFromMetric(storeId, settleDate, metric);
+    }
 
     const [orders, refunds] = await Promise.all([
       this.prisma.productOrder.findMany({

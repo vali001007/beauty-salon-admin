@@ -1,0 +1,117 @@
+{
+  "checkedAt": "2026-07-03T00:33:22.247Z",
+  "store": {
+    "id": 6,
+    "name": "Ami 全量演示门店"
+  },
+  "flowKey": "supply-platform-mvp-flow",
+  "complete": true,
+  "statusCounts": {
+    "pass": 10,
+    "fail": 0,
+    "warning": 0
+  },
+  "sample": {
+    "product": {
+      "id": 82,
+      "name": "玻尿酸保湿精华",
+      "sku": "AMI-DEMO-FULL-SKU-001",
+      "currentStock": 133,
+      "safetyStock": 143,
+      "specUnit": "ml",
+      "packageUnit": "瓶"
+    },
+    "supplierId": 1,
+    "supplySkuId": 1,
+    "activeQuoteId": 1,
+    "mappingId": 1,
+    "procurementOrderId": 1,
+    "procurementOrderNo": "SP-MVP-1783038772440",
+    "orderItemId": 1,
+    "shipmentItemIds": [
+      1
+    ],
+    "stockMovementIds": [
+      553
+    ],
+    "settlementId": 1
+  },
+  "adoption": {
+    "total": 9,
+    "invalid": 0,
+    "invalidIds": []
+  },
+  "bomIssues": [],
+  "gates": [
+    {
+      "id": "1",
+      "name": "采用记录无失效指向",
+      "status": "pass",
+      "evidence": "采用记录 9 条；失效 0 条；样本 -",
+      "nextAction": "授权后执行 industry-chain:repair 清理失效 localProductId。"
+    },
+    {
+      "id": "2",
+      "name": "BOM 单位已按规格单位修复",
+      "status": "pass",
+      "evidence": "门店 BOM 单位异常 0 条；样本 -",
+      "nextAction": "授权后执行 product-unit:repair 修复 BOM 单位。"
+    },
+    {
+      "id": "3",
+      "name": "样本商品存在",
+      "status": "pass",
+      "evidence": "玻尿酸保湿精华 / AMI-DEMO-FULL-SKU-001 / ID 82",
+      "nextAction": "检查门店是否有可用于供应链 MVP 的本地商品。"
+    },
+    {
+      "id": "4",
+      "name": "样本供应商/SKU/报价可采购",
+      "status": "pass",
+      "evidence": "supplier=1；supplySku=1；activeQuote=1",
+      "nextAction": "授权后由 supply-platform:mvp-flow 创建或修正供应商、供应 SKU 和有效报价。"
+    },
+    {
+      "id": "5",
+      "name": "样本商品有首选供应链映射",
+      "status": "pass",
+      "evidence": "mapping=1；product=82；supplySku=1",
+      "nextAction": "授权后由 supply-platform:mvp-flow 创建或修正首选映射。"
+    },
+    {
+      "id": "6",
+      "name": "样本平台采购单与明细匹配",
+      "status": "pass",
+      "evidence": "order=SP-MVP-1783038772440 / received；orderItem=1",
+      "nextAction": "授权后创建补货/MVP 来源采购单，并确保明细匹配样本商品和供应 SKU。"
+    },
+    {
+      "id": "7",
+      "name": "样本发货与收货完成",
+      "status": "pass",
+      "evidence": "orderStatus=received；shipmentItems=1；receivedQty=5",
+      "nextAction": "授权后执行供应商发货和门店收货入库。"
+    },
+    {
+      "id": "8",
+      "name": "样本入库批次与库存流水可追溯",
+      "status": "pass",
+      "evidence": "purchase_inbound=1 条；入库数量=5；批次=B-MVP-1",
+      "nextAction": "授权后收货写入 StockBatch、Product.currentStock 和 StockMovement。"
+    },
+    {
+      "id": "9",
+      "name": "样本低库存路由可复验",
+      "status": "pass",
+      "evidence": "currentStock=133；safetyStock=143；低库存样本=true",
+      "nextAction": "授权 apply 后将安全库存调到收货后库存之上，形成低库存路由样本。"
+    },
+    {
+      "id": "10",
+      "name": "样本供应商结算可追溯",
+      "status": "pass",
+      "evidence": "settlement=1；settleMonth=2026-07；status=generated",
+      "nextAction": "授权后为样本供应商生成当月结算记录。"
+    }
+  ]
+}

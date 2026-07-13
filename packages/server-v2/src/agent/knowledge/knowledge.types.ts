@@ -7,6 +7,7 @@ export type BusinessObjectType =
   | 'InventoryProduct'
   | 'Project'
   | 'Beautician'
+  | 'StaffEfficiency'
   | 'Order'
   | 'MemberCard'
   | 'Reservation'
@@ -74,6 +75,12 @@ export type BusinessObjectDefinition = {
   queryableFields: string[];
   displayFields: Record<string, string>;
   supportedActions: BusinessActionIntent[];
+  evidenceSourceModels?: string[];
+  evidenceOnly?: boolean;
+  internalOnly?: boolean;
+  sensitive?: boolean;
+  defaultVisible?: boolean;
+  governanceNote?: string;
 };
 
 export type AgentCapabilityDefinition = {

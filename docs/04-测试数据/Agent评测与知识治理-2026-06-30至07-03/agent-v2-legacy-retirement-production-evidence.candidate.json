@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-07-06 06:43:52 Asia/Shanghai",
+  "source": {
+    "environment": "production",
+    "window": "2026-07-06 10:00:00 Asia/Shanghai ~ 2026-07-13 10:00:00 Asia/Shanghai",
+    "exportedBy": "agent-governance-observability-job"
+  },
+  "shadow": {
+    "observedDays": 1,
+    "totalRuns": 3,
+    "shadowRuns": 1,
+    "kgLlmPreferredRuns": 1,
+    "kgLlmOnlyRuns": 0,
+    "majorRegressionCount": 0,
+    "highRiskAutoExecutionCount": 0,
+    "notes": "由 AgentRun / AgentRunAuditDetail / AgentToolCall 导出聚合生成；写入正式证据前必须复核真实生产窗口。"
+  },
+  "usefulness": {
+    "relativeToLegacy": "equal",
+    "sampleCount": 3,
+    "kgHelpfulRate": 1,
+    "legacyHelpfulRate": 1,
+    "notes": "有用率按 rating>=4 或 adopted=true 计为 helpful；KG 与 legacy 都需要真实反馈样本才可证明不低于旧链路。"
+  },
+  "llmObservability": {
+    "enabled": true,
+    "latencyP99Ms": 610,
+    "failureRate": 1,
+    "costObserved": true,
+    "failureSamplesCaptured": true,
+    "notes": "LLM 观测来自 audit detail 的 llmPrompt/llmResponse/cost/latency trace；0ms 表示没有可用样本。"
+  },
+  "rollback": {
+    "verified": false,
+    "lastVerifiedAt": null,
+    "method": null,
+    "notes": "示例文件不代表真实回滚验证。"
+  }
+}

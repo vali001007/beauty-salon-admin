@@ -30,7 +30,10 @@ export default defineConfig({
   ],
   envDir: rootDir,
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
+      react: path.resolve(rootDir, 'node_modules/react'),
+      'react-dom': path.resolve(rootDir, 'node_modules/react-dom'),
       '@': path.resolve(rootDir, 'src'),
       '@aura': path.resolve(__dirname, './src'),
       '@ami/agent-core': path.resolve(rootDir, 'packages/agent-core/index.ts'),

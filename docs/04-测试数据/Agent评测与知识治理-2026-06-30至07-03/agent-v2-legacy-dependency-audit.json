@@ -1,0 +1,163 @@
+{
+  "generatedAt": "2026-07-06 07:51:32 Asia/Shanghai",
+  "summary": {
+    "pass": true,
+    "gateCount": 9,
+    "blockerCount": 0,
+    "legacyRegexPredicateCount": 33,
+    "maxAllowedLegacyRegexPredicateCount": 33,
+    "productionReferenceCount": 3,
+    "recommendation": "旧正则依赖边界已完成本地审计：保留为 legacy/shadow/kg_llm_preferred 回退和退役前对照，不作为 kg_llm_only 或 legacy_retired 正式选择路径。旧正则仍不可删除，需等待生产证据。"
+  },
+  "source": {
+    "runtime": "packages/server-v2/src/agent-v2/agent-v2-runtime.service.ts",
+    "runtimeSpec": "packages/server-v2/src/agent-v2/agent-v2-runtime.service.spec.ts",
+    "module": "packages/server-v2/src/agent-v2/agent-v2.module.ts",
+    "legacyDecision": "packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.ts",
+    "evalGateReport": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.json",
+    "diffAttributionReport": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.json",
+    "retirementPreflight": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-preflight.json"
+  },
+  "legacyRegexPredicates": [
+    "isCardFreeVsPaidBehaviorQuestion",
+    "isCardInactiveCustomerQuestion",
+    "isCardPackageOrderQuestion",
+    "isCardPackageSalesMetricQuestion",
+    "isCardPackageStatusQuestion",
+    "isCardUsageQuestion",
+    "isCashierPaymentQuestion",
+    "isCommissionCostOptimizationQuestion",
+    "isCouponRedemptionMetricQuestion",
+    "isCustomerConsumptionQuestion",
+    "isCustomerCouponStatusQuestion",
+    "isDailySettlementQuestion",
+    "isDiscountPermissionRiskQuestion",
+    "isExpiringRiskQuestion",
+    "isFinanceRiskDiagnosticsQuestion",
+    "isInventoryOperationDraft",
+    "isMemberCardOrderQuestion",
+    "isMultiDomainSummaryQuestion",
+    "isNavigationCardUsageQuestion",
+    "isNavigationCashierQuestion",
+    "isOrderDetailLookupQuestion",
+    "isOverallGrossMarginMetricQuestion",
+    "isPaymentChannelFeeMetricQuestion",
+    "isPaymentMethodMetricQuestion",
+    "isProductGrossProfitMetricQuestion",
+    "isProductOrderQuestion",
+    "isProjectGrossProfitMetricQuestion",
+    "isProjectOrderQuestion",
+    "isRefundMetricQuestion",
+    "isRevenueTrendQuestion",
+    "isScrapRecordQuestion",
+    "isStaffCommissionMetricQuestion",
+    "isStaffCommissionRecordQuestion"
+  ],
+  "references": {
+    "production": [
+      {
+        "file": "packages/server-v2/src/agent-v2/agent-v2-runtime.service.ts",
+        "lines": [
+          3,
+          42,
+          132,
+          156,
+          163,
+          247,
+          254,
+          403,
+          427
+        ]
+      },
+      {
+        "file": "packages/server-v2/src/agent-v2/agent-v2.module.ts",
+        "lines": [
+          14,
+          61,
+          86
+        ]
+      },
+      {
+        "file": "packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.ts",
+        "lines": [
+          13
+        ]
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": "legacy_service_reference_scope",
+      "title": "旧 CapabilityDecisionService 只在允许的生产边界被引用",
+      "expected": "生产代码引用仅限 runtime、module 和 service 自身；测试引用不计入生产边界",
+      "actual": "packages/server-v2/src/agent-v2/agent-v2-runtime.service.ts, packages/server-v2/src/agent-v2/agent-v2.module.ts, packages/server-v2/src/agent-v2/capability/agent-v2-capability-decision.service.ts",
+      "status": "pass",
+      "impact": "避免旧正则被新的正式能力选择链路、工具或治理 API 重新直接依赖。"
+    },
+    {
+      "id": "legacy_predicate_inventory_frozen",
+      "title": "旧 isXxx 正则谓词不再继续扩张",
+      "expected": "谓词数量 <= 33",
+      "actual": "33 predicates: isCardFreeVsPaidBehaviorQuestion, isCardInactiveCustomerQuestion, isCardPackageOrderQuestion, isCardPackageSalesMetricQuestion, isCardPackageStatusQuestion, isCardUsageQuestion, isCashierPaymentQuestion, isCommissionCostOptimizationQuestion, ...",
+      "status": "pass",
+      "impact": "旧规则未删除前允许保留审计对象，但不能再把新能力继续写进旧正则。"
+    },
+    {
+      "id": "kg_modes_select_kg",
+      "title": "`kg_llm_only` / `legacy_retired` 正式路径不返回旧正则决策",
+      "expected": "preferred 分支之后的默认返回使用 KG decision，finalEngine=kg_llm",
+      "actual": "kg decision finalEngine present",
+      "status": "pass",
+      "impact": "最终接管模式下，能力选择来自 KG/LLM + Manifest，不从旧 `isXxx` 正则取正式结果。"
+    },
+    {
+      "id": "legacy_fallback_labeled",
+      "title": "`kg_llm_preferred` 的旧链路回退有显式原因和架构标签",
+      "expected": "回退原因包含 legacy_high_confidence_disagreement / kgFallbackReason，架构标记 agent_v2_legacy_fallback",
+      "actual": "disagreement_reason=present, kg_fallback_reason=present, architecture=present",
+      "status": "pass",
+      "impact": "回退不是隐形正式路径，运行审计和治理中心能识别这是旧链路兜底。"
+    },
+    {
+      "id": "shadow_returns_legacy_by_design",
+      "title": "shadow 模式返回旧链路但记录 KG 对照",
+      "expected": "shadow 分支有 fallbackReason=shadow_mode_returns_legacy_decision，并记录 kg/legacy capabilityId",
+      "actual": "shadow trace present",
+      "status": "pass",
+      "impact": "shadow 仍是对照观察，不代表新架构正式接管。"
+    },
+    {
+      "id": "runtime_tests_cover_boundaries",
+      "title": "运行时测试覆盖 KG 正式路径、旧链路回退和 shadow 对照",
+      "expected": "spec 覆盖 KG preferred、legacy fallback、shadow returning legacy",
+      "actual": "kg_preferred=present, fallback=present, shadow=present",
+      "status": "pass",
+      "impact": "后续改 runtime 时，测试能捕捉旧链路边界被误改的问题。"
+    },
+    {
+      "id": "eval_preferred_fallback_rate_zero",
+      "title": "离线 strict gate 中 kg_llm_preferred 回退旧链路率为 0",
+      "expected": "`preferredLegacyFallbackRate.value === 0`",
+      "actual": "value=0, numerator=0, denominator=515",
+      "status": "pass",
+      "impact": "本地评测口径下，新架构优先路径没有依赖旧正则完成 P0/P1 能力选择。"
+    },
+    {
+      "id": "legacy_diff_attribution_safe",
+      "title": "KG-only 与 legacy 差异归因没有 KG 待修项",
+      "expected": "`safeToRetireByAttribution=true` 且 `needsKgFix=0`",
+      "actual": "safe=true, needsKgFix=0, diffTotal=21",
+      "status": "pass",
+      "impact": "差异主要体现旧链路缺口，不是新链路需要回退旧正则才能正确。"
+    },
+    {
+      "id": "retirement_still_blocks_production_deletion",
+      "title": "旧正则仍被生产证据门禁阻止删除",
+      "expected": "localPreflightPass=true，retirementReady=false，productionEvidenceBlockers>0",
+      "actual": "local=true, ready=false, productionBlockers=5",
+      "status": "pass",
+      "impact": "本地审计通过不等于可删除旧正则；生产 7 天 shadow/有用率/回滚证据仍是硬门槛。"
+    }
+  ],
+  "blockers": []
+}

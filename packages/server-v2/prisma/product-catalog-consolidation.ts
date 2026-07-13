@@ -6,8 +6,6 @@ type RefCounts = {
   bom: number;
   batch: number;
   movement: number;
-  productSupplier: number;
-  supplierOrderItem: number;
   procurementItem: number;
   supplyMapping: number;
   total: number;
@@ -28,12 +26,10 @@ function toNumber(value: unknown) {
 }
 
 async function getRefCounts(productId: number): Promise<RefCounts> {
-  const [bom, batch, movement, productSupplier, supplierOrderItem, procurementItem, supplyMapping] = await Promise.all([
+  const [bom, batch, movement, procurementItem, supplyMapping] = await Promise.all([
     prisma.projectBomItem.count({ where: { productId } }),
     prisma.stockBatch.count({ where: { productId } }),
     prisma.stockMovement.count({ where: { productId } }),
-    prisma.productSupplier.count({ where: { productId } }).catch(() => 0),
-    prisma.supplierOrderItem.count({ where: { productId } }).catch(() => 0),
     prisma.procurementOrderItem.count({ where: { productId } }).catch(() => 0),
     prisma.supplyCatalogMapping.count({ where: { productId } }).catch(() => 0),
   ]);
@@ -41,36 +37,15 @@ async function getRefCounts(productId: number): Promise<RefCounts> {
     bom,
     batch,
     movement,
-    productSupplier,
-    supplierOrderItem,
     procurementItem,
     supplyMapping,
-    total: bom + batch + movement + productSupplier + supplierOrderItem + procurementItem + supplyMapping,
+    total: bom + batch + movement + procurementItem + supplyMapping,
   };
 }
 
 function archivalSku(sku: string, suffix: string, productId: number) {
   const base = sku || `PRODUCT-${productId}`;
   return `${base}-${suffix}-${productId}`.slice(0, 180);
-}
-
-async function updateProductSupplierRefs(tx: any, fromProductId: number, toProductId: number) {
-  const rows = await tx.productSupplier.findMany({ where: { productId: fromProductId } });
-  let updated = 0;
-  let deleted = 0;
-  for (const row of rows) {
-    const existing = await tx.productSupplier.findUnique({
-      where: { productId_supplierId: { productId: toProductId, supplierId: row.supplierId } },
-    });
-    if (existing) {
-      await tx.productSupplier.delete({ where: { id: row.id } });
-      deleted += 1;
-    } else {
-      await tx.productSupplier.update({ where: { id: row.id }, data: { productId: toProductId } });
-      updated += 1;
-    }
-  }
-  return { updated, deleted };
 }
 
 async function mergeDuplicateProducts(groups: any[]) {
@@ -110,10 +85,8 @@ async function mergeDuplicateProducts(groups: any[]) {
         await tx.projectBomItem.updateMany({ where: { productId: loser.product.id }, data: { productId: keeper.product.id } });
         await tx.stockBatch.updateMany({ where: { productId: loser.product.id }, data: { productId: keeper.product.id } });
         await tx.stockMovement.updateMany({ where: { productId: loser.product.id }, data: { productId: keeper.product.id } });
-        await tx.supplierOrderItem.updateMany({ where: { productId: loser.product.id }, data: { productId: keeper.product.id } });
         await tx.procurementOrderItem.updateMany({ where: { productId: loser.product.id }, data: { productId: keeper.product.id } });
         await tx.supplyCatalogMapping.updateMany({ where: { productId: loser.product.id }, data: { productId: keeper.product.id } });
-        await updateProductSupplierRefs(tx, loser.product.id, keeper.product.id);
         const freshKeeper = await tx.product.findUnique({ where: { id: keeper.product.id } });
         await tx.product.update({
           where: { id: keeper.product.id },

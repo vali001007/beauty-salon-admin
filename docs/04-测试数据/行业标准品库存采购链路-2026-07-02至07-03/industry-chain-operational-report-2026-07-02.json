@@ -1,0 +1,701 @@
+{
+  "generatedAt": "2026-07-02T12:42:14.392Z",
+  "storeId": 6,
+  "summary": {
+    "publishedTemplates": 34,
+    "validAdoptions": 9,
+    "missingLocalSku": 25,
+    "activeProducts": 45,
+    "productsMissingSupplyMapping": 45,
+    "bomProductsWithoutStock": 13,
+    "lowStockProducts": 0,
+    "lowStockPlatformPurchasable": 0,
+    "lowStockManualOnly": 0
+  },
+  "missingLocalSku": [
+    {
+      "productTemplateId": 22,
+      "standardProductCode": "STD-MASK-MEDICAL-001",
+      "name": "一次性医用口罩",
+      "category": "一次性耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 14,
+      "standardProductCode": "STD-HYDRODERMABRASION-TIP-001",
+      "name": "小气泡一次性探头",
+      "category": "仪器耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 57,
+      "standardProductCode": "STD-OXYGEN-SOLUTION-001",
+      "name": "水氧护理精华液",
+      "category": "仪器耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 16,
+      "standardProductCode": "STD-SCALP-ESSENCE-001",
+      "name": "头皮养护精华",
+      "category": "头皮护理耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 15,
+      "standardProductCode": "STD-SCALP-SHAMPOO-001",
+      "name": "头皮净澈洗护液",
+      "category": "头皮护理耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 20,
+      "standardProductCode": "STD-NAIL-BASE-TOP-001",
+      "name": "底胶封层套装",
+      "category": "美甲耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 19,
+      "standardProductCode": "STD-NAIL-GEL-POLISH-001",
+      "name": "甲油胶",
+      "category": "美甲耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 18,
+      "standardProductCode": "STD-LASH-FIBER-001",
+      "name": "单根嫁接睫毛",
+      "category": "美睫耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 17,
+      "standardProductCode": "STD-LASH-GLUE-001",
+      "name": "美睫专用胶",
+      "category": "美睫耗材",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 49,
+      "standardProductCode": "STD-HAND-SCRUB-001",
+      "name": "手部温和磨砂膏",
+      "category": "身体护理耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 50,
+      "standardProductCode": "STD-HAND-MASK-001",
+      "name": "手部滋养手膜",
+      "category": "身体护理耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 51,
+      "standardProductCode": "STD-HAND-CREAM-001",
+      "name": "手部滋润护理霜",
+      "category": "身体护理耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 9,
+      "standardProductCode": "STD-ESSENCE-BRIGHTENING-001",
+      "name": "亮肤精华液",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 12,
+      "standardProductCode": "STD-MASK-BRIGHTENING-001",
+      "name": "亮肤软膜粉",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 56,
+      "standardProductCode": "STD-BARRIER-CREAM-001",
+      "name": "屏障养护乳霜",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 54,
+      "standardProductCode": "STD-POSTSUN-GEL-001",
+      "name": "晒后舒缓凝胶",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 58,
+      "standardProductCode": "STD-SPOT-BRIGHTENING-ESSENCE-001",
+      "name": "淡斑亮肤精华",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 53,
+      "standardProductCode": "STD-EYE-MASK-001",
+      "name": "眼周护理膜",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 52,
+      "standardProductCode": "STD-EYE-GEL-FIRMING-001",
+      "name": "眼周紧致啫喱",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 55,
+      "standardProductCode": "STD-COLLAGEN-AMPOULE-001",
+      "name": "胶原焕活安瓶",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 3,
+      "standardProductCode": "STD-SERUM-HYDRATING-001",
+      "name": "补水精华液",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 2,
+      "standardProductCode": "STD-MASK-POWDER-001",
+      "name": "补水软膜粉",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 6,
+      "standardProductCode": "STD-MASSAGE-OIL-001",
+      "name": "身体护理按摩精油",
+      "category": "院装护肤耗品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 24,
+      "standardProductCode": "STD-RETAIL-MASK-001",
+      "name": "居家补水面膜",
+      "category": "零售护肤商品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    },
+    {
+      "productTemplateId": 23,
+      "standardProductCode": "STD-RETAIL-SUNSCREEN-001",
+      "name": "日间防晒乳",
+      "category": "零售护肤商品",
+      "nextAction": "在行业数据平台批量采用，或映射到已有本地产品。"
+    }
+  ],
+  "productsMissingSupplyMapping": [
+    {
+      "productId": 117,
+      "sku": "IND-6-STD-GLOVES-NITRILE-001",
+      "name": "一次性丁腈手套",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 118,
+      "sku": "IND-6-STD-SCALP-SHAMPOO-001",
+      "name": "头皮净澈洗护液",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 119,
+      "sku": "IND-6-STD-HAND-SCRUB-001",
+      "name": "手部温和磨砂膏",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 120,
+      "sku": "IND-6-STD-HAND-MASK-001",
+      "name": "手部滋养手膜",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 121,
+      "sku": "IND-6-STD-HAND-CREAM-001",
+      "name": "手部滋润护理霜",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 124,
+      "sku": "IND-6-STD-POSTSUN-GEL-001",
+      "name": "晒后舒缓凝胶",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 137,
+      "sku": "IND-6-STD-EXFOLIANT-ENZYME-001",
+      "name": "温和酵素去角质啫喱",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 122,
+      "sku": "IND-6-STD-EYE-GEL-FIRMING-001",
+      "name": "眼周紧致啫喱",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 125,
+      "sku": "IND-6-STD-MASK-SOOTHING-001",
+      "name": "舒缓修护膜",
+      "currentStock": 0,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 123,
+      "sku": "IND-6-STD-EYE-MASK-001",
+      "name": "眼周护理膜",
+      "currentStock": 1,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 129,
+      "sku": "IND-6-STD-HYDRODERMABRASION-TIP-001",
+      "name": "小气泡一次性探头",
+      "currentStock": 3,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 134,
+      "sku": "IND-6-STD-DISINFECTANT-001",
+      "name": "皮肤表面清洁消毒液",
+      "currentStock": 6,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 128,
+      "sku": "IND-6-STD-BARRIER-CREAM-001",
+      "name": "屏障养护乳霜",
+      "currentStock": 10,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 116,
+      "sku": "IND-6-STD-ESSENCE-REPAIR-001",
+      "name": "屏障修护精华",
+      "currentStock": 14,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 115,
+      "sku": "IND-6-STD-MASSAGE-OIL-001",
+      "name": "身体护理按摩精油",
+      "currentStock": 15,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 113,
+      "sku": "IND-6-STD-TOWEL-DISPOSABLE-001",
+      "name": "一次性面巾",
+      "currentStock": 22,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 130,
+      "sku": "IND-6-STD-OXYGEN-SOLUTION-001",
+      "name": "水氧护理精华液",
+      "currentStock": 44,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 126,
+      "sku": "IND-6-STD-COLLAGEN-AMPOULE-001",
+      "name": "胶原焕活安瓶",
+      "currentStock": 46,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 111,
+      "sku": "IND-6-STD-SERUM-HYDRATING-001",
+      "name": "补水精华液",
+      "currentStock": 46,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 131,
+      "sku": "IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001",
+      "name": "淡斑亮肤精华",
+      "currentStock": 56,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 127,
+      "sku": "IND-6-STD-GEL-RF-001",
+      "name": "射频仪器导入凝胶",
+      "currentStock": 66,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 92,
+      "sku": "AMI-DEMO-FULL-SKU-011",
+      "name": "紧致颈霜",
+      "currentStock": 67,
+      "safetyStock": 32,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 114,
+      "sku": "IND-6-STD-COTTON-PAD-001",
+      "name": "美容棉片",
+      "currentStock": 70,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 88,
+      "sku": "AMI-DEMO-FULL-SKU-007",
+      "name": "水氧护理耗材包",
+      "currentStock": 82,
+      "safetyStock": 24,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 95,
+      "sku": "AMI-DEMO-FULL-SKU-014",
+      "name": "屏障安瓶精华",
+      "currentStock": 91,
+      "safetyStock": 26,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 97,
+      "sku": "AMI-DEMO-FULL-SKU-016",
+      "name": "舒压按摩膏",
+      "currentStock": 92,
+      "safetyStock": 46,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 93,
+      "sku": "AMI-DEMO-FULL-SKU-012",
+      "name": "舒缓精油",
+      "currentStock": 92,
+      "safetyStock": 40,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 133,
+      "sku": "IND-6-STD-RETAIL-SUNSCREEN-001",
+      "name": "日间防晒乳",
+      "currentStock": 101,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 99,
+      "sku": "AMI-DEMO-FULL-SKU-018",
+      "name": "滋养手膜",
+      "currentStock": 108,
+      "safetyStock": 48,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 94,
+      "sku": "AMI-DEMO-FULL-SKU-013",
+      "name": "水润柔肤水",
+      "currentStock": 110,
+      "safetyStock": 55,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 86,
+      "sku": "AMI-DEMO-FULL-SKU-005",
+      "name": "抗衰紧致眼霜",
+      "currentStock": 111,
+      "safetyStock": 28,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 101,
+      "sku": "AMI-DEMO-FULL-SKU-020",
+      "name": "术后舒缓喷雾",
+      "currentStock": 121,
+      "safetyStock": 44,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 91,
+      "sku": "AMI-DEMO-FULL-SKU-010",
+      "name": "清透防晒乳",
+      "currentStock": 122,
+      "safetyStock": 45,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 90,
+      "sku": "AMI-DEMO-FULL-SKU-009",
+      "name": "胶原蛋白面膜",
+      "currentStock": 124,
+      "safetyStock": 55,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 82,
+      "sku": "AMI-DEMO-FULL-SKU-001",
+      "name": "玻尿酸保湿精华",
+      "currentStock": 128,
+      "safetyStock": 45,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 98,
+      "sku": "AMI-DEMO-FULL-SKU-017",
+      "name": "仪器导入凝胶",
+      "currentStock": 130,
+      "safetyStock": 65,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 87,
+      "sku": "AMI-DEMO-FULL-SKU-006",
+      "name": "屏障修护乳",
+      "currentStock": 136,
+      "safetyStock": 42,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 96,
+      "sku": "AMI-DEMO-FULL-SKU-015",
+      "name": "清洁棉片",
+      "currentStock": 152,
+      "safetyStock": 75,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 85,
+      "sku": "AMI-DEMO-FULL-SKU-004",
+      "name": "烟酰胺亮肤精华",
+      "currentStock": 163,
+      "safetyStock": 35,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 84,
+      "sku": "AMI-DEMO-FULL-SKU-003",
+      "name": "氨基酸洁面乳",
+      "currentStock": 165,
+      "safetyStock": 50,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 110,
+      "sku": "IND-6-STD-CLEANSER-PRO-001",
+      "name": "院装温和洁面乳",
+      "currentStock": 184,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 112,
+      "sku": "IND-6-STD-MASK-POWDER-001",
+      "name": "补水软膜粉",
+      "currentStock": 200,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 83,
+      "sku": "AMI-DEMO-FULL-SKU-002",
+      "name": "舒缓修护面膜",
+      "currentStock": 203,
+      "safetyStock": 60,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 89,
+      "sku": "AMI-DEMO-FULL-SKU-008",
+      "name": "一次性护理巾",
+      "currentStock": 277,
+      "safetyStock": 90,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    },
+    {
+      "productId": 132,
+      "sku": "IND-6-STD-MASK-BRIGHTENING-001",
+      "name": "亮肤软膜粉",
+      "currentStock": 425,
+      "safetyStock": 0,
+      "nextAction": "在供应链映射页绑定已审核供应链 SKU 和有效报价。"
+    }
+  ],
+  "bomProductsWithoutStock": [
+    {
+      "bomItemId": 317,
+      "projectId": 85,
+      "projectName": "全身精油 SPA",
+      "productId": 117,
+      "productName": "一次性丁腈手套",
+      "sku": "IND-6-STD-GLOVES-NITRILE-001",
+      "currentStock": 0,
+      "standardQty": 2,
+      "unit": "只"
+    },
+    {
+      "bomItemId": 318,
+      "projectId": 84,
+      "projectName": "头皮舒缓养护",
+      "productId": 118,
+      "productName": "头皮净澈洗护液",
+      "sku": "IND-6-STD-SCALP-SHAMPOO-001",
+      "currentStock": 0,
+      "standardQty": 18,
+      "unit": "ml"
+    },
+    {
+      "bomItemId": 321,
+      "projectId": 84,
+      "projectName": "头皮舒缓养护",
+      "productId": 117,
+      "productName": "一次性丁腈手套",
+      "sku": "IND-6-STD-GLOVES-NITRILE-001",
+      "currentStock": 0,
+      "standardQty": 2,
+      "unit": "只"
+    },
+    {
+      "bomItemId": 322,
+      "projectId": 83,
+      "projectName": "手部细嫩护理",
+      "productId": 119,
+      "productName": "手部温和磨砂膏",
+      "sku": "IND-6-STD-HAND-SCRUB-001",
+      "currentStock": 0,
+      "standardQty": 8,
+      "unit": "g"
+    },
+    {
+      "bomItemId": 323,
+      "projectId": 83,
+      "projectName": "手部细嫩护理",
+      "productId": 120,
+      "productName": "手部滋养手膜",
+      "sku": "IND-6-STD-HAND-MASK-001",
+      "currentStock": 0,
+      "standardQty": 1,
+      "unit": "对"
+    },
+    {
+      "bomItemId": 324,
+      "projectId": 83,
+      "projectName": "手部细嫩护理",
+      "productId": 121,
+      "productName": "手部滋润护理霜",
+      "sku": "IND-6-STD-HAND-CREAM-001",
+      "currentStock": 0,
+      "standardQty": 5,
+      "unit": "ml"
+    },
+    {
+      "bomItemId": 327,
+      "projectId": 82,
+      "projectName": "眼周紧致护理",
+      "productId": 122,
+      "productName": "眼周紧致啫喱",
+      "sku": "IND-6-STD-EYE-GEL-FIRMING-001",
+      "currentStock": 0,
+      "standardQty": 3,
+      "unit": "ml"
+    },
+    {
+      "bomItemId": 331,
+      "projectId": 81,
+      "projectName": "晒后舒缓修护",
+      "productId": 124,
+      "productName": "晒后舒缓凝胶",
+      "sku": "IND-6-STD-POSTSUN-GEL-001",
+      "currentStock": 0,
+      "standardQty": 6,
+      "unit": "ml"
+    },
+    {
+      "bomItemId": 332,
+      "projectId": 81,
+      "projectName": "晒后舒缓修护",
+      "productId": 125,
+      "productName": "舒缓修护膜",
+      "sku": "IND-6-STD-MASK-SOOTHING-001",
+      "currentStock": 0,
+      "standardQty": 25,
+      "unit": "g"
+    },
+    {
+      "bomItemId": 337,
+      "projectId": 80,
+      "projectName": "胶原焕活提拉",
+      "productId": 125,
+      "productName": "舒缓修护膜",
+      "sku": "IND-6-STD-MASK-SOOTHING-001",
+      "currentStock": 0,
+      "standardQty": 20,
+      "unit": "g"
+    },
+    {
+      "bomItemId": 384,
+      "projectId": 91,
+      "projectName": "痘肌净颜舒缓护理",
+      "productId": 137,
+      "productName": "温和酵素去角质啫喱",
+      "sku": "IND-6-STD-EXFOLIANT-ENZYME-001",
+      "currentStock": 0,
+      "standardQty": 2,
+      "unit": "ml"
+    },
+    {
+      "bomItemId": 385,
+      "projectId": 91,
+      "projectName": "痘肌净颜舒缓护理",
+      "productId": 125,
+      "productName": "舒缓修护膜",
+      "sku": "IND-6-STD-MASK-SOOTHING-001",
+      "currentStock": 0,
+      "standardQty": 25,
+      "unit": "g"
+    },
+    {
+      "bomItemId": 387,
+      "projectId": 91,
+      "projectName": "痘肌净颜舒缓护理",
+      "productId": 117,
+      "productName": "一次性丁腈手套",
+      "sku": "IND-6-STD-GLOVES-NITRILE-001",
+      "currentStock": 0,
+      "standardQty": 2,
+      "unit": "只"
+    }
+  ],
+  "lowStockPlatformPurchasable": [],
+  "lowStockManualOnly": []
+}
