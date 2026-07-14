@@ -1,5 +1,8 @@
 ﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { Optional } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateCommissionRuleAssignmentDto, CreateCommissionRuleDto } from './dto/create-commission-rule.dto.js';
@@ -75,6 +78,27 @@ export type RecordAmiContributionParams = {
   metadata?: Record<string, unknown>;
 };
 
+export type FinanceRequestContext = {
+  userId: number;
+  storeIds: number[];
+  roles: string[];
+  permissions: string[];
+  reason?: string;
+};
+
+export type CommissionPaymentContext = FinanceRequestContext & {
+  paymentBatchNo: string;
+  paymentMethod: string;
+  paymentVoucherNo: string;
+};
+
+export type DailySettlementConfirmationOptions = {
+  confirmationMode?: 'auto' | 'manual';
+  reconciliationRunId?: number;
+  ruleVersion?: string;
+  sourceDigest?: string;
+};
+
 const DEFAULT_AMI_BASE_FEE = 699;
 const BUSINESS_TIMEZONE_OFFSET_MINUTES = 8 * 60;
 const BUSINESS_DAY_MS = 24 * 60 * 60 * 1000;
@@ -84,10 +108,37 @@ const PREPAID_ORDER_ITEM_TYPES = new Set(['recharge', 'card', 'open']);
 export class CommissionService {
   private readonly logger = new Logger(CommissionService.name);
 
-  constructor(private prisma: PrismaService, private readonly financeMetricsService?: FinanceMetricsService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly financeMetricsService?: FinanceMetricsService,
+    @Optional() private readonly moduleRef?: ModuleRef,
+  ) {}
 
   private db(client: PrismaLike = this.prisma): PrismaLike {
     return client as PrismaLike;
+  }
+
+  private isSuperAdmin(context?: Pick<FinanceRequestContext, 'roles' | 'permissions'>) {
+    return Boolean(context?.permissions?.includes('*') || context?.roles?.includes('super_admin') || context?.roles?.includes('admin'));
+  }
+
+  private assertStoreAccess(storeId: number, context?: Pick<FinanceRequestContext, 'storeIds' | 'roles' | 'permissions'>) {
+    if (!context || this.isSuperAdmin(context)) return;
+    if (!context.storeIds?.includes(storeId)) throw new ForbiddenException('无权访问该门店财务数据');
+  }
+
+  private async writeFinanceAudit(data: {
+    storeId?: number;
+    userId?: number | null;
+    action: string;
+    entityType: string;
+    entityId: number;
+    reason?: string;
+    beforePayload?: any;
+    afterPayload?: any;
+  }) {
+    if (!this.db().financeAuditLog?.create) return;
+    await this.db().financeAuditLog.create({ data });
   }
 
   private toNumber(value: unknown): number {
@@ -340,27 +391,34 @@ export class CommissionService {
     if (!settlement) return settlement;
     const cardUsageRevenue = this.toNumber(settlement.cardUsageRevenue ?? settlement._cardUsageRevenue);
     const isUnifiedMetric = settlement.summary?.metricVersion === 'finance_metrics_v1';
-    const totalRevenue = isUnifiedMetric
+    const calculatedTotalRevenue = isUnifiedMetric
       ? this.toNumber(settlement.totalRevenue)
       : Math.round((this.toNumber(settlement.totalRevenue) + cardUsageRevenue) * 100) / 100;
-    const materialCost = this.toNumber(settlement.summary?.materialCost ?? settlement.materialCost);
+    const totalRevenue = settlement.finalSummary?.totalRevenue === undefined
+      ? calculatedTotalRevenue
+      : this.toNumber(settlement.finalSummary.totalRevenue);
+    const materialCost = settlement.finalSummary?.materialCost === undefined
+      ? this.toNumber(settlement.summary?.materialCost ?? settlement.materialCost)
+      : this.toNumber(settlement.finalSummary.materialCost);
     const productCost = this.toNumber(settlement.summary?.productCost);
-    const commissionTotal = this.toNumber(settlement.commissionTotal);
-    const grossProfit = Math.round((totalRevenue - materialCost - productCost - commissionTotal) * 100) / 100;
+    const commissionTotal = this.toNumber(settlement.finalSummary?.commissionTotal ?? settlement.commissionTotal);
+    const grossProfit = settlement.finalSummary
+      ? this.toNumber(settlement.grossProfit)
+      : Math.round((totalRevenue - materialCost - productCost - commissionTotal) * 100) / 100;
     const grossMargin = totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 10000) / 100 : 0;
     const orderCount = this.toNumber(settlement.orderCount);
     return {
       ...settlement,
       settleDate: this.normalizeBusinessDateText(settlement.settleDate),
       totalRevenue,
-      cashRevenue: this.toNumber(settlement.cashRevenue),
-      wechatRevenue: this.toNumber(settlement.wechatRevenue),
-      alipayRevenue: this.toNumber(settlement.alipayRevenue),
-      cardRevenue: this.toNumber(settlement.cardRevenue),
-      balanceRevenue: this.toNumber(settlement.balanceRevenue),
-      rechargeIncome: this.toNumber(settlement.rechargeIncome),
+      cashRevenue: this.toNumber(settlement.finalSummary?.cashRevenue ?? settlement.cashRevenue),
+      wechatRevenue: this.toNumber(settlement.finalSummary?.wechatRevenue ?? settlement.wechatRevenue),
+      alipayRevenue: this.toNumber(settlement.finalSummary?.alipayRevenue ?? settlement.alipayRevenue),
+      cardRevenue: this.toNumber(settlement.finalSummary?.cardRevenue ?? settlement.cardRevenue),
+      balanceRevenue: this.toNumber(settlement.finalSummary?.balanceRevenue ?? settlement.balanceRevenue),
+      rechargeIncome: this.toNumber(settlement.finalSummary?.rechargeIncome ?? settlement.rechargeIncome),
       prepaidIncome: this.toNumber(settlement.summary?.prepaidAmount ?? settlement.prepaidIncome ?? settlement._prepaidIncome ?? settlement.rechargeIncome),
-      refundAmount: this.toNumber(settlement.refundAmount),
+      refundAmount: this.toNumber(settlement.finalSummary?.refundAmount ?? settlement.refundAmount),
       avgTransaction: orderCount > 0 ? Math.round((totalRevenue / orderCount) * 100) / 100 : this.toNumber(settlement.avgTransaction),
       materialCost,
       grossProfit,
@@ -371,6 +429,9 @@ export class CommissionService {
       memberBalanceCashDeduct: this.toNumber(settlement.summary?.memberBalanceCashDeduct),
       memberBalanceGiftDeduct: this.toNumber(settlement.summary?.memberBalanceGiftDeduct),
       dataQuality: settlement.summary?.dataQuality,
+      systemSummary: settlement.systemSummary ?? undefined,
+      adjustmentSummary: settlement.adjustmentSummary ?? undefined,
+      finalSummary: settlement.finalSummary ?? undefined,
       storeName: settlement.store?.name,
     };
   }
@@ -716,6 +777,14 @@ export class CommissionService {
     const storeId = this.asStoreId(storeIdInput);
     if (!settleMonth) throw new BadRequestException('缺少账单月份');
 
+    const existingBill = await this.prisma.amiMonthlyBill.findFirst({
+      where: { storeId, settleMonth },
+      orderBy: { version: 'desc' },
+    });
+    if (existingBill && !['draft', 'voided'].includes(existingBill.status)) {
+      throw new ConflictException('只有草稿账单可以重新生成');
+    }
+
     const records = await this.prisma.amiPerformanceRecord.findMany({ where: { storeId, settleMonth } });
     const breakdown: Record<string, any> = {};
     let rawCommissionFee = 0;
@@ -747,11 +816,10 @@ export class CommissionService {
     const commissionFee = Math.min(rawCommissionFee, commissionCap);
     const totalFee = Math.round((baseFee + commissionFee) * 100) / 100;
     const roi = totalFee > 0 ? Math.round((revenueGenerated / totalFee) * 100) / 100 : 0;
-    const bill = await this.prisma.amiMonthlyBill.upsert({
-      where: { storeId_settleMonth: { storeId, settleMonth } },
-      create: {
+    const billData = {
         storeId,
         settleMonth,
+        version: existingBill?.status === 'draft' ? existingBill.version : this.toNumber(existingBill?.version) + 1 || 1,
         baseFee,
         commissionFee,
         totalFee,
@@ -765,24 +833,55 @@ export class CommissionService {
           commissionCap,
         },
         status: 'draft',
-      },
-      update: {
-        baseFee,
-        commissionFee,
-        totalFee,
-        revenueGenerated,
-        roi,
-        breakdown: {
-          items: Object.values(breakdown),
-          recordCount: records.length,
-          workMinutes,
-          rawCommissionFee,
-          commissionCap,
-        },
-      },
-      include: { store: { select: { id: true, name: true } } },
-    });
+      };
+    const bill = existingBill?.status === 'draft'
+      ? await this.prisma.amiMonthlyBill.update({ where: { id: existingBill.id }, data: billData, include: { store: { select: { id: true, name: true } } } })
+      : await this.prisma.amiMonthlyBill.create({ data: billData, include: { store: { select: { id: true, name: true } } } });
     return this.serializeAmiMonthlyBill(bill);
+  }
+
+  async transitionAmiMonthlyBill(
+    id: number,
+    nextStatus: 'confirmed' | 'invoiced' | 'paid' | 'voided',
+    context: FinanceRequestContext,
+    reason?: string,
+  ) {
+    const bill = await this.prisma.amiMonthlyBill.findUnique({ where: { id } });
+    if (!bill) throw new NotFoundException('Ami 月度账单不存在');
+    this.assertStoreAccess(this.toNumber(bill.storeId), context);
+
+    const allowedTransitions: Record<string, string[]> = {
+      draft: ['confirmed'],
+      confirmed: ['invoiced', 'voided'],
+      invoiced: ['paid', 'voided'],
+    };
+    if (!allowedTransitions[bill.status]?.includes(nextStatus)) {
+      throw new ConflictException(`Ami 账单不允许从 ${bill.status} 变更为 ${nextStatus}`);
+    }
+    const normalizedReason = reason?.trim();
+    if (nextStatus === 'voided' && (!normalizedReason || normalizedReason.length < 5 || normalizedReason.length > 500)) {
+      throw new BadRequestException('作废原因需为 5–500 字');
+    }
+
+    const changedAt = new Date();
+    const data: any = { status: nextStatus };
+    if (nextStatus === 'confirmed') Object.assign(data, { confirmedBy: context.userId, confirmedAt: changedAt });
+    if (nextStatus === 'invoiced') data.invoicedAt = changedAt;
+    if (nextStatus === 'paid') data.paidAt = changedAt;
+    if (nextStatus === 'voided') Object.assign(data, { voidedAt: changedAt, voidReason: normalizedReason });
+
+    const updated = await this.prisma.amiMonthlyBill.update({ where: { id }, data });
+    await this.writeFinanceAudit({
+      storeId: this.toNumber(bill.storeId),
+      userId: context.userId,
+      action: `ami_bill_${nextStatus}`,
+      entityType: 'AmiMonthlyBill',
+      entityId: id,
+      reason: normalizedReason,
+      beforePayload: { status: bill.status },
+      afterPayload: { status: nextStatus },
+    });
+    return this.serializeAmiMonthlyBill(updated);
   }
 
   async generateAmiMonthlyBillsForAllStores(settleMonth: string = this.getPreviousSettleMonth()) {
@@ -843,8 +942,9 @@ export class CommissionService {
 
   async getAmiMonthlyBillByMonth(storeIdInput: number | string | undefined, settleMonth: string) {
     const storeId = this.asStoreId(storeIdInput);
-    const bill = await this.prisma.amiMonthlyBill.findUnique({
-      where: { storeId_settleMonth: { storeId, settleMonth } },
+    const bill = await this.prisma.amiMonthlyBill.findFirst({
+      where: { storeId, settleMonth },
+      orderBy: { version: 'desc' },
       include: { store: { select: { id: true, name: true } } },
     });
     if (!bill) throw new NotFoundException('Ami 月度账单不存在');
@@ -894,30 +994,40 @@ export class CommissionService {
     const months = this.getMonthRangeForPeriod(period, query.value);
     const settleMonthWhere = months.length === 1 ? { settleMonth: months[0] } : { settleMonth: { in: months } };
 
-    const [amiBills, supplySettlements, activeStoreCount] = await Promise.all([
+    const confirmedStatuses = ['confirmed', 'invoiced', 'paid'];
+    const [amiBills, draftAmiBills, supplySettlements, activeStoreCount] = await Promise.all([
       this.prisma.amiMonthlyBill.findMany({
-        where: settleMonthWhere,
+        where: { ...settleMonthWhere, status: { in: confirmedStatuses } },
+        include: { store: { select: { id: true, name: true } } },
+        orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
+      }),
+      this.prisma.amiMonthlyBill.findMany({
+        where: { ...settleMonthWhere, status: 'draft' },
         include: { store: { select: { id: true, name: true } } },
         orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
       }),
       this.prisma.supplySettlement.findMany({
-        where: settleMonthWhere,
+        where: { ...settleMonthWhere, status: { in: ['confirmed', 'supplier_confirmed', 'paid'] } },
         include: { supplier: { select: { id: true, name: true } } },
         orderBy: [{ settleMonth: 'asc' }, { supplierId: 'asc' }],
       }),
       this.prisma.store.count({ where: { deletedAt: null, status: { not: 'archived' } } }),
     ]);
 
-    const amiSubscriptionTotal = amiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.baseFee), 0);
-    const amiCommissionTotal = amiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.commissionFee), 0);
-    const supplyChainRebateTotal = supplySettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.rebateAmount), 0);
-    const supplyChainFeeTotal = supplySettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.platformFee), 0);
-    const storeIds = new Set(amiBills.map((bill: any) => bill.storeId));
+    const normalizedAmiBills = Array.isArray(amiBills) ? amiBills : [];
+    const normalizedDraftAmiBills = Array.isArray(draftAmiBills) ? draftAmiBills : [];
+    const normalizedSupplySettlements = Array.isArray(supplySettlements) ? supplySettlements : [];
+    const amiSubscriptionTotal = normalizedAmiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.baseFee), 0);
+    const amiCommissionTotal = normalizedAmiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.commissionFee), 0);
+    const supplyChainRebateTotal = normalizedSupplySettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.rebateAmount), 0);
+    const supplyChainFeeTotal = normalizedSupplySettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.platformFee), 0);
+    const storeIds = new Set(normalizedAmiBills.map((bill: any) => bill.storeId));
     const totalRevenue = amiSubscriptionTotal + amiCommissionTotal + supplyChainRebateTotal + supplyChainFeeTotal;
+    const estimatedRevenue = normalizedDraftAmiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.totalFee), 0);
 
     const monthTrend = months.map((month) => {
-      const monthAmiBills = amiBills.filter((bill: any) => bill.settleMonth === month);
-      const monthSettlements = supplySettlements.filter((item: any) => item.settleMonth === month);
+      const monthAmiBills = normalizedAmiBills.filter((bill: any) => bill.settleMonth === month);
+      const monthSettlements = normalizedSupplySettlements.filter((item: any) => item.settleMonth === month);
       const amiSubscription = monthAmiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.baseFee), 0);
       const amiCommission = monthAmiBills.reduce((sum: number, bill: any) => sum + this.toNumber(bill.commissionFee), 0);
       const supplyChainRebate = monthSettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.rebateAmount), 0);
@@ -933,7 +1043,7 @@ export class CommissionService {
     });
 
     const storeMap = new Map<number, { storeId: number; storeName: string; amiSubscription: number; amiCommission: number; totalRevenue: number }>();
-    for (const bill of amiBills as any[]) {
+    for (const bill of normalizedAmiBills as any[]) {
       const item =
         storeMap.get(bill.storeId) ??
         {
@@ -956,7 +1066,7 @@ export class CommissionService {
       amiSubscription: {
         total: amiSubscriptionTotal,
         storeCount: storeIds.size,
-        records: amiBills.map((bill: any) => ({
+        records: normalizedAmiBills.map((bill: any) => ({
           id: bill.id,
           storeId: bill.storeId,
           storeName: bill.store?.name,
@@ -967,7 +1077,7 @@ export class CommissionService {
       amiCommission: {
         total: amiCommissionTotal,
         avgPerStore: storeIds.size ? Math.round((amiCommissionTotal / storeIds.size) * 100) / 100 : 0,
-        records: amiBills.map((bill: any) => ({
+        records: normalizedAmiBills.map((bill: any) => ({
           id: bill.id,
           storeId: bill.storeId,
           storeName: bill.store?.name,
@@ -977,8 +1087,8 @@ export class CommissionService {
       },
       supplyChainRebate: {
         total: supplyChainRebateTotal,
-        orderCount: supplySettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.orderCount), 0),
-        records: supplySettlements.map((item: any) => ({
+        orderCount: normalizedSupplySettlements.reduce((sum: number, item: any) => sum + this.toNumber(item.orderCount), 0),
+        records: normalizedSupplySettlements.map((item: any) => ({
           id: item.id,
           supplierId: item.supplierId,
           supplierName: item.supplier?.name,
@@ -988,7 +1098,7 @@ export class CommissionService {
       },
       supplyChainFee: {
         total: supplyChainFeeTotal,
-        records: supplySettlements.map((item: any) => ({
+        records: normalizedSupplySettlements.map((item: any) => ({
           id: item.id,
           supplierId: item.supplierId,
           supplierName: item.supplier?.name,
@@ -997,6 +1107,7 @@ export class CommissionService {
         })),
       },
       totalRevenue,
+      estimatedRevenue,
       monthOverMonth:
         monthTrend.length > 1 && monthTrend[monthTrend.length - 2].totalRevenue > 0
           ? Math.round(
@@ -1007,6 +1118,7 @@ export class CommissionService {
           : 0,
       arpu: activeStoreCount > 0 ? Math.round((totalRevenue / activeStoreCount / months.length) * 100) / 100 : 0,
       ltvEstimate: activeStoreCount > 0 ? Math.round((totalRevenue / activeStoreCount / months.length) * 12 * 100) / 100 : 0,
+      annualizedRevenueEstimate: activeStoreCount > 0 ? Math.round((totalRevenue / activeStoreCount / months.length) * 12 * 100) / 100 : 0,
       storeRanking: Array.from(storeMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10),
       monthTrend,
     };
@@ -1072,7 +1184,7 @@ export class CommissionService {
     return { items: normalizedItems, data: normalizedItems, total, page, pageSize };
   }
 
-  async getRuleById(id: number) {
+  async getRuleById(id: number, context?: FinanceRequestContext) {
     const rule = await this.prisma.commissionRule.findUnique({
       where: { id },
       include: {
@@ -1083,6 +1195,7 @@ export class CommissionService {
       },
     });
     if (!rule) throw new NotFoundException('提成规则不存在');
+    this.assertStoreAccess(this.toNumber(rule.storeId), context);
     return this.serializeRule(rule);
   }
 
@@ -1191,9 +1304,10 @@ export class CommissionService {
     return this.serializeRule(rule);
   }
 
-  async updateRule(id: number, dto: UpdateCommissionRuleDto) {
+  async updateRule(id: number, dto: UpdateCommissionRuleDto, context?: FinanceRequestContext) {
     const current = await this.prisma.commissionRule.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('提成规则不存在');
+    this.assertStoreAccess(this.toNumber(current.storeId), context);
     await this.validateRuleAlgorithmReferences(current.storeId, { type: dto.type ?? current.type });
     const rule = await this.prisma.commissionRule.update({
       where: { id },
@@ -1223,8 +1337,8 @@ export class CommissionService {
     return this.serializeRule(rule);
   }
 
-  async deleteRule(id: number) {
-    await this.getRuleById(id);
+  async deleteRule(id: number, context?: FinanceRequestContext) {
+    await this.getRuleById(id, context);
     const rule = await this.prisma.commissionRule.update({
       where: { id },
       data: { status: 'archived' },
@@ -1304,9 +1418,10 @@ export class CommissionService {
     return this.serializeAssignment(assignment);
   }
 
-  async updateAssignment(id: number, dto: UpdateCommissionRuleAssignmentDto) {
+  async updateAssignment(id: number, dto: UpdateCommissionRuleAssignmentDto, context?: FinanceRequestContext) {
     const current = await this.prisma.commissionRuleAssignment.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('提成规则配置不存在');
+    this.assertStoreAccess(this.toNumber(current.storeId), context);
     const next = { ...current, ...dto };
     const normalized = this.normalizeAssignmentScope(next);
     await this.validateAssignmentReferences(current.storeId, normalized);
@@ -1331,9 +1446,10 @@ export class CommissionService {
     return this.serializeAssignment(assignment);
   }
 
-  async deleteAssignment(id: number) {
+  async deleteAssignment(id: number, context?: FinanceRequestContext) {
     const current = await this.prisma.commissionRuleAssignment.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('提成规则配置不存在');
+    this.assertStoreAccess(this.toNumber(current.storeId), context);
     const assignment = await this.prisma.commissionRuleAssignment.update({
       where: { id },
       data: { status: 'archived' },
@@ -1466,7 +1582,49 @@ export class CommissionService {
     return records;
   }
 
-  async reverseOrderCommissions(orderId: number, refundAmount?: number, client: PrismaLike = this.prisma) {
+  async reverseOrderCommissions(
+    orderId: number,
+    refundAmount?: number,
+    client: PrismaLike = this.prisma,
+    refundItems?: Array<{ orderItemId: number; refundAmount: number }>,
+  ) {
+    if (refundItems?.length) {
+      const refundByOrderItem = new Map(refundItems.map((item) => [this.toNumber(item.orderItemId), this.toNumber(item.refundAmount)]));
+      const records = await client.commissionRecord.findMany({
+        where: { orderId, orderItemId: { in: Array.from(refundByOrderItem.keys()) }, status: { in: ['pending', 'confirmed', 'settled'] } },
+        include: { settlementRecords: { orderBy: { id: 'desc' }, take: 1 } },
+      });
+      const unsettledIds = records.filter((record: any) => ['pending', 'confirmed'].includes(record.status)).map((record: any) => record.id);
+      const cancelled = unsettledIds.length
+        ? await client.commissionRecord.updateMany({
+            where: { id: { in: unsettledIds } },
+            data: { status: 'cancelled', remark: `退款明细冲销，退款金额 ${this.toNumber(refundAmount)}` },
+          })
+        : { count: 0 };
+      let adjustmentCount = 0;
+      for (const record of records.filter((item: any) => item.status === 'settled')) {
+        const settlementId = record.settlementRecords?.[0]?.settlementId;
+        if (!settlementId || !client.commissionAdjustment?.create) continue;
+        const itemRefundAmount = this.toNumber(refundByOrderItem.get(this.toNumber(record.orderItemId)));
+        const sourceAmount = Math.max(this.toNumber(record.sourceAmount), itemRefundAmount, 0.01);
+        const recoveryAmount = Math.round(Math.min(this.toNumber(record.amount), this.toNumber(record.amount) * (itemRefundAmount / sourceAmount)) * 100) / 100;
+        if (recoveryAmount <= 0) continue;
+        await client.commissionAdjustment.create({
+          data: {
+            settlementId,
+            commissionRecordId: record.id,
+            storeId: record.storeId,
+            type: 'refund_recovery',
+            amount: -recoveryAmount,
+            reason: `已结算订单退款追缴，订单 ${orderId}，明细 ${record.orderItemId}`,
+            status: 'pending',
+            createdBy: undefined,
+          },
+        });
+        adjustmentCount += 1;
+      }
+      return { count: cancelled.count, adjustmentCount, refundAmount: this.toNumber(refundAmount) };
+    }
     const records = await client.commissionRecord.findMany({
       where: { orderId, status: { in: ['pending', 'confirmed'] } },
       select: { id: true },
@@ -1620,9 +1778,11 @@ export class CommissionService {
   async updateRecord(
     id: number,
     dto: { staffUserId?: number; sourceAmount?: number; rate?: number; amount?: number; remark?: string },
+    context?: FinanceRequestContext,
   ) {
     const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('提成流水不存在');
+    this.assertStoreAccess(this.toNumber(record.storeId), context);
     if (record.status === 'settled') throw new BadRequestException('已结算提成不能修改');
     if (record.status === 'cancelled') throw new BadRequestException('已取消提成不能修改');
 
@@ -1681,9 +1841,10 @@ export class CommissionService {
     return this.serializeRecord(updated);
   }
 
-  async confirmRecord(id: number) {
+  async confirmRecord(id: number, context?: FinanceRequestContext) {
     const record = await this.prisma.commissionRecord.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('提成流水不存在');
+    this.assertStoreAccess(this.toNumber(record.storeId), context);
     const updated = await this.prisma.commissionRecord.update({
       where: { id },
       data: { status: 'confirmed', confirmedAt: new Date() },
@@ -1891,7 +2052,7 @@ export class CommissionService {
     };
   }
 
-  async getSettlementById(id: number) {
+  async getSettlementById(id: number, context?: FinanceRequestContext) {
     const settlement = await this.prisma.commissionSettlement.findUnique({
       where: { id },
       include: {
@@ -1918,12 +2079,13 @@ export class CommissionService {
       },
     });
     if (!settlement) throw new NotFoundException('结算单不存在');
+    this.assertStoreAccess(this.toNumber(settlement.storeId), context);
     await this.attachSettlementFreshness([settlement]);
     return this.serializeSettlement(settlement);
   }
 
-  async confirmSettlement(id: number, confirmedBy?: number) {
-    const existed = await this.getSettlementById(id);
+  async confirmSettlement(id: number, confirmedBy?: number, context?: FinanceRequestContext) {
+    const existed = await this.getSettlementById(id, context);
     if (existed.needsRegenerate) throw new BadRequestException(existed.regenerateReason ?? '结算单明细已变化，请重新生成后再确认');
     const recordIds = Array.isArray(existed.settlementRecords)
       ? existed.settlementRecords.map((item: any) => this.toNumber(item.commissionRecordId)).filter((recordId: number) => recordId > 0)
@@ -1951,18 +2113,92 @@ export class CommissionService {
     return this.serializeSettlement(settlement);
   }
 
-  async markSettlementPaid(id: number) {
-    await this.getSettlementById(id);
+  async markSettlementPaid(id: number, context?: CommissionPaymentContext) {
+    const existed = await this.getSettlementById(id);
+    if (existed.status !== 'confirmed') throw new ConflictException('只有已确认结算单可以发放');
+    this.assertStoreAccess(this.toNumber(existed.storeId), context);
+    if (context) {
+      if (!context.paymentBatchNo?.trim() || !context.paymentMethod?.trim() || !context.paymentVoucherNo?.trim()) {
+        throw new BadRequestException('付款批次、支付方式和凭证号不能为空');
+      }
+    }
+    const paidAt = new Date();
     const settlement = await this.prisma.commissionSettlement.update({
       where: { id },
-      data: { status: 'paid', paidAt: new Date() },
+      data: {
+        status: 'paid',
+        paidAt,
+        ...(context
+          ? {
+              paidBy: context.userId,
+              paymentBatchNo: context.paymentBatchNo.trim(),
+              paymentMethod: context.paymentMethod.trim(),
+              paymentVoucherNo: context.paymentVoucherNo.trim(),
+            }
+          : {}),
+      },
       include: {
         store: { select: { id: true, name: true } },
         staffUser: { select: { id: true, name: true, username: true } },
         beautician: { select: { id: true, name: true } },
       },
     });
+    await this.writeFinanceAudit({
+      storeId: this.toNumber(existed.storeId),
+      userId: context?.userId,
+      action: 'commission_settlement_paid',
+      entityType: 'CommissionSettlement',
+      entityId: id,
+      afterPayload: context
+        ? {
+            paidAt,
+            paymentBatchNo: context.paymentBatchNo.trim(),
+            paymentMethod: context.paymentMethod.trim(),
+            paymentVoucherNo: context.paymentVoucherNo.trim(),
+          }
+        : { paidAt },
+    });
     return this.serializeSettlement(settlement);
+  }
+
+  async createCommissionAdjustment(
+    settlementId: number,
+    input: { type: string; amount: number; reason: string; commissionRecordId?: number },
+    context: FinanceRequestContext,
+  ) {
+    const settlement = await this.prisma.commissionSettlement.findUnique({ where: { id: settlementId } });
+    if (!settlement) throw new NotFoundException('结算单不存在');
+    this.assertStoreAccess(this.toNumber(settlement.storeId), context);
+    if (!['deduction', 'bonus', 'refund_recovery', 'correction'].includes(input.type)) {
+      throw new BadRequestException('提成调整类型不正确');
+    }
+    const amount = this.toNumber(input.amount);
+    if (!Number.isFinite(amount) || amount === 0) throw new BadRequestException('调整金额不能为 0');
+    const reason = input.reason?.trim();
+    if (!reason || reason.length < 5 || reason.length > 500) throw new BadRequestException('调整原因需为 5–500 字');
+
+    const adjustment = await this.prisma.commissionAdjustment.create({
+      data: {
+        settlementId,
+        commissionRecordId: input.commissionRecordId,
+        storeId: this.toNumber(settlement.storeId),
+        type: input.type,
+        amount,
+        reason,
+        status: 'pending',
+        createdBy: context.userId,
+      },
+    });
+    await this.writeFinanceAudit({
+      storeId: this.toNumber(settlement.storeId),
+      userId: context.userId,
+      action: 'commission_adjustment_created',
+      entityType: 'CommissionAdjustment',
+      entityId: adjustment.id,
+      reason,
+      afterPayload: { settlementId, commissionRecordId: input.commissionRecordId, type: input.type, amount },
+    });
+    return adjustment;
   }
 
   async openCashierShift(input: {
@@ -2429,6 +2665,20 @@ export class CommissionService {
     }
 
     const checkedOrders = new Set<number>();
+    const refundOrderIds = [...new Set(refunds.map((refund: any) => this.toNumber(refund.orderId ?? refund.order?.id)).filter((id: number) => id > 0))];
+    const settledCommissionRecords = refundOrderIds.length
+      ? await this.prisma.commissionRecord.findMany({
+          where: { orderId: { in: refundOrderIds }, status: 'settled' },
+          include: { adjustments: { where: { type: 'refund_recovery', status: { not: 'cancelled' } } } },
+        })
+      : [];
+    const settledCommissionByOrderItem = new Map<number, any[]>();
+    for (const record of Array.isArray(settledCommissionRecords) ? settledCommissionRecords : []) {
+      if (!record.orderItemId) continue;
+      const list = settledCommissionByOrderItem.get(record.orderItemId) ?? [];
+      list.push(record);
+      settledCommissionByOrderItem.set(record.orderItemId, list);
+    }
     for (const refund of refunds) {
       const date = this.normalizeBusinessDateText(refund.refundedAt ?? refund.createdAt);
       const refundItems = Array.isArray(refund.items) ? refund.items : [];
@@ -2443,11 +2693,21 @@ export class CommissionService {
           sourceId: refund.id,
         });
       }
+      const refundItemTotal = refundItems.reduce((sum: number, item: any) => sum + this.toNumber(item.refundAmount), 0);
+      if (refundItems.length && Math.abs(refundItemTotal - this.toNumber(refund.amount)) >= 0.01) {
+        pushException({ date, type: 'refund_item_amount_mismatch', severity: 'high', title: '退款总额与明细不一致', detail: `退款 ${refund.refundNo ?? refund.id} 总额 ${this.toNumber(refund.amount).toFixed(2)}，明细合计 ${refundItemTotal.toFixed(2)}。`, actionTarget: 'refunds', sourceId: refund.id, amountDiff: Math.round((refundItemTotal - this.toNumber(refund.amount)) * 100) / 100 });
+      }
       if (refund.refundMode === 'return_and_refund' && refundItems.some((item: any) => item.inventoryAction !== 'none' && !(item.stockMovements ?? []).length)) {
         pushException({ date, type: 'return_refund_without_stock_movement', severity: 'high', title: '退货缺少库存流水', detail: `退款 ${refund.refundNo ?? refund.id} 选择退款退货，但未形成完整反向库存流水。`, actionTarget: 'refunds', sourceId: refund.id });
       }
       if (refund.refundMode === 'refund_only' && refundItems.some((item: any) => (item.stockMovements ?? []).length)) {
         pushException({ date, type: 'refund_only_with_stock_movement', severity: 'high', title: '仅退款误写库存', detail: `退款 ${refund.refundNo ?? refund.id} 为仅退款，但存在反向库存流水。`, actionTarget: 'refunds', sourceId: refund.id });
+      }
+      const missingCommissionRecovery = refundItems.some((item: any) =>
+        (settledCommissionByOrderItem.get(this.toNumber(item.orderItemId)) ?? []).some((record: any) => !(record.adjustments ?? []).length),
+      );
+      if (missingCommissionRecovery) {
+        pushException({ date, type: 'refund_without_commission_adjustment', severity: 'high', title: '已结算提成缺少退款追缴', detail: `退款 ${refund.refundNo ?? refund.id} 涉及已结算提成，但没有对应负向调整记录。`, actionTarget: 'refunds', sourceId: refund.id });
       }
 
       const order = refund.order;
@@ -2512,6 +2772,18 @@ export class CommissionService {
     const summary = this.dailyMetricSummary(metric);
     const materialCostTotal = this.toNumber(metric.materialCost) + this.toNumber(metric.productCost);
     const grossMarginPercent = this.toNumber(metric.grossMargin) * 100;
+    const systemSummary = {
+      totalRevenue: this.toNumber(metric.operatingRevenue),
+      cashRevenue: this.toNumber(metric.paymentBreakdown?.cash),
+      wechatRevenue: this.toNumber(metric.paymentBreakdown?.wechat),
+      alipayRevenue: this.toNumber(metric.paymentBreakdown?.alipay),
+      cardRevenue: this.toNumber(metric.paymentBreakdown?.card),
+      balanceRevenue: this.toNumber(metric.memberBalanceDeductTotal),
+      rechargeIncome: this.toNumber(metric.prepaidAmount),
+      refundAmount: this.toNumber(metric.refundAmount),
+      materialCost: materialCostTotal,
+      commissionTotal: this.toNumber(metric.commissionCost),
+    };
     const settlement = await this.db().dailySettlement.upsert({
       where: { storeId_settleDate: { storeId, settleDate } },
       create: {
@@ -2534,6 +2806,7 @@ export class CommissionService {
         commissionTotal: this.toNumber(metric.commissionCost),
         status: 'draft',
         summary,
+        systemSummary,
       },
       update: {
         totalRevenue: this.toNumber(metric.operatingRevenue),
@@ -2552,6 +2825,7 @@ export class CommissionService {
         grossMargin: grossMarginPercent,
         commissionTotal: this.toNumber(metric.commissionCost),
         summary,
+        systemSummary,
       },
       include: { store: { select: { id: true, name: true } } },
     });
@@ -2561,6 +2835,8 @@ export class CommissionService {
   async generateDailySettlement(storeIdInput: number | string | undefined, dateInput: string | Date) {
     const storeId = this.asStoreId(storeIdInput);
     const { start: dayStart, end: dayEnd, settleDate } = this.getBusinessDayRange(dateInput);
+    const existed = await this.db().dailySettlement.findUnique({ where: { storeId_settleDate: { storeId, settleDate } } });
+    if (existed?.status === 'confirmed') throw new ConflictException('已确认日结禁止重新生成，请先由平台管理员重开');
     if (this.financeMetricsService) {
       const metric = await this.financeMetricsService.getDailyMetricForStoreDate(storeId, settleDate);
       return this.upsertDailySettlementFromMetric(storeId, settleDate, metric);
@@ -2638,6 +2914,18 @@ export class CommissionService {
     const grossProfit = Math.round((netRevenue - materialCost - commissionTotal) * 100) / 100;
     const grossMargin = netRevenue > 0 ? Math.round((grossProfit / netRevenue) * 10000) / 100 : 0;
     const avgTransaction = orders.length > 0 ? Math.round((netRevenue / orders.length) * 100) / 100 : 0;
+    const systemSummary = {
+      totalRevenue: netRevenue,
+      cashRevenue: paymentSummary.cash,
+      wechatRevenue: paymentSummary.wechat,
+      alipayRevenue: paymentSummary.alipay,
+      cardRevenue: paymentSummary.card,
+      balanceRevenue: paymentSummary.member_balance,
+      rechargeIncome,
+      refundAmount,
+      materialCost,
+      commissionTotal,
+    };
     const settlement = await this.db().dailySettlement.upsert({
       where: { storeId_settleDate: { storeId, settleDate } },
       create: {
@@ -2660,6 +2948,7 @@ export class CommissionService {
         commissionTotal,
         status: 'draft',
         summary: paymentSummary,
+        systemSummary,
       },
       update: {
         totalRevenue: netRevenue,
@@ -2678,6 +2967,7 @@ export class CommissionService {
         grossMargin,
         commissionTotal,
         summary: paymentSummary,
+        systemSummary,
       },
       include: { store: { select: { id: true, name: true } } },
     });
@@ -2709,9 +2999,36 @@ export class CommissionService {
     return { items, data: items, total: items.length, failed: errors.length, errors, settleDate };
   }
 
+  private getReconciliationRunner() {
+    if (!this.moduleRef) return undefined;
+    try {
+      return this.moduleRef.get<any>('FINANCE_RECONCILIATION_RUNNER', { strict: false });
+    } catch {
+      return undefined;
+    }
+  }
+
+  async refreshDailySettlementForFact(storeId: number, occurredAt: string | Date, source: string) {
+    const runner = this.getReconciliationRunner();
+    if (!runner?.runDailyClose) return this.generateDailySettlement(storeId, occurredAt);
+    return runner.runDailyClose(storeId, occurredAt, { triggerType: 'late_fact', autoConfirm: true, source });
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async handleDailySettlementCron() {
-    await this.generateDailySettlementsForAllStores(this.getYesterday());
+    const runner = this.getReconciliationRunner();
+    if (!runner?.runDailyClose) return this.generateDailySettlementsForAllStores(this.getYesterday());
+    const settleDate = this.getYesterday();
+    const stores = await this.prisma.store.findMany({
+      where: { deletedAt: null, status: 'active' },
+      select: { id: true, name: true },
+      orderBy: { id: 'asc' },
+    });
+    const items = [];
+    for (const store of stores) {
+      items.push(await runner.runDailyClose(store.id, settleDate, { triggerType: 'scheduled', autoConfirm: true }));
+    }
+    return { items, total: items.length, settleDate };
   }
 
   async getDailySettlements(query: {
@@ -2739,6 +3056,22 @@ export class CommissionService {
       include: { store: { select: { id: true, name: true } } },
       orderBy: { settleDate: 'desc' },
     });
+    const snapshots = rawItems.length && this.db().dailySettlementSnapshot?.findMany
+      ? await this.db().dailySettlementSnapshot.findMany({
+          where: { dailySettlementId: { in: rawItems.map((item: any) => item.id) } },
+          select: { dailySettlementId: true, version: true, confirmedAt: true, confirmedBy: true },
+          orderBy: [{ dailySettlementId: 'asc' }, { version: 'desc' }],
+        })
+      : [];
+    const latestSnapshotBySettlement = new Map<number, any>();
+    for (const snapshot of Array.isArray(snapshots) ? snapshots : []) {
+      if (!latestSnapshotBySettlement.has(snapshot.dailySettlementId)) latestSnapshotBySettlement.set(snapshot.dailySettlementId, snapshot);
+    }
+    for (const item of rawItems) {
+      const latest = latestSnapshotBySettlement.get(item.id);
+      item.latestVersion = this.toNumber(latest?.version);
+      item.needsRefresh = item.status === 'draft' && Boolean(latest);
+    }
     const deduped = new Map<string, any>();
     for (const item of rawItems) {
       const key = `${item.storeId}:${this.normalizeBusinessDateText(item.settleDate)}`;
@@ -2766,15 +3099,128 @@ export class CommissionService {
     return { items: normalizedItems, data: normalizedItems, total: allItems.length, page, pageSize };
   }
 
-  async confirmDailySettlement(id: number, confirmedBy?: number) {
+  async confirmDailySettlement(
+    id: number,
+    confirmedBy?: number,
+    expectedStoreId?: number,
+    options: DailySettlementConfirmationOptions = {},
+  ) {
     const existed = await this.db().dailySettlement.findUnique({ where: { id } });
     if (!existed) throw new NotFoundException('日结单不存在');
+    if (expectedStoreId && this.toNumber(existed.storeId) !== expectedStoreId) throw new ForbiddenException('无权确认其他门店日结');
+    const confirmationMode = options.confirmationMode ?? 'manual';
+    if (confirmationMode === 'manual' && !confirmedBy) throw new BadRequestException('缺少日结确认人');
+    if (existed.status === 'confirmed') throw new ConflictException('日结已经确认');
+    const version = (await this.db().dailySettlementSnapshot.count({ where: { dailySettlementId: id } })) + 1;
+    const confirmedAt = new Date();
+    const systemSummary = existed.systemSummary ?? {
+      totalRevenue: existed.totalRevenue,
+      cashRevenue: existed.cashRevenue,
+      wechatRevenue: existed.wechatRevenue,
+      alipayRevenue: existed.alipayRevenue,
+      cardRevenue: existed.cardRevenue,
+      balanceRevenue: existed.balanceRevenue,
+      rechargeIncome: existed.rechargeIncome,
+      refundAmount: existed.refundAmount,
+      materialCost: existed.materialCost,
+      commissionTotal: existed.commissionTotal,
+    };
+    const adjustmentSummary = existed.adjustmentSummary ?? {};
+    const finalSummary = existed.finalSummary ?? systemSummary;
+    const snapshotPayload = {
+      summary: existed.summary ?? null,
+      status: 'confirmed',
+      sourceUpdatedAt: existed.updatedAt ?? null,
+      systemSummary,
+      adjustmentSummary,
+      finalSummary,
+      confirmationMode,
+      reconciliationRunId: options.reconciliationRunId ?? null,
+      ruleVersion: options.ruleVersion ?? null,
+    };
+    await this.db().dailySettlementSnapshot.create({
+      data: {
+        dailySettlementId: id,
+        storeId: existed.storeId,
+        settleDate: existed.settleDate,
+        version,
+        totalRevenue: existed.totalRevenue,
+        cashRevenue: existed.cashRevenue,
+        wechatRevenue: existed.wechatRevenue,
+        alipayRevenue: existed.alipayRevenue,
+        cardRevenue: existed.cardRevenue,
+        balanceRevenue: existed.balanceRevenue,
+        rechargeIncome: existed.rechargeIncome,
+        refundAmount: existed.refundAmount,
+        orderCount: existed.orderCount,
+        customerCount: existed.customerCount,
+        avgTransaction: existed.avgTransaction,
+        materialCost: existed.materialCost,
+        grossProfit: existed.grossProfit,
+        grossMargin: existed.grossMargin,
+        commissionTotal: existed.commissionTotal,
+        snapshot: snapshotPayload,
+        sourceDigest: options.sourceDigest ?? null,
+        systemSummary,
+        adjustmentSummary,
+        finalSummary,
+        confirmationMode,
+        reconciliationRunId: options.reconciliationRunId ?? null,
+        ruleVersion: options.ruleVersion ?? null,
+        confirmedBy: confirmedBy ?? null,
+        confirmedAt,
+      },
+    });
     const settlement = await this.db().dailySettlement.update({
       where: { id },
-      data: { status: 'confirmed', confirmedAt: new Date(), confirmedBy },
+      data: { status: 'confirmed', confirmedAt, confirmedBy: confirmedBy ?? null, confirmationMode },
       include: { store: { select: { id: true, name: true } } },
     });
+    await this.writeFinanceAudit({
+      storeId: existed.storeId,
+      userId: confirmedBy ?? null,
+      action: confirmationMode === 'auto' ? 'daily_settlement_auto_confirm' : 'daily_settlement_confirm',
+      entityType: 'DailySettlement',
+      entityId: id,
+      beforePayload: { status: existed.status },
+      afterPayload: { status: 'confirmed', version, confirmationMode, reconciliationRunId: options.reconciliationRunId ?? null },
+    });
+    return { ...this.serializeDailySettlement(settlement), version };
+  }
+
+  async reopenDailySettlement(id: number, context: FinanceRequestContext) {
+    if (!this.isSuperAdmin(context)) throw new ForbiddenException('仅平台管理员可以重开已确认日结');
+    const reason = String(context.reason ?? '').trim();
+    if (reason.length < 5 || reason.length > 500) throw new BadRequestException('重开原因需为 5-500 字');
+    const existed = await this.db().dailySettlement.findUnique({ where: { id } });
+    if (!existed) throw new NotFoundException('日结单不存在');
+    if (existed.status !== 'confirmed') throw new BadRequestException('只有已确认日结可以重开');
+    const settlement = await this.db().dailySettlement.update({
+      where: { id },
+      data: { status: 'draft', confirmedAt: null, confirmedBy: null },
+    });
+    await this.writeFinanceAudit({
+      storeId: existed.storeId,
+      userId: context.userId,
+      action: 'daily_settlement_reopen',
+      entityType: 'DailySettlement',
+      entityId: id,
+      reason,
+      beforePayload: { status: existed.status },
+      afterPayload: { status: 'draft' },
+    });
     return this.serializeDailySettlement(settlement);
+  }
+
+  async getDailySettlementVersions(id: number, context?: Pick<FinanceRequestContext, 'storeIds' | 'roles' | 'permissions'>) {
+    const settlement = await this.db().dailySettlement.findUnique({ where: { id }, select: { id: true, storeId: true } });
+    if (!settlement) throw new NotFoundException('日结单不存在');
+    this.assertStoreAccess(this.toNumber(settlement.storeId), context);
+    const items = await this.db().dailySettlementSnapshot.findMany({
+      where: { dailySettlementId: id },
+      orderBy: { version: 'desc' },
+    });
+    return { items, total: items.length };
   }
 
   async getBeauticianSummary(query: { storeId?: number | string; beauticianId: number | string; period?: string; detailLimit?: number | string }) {

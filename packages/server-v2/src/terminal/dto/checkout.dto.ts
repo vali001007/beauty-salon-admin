@@ -74,6 +74,11 @@ export class CheckoutPaymentDto {
 }
 
 export class CheckoutDto {
+  @ApiPropertyOptional({ description: '由已完成服务任务转收银时的任务 ID' })
+  @IsOptional()
+  @IsInt()
+  taskId?: number;
+
   @ApiPropertyOptional({ description: '客户ID' })
   @IsOptional()
   @IsInt()

@@ -67,6 +67,7 @@ const CommissionRules = lazyWithRetry(() => import('./pages/finance/CommissionRu
 const CommissionRecords = lazyWithRetry(() => import('./pages/finance/CommissionRecords').then(m => ({ default: m.CommissionRecords })), 'CommissionRecords');
 const MonthlySettlement = lazyWithRetry(() => import('./pages/finance/MonthlySettlement').then(m => ({ default: m.MonthlySettlement })), 'MonthlySettlement');
 const DailySettlement = lazyWithRetry(() => import('./pages/finance/DailySettlement').then(m => ({ default: m.DailySettlement })), 'DailySettlement');
+const DailyClose = lazyWithRetry(() => import('./pages/finance/DailyClose').then(m => ({ default: m.DailyClose })), 'DailyClose');
 const AmiPerformance = lazyWithRetry(() => import('./pages/finance/AmiPerformance').then(m => ({ default: m.AmiPerformance })), 'AmiPerformance');
 const AmiBilling = lazyWithRetry(() => import('./pages/finance/AmiBilling').then(m => ({ default: m.AmiBilling })), 'AmiBilling');
 const PlatformRevenue = lazyWithRetry(() => import('./pages/finance/PlatformRevenue').then(m => ({ default: m.PlatformRevenue })), 'PlatformRevenue');
@@ -203,7 +204,7 @@ export const router = createBrowserRouter([
       { path: 'finance/staff-commission', element: withGuard('core:finance:view', StaffCommissionWorkbench) },
       { path: 'finance/profit', element: withGuard('core:operation-profit:view', ProfitWorkbench) },
       { path: 'finance/member-assets', element: withGuard('core:prepaid-liability:view', MemberAssets) },
-      { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailySettlement) },
+      { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailyClose) },
       { path: 'finance/commission-rules', element: withGuard('core:finance:manage', CommissionRules) },
       { path: 'finance/commission-records', element: withGuard('core:finance:view', CommissionRecords) },
       { path: 'finance/monthly-settlement', element: withGuard('core:finance:view', MonthlySettlement) },

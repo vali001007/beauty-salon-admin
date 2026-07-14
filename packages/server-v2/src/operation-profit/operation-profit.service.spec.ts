@@ -9,11 +9,15 @@ describe('OperationProfitService', () => {
     stockMovement: { findMany: jest.fn() },
     product: { findMany: jest.fn() },
     commissionRecord: { aggregate: jest.fn(), findMany: jest.fn() },
-    customerBalanceTransaction: { aggregate: jest.fn() },
+    customerBalanceTransaction: { aggregate: jest.fn(), findMany: jest.fn() },
     project: { findMany: jest.fn(), count: jest.fn() },
     customerCard: { findMany: jest.fn() },
     user: { findMany: jest.fn() },
     beautician: { findMany: jest.fn() },
+    customerBalanceAccount: { findMany: jest.fn() },
+    monthlyProfitClose: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
+    memberLiabilitySnapshot: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    financeAuditLog: { create: jest.fn() },
   });
   const mockProjectMarginProjects = (prisma: ReturnType<typeof createPrisma>, projects: any[], allProjectIds = projects.map((project) => ({ id: project.id }))) => {
     prisma.project.findMany.mockResolvedValueOnce(projects).mockResolvedValueOnce(allProjectIds);
@@ -70,6 +74,112 @@ describe('OperationProfitService', () => {
     expect(result.dataQuality.missingCostReasons).toEqual(
       expect.arrayContaining(['missing_cost', 'missing_actual_consumption', 'missing_commission']),
     );
+    expect(result.readiness).toEqual(expect.objectContaining({ status: 'blocked', publishable: false }));
+  });
+
+  it('creates versioned monthly profit closes and blocks confirmation when readiness is not publishable', async () => {
+    const prisma = createPrisma();
+    const service = new OperationProfitService(prisma as any);
+    jest.spyOn(service, 'getOverview').mockResolvedValue({
+      summary: { operatingIncome: 1000, grossProfit: 500, operatingProfit: 300 },
+      costBreakdown: [
+        { key: 'material', amount: 100 },
+        { key: 'product', amount: 200 },
+        { key: 'commission', amount: 200 },
+        { key: 'rent', amount: 200 },
+      ],
+      dataQuality: { status: 'complete', missingCostReasons: [] },
+      readiness: { status: 'ready', publishable: true, blockers: [], warnings: [] },
+    } as any);
+    prisma.monthlyProfitClose.findFirst.mockResolvedValue(null);
+    prisma.monthlyProfitClose.create.mockImplementation(async ({ data }: any) => ({ id: 1, ...data }));
+
+    const draft = await service.generateMonthlyClose(3, '2026-06', { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: [] });
+    expect(draft).toEqual(expect.objectContaining({ version: 1, status: 'draft', operatingRevenue: 1000, operatingProfit: 300 }));
+
+    prisma.monthlyProfitClose.findUnique.mockResolvedValue({ id: 1, storeId: 3, status: 'draft', dataQuality: { readiness: { publishable: false } } });
+    await expect(service.confirmMonthlyClose(1, { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: [] })).rejects.toThrow('利润数据未达到发布条件');
+  });
+
+  it('reopens a confirmed monthly close without overwriting its version', async () => {
+    const prisma = createPrisma();
+    const service = new OperationProfitService(prisma as any);
+    prisma.monthlyProfitClose.findUnique.mockResolvedValue({ id: 8, storeId: 3, periodMonth: '2026-06', version: 1, status: 'confirmed' });
+    prisma.monthlyProfitClose.update.mockResolvedValue({ id: 8, storeId: 3, periodMonth: '2026-06', version: 1, status: 'reopened' });
+
+    const result = await service.reopenMonthlyClose(8, '补录六月房租后重新结账', { userId: 1, storeIds: [], roles: ['super_admin'], permissions: ['*'] });
+    expect(result).toEqual(expect.objectContaining({ version: 1, status: 'reopened' }));
+    expect(prisma.monthlyProfitClose.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 8 }, data: expect.objectContaining({ status: 'reopened', reopenReason: '补录六月房租后重新结账' }) }));
+  });
+
+  it('returns a confirmed liability snapshot for a historical as-of date', async () => {
+    const prisma = createPrisma();
+    const service = new OperationProfitService(prisma as any);
+    prisma.memberLiabilitySnapshot.findFirst.mockResolvedValue({
+      id: 6,
+      storeId: 3,
+      snapshotDate: new Date('2026-06-30T00:00:00.000Z'),
+      cashContractLiability: 1000,
+      giftObligation: 200,
+      cardLiability: 800,
+      remainingTimes: 16,
+      status: 'confirmed',
+    });
+
+    const result = await service.getPrepaidLiabilities({ storeId: 3, asOfDate: '2026-06-30' } as any);
+    expect(result.summary).toEqual(expect.objectContaining({ totalLiability: 2000, cashBalance: 1000, giftBalance: 200, cardLiability: 800, remainingTimes: 16 }));
+    expect(result.snapshot).toEqual(expect.objectContaining({ id: 6, status: 'confirmed' }));
+  });
+
+  it('prorates monthly operating costs and excludes actual-date costs outside a partial-month query', async () => {
+    const prisma = createPrisma();
+    prisma.productOrder.findMany.mockResolvedValue([{
+      id: 10, orderNo: 'O10', customerId: 1, totalAmount: 2000, status: 'completed', createdAt: new Date('2026-07-05T08:00:00.000Z'),
+      orderItems: [{ id: 1, itemType: 'project', itemId: 101, quantity: 1, netAmount: 2000, subtotal: 2000 }], paymentRecords: [], refundRecords: [],
+    }]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.card.findMany.mockResolvedValue([]);
+    prisma.operatingCost.findMany.mockResolvedValue([
+      { id: 1, category: 'rent', amount: 3100, allocationType: 'store_month', periodMonth: '2026-07', costDate: new Date('2026-07-01') },
+      { id: 2, category: 'marketing', amount: 500, allocationType: 'actual_date', periodMonth: '2026-07', costDate: new Date('2026-07-20') },
+    ]);
+    prisma.stockMovement.findMany.mockResolvedValue([{ sourceType: 'project_order', sourceId: 10, productId: 1, quantity: -1, costAmount: 200 }]);
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.commissionRecord.aggregate.mockResolvedValue({ _sum: { amount: 100 } });
+    prisma.customerBalanceTransaction.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+
+    const service = new OperationProfitService(prisma as any);
+    const result = await service.getOverview({ storeId: 1, from: '2026-07-01', to: '2026-07-10' });
+
+    expect(result.costBreakdown).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'rent', amount: 1000 })]));
+    expect(result.costBreakdown.some((item) => item.key === 'marketing')).toBe(false);
+    expect(result.summary.operatingProfit).toBe(700);
+  });
+
+  it('builds daily profit from each day gross profit instead of applying one period margin', async () => {
+    const prisma = createPrisma();
+    prisma.productOrder.findMany.mockResolvedValue([]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.card.findMany.mockResolvedValue([]);
+    prisma.operatingCost.findMany.mockResolvedValue([{ id: 1, category: 'rent', amount: 3100, allocationType: 'store_month', periodMonth: '2026-07', costDate: new Date('2026-07-01') }]);
+    prisma.stockMovement.findMany.mockResolvedValue([]);
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.commissionRecord.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+    prisma.customerBalanceTransaction.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+    const financeMetrics = { getDailyMetrics: jest.fn().mockResolvedValue({
+      summary: { cashIncome: 700, operatingRevenue: 700, grossProfit: 500, grossMargin: 0.7143, customerCount: 2, avgTicket: 350, prepaidAmount: 0, cardUsageRecognized: 0, dataQuality: { missingReasons: [] } },
+      items: [
+        { date: '2026-07-01', cashIncome: 200, operatingRevenue: 200, grossProfit: 100 },
+        { date: '2026-07-02', cashIncome: 500, operatingRevenue: 500, grossProfit: 400 },
+      ],
+    }) };
+    const service = new OperationProfitService(prisma as any, financeMetrics as any);
+
+    const result = await service.getOverview({ storeId: 1, from: '2026-07-01', to: '2026-07-02' });
+    expect(result.trend).toEqual([
+      expect.objectContaining({ date: '2026-07-01', grossProfit: 100, operatingProfit: 0 }),
+      expect.objectContaining({ date: '2026-07-02', grossProfit: 400, operatingProfit: 300 }),
+    ]);
   });
 
   it('uses product order cost snapshots in overview gross profit', async () => {

@@ -220,6 +220,10 @@ export function DailySettlement() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="border-b border-border pb-4">
+        <h1 className="text-xl font-semibold">实时经营日报</h1>
+        <p className="mt-1 text-sm text-muted-foreground">按统一财务事实即时重算，仅用于经营预览；确认与冻结请进入日结总览。</p>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground">日期范围</span>
@@ -266,7 +270,7 @@ export function DailySettlement() {
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-medium">日结趋势</div>
+            <div className="text-sm font-medium">实时经营趋势</div>
             <p className="mt-1 text-sm text-muted-foreground">
               跟踪营业收入、毛利与退款波动。
             </p>
@@ -381,7 +385,7 @@ export function DailySettlement() {
           ) : (
             <TableRow>
               <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
-                暂无日结数据，可先选择日期重新计算。
+                暂无实时经营数据，可调整日期范围后重新加载。
               </TableCell>
             </TableRow>
           )}
@@ -391,9 +395,9 @@ export function DailySettlement() {
       <Dialog open={Boolean(detailItem)} onOpenChange={(open) => !open && setDetailItem(null)}>
         <DialogContent className="max-w-4xl" aria-describedby="daily-settlement-detail-desc">
           <DialogHeader>
-            <DialogTitle>日结明细 - {dateText(detailItem?.date)}</DialogTitle>
+            <DialogTitle>实时经营日报明细 - {dateText(detailItem?.date)}</DialogTitle>
             <DialogDescription id="daily-settlement-detail-desc">
-              系统已按订单、支付、退款、耗材和提成流水汇总，默认采纳当前数据，无需人工确认审核。
+              系统按当前订单、支付、退款、耗材和提成流水即时重算；此处数据未冻结，不代表已确认日结。
             </DialogDescription>
           </DialogHeader>
 

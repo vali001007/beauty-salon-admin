@@ -113,6 +113,14 @@ model Store {
   brainOperatingTargets    BrainStoreOperatingTarget[]
 
   @@index([status])
+  dailySettlementSnapshots      DailySettlementSnapshot[]
+  financeAuditLogs              FinanceAuditLog[]
+  financeReconciliationRuns     FinanceReconciliationRun[]
+  financeReconciliationIssues   FinanceReconciliationIssue[]
+  dailySettlementAdjustments    DailySettlementAdjustment[]
+  monthlyProfitCloses           MonthlyProfitClose[]
+  memberLiabilitySnapshots      MemberLiabilitySnapshot[]
+  commissionAdjustments         CommissionAdjustment[]
 }
 
 model User {
@@ -158,6 +166,12 @@ model User {
   @@index([status])
   @@index([phone])
   @@index([supplySupplierId])
+  financeAuditLogs               FinanceAuditLog[]              @relation("FinanceAuditUser")
+  confirmedDailySnapshots        DailySettlementSnapshot[]      @relation("DailySnapshotConfirmedBy")
+  confirmedMonthlyProfitCloses   MonthlyProfitClose[]           @relation("MonthlyProfitConfirmedBy")
+  confirmedLiabilitySnapshots    MemberLiabilitySnapshot[]      @relation("LiabilitySnapshotConfirmedBy")
+  createdCommissionAdjustments   CommissionAdjustment[]         @relation("CommissionAdjustmentCreatedBy")
+  confirmedCommissionAdjustments CommissionAdjustment[]         @relation("CommissionAdjustmentConfirmedBy")
 }
 
 model RefreshToken {
@@ -1188,6 +1202,7 @@ model CommissionRecord {
   rule       CommissionRule? @relation(fields: [ruleId], references: [id])
   assignment CommissionRuleAssignment? @relation(fields: [assignmentId], references: [id])
   settlementRecords CommissionSettlementRecord[]
+  adjustments       CommissionAdjustment[]
 
   @@index([beauticianId, settleMonth])
   @@index([staffUserId, settleMonth])
@@ -1218,6 +1233,10 @@ model CommissionSettlement {
   confirmedBy    Int?
   confirmedAt    DateTime?
   paidAt         DateTime?
+  paidBy           Int?
+  paymentBatchNo   String?
+  paymentMethod    String?
+  paymentVoucherNo String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -1225,6 +1244,7 @@ model CommissionSettlement {
   staffUser  User?      @relation("CommissionSettlementStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
   beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   settlementRecords CommissionSettlementRecord[]
+  adjustments       CommissionAdjustment[]
 
   @@unique([storeId, staffUserId, settleMonth])
   @@index([storeId, settleMonth])
@@ -1319,13 +1339,23 @@ model DailySettlement {
   grossMargin     Decimal   @default(0)
   commissionTotal Decimal   @default(0)
   status          String    @default("draft")
+  reconciliationStatus String @default("pending")
+  confirmationMode     String?
+  latestReconciliationRunId Int?
   confirmedBy     Int?
   confirmedAt     DateTime?
   summary         Json?
+  systemSummary   Json?
+  adjustmentSummary Json?
+  finalSummary    Json?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  snapshots DailySettlementSnapshot[]
+  reconciliationRuns FinanceReconciliationRun[]
+  reconciliationIssues FinanceReconciliationIssue[]
+  adjustments DailySettlementAdjustment[]
 
   @@unique([storeId, settleDate])
   @@index([storeId, settleDate])
@@ -1409,6 +1439,8 @@ model OrderItem {
   eligibleForOrderDiscount     Boolean @default(true)
   beauticianId Int?
   payload      Json?
+  recognizedAt                 DateTime?
+  recognitionSource            String?
   createdAt    DateTime @default(now())
 
   order             ProductOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -3050,6 +3082,7 @@ model AmiMonthlyBill {
   id               Int      @id @default(autoincrement())
   storeId          Int
   settleMonth      String
+  version          Int       @default(1)
   baseFee          Decimal
   commissionFee    Decimal
   totalFee         Decimal
@@ -3057,11 +3090,19 @@ model AmiMonthlyBill {
   roi              Decimal?
   breakdown        Json
   status           String   @default("draft")
+  confirmedBy      Int?
+  confirmedAt      DateTime?
+  invoicedAt       DateTime?
+  paidAt           DateTime?
+  voidedAt         DateTime?
+  voidReason       String?
   createdAt        DateTime @default(now())
+  updatedAt        DateTime  @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  @@unique([storeId, settleMonth])
+  @@unique([storeId, settleMonth, version])
+  @@index([storeId, settleMonth, status])
 }
 
 // ─── AI Audit ────────────────────────────────────────────────────────────────
@@ -4623,4 +4664,233 @@ model BrainActionExecution {
   @@index([actionId])
   @@index([status, createdAt])
   @@map("brain_action_execution")
+}
+
+model CommissionAdjustment {
+  id                 Int       @id @default(autoincrement())
+  settlementId       Int
+  commissionRecordId Int?
+  storeId            Int
+  type               String
+  amount             Decimal
+  reason             String
+  status             String    @default("pending")
+  createdBy          Int?
+  confirmedBy        Int?
+  confirmedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  settlement       CommissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  commissionRecord CommissionRecord?    @relation(fields: [commissionRecordId], references: [id], onDelete: SetNull)
+  store            Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  creator          User?                @relation("CommissionAdjustmentCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  confirmer        User?                @relation("CommissionAdjustmentConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  @@index([settlementId, status])
+  @@index([commissionRecordId])
+  @@index([storeId, createdAt])
+}
+
+model DailySettlementSnapshot {
+  id                Int       @id @default(autoincrement())
+  dailySettlementId Int
+  storeId           Int
+  settleDate        DateTime
+  version           Int
+  totalRevenue      Decimal   @default(0)
+  cashRevenue       Decimal   @default(0)
+  wechatRevenue     Decimal   @default(0)
+  alipayRevenue     Decimal   @default(0)
+  cardRevenue       Decimal   @default(0)
+  balanceRevenue    Decimal   @default(0)
+  rechargeIncome    Decimal   @default(0)
+  refundAmount      Decimal   @default(0)
+  orderCount        Int       @default(0)
+  customerCount     Int       @default(0)
+  avgTransaction    Decimal   @default(0)
+  materialCost      Decimal   @default(0)
+  grossProfit       Decimal   @default(0)
+  grossMargin       Decimal   @default(0)
+  commissionTotal   Decimal   @default(0)
+  snapshot          Json
+  sourceDigest      String?
+  systemSummary     Json?
+  adjustmentSummary Json?
+  finalSummary      Json?
+  confirmationMode  String   @default("manual")
+  reconciliationRunId Int?
+  ruleVersion       String?
+  confirmedBy       Int?
+  confirmedAt       DateTime  @default(now())
+  supersededAt      DateTime?
+  createdAt         DateTime  @default(now())
+
+  dailySettlement DailySettlement @relation(fields: [dailySettlementId], references: [id], onDelete: Cascade)
+  store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  confirmer       User?           @relation("DailySnapshotConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  @@unique([dailySettlementId, version])
+  @@index([storeId, settleDate])
+}
+
+model FinanceAuditLog {
+  id            Int      @id @default(autoincrement())
+  storeId       Int?
+  userId        Int?
+  action        String
+  entityType    String
+  entityId      Int
+  reason        String?
+  beforePayload Json?
+  afterPayload  Json?
+  createdAt     DateTime @default(now())
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  user  User?  @relation("FinanceAuditUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+model MonthlyProfitClose {
+  id               Int       @id @default(autoincrement())
+  storeId          Int
+  periodMonth      String
+  version          Int
+  operatingRevenue Decimal   @default(0)
+  materialCost     Decimal   @default(0)
+  productCost      Decimal   @default(0)
+  commissionCost   Decimal   @default(0)
+  operatingCost    Decimal   @default(0)
+  grossProfit      Decimal   @default(0)
+  operatingProfit  Decimal   @default(0)
+  dataQuality      Json
+  sourceSummary    Json
+  status           String    @default("draft")
+  confirmedBy      Int?
+  confirmedAt      DateTime?
+  reopenedBy       Int?
+  reopenedAt       DateTime?
+  reopenReason     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  store     Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  confirmer User? @relation("MonthlyProfitConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, periodMonth, version])
+  @@index([storeId, periodMonth, status])
+}
+
+model MemberLiabilitySnapshot {
+  id                    Int       @id @default(autoincrement())
+  storeId               Int
+  snapshotDate          DateTime
+  version               Int
+  cashContractLiability Decimal   @default(0)
+  giftObligation        Decimal   @default(0)
+  cardLiability         Decimal   @default(0)
+  remainingTimes        Int       @default(0)
+  additions             Decimal   @default(0)
+  releases              Decimal   @default(0)
+  refunds               Decimal   @default(0)
+  expirations           Decimal   @default(0)
+  adjustments           Decimal   @default(0)
+  sourceSummary         Json
+  status                String    @default("draft")
+  confirmedBy           Int?
+  confirmedAt           DateTime?
+  createdAt             DateTime  @default(now())
+
+  store     Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  confirmer User? @relation("LiabilitySnapshotConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, snapshotDate, version])
+  @@index([storeId, snapshotDate])
+}
+
+model FinanceReconciliationRun {
+  id                Int       @id @default(autoincrement())
+  storeId           Int
+  dailySettlementId Int?
+  businessDate      DateTime
+  triggerType       String
+  status            String    @default("running")
+  ruleVersion       String
+  sourceDigest      String
+  idempotencyKey    String    @unique
+  summary           Json
+  errorMessage      String?
+  startedAt         DateTime  @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+
+  store           Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  dailySettlement DailySettlement? @relation(fields: [dailySettlementId], references: [id], onDelete: SetNull)
+  issues          FinanceReconciliationIssue[]
+
+  @@index([storeId, businessDate, status])
+  @@index([dailySettlementId, createdAt])
+}
+
+model FinanceReconciliationIssue {
+  id                Int       @id @default(autoincrement())
+  runId             Int
+  storeId           Int
+  dailySettlementId Int?
+  businessDate      DateTime
+  fingerprint       String    @unique
+  code              String
+  category          String
+  severity          String
+  status            String    @default("open")
+  title             String
+  detail            String
+  amount            Decimal?
+  sourceType        String?
+  sourceId          Int?
+  actionPath        String
+  acknowledgedBy    Int?
+  acknowledgedAt    DateTime?
+  resolutionNote    String?
+  firstDetectedAt   DateTime  @default(now())
+  lastDetectedAt    DateTime  @default(now())
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  run             FinanceReconciliationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  store           Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  dailySettlement DailySettlement?         @relation(fields: [dailySettlementId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, businessDate, status])
+  @@index([category, severity, status])
+  @@index([dailySettlementId, status])
+}
+
+model DailySettlementAdjustment {
+  id                Int       @id @default(autoincrement())
+  dailySettlementId Int
+  storeId           Int
+  adjustmentType    String
+  effectField       String
+  amount            Decimal
+  reason            String
+  voucherNo         String?
+  status            String    @default("applied")
+  createdBy         Int
+  cancelledBy       Int?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  dailySettlement DailySettlement @relation(fields: [dailySettlementId], references: [id], onDelete: Cascade)
+  store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([dailySettlementId, status])
+  @@index([storeId, createdAt])
+  @@index([createdBy, createdAt])
 }

@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ClipboardList, RefreshCcw, RotateCcw, WalletCards } from 'lucide-react';
+import { AlertTriangle, ClipboardList, FileClock, RefreshCcw, RotateCcw, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import {
   getCashierShiftHistory,
+  getFinanceReconciliationIssues,
   getPaymentRecords,
   getRefundRecords,
-  getReconciliationExceptions,
+  acknowledgeFinanceReconciliationIssue,
   type CashierShift,
   type PaymentRecord,
   type RefundRecord,
-  type ReconciliationException,
+  type FinanceReconciliationIssue,
 } from '@/api/commission';
 import { DailySettlement } from './DailySettlement';
+import { DailyClose } from './DailyClose';
 
-type CashierTab = 'daily' | 'payments' | 'refunds' | 'exceptions' | 'shifts';
+type CashierTab = 'daily' | 'live' | 'payments' | 'refunds' | 'exceptions' | 'shifts';
 
 const methodLabels: Record<string, string> = {
   cash: '现金',
@@ -329,16 +331,14 @@ function RefundRecordsPane() {
 
 function ReconciliationExceptionsPane() {
   const [filters, setFilters] = useState({ dateFrom: daysAgoText(6), dateTo: todayText() });
-  const [items, setItems] = useState<ReconciliationException[]>([]);
-  const [summary, setSummary] = useState({ high: 0, medium: 0, low: 0 });
+  const [items, setItems] = useState<FinanceReconciliationIssue[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await getReconciliationExceptions({ page: 1, pageSize: 200, ...filters });
+      const page = await getFinanceReconciliationIssues({ page: 1, pageSize: 200, status: 'unresolved', ...filters });
       setItems(page.items);
-      setSummary((page as any).summary ?? { high: 0, medium: 0, low: 0 });
     } catch (error: any) {
       toast.error(error?.message || '加载对账异常失败');
     } finally {
@@ -348,28 +348,46 @@ function ReconciliationExceptionsPane() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const counts = useMemo(() => ({
+    operating: items.filter((item) => item.category === 'operating_exception').length,
+    integrity: items.filter((item) => item.category === 'data_integrity').length,
+    automation: items.filter((item) => item.category === 'automation_failure').length,
+  }), [items]);
+
+  const acknowledge = async (id: number) => {
+    try {
+      await acknowledgeFinanceReconciliationIssue(id);
+      toast.success('已标记查看，异常仍会保留到来源问题解决');
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.message || '标记异常失败');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        自动核对支付现金流、营业收入、预收资金、退款明细和库存冲销，避免只看订单状态判断账务完成。
+        异常改为持久化待办。自动修复成功项只进入运行日志；利润质量只做提醒；支付、退款、现金差异以及来源数据完整性故障持续保留到问题真正解决。
       </div>
       <FlowFilters {...filters} onChange={(patch) => setFilters((previous) => ({ ...previous, ...patch }))} onRefresh={loadData} loading={loading} />
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">高风险</div><div className="mt-2 text-2xl font-semibold text-red-600">{summary.high}</div></div>
-        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">中风险</div><div className="mt-2 text-2xl font-semibold text-amber-600">{summary.medium}</div></div>
-        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">低风险</div><div className="mt-2 text-2xl font-semibold">{summary.low}</div></div>
+        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">经营异常</div><div className="mt-2 text-2xl font-semibold text-amber-600">{counts.operating}</div></div>
+        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">数据完整性故障</div><div className="mt-2 text-2xl font-semibold text-red-600">{counts.integrity}</div></div>
+        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">自动任务故障</div><div className="mt-2 text-2xl font-semibold text-red-600">{counts.automation}</div></div>
       </div>
       <Table>
-        <TableHeader><TableRow><TableHead>日期</TableHead><TableHead>级别</TableHead><TableHead>异常</TableHead><TableHead>说明</TableHead><TableHead>差额</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>日期</TableHead><TableHead>分类</TableHead><TableHead>级别</TableHead><TableHead>异常</TableHead><TableHead>说明</TableHead><TableHead>差额</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
         <TableBody>
           {items.map((item) => <TableRow key={item.id}>
-            <TableCell>{item.date}</TableCell>
+            <TableCell>{String(item.businessDate).slice(0, 10)}</TableCell>
+            <TableCell>{item.category === 'data_integrity' ? '数据完整性' : item.category === 'automation_failure' ? '自动任务' : '经营异常'}</TableCell>
             <TableCell>{item.severity === 'high' ? '高' : item.severity === 'medium' ? '中' : '低'}</TableCell>
             <TableCell className="font-medium">{item.title}</TableCell>
             <TableCell>{item.detail}</TableCell>
-            <TableCell>{item.amountDiff === undefined ? '-' : money(item.amountDiff)}</TableCell>
+            <TableCell>{item.amount === undefined ? '-' : money(item.amount)}</TableCell>
+            <TableCell className="text-right">{item.status === 'open' ? <Button size="sm" variant="outline" onClick={() => void acknowledge(item.id)}>已查看</Button> : <span className="text-xs text-muted-foreground">已查看</span>}</TableCell>
           </TableRow>)}
-          {!items.length ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">当前范围没有对账异常</TableCell></TableRow> : null}
+          {!items.length ? <TableRow><TableCell colSpan={7} className="py-10 text-center text-muted-foreground">当前范围没有未解决对账异常</TableCell></TableRow> : null}
         </TableBody>
       </Table>
     </div>
@@ -464,6 +482,10 @@ export function CashierReconciliation() {
             <RotateCcw className="h-4 w-4" />
             退款记录
           </TabsTrigger>
+          <TabsTrigger value="live" className="gap-2">
+            <FileClock className="h-4 w-4" />
+            实时经营日报
+          </TabsTrigger>
           <TabsTrigger value="exceptions" className="gap-2">
             <AlertTriangle className="h-4 w-4" />
             对账异常
@@ -474,7 +496,7 @@ export function CashierReconciliation() {
         <TabsContent value="daily">
           {tab === 'daily' ? (
             <div className="flex flex-col gap-4">
-              <DailySettlement />
+              <DailyClose />
             </div>
           ) : null}
         </TabsContent>
@@ -484,6 +506,7 @@ export function CashierReconciliation() {
         <TabsContent value="refunds">
           {tab === 'refunds' ? <RefundRecordsPane /> : null}
         </TabsContent>
+        <TabsContent value="live">{tab === 'live' ? <DailySettlement /> : null}</TabsContent>
         <TabsContent value="exceptions">
           {tab === 'exceptions' ? <ReconciliationExceptionsPane /> : null}
         </TabsContent>

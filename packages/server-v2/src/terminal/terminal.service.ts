@@ -4219,10 +4219,23 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     try {
       const order = await this.prisma.productOrder.findUnique({
         where: { id: orderId },
-        select: { createdAt: true, status: true },
+        select: {
+          createdAt: true,
+          updatedAt: true,
+          status: true,
+          paymentRecords: { where: { status: 'success' }, orderBy: { paidAt: 'desc' }, take: 1, select: { paidAt: true, createdAt: true } },
+          refundRecords: { where: { status: { in: ['success', 'completed', 'refunded'] } }, orderBy: { refundedAt: 'desc' }, take: 1, select: { refundedAt: true, createdAt: true } },
+        },
       });
       if (!order || !['completed', 'paid'].includes(order.status)) return;
-      await this.commissionService.generateDailySettlement(storeId, order.createdAt);
+      const occurredAt = source.includes('refund')
+        ? order.refundRecords?.[0]?.refundedAt ?? order.refundRecords?.[0]?.createdAt ?? order.updatedAt
+        : order.paymentRecords?.[0]?.paidAt ?? order.paymentRecords?.[0]?.createdAt ?? order.updatedAt ?? order.createdAt;
+      if (typeof this.commissionService?.refreshDailySettlementForFact === 'function') {
+        await this.commissionService.refreshDailySettlementForFact(storeId, occurredAt, source);
+      } else {
+        await this.commissionService.generateDailySettlement(storeId, occurredAt);
+      }
     } catch (error) {
       console.warn(`Daily settlement refresh failed after ${source}`, error);
     }
@@ -4232,6 +4245,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     await this.ensureOpenCashierShift(storeId, deviceId);
     const paymentMethod = this.getPaymentMethod(dto.payMethod);
     const store = await this.getStore(storeId);
+    const serviceTask = dto.taskId
+      ? await this.prisma.serviceTask.findFirst({ where: { id: dto.taskId, storeId, status: 'completed' }, select: { id: true, completedAt: true } })
+      : null;
+    if (dto.taskId && !serviceTask?.completedAt) throw new BadRequestException('服务任务未完成，不能作为履约时间转收银');
     const resolvedDtoItems = await this.resolveOrderItemBeauticianIds(storeId, dto.items as any[]);
     const normalizedItems = await this.resolveOrderItemNames(resolvedDtoItems);
     const allocation = this.discountAllocationService.allocate({
@@ -4286,6 +4303,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           paymentMethod: orderPayMethod,
           payments,
           paidAmount: summary.netAmount,
+          serviceCompletedAt: serviceTask?.completedAt,
           source: 'terminal',
           preAllocatedDiscount: true,
           items: group.items.map((item) => ({ ...item, beauticianId: this.toNumber(item.beauticianId ?? dto.beauticianId) || undefined })),

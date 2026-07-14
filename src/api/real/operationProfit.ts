@@ -9,6 +9,8 @@ import type {
   OperationCostQuery,
   OperationProfitOverview,
   OperationProfitQuery,
+  MonthlyProfitClose,
+  MemberLiabilitySnapshot,
   PrepaidLiabilityPage,
   PrepaidLiabilityQuery,
   ProductMarginPage,
@@ -32,6 +34,30 @@ function normalizePaginated<T>(response: any): PaginatedResponse<T> {
 
 export async function realGetOperationProfitOverview(params: OperationProfitQuery) {
   return apiClient.get('/operation-profit/overview', { params }) as Promise<OperationProfitOverview>;
+}
+
+export async function realGenerateMonthlyProfitClose(payload: { storeId?: number; periodMonth: string }) {
+  return apiClient.post('/operation-profit/monthly-closes', payload) as Promise<MonthlyProfitClose>;
+}
+
+export async function realConfirmMonthlyProfitClose(id: number) {
+  return apiClient.put(`/operation-profit/monthly-closes/${id}/confirm`) as Promise<MonthlyProfitClose>;
+}
+
+export async function realReopenMonthlyProfitClose(id: number, reason: string) {
+  return apiClient.post(`/operation-profit/monthly-closes/${id}/reopen`, { reason }) as Promise<MonthlyProfitClose>;
+}
+
+export async function realGetMonthlyProfitCloseVersions(params: { storeId?: number; periodMonth: string }) {
+  return apiClient.get('/operation-profit/monthly-closes/versions', { params }) as Promise<MonthlyProfitClose[]>;
+}
+
+export async function realGenerateMemberLiabilitySnapshot(payload: { storeId?: number; snapshotDate: string }) {
+  return apiClient.post('/operation-profit/liability-snapshots', payload) as Promise<MemberLiabilitySnapshot>;
+}
+
+export async function realConfirmMemberLiabilitySnapshot(id: number) {
+  return apiClient.put(`/operation-profit/liability-snapshots/${id}/confirm`) as Promise<MemberLiabilitySnapshot>;
 }
 
 export async function realGetProjectMargins(params: ProjectMarginQuery) {

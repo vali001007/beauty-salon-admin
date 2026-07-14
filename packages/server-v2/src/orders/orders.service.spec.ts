@@ -795,8 +795,8 @@ describe('OrdersService refunds', () => {
         refundedAt: expect.any(Date),
       }),
     });
-    expect(commissionService.reverseOrderCommissions).toHaveBeenCalledWith(501, 680, tx);
-    expect(commissionService.generateDailySettlement).toHaveBeenCalledWith(1, createdAt);
+    expect(commissionService.reverseOrderCommissions).toHaveBeenCalledWith(501, 680, tx, [{ orderItemId: 9001, refundAmount: 680 }]);
+    expect(commissionService.generateDailySettlement).toHaveBeenCalledWith(1, refundedOrder.refundRecords[0].refundedAt);
     expect(result).toEqual(expect.objectContaining({ id: 501, status: 'refunded' }));
   });
 
@@ -998,6 +998,8 @@ describe('OrdersService project order inventory consumption', () => {
           quantity: 2,
           unitPrice: 200,
           subtotal: 400,
+          recognizedAt: expect.any(Date),
+          recognitionSource: 'direct_payment',
         }),
       ],
     });
@@ -1021,6 +1023,23 @@ describe('OrdersService project order inventory consumption', () => {
         sourceId: 501,
         remark: expect.stringContaining('库存发布前验收-项目 BOM 扣减'),
       }),
+    });
+  });
+
+  it('uses service completion time as project recognition time when a completed task is transferred to checkout', async () => {
+    const completedAt = new Date('2026-07-12T02:30:00.000Z');
+    await service.createProjectOrder({
+      customerName: '散客',
+      storeId: 1,
+      status: '已付款',
+      paymentMethod: '微信',
+      totalAmount: 400,
+      serviceCompletedAt: completedAt,
+      items: [{ projectId: 101, projectName: 'Hydration', quantity: 1, unitPrice: 400, subtotal: 400 }],
+    });
+
+    expect(tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ recognizedAt: completedAt, recognitionSource: 'service_task_completed' })],
     });
   });
 

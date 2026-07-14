@@ -3,7 +3,7 @@ import { AlertTriangle, BarChart3, ClipboardList, RefreshCcw, TrendingUp, Wallet
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from '../../components/UI';
-import { getCommissionSummary, getDailySettlements, type CommissionSummary, type DailySettlement } from '@/api/commission';
+import { getCommissionSummary, getDailySettlements, getFinanceReconciliationIssues, type CommissionSummary, type DailySettlement, type FinanceReconciliationIssue } from '@/api/commission';
 import { getFinanceDailyMetrics, type FinanceMetricResponse } from '@/api/financeMetrics';
 import { getOperationProfitOverview, getPrepaidLiabilities } from '@/api/operationProfit';
 import { useStoreStore } from '@/stores/storeStore';
@@ -38,31 +38,37 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export type FinanceOverviewAlert = { title: string; detail: string; to: string };
-type FinanceOverviewSectionKey = 'dailySettlement' | 'financeMetrics' | 'commissionSummary' | 'profitOverview' | 'memberAssets';
+type FinanceOverviewSectionKey = 'dailySettlement' | 'reconciliationIssues' | 'financeMetrics' | 'commissionSummary' | 'profitOverview' | 'memberAssets';
 type FinanceOverviewSectionError = { key: FinanceOverviewSectionKey; title: string; message: string };
 
 export function buildFinanceOverviewAlerts(input: {
   dailySettlement: DailySettlement | null;
   profitOverview: OperationProfitOverview | null;
+  reconciliationIssues?: FinanceReconciliationIssue[];
   failedSections?: FinanceOverviewSectionKey[];
 }): FinanceOverviewAlert[] {
   const items: FinanceOverviewAlert[] = [];
   const failedSections = new Set(input.failedSections ?? []);
   if (!failedSections.has('dailySettlement') && !input.dailySettlement) {
-    items.push({ title: '今日尚未生成日结', detail: '收银完成后建议生成或刷新日结，确认支付与退款口径。', to: '/finance/reconciliation' });
+    items.push({ title: '今日尚未生成日结', detail: '收银完成后建议生成或刷新日结，确认支付与退款口径。', to: '/finance/daily-settlement' });
   } else if (!failedSections.has('dailySettlement') && input.dailySettlement.status !== 'confirmed') {
-    items.push({ title: '今日日结待确认', detail: '日结已生成但尚未确认，确认前不要作为最终财务口径。', to: '/finance/reconciliation' });
+    items.push({ title: '今日日结待确认', detail: '日结已生成但尚未确认，确认前不要作为最终财务口径。', to: '/finance/daily-settlement' });
   }
   if (!failedSections.has('profitOverview') && input.profitOverview?.dataQuality?.status && input.profitOverview.dataQuality.status !== 'complete') {
     items.push({ title: '经营利润存在数据缺口', detail: input.profitOverview.dataQuality.detail || '成本、BOM 或提成记录未完全闭合。', to: '/finance/profit' });
   }
+  const unresolvedIssues = input.reconciliationIssues ?? [];
+  const automationFailures = unresolvedIssues.filter((item) => item.category === 'automation_failure').length;
+  const blockingIssues = unresolvedIssues.filter((item) => item.severity === 'high' && item.category !== 'automation_failure').length;
+  if (automationFailures > 0) items.push({ title: '自动对账任务失败', detail: `${automationFailures} 个自动任务需要处理，相关日结不会自动确认。`, to: '/finance/reconciliation?tab=exceptions' });
+  if (blockingIssues > 0) items.push({ title: '日结存在阻断异常', detail: `${blockingIssues} 个支付、退款、现金或数据完整性问题等待处理。`, to: '/finance/reconciliation?tab=exceptions' });
   return items;
 }
 
-function MetricTile({ label, value, hint, to }: { label: string; value: string; hint?: string; to?: string }) {
+function MetricTile({ label, value, hint, to, tag }: { label: string; value: string; hint?: string; to?: string; tag: string }) {
   const content = (
     <div className="rounded-lg border border-border bg-card p-4 transition hover:border-primary/30">
-      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground"><span>{label}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{tag}</span></div>
       <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
       {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
     </div>
@@ -92,6 +98,7 @@ export function FinanceOverview() {
   const [commissionSummary, setCommissionSummary] = useState<CommissionSummary | null>(null);
   const [profitOverview, setProfitOverview] = useState<OperationProfitOverview | null>(null);
   const [memberAssets, setMemberAssets] = useState<PrepaidLiabilitySummary | null>(null);
+  const [reconciliationIssues, setReconciliationIssues] = useState<FinanceReconciliationIssue[]>([]);
   const [sectionErrors, setSectionErrors] = useState<FinanceOverviewSectionError[]>([]);
 
   const date = todayText();
@@ -102,6 +109,12 @@ export function FinanceOverview() {
     try {
       const baseStoreParams = currentStoreId ? { storeId: currentStoreId } : {};
       const requests = [
+        {
+          key: 'reconciliationIssues' as const,
+          title: '自动对账待办',
+          run: () => getFinanceReconciliationIssues({ page: 1, pageSize: 100, status: 'unresolved', ...baseStoreParams }),
+          apply: (issues: Awaited<ReturnType<typeof getFinanceReconciliationIssues>>) => setReconciliationIssues(issues.items),
+        },
         {
           key: 'dailySettlement' as const,
           title: '今日日结状态',
@@ -161,8 +174,8 @@ export function FinanceOverview() {
   }, [loadData]);
 
   const alerts = useMemo(() => {
-    return buildFinanceOverviewAlerts({ dailySettlement, profitOverview, failedSections: sectionErrors.map((item) => item.key) });
-  }, [dailySettlement, profitOverview, sectionErrors]);
+    return buildFinanceOverviewAlerts({ dailySettlement, profitOverview, reconciliationIssues, failedSections: sectionErrors.map((item) => item.key) });
+  }, [dailySettlement, profitOverview, reconciliationIssues, sectionErrors]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -178,10 +191,10 @@ export function FinanceOverview() {
       </div>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricTile label="今日现金收入" value={money(financeMetrics?.summary.cashIncome)} hint={`营业收入 ${money(financeMetrics?.summary.operatingRevenue)} / 退款 ${money(financeMetrics?.summary.refundAmount)}`} to="/finance/reconciliation" />
-        <MetricTile label="本月提成" value={money(commissionSummary?.totalAmount)} hint={`${commissionSummary?.count ?? 0} 条流水`} to="/finance/staff-commission" />
-        <MetricTile label="本月经营利润" value={money(profitOverview?.summary?.operatingProfit)} hint={`净利率 ${percent(profitOverview?.summary?.netMargin)}`} to="/finance/profit" />
-        <MetricTile label="会员履约负债" value={money(memberAssets?.totalLiability)} hint={`高风险 ${memberAssets?.highRisk ?? 0} 个`} to="/finance/member-assets" />
+        <MetricTile label="今日现金收入" value={money(financeMetrics?.summary.cashIncome)} hint={`营业收入 ${money(financeMetrics?.summary.operatingRevenue)} / 退款 ${money(financeMetrics?.summary.refundAmount)}`} to="/finance/reconciliation" tag={dailySettlement?.status === 'confirmed' ? '已确认' : '实时'} />
+        <MetricTile label="本月提成" value={money(commissionSummary?.totalAmount)} hint={`${commissionSummary?.count ?? 0} 条流水`} to="/finance/staff-commission" tag="草稿" />
+        <MetricTile label="本月经营利润" value={money(profitOverview?.summary?.operatingProfit)} hint={`净利率 ${percent(profitOverview?.summary?.netMargin)}`} to="/finance/profit" tag={profitOverview?.readiness?.publishable ? '可发布' : '不可发布'} />
+        <MetricTile label="会员履约负债" value={money(memberAssets?.totalLiability)} hint={`高风险 ${memberAssets?.highRisk ?? 0} 个`} to="/finance/member-assets" tag="实时" />
       </section>
 
       {sectionErrors.length ? (

@@ -640,9 +640,19 @@ export class OrdersService {
   private async refreshDailySettlementForOrder(order: any, source: string) {
     const storeId = this.toNumber(order?.storeId);
     if (!storeId || !['completed', 'paid', 'partially_refunded', 'refunded'].includes(String(order?.status))) return;
-    if (typeof this.commissionService?.generateDailySettlement !== 'function') return;
+    const refundRecords = Array.isArray(order?.refundRecords) ? order.refundRecords : [];
+    const latestRefund = [...refundRecords].sort((a: any, b: any) => new Date(b.refundedAt ?? b.createdAt).getTime() - new Date(a.refundedAt ?? a.createdAt).getTime())[0];
+    const paymentRecords = Array.isArray(order?.paymentRecords) ? order.paymentRecords : [];
+    const latestPayment = [...paymentRecords].sort((a: any, b: any) => new Date(b.paidAt ?? b.createdAt).getTime() - new Date(a.paidAt ?? a.createdAt).getTime())[0];
+    const occurredAt = source.includes('refund')
+      ? order?.refund?.refundedAt ?? latestRefund?.refundedAt ?? latestRefund?.createdAt ?? order?.updatedAt ?? new Date()
+      : latestPayment?.paidAt ?? latestPayment?.createdAt ?? order?.updatedAt ?? order?.createdAt ?? new Date();
     try {
-      await this.commissionService.generateDailySettlement(storeId, order.createdAt ?? new Date());
+      if (typeof this.commissionService?.refreshDailySettlementForFact === 'function') {
+        await this.commissionService.refreshDailySettlementForFact(storeId, occurredAt, source);
+      } else if (typeof this.commissionService?.generateDailySettlement === 'function') {
+        await this.commissionService.generateDailySettlement(storeId, occurredAt);
+      }
     } catch (error) {
       console.warn(`Daily settlement refresh failed after ${source}`, error);
     }
@@ -1487,6 +1497,7 @@ export class OrdersService {
     const totalAmount = allocation.order.netAmount;
     const status = this.normalizeOrderStatus(data.status);
     const payMethod = this.normalizePaymentMethod(data.payMethod ?? data.paymentMethod);
+    const directRecognitionAt = this.isPaidLikeStatus(status) ? (data.paidAt ? new Date(data.paidAt) : new Date()) : undefined;
 
     const execute = async (tx: any) => {
       const customer = await this.resolveOrderCustomer(tx, data);
@@ -1543,6 +1554,16 @@ export class OrdersService {
             isGift: item.isGift,
             eligibleForOrderDiscount: item.eligibleForOrderDiscount,
             beauticianId: this.toNumber(item.beauticianId ?? data.beauticianId) || undefined,
+            recognizedAt:
+              String(item.itemType).toLowerCase() === 'project' && data.serviceCompletedAt
+                ? new Date(data.serviceCompletedAt)
+                : directRecognitionAt,
+            recognitionSource:
+              String(item.itemType).toLowerCase() === 'project' && data.serviceCompletedAt
+                ? 'service_task_completed'
+                : directRecognitionAt
+                  ? 'direct_payment'
+                  : undefined,
             payload: item.payload,
           })),
         });
@@ -1572,7 +1593,7 @@ export class OrdersService {
             amount: payment.amount,
             status: 'success',
             transactionNo: payment.transactionNo ?? data.transactionNo,
-            paidAt: data.paidAt ? new Date(data.paidAt) : new Date(),
+            paidAt: directRecognitionAt ?? new Date(),
           })),
         });
 
@@ -1650,6 +1671,8 @@ export class OrdersService {
 
       const order = await tx.productOrder.update({ where: { id }, data: updateData });
       const orderItems = items ? await this.attachProductCostSnapshots(tx, this.toNumber(order.storeId) || undefined, items) : undefined;
+      const paidLike = this.isPaidLikeStatus(this.normalizeOrderStatus(data.status ?? order.status));
+      const directRecognitionAt = paidLike ? (data.paidAt ? new Date(data.paidAt) : new Date()) : undefined;
 
       if (orderItems) {
         await tx.orderItem.deleteMany({ where: { orderId: id } });
@@ -1674,18 +1697,21 @@ export class OrdersService {
               discountPayload: item.discountPayload,
               isGift: item.isGift,
               eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+              recognizedAt: directRecognitionAt,
+              recognitionSource: directRecognitionAt ? 'direct_payment' : undefined,
               payload: item.payload,
             })),
           });
         }
       }
 
-      if (this.isPaidLikeStatus(this.normalizeOrderStatus(data.status ?? order.status))) {
+      if (paidLike) {
         const orderItemsForConsumption = orderItems ?? (await tx.orderItem.findMany({ where: { orderId: id } }));
         await this.consumeProductItemsForOrder(tx, order, orderItemsForConsumption, data.remark ?? order.remark);
         await this.consumeProjectBomForOrder(tx, order, orderItemsForConsumption, data.remark ?? order.remark);
 
         const paid = await tx.paymentRecord.findFirst({ where: { orderId: id, status: 'success' } });
+        const recognizedAt = paid?.paidAt ?? directRecognitionAt ?? new Date();
         if (!paid) {
           const amount = this.toNumber(data.paidAmount ?? order.totalAmount);
           await tx.paymentRecord.create({
@@ -1696,11 +1722,17 @@ export class OrdersService {
               amount,
               status: 'success',
               transactionNo: data.transactionNo,
-              paidAt: new Date(),
+              paidAt: recognizedAt,
             },
           });
           await this.applyMarketingAttribution(tx, order, amount);
           await this.applyMarketingPageAttribution(tx, order, amount);
+        }
+        if (tx.orderItem.updateMany) {
+          await tx.orderItem.updateMany({
+            where: { orderId: id, recognizedAt: null },
+            data: { recognizedAt, recognitionSource: 'direct_payment' },
+          });
         }
       }
 
@@ -1887,7 +1919,12 @@ export class OrdersService {
       }
       await this.restoreMemberBalanceForOrderRefund(tx, order, amount, preview.netAmount, preview.remainingRefundableAmount, reason);
       await this.reverseMarketingAttribution(tx, id, amount);
-      await this.commissionService.reverseOrderCommissions(id, amount, tx);
+      await this.commissionService.reverseOrderCommissions(
+        id,
+        amount,
+        tx,
+        refundItems.map((item: any) => ({ orderItemId: item.orderItemId, refundAmount: item.refundAmount })),
+      );
       const refreshed = await tx.productOrder.findUnique({ where: { id }, include: this.refundOrderInclude() as any });
       return { order: refreshed ?? updated, refund: refundRecord, refundItems, inventoryMovements, remainingRefundableAmount: this.round(Math.max(0, preview.netAmount - refundedAfter)) };
     };
@@ -2162,6 +2199,7 @@ export class OrdersService {
       const giftBalanceBefore = this.toNumber(account.giftBalance);
       const cashBalanceAfter = cashBalanceBefore + rechargeAmount;
       const giftBalanceAfter = giftBalanceBefore + giftAmount;
+      const paidAt = new Date();
 
       const order = await tx.productOrder.create({
         data: {
@@ -2203,6 +2241,8 @@ export class OrdersService {
           isGift: false,
           eligibleForOrderDiscount: false,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
+          recognizedAt: paidAt,
+          recognitionSource: 'prepaid_payment',
           payload: { giftAmount, giftProjects, remark: data.remark },
         },
       });
@@ -2230,7 +2270,7 @@ export class OrdersService {
           amount: rechargeAmount,
           status: 'success',
           transactionNo: data.transactionNo,
-          paidAt: new Date(),
+          paidAt,
         },
       });
 
@@ -2639,6 +2679,7 @@ export class OrdersService {
         },
       });
 
+      const paidAt = new Date();
       const order = await tx.productOrder.create({
         data: {
           orderNo: `CO${Date.now().toString(36).toUpperCase()}`,
@@ -2682,6 +2723,8 @@ export class OrdersService {
           isGift: false,
           eligibleForOrderDiscount: true,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
+          recognizedAt: paidAt,
+          recognitionSource: 'prepaid_payment',
           payload: { cardName: card.name, totalTimes, expiryDate: expiryDate.toISOString(), giftProjects },
         },
       });
@@ -2702,7 +2745,7 @@ export class OrdersService {
           amount,
           status: 'success',
           transactionNo: data.transactionNo,
-          paidAt: new Date(),
+          paidAt,
         },
       });
       if (payMethod === 'member_balance' && amount > 0) {
