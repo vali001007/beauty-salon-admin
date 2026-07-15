@@ -51,7 +51,7 @@ export function buildFinanceOverviewAlerts(input: {
   const failedSections = new Set(input.failedSections ?? []);
   if (!failedSections.has('dailySettlement') && !input.dailySettlement) {
     items.push({ title: '今日尚未生成日结', detail: '收银完成后建议生成或刷新日结，确认支付与退款口径。', to: '/finance/daily-settlement' });
-  } else if (!failedSections.has('dailySettlement') && input.dailySettlement.status !== 'confirmed') {
+  } else if (!failedSections.has('dailySettlement') && input.dailySettlement && input.dailySettlement.status !== 'confirmed') {
     items.push({ title: '今日日结待确认', detail: '日结已生成但尚未确认，确认前不要作为最终财务口径。', to: '/finance/daily-settlement' });
   }
   if (!failedSections.has('profitOverview') && input.profitOverview?.dataQuality?.status && input.profitOverview.dataQuality.status !== 'complete') {

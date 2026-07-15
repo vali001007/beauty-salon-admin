@@ -9,7 +9,7 @@ describe('buildFinanceOverviewAlerts', () => {
       dailySettlement: null,
       profitOverview: {
         dataQuality: { status: 'partial', detail: '缺少 3 条项目 BOM 成本' },
-      } as OperationProfitOverview,
+      } as unknown as OperationProfitOverview,
     });
 
     expect(alerts.map((item) => [item.title, item.to])).toEqual([
@@ -24,7 +24,7 @@ describe('buildFinanceOverviewAlerts', () => {
       dailySettlement: { status: 'confirmed' } as DailySettlement,
       profitOverview: {
         dataQuality: { status: 'complete' },
-      } as OperationProfitOverview,
+      } as unknown as OperationProfitOverview,
     });
 
     expect(alerts).toEqual([]);
@@ -35,7 +35,7 @@ describe('buildFinanceOverviewAlerts', () => {
       dailySettlement: null,
       profitOverview: {
         dataQuality: { status: 'partial', detail: '利润接口返回异常前的旧数据' },
-      } as OperationProfitOverview,
+      } as unknown as OperationProfitOverview,
       failedSections: ['dailySettlement', 'commissionSummary', 'profitOverview'],
     });
 

@@ -87,6 +87,7 @@ function createStatusStats(): Record<AmiBillStatus, StatusStat> {
     confirmed: { count: 0, totalFee: 0, recordCount: 0 },
     invoiced: { count: 0, totalFee: 0, recordCount: 0 },
     paid: { count: 0, totalFee: 0, recordCount: 0 },
+    voided: { count: 0, totalFee: 0, recordCount: 0 },
   };
 }
 

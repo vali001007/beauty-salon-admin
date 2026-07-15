@@ -33,6 +33,7 @@ export interface AmiPerformanceRecord {
 
 export interface AmiMonthlyBill {
   id: number;
+  version?: number;
   storeId: number;
   storeName?: string;
   settleMonth: string;
