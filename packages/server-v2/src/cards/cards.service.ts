@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { deductStockItems } from '../common/inventory-stock-deduction.js';
+import { normalizeCardMasterName } from './card-master-deduplication.js';
 
 @Injectable()
 export class CardsService {
@@ -119,6 +120,22 @@ export class CardsService {
     return card;
   }
 
+  private async assertUniqueCardName(params: { name: unknown; storeId?: number | null; excludeId?: number }) {
+    const normalizedName = normalizeCardMasterName(params.name);
+    if (!normalizedName) throw new BadRequestException('请输入次卡名称');
+    const candidates = await this.prisma.card.findMany({
+      where: {
+        storeId: params.storeId ?? null,
+        ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    const conflict = candidates.find((card) => normalizeCardMasterName(card.name) === normalizedName);
+    if (conflict) {
+      throw new ConflictException(`同一门店范围已存在同名次卡：#${conflict.id} ${conflict.name}`);
+    }
+  }
+
   private buildCardPricingSnapshot(params: {
     card: any;
     paidAmount: number;
@@ -225,18 +242,26 @@ export class CardsService {
   }
 
   async create(data: any) {
+    const mutationData = this.buildCardMutationData(data, 'create');
+    await this.assertUniqueCardName({ name: mutationData.name, storeId: mutationData.storeId });
     const card = await this.prisma.card.create({
-      data: this.buildCardMutationData(data, 'create'),
+      data: mutationData,
       include: { store: { select: { id: true, name: true } } },
     });
     return this.serializeCard(card);
   }
 
   async update(id: number, data: any) {
-    await this.findCardOrThrow(id);
+    const current = await this.findCardOrThrow(id);
+    const mutationData = this.buildCardMutationData(data, 'update');
+    await this.assertUniqueCardName({
+      name: mutationData.name ?? current.name,
+      storeId: mutationData.storeId !== undefined ? mutationData.storeId : current.storeId,
+      excludeId: id,
+    });
     const card = await this.prisma.card.update({
       where: { id },
-      data: this.buildCardMutationData(data, 'update'),
+      data: mutationData,
       include: { store: { select: { id: true, name: true } } },
     });
     return this.serializeCard(card);

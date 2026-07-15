@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { CardsService } from './cards.service';
 
 describe('CardsService inventory consumption', () => {
@@ -308,6 +309,7 @@ describe('CardsService sale options', () => {
   it('drops display-only fields when creating cards', async () => {
     const prisma: any = {
       card: {
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue({
           id: 20,
           name: '抗衰管理 6 次卡',
@@ -347,5 +349,80 @@ describe('CardsService sale options', () => {
     });
     expect(data).not.toHaveProperty('type');
     expect(data).not.toHaveProperty('storeName');
+  });
+});
+
+describe('CardsService duplicate master-data guard', () => {
+  const cardRecord = (overrides: Record<string, unknown> = {}) => ({
+    id: 20,
+    name: '综合养护 20 次卡',
+    description: null,
+    totalTimes: 20,
+    price: 5980,
+    projects: [],
+    status: 'active',
+    storeId: 6,
+    validDays: 365,
+    sortOrder: 0,
+    createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+    store: { id: 6, name: 'Ami 全量演示门店' },
+    ...overrides,
+  });
+
+  it('rejects normalized duplicate names in the same store scope', async () => {
+    const prisma: any = {
+      card: {
+        findMany: jest.fn().mockResolvedValue([cardRecord({ id: 6 })]),
+        create: jest.fn(),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await expect(service.create({
+      name: '  综合养护   20 次卡  ',
+      storeId: 6,
+      totalTimes: 20,
+      price: 5980,
+      projects: [],
+    })).rejects.toEqual(expect.any(ConflictException));
+
+    expect(prisma.card.create).not.toHaveBeenCalled();
+  });
+
+  it('excludes the current card when checking an update', async () => {
+    const current = cardRecord({ id: 6 });
+    const prisma: any = {
+      card: {
+        findUnique: jest.fn().mockResolvedValue(current),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue(current),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await expect(service.update(6, { name: '综合养护 20 次卡' })).resolves.toEqual(
+      expect.objectContaining({ id: 6 }),
+    );
+  });
+
+  it('allows the same normalized name in a different store scope', async () => {
+    const created = cardRecord({ id: 21, storeId: 7, store: { id: 7, name: '二号门店' } });
+    const prisma: any = {
+      card: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue(created),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await expect(service.create({
+      name: '综合养护 20 次卡',
+      storeId: 7,
+      totalTimes: 20,
+      price: 5980,
+      projects: [],
+    })).resolves.toEqual(expect.objectContaining({ id: 21, storeId: 7 }));
+    expect(prisma.card.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: 7 } }));
   });
 });
