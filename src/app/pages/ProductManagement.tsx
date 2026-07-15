@@ -43,6 +43,13 @@ const PRODUCT_IMPORT_SAMPLE = [
 ];
 
 const SPEC_UNIT_OPTIONS = ['ml', 'g', '片', '支', '个', '套', '包'];
+const PACKAGE_UNIT_OPTIONS = ['瓶', '盒', '支', '个', '套', '包'] as const;
+
+function normalizePackageUnit(value?: string | null): ProductFormData['packageUnit'] {
+  return PACKAGE_UNIT_OPTIONS.includes(value as ProductFormData['packageUnit'])
+    ? (value as ProductFormData['packageUnit'])
+    : '瓶';
+}
 
 function parseProductSpec(spec?: string | null) {
   const value = String(spec ?? '').trim();
@@ -204,7 +211,7 @@ export function ProductManagement() {
       brand: product.brand,
       specQuantity: product.specQuantity ?? parsedSpec.specQuantity,
       specUnit: product.specUnit ?? parsedSpec.specUnit,
-      packageUnit: product.packageUnit ?? '瓶',
+      packageUnit: normalizePackageUnit(product.packageUnit),
       costPrice: product.costPrice,
       retailPrice: product.retailPrice,
       shelfLife: product.shelfLife,

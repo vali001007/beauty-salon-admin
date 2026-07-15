@@ -9,6 +9,7 @@ import { getProducts } from '@/api/product';
 import type { Product } from '@/types';
 import type { BOMItem, ConsumptionRecord, ForecastItem, Service } from '@/types/bom';
 import type { IndustryProjectBomItemTemplate, IndustryProjectBomTemplate, IndustryServiceTemplate } from '@/types/industry';
+import { SalesOutboundTab } from './SalesOutboundTab';
 
 type BomDraftItem = {
   rowId: number;
@@ -124,7 +125,7 @@ function toBomDraftItemFromIndustryTemplate(item: IndustryProjectBomItemTemplate
 }
 
 export function ServiceConsumption() {
-  const [activeTab, setActiveTab] = useState<'bom' | 'consumption' | 'forecast'>('bom');
+  const [activeTab, setActiveTab] = useState<'bom' | 'sales-outbound' | 'consumption' | 'forecast'>('bom');
   const [services, setServices] = useState<Service[]>([]);
   const [consumption, setConsumption] = useState<ConsumptionRecord[]>([]);
   const [forecast, setForecast] = useState<ForecastItem[]>([]);
@@ -398,6 +399,16 @@ export function ServiceConsumption() {
           {activeTab === 'bom' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />}
         </button>
         <button
+          onClick={() => setActiveTab('sales-outbound')}
+          className={`px-4 py-3 text-sm font-medium transition-colors relative ${
+            activeTab === 'sales-outbound' ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'
+          }`}
+          type="button"
+        >
+          销售出库
+          {activeTab === 'sales-outbound' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />}
+        </button>
+        <button
           onClick={() => setActiveTab('consumption')}
           className={`px-4 py-3 text-sm font-medium transition-colors relative ${
             activeTab === 'consumption' ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'
@@ -420,6 +431,12 @@ export function ServiceConsumption() {
       </div>
 
       {loading && <div className="py-10 text-center text-sm text-gray-500">正在加载服务消耗数据...</div>}
+
+      {!loading && (
+        <div className={activeTab === 'sales-outbound' ? '' : 'hidden'}>
+          <SalesOutboundTab active={activeTab === 'sales-outbound'} />
+        </div>
+      )}
 
       {!loading && activeTab === 'bom' && (
         <div className="space-y-3">
