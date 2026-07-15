@@ -28,27 +28,44 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { generateActivityPage, generateMarketingCopy } from '@/api/ai';
-import { getCustomerConsumptionRecords, getCustomerHealthProfiles, getCustomersPaginated } from '@/api/customer';
 import {
   batchCreateMarketingFollowUpTasks,
   getCustomerLifecycleQuality,
   getMarketingFollowUpTasks,
   getMarketingFollowUpTaskSummary,
-  runPredictions,
 } from '@/api/marketing';
-import { adoptMarketingRecommendationTransaction, getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
-import { createPromotion, matchPromotions } from '@/api/promotion';
-import type { Customer, CustomerLifecycleQualitySnapshot, RecommendedAction, RecommendedOffer, RecommendedPromotionMatch } from '@/types';
+import {
+  adoptMarketingRecommendationTransaction,
+  adoptRecommendationInstance,
+  getMarketingRecommendationAudience,
+  getRecommendationInstanceAudience,
+  getMarketingRecommendationWorkspace,
+} from '@/api/recommendation';
+import { createPromotion } from '@/api/promotion';
+import type { CustomerLifecycleQualitySnapshot, RecommendationInstanceCoverage, RecommendedAction, RecommendedOffer, RecommendedPromotionMatch } from '@/types';
 import type { ActivityPageSchema, MarketingCopyChannel } from '@/types/ai';
 import type { TerminalFollowUpTask, TerminalFollowUpTaskSummary } from '@/types/terminal';
-import type { Recommendation, UrgencyLevel } from '@/utils/marketingRecommendation';
-import { computeBehaviorProfiles, type BehaviorProfile } from '@/utils/customerSegmentation';
+import { mapRecommendationInstanceToRecommendation, type Recommendation, type UrgencyLevel } from '@/utils/marketingRecommendation';
+import type { BehaviorProfile } from '@/utils/customerSegmentation';
 import { addBusinessDays, formatBusinessDate, formatBusinessDateTime, formatBusinessMonthDayTime } from '@/utils/businessTime';
+import { usePermission } from '@/hooks/usePermission';
 
 type SelectedCustomerGroup = {
   recommendation: Recommendation;
   profiles: AudienceProfile[];
 };
+
+type AudiencePageState = {
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+type LoadedAudiencePage = AudiencePageState & {
+  profiles: AudienceProfile[];
+};
+
+const EMPTY_AUDIENCE_PAGE: AudiencePageState = { page: 1, pageSize: 50, total: 0 };
 
 type FollowUpRecordGroup = {
   recommendation: Recommendation;
@@ -312,13 +329,6 @@ function getRecommendationContentText(rec: Recommendation) {
   return rec.recommendedItems?.[0]?.name || rec.strategy || '护理建议';
 }
 
-function getTerminalFollowUpDueAt() {
-  const dueAt = new Date();
-  dueAt.setDate(dueAt.getDate() + 1);
-  dueAt.setHours(20, 0, 0, 0);
-  return dueAt.toISOString();
-}
-
 function formatExecutionTime(value?: string) {
   if (!value) return '';
   return formatBusinessMonthDayTime(value);
@@ -357,26 +367,19 @@ function buildTerminalFollowUpScript(rec: Recommendation, selection?: Recommenda
   return `客户命中「${rec.title}」。建议先确认近期护理需求，再介绍${offer}${promotionText}${contentText}；如客户有兴趣，引导预约到店并备注肤况/时间偏好。`;
 }
 
-function buildTerminalFollowUpNote(rec: Recommendation, selection?: RecommendationOfferSelection) {
-  const offer = selection?.offer?.label || rec.offer?.label || rec.discount;
-  const promotionName = selection?.offer?.promotionName || selection?.selectedPromotion?.promotionName || rec.offer?.promotionName;
-  const suffix = [promotionName ? `承接权益：${promotionName}` : '', offer ? `权益内容：${offer}` : ''].filter(Boolean).join('；');
-  return `智能营销下发客户增长跟进：${rec.reason}${suffix ? `。${suffix}` : ''}`;
-}
-
 function getTerminalFollowUpActionState(rec: Recommendation) {
   const executionModes = rec.executionModes ?? (rec.preferAutoRule ? ['automation'] : ['activity']);
   const channels = rec.recommendedChannels ?? [];
   const actions = rec.recommendedActions ?? [];
-  const hasAdvisorTask = executionModes.includes('advisor_task');
-  const isAdvisorPreferred = rec.preferredMode === 'advisor_task';
+  const hasAdvisorTask = executionModes.includes('advisor_task') || executionModes.includes('terminal_follow_up');
+  const isAdvisorPreferred = rec.preferredMode === 'advisor_task' || rec.preferredMode === 'terminal_follow_up';
   const hasStoreChannel = channels.some((item) => item.channel === 'store' || item.label?.includes('顾问'));
   const hasConsultantAction = actions.some((item) => item.type === 'consultant_task');
   const hasRisk = Boolean(rec.riskWarnings?.length);
   const urgentBusinessSource =
     rec.urgency === 'urgent' && ['churn', 'ltv', 'inventory', 'capacity', 'product', 'project'].includes(rec.source);
   const visible = hasAdvisorTask || isAdvisorPreferred || hasStoreChannel || hasConsultantAction || hasRisk || urgentBusinessSource;
-  const disabled = rec.isFallback || !rec.targetCustomerIds?.length;
+  const disabled = rec.isFallback || Number(rec.targetCount ?? 0) <= 0;
   const reasons = [
     isAdvisorPreferred ? '算法首选门店人工跟进' : '',
     hasAdvisorTask && !isAdvisorPreferred ? '推荐执行方式包含顾问任务' : '',
@@ -433,14 +436,14 @@ function getProfileFollowUpAssignee(
     };
   }
   return {
-    name: '未匹配系统用户',
-    reason: `${assignment?.roleLabel || '门店人员'}需先在系统管理-用户管理中启用并绑定门店`,
-    assignable: false,
+    name: `系统自动分派${assignment?.roleLabel ? ` · ${assignment.roleLabel}` : ''}`,
+    reason: '下发时按最近服务人、门店角色和可用人员自动匹配',
+    assignable: true,
   };
 }
 
 function canAssignFollowUpProfile(profile: AudienceProfile) {
-  return Boolean(profile.preferredAssigneeUserId && profile.preferredAssigneeName);
+  return Boolean(profile.customerId);
 }
 
 function normalizeAudienceProfiles(profiles: RecommendationAudiencePayload[]): AudienceProfile[] {
@@ -496,34 +499,22 @@ function getRecommendationOpportunityType(rec: Recommendation): Exclude<Recommen
   return 'customer';
 }
 
-function getRecommendationQueryForType(type: RecommendationTypeFilterId, refresh = false) {
-  if (type === 'product') {
-    return { scope: 'product-project' as const, type: 'product_expiry_clearance,product_replenishment', limit: 20, refresh };
-  }
-  if (type === 'project') {
-    return { scope: 'product-project' as const, type: 'project_cycle_due', limit: 20, refresh };
-  }
-  if (type === 'capacity') {
-    return { scope: 'product-project' as const, type: 'project_idle_capacity', limit: 20, refresh };
-  }
-  return { scope: 'customer' as const, limit: 20, refresh };
-}
-
-function mergeRecommendationsById(base: Recommendation[], additions: Recommendation[]) {
-  const map = new Map<number, Recommendation>();
-  for (const item of [...base, ...additions]) {
-    map.set(Number(item.id), item);
-  }
-  return Array.from(map.values());
-}
-
 export function MarketingRecommendation() {
   const navigate = useNavigate();
+  const canCreateMarketing = usePermission('core:marketing:create');
+  const canUpdateMarketing = usePermission('core:marketing:update');
+  const canRefreshMarketing = usePermission('core:marketing:analytics');
   const [isLoading, setIsLoading] = useState(true);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [consumptionRecords, setConsumptionRecords] = useState<any[]>([]);
-  const [healthProfiles, setHealthProfiles] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [managementUiV2, setManagementUiV2] = useState(false);
+  const [coverage, setCoverage] = useState<RecommendationInstanceCoverage>({
+    totalCustomers: 0,
+    predictedCustomers: 0,
+    coverageRate: 0,
+    predictionRunId: null,
+    generatedAt: null,
+    freshness: 'missing',
+  });
   const [priorityFilter, setPriorityFilter] = useState<RecommendationPriorityFilterId>('all');
   const [typeFilter, setTypeFilter] = useState<RecommendationTypeFilterId>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -535,10 +526,13 @@ export function MarketingRecommendation() {
   const [, setRefreshKey] = useState(0);
   const [selectedCustomerGroup, setSelectedCustomerGroup] = useState<SelectedCustomerGroup | null>(null);
   const [isAudienceLoading, setIsAudienceLoading] = useState(false);
+  const [audiencePage, setAudiencePage] = useState<AudiencePageState>(EMPTY_AUDIENCE_PAGE);
   const [audienceSortKey, setAudienceSortKey] = useState<AudienceSortKey>('churnScore');
   const [followUpGroup, setFollowUpGroup] = useState<SelectedCustomerGroup | null>(null);
   const [isFollowUpAudienceLoading, setIsFollowUpAudienceLoading] = useState(false);
+  const [followUpAudiencePage, setFollowUpAudiencePage] = useState<AudiencePageState>(EMPTY_AUDIENCE_PAGE);
   const [followUpCheckedIds, setFollowUpCheckedIds] = useState<Set<number>>(new Set());
+  const [followUpSelectedProfiles, setFollowUpSelectedProfiles] = useState<Map<number, AudienceProfile>>(new Map());
   const [isFollowUpSubmitting, setIsFollowUpSubmitting] = useState(false);
   const [followUpSummary, setFollowUpSummary] = useState<TerminalFollowUpTaskSummary | null>(null);
   const [followUpRecordGroup, setFollowUpRecordGroup] = useState<FollowUpRecordGroup | null>(null);
@@ -604,7 +598,7 @@ export function MarketingRecommendation() {
 
   const buildRecommendationAttribution = useCallback((rec: Recommendation, selection = getOfferSelection(rec)) => ({
     source: 'recommendation',
-    sourceRecommendationId: String(rec.id),
+    sourceRecommendationId: rec.recommendationInstanceId ?? String(rec.id),
     recommendationKey: rec.recommendationKey,
     recommendationType: rec.recommendationType,
     triggerType: rec.triggerRule?.type || rec.triggerType,
@@ -643,127 +637,57 @@ export function MarketingRecommendation() {
     getSelectedOfferRiskWarnings(rec).length > 0,
   [getSelectedOfferRiskWarnings]);
 
-  const loadConsumptionRecordsInBackground = useCallback(async () => {
-    try {
-      const spendData = await getCustomerConsumptionRecords();
-      setConsumptionRecords(spendData);
-      setRefreshKey((current) => current + 1);
-    } catch (error) {
-      toast.warning(error instanceof Error ? `消费画像加载较慢：${error.message}` : '消费画像加载较慢，客户名单将先显示基础画像');
-    }
-  }, []);
-
-  const loadCustomerContextInBackground = useCallback(async () => {
-    try {
-      const [customerData, healthData] = await Promise.all([
-        getCustomersPaginated({ page: 1, pageSize: 2000 }),
-        getCustomerHealthProfiles(),
-      ]);
-      setCustomers(customerData.items.map((customer) => ({ ...customer, tags: customer.tags || [] })));
-      setHealthProfiles(healthData);
-      setRefreshKey((current) => current + 1);
-      void loadConsumptionRecordsInBackground();
-    } catch (error) {
-      toast.warning(error instanceof Error ? `客户画像加载较慢：${error.message}` : '客户画像加载较慢，推荐结果已先展示');
-    }
-  }, [loadConsumptionRecordsInBackground]);
-
-  const enhanceRecommendationOffers = useCallback(async (items: Recommendation[]) => Promise.all(items.map(async (rec) => {
-    if (rec.offer?.promotionId) return rec;
-    try {
-      const match = await matchPromotions({
-        scenario: getPromotionMatchScenario(rec),
-        customerSegment: rec.targetCustomers || rec.title,
-        projectIds: rec.recommendedItems?.filter((item) => item.type === 'project' && item.id).map((item) => Number(item.id)) ?? [],
-      });
-      const best = match.items[0];
-      if (!best) {
-        return {
-          ...rec,
-          offer: rec.offer ? { ...rec.offer, draftSuggestion: match.draftSuggestion } : rec.offer,
-        };
-      }
-      const offer = {
-        ...(rec.offer ?? { type: best.type as NonNullable<Recommendation['offer']>['type'], label: best.discountText, reason: best.fitReason }),
-        type: (rec.offer?.type ?? best.type) as NonNullable<Recommendation['offer']>['type'],
-        label: best.discountText,
-        promotionId: best.promotionId,
-        promotionName: best.name,
-        fitScore: best.fitScore,
-        fitReason: best.fitReason,
-        reason: rec.offer?.reason ?? best.fitReason,
-      };
-      const fallbackActions: RecommendedAction[] = [{
-        type: offer.type === 'member_privilege' ? 'push' : 'coupon',
-        value: offer.label,
-        promotionId: best.promotionId,
-        promotionName: best.name,
-        reason: best.fitReason,
-      }];
-      return {
-        ...rec,
-        discount: best.discountText || rec.discount,
-        offer,
-        recommendedActions: (rec.recommendedActions?.length ? rec.recommendedActions : fallbackActions).map((action): RecommendedAction => ({
-          ...action,
-          value: action.value || offer.label,
-          promotionId: action.promotionId ?? best.promotionId,
-          promotionName: action.promotionName ?? best.name,
-        })),
-      };
-    } catch {
-      return rec;
-    }
-  })), []);
-
   const loadSourceData = useCallback(async (options: { refreshPredictions?: boolean } = {}) => {
     setIsLoading(true);
     try {
-      if (options.refreshPredictions) {
+      const loadWorkspace = async () => {
         try {
-          await runPredictions();
+          return await getMarketingRecommendationWorkspace({
+            page: 1,
+            pageSize: 50,
+            refresh: Boolean(options.refreshPredictions),
+          });
         } catch (predictionError) {
-          toast.warning(
-            predictionError instanceof Error
-              ? `预测运行失败，已尝试加载现有推荐：${predictionError.message}`
-              : '预测运行失败，已尝试加载现有推荐',
-          );
+          if (!options.refreshPredictions) throw predictionError;
+          toast.warning(predictionError instanceof Error
+            ? `推荐刷新失败，已加载现有推荐：${predictionError.message}`
+            : '推荐刷新失败，已加载现有推荐');
+          return getMarketingRecommendationWorkspace({ page: 1, pageSize: 50, refresh: false });
         }
-      }
-      const recommendationData = await getMarketingRecommendations(getRecommendationQueryForType(typeFilter));
-      const baseRecommendations = recommendationData.length ? recommendationData : [buildRecommendationRecoveryCard(customers.length)];
-      const enhancedRecommendations = await enhanceRecommendationOffers(baseRecommendations);
-      setRecommendations(enhancedRecommendations);
-      if (typeFilter === 'all') {
-        void getMarketingRecommendations({ scope: 'product-project', limit: 20 })
-          .then(async (operationalData) => {
-            const enhancedOperational = await enhanceRecommendationOffers(operationalData);
-            setRecommendations((current) => mergeRecommendationsById(current, enhancedOperational));
-          })
-          .catch(() => undefined);
-      }
-      void getMarketingFollowUpTaskSummary()
-        .then(setFollowUpSummary)
-        .catch(() => setFollowUpSummary(null));
-      void getCustomerLifecycleQuality()
-        .then(setLifecycleQuality)
-        .catch(() => setLifecycleQuality(null));
+      };
+      const [workspaceResult, followUpResult, lifecycleResult] = await Promise.allSettled([
+        loadWorkspace(),
+        getMarketingFollowUpTaskSummary(),
+        getCustomerLifecycleQuality(),
+      ]);
+      if (followUpResult.status === 'fulfilled') setFollowUpSummary(followUpResult.value);
+      else setFollowUpSummary(null);
+      if (lifecycleResult.status === 'fulfilled') setLifecycleQuality(lifecycleResult.value);
+      else setLifecycleQuality(null);
+      if (workspaceResult.status === 'rejected') throw workspaceResult.reason;
+
+      const response = workspaceResult.value;
+      setManagementUiV2(response.mode === 'v2');
+      setCoverage(response.coverage);
+      const recommendationData = response.mode === 'v2'
+        ? response.items.map((item) => mapRecommendationInstanceToRecommendation(item, response.coverage))
+        : response.items;
+      setRecommendations(recommendationData.length ? recommendationData : [buildRecommendationRecoveryCard(response.coverage.totalCustomers)]);
       if (!recommendationData.length) {
-        toast.warning('推荐接口暂未返回卡片，已启用恢复推荐卡');
+        toast.warning('当前门店暂无有效推荐实例，已展示恢复建议');
       }
       setRefreshKey((current) => current + 1);
-      void loadCustomerContextInBackground();
     } catch (error) {
-      setRecommendations((current) => (current.length ? current : [buildRecommendationRecoveryCard(customers.length)]));
+      setRecommendations((current) => (current.length ? current : [buildRecommendationRecoveryCard()]));
       toast.error(
         error instanceof Error && /timeout|exceeded|Network Error|canceled/i.test(error.message)
-          ? '推荐结果加载超时，已先展示临时恢复卡；预测数据仍在，可稍后刷新或切换机会类型重试。'
+          ? '推荐实例加载超时，已展示恢复建议，可稍后刷新重试。'
           : error instanceof Error ? error.message : '推荐数据加载失败',
       );
     } finally {
       setIsLoading(false);
     }
-  }, [customers.length, enhanceRecommendationOffers, loadCustomerContextInBackground, typeFilter]);
+  }, []);
 
   useEffect(() => {
     void loadSourceData();
@@ -790,7 +714,7 @@ export function MarketingRecommendation() {
         validDays: rec.offer?.validDays ?? 14,
         approvalStatus: 'pending',
         status: 'draft',
-        createdByRecommendationId: String(rec.id),
+        createdByRecommendationId: rec.recommendationInstanceId ?? String(rec.id),
         metadata: {
           recommendationTitle: rec.title,
           recommendationType: rec.recommendationType,
@@ -846,7 +770,6 @@ export function MarketingRecommendation() {
     }
   };
 
-  const behaviorProfiles = useMemo(() => computeBehaviorProfiles(customers, consumptionRecords, healthProfiles), [customers, consumptionRecords, healthProfiles]);
   const sortedAudienceProfiles = useMemo(() => {
     const profiles = selectedCustomerGroup?.profiles ?? [];
     return [...profiles].sort((a, b) => {
@@ -873,8 +796,8 @@ export function MarketingRecommendation() {
     [followUpGroup?.profiles],
   );
   const selectedFollowUpProfiles = useMemo(
-    () => assignableFollowUpProfiles.filter((profile) => followUpCheckedIds.has(profile.customerId)),
-    [assignableFollowUpProfiles, followUpCheckedIds],
+    () => [...followUpSelectedProfiles.values()],
+    [followUpSelectedProfiles],
   );
   const followUpScriptPreview = useMemo(
     () => (followUpGroup ? buildTerminalFollowUpScript(followUpGroup.recommendation, getOfferSelection(followUpGroup.recommendation)) : ''),
@@ -889,29 +812,48 @@ export function MarketingRecommendation() {
     [followUpGroup],
   );
 
-  const getFallbackAudienceProfiles = useCallback((rec: Recommendation) => {
-    const targetIds = new Set(rec.targetCustomerIds);
-    return targetIds.size
-      ? behaviorProfiles.filter((profile) => targetIds.has(profile.customerId))
-      : behaviorProfiles.slice(0, Math.min(rec.targetCount || 10, 10));
-  }, [behaviorProfiles]);
-
-  const loadAudienceProfilesForRecommendation = useCallback(async (rec: Recommendation) => {
-    if (rec.id > 0) {
-      try {
-        const targetProfiles = await getMarketingRecommendationAudience(rec.id);
-        return normalizeAudienceProfiles(targetProfiles as RecommendationAudiencePayload[]);
-      } catch (error) {
-        const fallbackProfiles = getFallbackAudienceProfiles(rec);
-        if (fallbackProfiles.length) {
-          toast.warning(error instanceof Error ? `推荐客户名单加载较慢，已使用本地客户画像：${error.message}` : '推荐客户名单加载较慢，已使用本地客户画像');
-          return fallbackProfiles;
-        }
-        throw error;
-      }
+  const loadAudiencePageForRecommendation = useCallback(async (rec: Recommendation, page = 1): Promise<LoadedAudiencePage> => {
+    const pageSize = 50;
+    if (!rec.recommendationInstanceId) {
+      const legacyProfiles = await getMarketingRecommendationAudience(rec.id);
+      const start = (page - 1) * pageSize;
+      return {
+        profiles: (legacyProfiles.slice(start, start + pageSize) as AudienceProfile[]),
+        total: legacyProfiles.length,
+        page,
+        pageSize,
+      };
     }
-    return getFallbackAudienceProfiles(rec);
-  }, [getFallbackAudienceProfiles]);
+    const response = await getRecommendationInstanceAudience(rec.recommendationInstanceId, { page, pageSize });
+    const targetProfiles: RecommendationAudiencePayload[] = response.items.map((item) => {
+      const prediction = item.predictionData ?? {};
+      const reason = item.reason ?? {};
+      return {
+        customerId: item.customerId,
+        name: item.customer.name,
+        phone: item.customer.phone,
+        storeName: item.customer.store?.name,
+        segment: (item.customer.memberLevel ?? '普通会员') as BehaviorProfile['segment'],
+        skinType: item.customer.skinType
+          ? item.customer.skinType as BehaviorProfile['skinType']
+          : undefined,
+        visitCount: item.customer.visitCount,
+        totalSpent: Number(item.customer.totalSpent ?? 0),
+        lastVisitDate: item.customer.lastVisitDate,
+        matchReason: String(reason.reason ?? '命中推荐受众快照'),
+        churnScore: Number(prediction.churnScore ?? 0),
+        repurchase30dScore: Number(prediction.repurchase30dScore ?? 0),
+        marketingResponseScore: Number(prediction.marketingResponseScore ?? item.score ?? 0),
+        ltvTier: prediction.ltvTier ? String(prediction.ltvTier) : undefined,
+      };
+    });
+    return {
+      profiles: normalizeAudienceProfiles(targetProfiles),
+      total: Number(response.total ?? response.customerCount ?? 0),
+      page: Number(response.page ?? page),
+      pageSize: Number(response.pageSize ?? pageSize),
+    };
+  }, []);
 
   const recommendationsForPriorityFilter = typeFilter === 'all'
     ? recommendations
@@ -940,7 +882,7 @@ export function MarketingRecommendation() {
   });
   const selectedPriorityLabel = priorityFilters.find((item) => item.id === priorityFilter)?.label ?? '全部优先级';
   const selectedTypeLabel = typeFilters.find((item) => item.id === typeFilter)?.label ?? '全部类型';
-  const totalCustomerCount = recommendations[0]?.totalCustomers ?? customers.length;
+  const totalCustomerCount = coverage.totalCustomers;
 
   const createInitialDataFromRecommendation = (rec: Recommendation): PreviewInitialData => {
     const matchedCatalogItems = rec.recommendedItems?.filter((item) =>
@@ -949,7 +891,7 @@ export function MarketingRecommendation() {
     const selection = getOfferSelection(rec);
     const attribution = buildRecommendationAttribution(rec, selection);
     return {
-      sourceRecommendationId: String(rec.id),
+      sourceRecommendationId: rec.recommendationInstanceId ?? String(rec.id),
       predictionRunId: rec.predictionRunId ? String(rec.predictionRunId) : undefined,
       title: rec.title,
       description: rec.reason,
@@ -1332,22 +1274,32 @@ export function MarketingRecommendation() {
   const publishMiniPreview = async () => {
     if (!previewInitialData) return;
     const preview = createMiniPreviewData(previewInitialData);
-    const recommendationId = Number(previewInitialData.sourceRecommendationId);
-    if (!Number.isInteger(recommendationId) || recommendationId <= 0) {
+    const recommendationInstanceId = previewInitialData.sourceRecommendationId;
+    if (!recommendationInstanceId) {
       toast.error('推荐来源无效，请刷新推荐后重试');
       return;
     }
     setIsPublishingPreview(true);
     try {
-      await adoptMarketingRecommendationTransaction(recommendationId, {
-        mode: 'activity',
-        activity: {
-          title: preview.title,
-          startDate: preview.startDate,
-          endDate: preview.endDate,
-          publishPage: true,
-        },
-      });
+      const activity = {
+        title: preview.title,
+        startDate: preview.startDate,
+        endDate: preview.endDate,
+        publishPage: true,
+      };
+      if (managementUiV2) {
+        await adoptRecommendationInstance(recommendationInstanceId, {
+          mode: 'activity',
+          clientRequestId: `activity-publish-${recommendationInstanceId}`,
+          activity,
+        });
+      } else {
+        const legacyRecommendationId = Number(recommendationInstanceId);
+        if (!Number.isInteger(legacyRecommendationId) || legacyRecommendationId <= 0) {
+          throw new Error('推荐来源无效，请刷新推荐后重试');
+        }
+        await adoptMarketingRecommendationTransaction(legacyRecommendationId, { mode: 'activity', activity });
+      }
       toast.success('活动和推广页已发布，可进入推广资产分发', {
         action: {
           label: '查看推广页',
@@ -1370,7 +1322,15 @@ export function MarketingRecommendation() {
 
   const openAutomationFromRecommendation = async (rec: Recommendation) => {
     try {
-      await adoptMarketingRecommendationTransaction(rec.id, { mode: 'automation' });
+      if (managementUiV2) {
+        if (!rec.recommendationInstanceId) throw new Error('推荐实例无效，请刷新后重试');
+        await adoptRecommendationInstance(rec.recommendationInstanceId, {
+          mode: 'automation',
+          clientRequestId: `automation-enable-${rec.recommendationInstanceId}`,
+        });
+      } else {
+        await adoptMarketingRecommendationTransaction(rec.id, { mode: 'automation' });
+      }
       toast.success('自动触达策略已创建并启用', {
         action: { label: '查看策略', onClick: () => navigate('/customer-marketing/automation') },
       });
@@ -1416,8 +1376,9 @@ export function MarketingRecommendation() {
     setSelectedCustomerGroup({ recommendation: rec, profiles: [] });
     setIsAudienceLoading(true);
     try {
-      const targetProfiles = await loadAudienceProfilesForRecommendation(rec);
-      setSelectedCustomerGroup({ recommendation: rec, profiles: targetProfiles });
+      const loaded = await loadAudiencePageForRecommendation(rec, 1);
+      setAudiencePage({ page: loaded.page, pageSize: loaded.pageSize, total: loaded.total });
+      setSelectedCustomerGroup({ recommendation: rec, profiles: loaded.profiles });
     } catch (error) {
       setSelectedCustomerGroup({ recommendation: rec, profiles: [] });
       toast.error(error instanceof Error ? error.message : '目标客户列表加载失败');
@@ -1429,12 +1390,16 @@ export function MarketingRecommendation() {
   const openTerminalFollowUp = async (rec: Recommendation) => {
     setFollowUpGroup({ recommendation: rec, profiles: [] });
     setFollowUpCheckedIds(new Set());
+    setFollowUpSelectedProfiles(new Map());
     setIsFollowUpAudienceLoading(true);
     try {
-      const targetProfiles = await loadAudienceProfilesForRecommendation(rec);
-      setFollowUpGroup({ recommendation: rec, profiles: targetProfiles });
-      setFollowUpCheckedIds(new Set(targetProfiles.slice(0, 10).map((profile) => profile.customerId)));
-      if (!targetProfiles.length) {
+      const loaded = await loadAudiencePageForRecommendation(rec, 1);
+      const initialProfiles = loaded.profiles.filter(canAssignFollowUpProfile).slice(0, 10);
+      setFollowUpAudiencePage({ page: loaded.page, pageSize: loaded.pageSize, total: loaded.total });
+      setFollowUpGroup({ recommendation: rec, profiles: loaded.profiles });
+      setFollowUpCheckedIds(new Set(initialProfiles.map((profile) => profile.customerId)));
+      setFollowUpSelectedProfiles(new Map(initialProfiles.map((profile) => [profile.customerId, profile])));
+      if (!loaded.profiles.length) {
         toast.warning('该推荐暂无可下发到终端的客户名单');
       }
     } catch (error) {
@@ -1446,14 +1411,20 @@ export function MarketingRecommendation() {
   };
 
   const openFollowUpRecords = async (rec: Recommendation) => {
-    if (rec.id <= 0) {
+    if (!rec.recommendationInstanceId && rec.id <= 0) {
       toast.warning('样例推荐暂无真实跟进记录');
       return;
     }
     setFollowUpRecordGroup({ recommendation: rec, items: [], total: 0 });
     setIsFollowUpRecordsLoading(true);
     try {
-      const result = await getMarketingFollowUpTasks({ recommendationId: rec.id, page: 1, pageSize: 20 });
+      const result = await getMarketingFollowUpTasks({
+        ...(rec.recommendationInstanceId
+          ? { recommendationInstanceId: rec.recommendationInstanceId }
+          : { recommendationId: rec.id }),
+        page: 1,
+        pageSize: 20,
+      });
       setFollowUpRecordGroup({ recommendation: rec, items: result.items, total: result.total });
     } catch (error) {
       setFollowUpRecordGroup({ recommendation: rec, items: [], total: 0 });
@@ -1466,7 +1437,7 @@ export function MarketingRecommendation() {
   const toggleFollowUpCustomer = (customerId: number) => {
     const profile = followUpGroup?.profiles.find((item) => item.customerId === customerId);
     if (profile && !canAssignFollowUpProfile(profile)) {
-      toast.warning('该客户暂未匹配系统用户，不能下发终端跟进');
+      toast.warning('该客户当前不可下发终端跟进');
       return;
     }
     setFollowUpCheckedIds((current) => {
@@ -1476,6 +1447,12 @@ export function MarketingRecommendation() {
       } else {
         next.add(customerId);
       }
+      return next;
+    });
+    setFollowUpSelectedProfiles((current) => {
+      const next = new Map(current);
+      if (next.has(customerId)) next.delete(customerId);
+      else if (profile) next.set(customerId, profile);
       return next;
     });
   };
@@ -1490,40 +1467,51 @@ export function MarketingRecommendation() {
     const recommendation = followUpGroup.recommendation;
     setIsFollowUpSubmitting(true);
     try {
-      const selection = getOfferSelection(recommendation);
-      const attribution = buildRecommendationAttribution(recommendation, selection);
-      const script = buildTerminalFollowUpScript(recommendation, selection);
-      const note = buildTerminalFollowUpNote(recommendation, selection);
-      const dueAt = getTerminalFollowUpDueAt();
       const assignment = getFollowUpAssignmentPreview(recommendation);
-      const result = await batchCreateMarketingFollowUpTasks(recommendation.id, {
-        customerId: selectedFollowUpProfiles[0].customerId,
-        customerIds: selectedFollowUpProfiles.map((profile) => profile.customerId),
-        assignments: selectedFollowUpProfiles.map((profile) => ({
+      const assignments = selectedFollowUpProfiles
+        .filter((profile) => Number(profile.preferredAssigneeUserId) > 0)
+        .map((profile) => ({
           customerId: profile.customerId,
-          assigneeRole: profile.preferredAssigneeRole || assignment.role,
+          assigneeRole: (profile.preferredAssigneeRole || assignment.role) as 'manager' | 'consultant' | 'reception',
           assigneeUserId: Number(profile.preferredAssigneeUserId),
           assigneeBeauticianId: profile.preferredAssigneeBeauticianId,
-        })),
-        recommendationId: recommendation.id > 0 ? recommendation.id : undefined,
-        sourceRecommendationKey: recommendation.recommendationKey,
-        source: recommendation.source,
-        triggerType: recommendation.recommendationType || recommendation.triggerType,
-        promotionId: selection.offer?.promotionId,
-        promotionName: selection.offer?.promotionName,
-        offerJson: selection.offer ? { ...selection.offer, attribution } : undefined,
-        attribution,
-        title: recommendation.title,
-        priority: recommendation.urgency,
-        assigneeRole: assignment.role,
-        channel: 'phone',
-        dueAt,
-        script,
-        note,
-      });
-      if (result.createdCount || result.duplicatedCount) {
+        }));
+      const customerIds = selectedFollowUpProfiles.map((profile) => profile.customerId);
+      let createdCount = 0;
+      let duplicatedCount = 0;
+      let failedCount = 0;
+      let firstFailure: string | undefined;
+      if (managementUiV2) {
+        if (!recommendation.recommendationInstanceId) throw new Error('推荐实例无效，请刷新后重试');
+        const result = await adoptRecommendationInstance(recommendation.recommendationInstanceId, {
+          mode: 'terminal_follow_up',
+          clientRequestId: `terminal-${recommendation.recommendationInstanceId}-${customerIds.slice().sort((left, right) => left - right).join('-')}`,
+          customerIds,
+          assignments: assignments.length ? assignments : undefined,
+        });
+        createdCount = result.followUpTaskIds?.length ?? 0;
+        duplicatedCount = result.duplicatedCustomerIds?.length ?? 0;
+        failedCount = result.failedCustomers?.length ?? 0;
+        firstFailure = result.failedCustomers?.[0]?.message;
+      } else {
+        const result = await batchCreateMarketingFollowUpTasks(recommendation.id, {
+          customerId: customerIds[0],
+          customerIds,
+          assignments: assignments.length ? assignments : undefined,
+          recommendationId: recommendation.id,
+          source: 'recommendation',
+          title: recommendation.title,
+          priority: recommendation.urgency,
+          script: followUpScriptPreview,
+        });
+        createdCount = result.createdCount;
+        duplicatedCount = result.duplicatedCount;
+        failedCount = result.failedCount;
+        firstFailure = result.failures?.[0]?.message;
+      }
+      if (createdCount || duplicatedCount) {
         toast.success(
-          `已下发 ${result.createdCount} 个终端跟进任务${result.duplicatedCount ? `，${result.duplicatedCount} 个已有待办未重复下发` : ''}${result.failedCount ? `，${result.failedCount} 个失败` : ''}`,
+          `已下发 ${createdCount} 个终端跟进任务${duplicatedCount ? `，${duplicatedCount} 位已有待办未重复下发` : ''}${failedCount ? `，${failedCount} 位失败` : ''}`,
         );
         void getMarketingFollowUpTaskSummary()
           .then(setFollowUpSummary)
@@ -1531,8 +1519,9 @@ export function MarketingRecommendation() {
         void loadSourceData();
         setFollowUpGroup(null);
         setFollowUpCheckedIds(new Set());
+        setFollowUpSelectedProfiles(new Map());
       } else {
-        toast.error(result.failures?.[0]?.message || '终端跟进任务下发失败，请稍后重试');
+        toast.error(firstFailure || '终端跟进任务下发失败，请稍后重试');
       }
     } finally {
       setIsFollowUpSubmitting(false);
@@ -1555,6 +1544,38 @@ export function MarketingRecommendation() {
     }
   };
 
+  const loadFollowUpAudiencePage = async (page: number) => {
+    if (!followUpGroup || page < 1) return;
+    setIsFollowUpAudienceLoading(true);
+    try {
+      const loaded = await loadAudiencePageForRecommendation(followUpGroup.recommendation, page);
+      setFollowUpAudiencePage({ page: loaded.page, pageSize: loaded.pageSize, total: loaded.total });
+      setFollowUpGroup((current) => current
+        ? { recommendation: current.recommendation, profiles: loaded.profiles }
+        : current);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '终端跟进客户名单加载失败');
+    } finally {
+      setIsFollowUpAudienceLoading(false);
+    }
+  };
+
+  const loadTargetAudiencePage = async (page: number) => {
+    if (!selectedCustomerGroup || page < 1) return;
+    setIsAudienceLoading(true);
+    try {
+      const loaded = await loadAudiencePageForRecommendation(selectedCustomerGroup.recommendation, page);
+      setAudiencePage({ page: loaded.page, pageSize: loaded.pageSize, total: loaded.total });
+      setSelectedCustomerGroup((current) => current
+        ? { recommendation: current.recommendation, profiles: loaded.profiles }
+        : current);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '目标客户列表加载失败');
+    } finally {
+      setIsAudienceLoading(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -1562,19 +1583,30 @@ export function MarketingRecommendation() {
           <h1 className="text-xl font-semibold text-gray-900">智能推荐</h1>
           <p className="text-sm text-gray-500 mt-1">
             {isLoading && recommendations.length === 0
-              ? '正在读取今日智能推荐；如今天尚未生成，将自动运行一次 RFM分群、关联规则、流失预警、LTV预测'
-              : `基于 ${totalCustomerCount} 位客户数据，综合 RFM分群、关联规则、流失预警、LTV预测 四大算法智能推荐`}
+              ? '正在读取当前门店的推荐实例、预测覆盖和执行状态'
+              : `预测覆盖 ${coverage.predictedCustomers} / ${totalCustomerCount} 位客户；推荐目标人数按每张卡独立统计`}
           </p>
+          {!isLoading && (
+            <p className={`mt-1 text-xs ${coverage.freshness === 'fresh' ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {coverage.generatedAt ? `数据生成时间：${formatBusinessDateTime(coverage.generatedAt)}` : '当前门店尚无预测批次'}
+              {coverage.freshness === 'stale' ? '；预测已超过 30 小时，请刷新推荐' : ''}
+              {coverage.freshness === 'missing' ? '；自动策略暂不可启用' : ''}
+            </p>
+          )}
         </div>
         <div className="flex gap-3">
-          <button onClick={handleRefresh} disabled={isLoading}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> {isLoading ? '刷新中...' : '刷新推荐'}
-          </button>
-          <button onClick={openManualCreateDialog}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-60">
-            <Plus className="w-4 h-4" /> {isPreparingPreview ? 'AI生成预览中' : '发布活动'}
-          </button>
+          {canRefreshMarketing && (
+            <button onClick={handleRefresh} disabled={isLoading}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> {isLoading ? '刷新中...' : '刷新推荐'}
+            </button>
+          )}
+          {canCreateMarketing && (
+            <button onClick={openManualCreateDialog}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-60">
+              <Plus className="w-4 h-4" /> {isPreparingPreview ? 'AI生成预览中' : '发布活动'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1929,7 +1961,7 @@ export function MarketingRecommendation() {
                         <Users className="mr-1.5 inline-block w-3.5 h-3.5 align-[-2px]" />
                         目标客户
                       </button>
-                      {canCreateAutomation && (
+                      {canUpdateMarketing && canCreateAutomation && (
                         <button
                           onClick={() => runRecommendationAction('automation', rec)}
                           disabled={automationDone}
@@ -1939,15 +1971,17 @@ export function MarketingRecommendation() {
                           <Zap className="w-3.5 h-3.5" /> {automationDone ? '已自动触达' : '自动触达'}
                         </button>
                       )}
-                      <button
-                        onClick={() => runRecommendationAction('activity', rec)}
-                        disabled={isPreparingPreview || !canCreateActivity || activityDone}
-                        title={activityDone ? '该推荐已发布活动，不能重复发布' : canCreateActivity ? rec.modeReason : '该推荐更适合开启自动触达'}
-                        className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs disabled:opacity-50 ${canCreateAutomation ? 'border border-blue-500 text-blue-600 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                      >
-                        {activityDone ? '已发布' : isPreparingPreview ? 'AI生成中' : canCreateActivity ? '发布活动' : '不建议活动'} <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                      {followUpAction.visible && (
+                      {canCreateMarketing && (
+                        <button
+                          onClick={() => runRecommendationAction('activity', rec)}
+                          disabled={isPreparingPreview || !canCreateActivity || activityDone}
+                          title={activityDone ? '该推荐已发布活动，不能重复发布' : canCreateActivity ? rec.modeReason : '该推荐更适合开启自动触达'}
+                          className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs disabled:opacity-50 ${canCreateAutomation ? 'border border-blue-500 text-blue-600 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        >
+                          {activityDone ? '已发布' : isPreparingPreview ? 'AI生成中' : canCreateActivity ? '发布活动' : '不建议活动'} <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canCreateMarketing && followUpAction.visible && (
                         <button
                           onClick={() => void openTerminalFollowUp(rec)}
                           disabled={followUpDone || followUpAction.disabled || (isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id)}
@@ -1959,10 +1993,10 @@ export function MarketingRecommendation() {
                           }`}
                         >
                           <ClipboardList className="w-3.5 h-3.5" />
-                          {followUpDone ? '已下发' : isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id ? '加载客户' : '下发跟进'}
+                          {followUpDone ? '已下发' : isFollowUpAudienceLoading && followUpGroup?.recommendation.id === rec.id ? '加载客户' : '下发终端跟进'}
                         </button>
                       )}
-                      {rec.id > 0 && (
+                      {(rec.recommendationInstanceId || rec.id > 0) && (
                         <button
                           type="button"
                           onClick={() => void openFollowUpRecords(rec)}
@@ -1999,6 +2033,7 @@ export function MarketingRecommendation() {
           if (!open) {
             setFollowUpGroup(null);
             setFollowUpCheckedIds(new Set());
+            setFollowUpSelectedProfiles(new Map());
           }
         }}
       >
@@ -2051,13 +2086,17 @@ export function MarketingRecommendation() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-gray-500">
-              可下发 {assignableFollowUpProfiles.length} 位；未匹配系统用户的客户需要先到系统管理-用户管理维护账号和门店范围。
+              本页可下发 {assignableFollowUpProfiles.length} 位；共 {followUpAudiencePage.total} 位，未指定人员时由后端按最近服务人和门店角色自动分派。
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-                onClick={() => setFollowUpCheckedIds(new Set(assignableFollowUpProfiles.slice(0, 10).map((profile) => profile.customerId)))}
+                onClick={() => {
+                  const profiles = assignableFollowUpProfiles.slice(0, 10);
+                  setFollowUpCheckedIds(new Set(profiles.map((profile) => profile.customerId)));
+                  setFollowUpSelectedProfiles(new Map(profiles.map((profile) => [profile.customerId, profile])));
+                }}
                 disabled={!assignableFollowUpProfiles.length}
               >
                 选前 10 位
@@ -2065,15 +2104,25 @@ export function MarketingRecommendation() {
               <button
                 type="button"
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-                onClick={() => setFollowUpCheckedIds(new Set(assignableFollowUpProfiles.map((profile) => profile.customerId)))}
+                onClick={() => {
+                  setFollowUpCheckedIds((current) => new Set([...current, ...assignableFollowUpProfiles.map((profile) => profile.customerId)]));
+                  setFollowUpSelectedProfiles((current) => {
+                    const next = new Map(current);
+                    assignableFollowUpProfiles.forEach((profile) => next.set(profile.customerId, profile));
+                    return next;
+                  });
+                }}
                 disabled={!assignableFollowUpProfiles.length}
               >
-                全选
+                全选本页
               </button>
               <button
                 type="button"
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-                onClick={() => setFollowUpCheckedIds(new Set())}
+                onClick={() => {
+                  setFollowUpCheckedIds(new Set());
+                  setFollowUpSelectedProfiles(new Map());
+                }}
               >
                 清空
               </button>
@@ -2148,6 +2197,30 @@ export function MarketingRecommendation() {
             </Table>
           </div>
 
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>
+              第 {followUpAudiencePage.page} / {Math.max(1, Math.ceil(followUpAudiencePage.total / followUpAudiencePage.pageSize))} 页，已跨页选择 {selectedFollowUpProfiles.length} 位
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+                disabled={isFollowUpAudienceLoading || followUpAudiencePage.page <= 1}
+                onClick={() => void loadFollowUpAudiencePage(followUpAudiencePage.page - 1)}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+                disabled={isFollowUpAudienceLoading || followUpAudiencePage.page * followUpAudiencePage.pageSize >= followUpAudiencePage.total}
+                onClick={() => void loadFollowUpAudiencePage(followUpAudiencePage.page + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
             <button
               type="button"
@@ -2155,6 +2228,7 @@ export function MarketingRecommendation() {
               onClick={() => {
                 setFollowUpGroup(null);
                 setFollowUpCheckedIds(new Set());
+                setFollowUpSelectedProfiles(new Map());
               }}
             >
               取消
@@ -2264,7 +2338,12 @@ export function MarketingRecommendation() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(selectedCustomerGroup)} onOpenChange={(open) => !open && setSelectedCustomerGroup(null)}>
+      <Dialog open={Boolean(selectedCustomerGroup)} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedCustomerGroup(null);
+          setAudiencePage(EMPTY_AUDIENCE_PAGE);
+        }
+      }}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
             <DialogTitle>{selectedCustomerGroup?.recommendation.targetCustomers || '目标客户列表'}</DialogTitle>
@@ -2367,6 +2446,29 @@ export function MarketingRecommendation() {
                 )}
               </TableBody>
             </Table>
+          </div>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>
+              共 {audiencePage.total} 位，第 {audiencePage.page} / {Math.max(1, Math.ceil(audiencePage.total / audiencePage.pageSize))} 页
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+                disabled={isAudienceLoading || audiencePage.page <= 1}
+                onClick={() => void loadTargetAudiencePage(audiencePage.page - 1)}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+                disabled={isAudienceLoading || audiencePage.page * audiencePage.pageSize >= audiencePage.total}
+                onClick={() => void loadTargetAudiencePage(audiencePage.page + 1)}
+              >
+                下一页
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

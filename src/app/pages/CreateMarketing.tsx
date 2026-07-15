@@ -33,6 +33,7 @@ import {
 } from '@/api/marketing';
 import { getPromotionsPaginated } from '@/api/promotion';
 import { generateMarketingCopy } from '@/api/ai';
+import { usePermission } from '@/hooks/usePermission';
 import type { MarketingCopyChannel } from '@/types/ai';
 import type {
   AudiencePreview,
@@ -484,6 +485,11 @@ async function loadTriggerOptionsFromRuleLibrary(): Promise<RuleLibraryTriggerOp
 
 export function CreateMarketing() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const canCreateMarketing = usePermission('core:marketing:create');
+  const canUpdateMarketing = usePermission('core:marketing:update');
+  const canDeleteMarketing = usePermission('core:marketing:delete');
+  const canManageTemplates = usePermission('core:marketing:template');
+  const canViewAnalytics = usePermission('core:marketing:analytics');
   const [activeTab, setActiveTab] = useState<'strategies' | 'rules'>('strategies');
   const [triggerOptions, setTriggerOptions] = useState<RuleLibraryTriggerOption[]>([]);
   const [strategies, setStrategies] = useState<MarketingAutomationStrategy[]>([]);
@@ -513,11 +519,13 @@ export function CreateMarketing() {
   const loadList = useCallback(async (nextKeyword: string, nextStatus: string) => {
     const [strategyResponse, automationEffects] = await Promise.all([
       getAutomationStrategiesPaginated({ page: 1, pageSize: 50, keyword: nextKeyword || undefined, status: nextStatus }),
-      getAutomationEffects(),
+      canViewAnalytics
+        ? getAutomationEffects().catch((): MarketingAutomationEffect[] => [])
+        : Promise.resolve<MarketingAutomationEffect[]>([]),
     ]);
     setStrategies(asArray(strategyResponse.items ?? strategyResponse.data).map(normalizeStrategy));
     setEffects(asArray(automationEffects));
-  }, []);
+  }, [canViewAnalytics]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -537,13 +545,18 @@ export function CreateMarketing() {
   }, [loadList]);
 
   useEffect(() => {
+    if (!canCreateMarketing && !canUpdateMarketing) return;
     getPromotionsPaginated({ page: 1, pageSize: 80, status: 'active', approvalStatus: 'approved' })
       .then((result) => setPromotionOptions(result.items ?? result.data ?? []))
       .catch(() => setPromotionOptions([]));
-  }, []);
+  }, [canCreateMarketing, canUpdateMarketing]);
 
   useEffect(() => {
     if (!triggerOptions.length || !searchParams.get('name')) return;
+    if (!canCreateMarketing) {
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const next = emptyForm();
     next.name = searchParams.get('name') || '';
     next.description = searchParams.get('desc') || '';
@@ -621,7 +634,7 @@ export function CreateMarketing() {
     setShowEditor(true);
     setAutoGenerateCopyPending(shouldAutoGenerate);
     setSearchParams({}, { replace: true });
-  }, [triggerOptions, searchParams, setSearchParams]);
+  }, [canCreateMarketing, triggerOptions, searchParams, setSearchParams]);
 
   const effectByStrategy = useMemo(
     () => new Map(asArray(effects).map((item) => [item.strategyId, item])),
@@ -629,6 +642,10 @@ export function CreateMarketing() {
   );
 
   const openCreate = () => {
+    if (!canCreateMarketing) {
+      toast.error('当前账号没有创建自动触达权限');
+      return;
+    }
     setMode('create');
     setSelected(null);
     setForm(emptyForm());
@@ -641,6 +658,10 @@ export function CreateMarketing() {
   };
 
   const openEdit = (strategy: MarketingAutomationStrategy) => {
+    if (!canUpdateMarketing) {
+      toast.error('当前账号没有编辑自动触达权限');
+      return;
+    }
     setMode('edit');
     setSelected(normalizeStrategy(strategy));
     setForm(createForm(strategy));
@@ -653,6 +674,10 @@ export function CreateMarketing() {
   };
 
   const openCopy = (strategy: MarketingAutomationStrategy) => {
+    if (!canCreateMarketing) {
+      toast.error('当前账号没有创建自动触达权限');
+      return;
+    }
     const next = createForm(strategy);
     next.name = `${next.name}（副本）`;
     setMode('create');
@@ -840,6 +865,10 @@ export function CreateMarketing() {
   };
 
   const submit = async (draft: boolean) => {
+    if ((mode === 'edit' && !canUpdateMarketing) || (mode === 'create' && !canCreateMarketing)) {
+      toast.error('当前账号没有执行此操作的权限');
+      return;
+    }
     const validation = validateForm();
     if (validation) {
       toast.error(validation);
@@ -868,6 +897,10 @@ export function CreateMarketing() {
   };
 
   const toggleStatus = async (strategy: MarketingAutomationStrategy) => {
+    if (!canUpdateMarketing) {
+      toast.error('当前账号没有启停自动触达权限');
+      return;
+    }
     setOperatingId(strategy.id);
     try {
       if (strategy.status === 'enabled') {
@@ -886,6 +919,10 @@ export function CreateMarketing() {
   };
 
   const executeNow = async (strategy: MarketingAutomationStrategy) => {
+    if (!canUpdateMarketing) {
+      toast.error('当前账号没有执行自动触达权限');
+      return;
+    }
     setOperatingId(strategy.id);
     try {
       const result = await executeAutomationStrategy(strategy.id);
@@ -899,6 +936,10 @@ export function CreateMarketing() {
   };
 
   const removeStrategy = async (strategy: MarketingAutomationStrategy) => {
+    if (!canDeleteMarketing) {
+      toast.error('当前账号没有删除自动触达权限');
+      return;
+    }
     if (!window.confirm(`确认删除自动触达“${strategy.name}”吗？`)) return;
     setOperatingId(strategy.id);
     try {
@@ -932,7 +973,7 @@ export function CreateMarketing() {
           <h1 className="text-xl font-semibold text-gray-900">自动触达</h1>
           <p className="mt-1 text-sm text-gray-500">让系统按客户状态自动提醒，并把需要人工处理的机会交给门店跟进。</p>
         </div>
-        {activeTab === 'strategies' && (
+        {activeTab === 'strategies' && canManageTemplates && canCreateMarketing && (
           <Button variant="outline" onClick={() => setActiveTab('rules')}>
             从规则模板新建
           </Button>
@@ -942,7 +983,7 @@ export function CreateMarketing() {
       <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1">
         {[
           { id: 'strategies' as const, label: '运行策略', desc: '已启用、草稿和暂停的自动触达' },
-          { id: 'rules' as const, label: '规则模板', desc: '先选模板，再生成自动触达' },
+          ...(canManageTemplates ? [{ id: 'rules' as const, label: '规则模板', desc: '先选模板，再生成自动触达' }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -965,10 +1006,10 @@ export function CreateMarketing() {
               <div className="text-sm font-medium text-blue-900">从规则模板创建触达</div>
               <div className="mt-1 text-xs text-blue-700">建议优先启用系统推荐或门店自定义规则；需要临时触达时，也可以新建一条触达策略。</div>
             </div>
-            <Button onClick={openCreate}>
+            {canCreateMarketing && <Button onClick={openCreate}>
               <Plus className="mr-2 h-4 w-4" />
               新建触达
-            </Button>
+            </Button>}
           </div>
           <MarketingRuleLibrary embedded />
         </div>
@@ -999,9 +1040,11 @@ export function CreateMarketing() {
         <div className="flex h-48 flex-col items-center justify-center gap-3 border border-dashed border-gray-300 text-sm text-gray-500">
           <Target className="mb-3 h-8 w-8 text-gray-300" />
           <div>暂无符合条件的自动触达</div>
-          <Button variant="outline" size="sm" onClick={() => setActiveTab('rules')}>
-            去规则模板创建
-          </Button>
+          {canManageTemplates && (
+            <Button variant="outline" size="sm" onClick={() => setActiveTab('rules')}>
+              {canCreateMarketing ? '去规则模板创建' : '查看规则模板'}
+            </Button>
+          )}
         </div>
       ) : (
         <Table>
@@ -1052,13 +1095,13 @@ export function CreateMarketing() {
                   <TableCell>
                     <div className="flex gap-1">
                       <IconButton title="查看详情" onClick={() => void openDetail(strategy)}><Eye className="h-4 w-4" /></IconButton>
-                      <IconButton title="编辑" onClick={() => openEdit(strategy)}><Edit className="h-4 w-4" /></IconButton>
-                      <IconButton title="复制" onClick={() => openCopy(strategy)}><Copy className="h-4 w-4" /></IconButton>
-                      <IconButton title={strategy.status === 'enabled' ? '暂停' : '启用'} onClick={() => void toggleStatus(strategy)} disabled={operatingId === strategy.id}>
+                      {canUpdateMarketing && <IconButton title="编辑" onClick={() => openEdit(strategy)}><Edit className="h-4 w-4" /></IconButton>}
+                      {canCreateMarketing && <IconButton title="复制" onClick={() => openCopy(strategy)}><Copy className="h-4 w-4" /></IconButton>}
+                      {canUpdateMarketing && <IconButton title={strategy.status === 'enabled' ? '暂停' : '启用'} onClick={() => void toggleStatus(strategy)} disabled={operatingId === strategy.id}>
                         {strategy.status === 'enabled' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                      </IconButton>
-                      <IconButton title="立即执行" onClick={() => void executeNow(strategy)} disabled={operatingId === strategy.id}><WandSparkles className="h-4 w-4" /></IconButton>
-                      <IconButton title="删除" onClick={() => void removeStrategy(strategy)} disabled={operatingId === strategy.id}><Trash2 className="h-4 w-4" /></IconButton>
+                      </IconButton>}
+                      {canUpdateMarketing && <IconButton title="立即执行" onClick={() => void executeNow(strategy)} disabled={operatingId === strategy.id}><WandSparkles className="h-4 w-4" /></IconButton>}
+                      {canDeleteMarketing && <IconButton title="删除" onClick={() => void removeStrategy(strategy)} disabled={operatingId === strategy.id}><Trash2 className="h-4 w-4" /></IconButton>}
                     </div>
                   </TableCell>
                 </TableRow>

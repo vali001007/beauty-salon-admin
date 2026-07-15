@@ -1100,6 +1100,8 @@ export interface TerminalFollowUpTaskCreateRequest {
   customerIds?: number[];
   assignments?: TerminalFollowUpTaskAssignment[];
   recommendationId?: number;
+  recommendationInstanceId?: string;
+  adoptionId?: number;
   sourceRecommendationKey?: string;
   source?: string;
   triggerType?: string;
@@ -1136,6 +1138,8 @@ export interface TerminalFollowUpTask {
   customerPhone?: string;
   customerMemberLevel?: string;
   recommendationId?: number;
+  recommendationInstanceId?: string;
+  adoptionId?: number;
   sourceRecommendationKey?: string;
   source?: string;
   triggerType?: string;
@@ -1182,6 +1186,7 @@ export interface TerminalFollowUpTaskQuery {
   operatorId?: number;
   customerId?: number;
   recommendationId?: number;
+  recommendationInstanceId?: string;
   keyword?: string;
 }
 

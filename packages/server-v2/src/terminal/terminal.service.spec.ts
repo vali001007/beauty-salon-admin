@@ -5,7 +5,11 @@ import { TerminalDashboardCacheService } from './terminal-dashboard-cache.servic
 describe('TerminalService automation', () => {
   let service: TerminalService;
   let prisma: jest.Mocked<any>;
-  let commissionService: { recordAmiContribution: jest.Mock; calculateOrderCommissions: jest.Mock; getAmiDashboard: jest.Mock };
+  let commissionService: {
+    recordAmiContribution: jest.Mock;
+    calculateOrderCommissions: jest.Mock;
+    getAmiDashboard: jest.Mock;
+  };
   let terminalDashboardCache: { getKey: jest.Mock; get: jest.Mock; set: jest.Mock; invalidate: jest.Mock };
 
   const baseDto = {
@@ -53,6 +57,10 @@ describe('TerminalService automation', () => {
         findFirst: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      marketingDeliveryJob: {
+        findFirst: jest.fn(),
       },
       customerCard: {
         findMany: jest.fn(),
@@ -89,6 +97,7 @@ describe('TerminalService automation', () => {
         count: jest.fn(),
         groupBy: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
       },
       recommendationEvent: {
         create: jest.fn(),
@@ -101,11 +110,144 @@ describe('TerminalService automation', () => {
         findFirst: jest.fn(),
       },
     };
-    service = new TerminalService(prisma as any, {} as any, {} as any, commissionService as any, terminalDashboardCache as any);
+    service = new TerminalService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      commissionService as any,
+      terminalDashboardCache as any,
+    );
   });
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('progresses the source automation touch when a terminal follow-up produces a conversion', async () => {
+    const completedAt = new Date('2026-07-14T10:00:00.000Z');
+    const effectFacts = { recordFact: jest.fn().mockResolvedValue({ id: 501 }) };
+    (service as any).marketingEffectFactService = effectFacts;
+    (service as any).marketingFeatureFlags = { effectFactWrite: true };
+    prisma.terminalFollowUpTask.findFirst.mockResolvedValue({
+      id: 91,
+      storeId: 1,
+      customerId: 10,
+      status: 'in_progress',
+      source: 'marketing_automation',
+      payload: {
+        sourcePayload: {
+          attribution: { strategyId: 12, executionId: 90, deliveryJobId: 1001, touchId: 2001 },
+        },
+      },
+    });
+    prisma.terminalFollowUpTask.update.mockResolvedValue({
+      id: 91,
+      storeId: 1,
+      customerId: 10,
+      status: 'completed',
+      resultType: 'converted',
+      source: 'marketing_automation',
+      recommendationInstanceId: 'recommendation-instance-1',
+      adoptionId: 301,
+      orderId: 701,
+      reservationId: null,
+      completedAt,
+      payload: {
+        sourcePayload: {
+          attribution: { strategyId: 12, executionId: 90, deliveryJobId: 1001, touchId: 2001 },
+          promotionId: 31,
+        },
+      },
+    });
+    prisma.recommendationEvent.create.mockResolvedValue({ id: 801 });
+    prisma.marketingDeliveryJob.findFirst.mockResolvedValue({
+      id: 1001,
+      touchId: 2001,
+      strategyId: 12,
+      executionId: 90,
+    });
+    prisma.marketingAutomationTouch.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.completeFollowUpTask(1, 91, { resultType: 'converted', orderId: 701 } as any, 7);
+
+    expect(prisma.marketingDeliveryJob.findFirst).toHaveBeenCalledWith({
+      where: { id: 1001, storeId: 1, customerId: 10, channel: 'terminal' },
+      select: { id: true, touchId: true, strategyId: true, executionId: true },
+    });
+    expect(prisma.marketingAutomationTouch.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 2001,
+        customerId: 10,
+        status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] },
+      },
+      data: { status: 'converted', convertedAt: completedAt, conversionType: 'order' },
+    });
+    expect(effectFacts.recordFact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        factType: 'conversion',
+        sourceSystem: 'terminal_follow_up',
+        isPrimary: false,
+        dimensions: expect.objectContaining({
+          recommendationInstanceId: 'recommendation-instance-1',
+          adoptionId: 301,
+          strategyId: 12,
+          executionId: 90,
+          touchId: 2001,
+          deliveryJobId: 1001,
+          terminalFollowUpTaskId: 91,
+          orderId: 701,
+        }),
+      }),
+    );
+  });
+
+  it('does not mark an automation touch converted for a contacted-only follow-up', async () => {
+    const effectFacts = { recordFact: jest.fn() };
+    (service as any).marketingEffectFactService = effectFacts;
+    (service as any).marketingFeatureFlags = { effectFactWrite: true };
+    prisma.terminalFollowUpTask.findFirst.mockResolvedValue({
+      id: 92,
+      storeId: 1,
+      customerId: 10,
+      status: 'in_progress',
+      source: 'marketing_automation',
+    });
+    prisma.terminalFollowUpTask.update.mockResolvedValue({
+      id: 92,
+      storeId: 1,
+      customerId: 10,
+      status: 'completed',
+      resultType: 'contacted',
+      source: 'marketing_automation',
+      orderId: null,
+      reservationId: null,
+      completedAt: new Date('2026-07-14T11:00:00.000Z'),
+      payload: {
+        sourcePayload: {
+          attribution: { strategyId: 12, executionId: 90, deliveryJobId: 1002, touchId: 2002 },
+        },
+      },
+    });
+    prisma.recommendationEvent.create.mockResolvedValue({ id: 802 });
+
+    await service.completeFollowUpTask(1, 92, { resultType: 'contacted' } as any, 7);
+
+    expect(prisma.marketingDeliveryJob.findFirst).not.toHaveBeenCalled();
+    expect(prisma.marketingAutomationTouch.updateMany).not.toHaveBeenCalled();
+    expect(effectFacts.recordFact).not.toHaveBeenCalled();
+  });
+
+  it('does not use a terminal-local attribution fallback when the shared service is unavailable', async () => {
+    prisma.marketingAttribution = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+    };
+    prisma.marketingAutomationTouch.findMany.mockResolvedValue([]);
+
+    await (service as any).applyMarketingAttribution(prisma, { id: 701, storeId: 1, customerId: 10 }, 680);
+
+    expect(prisma.marketingAttribution.findFirst).not.toHaveBeenCalled();
+    expect(prisma.marketingAutomationTouch.findMany).not.toHaveBeenCalled();
   });
 
   function mockTerminalCardOrderDeps(operatorUser: any = null) {
@@ -143,11 +285,13 @@ describe('TerminalService automation', () => {
     prisma.orderItem = {
       findMany: jest.fn().mockResolvedValue([{ id: 801, itemType: 'card', itemId: 51, subtotal: 3280 }]),
     };
-    prisma.$transaction = jest.fn(async (callback: any) => callback({
-      customerCard: { create: customerCardCreate },
-      productOrder: { create: productOrderCreate },
-      customer: { update: jest.fn() },
-    }));
+    prisma.$transaction = jest.fn(async (callback: any) =>
+      callback({
+        customerCard: { create: customerCardCreate },
+        productOrder: { create: productOrderCreate },
+        customer: { update: jest.fn() },
+      }),
+    );
     (service as any).createOrderItems = jest.fn();
     (service as any).createPaymentRecord = jest.fn();
     (service as any).applyMarketingAttribution = jest.fn();
@@ -206,7 +350,11 @@ describe('TerminalService automation', () => {
       9,
     );
 
-    expect(ordersServiceCreateCardOrder).toHaveBeenCalledWith(1, expect.objectContaining({ operatorId: 22, source: 'terminal' }), 9);
+    expect(ordersServiceCreateCardOrder).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ operatorId: 22, source: 'terminal' }),
+      9,
+    );
     expect(result).toEqual(expect.objectContaining({ operatorId: 22, operatorName: '周顾问' }));
   });
 
@@ -232,7 +380,11 @@ describe('TerminalService automation', () => {
       9,
     );
 
-    expect(ordersServiceCreateCardOrder).toHaveBeenCalledWith(1, expect.objectContaining({ operatorId: 9, source: 'terminal' }), 9);
+    expect(ordersServiceCreateCardOrder).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ operatorId: 9, source: 'terminal' }),
+      9,
+    );
     expect(result).toEqual(expect.objectContaining({ operatorId: 9, operatorName: '许收银' }));
   });
 
@@ -348,7 +500,12 @@ describe('TerminalService automation', () => {
       source: 'terminal',
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'customer-growth', 'cashier-context']);
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, [
+      'role',
+      'manager',
+      'customer-growth',
+      'cashier-context',
+    ]);
     expect(result).toEqual(
       expect.objectContaining({
         id: 701,
@@ -490,10 +647,7 @@ describe('TerminalService automation', () => {
         where: expect.objectContaining({
           customer: expect.objectContaining({
             customerCards: { some: { status: 'active', remainingTimes: { gt: 0 } } },
-            OR: [
-              { name: { contains: '李', mode: 'insensitive' } },
-              { phone: { contains: '李' } },
-            ],
+            OR: [{ name: { contains: '李', mode: 'insensitive' } }, { phone: { contains: '李' } }],
           }),
         }),
       }),
@@ -538,7 +692,15 @@ describe('TerminalService automation', () => {
       },
     ]);
 
-    const scenes = ['appointment', 'cashier', 'card_opening', 'recharge', 'verification', 'follow_up', 'service_record'] as const;
+    const scenes = [
+      'appointment',
+      'cashier',
+      'card_opening',
+      'recharge',
+      'verification',
+      'follow_up',
+      'service_record',
+    ] as const;
 
     const results = await Promise.all(
       scenes.map((scene) =>
@@ -660,6 +822,7 @@ describe('TerminalService automation', () => {
       assigneeRole: 'reception',
       assigneeUserId: 32,
       status: 'expired',
+      recommendationInstanceId: 'instance-1',
     } as any);
 
     expect(prisma.terminalFollowUpTask.findMany).toHaveBeenCalledWith(
@@ -670,6 +833,7 @@ describe('TerminalService automation', () => {
           assigneeRole: 'reception',
           assigneeUserId: 32,
           status: 'expired',
+          recommendationInstanceId: 'instance-1',
         }),
       }),
     );
@@ -680,6 +844,7 @@ describe('TerminalService automation', () => {
           deletedAt: null,
           assigneeRole: 'reception',
           assigneeUserId: 32,
+          recommendationInstanceId: 'instance-1',
         }),
       }),
     );
@@ -893,7 +1058,7 @@ describe('TerminalService automation', () => {
     expect(prisma.marketingAutomationExecution.create).not.toHaveBeenCalled();
   });
 
-  it('creates customer touches when executing card reminder automation', async () => {
+  it('creates real follow-up tasks before marking terminal automation touches delivered', async () => {
     const strategy = {
       id: 4,
       name: '次卡剩余/到期提醒',
@@ -935,11 +1100,22 @@ describe('TerminalService automation', () => {
     prisma.customerCard.count = jest.fn().mockResolvedValue(2);
     prisma.customerCard.findMany.mockResolvedValue([{ customerId: 10 }, { customerId: 11 }, { customerId: 10 }]);
     prisma.marketingAutomationTouch.findMany.mockResolvedValue([]);
+    jest.spyOn(service, 'batchCreateFollowUpTasks').mockResolvedValue({
+      items: [
+        { id: 101, customerId: 10, duplicated: false },
+        { id: 102, customerId: 11, duplicated: false },
+      ],
+      total: 2,
+      createdCount: 2,
+      duplicatedCount: 0,
+      failedCount: 0,
+      failures: [],
+    });
     prisma.marketingAutomationExecution.create.mockResolvedValue({
       id: 20,
       strategyId: 4,
       strategyName: strategy.name,
-      status: 'success',
+      status: 'running',
       triggeredCount: 2,
       reachedCount: 0,
       channel: 'terminal',
@@ -958,10 +1134,34 @@ describe('TerminalService automation', () => {
 
     const result = await service.runTerminalAutomationOnce(1, 4);
 
+    expect(service.batchCreateFollowUpTasks).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        customerIds: [10, 11],
+        source: 'terminal_automation',
+        sourceRecommendationKey: 'terminal-automation:4:20',
+        attribution: { strategyId: 4, executionId: 20 },
+      }),
+    );
+    expect(prisma.marketingAutomationExecution.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: 'running', reachedCount: 0 }),
+    });
     expect(prisma.marketingAutomationTouch.createMany).toHaveBeenCalledWith({
       data: [
-        expect.objectContaining({ executionId: 20, strategyId: 4, customerId: 10, channel: 'terminal' }),
-        expect.objectContaining({ executionId: 20, strategyId: 4, customerId: 11, channel: 'terminal' }),
+        expect.objectContaining({
+          executionId: 20,
+          strategyId: 4,
+          customerId: 10,
+          channel: 'terminal',
+          status: 'delivered',
+        }),
+        expect.objectContaining({
+          executionId: 20,
+          strategyId: 4,
+          customerId: 11,
+          channel: 'terminal',
+          status: 'delivered',
+        }),
       ],
       skipDuplicates: true,
     });
@@ -1323,12 +1523,71 @@ describe('TerminalService automation', () => {
         }),
       }),
     );
-    expect(result).toEqual(expect.objectContaining({
-      id: 88,
-      customerId: 10,
-      channel: 'phone',
-      script: '介绍到店专属护理权益',
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 88,
+        customerId: 10,
+        channel: 'phone',
+        script: '介绍到店专属护理权益',
+      }),
+    );
+  });
+
+  it('persists recommendation instance and adoption links on terminal follow-up tasks', async () => {
+    const facts = { recordFact: jest.fn().mockResolvedValue({ id: 1 }) };
+    (service as any).marketingEffectFactService = facts;
+    (service as any).marketingFeatureFlags = { effectFactWrite: true };
+    prisma.customer.findFirst.mockResolvedValue({
+      id: 10,
+      storeId: 1,
+      name: '王女士',
+      phone: '13800000000',
+      memberLevel: 'VIP',
+    });
+    prisma.terminalFollowUpTask.findFirst.mockResolvedValue(null);
+    prisma.terminalFollowUpTask.create.mockImplementation(async ({ data }: any) => ({
+      id: 89,
+      ...data,
+      customer: { id: 10, name: '王女士', phone: '13800000000', memberLevel: 'VIP' },
+      createdAt: new Date('2026-07-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-07-13T10:00:00.000Z'),
     }));
+    prisma.recommendationEvent.create.mockResolvedValue({ id: 3002 });
+
+    await service.createFollowUpTask(
+      1,
+      undefined,
+      {
+        customerId: 10,
+        recommendationInstanceId: 'instance-1',
+        adoptionId: 70,
+        sourceRecommendationKey: 'prediction:churn',
+        source: 'recommendation',
+        title: '高流失客户召回',
+        assigneeRole: 'manager',
+      } as any,
+      7,
+    );
+
+    expect(prisma.terminalFollowUpTask.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recommendationInstanceId: 'instance-1',
+          adoptionId: 70,
+        }),
+      }),
+    );
+    expect(facts.recordFact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        factType: 'delivery',
+        sourceEventId: 'task:89',
+        dimensions: expect.objectContaining({
+          recommendationInstanceId: 'instance-1',
+          adoptionId: 70,
+          terminalFollowUpTaskId: 89,
+        }),
+      }),
+    );
   });
 
   it('assigns consultant follow-up to a concrete beautician when customer has no service history', async () => {
@@ -1374,12 +1633,14 @@ describe('TerminalService automation', () => {
         }),
       }),
     );
-    expect(result).toEqual(expect.objectContaining({
-      id: 89,
-      assigneeUserId: 301,
-      assigneeBeauticianId: 21,
-      assignmentReason: '无历史服务人，默认分派给门店美容师 陈顾问',
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 89,
+        assigneeUserId: 301,
+        assigneeBeauticianId: 21,
+        assignmentReason: '无历史服务人，默认分派给门店美容师 陈顾问',
+      }),
+    );
   });
 
   it('records failed execution and continues due scan when one strategy fails', async () => {
@@ -1490,9 +1751,9 @@ describe('TerminalService automation', () => {
     };
     prisma.orderItem = {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
-      findMany: jest.fn().mockResolvedValue([
-        { id: 701, itemType: 'project', itemId: 101, subtotal: 200, beauticianId: 2 },
-      ]),
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ id: 701, itemType: 'project', itemId: 101, subtotal: 200, beauticianId: 2 }]),
     };
     prisma.paymentRecord = {
       create: jest.fn().mockResolvedValue({ id: 601, orderId: 501, method: 'wechat', amount: 200 }),
@@ -1547,16 +1808,19 @@ describe('TerminalService automation', () => {
 
     expect(result).toEqual(expect.objectContaining({ id: 501, orderNo: 'PO501', storeId: 1, totalAmount: 200 }));
     expect(prisma.customer.findUnique).not.toHaveBeenCalled();
-    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
-      orderKind: 'project',
-      customerId: 10,
-      storeId: 1,
-      payMethod: 'wechat',
-      source: 'terminal',
-      status: 'completed',
-      preAllocatedDiscount: true,
-      items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
-    }), expect.anything());
+    expect(createProductOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderKind: 'project',
+        customerId: 10,
+        storeId: 1,
+        payMethod: 'wechat',
+        source: 'terminal',
+        status: 'completed',
+        preAllocatedDiscount: true,
+        items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
+      }),
+      expect.anything(),
+    );
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(prisma.cashierShift.findFirst).toHaveBeenCalledWith({
       where: { storeId: 1, deviceId: 99, status: 'open' },
@@ -1574,7 +1838,12 @@ describe('TerminalService automation', () => {
       metadata: { paymentMethod: 'wechat', itemCount: 1 },
     });
     expect(commissionService.calculateOrderCommissions).not.toHaveBeenCalled();
-    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'customer-growth', 'cashier-context']);
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, [
+      'role',
+      'manager',
+      'customer-growth',
+      'cashier-context',
+    ]);
   });
 
   it('deducts product stock after terminal checkout with product items', async () => {
@@ -1616,9 +1885,9 @@ describe('TerminalService automation', () => {
     };
     prisma.orderItem = {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
-      findMany: jest.fn().mockResolvedValue([
-        { id: 702, itemType: 'product', itemId: 301, subtotal: 120, beauticianId: 2 },
-      ]),
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ id: 702, itemType: 'product', itemId: 301, subtotal: 120, beauticianId: 2 }]),
     };
     prisma.paymentRecord = {
       create: jest.fn().mockResolvedValue({ id: 602, orderId: 502, method: 'wechat', amount: 120 }),
@@ -1670,15 +1939,18 @@ describe('TerminalService automation', () => {
       99,
     );
 
-    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
-      orderKind: 'product',
-      customerId: 10,
-      storeId: 1,
-      payMethod: 'wechat',
-      source: 'terminal',
-      preAllocatedDiscount: true,
-      items: [expect.objectContaining({ itemType: 'product', itemId: 301, quantity: 3 })],
-    }), expect.anything());
+    expect(createProductOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderKind: 'product',
+        customerId: 10,
+        storeId: 1,
+        payMethod: 'wechat',
+        source: 'terminal',
+        preAllocatedDiscount: true,
+        items: [expect.objectContaining({ itemType: 'product', itemId: 301, quantity: 3 })],
+      }),
+      expect.anything(),
+    );
     expect(prisma.product.update).not.toHaveBeenCalled();
     expect(prisma.stockMovement.create).not.toHaveBeenCalled();
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
@@ -1689,22 +1961,29 @@ describe('TerminalService automation', () => {
     prisma.$transaction = jest.fn(async (callback: any) => callback(transactionClient));
     jest.spyOn(service as any, 'ensureOpenCashierShift').mockResolvedValue(undefined);
     jest.spyOn(service as any, 'getStore').mockResolvedValue({ id: 1, name: 'Store A' });
-    jest.spyOn(service as any, 'resolveOrderItemBeauticianIds').mockImplementation(async (_storeId: number, items: any[]) => items);
+    jest
+      .spyOn(service as any, 'resolveOrderItemBeauticianIds')
+      .mockImplementation(async (_storeId: number, items: any[]) => items);
     jest.spyOn(service as any, 'resolveOrderItemNames').mockImplementation(async (items: any[]) => items);
     jest.spyOn(service as any, 'scheduleCheckoutPostCommitTasks').mockImplementation(() => undefined);
-    const createProductOrder = jest.fn()
+    const createProductOrder = jest
+      .fn()
       .mockResolvedValueOnce({ id: 1, orderNo: 'PO-S', orderKind: 'project', netAmount: 100, customerName: '客户' })
       .mockResolvedValueOnce({ id: 2, orderNo: 'PO-G', orderKind: 'product', netAmount: 50, customerName: '客户' });
     (service as any).ordersService = { createProductOrder };
 
-    await service.checkout(1, {
-      customerName: '客户',
-      payMethod: 'wechat',
-      items: [
-        { itemType: 'project', itemId: 101, name: '护理', quantity: 1, unitPrice: 100 },
-        { itemType: 'product', itemId: 201, name: '精华', quantity: 1, unitPrice: 50 },
-      ],
-    } as any, 9);
+    await service.checkout(
+      1,
+      {
+        customerName: '客户',
+        payMethod: 'wechat',
+        items: [
+          { itemType: 'project', itemId: 101, name: '护理', quantity: 1, unitPrice: 100 },
+          { itemType: 'product', itemId: 201, name: '精华', quantity: 1, unitPrice: 50 },
+        ],
+      } as any,
+      9,
+    );
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(createProductOrder).toHaveBeenNthCalledWith(1, expect.any(Object), transactionClient);
@@ -1752,9 +2031,9 @@ describe('TerminalService automation', () => {
     };
     prisma.orderItem = {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
-      findMany: jest.fn().mockResolvedValue([
-        { id: 703, itemType: 'project', itemId: 101, subtotal: 200, beauticianId: 2 },
-      ]),
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ id: 703, itemType: 'project', itemId: 101, subtotal: 200, beauticianId: 2 }]),
     };
     prisma.paymentRecord = {
       create: jest.fn().mockResolvedValue({ id: 603, orderId: 503, method: 'wechat', amount: 200 }),
@@ -1826,10 +2105,13 @@ describe('TerminalService automation', () => {
       },
       select: { id: true, name: true },
     });
-    expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
-      preAllocatedDiscount: true,
-      items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
-    }), expect.anything());
+    expect(createProductOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preAllocatedDiscount: true,
+        items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
+      }),
+      expect.anything(),
+    );
     expect(commissionService.calculateOrderCommissions).not.toHaveBeenCalled();
   });
 
@@ -1886,7 +2168,12 @@ describe('TerminalService automation', () => {
     );
     expect(prisma.customerCard.update).not.toHaveBeenCalled();
     expect(prisma.cardUsageRecord.create).not.toHaveBeenCalled();
-    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'customer-growth', 'card-verification-context']);
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, [
+      'role',
+      'manager',
+      'customer-growth',
+      'card-verification-context',
+    ]);
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
   });
 
@@ -1912,7 +2199,16 @@ describe('TerminalService automation', () => {
             totalAmount: 279,
             createdAt: new Date('2026-06-29T09:30:00.000Z'),
             customer: { id: 10, name: '陈紫萱', phone: '13800000000' },
-            orderItems: [{ name: '深层补水护理', quantity: 1, unitPrice: 299, listAmount: 299, subtotal: 279, itemDiscountAmount: 20 }],
+            orderItems: [
+              {
+                name: '深层补水护理',
+                quantity: 1,
+                unitPrice: 299,
+                listAmount: 299,
+                subtotal: 279,
+                itemDiscountAmount: 20,
+              },
+            ],
             paymentRecords: [{ method: 'wechat', amount: 279, status: 'success' }],
             sourceCustomerCards: [],
           },
@@ -1930,7 +2226,17 @@ describe('TerminalService automation', () => {
             totalAmount: 3280,
             createdAt: new Date('2026-06-29T09:10:00.000Z'),
             customer: { id: 11, name: '林晓', phone: '13900000000' },
-            orderItems: [{ itemType: 'card', name: '抗衰管理 6 次卡', quantity: 1, unitPrice: 3280, listAmount: 3680, subtotal: 3280, itemDiscountAmount: 400 }],
+            orderItems: [
+              {
+                itemType: 'card',
+                name: '抗衰管理 6 次卡',
+                quantity: 1,
+                unitPrice: 3280,
+                listAmount: 3680,
+                subtotal: 3280,
+                itemDiscountAmount: 400,
+              },
+            ],
             paymentRecords: [{ method: 'cash', amount: 3280, status: 'success' }],
             sourceCustomerCards: [{ operator: { id: 9, name: '周顾问', username: 'zhou' } }],
           },
@@ -1959,8 +2265,12 @@ describe('TerminalService automation', () => {
     expect(result.counts).toEqual({ cashier: 1, cardUsage: 1, cardOrder: 1 });
     expect(result.items.map((item: any) => item.sourceType)).toEqual(['cashier_order', 'card_usage', 'card_order']);
     expect(result.items[0].receipt).toEqual(expect.objectContaining({ receiptNo: 'PO501', paymentMethod: '微信' }));
-    expect(result.items[1].receipt).toEqual(expect.objectContaining({ receiptNo: 'CU000066', paymentMethod: '次卡核销' }));
-    expect(result.items[2].receipt).toEqual(expect.objectContaining({ businessTitle: '办卡小票', cashierName: '周顾问' }));
+    expect(result.items[1].receipt).toEqual(
+      expect.objectContaining({ receiptNo: 'CU000066', paymentMethod: '次卡核销' }),
+    );
+    expect(result.items[2].receipt).toEqual(
+      expect.objectContaining({ businessTitle: '办卡小票', cashierName: '周顾问' }),
+    );
   });
 
   it('rejects terminal checkout when the device has no open cashier shift', async () => {
@@ -2030,7 +2340,10 @@ describe('TerminalService automation', () => {
       findMany: jest.fn().mockResolvedValue([]),
     };
     prisma.paymentRecord = {
-      findMany: jest.fn().mockResolvedValue([{ method: 'wechat', amount: 5000 }, { method: 'cash', amount: 1200 }]),
+      findMany: jest.fn().mockResolvedValue([
+        { method: 'wechat', amount: 5000 },
+        { method: 'cash', amount: 1200 },
+      ]),
     };
     prisma.refundRecord = {
       findMany: jest.fn().mockResolvedValue([]),
@@ -2190,8 +2503,12 @@ describe('TerminalService automation', () => {
       'ami_demo_full_beautician_01',
       'no_terminal_access',
     ]);
-    expect(bootstrap.terminalUsers.find((user: any) => user.username === 'ami_demo_full_cashier')?.availableRoles).toEqual(['reception']);
-    expect(bootstrap.terminalUsers.find((user: any) => user.username === 'ami_demo_full_beautician_01')?.availableRoles).toEqual(['beautician']);
+    expect(
+      bootstrap.terminalUsers.find((user: any) => user.username === 'ami_demo_full_cashier')?.availableRoles,
+    ).toEqual(['reception']);
+    expect(
+      bootstrap.terminalUsers.find((user: any) => user.username === 'ami_demo_full_beautician_01')?.availableRoles,
+    ).toEqual(['beautician']);
     expect(bootstrap.terminalUsers.find((user: any) => user.username === 'no_terminal_access')).toEqual(
       expect.objectContaining({
         availableRoles: [],
@@ -2204,7 +2521,9 @@ describe('TerminalService automation', () => {
     await expect(service.getBootstrap(6, 1, undefined, 99)).rejects.toThrow('当前账号未配置智能终端权限');
 
     const beauticianBootstrap = await service.getBootstrap(6, 1, undefined, 32);
-    expect(beauticianBootstrap.currentUser).toEqual(expect.objectContaining({ id: 32, username: 'ami_demo_full_beautician_01' }));
+    expect(beauticianBootstrap.currentUser).toEqual(
+      expect.objectContaining({ id: 32, username: 'ami_demo_full_beautician_01' }),
+    );
     expect(beauticianBootstrap.currentRole).toBe('beautician');
   });
 

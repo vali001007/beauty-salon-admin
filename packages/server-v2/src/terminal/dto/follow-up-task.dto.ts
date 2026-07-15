@@ -34,6 +34,19 @@ export class CreateTerminalFollowUpTaskDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  recommendationInstanceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  adoptionId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   @MaxLength(120)
   sourceRecommendationKey?: string;
 
@@ -249,6 +262,12 @@ export class QueryTerminalFollowUpTasksDto {
   @IsInt()
   @Min(1)
   recommendationId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  recommendationInstanceId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

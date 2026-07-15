@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermission } from '@/hooks/usePermission';
 import {
   cloneMarketingRuleTemplate,
   disableMarketingRuleTemplate,
@@ -173,6 +174,8 @@ function statusClass(status: MarketingRuleTemplateStatus) {
 
 export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
+  const canCreateMarketing = usePermission('core:marketing:create');
+  const canUpdateMarketing = usePermission('core:marketing:update');
   const [rules, setRules] = useState<MarketingRuleTemplate[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -197,6 +200,7 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
   const [operatingId, setOperatingId] = useState<number | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const canEditRule = (rule: MarketingRuleTemplate) => rule.source === 'system' ? canCreateMarketing : canUpdateMarketing;
 
   const loadRules = useCallback(async () => {
     setLoading(true);
@@ -254,6 +258,10 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
   };
 
   const cloneRule = async (rule: MarketingRuleTemplate) => {
+    if (!canCreateMarketing) {
+      toast.error('当前账号没有复制营销规则的权限');
+      return;
+    }
     setOperatingId(rule.id);
     try {
       const cloned = await cloneMarketingRuleTemplate(rule.id);
@@ -270,6 +278,10 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
   };
 
   const startEdit = (rule: MarketingRuleTemplate) => {
+    if (!canEditRule(rule)) {
+      toast.error('当前账号没有编辑营销规则的权限');
+      return;
+    }
     if (rule.source === 'system') {
       toast.info('系统默认规则需先复制为我的规则后再编辑');
       void cloneRule(rule);
@@ -281,6 +293,10 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
 
   const saveRule = async () => {
     if (!editing || !form) return;
+    if (!canEditRule(editing)) {
+      toast.error('当前账号没有保存营销规则的权限');
+      return;
+    }
     setSaving(true);
     try {
       const data: MarketingRuleTemplateInput = {
@@ -308,6 +324,10 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
   };
 
   const enableRule = async (rule: MarketingRuleTemplate) => {
+    if (!canCreateMarketing) {
+      toast.error('当前账号没有启用营销规则的权限');
+      return;
+    }
     setOperatingId(rule.id);
     try {
       const result = await enableMarketingRuleTemplate(rule.id);
@@ -327,6 +347,10 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
   };
 
   const openEnableConfirm = async (rule: MarketingRuleTemplate) => {
+    if (!canCreateMarketing) {
+      toast.error('当前账号没有启用营销规则的权限');
+      return;
+    }
     setEnableTarget(rule);
     setEnablePreview(null);
     setEnablePreviewLoading(true);
@@ -348,6 +372,10 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
   };
 
   const disableRule = async (rule: MarketingRuleTemplate) => {
+    if (!canUpdateMarketing) {
+      toast.error('当前账号没有停用营销规则的权限');
+      return;
+    }
     setOperatingId(rule.id);
     try {
       await disableMarketingRuleTemplate(rule.id);
@@ -497,18 +525,18 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
                     <Button size="icon" variant="ghost" title="查看" onClick={() => void openDetail(rule)}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" title="复制" onClick={() => void cloneRule(rule)} disabled={operatingId === rule.id}>
+                    {canCreateMarketing && <Button size="icon" variant="ghost" title="复制" onClick={() => void cloneRule(rule)} disabled={operatingId === rule.id}>
                       <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" title="编辑" onClick={() => startEdit(rule)} disabled={operatingId === rule.id}>
+                    </Button>}
+                    {canEditRule(rule) && <Button size="icon" variant="ghost" title="编辑" onClick={() => startEdit(rule)} disabled={operatingId === rule.id}>
                       <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" title="启用" onClick={() => void openEnableConfirm(rule)} disabled={operatingId === rule.id}>
+                    </Button>}
+                    {canCreateMarketing && <Button size="icon" variant="ghost" title="启用" onClick={() => void openEnableConfirm(rule)} disabled={operatingId === rule.id}>
                       <Play className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" title="停用" onClick={() => void disableRule(rule)} disabled={operatingId === rule.id}>
+                    </Button>}
+                    {canUpdateMarketing && <Button size="icon" variant="ghost" title="停用" onClick={() => void disableRule(rule)} disabled={operatingId === rule.id}>
                       <PauseCircle className="h-4 w-4" />
-                    </Button>
+                    </Button>}
                   </div>
                 </TableCell>
               </TableRow>
@@ -574,8 +602,8 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
                     ['启用触达', `${selected.effect?.activeStrategyCount ?? 0}`],
                     ['触达人数', `${selected.effect?.reachedCount ?? 0}`],
                     ['转化人数', `${selected.effect?.convertedCount ?? 0}`],
-                    ['收入', `¥${Number(selected.effect?.revenue ?? 0).toLocaleString()}`],
-                    ['ROI', selected.effect?.roi ?? '0'],
+                    ['实际收入', `¥${Number(selected.effect?.revenue ?? 0).toLocaleString()}`],
+                    ['估算 ROI', selected.effect?.roi ?? '0'],
                   ]} />
                 </DetailSection>
                 <DetailSection title="受众预估">
@@ -584,14 +612,14 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
                       {previewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       预估命中客户
                     </Button>
-                    <Button onClick={() => void openEnableConfirm(selected)} disabled={operatingId === selected.id} className="gap-2">
+                    {canCreateMarketing && <Button onClick={() => void openEnableConfirm(selected)} disabled={operatingId === selected.id} className="gap-2">
                       <CheckCircle2 className="h-4 w-4" />
                       一键启用
-                    </Button>
-                    <Button variant="outline" onClick={() => startEdit(selected)} className="gap-2">
+                    </Button>}
+                    {canEditRule(selected) && <Button variant="outline" onClick={() => startEdit(selected)} className="gap-2">
                       <Edit className="h-4 w-4" />
                       修改规则
-                    </Button>
+                    </Button>}
                   </div>
                   {preview ? (
                     <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
@@ -780,9 +808,9 @@ export function MarketingRuleLibrary({ embedded = false }: { embedded?: boolean 
                   {operatingId === enableTarget.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   直接启用
                 </Button>
-                <Button variant="outline" onClick={() => { startEdit(enableTarget); setEnableTarget(null); setEnablePreview(null); }}>
+                {canEditRule(enableTarget) && <Button variant="outline" onClick={() => { startEdit(enableTarget); setEnableTarget(null); setEnablePreview(null); }}>
                   修改后启用
-                </Button>
+                </Button>}
               </DialogFooter>
             </>
           )}

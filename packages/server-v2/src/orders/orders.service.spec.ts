@@ -1,124 +1,49 @@
 import { OrdersService } from './orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-describe('OrdersService marketing page attribution', () => {
+describe('OrdersService shared marketing attribution', () => {
+  const attributionService = {
+    attributeOrder: jest.fn(),
+    reverseOrder: jest.fn(),
+  };
   let service: OrdersService;
 
   beforeEach(() => {
-    service = new OrdersService({} as PrismaService, {} as any);
+    jest.clearAllMocks();
+    service = new OrdersService(
+      {} as PrismaService,
+      {} as any,
+      undefined,
+      undefined,
+      undefined,
+      attributionService as any,
+    );
   });
 
-  function createTx() {
-    return {
-      marketingPageAttribution: {
-        findFirst: jest.fn(),
-        create: jest.fn(),
-      },
-      marketingPageLead: {
-        findMany: jest.fn(),
-        update: jest.fn(),
-      },
-    };
-  }
+  it('delegates paid order attribution to the shared service', async () => {
+    const tx = { token: 'order-tx' };
 
-  it('creates a last-touch page attribution from the newest eligible lead', async () => {
-    const tx = createTx();
-    const lead = {
-      id: 31,
-      pageId: 12,
+    await (service as any).applyMarketingAttribution(tx, { id: 88, storeId: 6, customerId: 7 }, 680);
+
+    expect(attributionService.attributeOrder).toHaveBeenCalledWith({
+      storeId: 6,
+      orderId: 88,
       customerId: 7,
-      createdAt: new Date(Date.now() - 3 * 86400000),
-    };
-    tx.marketingPageAttribution.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-    tx.marketingPageLead.findMany.mockResolvedValue([lead]);
-
-    await (service as any).applyMarketingPageAttribution(tx, { id: 88, customerId: 7 }, 680);
-
-    expect(tx.marketingPageLead.findMany).toHaveBeenCalledWith({
-      where: {
-        customerId: 7,
-        status: { not: 'expired' },
-        createdAt: { gte: expect.any(Date) },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
-    expect(tx.marketingPageAttribution.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        leadId: 31,
-        pageId: 12,
-        customerId: 7,
-        orderId: 88,
-        attributionType: 'last_touch',
-        attributedRevenue: 680,
-        attributionWindowDays: 30,
-        touchedAt: lead.createdAt,
-        convertedAt: expect.any(Date),
-      }),
-    });
-    expect(tx.marketingPageLead.update).toHaveBeenCalledWith({
-      where: { id: 31 },
-      data: { status: 'converted', convertedAt: expect.any(Date) },
-    });
+      netRevenue: 680,
+    }, tx);
   });
 
-  it('does not create duplicate attribution for an already attributed order', async () => {
-    const tx = createTx();
-    tx.marketingPageAttribution.findFirst.mockResolvedValue({ id: 1 });
+  it('delegates refund reversal to the shared service', async () => {
+    const tx = { token: 'refund-tx' };
 
-    await (service as any).applyMarketingPageAttribution(tx, { id: 88, customerId: 7 }, 680);
+    await (service as any).reverseMarketingAttribution(tx, 88, 200, 31, 6);
 
-    expect(tx.marketingPageLead.findMany).not.toHaveBeenCalled();
-    expect(tx.marketingPageAttribution.create).not.toHaveBeenCalled();
-  });
-
-  it('does not create attribution when the customer has no lead in the attribution window', async () => {
-    const tx = createTx();
-    tx.marketingPageAttribution.findFirst.mockResolvedValueOnce(null);
-    tx.marketingPageLead.findMany.mockResolvedValue([]);
-
-    await (service as any).applyMarketingPageAttribution(tx, { id: 88, customerId: 7 }, 680);
-
-    expect(tx.marketingPageAttribution.create).not.toHaveBeenCalled();
-    expect(tx.marketingPageLead.update).not.toHaveBeenCalled();
-  });
-
-  it('uses a 30-day attribution window when querying eligible leads', async () => {
-    const tx = createTx();
-    const systemNow = new Date('2026-06-07T09:00:00.000Z');
-    jest.useFakeTimers().setSystemTime(systemNow);
-
-    try {
-      tx.marketingPageAttribution.findFirst.mockResolvedValueOnce(null);
-      tx.marketingPageLead.findMany.mockResolvedValue([]);
-
-      await (service as any).applyMarketingPageAttribution(tx, { id: 88, customerId: 7 }, 680);
-
-      expect(tx.marketingPageLead.findMany).toHaveBeenCalledWith({
-        where: {
-          customerId: 7,
-          status: { not: 'expired' },
-          createdAt: { gte: new Date('2026-05-08T09:00:00.000Z') },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      });
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it('only attributes orders to touches that were actually sent or delivered', async () => {
-    const tx: any = {
-      marketingAttribution: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
-      marketingAutomationTouch: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
-    };
-
-    await (service as any).applyMarketingAttribution(tx, { id: 88, customerId: 7 }, 680);
-
-    expect(tx.marketingAutomationTouch.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] } }),
-    }));
+    expect(attributionService.reverseOrder).toHaveBeenCalledWith({
+      storeId: 6,
+      orderId: 88,
+      refundId: 31,
+      refundAmount: 200,
+    }, tx);
   });
 });
 
@@ -975,6 +900,25 @@ describe('OrdersService project order inventory consumption', () => {
       $transaction: jest.fn((callback: any) => callback(tx)),
     };
     service = new OrdersService(prisma as PrismaService, {} as any);
+  });
+
+  it('uses only the unified marketing attribution path for a paid order', async () => {
+    const unifiedAttribution = jest.fn();
+    const legacyPageAttribution = jest.fn();
+    (service as any).applyMarketingAttribution = unifiedAttribution;
+    (service as any).applyMarketingPageAttribution = legacyPageAttribution;
+
+    await service.createProductOrder({
+      customerName: '散客',
+      storeId: 1,
+      status: '已付款',
+      paymentMethod: '微信',
+      totalAmount: 120,
+      items: [{ productId: 301, productName: '补水精华', quantity: 3, unitPrice: 40, subtotal: 120 }],
+    });
+
+    expect(unifiedAttribution).toHaveBeenCalledTimes(1);
+    expect(legacyPageAttribution).not.toHaveBeenCalled();
   });
 
   it('deducts project BOM stock when creating a paid project order', async () => {

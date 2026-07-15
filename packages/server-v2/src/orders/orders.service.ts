@@ -7,10 +7,10 @@ import { deductStockItems } from '../common/inventory-stock-deduction.js';
 import { OrderRefundService } from './refund/order-refund.service.js';
 import { RefundInventoryReversalService } from './refund/refund-inventory-reversal.service.js';
 import type { CreateOrderRefundInput, OrderRefundMode } from './refund/refund.types.js';
+import { MarketingAttributionService } from '../marketing/attribution/marketing-attribution.service.js';
 
 @Injectable()
 export class OrdersService {
-  private readonly MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS = 30;
   private readonly orderItemInclude = {
     beautician: { select: { id: true, name: true } },
   };
@@ -21,6 +21,7 @@ export class OrdersService {
     private discountAllocationService: DiscountAllocationService = new DiscountAllocationService(),
     private orderRefundService: OrderRefundService = new OrderRefundService(),
     private refundInventoryReversalService: RefundInventoryReversalService = new RefundInventoryReversalService(),
+    private marketingAttributionService?: MarketingAttributionService,
   ) {}
 
   private toNumber(value: unknown): number {
@@ -756,155 +757,19 @@ export class OrdersService {
     return tx.customer.findFirst({ where, orderBy: { updatedAt: 'desc' } });
   }
 
-  private async applyMarketingAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
-    if (!order.customerId || amount <= 0) return;
-
-    const existed = await tx.marketingAttribution.findFirst({
-      where: { orderId: order.id },
-      select: { id: true },
-    });
-    if (existed) return;
-
-    const touches = await tx.marketingAutomationTouch.findMany({
-      where: {
-        customerId: order.customerId,
-        touchedAt: { lte: new Date() },
-        status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] },
-      },
-      orderBy: { touchedAt: 'desc' },
-      take: 10,
-    });
-
-    const now = new Date();
-    const touch = touches.find((item: any) => {
-      const windowDays = Number(item.attributionWindowDays ?? 30);
-      return item.touchedAt.getTime() >= now.getTime() - windowDays * 86400000;
-    });
-    if (!touch) return;
-
-    await tx.marketingAttribution.create({
-      data: {
-        touchId: touch.id,
-        strategyId: touch.strategyId,
-        executionId: touch.executionId,
-        customerId: order.customerId,
-        orderId: order.id,
-        attributionType: 'last_touch',
-        attributedRevenue: amount,
-        attributionWindowDays: touch.attributionWindowDays ?? 30,
-        occurredAt: now,
-      },
-    });
-
-    await tx.marketingAutomationTouch.update({
-      where: { id: touch.id },
-      data: {
-        status: 'converted',
-        convertedAt: now,
-        conversionType: 'order',
-        actualRevenue: { increment: amount },
-      },
-    });
-
-    const category =
-      String(touch.conversionType ?? touch.metadata?.category ?? touch.metadata?.strategyType ?? '')
-        .toLowerCase()
-        .includes('churn')
-        ? 'churn_recovery'
-        : 'marketing_conversion';
-    await this.commissionService.recordAmiContribution(
-      {
-        storeId: this.toNumber((order as any).storeId),
-        category,
-        triggerType: 'automation',
-        triggerId: touch.id,
-        customerId: order.customerId,
-        orderId: order.id,
-        revenueAmount: amount,
-        metadata: {
-          strategyId: touch.strategyId,
-          executionId: touch.executionId,
-          attributionWindowDays: touch.attributionWindowDays ?? 30,
-        },
-      },
-      tx,
-    );
+  private async applyMarketingAttribution(tx: any, order: { id: number; storeId?: number | null; customerId?: number | null }, amount: number) {
+    if (!order.storeId || !order.customerId || amount <= 0) return;
+    return this.marketingAttributionService?.attributeOrder({
+      storeId: Number(order.storeId),
+      orderId: order.id,
+      customerId: order.customerId,
+      netRevenue: amount,
+    }, tx);
   }
 
-  private async applyMarketingPageAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
-    if (!order.customerId || amount <= 0) return;
-    if (!tx.marketingPageLead || !tx.marketingPageAttribution) return;
-
-    try {
-      const existed = await tx.marketingPageAttribution.findFirst({
-        where: { orderId: order.id },
-        select: { id: true },
-      });
-      if (existed) return;
-
-      const now = new Date();
-      const windowStart = new Date(now.getTime() - this.MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS * 86400000);
-      const eligibleLeads = await tx.marketingPageLead.findMany({
-        where: {
-          customerId: order.customerId,
-          status: { not: 'expired' },
-          createdAt: { gte: windowStart },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      });
-      const lastLead = eligibleLeads[0];
-      if (!lastLead) return;
-
-      const duplicated = await tx.marketingPageAttribution.findFirst({
-        where: { leadId: lastLead.id, orderId: order.id },
-        select: { id: true },
-      });
-      if (duplicated) return;
-
-      await tx.marketingPageAttribution.create({
-        data: {
-          leadId: lastLead.id,
-          pageId: lastLead.pageId,
-          customerId: order.customerId,
-          orderId: order.id,
-          attributionType: 'last_touch',
-          attributedRevenue: amount,
-          attributionWindowDays: this.MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS,
-          touchedAt: lastLead.createdAt,
-          convertedAt: now,
-        },
-      });
-
-      await tx.marketingPageLead.update({
-        where: { id: lastLead.id },
-        data: { status: 'converted', convertedAt: now },
-      });
-    } catch (error) {
-      console.warn('营销页面归因写入失败', error);
-    }
-  }
-
-  private async reverseMarketingAttribution(tx: any, orderId: number, refundAmount: number) {
-    if (refundAmount <= 0) return;
-
-    const attributions = await tx.marketingAttribution.findMany({
-      where: { orderId },
-      include: { touch: true },
-    });
-
-    for (const attribution of attributions) {
-      const nextRevenue = Math.max(0, this.toNumber(attribution.attributedRevenue) - refundAmount);
-      const nextTouchRevenue = Math.max(0, this.toNumber(attribution.touch.actualRevenue) - refundAmount);
-      await tx.marketingAttribution.update({
-        where: { id: attribution.id },
-        data: { attributedRevenue: nextRevenue },
-      });
-      await tx.marketingAutomationTouch.update({
-        where: { id: attribution.touchId },
-        data: { actualRevenue: nextTouchRevenue },
-      });
-    }
+  private async reverseMarketingAttribution(tx: any, orderId: number, refundAmount: number, refundId?: number, storeId?: number) {
+    if (refundAmount <= 0 || !refundId || !storeId) return;
+    return this.marketingAttributionService?.reverseOrder({ storeId, orderId, refundId, refundAmount }, tx);
   }
 
   private async deductMemberBalanceForOrder(tx: any, order: any, amount: number, remark?: string) {
@@ -1608,7 +1473,6 @@ export class OrdersService {
           });
         }
         await this.applyMarketingAttribution(tx, order, totalAmount);
-        await this.applyMarketingPageAttribution(tx, order, totalAmount);
         await this.calculateOrderCommissionIfNeeded(tx, order, data);
       }
 
@@ -1726,7 +1590,6 @@ export class OrdersService {
             },
           });
           await this.applyMarketingAttribution(tx, order, amount);
-          await this.applyMarketingPageAttribution(tx, order, amount);
         }
         if (tx.orderItem.updateMany) {
           await tx.orderItem.updateMany({
@@ -1918,7 +1781,7 @@ export class OrdersService {
         await tx.customer.update({ where: { id: updated.customerId }, data: { totalSpent: { decrement: amount } } });
       }
       await this.restoreMemberBalanceForOrderRefund(tx, order, amount, preview.netAmount, preview.remainingRefundableAmount, reason);
-      await this.reverseMarketingAttribution(tx, id, amount);
+      await this.reverseMarketingAttribution(tx, id, amount, refundRecord?.id, Number(order.storeId));
       await this.commissionService.reverseOrderCommissions(
         id,
         amount,
@@ -2313,7 +2176,6 @@ export class OrdersService {
       });
 
       await this.applyMarketingAttribution(tx, order, rechargeAmount);
-      await this.applyMarketingPageAttribution(tx, order, rechargeAmount);
       await this.calculateOrderCommissionIfNeeded(tx, order, data);
       return { account: updatedAccount, order, balanceTransaction };
     }, { timeout: 20000 });
@@ -2475,7 +2337,7 @@ export class OrdersService {
         const orderRefundable = this.round(Math.max(0, orderAmount - existingRefundAmount));
         if (orderRefundable <= 0) continue;
         const allocatedRefund = this.round(Math.min(remainingRefund, orderRefundable));
-        await tx.refundRecord.create({
+        const marketingRefundRecord = await tx.refundRecord.create({
           data: {
             orderId: order.id,
             refundNo: this.createRefundNo(),
@@ -2492,7 +2354,13 @@ export class OrdersService {
           where: { id: order.id },
           data: { status: 'refunded', remark: data.remark ?? '会员卡余额退款' },
         });
-        await this.reverseMarketingAttribution(tx, order.id, allocatedRefund);
+        await this.reverseMarketingAttribution(
+          tx,
+          order.id,
+          allocatedRefund,
+          marketingRefundRecord?.id,
+          Number(order.storeId ?? account.storeId),
+        );
         await this.commissionService.reverseOrderCommissions(order.id, allocatedRefund, tx);
         refundedOrderIds.add(order.id);
         remainingRefund = this.round(remainingRefund - allocatedRefund);
@@ -2762,7 +2630,6 @@ export class OrdersService {
       });
 
       await this.applyMarketingAttribution(tx, order, amount);
-      await this.applyMarketingPageAttribution(tx, order, amount);
       return { customerCard: { ...customerCard, sourceOrderId: order.id, sourceOrderItemId: orderItem.id }, order };
     });
 
@@ -3076,7 +2943,13 @@ export class OrdersService {
           where: { id: sourceOrderId },
           data: { status: 'refunded', remark: reason },
         });
-        await this.reverseMarketingAttribution(tx, sourceOrderId, refundAmount);
+        await this.reverseMarketingAttribution(
+          tx,
+          sourceOrderId,
+          refundAmount,
+          refundRecord?.id,
+          Number(refundSourceOrder?.storeId ?? item.card?.storeId),
+        );
         await this.commissionService.reverseOrderCommissions(sourceOrderId, refundAmount, tx);
       }
       if (item.customerId && refundAmount > 0) {

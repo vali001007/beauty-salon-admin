@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ATTRIBUTABLE_TOUCH_STATUS_SET } from './marketing-touch-status.constants.js';
 
 type LifecycleStage = 'lead' | 'new_customer' | 'trial' | 'member' | 'active' | 'growth' | 'at_risk' | 'dormant' | 'lost';
 type OpportunityType =
@@ -81,13 +82,13 @@ const STAGE_LABELS: Record<LifecycleStage, string> = {
 export class CustomerLifecycleOntologyService {
   constructor(private prisma: PrismaService) {}
 
-  async rebuild(storeId?: number, options: RebuildOptions = {}) {
+  async rebuild(storeId: number, options: RebuildOptions = {}) {
     if (!this.lifecycleDelegatesReady()) return this.emptyRebuildResult('customer_lifecycle_schema_pending');
 
-    const scopedStoreId = storeId ? Number(storeId) : undefined;
+    const scopedStoreId = storeId;
     const latestRun = await this.resolvePredictionRun(scopedStoreId, options.predictionRunId);
     const customers = await this.prisma.customer.findMany({
-      where: { deletedAt: null, ...(scopedStoreId ? { storeId: scopedStoreId } : {}) },
+      where: { deletedAt: null, storeId: scopedStoreId },
       include: {
         customerCards: { include: { card: true }, orderBy: { expiryDate: 'asc' } },
         cardUsageRecords: { include: { project: { include: { bomItems: { include: { product: true } } } } }, orderBy: { verifiedAt: 'desc' }, take: 20 },
@@ -106,7 +107,7 @@ export class CustomerLifecycleOntologyService {
     const [predictionSnapshots, behaviorEvents, oldSnapshots] = await Promise.all([
       this.loadPredictionSnapshots(customerIds, latestRun?.id, scopedStoreId),
       this.loadBehaviorEvents(customerIds, scopedStoreId),
-      (this.prisma as any).customerLifecycleSnapshot.findMany({ where: { customerId: { in: customerIds } } }),
+      (this.prisma as any).customerLifecycleSnapshot.findMany({ where: { storeId: scopedStoreId, customerId: { in: customerIds } } }),
     ]);
     const predictionByCustomer = new Map(predictionSnapshots.map((item: any) => [Number(item.customerId), item]));
     const behaviorByCustomer = this.groupByCustomer(behaviorEvents, 'customerId');
@@ -246,12 +247,12 @@ export class CustomerLifecycleOntologyService {
     return { rebuilt: true, reason: null, predictionRunId: latestRun?.id ?? null, snapshotCount, opportunityCount, serviceCycleCount, fulfillmentCheckCount, attributionEventCount, quality };
   }
 
-  async listOpportunities(query: any = {}, storeId?: number) {
+  async listOpportunities(query: any, storeId: number) {
     if (!this.lifecycleDelegatesReady()) return this.emptyPage('customer_lifecycle_schema_pending', query);
     const page = Math.max(1, Number(query.page ?? 1));
     const pageSize = Math.max(1, Math.min(100, Number(query.pageSize ?? 20)));
     const where: any = {
-      ...(storeId ? { storeId: Number(storeId) } : {}),
+      storeId,
       ...(query.opportunityType ? { opportunityType: String(query.opportunityType) } : {}),
       ...(query.priority ? { priority: String(query.priority) } : {}),
       ...(query.status ? { status: String(query.status) } : { status: 'open' }),
@@ -283,9 +284,9 @@ export class CustomerLifecycleOntologyService {
     return { items: items.map((item: any) => this.serializeOpportunity(item)), data: items.map((item: any) => this.serializeOpportunity(item)), total, page, pageSize };
   }
 
-  async getCustomerContext(customerId: number, storeId?: number) {
+  async getCustomerContext(customerId: number, storeId: number) {
     if (!this.lifecycleDelegatesReady()) return null;
-    const where = { customerId: Number(customerId), ...(storeId ? { storeId: Number(storeId) } : {}) };
+    const where = { customerId: Number(customerId), storeId };
     const [snapshot, opportunities, events, serviceCycles, attributionEvents] = await Promise.all([
       (this.prisma as any).customerLifecycleSnapshot.findFirst({ where, orderBy: { computedAt: 'desc' } }),
       (this.prisma as any).customerOpportunity.findMany({
@@ -322,13 +323,13 @@ export class CustomerLifecycleOntologyService {
     };
   }
 
-  async listServiceCycles(query: any = {}, storeId?: number) {
+  async listServiceCycles(query: any, storeId: number) {
     const delegate = this.delegate('customerServiceCycleState');
     if (!delegate?.findMany) return this.emptyPage('customer_service_cycle_schema_pending', query);
     const page = Math.max(1, Number(query.page ?? 1));
     const pageSize = Math.max(1, Math.min(100, Number(query.pageSize ?? 20)));
     const where: any = {
-      ...(storeId ? { storeId: Number(storeId) } : {}),
+      storeId,
       ...(query.customerId ? { customerId: Number(query.customerId) } : {}),
       ...(query.projectId ? { projectId: Number(query.projectId) } : {}),
       ...(query.dueOnly ? { nextDueAt: { lte: new Date(Date.now() + 3 * 86400000) } } : {}),
@@ -340,20 +341,24 @@ export class CustomerLifecycleOntologyService {
     return { items: items.map((item: any) => this.serializeServiceCycle(item)), data: items.map((item: any) => this.serializeServiceCycle(item)), total, page, pageSize };
   }
 
-  async getOpportunityFulfillment(opportunityId: number) {
+  async getOpportunityFulfillment(opportunityId: number, storeId: number) {
     const delegate = this.delegate('customerOpportunityFulfillmentCheck');
     if (!delegate?.findMany) return { items: [], reason: 'customer_opportunity_fulfillment_schema_pending' };
-    const checks = await delegate.findMany({ where: { opportunityId: Number(opportunityId) }, orderBy: { checkedAt: 'desc' }, take: 10 });
+    const checks = await delegate.findMany({
+      where: { opportunityId: Number(opportunityId), opportunity: { storeId } },
+      orderBy: { checkedAt: 'desc' },
+      take: 10,
+    });
     return { items: checks.map((item: any) => this.serializeFulfillmentCheck(item)), latest: checks[0] ? this.serializeFulfillmentCheck(checks[0]) : null };
   }
 
-  async listAttributionEvents(query: any = {}, storeId?: number) {
+  async listAttributionEvents(query: any, storeId: number) {
     const delegate = this.delegate('lifecycleAttributionEvent');
     if (!delegate?.findMany) return this.emptyPage('lifecycle_attribution_schema_pending', query);
     const page = Math.max(1, Number(query.page ?? 1));
     const pageSize = Math.max(1, Math.min(100, Number(query.pageSize ?? 20)));
     const where: any = {
-      ...(storeId ? { storeId: Number(storeId) } : {}),
+      storeId,
       ...(query.customerId ? { customerId: Number(query.customerId) } : {}),
       ...(query.opportunityId ? { opportunityId: Number(query.opportunityId) } : {}),
       ...(query.eventType ? { eventType: String(query.eventType) } : {}),
@@ -366,19 +371,18 @@ export class CustomerLifecycleOntologyService {
     return { items: items.map((item: any) => this.serializeAttributionEvent(item)), data: items.map((item: any) => this.serializeAttributionEvent(item)), total, page, pageSize };
   }
 
-  async getQualitySnapshot(storeId?: number) {
-    const scopedStoreId = storeId ? Number(storeId) : undefined;
-    if (!scopedStoreId) return null;
+  async getQualitySnapshot(storeId: number) {
+    const scopedStoreId = storeId;
     const delegate = this.delegate('customerLifecycleQualitySnapshot');
     if (!delegate?.findFirst) return null;
     return delegate.findFirst({ where: { storeId: scopedStoreId }, orderBy: { snapshotDate: 'desc' } });
   }
 
-  async listRules(query: any = {}, storeId?: number) {
+  async listRules(query: any, storeId: number) {
     const delegate = this.delegate('customerLifecycleRuleVersion');
     if (!delegate?.findMany) return this.emptyPage('customer_lifecycle_rule_schema_pending', query);
     const where = {
-      ...(storeId ? { OR: [{ storeId: Number(storeId) }, { storeId: null }] } : {}),
+      OR: [{ storeId }, { storeId: null }],
       ...(query.ruleType ? { ruleType: String(query.ruleType) } : {}),
       ...(query.status ? { status: String(query.status) } : {}),
     };
@@ -386,10 +390,10 @@ export class CustomerLifecycleOntologyService {
     return { items, data: items, total: items.length, page: 1, pageSize: items.length };
   }
 
-  async createRule(input: any = {}, storeId?: number) {
+  async createRule(input: any, storeId: number) {
     const delegate = this.delegate('customerLifecycleRuleVersion');
     if (!delegate?.create) return { created: false, reason: 'customer_lifecycle_rule_schema_pending' };
-    const scopedStoreId = input.storeId !== undefined ? Number(input.storeId) : storeId ? Number(storeId) : null;
+    const scopedStoreId = storeId;
     const ruleType = String(input.ruleType ?? 'opportunity_rule');
     const latest = await delegate.findFirst({ where: { storeId: scopedStoreId, ruleType }, orderBy: { version: 'desc' } });
     return delegate.create({
@@ -405,19 +409,19 @@ export class CustomerLifecycleOntologyService {
     });
   }
 
-  async publishRule(id: number, userId?: number) {
+  async publishRule(id: number, storeId: number, userId?: number) {
     const delegate = this.delegate('customerLifecycleRuleVersion');
     if (!delegate?.update) return { published: false, reason: 'customer_lifecycle_rule_schema_pending' };
-    const rule = await delegate.findUnique({ where: { id: Number(id) } });
+    const rule = await delegate.findFirst({ where: { id: Number(id), storeId } });
     if (!rule) return { published: false, reason: 'rule_not_found' };
     await delegate.updateMany({ where: { storeId: rule.storeId, ruleType: rule.ruleType, status: 'active', NOT: { id: rule.id } }, data: { status: 'archived' } });
     return delegate.update({ where: { id: rule.id }, data: { status: 'active', publishedBy: userId ?? null, publishedAt: new Date() } });
   }
 
-  async rollbackRule(id: number, userId?: number) {
+  async rollbackRule(id: number, storeId: number, userId?: number) {
     const delegate = this.delegate('customerLifecycleRuleVersion');
     if (!delegate?.update) return { rolledBack: false, reason: 'customer_lifecycle_rule_schema_pending' };
-    const rule = await delegate.findUnique({ where: { id: Number(id) } });
+    const rule = await delegate.findFirst({ where: { id: Number(id), storeId } });
     if (!rule) return { rolledBack: false, reason: 'rule_not_found' };
     await delegate.update({ where: { id: rule.id }, data: { status: 'rolled_back', publishedBy: userId ?? rule.publishedBy ?? null } });
     const previous = await delegate.findFirst({ where: { storeId: rule.storeId, ruleType: rule.ruleType, status: 'archived', version: { lt: rule.version } }, orderBy: { version: 'desc' } });
@@ -426,11 +430,10 @@ export class CustomerLifecycleOntologyService {
     return { rolledBack: true, activeRule };
   }
 
-  async createBusinessPlan(input: any = {}, storeId?: number, userId?: number) {
+  async createBusinessPlan(input: any, storeId: number, userId?: number) {
     const delegate = this.delegate('lifecycleBusinessPlan');
     if (!delegate?.create) return { created: false, reason: 'lifecycle_business_plan_schema_pending' };
-    const scopedStoreId = Number(input.storeId ?? storeId);
-    if (!scopedStoreId) return { created: false, reason: 'store_id_required' };
+    const scopedStoreId = storeId;
     const opportunities = await (this.prisma as any).customerOpportunity.findMany({
       where: { storeId: scopedStoreId, status: 'open' },
       include: { fulfillmentChecks: { orderBy: { checkedAt: 'desc' }, take: 1 } },
@@ -452,10 +455,10 @@ export class CustomerLifecycleOntologyService {
     });
   }
 
-  async submitBusinessPlanActions(id: number, input: any = {}, userId?: number) {
+  async submitBusinessPlanActions(id: number, storeId: number, input: any = {}, userId?: number) {
     const delegate = this.delegate('lifecycleBusinessPlan');
     if (!delegate?.update) return { submitted: false, reason: 'lifecycle_business_plan_schema_pending' };
-    const plan = await delegate.findUnique({ where: { id: Number(id) } });
+    const plan = await delegate.findFirst({ where: { id: Number(id), storeId } });
     if (!plan) return { submitted: false, reason: 'business_plan_not_found' };
     const selectedActionIds = Array.isArray(input.actionIds) ? input.actionIds.map((item: any) => String(item)) : [];
     const actions = Array.isArray(plan.actionsJson) ? plan.actionsJson : [];
@@ -544,10 +547,10 @@ export class CustomerLifecycleOntologyService {
     return { run, approval };
   }
 
-  async buildRecommendationCards(storeId?: number, limit = 20) {
+  async buildRecommendationCards(storeId: number, limit = 20) {
     if (!this.lifecycleDelegatesReady()) return [];
     const opportunities = await (this.prisma as any).customerOpportunity.findMany({
-      where: { ...(storeId ? { storeId: Number(storeId) } : {}), status: 'open', opportunityType: { in: ALL_OPPORTUNITY_TYPES } },
+      where: { storeId, status: 'open', opportunityType: { in: ALL_OPPORTUNITY_TYPES } },
       include: { customer: true, predictionSnapshot: true, predictionRun: true, fulfillmentChecks: { orderBy: { checkedAt: 'desc' }, take: 1 }, attributionEvents: { orderBy: { occurredAt: 'desc' }, take: 5 } },
       orderBy: [{ priority: 'asc' }, { score: 'desc' }, { updatedAt: 'desc' }],
       take: Math.max(20, limit * 5),
@@ -772,6 +775,7 @@ export class CustomerLifecycleOntologyService {
     if (!delegate?.create) return 0;
     let count = 0;
     for (const [index, touch] of (customer.marketingTouches ?? []).entries()) {
+      if (!ATTRIBUTABLE_TOUCH_STATUS_SET.has(String(touch.status))) continue;
       if (await this.createAttributionEventOnce({
         storeId: Number(savedOpportunity.storeId),
         customerId: Number(customer.id),
@@ -1137,20 +1141,24 @@ export class CustomerLifecycleOntologyService {
     return map[type];
   }
 
-  private async resolvePredictionRun(storeId?: number, predictionRunId?: number) {
-    if (predictionRunId) return this.prisma.predictionRun.findUnique({ where: { id: Number(predictionRunId) } });
+  private async resolvePredictionRun(storeId: number, predictionRunId?: number) {
+    if (predictionRunId) {
+      return this.prisma.predictionRun.findFirst({
+        where: { id: Number(predictionRunId), storeId, status: 'completed' },
+      });
+    }
     return this.prisma.predictionRun.findFirst({
-      where: { status: 'completed', ...(storeId ? { storeId } : {}) },
+      where: { status: 'completed', storeId },
       orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
     });
   }
 
-  private async loadPredictionSnapshots(customerIds: number[], runId?: number, storeId?: number) {
+  private async loadPredictionSnapshots(customerIds: number[], runId: number | undefined, storeId: number) {
     if (runId) {
-      return this.prisma.customerPredictionSnapshot.findMany({ where: { runId, customerId: { in: customerIds } } });
+      return this.prisma.customerPredictionSnapshot.findMany({ where: { runId, storeId, customerId: { in: customerIds } } });
     }
     return this.prisma.customerPredictionSnapshot.findMany({
-      where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}) },
+      where: { customerId: { in: customerIds }, storeId },
       orderBy: { createdAt: 'desc' },
     }).then((items) => {
       const latest = new Map<number, any>();
@@ -1159,11 +1167,11 @@ export class CustomerLifecycleOntologyService {
     });
   }
 
-  private async loadBehaviorEvents(customerIds: number[], storeId?: number) {
+  private async loadBehaviorEvents(customerIds: number[], storeId: number) {
     const delegate = (this.prisma as any).customerBehaviorEvent;
     if (!delegate?.findMany) return [];
     return delegate.findMany({
-      where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}) },
+      where: { customerId: { in: customerIds }, storeId },
       orderBy: { occurredAt: 'desc' },
       take: Math.max(100, customerIds.length * 10),
     });

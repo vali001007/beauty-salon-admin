@@ -16,11 +16,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAutomationStrategiesPaginated, getMarketingActivities, getUnifiedMarketingEffects } from '@/api/marketing';
-import { getMarketingRecommendationAudience, getMarketingRecommendations } from '@/api/recommendation';
-import { batchCreateRecommendationFollowUpTasks } from '@/api/terminal';
+import {
+  adoptRecommendationInstance,
+  getRecommendationInstanceAudience,
+  getRecommendationInstances,
+} from '@/api/recommendation';
 import type { MarketingActivity, MarketingAutomationStrategy, UnifiedMarketingEffectsResponse } from '@/types';
 import type { BehaviorProfile } from '@/utils/customerSegmentation';
-import type { Recommendation } from '@/utils/marketingRecommendation';
+import { mapRecommendationInstanceToRecommendation, type Recommendation } from '@/utils/marketingRecommendation';
 
 type WorkbenchState = {
   recommendations: Recommendation[];
@@ -89,13 +92,6 @@ function asNumber(value: unknown, fallback = 0) {
   return Number.isFinite(next) ? next : fallback;
 }
 
-function getTodayFollowUpDueAt() {
-  const dueAt = new Date();
-  dueAt.setHours(18, 0, 0, 0);
-  if (dueAt.getTime() < Date.now()) dueAt.setDate(dueAt.getDate() + 1);
-  return dueAt.toISOString();
-}
-
 function normalizeAudienceCustomer(value: RawRecommendationAudienceCustomer): RecommendationAudienceCustomer | null {
   const customerId = asNumber(value.customerId ?? value.id, 0);
   if (!customerId) return null;
@@ -138,17 +134,6 @@ function getTerminalFollowUpAssignment(rec: Recommendation) {
   };
 }
 
-function buildRecommendationFollowUpScript(rec: Recommendation, customer?: RecommendationAudienceCustomer) {
-  const offer = rec.offer?.label || rec.discount || '门店专属护理权益';
-  const itemText = rec.recommendedItems?.[0]?.name ? `，可优先推荐${rec.recommendedItems[0].name}` : '';
-  const customerText = customer ? `${customer.name}命中「${rec.title}」` : `客户命中「${rec.title}」`;
-  return `${customerText}。建议先确认近期护理需求，再介绍${offer}${itemText}；如客户有兴趣，引导预约到店并备注肤况/时间偏好。`;
-}
-
-function buildRecommendationFollowUpNote(rec: Recommendation) {
-  return `营销工作台下发终端跟进：${rec.reason}`;
-}
-
 export function MarketingWorkbench() {
   const navigate = useNavigate();
   const [state, setState] = useState<WorkbenchState>(emptyState);
@@ -161,7 +146,7 @@ export function MarketingWorkbench() {
     setLoading(true);
     const nextErrors: string[] = [];
     const [recommendationsResult, activitiesResult, strategiesResult, effectsResult] = await Promise.allSettled([
-      getMarketingRecommendations(),
+      getRecommendationInstances({ status: 'active', page: 1, pageSize: 5 }),
       getMarketingActivities(),
       getAutomationStrategiesPaginated({ page: 1, pageSize: 50, status: 'all' }),
       getUnifiedMarketingEffects(),
@@ -170,7 +155,9 @@ export function MarketingWorkbench() {
     const nextState: WorkbenchState = { ...emptyState };
 
     if (recommendationsResult.status === 'fulfilled') {
-      nextState.recommendations = recommendationsResult.value;
+      nextState.recommendations = recommendationsResult.value.items.map((item) =>
+        mapRecommendationInstanceToRecommendation(item, recommendationsResult.value.coverage),
+      );
     } else {
       nextErrors.push('推荐机会加载失败');
     }
@@ -234,9 +221,20 @@ export function MarketingWorkbench() {
     }));
 
     try {
-      const profiles = await getMarketingRecommendationAudience(recommendation.id);
-      const customers = profiles
-        .map((profile) => normalizeAudienceCustomer(profile as RawRecommendationAudienceCustomer))
+      if (!recommendation.recommendationInstanceId) throw new Error('推荐实例无效，请刷新后重试');
+      const response = await getRecommendationInstanceAudience(
+        recommendation.recommendationInstanceId,
+        { page: 1, pageSize: 50 },
+      );
+      const customers = response.items
+        .map((item) => normalizeAudienceCustomer({
+          ...(item.predictionData ?? {}),
+          ...item.customer,
+          customerId: item.customerId,
+          storeName: item.customer.store?.name ?? '',
+          segment: item.customer.memberLevel ?? undefined,
+          matchReason: String(item.reason.matchReason ?? item.reason.reason ?? ''),
+        } as RawRecommendationAudienceCustomer))
         .filter((profile): profile is RecommendationAudienceCustomer => Boolean(profile));
       setAudienceState((prev) => ({
         ...prev,
@@ -268,35 +266,32 @@ export function MarketingWorkbench() {
       toast.error('请先选择需要下发的客户');
       return;
     }
+    if (!recommendation.recommendationInstanceId) {
+      toast.error('推荐实例无效，请刷新后重试');
+      return;
+    }
 
     const key = `${recommendation.id}-${mode}-${customers.map((item) => item.customerId).join('-')}`;
-    const assignment = getTerminalFollowUpAssignment(recommendation);
+    const customerIds = [...new Set(customers.map((item) => item.customerId))].sort((left, right) => left - right);
     setDispatchingKey(key);
     try {
-      const result = await batchCreateRecommendationFollowUpTasks(recommendation.id, {
-        customerId: customers[0].customerId,
-        customerIds: customers.map((item) => item.customerId),
-        recommendationId: recommendation.id,
-        sourceRecommendationKey: recommendation.recommendationKey,
-        source: 'marketing_workbench',
-        triggerType: recommendation.recommendationType || recommendation.triggerType,
-        title: recommendation.title,
-        priority: recommendation.urgency,
-        assigneeRole: assignment.role,
-        channel: 'phone',
-        dueAt: getTodayFollowUpDueAt(),
-        script: buildRecommendationFollowUpScript(recommendation, mode === 'single' ? customers[0] : undefined),
-        note: `${buildRecommendationFollowUpNote(recommendation)}；${assignment.reason}`,
+      const result = await adoptRecommendationInstance(recommendation.recommendationInstanceId, {
+        mode: 'terminal_follow_up',
+        clientRequestId: `marketing-workbench-terminal-${recommendation.recommendationInstanceId}-${customerIds.join('-')}`,
+        customerIds,
       });
+      const duplicatedCount = result.duplicatedCustomerIds?.length ?? 0;
+      const failedCount = result.failedCustomers?.length ?? 0;
+      const createdCount = Math.max(0, customerIds.length - duplicatedCount - failedCount);
       setAudienceState((prev) => ({
         ...prev,
         [recommendation.id]: {
           ...(prev[recommendation.id] ?? { open: true, loading: false, customers: [] }),
-          dispatchedCount: (prev[recommendation.id]?.dispatchedCount ?? 0) + result.createdCount,
+          dispatchedCount: (prev[recommendation.id]?.dispatchedCount ?? 0) + createdCount,
         },
       }));
       toast.success(
-        `已下发 ${result.createdCount} 位客户到 Ami Aura Lite${result.duplicatedCount ? `，${result.duplicatedCount} 位已有待办未重复下发` : ''}${result.failedCount ? `，${result.failedCount} 位失败` : ''}`,
+        `已下发 ${createdCount} 位客户到 Ami Aura Lite${duplicatedCount ? `，${duplicatedCount} 位已有待办未重复下发` : ''}${failedCount ? `，${failedCount} 位失败` : ''}`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '下发终端跟进失败');

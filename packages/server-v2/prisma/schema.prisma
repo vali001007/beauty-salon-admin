@@ -121,6 +121,13 @@ model Store {
   monthlyProfitCloses           MonthlyProfitClose[]
   memberLiabilitySnapshots      MemberLiabilitySnapshot[]
   commissionAdjustments         CommissionAdjustment[]
+  marketingDeliveryJobs       MarketingDeliveryJob[]
+  marketingEffectFacts        MarketingEffectFact[]
+  marketingRecommendationInstances MarketingRecommendationInstance[]
+  marketingRecommendationAudienceSnapshots MarketingRecommendationAudienceSnapshot[]
+  marketingRecommendationAudienceMembers MarketingRecommendationAudienceMember[]
+  marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
+  marketingRecommendationAdoptions MarketingRecommendationAdoption[]
 }
 
 model User {
@@ -289,6 +296,8 @@ model Customer {
   @@index([phone])
   @@index([memberLevel])
   @@index([name])
+  marketingDeliveryJobs MarketingDeliveryJob[]
+  recommendationAudienceMemberships MarketingRecommendationAudienceMember[]
 }
 
 model CustomerHealthProfile {
@@ -1992,6 +2001,8 @@ model MarketingActivity {
   discount               String?
   pageSchema             Json?
   sourceRecommendationId String?
+  recommendationInstanceId String?
+  adoptionId             Int?
   predictionRunId        String?
   audienceSnapshotId     String?
   audienceSnapshotJson   Json?
@@ -2008,10 +2019,15 @@ model MarketingActivity {
 
   store            Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   primaryPromotion Promotion? @relation(fields: [primaryPromotionId], references: [id], onDelete: SetNull)
+  recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
+  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
 
+  @@index([storeId, status])
   @@index([status])
   @@index([publishStatus])
   @@index([sourceRecommendationId])
+  @@index([recommendationInstanceId])
+  @@index([adoptionId])
   @@index([predictionRunId])
   @@index([primaryPromotionId])
 }
@@ -2020,6 +2036,8 @@ model MarketingPage {
   id               Int       @id @default(autoincrement())
   storeId          Int?
   activityId       Int?
+  recommendationInstanceId String?
+  adoptionId       Int?
   sourceType       String
   sourceId         String?
   title            String
@@ -2047,9 +2065,13 @@ model MarketingPage {
   events       MarketingPageEvent[]
   leads        MarketingPageLead[]
   attributions MarketingPageAttribution[]
+  recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
+  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status])
   @@index([sourceType, sourceId])
+  @@index([recommendationInstanceId])
+  @@index([adoptionId])
   @@index([publishedAt])
 }
 
@@ -2156,6 +2178,10 @@ model MarketingAutomationStrategy {
   status         MarketingStrategyStatus @default(draft)
   executionType  String
   source         String                  @default("manual")
+  recommendationInstanceId String?
+  adoptionId     Int?
+  predictionRunId Int?
+  audienceSnapshotId String?
   ruleTemplateId Int?
   ruleTemplateVersion String?
   schedule       Json
@@ -2171,10 +2197,19 @@ model MarketingAutomationStrategy {
   executions   MarketingAutomationExecution[]
   touches      MarketingAutomationTouch[]
   attributions MarketingAttribution[]
+  deliveryJobs MarketingDeliveryJob[]
   ruleTemplate MarketingRuleTemplate? @relation(fields: [ruleTemplateId], references: [id], onDelete: SetNull)
+  recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
+  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
+  predictionRun PredictionRun? @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  audienceSnapshot MarketingRecommendationAudienceSnapshot? @relation(fields: [audienceSnapshotId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status])
   @@index([source])
+  @@index([recommendationInstanceId])
+  @@index([adoptionId])
+  @@index([predictionRunId])
+  @@index([audienceSnapshotId])
   @@index([ruleTemplateId])
 }
 
@@ -2231,13 +2266,18 @@ model MarketingAutomationExecution {
   reachedCount   Int      @default(0)
   failedCount    Int      @default(0)
   channel        String?
+  audienceSnapshotJson Json?
   executedAt     DateTime @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  updatedAt      DateTime @updatedAt
   message        String?
 
   store        Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   strategy     MarketingAutomationStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
   touches      MarketingAutomationTouch[]
   attributions MarketingAttribution[]
+  deliveryJobs MarketingDeliveryJob[]
 
   @@unique([strategyId, idempotencyKey])
   @@index([storeId, executedAt])
@@ -2247,6 +2287,9 @@ model MarketingAutomationExecution {
 model PredictionRun {
   id            Int       @id @default(autoincrement())
   storeId       Int?
+  businessDate  DateTime? @db.Date
+  runKey        String?   @unique
+  scopeStatus   String    @default("store_scoped")
   modelVersion  String
   status        String    @default("running")
   startedAt     DateTime  @default(now())
@@ -2258,8 +2301,10 @@ model PredictionRun {
   snapshots CustomerPredictionSnapshot[]
   lifecycleSnapshots CustomerLifecycleSnapshot[]
   opportunities CustomerOpportunity[]
+  recommendationInstances MarketingRecommendationInstance[]
+  automationStrategies MarketingAutomationStrategy[]
 
-  @@index([storeId])
+  @@index([storeId, businessDate, status])
   @@index([modelVersion])
   @@index([startedAt])
   @@index([status])
@@ -2557,6 +2602,7 @@ model MarketingAutomationTouch {
   predictionSnapshot CustomerPredictionSnapshot?  @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
   attributions       MarketingAttribution[]
   lifecycleAttributionEvents LifecycleAttributionEvent[]
+  deliveryJob        MarketingDeliveryJob?
 
   @@index([executionId])
   @@index([strategyId])
@@ -2568,6 +2614,7 @@ model MarketingAutomationTouch {
 
 model MarketingInAppNotification {
   id          Int       @id @default(autoincrement())
+  deliveryJobId Int?    @unique
   storeId     Int
   customerId  Int
   strategyId  Int
@@ -2659,10 +2706,153 @@ model MarketingRecommendationSnapshot {
   @@index([expiresAt])
 }
 
+model MarketingEffectFact {
+  id                       Int      @id @default(autoincrement())
+  storeId                  Int
+  factType                 String
+  metricSource             String
+  sourceSystem             String
+  sourceEventId            String
+  countValue               Decimal?
+  amountValue              Decimal?
+  recommendationInstanceId String?
+  adoptionId               Int?
+  activityId               Int?
+  pageId                   Int?
+  strategyId               Int?
+  executionId              Int?
+  touchId                  Int?
+  deliveryJobId            Int?
+  terminalFollowUpTaskId   Int?
+  promotionId              Int?
+  customerId               Int?
+  orderId                  Int?
+  refundId                 Int?
+  channel                  String?
+  isPrimary                Boolean  @default(true)
+  metadataJson             Json?
+  occurredAt               DateTime
+  createdAt                DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceSystem, sourceEventId, factType])
+  @@index([storeId, occurredAt])
+  @@index([storeId, factType, occurredAt])
+  @@index([recommendationInstanceId])
+  @@index([activityId])
+  @@index([pageId])
+  @@index([strategyId])
+  @@index([promotionId])
+  @@index([orderId])
+  @@index([deliveryJobId])
+  @@index([terminalFollowUpTaskId])
+}
+
+model MarketingRecommendationInstance {
+  id                String   @id @default(uuid())
+  storeId           Int
+  recommendationKey String
+  sourceType        String
+  sourceVersion     String
+  predictionRunId   Int?
+  businessDate      DateTime @db.Date
+  status            String   @default("active")
+  title             String
+  description       String?
+  priority          String   @default("P1")
+  urgency           String   @default("recommended")
+  preferredMode     String
+  executionModes    Json
+  evidenceSnapshot  Json
+  strategySnapshot  Json?
+  targetCount       Int      @default(0)
+  fingerprint       String
+  generatedAt       DateTime @default(now())
+  expiresAt         DateTime
+  supersededAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store            Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  predictionRun    PredictionRun? @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  audienceSnapshot MarketingRecommendationAudienceSnapshot?
+  offerSnapshot    MarketingRecommendationOfferSnapshot?
+  adoptions        MarketingRecommendationAdoption[]
+  activities       MarketingActivity[]
+  pages            MarketingPage[]
+  strategies       MarketingAutomationStrategy[]
+  followUpTasks    TerminalFollowUpTask[]
+
+  @@unique([storeId, recommendationKey, fingerprint])
+  @@index([storeId, businessDate, recommendationKey])
+  @@index([storeId, status, expiresAt])
+  @@index([predictionRunId])
+  @@index([fingerprint])
+}
+
+model MarketingRecommendationAudienceSnapshot {
+  id                       String   @id @default(uuid())
+  recommendationInstanceId String   @unique
+  storeId                  Int
+  ruleJson                 Json
+  customerCount            Int
+  generatedAt              DateTime @default(now())
+
+  recommendationInstance MarketingRecommendationInstance @relation(fields: [recommendationInstanceId], references: [id], onDelete: Cascade)
+  store                  Store                           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  members                MarketingRecommendationAudienceMember[]
+  automationStrategies   MarketingAutomationStrategy[]
+
+  @@index([storeId, generatedAt])
+}
+
+model MarketingRecommendationAudienceMember {
+  id             Int      @id @default(autoincrement())
+  snapshotId     String
+  storeId        Int
+  customerId     Int
+  rank           Int
+  score          Int      @default(0)
+  reasonJson     Json
+  predictionData Json?
+  createdAt      DateTime @default(now())
+
+  snapshot MarketingRecommendationAudienceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  store    Store                                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer                                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, customerId])
+  @@index([storeId, customerId])
+  @@index([snapshotId, rank, id])
+}
+
+model MarketingRecommendationOfferSnapshot {
+  id                       String   @id @default(uuid())
+  recommendationInstanceId String   @unique
+  storeId                  Int
+  selectedPromotionId      Int?
+  offerJson                Json
+  alternativesJson         Json
+  fitBreakdownJson         Json?
+  inventorySnapshotJson    Json?
+  capacitySnapshotJson     Json?
+  riskWarningsJson         Json
+  generatedAt              DateTime @default(now())
+
+  recommendationInstance MarketingRecommendationInstance @relation(fields: [recommendationInstanceId], references: [id], onDelete: Cascade)
+  store                  Store                           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  selectedPromotion      Promotion?                     @relation(fields: [selectedPromotionId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, selectedPromotionId])
+}
+
 model MarketingRecommendationAdoption {
   id               Int      @id @default(autoincrement())
   storeId          Int
-  recommendationId Int
+  recommendationId Int?
+  recommendationInstanceId String?
+  adoptionKey      String?  @unique
   mode             String
   status           String
   activityId       Int?
@@ -2671,12 +2861,23 @@ model MarketingRecommendationAdoption {
   followUpTaskIds  Json?
   predictionRunId  Int?
   snapshotJson     Json
+  errorCode        String?
+  errorMessage     String?
   createdBy        Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
+  activities MarketingActivity[]
+  pages MarketingPage[]
+  strategies MarketingAutomationStrategy[]
+  followUpTasks TerminalFollowUpTask[]
+
   @@index([storeId, createdAt])
   @@index([recommendationId, mode])
+  @@index([recommendationInstanceId])
+  @@index([recommendationInstanceId, mode, createdAt(sort: Desc), id(sort: Desc)])
   @@index([activityId])
   @@index([strategyId])
 }
@@ -2686,6 +2887,8 @@ model TerminalFollowUpTask {
   storeId                 Int
   customerId              Int
   recommendationId        Int?
+  recommendationInstanceId String?
+  adoptionId              Int?
   sourceRecommendationKey String?
   source                  String    @default("recommendation")
   triggerType             String?
@@ -2724,12 +2927,16 @@ model TerminalFollowUpTask {
   serviceTask        ServiceTask?    @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
   device             TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   gapCandidates      AppointmentGapCandidate[]
+  recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
+  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status, dueAt])
   @@index([storeId, assigneeRole, status, dueAt])
   @@index([storeId, assigneeUserId, status, dueAt])
   @@index([customerId, status])
   @@index([recommendationId, customerId, status])
+  @@index([recommendationInstanceId])
+  @@index([adoptionId])
   @@index([sourceRecommendationKey, customerId, storeId])
   @@index([assigneeBeauticianId])
   @@index([reservationId])
@@ -3017,6 +3224,7 @@ model Promotion {
 
   store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
   marketingActivities MarketingActivity[]
+  recommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
 
   @@unique([code])
   @@index([storeId])

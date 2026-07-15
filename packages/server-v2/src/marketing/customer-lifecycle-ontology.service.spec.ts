@@ -37,6 +37,7 @@ describe('CustomerLifecycleOntologyService', () => {
       },
       lifecycleBusinessPlan: {
         create: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
       },
@@ -158,8 +159,20 @@ describe('CustomerLifecycleOntologyService', () => {
     });
   });
 
+  it('resolves an explicit prediction run only inside the current store', async () => {
+    prisma.predictionRun.findFirst.mockResolvedValue({ id: 99, storeId: 1, status: 'completed' });
+    prisma.customer.findMany.mockResolvedValue([]);
+
+    await service.rebuild(1, { predictionRunId: 99 });
+
+    expect(prisma.predictionRun.findFirst).toHaveBeenCalledWith({
+      where: { id: 99, storeId: 1, status: 'completed' },
+    });
+    expect(prisma.predictionRun.findUnique).not.toHaveBeenCalled();
+  });
+
   it('submits lifecycle business plan approval as agent_v4 when called from Agent V4', async () => {
-    prisma.lifecycleBusinessPlan.findUnique.mockResolvedValue({
+    prisma.lifecycleBusinessPlan.findFirst.mockResolvedValue({
       id: 9,
       storeId: 1,
       planPeriod: '2026-W28',
@@ -171,7 +184,7 @@ describe('CustomerLifecycleOntologyService', () => {
     prisma.agentApproval.create.mockResolvedValue({ id: 201, status: 'pending' });
     prisma.lifecycleBusinessPlan.update.mockResolvedValue({ id: 9, status: 'waiting_approval' });
 
-    const result = await service.submitBusinessPlanActions(9, {
+    const result = await service.submitBusinessPlanActions(9, 1, {
       sourceAgentCode: 'agent_v4',
       sourceRunId: 401,
       sourceEntrypoint: 'ami-agent:auto',
@@ -272,7 +285,12 @@ describe('CustomerLifecycleOntologyService', () => {
         reservations: [{ id: 71, customerId: 21, projectId: 7, project: { name: '补水护理' }, createdAt: now, checkedInAt: null }],
         productOrders: [{ id: 81, orderNo: 'PO-81', customerId: 21, status: 'completed', netAmount: 388, totalAmount: 388, createdAt: now }],
         consumptionRecords: [],
-        marketingTouches: [{ id: 51, customerId: 21, status: 'converted', channel: '微信', touchedAt: now, convertedAt: now, actualRevenue: 388 }],
+        marketingTouches: [
+          { id: 51, customerId: 21, status: 'converted', channel: '微信', touchedAt: now, convertedAt: now, actualRevenue: 388 },
+          { id: 52, customerId: 21, status: 'queued', channel: '短信', touchedAt: now, convertedAt: null, actualRevenue: 0 },
+          { id: 53, customerId: 21, status: 'failed', channel: '微信', touchedAt: now, convertedAt: null, actualRevenue: 0 },
+          { id: 54, customerId: 21, status: 'reached', channel: '终端', touchedAt: now, convertedAt: null, actualRevenue: 0 },
+        ],
         customerAppEvents: [{ id: 41, customerId: 21, eventType: 'project_view', pageTitle: '补水护理详情', occurredAt: now, source: 'ami_glow' }],
         recommendationEvents: [{ id: 91, customerId: 21, eventType: 'advisor_accept', note: '顾问已承接推荐', createdAt: now }],
       },
@@ -302,10 +320,14 @@ describe('CustomerLifecycleOntologyService', () => {
         sourceId: expect.any(String),
       }),
     }));
+    const attributedTouchIds = prisma.lifecycleAttributionEvent.create.mock.calls
+      .map((call: any[]) => call[0].data.touchId)
+      .filter(Boolean);
+    expect(new Set(attributedTouchIds)).toEqual(new Set([51]));
   });
 
   it('keeps direct lifecycle business plan approval compatible with the legacy agent code', async () => {
-    prisma.lifecycleBusinessPlan.findUnique.mockResolvedValue({
+    prisma.lifecycleBusinessPlan.findFirst.mockResolvedValue({
       id: 10,
       storeId: 1,
       planPeriod: '2026-W28',
@@ -317,7 +339,7 @@ describe('CustomerLifecycleOntologyService', () => {
     prisma.agentApproval.create.mockResolvedValue({ id: 202, status: 'pending' });
     prisma.lifecycleBusinessPlan.update.mockResolvedValue({ id: 10, status: 'waiting_approval' });
 
-    await service.submitBusinessPlanActions(10, {}, 2);
+    await service.submitBusinessPlanActions(10, 1, {}, 2);
 
     expect(prisma.agentRun.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
@@ -325,5 +347,62 @@ describe('CustomerLifecycleOntologyService', () => {
         entrypoint: 'ami-agent:lifecycle-business-plan',
       }),
     }));
+  });
+
+  it('reads opportunity fulfillment only inside the current store', async () => {
+    prisma.customerOpportunityFulfillmentCheck = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+
+    await (service as any).getOpportunityFulfillment(301, 1);
+
+    expect(prisma.customerOpportunityFulfillmentCheck.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { opportunityId: 301, opportunity: { storeId: 1 } },
+    }));
+  });
+
+  it('ignores body store overrides when creating lifecycle rules and plans', async () => {
+    prisma.customerLifecycleRuleVersion = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 1 }),
+    };
+    prisma.lifecycleBusinessPlan.create.mockResolvedValue({ id: 2 });
+    prisma.customerOpportunity.findMany.mockResolvedValue([]);
+
+    await (service as any).createRule({ storeId: 999, ruleType: 'churn' }, 1);
+    await (service as any).createBusinessPlan({ storeId: 999 }, 1, 9);
+
+    expect(prisma.customerLifecycleRuleVersion.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ storeId: 1 }),
+    }));
+    expect(prisma.lifecycleBusinessPlan.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ storeId: 1, createdBy: 9 }),
+    }));
+  });
+
+  it('scopes lifecycle rule publication and business plan submission by store', async () => {
+    const rule = { id: 5, storeId: 1, ruleType: 'churn', version: 2 };
+    prisma.customerLifecycleRuleVersion = {
+      findFirst: jest.fn().mockResolvedValue(rule),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      update: jest.fn().mockResolvedValue({ ...rule, status: 'active' }),
+    };
+    prisma.lifecycleBusinessPlan.findFirst = jest.fn().mockResolvedValue({
+      id: 9,
+      storeId: 1,
+      planPeriod: '2026-W28',
+      title: '门店计划',
+      actionsJson: [],
+      evidenceJson: [],
+    });
+    prisma.agentRun.create.mockResolvedValue({ id: 101 });
+    prisma.agentApproval.create.mockResolvedValue({ id: 201 });
+    prisma.lifecycleBusinessPlan.update.mockResolvedValue({ id: 9, status: 'waiting_approval' });
+
+    await (service as any).publishRule(5, 1, 9);
+    await (service as any).submitBusinessPlanActions(9, 1, {}, 9);
+
+    expect(prisma.customerLifecycleRuleVersion.findFirst).toHaveBeenCalledWith({ where: { id: 5, storeId: 1 } });
+    expect(prisma.lifecycleBusinessPlan.findFirst).toHaveBeenCalledWith({ where: { id: 9, storeId: 1 } });
   });
 });

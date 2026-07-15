@@ -54,10 +54,13 @@ import {
   CreateTerminalFollowUpTaskDto,
   QueryTerminalFollowUpTasksDto,
 } from './dto/follow-up-task.dto.js';
-import type {
-  TerminalCustomerSelectQueryDto,
-  TerminalCustomerSelectScene,
-} from './dto/customer-select.dto.js';
+import type { TerminalCustomerSelectQueryDto, TerminalCustomerSelectScene } from './dto/customer-select.dto.js';
+import { MarketingAttributionService } from '../marketing/attribution/marketing-attribution.service.js';
+import { MarketingEffectFactService } from '../marketing/attribution/marketing-effect-fact.service.js';
+import {
+  isMarketingFeatureEnabledForStore,
+  MarketingFeatureFlagsService,
+} from '../marketing/marketing-feature-flags.service.js';
 
 type TerminalDashboardInsight = {
   title: string;
@@ -110,6 +113,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     @Optional() private cardsService?: CardsService,
     @Optional() private customersService?: CustomersService,
     @Optional() private ordersService?: OrdersService,
+    private marketingAttributionService?: MarketingAttributionService,
+    @Optional() private marketingEffectFactService?: MarketingEffectFactService,
+    @Optional() private marketingFeatureFlags?: MarketingFeatureFlagsService,
   ) {}
 
   onModuleInit() {
@@ -140,10 +146,20 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const latest = deductions[deductions.length - 1];
     return {
       transactionId: deductions[0].transactionId,
-      transactionNo: deductions.map((item: any) => item.transactionNo).filter(Boolean).join(' / ') || undefined,
-      totalAmount: this.roundMoney(deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.totalAmount), 0)),
-      cashAmount: this.roundMoney(deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.cashAmount), 0)),
-      giftAmount: this.roundMoney(deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.giftAmount), 0)),
+      transactionNo:
+        deductions
+          .map((item: any) => item.transactionNo)
+          .filter(Boolean)
+          .join(' / ') || undefined,
+      totalAmount: this.roundMoney(
+        deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.totalAmount), 0),
+      ),
+      cashAmount: this.roundMoney(
+        deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.cashAmount), 0),
+      ),
+      giftAmount: this.roundMoney(
+        deductions.reduce((sum: number, item: any) => sum + this.toNumber(item.giftAmount), 0),
+      ),
       cashBalanceBefore: this.toNumber(deductions[0].cashBalanceBefore),
       cashBalanceAfter: this.toNumber(latest.cashBalanceAfter),
       giftBalanceBefore: this.toNumber(deductions[0].giftBalanceBefore),
@@ -624,7 +640,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private getCashIncomeFromPaymentSummary(summary: Record<string, number>) {
     return this.roundCurrency(
-      this.toNumber(summary.cash) + this.toNumber(summary.wechat) + this.toNumber(summary.alipay) + this.toNumber(summary.card),
+      this.toNumber(summary.cash) +
+        this.toNumber(summary.wechat) +
+        this.toNumber(summary.alipay) +
+        this.toNumber(summary.card),
     );
   }
 
@@ -1122,24 +1141,57 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private async createTerminalAutomationTouches(execution: any, strategy: any, storeId: number) {
     const delegate = (this.prisma as any).marketingAutomationTouch;
-    if (!delegate?.createMany) return 0;
+    if (!delegate?.createMany) return { deliveredCount: 0, failedCount: 0 };
     const customerIds = await this.resolveTerminalAutomationTouchCustomers(storeId, strategy);
-    if (!customerIds.length) return 0;
+    if (!customerIds.length) return { deliveredCount: 0, failedCount: 0 };
     const eligibleCustomerIds = await this.filterTerminalAutomationTouchFatigue(strategy, customerIds);
-    if (!eligibleCustomerIds.length) return 0;
+    if (!eligibleCustomerIds.length) return { deliveredCount: 0, failedCount: 0 };
+    const mapped = this.mapTerminalAutomationStrategy(strategy);
+    const taskResult = await this.batchCreateFollowUpTasks(storeId, {
+      customerId: eligibleCustomerIds[0],
+      customerIds: eligibleCustomerIds,
+      source: 'terminal_automation',
+      sourceRecommendationKey: `terminal-automation:${strategy.id}:${execution.id}`,
+      triggerType: 'terminal_automation',
+      title: mapped.title,
+      script: mapped.action,
+      note: `终端自动化策略 ${strategy.id} 下发`,
+      channel: 'terminal',
+      attribution: { strategyId: strategy.id, executionId: execution.id },
+    }).catch((error: unknown) => ({
+      items: [],
+      failures: eligibleCustomerIds.map((customerId) => ({
+        customerId,
+        message: error instanceof Error ? error.message : 'terminal_task_not_created',
+      })),
+    }));
+    const deliveredCustomerIds = new Set((taskResult.items ?? []).map((item: any) => Number(item.customerId)));
+    const failureByCustomerId = new Map(
+      (taskResult.failures ?? []).map((failure: any) => [
+        Number(failure.customerId),
+        String(failure.message ?? 'terminal_task_not_created'),
+      ]),
+    );
     await delegate.createMany({
       data: eligibleCustomerIds.map((customerId) => ({
         executionId: execution.id,
         strategyId: strategy.id,
         customerId,
         channel: 'terminal',
-        status: 'reached',
+        status: deliveredCustomerIds.has(customerId) ? 'delivered' : 'failed',
+        errorCode: deliveredCustomerIds.has(customerId) ? null : 'terminal_task_not_created',
+        errorMessage: deliveredCustomerIds.has(customerId)
+          ? null
+          : (failureByCustomerId.get(customerId) ?? 'terminal_task_not_created'),
         touchedAt: new Date(),
         attributionWindowDays: 30,
       })),
       skipDuplicates: true,
     });
-    return eligibleCustomerIds.length;
+    return {
+      deliveredCount: deliveredCustomerIds.size,
+      failedCount: eligibleCustomerIds.length - deliveredCustomerIds.size,
+    };
   }
 
   private buildTerminalAutomationExecutionInsight(
@@ -1254,7 +1306,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         strategyId: strategy.id,
         idempotencyKey: `terminal-${strategy.id}-${Date.now()}`,
         strategyName: strategy.name,
-        status: 'success',
+        status: 'running',
         triggeredCount: targetCount,
         reachedCount: 0,
         channel: 'terminal',
@@ -1262,14 +1314,16 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    const reachedCount = await this.createTerminalAutomationTouches(execution, strategy, storeId);
-    const finalExecution =
-      reachedCount === execution.reachedCount
-        ? execution
-        : await this.prisma.marketingAutomationExecution.update({
-            where: { id: execution.id },
-            data: { reachedCount },
-          });
+    const delivery = await this.createTerminalAutomationTouches(execution, strategy, storeId);
+    const status = delivery.failedCount === 0 ? 'success' : delivery.deliveredCount === 0 ? 'failed' : 'partial_failed';
+    const finalExecution = await this.prisma.marketingAutomationExecution.update({
+      where: { id: execution.id },
+      data: {
+        status,
+        reachedCount: delivery.deliveredCount,
+        failedCount: delivery.failedCount,
+      },
+    });
 
     await this.prisma.marketingAutomationStrategy.update({
       where: { id: strategy.id },
@@ -1355,7 +1409,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     });
     const beauticianByName = new Map<string, number>();
     for (const name of names) {
-      const matched = beauticians.find((beautician: any) => beautician.name === name) ?? beauticians.find((beautician: any) => beautician.name?.includes(name));
+      const matched =
+        beauticians.find((beautician: any) => beautician.name === name) ??
+        beauticians.find((beautician: any) => beautician.name?.includes(name));
       if (matched?.id) beauticianByName.set(name, matched.id);
     }
 
@@ -1384,8 +1440,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const round = (value: number) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
     const listAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0));
     const itemDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.itemDiscountAmount), 0));
-    const orderDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.orderAllocatedDiscountAmount), 0));
-    const totalDiscountAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.totalDiscountAmount ?? item.discount), 0));
+    const orderDiscountAmount = round(
+      items.reduce((sum, item) => sum + this.toNumber(item.orderAllocatedDiscountAmount), 0),
+    );
+    const totalDiscountAmount = round(
+      items.reduce((sum, item) => sum + this.toNumber(item.totalDiscountAmount ?? item.discount), 0),
+    );
     const netAmount = round(items.reduce((sum, item) => sum + this.toNumber(item.netAmount ?? item.subtotal), 0));
     return {
       listAmount,
@@ -1418,7 +1478,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return normalized;
   }
 
-  private allocateCheckoutPaymentsToGroups(payments: Array<{ method: string; amount: number; transactionNo?: string }>, summaries: Array<{ netAmount: number }>) {
+  private allocateCheckoutPaymentsToGroups(
+    payments: Array<{ method: string; amount: number; transactionNo?: string }>,
+    summaries: Array<{ netAmount: number }>,
+  ) {
     const remainingPayments = payments.map((payment) => ({ ...payment }));
     return summaries.map((summary) => {
       let remainingAmount = this.roundMoney(Math.max(0, this.toNumber(summary.netAmount)));
@@ -1450,11 +1513,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     return Array.from(grouped.entries()).map(([kind, orderItems]) => ({ kind, items: orderItems }));
   }
 
-  private async attachProductCostSnapshots(
-    tx: any,
-    storeId: number | undefined,
-    items: any[],
-  ) {
+  private async attachProductCostSnapshots(tx: any, storeId: number | undefined, items: any[]) {
     const productIds = [
       ...new Set(
         items
@@ -1525,8 +1584,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       cardIds.size ? tx.card.findMany({ where: { id: { in: [...cardIds] } }, select: { id: true, name: true } }) : [],
     ]);
 
-    const projectNameById = new Map<number, string>(projects.map((item: any) => [Number(item.id), String(item.name ?? '')]));
-    const productNameById = new Map<number, string>(products.map((item: any) => [Number(item.id), String(item.name ?? '')]));
+    const projectNameById = new Map<number, string>(
+      projects.map((item: any) => [Number(item.id), String(item.name ?? '')]),
+    );
+    const productNameById = new Map<number, string>(
+      products.map((item: any) => [Number(item.id), String(item.name ?? '')]),
+    );
     const cardNameById = new Map<number, string>(cards.map((item: any) => [Number(item.id), String(item.name ?? '')]));
 
     return items.map((item) => {
@@ -1543,7 +1606,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private async createOrderItems(tx: any, orderId: number, rawItems: any[] = []) {
     const order = await tx.productOrder?.findUnique?.({ where: { id: orderId }, select: { storeId: true } });
-    const resolvedRawItems = order?.storeId ? await this.resolveOrderItemBeauticianIds(Number(order.storeId), rawItems, tx) : rawItems;
+    const resolvedRawItems = order?.storeId
+      ? await this.resolveOrderItemBeauticianIds(Number(order.storeId), rawItems, tx)
+      : rawItems;
     const normalized = await this.resolveOrderItemNames(resolvedRawItems, tx);
     const items = await this.attachProductCostSnapshots(tx, this.toNumber(order?.storeId) || undefined, normalized);
     if (!items.length) return items;
@@ -1612,7 +1677,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     salesUserId?: number;
     beauticianId?: number;
     isDesignated?: boolean;
-    items: Array<{ itemType: string; itemId?: number; beauticianId?: number | null; subtotal: number; orderItemId?: number }>;
+    items: Array<{
+      itemType: string;
+      itemId?: number;
+      beauticianId?: number | null;
+      subtotal: number;
+      orderItemId?: number;
+    }>;
   }) {
     try {
       const records: any[] = [];
@@ -1781,80 +1852,17 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async applyMarketingAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
-    if (!order.customerId || amount <= 0) return;
-
-    try {
-      const existed = await tx.marketingAttribution.findFirst({
-        where: { orderId: order.id },
-        select: { id: true },
-      });
-      if (existed) return;
-
-      const touches = await tx.marketingAutomationTouch.findMany({
-        where: {
-          customerId: order.customerId,
-          touchedAt: { lte: new Date() },
-          status: { in: ['reached', 'sent', 'delivered', 'clicked', 'opened', 'converted'] },
-        },
-        orderBy: { touchedAt: 'desc' },
-        take: 10,
-      });
-
-      const now = new Date();
-      const touch = touches.find((item: any) => {
-        const windowDays = Number(item.attributionWindowDays ?? 30);
-        return item.touchedAt.getTime() >= now.getTime() - windowDays * 86400000;
-      });
-      if (!touch) return;
-
-      await tx.marketingAttribution.create({
-        data: {
-          touchId: touch.id,
-          strategyId: touch.strategyId,
-          executionId: touch.executionId,
-          customerId: order.customerId,
-          orderId: order.id,
-          attributionType: 'last_touch',
-          attributedRevenue: amount,
-          attributionWindowDays: touch.attributionWindowDays ?? 30,
-          occurredAt: now,
-        },
-      });
-
-      await tx.marketingAutomationTouch.update({
-        where: { id: touch.id },
-        data: {
-          status: 'converted',
-          convertedAt: now,
-          conversionType: 'order',
-          actualRevenue: { increment: amount },
-        },
-      });
-      const category = String(touch.conversionType ?? touch.metadata?.category ?? touch.metadata?.strategyType ?? '')
-        .toLowerCase()
-        .includes('churn')
-        ? 'churn_recovery'
-        : 'marketing_conversion';
-      await this.commissionService.recordAmiContribution(
-        {
-          storeId: this.toNumber((order as any).storeId),
-          category,
-          triggerType: 'automation',
-          triggerId: touch.id,
-          customerId: order.customerId,
-          orderId: order.id,
-          revenueAmount: amount,
-          metadata: {
-            strategyId: touch.strategyId,
-            executionId: touch.executionId,
-            attributionWindowDays: touch.attributionWindowDays ?? 30,
-          },
-        },
-        tx,
-      );
-    } catch (error) {
-      if (!this.warnOptionalTableSkipped('MarketingAttribution/MarketingAutomationTouch', error)) throw error;
-    }
+    const storeId = Number((order as any).storeId);
+    if (!storeId || !order.customerId || amount <= 0) return;
+    return this.marketingAttributionService?.attributeOrder(
+      {
+        storeId,
+        orderId: order.id,
+        customerId: order.customerId,
+        netRevenue: amount,
+      },
+      tx,
+    );
   }
 
   private async createStockMovementForItem(
@@ -2927,7 +2935,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const hasStoreScope = availableRoles.includes('manager') || availableRoles.includes('reception');
     const shouldHonorOnlyMyCustomers = Boolean(onlyMyCustomers && !hasStoreScope);
     const shouldScopeToCurrentStaff = Boolean(
-      effectiveUserId && (shouldHonorOnlyMyCustomers || (!hasStoreScope && (scene === 'follow_up' || scene === 'service_record'))),
+      effectiveUserId &&
+      (shouldHonorOnlyMyCustomers || (!hasStoreScope && (scene === 'follow_up' || scene === 'service_record'))),
     );
     const beautician = effectiveUserId
       ? await this.prisma.beautician.findFirst({ where: { storeId, userId: effectiveUserId }, select: { id: true } })
@@ -4223,14 +4232,27 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           createdAt: true,
           updatedAt: true,
           status: true,
-          paymentRecords: { where: { status: 'success' }, orderBy: { paidAt: 'desc' }, take: 1, select: { paidAt: true, createdAt: true } },
-          refundRecords: { where: { status: { in: ['success', 'completed', 'refunded'] } }, orderBy: { refundedAt: 'desc' }, take: 1, select: { refundedAt: true, createdAt: true } },
+          paymentRecords: {
+            where: { status: 'success' },
+            orderBy: { paidAt: 'desc' },
+            take: 1,
+            select: { paidAt: true, createdAt: true },
+          },
+          refundRecords: {
+            where: { status: { in: ['success', 'completed', 'refunded'] } },
+            orderBy: { refundedAt: 'desc' },
+            take: 1,
+            select: { refundedAt: true, createdAt: true },
+          },
         },
       });
       if (!order || !['completed', 'paid'].includes(order.status)) return;
       const occurredAt = source.includes('refund')
-        ? order.refundRecords?.[0]?.refundedAt ?? order.refundRecords?.[0]?.createdAt ?? order.updatedAt
-        : order.paymentRecords?.[0]?.paidAt ?? order.paymentRecords?.[0]?.createdAt ?? order.updatedAt ?? order.createdAt;
+        ? (order.refundRecords?.[0]?.refundedAt ?? order.refundRecords?.[0]?.createdAt ?? order.updatedAt)
+        : (order.paymentRecords?.[0]?.paidAt ??
+          order.paymentRecords?.[0]?.createdAt ??
+          order.updatedAt ??
+          order.createdAt);
       if (typeof this.commissionService?.refreshDailySettlementForFact === 'function') {
         await this.commissionService.refreshDailySettlementForFact(storeId, occurredAt, source);
       } else {
@@ -4246,9 +4268,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const paymentMethod = this.getPaymentMethod(dto.payMethod);
     const store = await this.getStore(storeId);
     const serviceTask = dto.taskId
-      ? await this.prisma.serviceTask.findFirst({ where: { id: dto.taskId, storeId, status: 'completed' }, select: { id: true, completedAt: true } })
+      ? await this.prisma.serviceTask.findFirst({
+          where: { id: dto.taskId, storeId, status: 'completed' },
+          select: { id: true, completedAt: true },
+        })
       : null;
-    if (dto.taskId && !serviceTask?.completedAt) throw new BadRequestException('服务任务未完成，不能作为履约时间转收银');
+    if (dto.taskId && !serviceTask?.completedAt)
+      throw new BadRequestException('服务任务未完成，不能作为履约时间转收银');
     const resolvedDtoItems = await this.resolveOrderItemBeauticianIds(storeId, dto.items as any[]);
     const normalizedItems = await this.resolveOrderItemNames(resolvedDtoItems);
     const allocation = this.discountAllocationService.allocate({
@@ -4266,66 +4292,90 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const totalAmount = allocation.order.netAmount;
     const allocatedItems = allocation.items.map((item, index) => ({
       ...item,
-      beauticianId: item.beauticianId ?? (this.toNumber(resolvedDtoItems[index]?.beauticianId ?? dto.beauticianId) || undefined),
+      beauticianId:
+        item.beauticianId ?? (this.toNumber(resolvedDtoItems[index]?.beauticianId ?? dto.beauticianId) || undefined),
     }));
     const itemGroups = this.groupCheckoutItemsByKind(allocatedItems);
     const groupSummaries = itemGroups.map((group) => this.summarizeCheckoutItems(group.items));
     const checkoutPayments = this.normalizeCheckoutPayments(dto.payments, totalAmount, paymentMethod);
     const groupPayments = this.allocateCheckoutPaymentsToGroups(checkoutPayments, groupSummaries);
     const checkoutGroupNo = `PO${Date.now().toString(36).toUpperCase()}`;
-    const shouldLoadCustomer = checkoutPayments.some((payment) => payment.method === 'member_balance') || !dto.customerName;
+    const shouldLoadCustomer =
+      checkoutPayments.some((payment) => payment.method === 'member_balance') || !dto.customerName;
     const customer =
-      dto.customerId && shouldLoadCustomer ? await this.prisma.customer.findUnique({ where: { id: dto.customerId } }) : null;
+      dto.customerId && shouldLoadCustomer
+        ? await this.prisma.customer.findUnique({ where: { id: dto.customerId } })
+        : null;
     const customerName = customer?.name ?? dto.customerName;
     const customerPhone = customer?.phone ?? dto.customerPhone;
     if (checkoutPayments.some((payment) => payment.method === 'member_balance') && !customer) {
       throw new BadRequestException('会员余额支付必须选择客户');
     }
 
-    const ordersService = this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
-    const createdOrders: any[] = await this.prisma.$transaction(async (tx) => {
-      const transactionOrders: any[] = [];
-      for (const [index, group] of itemGroups.entries()) {
-        const summary = groupSummaries[index];
-        const payments = groupPayments[index] ?? [];
-        const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
-        const orderNo = itemGroups.length > 1 ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}` : checkoutGroupNo;
-        const groupOrder = await ordersService.createProductOrder({
-          orderNo,
-          checkoutGroupNo,
-          orderKind: group.kind,
-          customerId: dto.customerId,
-          customerName,
-          customerPhone,
-          storeId,
-          status: 'completed',
-          payMethod: orderPayMethod,
-          paymentMethod: orderPayMethod,
-          payments,
-          paidAmount: summary.netAmount,
-          serviceCompletedAt: serviceTask?.completedAt,
-          source: 'terminal',
-          preAllocatedDiscount: true,
-          items: group.items.map((item) => ({ ...item, beauticianId: this.toNumber(item.beauticianId ?? dto.beauticianId) || undefined })),
-          discountMode: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
-          discountAmount: summary.orderDiscountAmount,
-          allocationMethod: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
-          discountSource: allocation.order.discountSource,
-          promotionId: allocation.order.promotionId,
-          couponId: allocation.order.couponId,
-          packageId: allocation.order.packageId,
-          discountReason: dto.remark,
-          beauticianId: dto.beauticianId,
-          isDesignated: dto.isDesignated,
-          remark: dto.remark,
-          skipDailySettlementRefresh: true,
-          dailySettlementSource: 'terminal_checkout',
-        }, tx);
-        transactionOrders.push(groupOrder);
-      }
-      return transactionOrders;
-    }, { timeout: 30000 });
-    const result = { order: createdOrders[0], orders: createdOrders, customer, customerName, customerPhone, checkoutGroupNo };
+    const ordersService =
+      this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
+    const createdOrders: any[] = await this.prisma.$transaction(
+      async (tx) => {
+        const transactionOrders: any[] = [];
+        for (const [index, group] of itemGroups.entries()) {
+          const summary = groupSummaries[index];
+          const payments = groupPayments[index] ?? [];
+          const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
+          const orderNo =
+            itemGroups.length > 1
+              ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}`
+              : checkoutGroupNo;
+          const groupOrder = await ordersService.createProductOrder(
+            {
+              orderNo,
+              checkoutGroupNo,
+              orderKind: group.kind,
+              customerId: dto.customerId,
+              customerName,
+              customerPhone,
+              storeId,
+              status: 'completed',
+              payMethod: orderPayMethod,
+              paymentMethod: orderPayMethod,
+              payments,
+              paidAmount: summary.netAmount,
+              serviceCompletedAt: serviceTask?.completedAt,
+              source: 'terminal',
+              preAllocatedDiscount: true,
+              items: group.items.map((item) => ({
+                ...item,
+                beauticianId: this.toNumber(item.beauticianId ?? dto.beauticianId) || undefined,
+              })),
+              discountMode: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
+              discountAmount: summary.orderDiscountAmount,
+              allocationMethod: summary.orderDiscountAmount > 0 ? 'manual' : 'none',
+              discountSource: allocation.order.discountSource,
+              promotionId: allocation.order.promotionId,
+              couponId: allocation.order.couponId,
+              packageId: allocation.order.packageId,
+              discountReason: dto.remark,
+              beauticianId: dto.beauticianId,
+              isDesignated: dto.isDesignated,
+              remark: dto.remark,
+              skipDailySettlementRefresh: true,
+              dailySettlementSource: 'terminal_checkout',
+            },
+            tx,
+          );
+          transactionOrders.push(groupOrder);
+        }
+        return transactionOrders;
+      },
+      { timeout: 30000 },
+    );
+    const result = {
+      order: createdOrders[0],
+      orders: createdOrders,
+      customer,
+      customerName,
+      customerPhone,
+      checkoutGroupNo,
+    };
     for (const order of result.orders) {
       this.scheduleCheckoutPostCommitTasks({
         storeId,
@@ -4340,7 +4390,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const responseItems = allocatedItems;
     this.invalidateCashierDashboardCache(storeId);
     if (
-      resolvedDtoItems.some((item) => item.itemType === 'project' || item.projectId || item.itemType === 'product' || item.productId)
+      resolvedDtoItems.some(
+        (item) => item.itemType === 'project' || item.projectId || item.itemType === 'product' || item.productId,
+      )
     ) {
       this.invalidateInventoryDashboardCache(storeId);
     }
@@ -4448,7 +4500,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   async createCardOrder(storeId: number, dto: CreateCardOrderDto, currentUserId?: number) {
-    const ordersService = this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
+    const ordersService =
+      this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
     const result = await ordersService.createCardOrder(
       storeId,
       {
@@ -4474,7 +4527,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const amount = this.toNumber(dto.amount);
     const giftAmount = this.toNumber(dto.giftAmount ?? dto.discountAmount);
     const giftProjects = Array.isArray(dto.giftProjects) ? dto.giftProjects : [];
-    const ordersService = this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
+    const ordersService =
+      this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
     const result = await ordersService.createRechargeOrder({
       storeId,
       customerId: dto.customerId,
@@ -4624,7 +4678,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       const quantity = this.toNumber(item.quantity ?? item.qty ?? 1) || 1;
       const unitPrice = this.toNumber(item.unitPrice ?? item.price ?? item.amount);
       const listAmount = this.toNumber(item.listAmount) || quantity * unitPrice;
-      const discountAmount = this.toNumber(item.itemDiscountAmount ?? item.totalDiscountAmount ?? item.discountAmount ?? item.discount);
+      const discountAmount = this.toNumber(
+        item.itemDiscountAmount ?? item.totalDiscountAmount ?? item.discountAmount ?? item.discount,
+      );
       const subtotal = this.toNumber(item.subtotal ?? item.netAmount ?? listAmount - discountAmount);
       return {
         name: String(item.name ?? item.projectName ?? item.productName ?? item.cardName ?? '未命名单项'),
@@ -4648,10 +4704,14 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private mapOrderPrintDocument(order: any, storeName: string, sourceType: 'cashier_order' | 'card_order') {
     const items = this.getReceiptOrderItems(order);
-    const listAmount = this.toNumber(order.listAmount) || items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0);
+    const listAmount =
+      this.toNumber(order.listAmount) || items.reduce((sum, item) => sum + this.toNumber(item.listAmount), 0);
     const discountAmount =
       this.toNumber(order.totalDiscountAmount) ||
-      Math.max(0, items.reduce((sum, item) => sum + this.toNumber(item.discountAmount), 0));
+      Math.max(
+        0,
+        items.reduce((sum, item) => sum + this.toNumber(item.discountAmount), 0),
+      );
     const paidAmount = this.getOrderPaidAmount(order);
     const firstPayment = Array.isArray(order.paymentRecords) ? order.paymentRecords[0] : null;
     const cardSource = Array.isArray(order.sourceCustomerCards) ? order.sourceCustomerCards[0] : null;
@@ -4795,7 +4855,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         take: 100,
       }),
     ]);
-    const cashierDocuments = cashierOrders.map((order) => this.mapOrderPrintDocument(order, store.name, 'cashier_order'));
+    const cashierDocuments = cashierOrders.map((order) =>
+      this.mapOrderPrintDocument(order, store.name, 'cashier_order'),
+    );
     const cardOrderDocuments = cardOrders.map((order) => this.mapOrderPrintDocument(order, store.name, 'card_order'));
     const cardUsageDocuments = cardUsageRecords.map((record) => this.mapCardUsagePrintDocument(record, store.name));
     const items = [...cashierDocuments, ...cardUsageDocuments, ...cardOrderDocuments].sort(
@@ -5062,10 +5124,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const duration = Number(query.duration || project?.duration || 60);
     const [beauticians, reservations, schedules] = await Promise.all([
       this.prisma.beautician.findMany({
-        where: this.buildTerminalVisibleBeauticianWhere(
-          storeId,
-          query.beauticianId ? { id: query.beauticianId } : {},
-        ),
+        where: this.buildTerminalVisibleBeauticianWhere(storeId, query.beauticianId ? { id: query.beauticianId } : {}),
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.reservation.findMany({
@@ -5436,7 +5495,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
     const expiring = batches.map((batch) => {
       const remainingDays = batch.expiryDate ? Math.ceil((batch.expiryDate.getTime() - now.getTime()) / 86400000) : 0;
-      const riskLevel = remainingDays <= 0 ? 'high' : remainingDays <= 15 ? 'high' : remainingDays <= 30 ? 'medium' : 'low';
+      const riskLevel =
+        remainingDays <= 0 ? 'high' : remainingDays <= 15 ? 'high' : remainingDays <= 30 ? 'medium' : 'low';
       const suggestion = batch.expiryDate && batch.expiryDate < now ? '报废' : '促销';
       return {
         id: batch.id,
@@ -5621,20 +5681,30 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       try {
         const dedupeOr = [
           ...(dto.recommendationId ? [{ recommendationId: Number(dto.recommendationId) }] : []),
-          ...(dto.sourceRecommendationKey ? [{ sourceRecommendationKey: dto.sourceRecommendationKey }] : []),
+          ...(dto.recommendationInstanceId ? [{ recommendationInstanceId: dto.recommendationInstanceId }] : []),
         ];
-        const existing = dedupeOr.length
+        const existing = dto.sourceRecommendationKey
           ? await taskDelegate.findFirst({
               where: {
                 storeId,
                 customerId: customer.id,
                 deletedAt: null,
-                status: { in: ['pending', 'in_progress', 'expired'] },
-                OR: dedupeOr,
+                sourceRecommendationKey: dto.sourceRecommendationKey,
               },
               include: this.followUpTaskInclude(),
             })
-          : null;
+          : dedupeOr.length
+            ? await taskDelegate.findFirst({
+                where: {
+                  storeId,
+                  customerId: customer.id,
+                  deletedAt: null,
+                  status: { in: ['pending', 'in_progress', 'expired'] },
+                  OR: dedupeOr,
+                },
+                include: this.followUpTaskInclude(),
+              })
+            : null;
         if (existing) {
           return this.mapFollowUpTask(existing, { duplicated: true });
         }
@@ -5644,6 +5714,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
             storeId,
             customerId: customer.id,
             recommendationId: dto.recommendationId ? Number(dto.recommendationId) : null,
+            recommendationInstanceId: dto.recommendationInstanceId ?? null,
+            adoptionId: dto.adoptionId ? Number(dto.adoptionId) : null,
             sourceRecommendationKey: dto.sourceRecommendationKey ?? null,
             source: dto.source ?? 'recommendation',
             triggerType: dto.triggerType ?? null,
@@ -5655,7 +5727,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
             assigneeUserId: explicitAssigneeUserId ?? assignment.assigneeUserId ?? null,
             assigneeBeauticianId: dto.assigneeBeauticianId
               ? Number(dto.assigneeBeauticianId)
-              : assignment.assigneeBeauticianId ?? null,
+              : (assignment.assigneeBeauticianId ?? null),
             assignedByUserId: assignedByUserId ?? null,
             assignedAt: new Date(),
             dueAt,
@@ -5677,6 +5749,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           status: 'pending',
           assignmentReason: assignment.reason,
         });
+        await this.recordTerminalFollowUpFact(task, 'delivery');
         return this.mapFollowUpTask(task);
       } catch (error) {
         if (!this.isMissingFollowUpTaskTableError(error)) throw error;
@@ -5738,20 +5811,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     },
     assignedByUserId?: number,
   ) {
-    const customerIds = Array.from(new Set((dto.customerIds ?? [dto.customerId]).map((id) => Number(id)).filter(Boolean)));
+    const customerIds = Array.from(
+      new Set((dto.customerIds ?? [dto.customerId]).map((id) => Number(id)).filter(Boolean)),
+    );
     if (!customerIds.length) throw new BadRequestException('customerIds is required');
     const assignmentByCustomerId = new Map(
       (dto.assignments ?? [])
         .filter((assignment) => Number(assignment.customerId) > 0 && Number(assignment.assigneeUserId) > 0)
         .map((assignment) => [Number(assignment.customerId), assignment]),
     );
-    const requiresSystemUserAssignment = Boolean(dto.recommendationId || dto.source === 'recommendation');
     const results = await Promise.allSettled(
       customerIds.map((customerId) => {
         const assignment = assignmentByCustomerId.get(customerId);
-        if (requiresSystemUserAssignment && !assignment) {
-          return Promise.reject(new BadRequestException('该客户未匹配系统用户，不能下发终端跟进'));
-        }
         return this.createFollowUpTask(
           storeId,
           undefined,
@@ -5775,7 +5846,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       .map((result) => result.value);
     const failures = results
       .map((result, index) => ({ result, customerId: customerIds[index] }))
-      .filter((item): item is { result: PromiseRejectedResult; customerId: number } => item.result.status === 'rejected')
+      .filter(
+        (item): item is { result: PromiseRejectedResult; customerId: number } => item.result.status === 'rejected',
+      )
       .map((item) => ({
         customerId: item.customerId,
         message: item.result.reason instanceof Error ? item.result.reason.message : '创建失败',
@@ -5819,6 +5892,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         ...(explicitAssigneeUserId ? { assigneeUserId: explicitAssigneeUserId } : {}),
         ...(query.customerId ? { customerId: Number(query.customerId) } : {}),
         ...(query.recommendationId ? { recommendationId: Number(query.recommendationId) } : {}),
+        ...(query.recommendationInstanceId ? { recommendationInstanceId: query.recommendationInstanceId } : {}),
       };
       const andScopes: any[] = [];
       if (operatorAssigneeScope.length) {
@@ -6042,7 +6116,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           },
           include: this.followUpTaskInclude(),
         });
-        const completionEvent = await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_completed', task, dto);
+        const completionEvent = await this.recordFollowUpTaskEvent(
+          storeId,
+          task.customerId,
+          task.deviceId,
+          'follow_up_completed',
+          task,
+          dto,
+        );
+        if (task.orderId || task.reservationId || ['converted', 'booked'].includes(String(task.resultType))) {
+          const automationAttribution = await this.progressMarketingAutomationTouchFromFollowUp(task);
+          await this.recordTerminalFollowUpFact(task, 'conversion', automationAttribution);
+        }
         return { ...this.mapFollowUpTask(task), completionEventId: completionEvent?.id };
       } catch (error) {
         if (!this.isMissingFollowUpTaskTableError(error)) throw error;
@@ -6082,6 +6167,123 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private async recordTerminalFollowUpFact(
+    task: any,
+    factType: 'delivery' | 'conversion',
+    validatedAutomationAttribution?: {
+      strategyId: number;
+      executionId: number;
+      deliveryJobId: number;
+      touchId: number;
+    } | null,
+  ) {
+    if (
+      !task?.id ||
+      !task?.storeId ||
+      !isMarketingFeatureEnabledForStore(this.marketingFeatureFlags, 'effectFactWrite', Number(task.storeId)) ||
+      !this.marketingEffectFactService
+    )
+      return;
+    if (factType === 'delivery' && task.source === 'marketing_automation') return;
+    const sourcePayload = task.payload?.sourcePayload ?? {};
+    const attribution =
+      sourcePayload.attribution && typeof sourcePayload.attribution === 'object' ? sourcePayload.attribution : {};
+    const factAttribution =
+      task.source === 'marketing_automation' ? (validatedAutomationAttribution ?? {}) : attribution;
+    const promotionId = Number(sourcePayload.promotionId ?? sourcePayload.offerJson?.promotionId);
+    try {
+      await this.marketingEffectFactService.recordFact({
+        storeId: Number(task.storeId),
+        factType,
+        metricSource: 'actual',
+        sourceSystem: 'terminal_follow_up',
+        sourceEventId: `task:${task.id}`,
+        countValue: 1,
+        isPrimary: factType !== 'conversion' || !task.orderId,
+        dimensions: {
+          recommendationInstanceId: task.recommendationInstanceId ?? null,
+          adoptionId: task.adoptionId ?? null,
+          strategyId:
+            Number(
+              factAttribution.strategyId ?? (task.source === 'marketing_automation' ? null : sourcePayload.strategyId),
+            ) || null,
+          executionId:
+            Number(
+              factAttribution.executionId ??
+                (task.source === 'marketing_automation' ? null : sourcePayload.executionId),
+            ) || null,
+          touchId:
+            Number(
+              factAttribution.touchId ?? (task.source === 'marketing_automation' ? null : sourcePayload.touchId),
+            ) || null,
+          deliveryJobId:
+            Number(
+              factAttribution.deliveryJobId ??
+                (task.source === 'marketing_automation' ? null : sourcePayload.deliveryJobId),
+            ) || null,
+          terminalFollowUpTaskId: task.id,
+          promotionId: Number.isInteger(promotionId) && promotionId > 0 ? promotionId : null,
+          customerId: task.customerId,
+          orderId: task.orderId ?? null,
+          channel: 'terminal',
+        },
+        occurredAt:
+          factType === 'conversion'
+            ? (task.completedAt ?? new Date())
+            : (task.assignedAt ?? task.createdAt ?? new Date()),
+      });
+    } catch {
+      // Task state is authoritative; fact dual-write failures are repaired by backfill.
+    }
+  }
+
+  private async progressMarketingAutomationTouchFromFollowUp(task: any) {
+    if (task?.source !== 'marketing_automation') return null;
+    const sourcePayload = task.payload?.sourcePayload ?? {};
+    const attribution =
+      sourcePayload.attribution && typeof sourcePayload.attribution === 'object' ? sourcePayload.attribution : {};
+    const deliveryJobId = Number(attribution.deliveryJobId ?? sourcePayload.deliveryJobId);
+    if (!Number.isInteger(deliveryJobId) || deliveryJobId <= 0) return null;
+    try {
+      const deliveryJob = await this.prisma.marketingDeliveryJob.findFirst({
+        where: {
+          id: deliveryJobId,
+          storeId: task.storeId,
+          customerId: task.customerId,
+          channel: 'terminal',
+        },
+        select: { id: true, touchId: true, strategyId: true, executionId: true },
+      });
+      if (!deliveryJob) return null;
+      const conversionType = task.orderId
+        ? 'order'
+        : task.reservationId || task.resultType === 'booked'
+          ? 'reservation'
+          : 'terminal_follow_up';
+      await this.prisma.marketingAutomationTouch.updateMany({
+        where: {
+          id: deliveryJob.touchId,
+          customerId: task.customerId,
+          status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] },
+        },
+        data: {
+          status: 'converted',
+          convertedAt: task.completedAt ?? new Date(),
+          conversionType,
+        },
+      });
+      return {
+        strategyId: deliveryJob.strategyId,
+        executionId: deliveryJob.executionId,
+        deliveryJobId: deliveryJob.id,
+        touchId: deliveryJob.touchId,
+      };
+    } catch {
+      // Follow-up completion is authoritative; automation touch projection is repairable.
+      return null;
+    }
+  }
+
   async cancelFollowUpTask(storeId: number, id: number, note?: string) {
     const taskDelegate = this.getFollowUpTaskDelegate();
     if (taskDelegate?.findFirst && taskDelegate?.update) {
@@ -6093,7 +6295,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           data: { status: 'cancelled', resultNote: note ?? null },
           include: this.followUpTaskInclude(),
         });
-        await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_cancelled', task, { note });
+        await this.recordFollowUpTaskEvent(storeId, task.customerId, task.deviceId, 'follow_up_cancelled', task, {
+          note,
+        });
         return this.mapFollowUpTask(task);
       } catch (error) {
         if (!this.isMissingFollowUpTaskTableError(error)) throw error;
@@ -6157,7 +6361,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private isMissingFollowUpTaskTableError(error: unknown) {
-    const candidate = error as { code?: string; meta?: { modelName?: string; driverAdapterError?: { cause?: { kind?: string } } } };
+    const candidate = error as {
+      code?: string;
+      meta?: { modelName?: string; driverAdapterError?: { cause?: { kind?: string } } };
+    };
     return (
       candidate?.code === 'P2021' &&
       candidate.meta?.modelName === 'TerminalFollowUpTask' &&
@@ -6199,7 +6406,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
 
   private followUpTaskInclude() {
     return {
-      customer: { select: { id: true, name: true, phone: true, memberLevel: true, totalSpent: true, visitCount: true } },
+      customer: {
+        select: { id: true, name: true, phone: true, memberLevel: true, totalSpent: true, visitCount: true },
+      },
       assigneeUser: { select: { id: true, name: true, username: true, phone: true } },
       assigneeBeautician: { select: { id: true, name: true, phone: true, userId: true } },
       assignedByUser: { select: { id: true, name: true, username: true } },
@@ -6207,8 +6416,15 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async inferFollowUpAssignment(storeId: number, customerId: number, dto: Partial<CreateTerminalFollowUpTaskDto>) {
-    const text = [dto.triggerType, dto.source, dto.title, dto.note, dto.remark, dto.script].filter(Boolean).join(' ').toLowerCase();
+  private async inferFollowUpAssignment(
+    storeId: number,
+    customerId: number,
+    dto: Partial<CreateTerminalFollowUpTaskDto>,
+  ) {
+    const text = [dto.triggerType, dto.source, dto.title, dto.note, dto.remark, dto.script]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
     const explicitRole = dto.assigneeRole;
     const role =
       explicitRole ??
@@ -6254,7 +6470,13 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           reason: `无历史服务人，默认分派给门店美容师 ${fallbackBeautician.name}`,
         };
       }
-      const consultant = await this.findUserByRoleSignal(storeId, ['consultant', 'advisor', 'beautician', '顾问', '美容师']);
+      const consultant = await this.findUserByRoleSignal(storeId, [
+        'consultant',
+        'advisor',
+        'beautician',
+        '顾问',
+        '美容师',
+      ]);
       if (consultant) {
         return {
           assigneeRole: 'consultant',
@@ -6266,7 +6488,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (role === 'manager') {
-      const manager = await this.findUserByRoleSignal(storeId, ['store_manager', 'manager', '店长']) ?? await this.findFallbackStoreUser(storeId);
+      const manager =
+        (await this.findUserByRoleSignal(storeId, ['store_manager', 'manager', '店长'])) ??
+        (await this.findFallbackStoreUser(storeId));
       return {
         assigneeRole: 'manager',
         assigneeUserId: manager?.id,
@@ -6276,7 +6500,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (role === 'reception') {
-      const reception = await this.findUserByRoleSignal(storeId, ['reception', 'frontdesk', 'cashier', '前台']) ?? await this.findFallbackStoreUser(storeId);
+      const reception =
+        (await this.findUserByRoleSignal(storeId, ['reception', 'frontdesk', 'cashier', '前台'])) ??
+        (await this.findFallbackStoreUser(storeId));
       return {
         assigneeRole: 'reception',
         assigneeUserId: reception?.id,
@@ -6299,7 +6525,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       assigneeRole: 'consultant',
       assigneeUserId: fallbackUser?.id,
       assigneeBeauticianId: undefined,
-      reason: fallbackUser ? `客户关系维护类任务，默认分派给 ${fallbackUser.name}` : '客户关系维护类任务，暂无可分派员工',
+      reason: fallbackUser
+        ? `客户关系维护类任务，默认分派给 ${fallbackUser.name}`
+        : '客户关系维护类任务，暂无可分派员工',
     };
   }
 
@@ -6428,6 +6656,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       customerPhone: task.customer?.phone,
       customerMemberLevel: task.customer?.memberLevel,
       recommendationId: task.recommendationId,
+      recommendationInstanceId: task.recommendationInstanceId,
+      adoptionId: task.adoptionId,
       sourceRecommendationKey: task.sourceRecommendationKey,
       source: task.source,
       triggerType: task.triggerType,
@@ -6492,24 +6722,22 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         task.assigneeUser?.username ||
         (role === 'manager' ? '店长待分派' : role === 'reception' ? '前台队列' : '顾问/美容师队列');
       const assigneeKey = `${role}:${task.assigneeUserId ?? ''}:${task.assigneeBeauticianId ?? ''}:${assigneeName}`;
-      const current =
-        stats.get(assigneeKey) ??
-        {
-          assigneeKey,
-          assigneeRole: role,
-          assigneeRoleLabel: roleLabels[role] ?? '门店人员',
-          assigneeUserId: task.assigneeUserId ?? undefined,
-          assigneeBeauticianId: task.assigneeBeauticianId ?? undefined,
-          assigneeName,
-          total: 0,
-          pending: 0,
-          inProgress: 0,
-          completed: 0,
-          overdue: 0,
-          booked: 0,
-          converted: 0,
-          revenue: 0,
-        };
+      const current = stats.get(assigneeKey) ?? {
+        assigneeKey,
+        assigneeRole: role,
+        assigneeRoleLabel: roleLabels[role] ?? '门店人员',
+        assigneeUserId: task.assigneeUserId ?? undefined,
+        assigneeBeauticianId: task.assigneeBeauticianId ?? undefined,
+        assigneeName,
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        completed: 0,
+        overdue: 0,
+        booked: 0,
+        converted: 0,
+        revenue: 0,
+      };
       current.total += 1;
       if (task.status === 'pending') current.pending += 1;
       if (task.status === 'in_progress') current.inProgress += 1;
@@ -6910,10 +7138,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       this.prisma.paymentRecord.findMany({
         where: {
           status: 'success',
-          OR: [
-            { paidAt: { gte: today, lt: tomorrow } },
-            { paidAt: null, createdAt: { gte: today, lt: tomorrow } },
-          ],
+          OR: [{ paidAt: { gte: today, lt: tomorrow } }, { paidAt: null, createdAt: { gte: today, lt: tomorrow } }],
           order: { storeId },
         },
         select: { method: true, amount: true },
@@ -7052,7 +7277,10 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const refundAmount = todayRefunds.reduce((sum, refund) => sum + this.toNumber(refund.amount), 0);
     const orderGrossRevenue = todayOrders.reduce((sum, order: any) => {
       const paid = Array.isArray(order.paymentRecords)
-        ? order.paymentRecords.reduce((paymentSum: number, payment: any) => paymentSum + this.toNumber(payment.amount), 0)
+        ? order.paymentRecords.reduce(
+            (paymentSum: number, payment: any) => paymentSum + this.toNumber(payment.amount),
+            0,
+          )
         : 0;
       return sum + (paid > 0 ? paid : this.toNumber(order.netAmount ?? order.totalAmount));
     }, 0);
@@ -7063,7 +7291,8 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const commissionTotal = todayCommissionRecords.reduce((sum, record) => sum + this.toNumber(record.amount), 0);
     const fallbackRevenue = this.roundCurrency(orderGrossRevenue - refundAmount);
     const fallbackGrossProfit = this.roundCurrency(fallbackRevenue - orderMaterialCost - commissionTotal);
-    const fallbackGrossMargin = fallbackRevenue > 0 ? this.roundCurrency((fallbackGrossProfit / fallbackRevenue) * 100) : 0;
+    const fallbackGrossMargin =
+      fallbackRevenue > 0 ? this.roundCurrency((fallbackGrossProfit / fallbackRevenue) * 100) : 0;
     const settlementCashIncome = todayDailySettlement
       ? this.roundCurrency(
           this.toNumber((todayDailySettlement as any).cashRevenue) +
@@ -7074,9 +7303,15 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       : null;
     const revenue = todayDailySettlement ? this.toNumber((todayDailySettlement as any).totalRevenue) : fallbackRevenue;
     const cashIncome = settlementCashIncome ?? this.getCashIncomeFromPaymentSummary(paymentSummary);
-    const grossProfit = todayDailySettlement ? this.toNumber((todayDailySettlement as any).grossProfit) : fallbackGrossProfit;
-    const grossMargin = todayDailySettlement ? this.toNumber((todayDailySettlement as any).grossMargin) : fallbackGrossMargin;
-    const orderCount = todayDailySettlement ? this.toNumber((todayDailySettlement as any).orderCount) : todayOrders.length;
+    const grossProfit = todayDailySettlement
+      ? this.toNumber((todayDailySettlement as any).grossProfit)
+      : fallbackGrossProfit;
+    const grossMargin = todayDailySettlement
+      ? this.toNumber((todayDailySettlement as any).grossMargin)
+      : fallbackGrossMargin;
+    const orderCount = todayDailySettlement
+      ? this.toNumber((todayDailySettlement as any).orderCount)
+      : todayOrders.length;
     const reservationCustomerIds = new Set(reservations.map((reservation) => reservation.customerId));
     const customersAtRisk = customersForInsights
       .map((customer) => ({
@@ -7454,11 +7689,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  async getCustomerSelectContext(
-    storeId: number,
-    userId: number | undefined,
-    query: TerminalCustomerSelectQueryDto,
-  ) {
+  async getCustomerSelectContext(storeId: number, userId: number | undefined, query: TerminalCustomerSelectQueryDto) {
     const scene = query.scene ?? 'appointment';
     const keyword = query.keyword?.trim() ?? '';
     const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 100);

@@ -24,6 +24,7 @@ import type {
   LifecycleAttributionEvent,
   LifecycleBusinessPlan,
   PredictionRunSummary,
+  UnifiedMarketingEffectItem,
   UnifiedMarketingEffectsResponse,
 } from '@/types';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
@@ -228,28 +229,93 @@ export async function realGetAutomationEffects(): Promise<MarketingAutomationEff
 export async function realGetUnifiedMarketingEffects(params?: {
   objectType?: 'all' | MarketingEffectObjectType;
   objectId?: number | string;
-  storeId?: number;
 }): Promise<UnifiedMarketingEffectsResponse> {
-  return apiClient.get('/marketing/effects/unified', {
+  const response = await apiClient.get('/marketing/effects/unified', {
     params: {
       ...(params?.objectType && params.objectType !== 'all' ? { objectType: params.objectType } : {}),
       ...(params?.objectId ? { objectId: params.objectId } : {}),
-      ...(params?.storeId ? { storeId: params.storeId } : {}),
     },
-  });
+  }) as unknown as any;
+  if (!response?.summary?.revenue || typeof response.summary.revenue !== 'object') {
+    return response as UnifiedMarketingEffectsResponse;
+  }
+
+  const dimensionMap = {
+    activity: response.dimensions?.activities ?? [],
+    auto: response.dimensions?.strategies ?? [],
+    page: response.dimensions?.pages ?? [],
+    promotion: response.dimensions?.promotions ?? [],
+    recommendation: response.dimensions?.recommendations ?? [],
+    glow: response.dimensions?.channels ?? [],
+  } as const;
+  const requestedType = params?.objectType && params.objectType !== 'all' ? params.objectType : undefined;
+  const entries = requestedType
+    ? dimensionMap[requestedType]
+    : Object.entries(dimensionMap).flatMap(([objectType, values]) => values.map((value: any) => ({ ...value, objectType })));
+  const sourceLabel = (source?: string) => source === 'actual' ? '真实' : source === 'predicted' ? '预测' : '估算';
+  const typeLabel: Record<MarketingEffectObjectType, string> = {
+    activity: '推广活动', auto: '自动触达', page: '推广页', promotion: '权益资产', recommendation: '智能推荐', glow: 'Ami Glow',
+  };
+  const items = entries
+    .map((entry: any) => {
+      const objectType = (requestedType ?? entry.objectType) as MarketingEffectObjectType;
+      const exposureCount = Number(entry.exposure?.value ?? 0);
+      const conversionCount = Number(entry.conversions?.value ?? 0);
+      const revenue = Number(entry.revenue?.value ?? 0);
+      const cost = Number(entry.cost?.value ?? 0);
+      return {
+        id: `${objectType}-${entry.id}`,
+        objectId: entry.id,
+        objectType,
+        objectTypeLabel: typeLabel[objectType],
+        objectName: entry.name ?? `${typeLabel[objectType]} #${entry.id}`,
+        status: '已记录',
+        exposureCount,
+        clickCount: Number(entry.clicks?.value ?? 0),
+        conversionCount,
+        revenue,
+        cost,
+        roi: `${Number(entry.roi?.value ?? 0)}x`,
+        conversionRate: exposureCount > 0 ? `${Math.round((conversionCount / exposureCount) * 1000) / 10}%` : '0%',
+        metricsSource: `${sourceLabel(entry.revenue?.source)}收入 / ${sourceLabel(entry.cost?.source)}成本`,
+        metrics: {
+          exposure: entry.exposure,
+          conversion: entry.conversions,
+          revenue: entry.revenue,
+          cost: entry.cost,
+        },
+      } as UnifiedMarketingEffectItem;
+    })
+    .filter((entry: UnifiedMarketingEffectItem) => params?.objectId ? String(entry.objectId) === String(params.objectId) : true);
+
+  return {
+    items,
+    summary: {
+      totalObjects: items.length,
+      exposureCount: Number(response.summary.exposure?.value ?? 0),
+      clickCount: Number(response.summary.clicks?.value ?? 0),
+      conversionCount: Number(response.summary.conversions?.value ?? 0),
+      revenue: Number(response.summary.revenue?.value ?? 0),
+      cost: Number(response.summary.cost?.value ?? 0),
+      roi: `${Number(response.summary.roi?.value ?? 0)}x`,
+    },
+    metricSummary: response.summary,
+    dimensions: response.dimensions,
+    emptyReasons: {},
+    generatedAt: response.generatedAt,
+  };
 }
 
-export async function realRunPredictions(storeId?: number): Promise<PredictionRunSummary> {
-  return apiClient.post('/marketing/predictions/run', storeId ? { storeId } : {});
+export async function realRunPredictions(): Promise<PredictionRunSummary> {
+  return apiClient.post('/marketing/predictions/run', {});
 }
 
-export async function realGetLatestPredictionSummary(storeId?: number): Promise<PredictionRunSummary | null> {
-  return apiClient.get('/marketing/predictions/latest', { params: storeId ? { storeId } : undefined });
+export async function realGetLatestPredictionSummary(): Promise<PredictionRunSummary | null> {
+  return apiClient.get('/marketing/predictions/latest');
 }
 
 export async function realGetPredictionCustomers(
   params: PaginationParams & {
-    storeId?: number;
     churnLevel?: string;
     ltvTier?: string;
     minRepurchaseScore?: number;
@@ -267,7 +333,6 @@ export async function realGetCustomerPrediction(customerId: number): Promise<{
 }
 
 export async function realRebuildCustomerLifecycleOntology(data: {
-  storeId?: number;
   predictionRunId?: number;
   includeServiceCycles?: boolean;
   includeFulfillmentChecks?: boolean;
@@ -329,8 +394,8 @@ export async function realGetCustomerLifecycleAttribution(params?: {
   return apiClient.get('/marketing/lifecycle/attribution', { params });
 }
 
-export async function realGetCustomerLifecycleQuality(storeId?: number): Promise<CustomerLifecycleQualitySnapshot | null> {
-  return apiClient.get('/marketing/lifecycle/quality', { params: storeId ? { storeId } : undefined });
+export async function realGetCustomerLifecycleQuality(): Promise<CustomerLifecycleQualitySnapshot | null> {
+  return apiClient.get('/marketing/lifecycle/quality');
 }
 
 export async function realGetCustomerLifecycleRules(params?: {
@@ -345,7 +410,6 @@ export async function realCreateCustomerLifecycleRule(data: {
   ruleJson: Record<string, unknown>;
   rolloutRatio?: number;
   changeLog?: string;
-  storeId?: number;
 }): Promise<CustomerLifecycleRuleVersion> {
   return apiClient.post('/marketing/lifecycle/rules', data);
 }
@@ -359,7 +423,6 @@ export async function realRollbackCustomerLifecycleRule(id: number): Promise<Cus
 }
 
 export async function realCreateLifecycleBusinessPlan(data: {
-  storeId?: number;
   planPeriod?: string;
   title?: string;
   goalsJson?: Record<string, unknown>;
@@ -372,14 +435,12 @@ export async function realSubmitLifecycleBusinessPlanActions(id: number): Promis
 }
 
 export async function realGetInvitationCandidates(params?: {
-  storeId?: number;
   limit?: number;
 }): Promise<InvitationCandidateResponse> {
   return apiClient.get('/marketing/invitation-candidates', { params });
 }
 
 export async function realRecordCustomerBehaviorEvent(data: {
-  storeId: number;
   customerId: number;
   eventType: string;
   targetType?: string;
