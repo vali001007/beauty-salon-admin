@@ -39,6 +39,7 @@ describe('MarketingPagesService', () => {
       marketingPage: {
         findMany: jest.fn(),
         count: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
@@ -130,14 +131,16 @@ describe('MarketingPagesService', () => {
   it('rejects linking a marketing page to an activity from another store', async () => {
     prisma.marketingActivity.findFirst.mockResolvedValue(null);
 
-    await expect(service.createPage({
-      storeId: 8,
-      activityId: 31,
-      sourceType: 'activity',
-      sourceId: '31',
-      title: '跨店活动页',
-      pageSchema: { sections: [] },
-    } as any)).rejects.toThrow(BadRequestException);
+    await expect(
+      service.createPage({
+        storeId: 8,
+        activityId: 31,
+        sourceType: 'activity',
+        sourceId: '31',
+        title: '跨店活动页',
+        pageSchema: { sections: [] },
+      } as any),
+    ).rejects.toThrow(BadRequestException);
   });
 
   describe('createPage', () => {
@@ -148,9 +151,9 @@ describe('MarketingPagesService', () => {
       await expect(service.createPage({ title: '页面', sourceType: '', pageSchema: {} })).rejects.toThrow(
         BadRequestException,
       );
-      await expect(service.createPage({ title: '页面', sourceType: 'product', pageSchema: undefined as any })).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.createPage({ title: '页面', sourceType: 'product', pageSchema: undefined as any }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('creates a draft with share url and miniapp path', async () => {
@@ -191,12 +194,14 @@ describe('MarketingPagesService', () => {
 
   describe('publishPage', () => {
     it('creates a new version and publishes the page', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue(basePage);
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
       prisma.marketingPageVersion.findFirst.mockResolvedValue({ version: 2 });
       prisma.marketingPageVersion.create.mockResolvedValue({ id: 12 });
       prisma.marketingPage.update.mockResolvedValue({ ...basePage, status: 'published' });
 
-      await service.publishPage(1, 9);
+      await service.publishPage(1, 8, 9);
+
+      expect(prisma.marketingPage.findFirst).toHaveBeenCalledWith({ where: { id: 1, storeId: 8 } });
 
       expect(prisma.marketingPageVersion.create).toHaveBeenCalledWith({
         data: {
@@ -221,23 +226,45 @@ describe('MarketingPagesService', () => {
     });
 
     it('throws when the page does not exist', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue(null);
+      prisma.marketingPage.findFirst.mockResolvedValue(null);
 
-      await expect(service.publishPage(404, 9)).rejects.toThrow(NotFoundException);
+      await expect(service.publishPage(404, 8, 9)).rejects.toThrow(NotFoundException);
       expect(prisma.marketingPageVersion.create).not.toHaveBeenCalled();
     });
   });
 
   describe('management actions', () => {
+    it('scopes page reads to the active store', async () => {
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
+
+      await expect(service.getPage(1, 8)).resolves.toEqual({
+        ...basePage,
+        shareUrl: 'https://share.ami.test/page/mp-product-101',
+      });
+
+      expect(prisma.marketingPage.findFirst).toHaveBeenCalledWith({ where: { id: 1, storeId: 8 } });
+    });
+
+    it('does not expose a page owned by another store', async () => {
+      prisma.marketingPage.findFirst.mockResolvedValue(null);
+
+      await expect(service.getPage(1, 7)).rejects.toThrow(NotFoundException);
+      expect(prisma.marketingPage.findFirst).toHaveBeenCalledWith({ where: { id: 1, storeId: 7 } });
+    });
+
     it('updates editable page fields', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue(basePage);
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
       prisma.marketingPage.update.mockResolvedValue({ ...basePage, title: '更新后的页面' });
 
-      await service.updatePage(1, {
-        title: '更新后的页面',
-        pageSchema: { schemaVersion: '1.0', sections: [] },
-        shareDescription: '新的分享描述',
-      });
+      await service.updatePage(
+        1,
+        {
+          title: '更新后的页面',
+          pageSchema: { schemaVersion: '1.0', sections: [] },
+          shareDescription: '新的分享描述',
+        },
+        8,
+      );
 
       expect(prisma.marketingPage.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -249,11 +276,23 @@ describe('MarketingPagesService', () => {
       });
     });
 
+    it('ignores a client store override when updating a page', async () => {
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
+      prisma.marketingPage.update.mockResolvedValue(basePage);
+
+      await service.updatePage(1, { title: '安全更新', storeId: 99 } as any, 8);
+
+      expect(prisma.marketingPage.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: expect.not.objectContaining({ storeId: expect.anything() }),
+      });
+    });
+
     it('marks a page offline', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue({ ...basePage, status: 'published' });
+      prisma.marketingPage.findFirst.mockResolvedValue({ ...basePage, status: 'published' });
       prisma.marketingPage.update.mockResolvedValue({ ...basePage, status: 'offline' });
 
-      await service.offlinePage(1);
+      await service.offlinePage(1, 8);
 
       expect(prisma.marketingPage.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -265,10 +304,10 @@ describe('MarketingPagesService', () => {
     });
 
     it('duplicates a page as a new draft with a new slug', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue(basePage);
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
       prisma.marketingPage.create.mockResolvedValue({ ...basePage, id: 2, title: '水光护理体验页 副本' });
 
-      await service.duplicatePage(1, 9);
+      await service.duplicatePage(1, 8, 9);
 
       expect(prisma.marketingPage.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -288,12 +327,12 @@ describe('MarketingPagesService', () => {
     it('returns recent events and leads for a page', async () => {
       const events = [{ id: 1, pageId: 1, eventType: 'view' }];
       const leads = [{ id: 2, pageId: 1, phone: '13800138000' }];
-      prisma.marketingPage.findUnique.mockResolvedValue(basePage);
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
       prisma.marketingPageEvent.findMany.mockResolvedValue(events);
       prisma.marketingPageLead.findMany.mockResolvedValue(leads);
 
-      await expect(service.getPageEvents(1)).resolves.toBe(events);
-      await expect(service.getPageLeads(1)).resolves.toBe(leads);
+      await expect(service.getPageEvents(1, 8)).resolves.toBe(events);
+      await expect(service.getPageLeads(1, 8)).resolves.toBe(leads);
 
       expect(prisma.marketingPageEvent.findMany).toHaveBeenCalledWith({
         where: { pageId: 1 },
@@ -395,27 +434,41 @@ describe('MarketingPagesService', () => {
     });
 
     it('records public event with channel attribution and hashed ip', async () => {
+      const facts = { recordFact: jest.fn().mockResolvedValue({ id: 1 }) };
+      service = new MarketingPagesService(
+        prisma as unknown as PrismaService,
+        facts as any,
+        { effectFactWrite: true } as any,
+      );
       prisma.marketingPage.findUnique.mockResolvedValue({ ...basePage, status: 'published' });
-      prisma.marketingPageEvent.create.mockResolvedValue({ id: 20 });
+      prisma.marketingPageEvent.create.mockResolvedValue({
+        id: 20,
+        eventType: 'view',
+        customerId: 6,
+        channel: 'wechat_group',
+        occurredAt: new Date('2026-06-07T10:00:00.000Z'),
+      });
 
-      await expect(service.recordPublicEvent(
-        'mp-product-101',
-        {
-          customerId: 6,
-          sessionId: 's-1',
-          eventType: 'view',
-          channel: 'wechat_group',
-          staffId: 5,
-          metadataJson: {
-            ctaAction: 'book',
-            phone: '13800138000',
-            ip: '127.0.0.1',
-            nested: { mobile: '13800138001', sectionType: 'hero' },
+      await expect(
+        service.recordPublicEvent(
+          'mp-product-101',
+          {
+            customerId: 6,
+            sessionId: 's-1',
+            eventType: 'view',
+            channel: 'wechat_group',
+            staffId: 5,
+            metadataJson: {
+              ctaAction: 'book',
+              phone: '13800138000',
+              ip: '127.0.0.1',
+              nested: { mobile: '13800138001', sectionType: 'hero' },
+            },
+            occurredAt: '2026-06-07T10:00:00.000Z',
           },
-          occurredAt: '2026-06-07T10:00:00.000Z',
-        },
-        { ip: '127.0.0.1', userAgent: 'Vitest' },
-      )).resolves.toEqual({ ok: true });
+          { ip: '127.0.0.1', userAgent: 'Vitest' },
+        ),
+      ).resolves.toEqual({ ok: true });
 
       expect(prisma.marketingPageEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -432,14 +485,21 @@ describe('MarketingPagesService', () => {
         }),
       });
       expect(prisma.marketingPageEvent.create.mock.calls[0][0].data.ipHash).toHaveLength(32);
+      expect(facts.recordFact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          factType: 'exposure',
+          sourceEventId: 'event:20',
+          dimensions: expect.objectContaining({ pageId: 1, customerId: 6, channel: 'wechat_group' }),
+        }),
+      );
     });
 
     it('rejects unsupported public event type', async () => {
       prisma.marketingPage.findUnique.mockResolvedValue({ ...basePage, status: 'published' });
 
-      await expect(
-        service.recordPublicEvent('mp-product-101', { eventType: 'unknown' }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.recordPublicEvent('mp-product-101', { eventType: 'unknown' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -452,22 +512,26 @@ describe('MarketingPagesService', () => {
       prisma.marketingPageLead.create.mockResolvedValue(lead);
       prisma.marketingPageEvent.create.mockResolvedValue({ id: 31 });
 
-      const result = await service.submitLead('mp-product-101', {
-        name: '王女士',
-        phone: '13800138000',
-        sessionId: 's-2',
-        channel: 'poster',
-        staffId: 4,
-        campaignId: 'summer-hydration',
-        source: 'wechat',
-        medium: 'poster',
-        metadataJson: {
-          ctaAction: 'book',
+      const result = await service.submitLead(
+        'mp-product-101',
+        {
+          name: '王女士',
           phone: '13800138000',
-          realName: 'Internal name',
-          nested: { telephone: '13800138001', sectionType: 'offer' },
+          sessionId: 's-2',
+          channel: 'poster',
+          staffId: 4,
+          campaignId: 'summer-hydration',
+          source: 'wechat',
+          medium: 'poster',
+          metadataJson: {
+            ctaAction: 'book',
+            phone: '13800138000',
+            realName: 'Internal name',
+            nested: { telephone: '13800138001', sectionType: 'offer' },
+          },
         },
-      }, { ip: '127.0.0.1', userAgent: 'Vitest' });
+        { ip: '127.0.0.1', userAgent: 'Vitest' },
+      );
 
       expect(result).toEqual({ ok: true, intentType: 'consult' });
       expect(prisma.marketingPageLead.findMany).toHaveBeenCalledWith({
@@ -539,9 +603,9 @@ describe('MarketingPagesService', () => {
       prisma.marketingPage.findUnique.mockResolvedValue({ ...basePage, status: 'published' });
       prisma.marketingPageLead.findMany.mockResolvedValue([{ id: 99 }]);
 
-      await expect(
-        service.submitLead('mp-product-101', { phone: '13800138000', sessionId: 's-2' }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.submitLead('mp-product-101', { phone: '13800138000', sessionId: 's-2' })).rejects.toThrow(
+        BadRequestException,
+      );
       expect(prisma.marketingPageLead.create).not.toHaveBeenCalled();
     });
 
@@ -555,7 +619,7 @@ describe('MarketingPagesService', () => {
 
   describe('getPageEffects', () => {
     it('aggregates page effect metrics by channel and day', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue(basePage);
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
       prisma.marketingPageEvent.findMany.mockResolvedValue([
         {
           id: 1,
@@ -605,7 +669,7 @@ describe('MarketingPagesService', () => {
         { id: 11, intentType: 'book' },
       ]);
 
-      const result = await service.getPageEffects(1);
+      const result = await service.getPageEffects(1, 8);
 
       expect(result).toMatchObject({
         pageId: 1,
@@ -631,7 +695,7 @@ describe('MarketingPagesService', () => {
 
   describe('attribution analytics', () => {
     it('returns single page attribution metrics', async () => {
-      prisma.marketingPage.findUnique.mockResolvedValue(basePage);
+      prisma.marketingPage.findFirst.mockResolvedValue(basePage);
       prisma.marketingPageAttribution.findMany.mockResolvedValue([
         {
           id: 1,
@@ -647,7 +711,7 @@ describe('MarketingPagesService', () => {
         },
       ]);
 
-      await expect(service.getPageAttribution(1)).resolves.toEqual({
+      await expect(service.getPageAttribution(1, 8)).resolves.toEqual({
         pageId: 1,
         attributionCount: 1,
         totalRevenue: 680,
