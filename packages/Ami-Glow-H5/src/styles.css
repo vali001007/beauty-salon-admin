@@ -647,6 +647,28 @@ img {
   flex-direction: column;
 }
 
+.notification-card {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.notification-card.unread {
+  border-color: rgba(194, 41, 115, 0.32);
+  box-shadow: 0 8px 24px rgba(194, 41, 115, 0.08);
+}
+
+.notification-card.read {
+  cursor: default;
+  opacity: 0.78;
+}
+
+.notification-card small {
+  color: #8d7383;
+}
+
 .member-card {
   padding: 22px;
   color: #ffffff;

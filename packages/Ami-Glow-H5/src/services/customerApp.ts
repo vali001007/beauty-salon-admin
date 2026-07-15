@@ -6,6 +6,8 @@ import type {
   BeauticianItem,
   CustomerProfile,
   HomeData,
+  MarketingNotification,
+  MarketingNotificationPage,
   Paginated,
   ProjectItem,
   ReservationItem,
@@ -115,6 +117,14 @@ export function getConsumptionRecords(params: { page?: number; pageSize?: number
 
 export function getMemberCard() {
   return request<any>('/customer-app/me/member-card');
+}
+
+export function getNotifications(params: { page?: number; pageSize?: number } = {}) {
+  return request<MarketingNotificationPage>(`/customer-app/me/notifications${buildQuery(params)}`);
+}
+
+export function openNotification(id: number) {
+  return request<MarketingNotification>(`/customer-app/me/notifications/${id}/open`, { method: 'POST' });
 }
 
 export function claimPromotion(id: number, data: { storeId?: number; channel?: string; source?: string; sessionId?: string } = {}) {

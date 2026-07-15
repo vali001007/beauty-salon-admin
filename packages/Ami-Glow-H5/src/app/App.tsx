@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  Bell,
   CalendarDays,
   ChevronRight,
   Clock,
@@ -25,6 +26,7 @@ import {
   getConsumptionRecords,
   getHome,
   getMemberCard,
+  getNotifications,
   getMyCards,
   getMyReservations,
   getProjectDetail,
@@ -32,6 +34,7 @@ import {
   getSkinRecommendations,
   getSkinReport,
   h5GuestLogin,
+  openNotification,
   trackEvent,
 } from '../services/customerApp';
 import { ApiError } from '../services/request';
@@ -40,6 +43,8 @@ import type {
   AvailabilitySlot,
   BeauticianItem,
   HomeData,
+  MarketingNotification,
+  MarketingNotificationPage,
   Paginated,
   ProjectItem,
   ReservationItem,
@@ -750,8 +755,79 @@ function MinePage() {
           <span>会员卡</span>
           <ChevronRight size={16} />
         </Link>
+        <Link to="/mine/notifications">
+          <Bell size={20} />
+          <span>站内通知</span>
+          <ChevronRight size={16} />
+        </Link>
       </section>
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+    </PageShell>
+  );
+}
+
+function NotificationsPage() {
+  const session = useSession();
+  const [state, setState] = useState<LoadState<MarketingNotificationPage>>({ loading: Boolean(session.customer) });
+
+  const load = () => {
+    if (!session.customer) {
+      setState({ loading: false });
+      return;
+    }
+    setState((current) => ({ ...current, loading: true, error: undefined }));
+    getNotifications({ page: 1, pageSize: 20 })
+      .then((data) => setState({ data, loading: false }))
+      .catch((err) => setState({ loading: false, error: getErrorMessage(err, '站内通知加载失败') }));
+  };
+
+  useEffect(load, [session.customer?.id]);
+
+  const handleOpen = async (notification: MarketingNotification) => {
+    if (notification.status !== 'delivered') return;
+    try {
+      const opened = await openNotification(notification.id);
+      setState((current) => current.data ? {
+        ...current,
+        data: {
+          ...current.data,
+          unreadCount: Math.max(0, current.data.unreadCount - 1),
+          items: current.data.items.map((item) => item.id === opened.id ? opened : item),
+        },
+      } : current);
+    } catch (err) {
+      window.alert(getErrorMessage(err, '通知状态更新失败'));
+    }
+  };
+
+  return (
+    <PageShell title="站内通知">
+      <AuthGate>
+        {state.data ? <p className="muted">未读 {state.data.unreadCount} 条</p> : null}
+        {state.loading ? <StateBlock loading title="通知加载中" /> : null}
+        {state.error ? <StateBlock title="通知暂不可访问" description={state.error} /> : null}
+        <div className="list-stack">
+          {state.data?.items.length ? (
+            state.data.items.map((notification) => (
+              <button
+                type="button"
+                className={`service-card notification-card ${notification.status === 'delivered' ? 'unread' : 'read'}`}
+                key={notification.id}
+                onClick={() => handleOpen(notification)}
+              >
+                <div className="row-between">
+                  <strong>{notification.title}</strong>
+                  <span className="tag">{notification.status === 'delivered' ? '未读' : '已读'}</span>
+                </div>
+                <p>{notification.content}</p>
+                <small>{displayDate(notification.deliveredAt || notification.createdAt)}</small>
+              </button>
+            ))
+          ) : !state.loading ? (
+            <StateBlock title="暂无站内通知" description="护理提醒和会员权益消息会显示在这里。" />
+          ) : null}
+        </div>
+      </AuthGate>
     </PageShell>
   );
 }
@@ -1135,6 +1211,7 @@ export function App() {
       <Route path="/mine/cards" element={<CardsPage />} />
       <Route path="/mine/consumption-records" element={<ConsumptionRecordsPage />} />
       <Route path="/mine/member-card" element={<MemberCardPage />} />
+      <Route path="/mine/notifications" element={<NotificationsPage />} />
       <Route path="/tools" element={<ToolsPage />} />
       <Route path="/skin-test" element={<SkinTestPage />} />
       <Route path="/skin-reports/:id" element={<SkinReportPage />} />

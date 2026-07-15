@@ -152,6 +152,28 @@ export class CustomerAppController {
     return this.customerAppService.getMyMemberCard(user);
   }
 
+  @Get('me/notifications')
+  @ApiBearerAuth()
+  @UseGuards(CustomerAppAuthGuard)
+  @ApiOperation({ summary: 'Ami Glow 我的站内通知' })
+  myNotifications(
+    @CurrentCustomerAppUser() user: CustomerAppTokenPayload,
+    @Query() query: CustomerAppPaginationDto,
+  ) {
+    return this.customerAppService.getMyNotifications(user, query);
+  }
+
+  @Post('me/notifications/:id/open')
+  @ApiBearerAuth()
+  @UseGuards(CustomerAppAuthGuard)
+  @ApiOperation({ summary: 'Ami Glow 标记站内通知已打开' })
+  openMyNotification(
+    @CurrentCustomerAppUser() user: CustomerAppTokenPayload,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.customerAppService.openMyNotification(user, id);
+  }
+
   @Post('skin-tests/analyze')
   @ApiBearerAuth()
   @UseGuards(CustomerAppAuthGuard)
