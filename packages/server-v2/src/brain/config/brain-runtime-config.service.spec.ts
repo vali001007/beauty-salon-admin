@@ -25,8 +25,8 @@ describe('BrainRuntimeConfigService', () => {
       capabilityMinConfidence: 0.3,
       maxPlanNodes: 8,
       maxReplans: 2,
-      totalTimeoutMs: 20_000,
-      modelTimeoutMs: 12_000,
+      totalTimeoutMs: 30_000,
+      modelTimeoutMs: 20_000,
       singleToolFastPath: true,
       allowCandidateInspectionGuards: false,
     });
@@ -78,8 +78,9 @@ describe('BrainRuntimeConfigService', () => {
     ['BRAIN_CAPABILITY_MIN_CONFIDENCE', '1.1', 'must be between 0 and 1'],
     ['BRAIN_MAX_PLAN_NODES', '9', 'must be between 1 and 8'],
     ['BRAIN_MAX_REPLANS', '-1', 'must be between 0 and 2'],
-    ['BRAIN_TOTAL_TIMEOUT_MS', '999', 'must be between 1000 and 20000'],
-    ['BRAIN_MODEL_TIMEOUT_MS', '15001', 'must be between 100 and 15000'],
+    ['BRAIN_TOTAL_TIMEOUT_MS', '999', 'must be between 1000 and 30000'],
+    ['BRAIN_TOTAL_TIMEOUT_MS', '30001', 'must be between 1000 and 30000'],
+    ['BRAIN_MODEL_TIMEOUT_MS', '20001', 'must be between 100 and 20000'],
     ['BRAIN_SINGLE_TOOL_FAST_PATH', 'yes', 'must be true or false'],
     ['BRAIN_ALLOW_CANDIDATE_INSPECTION_GUARDS', 'yes', 'must be true or false'],
   ])('rejects invalid %s=%s during startup', (key, value, expectedMessage) => {

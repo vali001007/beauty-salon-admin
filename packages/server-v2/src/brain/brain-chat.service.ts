@@ -1547,9 +1547,10 @@ export class BrainChatService {
   }
 
   private shouldUseModelSupervisor(intent: BrainSemanticIntent) {
+    // Domains are retrieval signals, not a proxy for the number of execution steps.
+    // A single governed capability can legitimately cover several related domains.
     return (
       intent.intent === 'workflow' ||
-      intent.domains.length > 1 ||
       (['diagnosis', 'recommendation', 'action'].includes(intent.intent) && intent.successCriteria.length > 1)
     );
   }

@@ -214,6 +214,8 @@ function buildModelIntentSchema(): Record<string, unknown> {
   schema.properties.dimensions.items = compactDefinitionRefSchema(['dimension']);
   schema.properties.filters.items.properties.fieldRef = compactDefinitionRefSchema(['field']);
   schema.properties.orderBy.items.properties.definitionRef = compactDefinitionRefSchema(['metric', 'dimension', 'field']);
+  delete schema.properties.timeRange;
+  delete schema.properties.comparisonTarget;
   return schema;
 }
 
@@ -246,8 +248,6 @@ export const BRAIN_SEMANTIC_INTENT_PROMPT_SCHEMA = {
     metrics: 'array of exact governed metric definitionRef objects',
     dimensions: 'array of exact governed dimension definitionRef objects',
     filters: 'array of {fieldRef, operator, value}; use [] when no governed fieldRef exists',
-    timeRange: 'optional {preset?, startDate?, endDate?, label, timezone}',
-    comparisonTarget: 'optional time or entity comparison target',
     orderBy: 'array of {definitionRef, direction}',
     limit: 'optional positive integer',
     answerShape: `one string enum: ${BRAIN_SEMANTIC_ANSWER_SHAPES.join(' | ')}`,

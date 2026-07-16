@@ -769,10 +769,13 @@ describe('BrainSemanticIntentCompilerService', () => {
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('不得决定 userId、storeId、permissions 或 data scope');
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('不得输出隐藏推理');
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('decisionSummary');
+    expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('不得输出 timeRange 或 comparisonTarget');
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('本月商品销售排行');
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('哪些货卖得最好');
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('等价');
     expect(BRAIN_SEMANTIC_INTENT_SYSTEM_PROMPT).toContain('comparisonTarget');
+    expect(BRAIN_SEMANTIC_INTENT_PROMPT_SCHEMA.fieldContract).not.toHaveProperty('timeRange');
+    expect(BRAIN_SEMANTIC_INTENT_PROMPT_SCHEMA.fieldContract).not.toHaveProperty('comparisonTarget');
   });
 
   it.each(['SCHEMA_INVALID', 'JSON_INVALID', 'PROVIDER_UNAVAILABLE'] as const)(

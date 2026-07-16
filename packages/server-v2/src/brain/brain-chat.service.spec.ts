@@ -583,6 +583,93 @@ describe('BrainChatService', () => {
     );
   });
 
+  it('keeps a multi-domain read-only comparison on the selected single capability', async () => {
+    const card = {
+      key: 'finance_payment_breakdown',
+      version: 13,
+      name: '实收与储值流水拆分',
+      description: '实收比较',
+      domains: ['finance', 'payment'],
+      intents: ['comparison', 'query'],
+      readOnly: true,
+      sideEffect: false,
+      requiredPermissions: [],
+    };
+    const orchestrator = { createModelExecutionPlan: jest.fn() };
+    const { prisma, modelPipeline, service } = createService({
+      modelPipeline: {
+        catalog: { listEnabledCapabilities: jest.fn().mockResolvedValue([card]) },
+        planner: {
+          plan: jest.fn(({ intent }) => ({
+            status: 'planned',
+            plan: {
+              schemaVersion: '1.0',
+              planId: 'single:finance_payment_breakdown:v13',
+              objective: intent.objective,
+              isSingleStep: true,
+              replanCount: 0,
+              budgetMs: 1000,
+              nodes: [{
+                id: 'capability_1',
+                capabilityKey: card.key,
+                capabilityVersion: card.version,
+                dependsOn: [],
+                previewOnly: false,
+                args: { objective: intent.objective, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+              }],
+            },
+          })),
+        },
+        executor: {
+          execute: jest.fn().mockResolvedValue({
+            status: 'completed',
+            answer: '本月实收较上月减少 1000.00 元。',
+            citations: [{ sourceType: 'db_skill', sourceId: 'finance_payment_breakdown' }],
+            grounding: 'db_skill',
+            metadata: {},
+          }),
+        },
+      },
+      orchestrator,
+    });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: {},
+      intent: {
+        schemaVersion: '1.0',
+        objective: '本月进账和上月相比变化多少',
+        domains: ['order', 'payment'],
+        intent: 'comparison',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'comparison',
+        successCriteria: ['返回本月、上月、差额和变化率'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
+        decisionSummary: '实收月度比较',
+      },
+    });
+
+    const response = await service.sendMessage(context, 12, { message: '本月进账和上月相比变化多少' });
+
+    expect(response).toMatchObject({ status: 'completed', planId: 'single:finance_payment_breakdown:v13' });
+    expect(modelPipeline!.planner.plan).toHaveBeenCalledTimes(1);
+    expect(orchestrator.createModelExecutionPlan).not.toHaveBeenCalled();
+    expect(modelPipeline!.bounded.execute).not.toHaveBeenCalled();
+  });
+
   it('uses Supervisor to resolve internal topK ambiguity instead of asking the user to choose a tool', async () => {
     const cards = [
       { key: 'customer_facts', version: 12, name: '客户事实查询', description: '客户名单和事实', domains: ['customer'], intents: ['query'], readOnly: true, sideEffect: false, requiredPermissions: [] },

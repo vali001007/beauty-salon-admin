@@ -80,9 +80,15 @@ describe('BRAIN_SEMANTIC_INTENT_JSON_SCHEMA', () => {
         },
       })),
     };
+    delete (compactIntent as { timeRange?: unknown }).timeRange;
 
     expect(validateModel(compactIntent)).toBe(true);
     expect(validate(compactIntent)).toBe(false);
+    expect(validateModel({ ...compactIntent, timeRange: baseIntent.timeRange })).toBe(false);
+    expect(validateModel({
+      ...compactIntent,
+      comparisonTarget: { type: 'time', timeRange: baseIntent.timeRange },
+    })).toBe(false);
   });
 
   it.each([

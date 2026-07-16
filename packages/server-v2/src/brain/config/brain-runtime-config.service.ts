@@ -38,8 +38,8 @@ export class BrainRuntimeConfigService {
       capabilityMinConfidence: this.readNumber('BRAIN_CAPABILITY_MIN_CONFIDENCE', 0.3, 0, 1),
       maxPlanNodes: this.readInteger('BRAIN_MAX_PLAN_NODES', 8, 1, 8),
       maxReplans: this.readInteger('BRAIN_MAX_REPLANS', 2, 0, 2),
-      totalTimeoutMs: this.readInteger('BRAIN_TOTAL_TIMEOUT_MS', 20_000, 1_000, 20_000),
-      modelTimeoutMs: this.readInteger('BRAIN_MODEL_TIMEOUT_MS', 12_000, 100, 15_000),
+      totalTimeoutMs: this.readInteger('BRAIN_TOTAL_TIMEOUT_MS', 30_000, 1_000, 30_000),
+      modelTimeoutMs: this.readInteger('BRAIN_MODEL_TIMEOUT_MS', 20_000, 100, 20_000),
       singleToolFastPath: this.readBoolean('BRAIN_SINGLE_TOOL_FAST_PATH', true),
       allowCandidateInspectionGuards: this.readBoolean('BRAIN_ALLOW_CANDIDATE_INSPECTION_GUARDS', false),
     };
