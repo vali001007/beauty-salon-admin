@@ -254,7 +254,7 @@ export class BrainAnswerGraderService {
         legacyUsableWithCitation,
       });
     }
-    if (expectedMetric && actualMetric && expectedMetric !== actualMetric) {
+    if (expectedMetric && actualMetric && canonicalMetricKey(expectedMetric) !== canonicalMetricKey(actualMetric)) {
       return this.buildGrade(input, {
         status: 'false_positive_metric_mismatch',
         expectedIntent,
@@ -523,4 +523,9 @@ export class BrainAnswerGraderService {
   ): BrainAnswerGrade {
     return { ...grade, groundingType: this.detectGroundingType(input.citations) };
   }
+}
+
+function canonicalMetricKey(metricKey: string) {
+  if (metricKey === 'paid_revenue') return 'paid_amount';
+  return metricKey;
 }

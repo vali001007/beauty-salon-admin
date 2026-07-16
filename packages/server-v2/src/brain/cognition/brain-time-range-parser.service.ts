@@ -83,6 +83,19 @@ export class BrainTimeRangeParserService {
         comparison: { label: '本月对比上月', current, previous },
       };
     }
+    const explicitMonths = text.match(/([一二三四五六七八九十\d]{1,3})月.*?([一二三四五六七八九十\d]{1,3})月/);
+    if (explicitMonths) {
+      const currentMonth = chineseOrArabicNumber(explicitMonths[1]);
+      const previousMonth = chineseOrArabicNumber(explicitMonths[2]);
+      if (currentMonth >= 1 && currentMonth <= 12 && previousMonth >= 1 && previousMonth <= 12) {
+        const current = this.namedMonthRange(now, currentMonth);
+        const previous = this.namedMonthRange(now, previousMonth, current.startDate);
+        return {
+          range: { ...current, label: `${current.label}对比${previous.label}` },
+          comparison: { label: `${current.label}对比${previous.label}`, current, previous },
+        };
+      }
+    }
     if ((text.includes('本周') || text.includes('这周')) && text.includes('上周')) {
       const current = this.currentWeekRange(now);
       const previous = this.previousWeekRange(now);
@@ -129,7 +142,15 @@ export class BrainTimeRangeParserService {
       );
       return { range: { label: '去年同期', startDate: start, endDate: end, granularity: 'year' } };
     }
-    if (/(同比|环比|跟.*比|和.*比|相比|对比|差多少)/.test(text)) {
+    if (text.includes('环比')) {
+      const current = this.currentMonthRange(now);
+      const previous = this.previousMonthRange(now);
+      return {
+        range: { ...current, label: '本月环比上月' },
+        comparison: { label: '本月环比上月', current, previous },
+      };
+    }
+    if (/(同比|跟.*比|和.*比|相比|对比|差多少)/.test(text)) {
       return { range: { label: '对比时间', startDate: now, endDate: now, granularity: 'day' } };
     }
     return undefined;
@@ -307,6 +328,21 @@ export class BrainTimeRangeParserService {
       label: '上月',
       startDate: new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0),
       endDate: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
+      granularity: 'month',
+    };
+  }
+
+  private namedMonthRange(now: Date, month: number, notAfter?: Date): BrainDateRange {
+    const anchor = notAfter ?? now;
+    let year = anchor.getFullYear();
+    if (month - 1 > anchor.getMonth()) year -= 1;
+    const isCurrentMonth = year === now.getFullYear() && month - 1 === now.getMonth();
+    return {
+      label: `${month}月`,
+      startDate: new Date(year, month - 1, 1, 0, 0, 0, 0),
+      endDate: isCurrentMonth
+        ? this.endOfDay(now)
+        : new Date(year, month, 0, 23, 59, 59, 999),
       granularity: 'month',
     };
   }

@@ -79,10 +79,13 @@ export class BrainCapabilityRetrieverService {
     if (!this.hasPermissions(card, input.context)) return false;
     if (!this.hasAllowedRole(card, input.context)) return false;
 
-    const requestedRefs: BrainDefinitionRef[] = [
-      ...input.intent.metrics,
-      ...input.intent.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef] : [])),
-    ];
+    const metricAndDimensionRefs: BrainDefinitionRef[] = [...input.intent.metrics, ...input.intent.dimensions];
+    const entityRefs = input.intent.entities.flatMap((entity) => {
+      if (!entity.definitionRef) return [];
+      if (metricAndDimensionRefs.length > 0 && !entity.entityKey) return [];
+      return [entity.definitionRef];
+    });
+    const requestedRefs: BrainDefinitionRef[] = [...metricAndDimensionRefs, ...entityRefs];
     return requestedRefs.every((requested) =>
       card.definitionRefs.some(
         (published) =>

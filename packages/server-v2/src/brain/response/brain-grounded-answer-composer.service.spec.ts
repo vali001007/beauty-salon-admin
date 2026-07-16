@@ -42,6 +42,7 @@ describe('BrainGroundedAnswerComposerService', () => {
     expect(result.answer).toContain('实收：100.00 元（本月）');
     expect(result.answer).toContain('客户=张三，金额=88');
     expect(result.answer).toContain('趋势数据');
+    expect(result.answer).toContain('日期=2026-07-15，实收=100.00');
     expect(result.answer).toContain('当前 100 元，上一期 80 元，变化 +20 元');
     expect(result.answer).toContain('[预警] 退款上升');
     expect(result.answer).toContain('需要确认：请选择门店');

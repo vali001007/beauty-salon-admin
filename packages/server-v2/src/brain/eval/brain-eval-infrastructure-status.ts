@@ -1,7 +1,9 @@
 export function isBrainProviderUnavailableOutput(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const failureCode = String((value as Record<string, unknown>).failureCode ?? '');
-  return failureCode === 'MODEL_INTENT_UNAVAILABLE' || failureCode === 'PROVIDER_UNAVAILABLE';
+  return failureCode === 'MODEL_INTENT_UNAVAILABLE' ||
+    failureCode === 'PROVIDER_UNAVAILABLE' ||
+    failureCode === 'PROVIDER_AUTH_FAILED';
 }
 
 export class BrainEvalProviderFailureBreaker {

@@ -176,7 +176,11 @@ export class BrainSemanticIntentCompilerService {
         };
       }
       if (error instanceof AiStructuredOutputError) {
-        if (error.code === 'BUDGET_EXCEEDED' || error.code === 'PROVIDER_UNAVAILABLE') {
+        if (
+          error.code === 'BUDGET_EXCEEDED' ||
+          error.code === 'PROVIDER_UNAVAILABLE' ||
+          error.code === 'PROVIDER_AUTH_FAILED'
+        ) {
           const governedFallback = this.buildExactCapabilityFallback(input, 'model_unavailable');
           if (governedFallback) {
             return {
@@ -222,7 +226,8 @@ export class BrainSemanticIntentCompilerService {
         ),
     );
     if (!capability) return undefined;
-    const intent = exactCapabilityIntent(input.question, capability.intents);
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    const intent = exactCapabilityIntent(input.question, capability.intents, Boolean(parsedTime.comparison));
     if (!intent) return undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
     const comparisonTarget = intent === 'comparison'
@@ -843,15 +848,19 @@ const TIME_RANGE_PRESETS: Record<string, string> = {
 const RETRYABLE_INTENT_ERRORS = new Set(['SCHEMA_INVALID', 'JSON_INVALID', 'PROVIDER_UNAVAILABLE']);
 const MAX_INTENT_ATTEMPTS = 3;
 
-function exactCapabilityIntent(question: string, intents: readonly string[]): BrainSemanticIntent['intent'] | undefined {
+function exactCapabilityIntent(
+  question: string,
+  intents: readonly string[],
+  hasTimeComparison = false,
+): BrainSemanticIntent['intent'] | undefined {
   const allowed = new Set(intents);
   const candidates: BrainSemanticIntent['intent'][] = [
     ...(/排行|排名|(?:谁|哪个).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+/.test(question)
       ? ['ranking' as const]
       : []),
-    ...(/对比|相比|跟.*比|和.*比|差多少/.test(question) ? ['comparison' as const] : []),
+    ...(hasTimeComparison || /对比|相比|跟.*比|和.*比|差多少/.test(question) ? ['comparison' as const] : []),
     ...(/趋势|走势|每天|近三天|最近三天/.test(question) ? ['trend' as const] : []),
-    ...(/怎么样|情况|风险|分析|概览|总结|异常/.test(question) ? ['diagnosis' as const] : []),
+    ...(/怎么样|情况|风险|分析|概览|总结|异常|原因|为什么|下降|变差|不赚钱|根因/.test(question) ? ['diagnosis' as const] : []),
     ...(/建议|推荐|适合/.test(question) ? ['recommendation' as const] : []),
     'query',
   ];

@@ -413,6 +413,38 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('resolves a generic month-over-month comparison and removes model time ambiguities', async () => {
+    const modelIntent: BrainSemanticIntent = {
+      ...productRankingIntent,
+      objective: '判断收入环比涨跌和差额',
+      intent: 'comparison',
+      metrics: [],
+      dimensions: [],
+      orderBy: [],
+      answerShape: 'comparison',
+      timeRange: undefined,
+      comparisonTarget: undefined,
+      ambiguities: [{ slot: 'timeRange', reason: '未指定环比周期', candidates: [] }],
+      missingSlots: ['timeRange', 'comparisonTarget'],
+    };
+    const compiler = createCompiler(fakeAiService(async () => structuredResult(modelIntent)));
+
+    const result = await compiler.compile(compilerInput('收入环比是涨了还是跌了，差额多少'));
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      intent: {
+        timeRange: { preset: 'this_month', label: '本月', timezone: 'Asia/Shanghai' },
+        comparisonTarget: {
+          type: 'time',
+          timeRange: { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' },
+        },
+        ambiguities: [],
+        missingSlots: [],
+      },
+    });
+  });
+
   it('aligns a query intent with its model-selected diagnosis shape and referenced definition domains', async () => {
     const modelIntent: BrainSemanticIntent = {
       ...productRankingIntent,
@@ -872,6 +904,63 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('keeps an exact governed month-over-month example as comparison instead of query', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('收入环比是涨了还是跌了，差额多少');
+    input.capabilitySummaries = [{
+      key: 'finance_payment_breakdown',
+      name: '实收与储值流水拆分',
+      description: '实收查询、趋势与周期对比',
+      domains: ['finance', 'payment'],
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      examples: ['收入环比是涨了还是跌了，差额多少'],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      intent: {
+        intent: 'comparison',
+        answerShape: 'comparison',
+        timeRange: { preset: 'this_month', label: '本月' },
+        comparisonTarget: { type: 'time', timeRange: { preset: 'last_month', label: '上月' } },
+      },
+    });
+  });
+
+  it('keeps an exact governed root-cause example as diagnosis instead of query', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('最近毛利掉下来的主要原因是什么');
+    input.capabilitySummaries = [{
+      key: 'finance_risk_overview',
+      name: '财务经营风险概览',
+      description: '诊断收入、退款、折扣、成本和毛利变化',
+      domains: ['finance', 'operating_cost', 'payment', 'refund'],
+      intents: ['query', 'diagnosis'],
+      examples: ['最近毛利掉下来的主要原因是什么'],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef, refundAmountMetricRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      intent: {
+        intent: 'diagnosis',
+        answerShape: 'diagnosis',
+        timeRange: { label: '最近30天' },
+      },
+    });
+  });
+
   it('hydrates governed metric, grouping dimension and ordering for an exact ranking fallback', async () => {
     const aiService = fakeAiService(async () => {
       throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
@@ -1200,6 +1289,25 @@ describe('BrainSemanticIntentCompilerService', () => {
       errorCode: 'MODEL_UNAVAILABLE',
       reason: 'model connection reset',
     });
+  });
+
+  it('does not retry a provider authentication failure', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError(
+        'PROVIDER_AUTH_FAILED',
+        'invalid provider credential',
+        'kimi',
+        'fallback-model',
+      );
+    });
+    const compiler = createCompiler(aiService);
+
+    await expect(compiler.compile(compilerInput('这个月商品卖得怎么样'))).resolves.toEqual({
+      status: 'unavailable',
+      errorCode: 'PROVIDER_AUTH_FAILED',
+      reason: 'invalid provider credential',
+    });
+    expect(aiService.generateStructured).toHaveBeenCalledTimes(1);
   });
 
   it('uses a PII-masked context for the single structured repair request', async () => {

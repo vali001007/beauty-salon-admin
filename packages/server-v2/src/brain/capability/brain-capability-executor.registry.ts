@@ -1,4 +1,5 @@
 import { ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
+import type { BrainSemanticAnswerShape } from '../cognition/brain-semantic-intent.types.js';
 import type { BrainRequestContext } from '../context/brain-request-context.js';
 import type { BrainDomainAnswer } from '../domain/brain-domain-adapter.types.js';
 import type { BrainCapabilityCard } from './brain-capability.types.js';
@@ -14,6 +15,7 @@ export interface BrainCapabilityExecutionInput {
   runId: number;
   planId?: string;
   question: string;
+  answerShape?: BrainSemanticAnswerShape;
   args: Record<string, unknown>;
 }
 

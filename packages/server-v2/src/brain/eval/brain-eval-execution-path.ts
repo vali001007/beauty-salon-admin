@@ -19,7 +19,12 @@ export function resolveBrainEvalExecutionPath(value: unknown): BrainEvalExecutio
   }
   if (cognitionMode === 'rules') return 'rules';
   if (cognitionMode === 'model' && (provider || model)) return 'model_primary';
-  if (cognitionMode === 'model' || failureCode?.startsWith('MODEL_') || failureCode === 'PROVIDER_UNAVAILABLE') {
+  if (
+    cognitionMode === 'model' ||
+    failureCode?.startsWith('MODEL_') ||
+    failureCode === 'PROVIDER_UNAVAILABLE' ||
+    failureCode === 'PROVIDER_AUTH_FAILED'
+  ) {
     return 'model_unavailable';
   }
   return 'unknown';

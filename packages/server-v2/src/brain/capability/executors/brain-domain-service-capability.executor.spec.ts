@@ -453,6 +453,60 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     ]);
   });
 
+  it('compares governed paid amounts across two structured time ranges', async () => {
+    const skillRuntime = {
+      buildFinanceIncomeAnalysis: jest.fn()
+        .mockResolvedValueOnce({ totalCollected: 1200, paymentBreakdown: [], dailyTrend: [] })
+        .mockResolvedValueOnce({ totalCollected: 1000, paymentBreakdown: [], dailyTrend: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_payment_breakdown', name: '实收与储值流水拆分' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'payment-comparison-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 8,
+      question: '这个月比上个月多收了多少',
+      answerShape: 'comparison',
+      args: {
+        objective: '比较本月和上月实收',
+        time: { label: '本月', timezone: 'Asia/Shanghai', startDate: '2026-07-01', endDate: '2026-07-10' },
+        comparisonTarget: {
+          type: 'time',
+          timeRange: { label: '上月', timezone: 'Asia/Shanghai', startDate: '2026-06-01', endDate: '2026-06-30' },
+        },
+        entities: [],
+        metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildFinanceIncomeAnalysis).toHaveBeenNthCalledWith(1, {
+      storeId: 6,
+      startDate: new Date('2026-06-30T16:00:00.000Z'),
+      endDate: new Date('2026-07-10T15:59:59.999Z'),
+    });
+    expect(skillRuntime.buildFinanceIncomeAnalysis).toHaveBeenNthCalledWith(2, {
+      storeId: 6,
+      startDate: new Date('2026-05-31T16:00:00.000Z'),
+      endDate: new Date('2026-06-30T15:59:59.999Z'),
+    });
+    expect(result.answer).toContain('增加 200.00 元');
+    expect(result.answer).toContain('+20.0%');
+    expect(result.blocks).toEqual([expect.objectContaining({
+      kind: 'comparison',
+      items: [{ label: '实收金额', current: '本月 1200.00 元', previous: '上月 1000.00 元', delta: '+200.00 元（+20.0%）' }],
+    })]);
+  });
+
   it('answers member-balance consumption and recharge from real balance transactions', async () => {
     const skillRuntime = {
       buildFinanceMemberBalanceFlowSummary: jest.fn().mockResolvedValue({
@@ -501,6 +555,68 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         ],
       }),
     ]);
+  });
+
+  it('diagnoses gross-margin deterioration against the previous comparable period', async () => {
+    const skillRuntime = {
+      buildFinanceRiskSummary: jest.fn()
+        .mockResolvedValueOnce({ refundAmount: 100, refundCount: 2, discountAmount: 200, grossMarginRate: 0.5, riskItems: [] })
+        .mockResolvedValueOnce({ refundAmount: 50, refundCount: 1, discountAmount: 50, grossMarginRate: 0.7, riskItems: [] }),
+      buildFinanceIncomeAnalysis: jest.fn()
+        .mockResolvedValueOnce({ totalCollected: 1000, paymentBreakdown: [], dailyTrend: [], orderKindBreakdown: [] })
+        .mockResolvedValueOnce({ totalCollected: 1200, paymentBreakdown: [], dailyTrend: [], orderKindBreakdown: [] }),
+      buildFinanceCostAnalysis: jest.fn()
+        .mockResolvedValueOnce({ revenue: 1000, materialCost: 300, commissionCost: 150, operatingCost: 100, grossProfit: 500, grossMarginRate: 0.5, cardLiability: 0, costCategories: [] })
+        .mockResolvedValueOnce({ revenue: 1200, materialCost: 180, commissionCost: 120, operatingCost: 60, grossProfit: 840, grossMarginRate: 0.7, cardLiability: 0, costCategories: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'finance-diagnosis-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 9,
+      question: '查一下毛利异常是折扣、成本还是项目结构造成的',
+      answerShape: 'diagnosis',
+      args: {
+        objective: '诊断最近毛利下降原因',
+        time: { label: '最近30天', timezone: 'Asia/Shanghai', startDate: '2026-06-18', endDate: '2026-07-17' },
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('毛利率较上一可比期下降 20.0 个百分点');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'diagnosis',
+        findings: expect.arrayContaining([
+          expect.objectContaining({ title: '毛利率下降' }),
+          expect.objectContaining({ title: '折扣率上升' }),
+          expect.objectContaining({ title: '物料成本率上升' }),
+        ]),
+      }),
+      expect.objectContaining({
+        kind: 'comparison',
+        items: expect.arrayContaining([
+          { label: '毛利率', current: '50.0%', previous: '70.0%', delta: '-20.0 个百分点' },
+        ]),
+      }),
+      expect.objectContaining({
+        kind: 'limitations',
+        items: [expect.stringContaining('未关联商品/项目级收入、折扣和成本')],
+      }),
+    ]));
+    expect(result.metadata).toMatchObject({
+      answerShape: 'diagnosis',
+      diagnosisBaselineLabel: '上一可比期',
+      projectStructureGap: true,
+    });
   });
 });
 

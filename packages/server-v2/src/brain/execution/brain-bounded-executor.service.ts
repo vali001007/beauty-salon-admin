@@ -86,6 +86,7 @@ export class BrainBoundedExecutorService {
     context: BrainRequestContext;
     runId: number;
     question: string;
+    intent: BrainSemanticIntent;
     budgetState: BrainExecutionBudgetState;
     history: BrainObservation[];
   }) {
@@ -151,6 +152,7 @@ export class BrainBoundedExecutorService {
       runId: number;
       question: string;
       plan: BrainExecutionPlan;
+      intent: BrainSemanticIntent;
       budgetState: BrainExecutionBudgetState;
     },
   ) {
@@ -169,6 +171,7 @@ export class BrainBoundedExecutorService {
           runId: input.runId,
           planId: input.plan.planId,
           question: input.question,
+          answerShape: input.intent.answerShape,
           args: executableNode.args,
         }),
         remainingMs,

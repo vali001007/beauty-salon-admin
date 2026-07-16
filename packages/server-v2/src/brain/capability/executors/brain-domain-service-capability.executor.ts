@@ -214,9 +214,16 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '财务经营风险概览',
     description: '组合实收、支付方式、收入趋势、退款、优惠、成本、毛利和会员卡负债，返回可追溯的财务经营风险概览。',
     intents: ['query', 'diagnosis'],
-    examples: ['本月财务情况和风险怎么样', '收入成本退款有哪些异常', '给我看支付方式和毛利情况', '有没有大额异常退款我不知道的'],
+    examples: [
+      '本月财务情况和风险怎么样',
+      '收入成本退款有哪些异常',
+      '给我看支付方式和毛利情况',
+      '有没有大额异常退款我不知道的',
+      '最近毛利掉下来的主要原因是什么',
+      '查一下毛利异常是折扣、成本还是项目结构造成的',
+    ],
     negativeExamples: ['直接修改结算数据', '查看其他门店的财务数据'],
-    synonyms: ['财务概览', '财务风险', '收入成本分析', '退款优惠风险', '大额异常退款', '会员卡负债'],
+    synonyms: ['财务概览', '财务风险', '收入成本分析', '退款优惠风险', '大额异常退款', '会员卡负债', '毛利下降', '利润率变差', '盈利能力下降', '不赚钱', '毛利根因', '项目结构影响'],
     businessDefinitionKeys: ['metric.paid_amount', 'metric.refund_amount', 'metric.operating_cost_amount', 'dimension.paymentMethod'],
     readOnly: true,
     storeScope: 'required',
@@ -328,10 +335,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     key: 'finance_payment_breakdown',
     name: '实收与储值流水拆分',
     description: '按当前门店和时间范围汇总实收金额并按支付方式拆分；对明确的储值卡问题，分别统计储值充值和储值消耗流水，不用支付方式或会员卡负债代替。',
-    intents: ['query', 'ranking'],
-    examples: ['本月实收按支付方式怎么分', '今天实收按支付方式怎么分', '今天储值卡消耗了多少，新充值了多少'],
+    intents: ['query', 'ranking', 'comparison', 'trend'],
+    examples: [
+      '本月实收按支付方式怎么分',
+      '今天实收按支付方式怎么分',
+      '最近三十天每天收入走势',
+      '这个月比上个月少收了多少',
+      '收入环比是涨了还是跌了，差额多少',
+      '今天储值卡消耗了多少，新充值了多少',
+    ],
     negativeExamples: ['直接修改支付记录', '查询其他门店的支付明细'],
-    synonyms: ['支付方式拆分', '收款渠道', '实收构成', '微信现金占比', '储值卡充值', '储值卡消耗', '储值流水'],
+    synonyms: ['支付方式拆分', '收款渠道', '实收构成', '收入趋势', '实收走势', '收入环比', '实收对比', '收款增减', '微信现金占比', '储值卡充值', '储值卡消耗', '储值流水'],
     businessDefinitionKeys: ['metric.paid_amount', 'dimension.paymentMethod'],
     readOnly: true,
     storeScope: 'required',
@@ -974,31 +988,67 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }, dataQuality);
       }
       case 'finance_risk_overview': {
-        const [risk, income, cost] = await Promise.all([
+        const diagnosisAnswer = input.answerShape === 'diagnosis';
+        const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
+        const comparisonRange = diagnosisAnswer ? this.previousComparableRange(diagnosisRange) : undefined;
+        const [risk, income, cost, previousRisk, previousIncome, previousCost] = await Promise.all([
           this.skillRuntime.buildFinanceRiskSummary({
             storeId: input.context.storeId,
-            startDate: range.startDate,
-            endDate: range.endDate,
+            startDate: diagnosisRange.startDate,
+            endDate: diagnosisRange.endDate,
           }),
           this.skillRuntime.buildFinanceIncomeAnalysis({
             storeId: input.context.storeId,
-            startDate: range.startDate,
-            endDate: range.endDate,
+            startDate: diagnosisRange.startDate,
+            endDate: diagnosisRange.endDate,
           }),
           this.skillRuntime.buildFinanceCostAnalysis({
             storeId: input.context.storeId,
-            startDate: range.startDate,
-            endDate: range.endDate,
+            startDate: diagnosisRange.startDate,
+            endDate: diagnosisRange.endDate,
           }),
+          comparisonRange
+            ? this.skillRuntime.buildFinanceRiskSummary({
+                storeId: input.context.storeId,
+                startDate: comparisonRange.startDate,
+                endDate: comparisonRange.endDate,
+              })
+            : Promise.resolve(undefined),
+          comparisonRange
+            ? this.skillRuntime.buildFinanceIncomeAnalysis({
+                storeId: input.context.storeId,
+                startDate: comparisonRange.startDate,
+                endDate: comparisonRange.endDate,
+              })
+            : Promise.resolve(undefined),
+          comparisonRange
+            ? this.skillRuntime.buildFinanceCostAnalysis({
+                storeId: input.context.storeId,
+                startDate: comparisonRange.startDate,
+                endDate: comparisonRange.endDate,
+              })
+            : Promise.resolve(undefined),
         ]);
         const citations = [
           { sourceType: 'db_skill', sourceId: 'finance_risk_summary', label: '退款、优惠与毛利风险' },
           { sourceType: 'db_skill', sourceId: 'finance_income_analysis', label: '实收、支付方式与收入趋势' },
           { sourceType: 'db_skill', sourceId: 'finance_cost_analysis', label: '成本、毛利与会员卡负债' },
         ];
+        const diagnosis = diagnosisAnswer && previousRisk && previousIncome && previousCost
+          ? this.buildFinanceDiagnosis({ risk, income, cost, previousRisk, previousIncome, previousCost, currentLabel: diagnosisRange.label, previousLabel: comparisonRange!.label })
+          : undefined;
+        const requestedDiagnosisDimensions = structuredDefinitionKeys(input.args.dimensions);
+        const projectStructureGap = diagnosisAnswer && (
+          /(?:项目|品项|商品|产品|结构)/.test(input.question) ||
+          ['dimension.projectName', 'dimension.productName'].some((key) => requestedDiagnosisDimensions.has(key))
+        )
+          ? ['现有结算未关联商品/项目级收入、折扣和成本，无法量化商品或项目结构对毛利变化的贡献；本次仅诊断已接入的收入、退款、折扣、物料、提成和经营费用。']
+          : [];
         return {
           status: 'completed',
-          answer: `${range.label}财务经营风险概览已完成，包含实收、支付方式、收入趋势、退款、优惠、成本、毛利和会员卡负债。`,
+          answer: diagnosis
+            ? `${diagnosisRange.label}财务诊断已完成。${diagnosis.summary}`
+            : `${diagnosisRange.label}财务经营风险概览已完成，包含实收、支付方式、收入趋势、退款、优惠、成本、毛利和会员卡负债。`,
           citations,
           grounding: 'db_skill',
           blocks: [
@@ -1043,17 +1093,27 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
             {
               kind: 'diagnosis',
-              findings: risk.riskItems.length
-                ? risk.riskItems.map((detail) => ({ title: '财务风险', detail, severity: 'warning' as const }))
-                : [{ title: '未触发财务预警', detail: `${range.label}退款、优惠和毛利未触发当前预警规则。`, severity: 'info' as const }],
-              citationIds: ['finance_risk_summary'],
+              findings: diagnosis?.findings.length
+                ? diagnosis.findings
+                : risk.riskItems.length
+                  ? risk.riskItems.map((detail) => ({ title: '财务风险', detail, severity: 'warning' as const }))
+                : [{ title: '未触发财务预警', detail: `${diagnosisRange.label}退款、优惠和毛利未触发当前预警规则。`, severity: 'info' as const }],
+              citationIds: diagnosis ? citations.map((item) => item.sourceId) : ['finance_risk_summary'],
             },
+            ...(diagnosis?.comparisonItems.length
+              ? [{ kind: 'comparison' as const, items: diagnosis.comparisonItems, citationIds: citations.map((item) => item.sourceId) }]
+              : []),
+            ...(projectStructureGap.length ? [{ kind: 'limitations' as const, items: projectStructureGap }] : []),
           ],
           metadata: {
             capabilityKey: 'finance_risk_overview',
-            rangeLabel: range.label,
+            rangeLabel: diagnosisRange.label,
+            diagnosisBaselineLabel: comparisonRange?.label ?? null,
+            answerShape: input.answerShape ?? null,
             componentCapabilities: ['finance_risk_summary', 'finance_income_analysis', 'finance_cost_analysis'],
             completionCriteria: ['income_loaded', 'payment_breakdown_loaded', 'cost_loaded', 'risk_loaded', 'liability_loaded'],
+            diagnosisDrivers: diagnosis?.drivers ?? [],
+            projectStructureGap: projectStructureGap.length > 0,
           },
         };
       }
@@ -1318,11 +1378,23 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           });
         }
-        const analysis = await this.skillRuntime.buildFinanceIncomeAnalysis({
-          storeId: input.context.storeId,
-          startDate: range.startDate,
-          endDate: range.endDate,
-        });
+        const comparisonAnswer = input.answerShape === 'comparison';
+        const comparisonRange = comparisonAnswer ? this.resolveComparisonRange(input, range) : undefined;
+        if (comparisonAnswer && !comparisonRange) throw new Error('capability_comparison_time_unresolved');
+        const [analysis, previousAnalysis] = await Promise.all([
+          this.skillRuntime.buildFinanceIncomeAnalysis({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          }),
+          comparisonRange
+            ? this.skillRuntime.buildFinanceIncomeAnalysis({
+                storeId: input.context.storeId,
+                startDate: comparisonRange.previous.startDate,
+                endDate: comparisonRange.previous.endDate,
+              })
+            : Promise.resolve(undefined),
+        ]);
         const requestedMethods = this.requestedPaymentMethods(input.question);
         const rowsByMethod = new Map(
           analysis.paymentBreakdown.map((item) => [item.method, { ...item }]),
@@ -1337,23 +1409,78 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         const breakdown = paymentRows
           .map((item) => `${this.paymentMethodLabel(item.method)}：${item.amount.toFixed(2)} 元，共 ${item.count} 笔`)
           .join('；');
+        const scalarAnswer = input.answerShape === 'scalar';
+        const trendAnswer = input.answerShape === 'trend';
+        const paidMetric = structuredDefinitionRef(input.args.metrics, 'metric.paid_amount');
+        const comparisonDelta = previousAnalysis ? analysis.totalCollected - previousAnalysis.totalCollected : 0;
+        const comparisonRate = previousAnalysis && previousAnalysis.totalCollected !== 0
+          ? comparisonDelta / previousAnalysis.totalCollected
+          : undefined;
+        const comparisonDirection = comparisonDelta > 0 ? '增加' : comparisonDelta < 0 ? '减少' : '持平';
+        const comparisonDeltaText = `${this.signed(comparisonDelta, 2)} 元${
+          comparisonRate === undefined ? '（上期为 0，无法计算增减比例）' : `（${this.signed(comparisonRate * 100, 1)}%）`
+        }`;
         return this.answer({
-          answer: `实收合计 ${analysis.totalCollected.toFixed(2)} 元。${breakdown ? `支付方式拆分：${breakdown}。` : '当前没有支付方式明细。'}`,
+          answer: comparisonAnswer && comparisonRange && previousAnalysis
+            ? `${comparisonRange.current.label}实收 ${analysis.totalCollected.toFixed(2)} 元，${comparisonRange.previous.label}实收 ${previousAnalysis.totalCollected.toFixed(2)} 元，${comparisonDirection} ${Math.abs(comparisonDelta).toFixed(2)} 元${comparisonRate === undefined ? '；上期为 0，无法计算增减比例。' : `，增减幅度 ${this.signed(comparisonRate * 100, 1)}%。`}`
+            : trendAnswer
+            ? `${range.label}实收趋势已生成，共 ${analysis.dailyTrend.length} 个按日数据点。`
+            : scalarAnswer
+              ? `${range.label}实收合计 ${analysis.totalCollected.toFixed(2)} 元。`
+              : `实收合计 ${analysis.totalCollected.toFixed(2)} 元。${breakdown ? `支付方式拆分：${breakdown}。` : '当前没有支付方式明细。'}`,
           citationId: 'capability_finance_payment_breakdown',
           citationLabel: '财务支付方式拆分',
-          blocks: [{
-            kind: 'ranking',
-            rows: paymentRows.map((item) => ({
-              paymentMethod: this.paymentMethodLabel(item.method),
-              amount: item.amount,
-              count: item.count,
-            })),
-            columns: ['paymentMethod', 'amount', 'count'],
-            citationIds: ['capability_finance_payment_breakdown'],
+          citations: [{
+            sourceType: 'business_definition',
+            sourceId: paidMetric ? `${paidMetric.definitionKey}@${paidMetric.definitionVersion}` : 'metric.paid_amount',
+            label: '业务定义：实收金额',
           }],
+          blocks: comparisonAnswer && comparisonRange && previousAnalysis
+            ? [{
+                kind: 'comparison',
+                items: [{
+                  label: '实收金额',
+                  current: `${comparisonRange.current.label} ${analysis.totalCollected.toFixed(2)} 元`,
+                  previous: `${comparisonRange.previous.label} ${previousAnalysis.totalCollected.toFixed(2)} 元`,
+                  delta: comparisonDeltaText,
+                }],
+                citationIds: ['capability_finance_payment_breakdown'],
+              }]
+            : trendAnswer
+            ? analysis.dailyTrend.length
+              ? [{
+                  kind: 'chart',
+                  chartType: 'line',
+                  rows: analysis.dailyTrend,
+                  xKey: 'date',
+                  yKeys: ['revenue'],
+                  citationIds: ['capability_finance_payment_breakdown'],
+                }]
+              : []
+            : scalarAnswer
+              ? [{
+                  kind: 'kpi',
+                  items: [{ label: `${range.label}实收合计`, value: `${analysis.totalCollected.toFixed(2)} 元` }],
+                  citationIds: ['capability_finance_payment_breakdown'],
+                }]
+              : [{
+                  kind: 'ranking',
+                  rows: paymentRows.map((item) => ({
+                    paymentMethod: this.paymentMethodLabel(item.method),
+                    amount: item.amount,
+                    count: item.count,
+                  })),
+                  columns: ['paymentMethod', 'amount', 'count'],
+                  citationIds: ['capability_finance_payment_breakdown'],
+                }],
           metadata: {
             rangeLabel: range.label,
+            comparisonRangeLabel: comparisonRange?.label ?? null,
+            answerShape: input.answerShape ?? null,
             totalCollected: analysis.totalCollected,
+            previousTotalCollected: previousAnalysis?.totalCollected ?? null,
+            comparisonDelta: previousAnalysis ? comparisonDelta : null,
+            comparisonRate: comparisonRate ?? null,
             paymentMethodCount: paymentRows.length,
             requestedPaymentMethods: requestedMethods,
           },
@@ -1417,6 +1544,185 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       };
     }
     return this.timeRangeParser.parse(input.question).comparison;
+  }
+
+  private previousComparableRange(current: BrainDateRange): BrainDateRange {
+    if (current.granularity === 'month') {
+      const startDate = new Date(current.startDate.getFullYear(), current.startDate.getMonth() - 1, 1, 0, 0, 0, 0);
+      const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+      const endDay = Math.min(current.endDate.getDate(), lastDay);
+      return {
+        label: `${startDate.getMonth() + 1}月同期`,
+        startDate,
+        endDate: new Date(startDate.getFullYear(), startDate.getMonth(), endDay, 23, 59, 59, 999),
+        granularity: 'month',
+      };
+    }
+    const offsets: Partial<Record<BrainDateRange['granularity'], number>> = {
+      week: 7,
+      quarter: 91,
+      year: 365,
+    };
+    const fixedOffsetDays = offsets[current.granularity];
+    if (fixedOffsetDays) {
+      const startDate = new Date(current.startDate);
+      const endDate = new Date(current.endDate);
+      startDate.setDate(startDate.getDate() - fixedOffsetDays);
+      endDate.setDate(endDate.getDate() - fixedOffsetDays);
+      return { label: '上一可比期', startDate, endDate, granularity: current.granularity };
+    }
+    const durationMs = Math.max(1, current.endDate.getTime() - current.startDate.getTime() + 1);
+    return {
+      label: '上一可比期',
+      startDate: new Date(current.startDate.getTime() - durationMs),
+      endDate: new Date(current.startDate.getTime() - 1),
+      granularity: current.granularity,
+    };
+  }
+
+  private resolveFinanceDiagnosisRange(input: BrainCapabilityExecutionInput, fallback: BrainDateRange): BrainDateRange {
+    const structuredTime = readCapabilityStructuredTime(input.args, input.context.timezone);
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (structuredTime || parsedTime.range || parsedTime.comparison) return fallback;
+    return this.timeRangeParser.parse('本月').range ?? fallback;
+  }
+
+  private buildFinanceDiagnosis(input: {
+    risk: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceRiskSummary']>>;
+    income: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceIncomeAnalysis']>>;
+    cost: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceCostAnalysis']>>;
+    previousRisk: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceRiskSummary']>>;
+    previousIncome: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceIncomeAnalysis']>>;
+    previousCost: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceCostAnalysis']>>;
+    currentLabel: string;
+    previousLabel: string;
+  }) {
+    const currentRates = {
+      refund: this.rate(input.risk.refundAmount, input.income.totalCollected),
+      discount: this.rate(input.risk.discountAmount, input.income.totalCollected),
+      material: this.rate(input.cost.materialCost, input.cost.revenue),
+      commission: this.rate(input.cost.commissionCost, input.cost.revenue),
+      operating: this.rate(input.cost.operatingCost, input.cost.revenue),
+    };
+    const previousRates = {
+      refund: this.rate(input.previousRisk.refundAmount, input.previousIncome.totalCollected),
+      discount: this.rate(input.previousRisk.discountAmount, input.previousIncome.totalCollected),
+      material: this.rate(input.previousCost.materialCost, input.previousCost.revenue),
+      commission: this.rate(input.previousCost.commissionCost, input.previousCost.revenue),
+      operating: this.rate(input.previousCost.operatingCost, input.previousCost.revenue),
+    };
+    const driverDefinitions = [
+      { key: 'discount_rate', title: '折扣率上升', current: currentRates.discount, previous: previousRates.discount, detail: '优惠金额占实收比例上升，会直接压缩收入质量。' },
+      { key: 'refund_rate', title: '退款率上升', current: currentRates.refund, previous: previousRates.refund, detail: '退款金额占实收比例上升，需要复核退款原因和授权。' },
+      { key: 'material_cost_rate', title: '物料成本率上升', current: currentRates.material, previous: previousRates.material, detail: '物料成本占收入比例上升，是毛利承压因素。' },
+      { key: 'commission_cost_rate', title: '提成成本率上升', current: currentRates.commission, previous: previousRates.commission, detail: '提成成本占收入比例上升，需要核对项目和员工提成结构。' },
+      { key: 'operating_cost_rate', title: '经营费用率上升', current: currentRates.operating, previous: previousRates.operating, detail: '经营费用占收入比例上升，会削弱最终盈利能力。' },
+    ];
+    const drivers = driverDefinitions
+      .flatMap((item) => item.current === undefined || item.previous === undefined
+        ? []
+        : [{ ...item, delta: item.current - item.previous }])
+      .filter((item) => item.delta > 0.005)
+      .sort((left, right) => right.delta - left.delta);
+    const rawMarginDelta = input.cost.grossMarginRate !== undefined && input.previousCost.grossMarginRate !== undefined
+      ? input.cost.grossMarginRate - input.previousCost.grossMarginRate
+      : undefined;
+    const suspiciousRates = [
+      input.cost.grossMarginRate,
+      input.previousCost.grossMarginRate,
+      ...Object.values(currentRates),
+      ...Object.values(previousRates),
+    ].filter((value): value is number => value !== undefined && (!Number.isFinite(value) || value < -1 || value > 3));
+    const diagnosisReliable = suspiciousRates.length === 0;
+    const marginDelta = diagnosisReliable ? rawMarginDelta : undefined;
+    const findings: Array<{ title: string; detail: string; severity: 'info' | 'warning' | 'critical' }> = [];
+    if (!diagnosisReliable) {
+      findings.push({
+        title: '基准期财务比例异常',
+        detail: '当前期或上一可比期出现超出可信范围的毛利/成本比例，需先复核结算收入、成本归属期和重复记录；本次不据此判定毛利涨跌或根因。',
+        severity: 'critical',
+      });
+    } else if (marginDelta === undefined) {
+      findings.push({
+        title: '毛利变化无法确认',
+        detail: `${input.currentLabel}或${input.previousLabel}缺少有效结算收入与毛利，不能把“毛利下降”判定为事实。`,
+        severity: 'critical',
+      });
+    } else {
+      findings.push({
+        title: marginDelta < 0 ? '毛利率下降' : marginDelta > 0 ? '毛利率上升' : '毛利率持平',
+        detail: `${input.currentLabel}毛利率 ${this.percentage(input.cost.grossMarginRate)}，${input.previousLabel} ${this.percentage(input.previousCost.grossMarginRate)}，变化 ${this.signed(marginDelta * 100, 1)} 个百分点。`,
+        severity: marginDelta < 0 ? 'warning' : 'info',
+      });
+    }
+    findings.push(...(diagnosisReliable ? drivers : []).slice(0, 3).map((driver) => ({
+      title: driver.title,
+      detail: `${driver.detail} 当前 ${this.percentage(driver.current)}，上期 ${this.percentage(driver.previous)}，增加 ${Math.abs(driver.delta * 100).toFixed(1)} 个百分点。`,
+      severity: 'warning' as const,
+    })));
+    if (diagnosisReliable && !drivers.length) {
+      findings.push({
+        title: '已接入成本项未发现明显恶化',
+        detail: '折扣率、退款率、物料成本率、提成成本率和经营费用率均未比上一可比期上升超过 0.5 个百分点。',
+        severity: 'info',
+      });
+    }
+    const revenueDelta = input.income.totalCollected - input.previousIncome.totalCollected;
+    if (revenueDelta < 0) {
+      findings.push({
+        title: '实收规模下降',
+        detail: `${input.currentLabel}实收较${input.previousLabel}减少 ${Math.abs(revenueDelta).toFixed(2)} 元，固定费用被更少收入分摊时会放大费用率。`,
+        severity: 'warning',
+      });
+    }
+    const comparisonItems = [
+      this.moneyComparisonItem('实收金额', input.income.totalCollected, input.previousIncome.totalCollected),
+      this.rateComparisonItem('毛利率', input.cost.grossMarginRate, input.previousCost.grossMarginRate),
+      this.rateComparisonItem('折扣率', currentRates.discount, previousRates.discount),
+      this.rateComparisonItem('退款率', currentRates.refund, previousRates.refund),
+      this.rateComparisonItem('物料成本率', currentRates.material, previousRates.material),
+      this.rateComparisonItem('提成成本率', currentRates.commission, previousRates.commission),
+      this.rateComparisonItem('经营费用率', currentRates.operating, previousRates.operating),
+    ].flatMap((item) => item ? [item] : []);
+    const summary = !diagnosisReliable
+      ? '基准期存在异常毛利/成本比例，必须先复核结算与成本归属；本次不输出伪根因。'
+      : marginDelta === undefined
+        ? '当前或基准期缺少有效毛利结算，本次只展示可验证的成本与风险变化，不输出伪根因。'
+      : `毛利率较${input.previousLabel}${marginDelta < 0 ? '下降' : marginDelta > 0 ? '上升' : '持平'} ${Math.abs(marginDelta * 100).toFixed(1)} 个百分点${drivers.length ? `；优先复核${drivers.slice(0, 3).map((item) => item.title.replace('上升', '')).join('、')}。` : '；已接入成本项未发现明显恶化。'}`;
+    return {
+      summary,
+      findings,
+      comparisonItems,
+      reliable: diagnosisReliable,
+      drivers: drivers.map((item) => ({ key: item.key, deltaPercentagePoints: Number((item.delta * 100).toFixed(2)) })),
+    };
+  }
+
+  private rate(numerator: number, denominator: number) {
+    return denominator > 0 ? numerator / denominator : undefined;
+  }
+
+  private percentage(value: number | undefined) {
+    return value === undefined ? '暂无有效口径' : `${(value * 100).toFixed(1)}%`;
+  }
+
+  private moneyComparisonItem(label: string, current: number, previous: number) {
+    return {
+      label,
+      current: `${current.toFixed(2)} 元`,
+      previous: `${previous.toFixed(2)} 元`,
+      delta: `${this.signed(current - previous, 2)} 元`,
+    };
+  }
+
+  private rateComparisonItem(label: string, current: number | undefined, previous: number | undefined) {
+    if (current === undefined || previous === undefined) return undefined;
+    return {
+      label,
+      current: this.percentage(current),
+      previous: this.percentage(previous),
+      delta: `${this.signed((current - previous) * 100, 1)} 个百分点`,
+    };
   }
 
   private resolveStructuredTimeRange(time: ReturnType<typeof readCapabilityStructuredTime>): BrainDateRange | undefined {
@@ -1565,7 +1871,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       throw new Error(`domain_filter_args_unsupported:${input.card.key}`);
     }
     if (Array.isArray(input.args.orderBy) && input.args.orderBy.length) this.assertOrderArgsSupported(input);
-    if (input.args.comparisonTarget !== undefined && input.card.key !== 'store_operations_overview') {
+    if (
+      input.args.comparisonTarget !== undefined &&
+      !['store_operations_overview', 'finance_payment_breakdown'].includes(input.card.key)
+    ) {
       throw new Error(`domain_comparison_args_unsupported:${input.card.key}`);
     }
     if (
@@ -1856,13 +2165,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     answer: string;
     citationId: string;
     citationLabel: string;
+    citations?: BrainDomainAnswer['citations'];
     metadata: Record<string, unknown>;
     blocks?: BrainDomainAnswer['blocks'];
   }): BrainDomainAnswer {
     return {
       status: 'completed',
       answer: input.answer,
-      citations: [{ sourceType: 'db_skill', sourceId: input.citationId, label: input.citationLabel }],
+      citations: [
+        { sourceType: 'db_skill', sourceId: input.citationId, label: input.citationLabel },
+        ...(input.citations ?? []),
+      ],
       grounding: 'db_skill',
       ...(input.blocks ? { blocks: input.blocks } : {}),
       metadata: input.metadata,
@@ -1877,4 +2190,13 @@ function structuredDefinitionKeys(value: unknown): Set<string> {
     const definitionKey = (item as Record<string, unknown>).definitionKey;
     return typeof definitionKey === 'string' ? [definitionKey] : [];
   }));
+}
+
+function structuredDefinitionRef(value: unknown, definitionKey: string) {
+  if (!Array.isArray(value)) return undefined;
+  return value.find((item): item is { definitionKey: string; definitionVersion: number } => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const record = item as Record<string, unknown>;
+    return record.definitionKey === definitionKey && Number.isInteger(record.definitionVersion);
+  });
 }

@@ -42,6 +42,7 @@ describe('BrainBoundedExecutorService', () => {
     expect(maxActive).toBe(2);
     expect(result.status).toBe('completed');
     expect(execute).toHaveBeenCalledTimes(3);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ answerShape: 'diagnosis' }));
   });
 
   it('stops on rejected observations without asking the replanner', async () => {

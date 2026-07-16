@@ -971,6 +971,64 @@ describe('AiService', () => {
     });
   });
 
+  it('disables Responses reasoning by default for latency-bounded structured output', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'resp-terra-no-reasoning',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: '{"answer":"ok","count":1}' }] }],
+        usage: { input_tokens: 12, output_tokens: 5 },
+      }),
+    });
+    global.fetch = fetchMock as any;
+    const { service: terraService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_responses',
+      LLM_API_KEY: 'relay-test-key',
+      LLM_BASE_URL: 'http://relay.example/v1',
+      LLM_CHAT_PATH: '/responses',
+      LLM_MODEL: 'gpt-5.6-terra',
+      LLM_REASONING_EFFORT: '',
+    });
+
+    await terraService.generateStructured({
+      scenario: 'brain.semantic_intent.v1',
+      messages: [{ role: 'user', content: '分析经营问题' }],
+      schema: structuredSchema,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.reasoning).toEqual({ effort: 'none' });
+  });
+
+  it('reports provider authentication failures without converting them into generic timeouts', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: { type: 'invalid_authentication_error' } }),
+    });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'kimi',
+      LLM_API_KEY: 'invalid-key',
+      LLM_BASE_URL: 'https://api.moonshot.ai/v1',
+      LLM_CHAT_PATH: '/chat/completions',
+      LLM_MODEL: 'kimi-k2.7-code-highspeed',
+    });
+
+    await expect(
+      structuredService.generateStructured({
+        scenario: 'brain.semantic_intent.v1',
+        messages: [{ role: 'user', content: '分析经营问题' }],
+        schema: structuredSchema,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVIDER_AUTH_FAILED',
+      provider: 'kimi',
+      model: 'kimi-k2.7-code-highspeed',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('disables DeepSeek thinking for schema-constrained structured output even when global thinking is enabled', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,

@@ -402,9 +402,10 @@ describe('BrainCapabilityCodegenService', () => {
 
   it('generates from a V2 semantic compiler and an internal service executor without a fake controller', async () => {
     const definition = v2DefinitionEntry();
+    const dimension = v2DimensionEntry();
     snapshotSource.loadPublishedSnapshot.mockResolvedValue({
-      snapshotFingerprint: snapshotFingerprint([definition]),
-      definitions: [definition],
+      snapshotFingerprint: snapshotFingerprint([definition, dimension]),
+      definitions: [definition, dimension],
     });
     const semanticCompiler = {
       compile: jest.fn().mockResolvedValue({
@@ -479,7 +480,14 @@ describe('BrainCapabilityCodegenService', () => {
             'packages/server-v2/src/brain/capability/executors/brain-semantic-query-capability.executor.ts',
         },
       },
-      manifest: { name: '商品销售排行', intents: ['ranking'] },
+      manifest: {
+        name: '商品销售排行',
+        intents: ['ranking'],
+        definitionRefs: expect.arrayContaining([
+          expect.objectContaining({ definitionKey: 'metric.product_sales_quantity' }),
+          expect.objectContaining({ definitionKey: 'dimension.productName' }),
+        ]),
+      },
     });
     expect(semanticCompiler.compile).toHaveBeenCalledTimes(1);
     expect(narrativeGenerator.generate).not.toHaveBeenCalled();
@@ -601,32 +609,74 @@ function definitionEntry(): BrainBusinessDefinitionSnapshot['definitions'][numbe
 }
 
 function v2DefinitionEntry(): BrainBusinessDefinitionSnapshot['definitions'][number] {
-  const immutable = {
+  return v2ProjectedDefinition({
+    definitionId: 30,
+    versionId: 31,
     definitionKey: 'metric.product_sales_quantity',
     kind: 'metric',
     domain: 'product',
     name: '商品销量',
-    ownerType: 'system',
-    ownerId: 'semantic-data',
-    schemaVersion: '1.0',
     payload: {
       metricKey: 'product_sales_quantity',
       aliases: ['商品销售数量'],
+      dimensions: ['productName'],
       bindings: {
         capability: ['product_sales_ranking'],
         executor: ['BusinessDefinitionRuntimeQueryExecutor.execute'],
       },
     },
-    sourceFingerprint: 'd'.repeat(64),
     canonicalQueryRef: 'semantic.product_sales_quantity',
     fixtureSetKey: 'product-sales-v1',
+    sourceFingerprint: 'd'.repeat(64),
+  });
+}
+
+function v2DimensionEntry(): BrainBusinessDefinitionSnapshot['definitions'][number] {
+  return v2ProjectedDefinition({
+    definitionId: 32,
+    versionId: 33,
+    definitionKey: 'dimension.productName',
+    kind: 'dimension',
+    domain: 'product',
+    name: '商品名称',
+    payload: { dimensionKey: 'productName', aliases: ['商品名称', '产品名称'] },
+    canonicalQueryRef: null,
+    fixtureSetKey: null,
+    sourceFingerprint: 'e'.repeat(64),
+  });
+}
+
+function v2ProjectedDefinition(input: {
+  definitionId: number;
+  versionId: number;
+  definitionKey: string;
+  kind: string;
+  domain: string;
+  name: string;
+  payload: Record<string, unknown>;
+  canonicalQueryRef: string | null;
+  fixtureSetKey: string | null;
+  sourceFingerprint: string;
+}): BrainBusinessDefinitionSnapshot['definitions'][number] {
+  const immutable = {
+    definitionKey: input.definitionKey,
+    kind: input.kind,
+    domain: input.domain,
+    name: input.name,
+    ownerType: 'system',
+    ownerId: 'semantic-data',
+    schemaVersion: '1.0',
+    payload: input.payload,
+    sourceFingerprint: input.sourceFingerprint,
+    canonicalQueryRef: input.canonicalQueryRef,
+    fixtureSetKey: input.fixtureSetKey,
     timezone: 'Asia/Shanghai',
     storeScope: { mode: 'current_store' },
   };
   const fingerprint = createBusinessDefinitionFingerprint(immutable);
   const version = {
-    id: 31,
-    definitionId: 30,
+    id: input.versionId,
+    definitionId: input.definitionId,
     version: 1,
     ...immutable,
     lifecycleStatus: 'published',
@@ -634,7 +684,7 @@ function v2DefinitionEntry(): BrainBusinessDefinitionSnapshot['definitions'][num
     validationStatus: 'passed',
     evidence: [],
     definition: {
-      id: 30,
+      id: input.definitionId,
       definitionKey: immutable.definitionKey,
       kind: immutable.kind,
       domain: immutable.domain,
@@ -645,9 +695,9 @@ function v2DefinitionEntry(): BrainBusinessDefinitionSnapshot['definitions'][num
   };
   const projectionPayload = createBusinessDefinitionProjectionV2Payload(version, 'capability_semantic_view', false);
   const projection = {
-    definitionVersionId: 31,
+    definitionVersionId: input.versionId,
     targetType: 'capability_semantic_view' as const,
-    targetKey: 'metric.product_sales_quantity@1',
+    targetKey: `${input.definitionKey}@1`,
     definitionKey: immutable.definitionKey,
     definitionVersion: 1,
     definitionFingerprint: fingerprint,
@@ -656,16 +706,16 @@ function v2DefinitionEntry(): BrainBusinessDefinitionSnapshot['definitions'][num
     readOnly: true,
     projectionFingerprint: createBusinessDefinitionProjectionFingerprint({
       targetType: 'capability_semantic_view',
-      targetKey: 'metric.product_sales_quantity@1',
-      definitionVersionId: 31,
+      targetKey: `${input.definitionKey}@1`,
+      definitionVersionId: input.versionId,
       definitionRef: projectionPayload.definitionRef,
       payload: projectionPayload,
       readOnly: true,
     }),
   };
   return {
-    definitionId: 30,
-    versionId: 31,
+    definitionId: input.definitionId,
+    versionId: input.versionId,
     ...immutable,
     version: 1,
     fingerprint,

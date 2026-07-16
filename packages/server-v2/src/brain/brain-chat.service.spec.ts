@@ -2910,6 +2910,22 @@ describe('findCapabilityContractMissingDefinitions', () => {
     expect(missing).toEqual(['dimension.projectName']);
   });
 
+  it('allows a governed domain diagnosis to execute supported evidence and disclose unsupported dimensions', () => {
+    expect(findCapabilityContractMissingDefinitions(
+      {
+        intent: 'diagnosis',
+        metrics: [],
+        dimensions: [definitionRef('dimension.projectName'), definitionRef('dimension.productName')],
+      } as any,
+      {
+        definitionRefs: [{ definitionKey: 'metric.paid_amount' }],
+        domains: ['finance'],
+        grounding: 'domain_service',
+        key: 'finance_risk_overview',
+      } as any,
+    )).toEqual([]);
+  });
+
   it('accepts equivalent prefixed definition keys', () => {
     expect(findCapabilityContractMissingDefinitions(
       {

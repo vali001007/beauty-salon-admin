@@ -306,7 +306,7 @@ function renderColumnValue(key: string, value: unknown) {
   if (typeof value === 'boolean') return value ? '是' : '否';
   if (
     typeof value === 'number' &&
-    ['revenueAmount', 'commissionAmount', 'estimatedCost', 'amount', 'currentRevenue', 'previousRevenue', 'totalSpent', 'price'].includes(key)
+    ['revenue', 'revenueAmount', 'commissionAmount', 'estimatedCost', 'amount', 'currentRevenue', 'previousRevenue', 'totalSpent', 'price'].includes(key)
   ) {
     return value.toFixed(2);
   }

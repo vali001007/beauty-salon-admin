@@ -2135,7 +2135,12 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     }
     expect(finance.metadata).toEqual({
       rangeLabel: '今天',
+      comparisonRangeLabel: null,
+      answerShape: null,
       totalCollected: 1200,
+      previousTotalCollected: null,
+      comparisonDelta: null,
+      comparisonRate: null,
       paymentMethodCount: 1,
       requestedPaymentMethods: [],
     });
@@ -2146,6 +2151,92 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       recentOrderCount: 0,
       supplierCount: 0,
     });
+  });
+
+  it('returns paid amount as a scalar KPI when the semantic plan requests a scalar answer', async () => {
+    const skillRuntime = {
+      buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
+        totalCollected: 28756.3,
+        paymentBreakdown: [
+          { method: 'wechat', amount: 18000, count: 8 },
+          { method: 'cash', amount: 10756.3, count: 4 },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: false,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+        }),
+      } as never,
+    );
+
+    const answer = await executor.execute(input(card('finance_payment_breakdown', 'domain'), {
+      answerShape: 'scalar',
+      args: { metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }] },
+      question: '这个月店里实际收了多少钱',
+    }));
+
+    expect(answer.answer).toBe('今天实收合计 28756.30 元。');
+    expect(answer.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'kpi',
+        items: [{ label: '今天实收合计', value: '28756.30 元' }],
+      }),
+    ]);
+    expect(answer.blocks).not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'ranking' })]));
+    expect(answer.citations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' }),
+    ]));
+    expect(answer.metadata).toMatchObject({ answerShape: 'scalar', totalCollected: 28756.3 });
+  });
+
+  it('returns paid amount as a daily line chart when the semantic plan requests a trend answer', async () => {
+    const skillRuntime = {
+      buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
+        totalCollected: 1800,
+        paymentBreakdown: [],
+        dailyTrend: [
+          { date: '2026-07-15', revenue: 800, orderCount: 2, customerCount: 2, avgTransaction: 400 },
+          { date: '2026-07-16', revenue: 1000, orderCount: 3, customerCount: 3, avgTransaction: 333.33 },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: false,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+        }),
+      } as never,
+    );
+
+    const answer = await executor.execute(input(card('finance_payment_breakdown', 'domain'), {
+      answerShape: 'trend',
+      args: { metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }] },
+      question: '最近三十天每天收入走势',
+    }));
+
+    expect(answer.answer).toContain('实收趋势已生成，共 2 个按日数据点');
+    expect(answer.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'chart',
+        chartType: 'line',
+        xKey: 'date',
+        yKeys: ['revenue'],
+        rows: expect.arrayContaining([expect.objectContaining({ date: '2026-07-16', revenue: 1000 })]),
+      }),
+    ]);
+    expect(answer.metadata).toMatchObject({ answerShape: 'trend', totalCollected: 1800 });
   });
 
   it('composes four role overviews from read-only domain services', async () => {

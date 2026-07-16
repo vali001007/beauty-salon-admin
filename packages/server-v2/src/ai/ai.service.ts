@@ -42,6 +42,7 @@ export type AiStructuredOutputErrorCode =
   | 'SCHEMA_INVALID'
   | 'JSON_INVALID'
   | 'PROVIDER_UNAVAILABLE'
+  | 'PROVIDER_AUTH_FAILED'
   | 'MOCK_GENERATION_UNSUPPORTED'
   | 'BUDGET_EXCEEDED'
   | 'AUDIT_FAILED';
@@ -2742,7 +2743,11 @@ export class AiService {
     try {
       return await this.generateStructuredWithProvider(input, input.messages, validate, primaryConfig, budget);
     } catch (error) {
-      if (error instanceof AiStructuredOutputError && error.code !== 'PROVIDER_UNAVAILABLE') {
+      if (
+        error instanceof AiStructuredOutputError &&
+        error.code !== 'PROVIDER_UNAVAILABLE' &&
+        error.code !== 'PROVIDER_AUTH_FAILED'
+      ) {
         throw error;
       }
       primaryError = this.toStructuredOutputError(
@@ -3184,7 +3189,7 @@ export class AiService {
       input: constrainedMessages,
       max_output_tokens: maxOutputTokens,
       text: { format },
-      ...(this.reasoningEffort ? { reasoning: { effort: this.reasoningEffort } } : {}),
+      reasoning: { effort: this.reasoningEffort || 'none' },
     };
 
     const response = await fetch(this.getOpenAiCompatibleUrlFor(providerConfig.baseUrl, providerConfig.chatPath), {
@@ -3419,6 +3424,16 @@ export class AiService {
         error.message,
         error.provider || provider,
         error.model || model,
+        usage,
+        { cause: error },
+      );
+    }
+    if (error instanceof AiProviderError && (error.status === 401 || error.status === 403)) {
+      return new AiStructuredOutputError(
+        'PROVIDER_AUTH_FAILED',
+        'Structured output provider authentication failed.',
+        provider,
+        model,
         usage,
         { cause: error },
       );

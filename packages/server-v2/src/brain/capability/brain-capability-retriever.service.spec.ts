@@ -197,6 +197,8 @@ describe('BrainCapabilityRetrieverService', () => {
     intent: BrainSemanticIntent['intent'];
     metricDefinitionKey?: string;
     entityDefinitionKey?: string;
+    entityKey?: string;
+    dimensionDefinitionKey?: string;
   }): BrainSemanticIntent => ({
     schemaVersion: '1.0',
     objective: '回答经营问题',
@@ -206,6 +208,7 @@ describe('BrainCapabilityRetrieverService', () => {
       ? [
           {
             entityType: input.entityDefinitionKey,
+            ...(input.entityKey ? { entityKey: input.entityKey } : {}),
             mention: input.entityDefinitionKey,
             source: 'user',
             definitionRef: {
@@ -230,7 +233,15 @@ describe('BrainCapabilityRetrieverService', () => {
           },
         ]
       : [],
-    dimensions: [],
+    dimensions: input.dimensionDefinitionKey
+      ? [{
+          definitionType: 'dimension',
+          definitionKey: input.dimensionDefinitionKey,
+          definitionVersion: 1,
+          definitionFingerprint,
+          sourceFingerprint,
+        }]
+      : [],
     filters: [],
     orderBy: [],
     answerShape: input.intent === 'ranking' ? 'ranking' : 'scalar',
@@ -259,6 +270,75 @@ describe('BrainCapabilityRetrieverService', () => {
     expect(result.selected?.key).toBe('product_sales_ranking');
     expect(result.topK.map((item) => item.card.key)).not.toContain('paid_revenue');
     expect(result.topK.map((item) => item.card.key)).not.toContain('staff_performance_ranking');
+  });
+
+  it('does not reject an exact metric capability because the model also emitted a generic entity', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.paid_amount',
+        entityDefinitionKey: 'entity.payment_record',
+      }),
+      question: '这个月店里实际收了多少钱',
+      context,
+      cards: [cards().find((item) => item.key === 'order_revenue_analysis')!],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'order_revenue_analysis' } });
+  });
+
+  it('selects a published finance capability that declares the trend intent', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'trend',
+        metricDefinitionKey: 'metric.paid_amount',
+        entityDefinitionKey: 'entity.payment_record',
+      }),
+      question: '最近三十天每天收入走势',
+      context,
+      cards: [card('finance_payment_breakdown', {
+        name: '实收、支付方式与收入趋势',
+        domain: 'finance',
+        intent: 'trend',
+        refs: ['metric.paid_amount', 'dimension.paymentMethod'],
+        synonyms: ['收入趋势', '实收走势'],
+        examples: ['最近三十天每天收入走势'],
+      })],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_payment_breakdown' } });
+  });
+
+  it('keeps concrete entity constraints and requested dimensions as hard contract filters', () => {
+    const financeCard = cards().find((item) => item.key === 'order_revenue_analysis')!;
+    const concreteEntity = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.paid_amount',
+        entityDefinitionKey: 'entity.payment_record',
+        entityKey: 'payment-record-42',
+      }),
+      question: '查这笔支付',
+      context,
+      cards: [financeCard],
+    });
+    const groupedDimension = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.paid_amount',
+        dimensionDefinitionKey: 'dimension.paymentMethod',
+      }),
+      question: '按支付方式拆分实收',
+      context,
+      cards: [financeCard],
+    });
+
+    expect(concreteEntity.status).toBe('none');
+    expect(groupedDimension.status).toBe('none');
   });
 
   it('hard-filters permission denies, missing grants, roles, risk and read-only policy', () => {

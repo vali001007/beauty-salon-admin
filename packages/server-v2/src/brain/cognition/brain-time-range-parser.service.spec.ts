@@ -74,6 +74,35 @@ describe('BrainTimeRangeParserService', () => {
     });
   });
 
+  it('defaults generic month-over-month wording to current month versus previous month', () => {
+    const result = parser.parse('收入环比是涨了还是跌了，差额多少', { now });
+
+    expect(result.comparison).toMatchObject({
+      label: '本月环比上月',
+      current: { label: '本月' },
+      previous: { label: '上月' },
+    });
+    expect(result.unsupportedExpressions).toEqual([]);
+  });
+
+  it('parses two named Chinese months into an ordered comparison', () => {
+    const result = parser.parse('把七月和六月实收放一起比较', { now });
+
+    expect(result.comparison).toMatchObject({
+      label: '7月对比6月',
+      current: {
+        label: '7月',
+        startDate: new Date(2026, 6, 1, 0, 0, 0, 0),
+        endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+      },
+      previous: {
+        label: '6月',
+        startDate: new Date(2026, 5, 1, 0, 0, 0, 0),
+        endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
+      },
+    });
+  });
+
   it('does not invent filters when no time expression is present', () => {
     const result = parser.parse('预约多少', { now });
 

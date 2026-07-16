@@ -981,15 +981,18 @@ export class BrainChatService {
       return this.modelFailure('MODEL_INTENT_UNAVAILABLE', this.modelMetadata('compile'));
     }
     if (compilation.status !== 'completed') {
+      const failureCode = compilation.errorCode === 'PROVIDER_AUTH_FAILED'
+        ? 'PROVIDER_AUTH_FAILED'
+        : 'MODEL_INTENT_UNAVAILABLE';
       await this.recordModelFailure({
         runId: input.runId,
         stepKey: 'model_intent_compile',
         layer: 'cognition',
         stage: 'compile',
-        code: 'MODEL_INTENT_UNAVAILABLE',
+        code: failureCode,
         diagnosticCode: compilation.errorCode,
       });
-      return this.modelFailure('MODEL_INTENT_UNAVAILABLE', this.modelMetadata('compile'));
+      return this.modelFailure(failureCode, this.modelMetadata('compile'));
     }
     modelMetadata = this.modelMetadata('compile', {
       provider: compilation.provider,
@@ -1304,6 +1307,7 @@ export class BrainChatService {
         runId: input.runId,
         planId: plan.planId,
         question: input.dto.message,
+        answerShape: validation.intent.answerShape,
         args: node.args,
       });
       await this.recordModelTrace({
@@ -1620,8 +1624,8 @@ export class BrainChatService {
       status: planning.status === 'planned' ? 'completed' : 'failed',
     });
     if (planning.status !== 'planned') {
-      const failureCode = planning.errorCode === 'PROVIDER_UNAVAILABLE'
-        ? 'PROVIDER_UNAVAILABLE'
+      const failureCode = ['PROVIDER_UNAVAILABLE', 'PROVIDER_AUTH_FAILED'].includes(planning.errorCode)
+        ? planning.errorCode
         : 'MODEL_SUPERVISOR_PLAN_UNAVAILABLE';
       return this.modelFailure(failureCode, this.modelMetadata('plan', input.modelMetadata));
     }
@@ -1748,6 +1752,7 @@ export class BrainChatService {
       MODEL_SUPERVISOR_UNAVAILABLE: '复合任务规划能力暂不可用，本次未执行查询。',
       MODEL_SUPERVISOR_PLAN_UNAVAILABLE: '当前无法生成受控复合计划，本次未执行查询。',
       PROVIDER_UNAVAILABLE: '模型服务暂不可用，本次未执行查询，请稍后重试。',
+      PROVIDER_AUTH_FAILED: '模型服务鉴权配置无效，本次未执行查询，请联系管理员修复模型配置。',
       CAPABILITY_EXECUTION_FAILED: '当前无法完成查询，请稍后重试。',
     };
     return messages[code] ?? '当前无法完成查询，请稍后重试。';
@@ -2822,7 +2827,7 @@ export class BrainChatService {
 
 export function findCapabilityContractMissingDefinitions(
   intent: BrainSemanticIntent,
-  card: Pick<BrainCapabilityCard, 'definitionRefs' | 'domains'> & { key?: string },
+  card: Pick<BrainCapabilityCard, 'definitionRefs' | 'domains'> & Partial<Pick<BrainCapabilityCard, 'grounding'>> & { key?: string },
   question = '',
 ): string[] {
   const declared = Array.isArray(card.definitionRefs)
@@ -2836,6 +2841,7 @@ export function findCapabilityContractMissingDefinitions(
     ...(intent.dimensions ?? []).map((item) => item.definitionKey),
     ...inferQuestionDimensionDefinitions(question),
   ].filter((item): item is string => Boolean(item));
+  if (intent.intent === 'diagnosis' && card.grounding === 'domain_service') return [];
   return [...new Set(requested.filter((item) => {
     if (declared.includes(normalizeDefinitionKey(item))) return false;
     const requiredDomains = definitionDomains(item);

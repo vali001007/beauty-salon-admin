@@ -326,6 +326,9 @@ export class BrainCapabilityCodegenService {
       ) {
         reasons.push('canonical_success_schema_contract_mismatch');
       }
+      const referenceDefinitions = grounding === 'semantic_query'
+        ? expandSemanticQueryDefinitionRefs(resolvedDefinitions, definitions, reasons)
+        : resolvedDefinitions;
       if (reasons.length > 0 || !canonicalSemantics || !grounding) {
         const uniqueReasons = uniqueSorted(reasons);
         blocked.push({
@@ -338,7 +341,7 @@ export class BrainCapabilityCodegenService {
         continue;
       }
 
-      const definitionRefs = resolvedDefinitions
+      const definitionRefs = referenceDefinitions
         .map(toDefinitionRef)
         .sort((left, right) => left.definitionKey.localeCompare(right.definitionKey));
       if (!narrative) {
@@ -833,6 +836,34 @@ function deriveExecutableCapabilityGrounding(
   if (executorIdentity.includes('BrainDomainServiceCapabilityExecutor')) return 'domain_service';
   if (executorIdentity.includes('BrainSemanticQueryCapabilityExecutor')) return 'semantic_query';
   return deriveCanonicalCapabilityGrounding(capability.key, definitions);
+}
+
+function expandSemanticQueryDefinitionRefs(
+  resolvedDefinitions: BrainBusinessDefinitionSnapshotEntry[],
+  definitions: Map<string, BrainBusinessDefinitionSnapshotEntry[]>,
+  reasons: string[],
+) {
+  const expanded = new Map(resolvedDefinitions.map((definition) => [definition.definitionKey, definition]));
+  for (const metric of resolvedDefinitions.filter((definition) => definition.kind === 'metric')) {
+    const payload = isRecord(metric.payload) ? metric.payload : {};
+    const dimensions = Array.isArray(payload.dimensions)
+      ? payload.dimensions.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    for (const dimension of dimensions) {
+      const definitionKey = dimension.startsWith('dimension.') ? dimension : `dimension.${dimension}`;
+      const matches = definitions.get(definitionKey) ?? [];
+      if (matches.length === 0) {
+        reasons.push(`missing_published_business_definition:${definitionKey}`);
+        continue;
+      }
+      if (matches.length > 1) {
+        reasons.push(`ambiguous_business_definition_key:${definitionKey}`);
+        continue;
+      }
+      expanded.set(definitionKey, matches[0]!);
+    }
+  }
+  return [...expanded.values()];
 }
 
 function applyExplicitSemanticContract(

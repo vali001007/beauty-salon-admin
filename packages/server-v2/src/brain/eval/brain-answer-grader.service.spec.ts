@@ -368,6 +368,25 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_partial');
   });
 
+  it('accepts a scalar database skill as exact when it cites the governed metric definition', () => {
+    const result = grader.grade({
+      question: '这个月店里实际收了多少钱',
+      answer: '本月实收合计：28756.30 元。',
+      blocks: [{ kind: 'kpi', items: [{ label: '本月实收合计', value: '28756.30 元' }] }],
+      citations: [
+        { sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown', label: '财务支付方式拆分' },
+        { sourceType: 'business_definition', sourceId: 'metric.paid_amount@8', label: '业务定义：实收金额' },
+      ],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedShape).toBe('scalar_metric');
+    expect(result.actualShape).toBe('scalar_metric');
+    expect(result.actualMetric).toBe('paid_amount');
+    expect(result.groundingType).toBe('db_skill');
+    expect(result.status).toBe('usable_exact');
+  });
+
   it('counts member balance flow KPIs as a database-backed scalar answer', () => {
     const result = grader.grade({
       question: '今天储值卡消耗了多少，新充值了多少',
