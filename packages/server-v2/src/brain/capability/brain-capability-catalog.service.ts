@@ -18,7 +18,7 @@ const applyAjvFormats = addFormatsImport as unknown as (ajv: Ajv) => Ajv;
 const CAPABILITY_KEY_PATTERN = /^[a-z][a-z0-9_]{1,127}$/;
 const RISK_LEVELS = new Set(['low', 'medium', 'high', 'critical']);
 const IDEMPOTENCY_POLICIES = new Set(['not_applicable', 'required']);
-const GROUNDING_TYPES = new Set(['semantic_query', 'domain_service', 'model', 'template']);
+const GROUNDING_TYPES = new Set(['semantic_query', 'domain_service', 'preview_action', 'model', 'template']);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const SEMANTIC_INTENTS = new Set<string>(BRAIN_SEMANTIC_INTENTS);
 

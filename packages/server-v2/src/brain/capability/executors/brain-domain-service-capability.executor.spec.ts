@@ -3,6 +3,70 @@ import type { BrainCapabilityCard } from '../brain-capability.types.js';
 import { BrainDomainServiceCapabilityExecutor } from './brain-domain-service-capability.executor.js';
 
 describe('BrainDomainServiceCapabilityExecutor store operations', () => {
+  it('generates a read-only marketing draft without requiring a concrete recipient', async () => {
+    const skillRuntime = {
+      draftAppointmentReminder: jest.fn().mockReturnValue('您好，店里明天下午有可预约空档，方便的话可以回复我帮您安排。'),
+      draftCustomerRecall: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_message_draft', intents: ['draft'] },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['marketing'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'marketing-draft-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 9,
+      question: '为明天下午空档写一条温和邀约消息',
+      answerShape: 'draft',
+      args: {
+        objective: '生成预约邀约文案', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.draftAppointmentReminder).toHaveBeenCalledWith({ timeWindow: '明天下午' });
+    expect(result).toMatchObject({
+      status: 'completed',
+      grounding: 'template_skill',
+      metadata: { capabilityKey: 'marketing_message_draft', deliveryStatus: 'draft_only' },
+    });
+    expect(result.blocks).toEqual([expect.objectContaining({ kind: 'limitations' })]);
+    expect(result.suggestedActions).toBeUndefined();
+  });
+
+  it('uses the recall template only when the user actually asks for recall', async () => {
+    const skillRuntime = {
+      draftAppointmentReminder: jest.fn(),
+      draftCustomerRecall: jest.fn().mockReturnValue('您好，最近护理节奏可以衔接起来了。'),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_message_draft', intents: ['draft'] },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['marketing'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'marketing-recall-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 10,
+      question: '准备一段沉睡客户召回文案',
+      answerShape: 'draft',
+      args: {
+        objective: '生成客户召回文案', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.draftCustomerRecall).toHaveBeenCalledWith({});
+    expect(result.metadata).toMatchObject({ mode: 'customer_recall' });
+  });
+
   it('answers the largest completed order without expanding into the full operations overview', async () => {
     const skillRuntime = {
       buildManagerOperationsAnalysis: jest.fn().mockResolvedValue(operations({

@@ -1603,6 +1603,175 @@ describe('BrainChatService', () => {
     expect(protectedResult).toMatchObject({ missingSlots: ['customerIdentity'] });
   });
 
+  it('lets a governed action capability defer customer and reservation uniqueness to the scoped target resolver', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0', objective: '修改客户预约', domains: ['front_desk'], intent: 'action', entities: [],
+      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview', successCriteria: ['生成待确认预览'],
+      ambiguities: [
+        { slot: 'customerIdentity', reason: '模型无法确认门店内是否唯一', candidates: [] },
+        { slot: 'targetReservation', reason: '模型无法访问预约数据', candidates: [] },
+      ],
+      missingSlots: ['customerIdentity', 'targetReservation'], assumptions: [], confidence: 0.92, decisionSummary: '预约改期预览',
+    };
+    const card = {
+      key: 'reservation_action_preview', version: 1, name: '预约创建改期取消预览',
+      description: '解析当前门店客户与预约并生成待确认预览。', domains: ['front_desk'], intents: ['action'],
+      examples: [], synonyms: ['预约改期预览'], readOnly: false, sideEffect: true, requiresConfirmation: true,
+      grounding: 'preview_action', definitionRefs: [],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '把张女士的预约改到明天下午三点',
+      cards: [card],
+    });
+
+    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: [] });
+    expect(normalized.assumptions).toContain('能力 reservation_action_preview 将采用并披露已治理的默认分析口径。');
+  });
+
+  it('selects the action contract that covers every resolved domain before clearing model ambiguities', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0', objective: '预约改期', domains: ['customer', 'reservation'], intent: 'action', entities: [],
+      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview', successCriteria: ['生成预览'],
+      ambiguities: [{ slot: 'reservation', reason: '模型无法确认预约唯一性', candidates: [] }], missingSlots: ['reservation'],
+      assumptions: [], confidence: 0.9, decisionSummary: '预约改期',
+    };
+    const cards = [
+      {
+        key: 'customer_follow_up_draft', version: 1, name: '客户跟进预览', description: '客户跟进', domains: ['customer'],
+        intents: ['action'], examples: [], synonyms: [], readOnly: false, sideEffect: true, requiresConfirmation: true,
+        grounding: 'preview_action', definitionRefs: [],
+      },
+      {
+        key: 'reservation_action_preview', version: 1, name: '预约改期预览', description: '预约改期', domains: ['customer', 'reservation'],
+        intents: ['action'], examples: [], synonyms: [], readOnly: false, sideEffect: true, requiresConfirmation: true,
+        grounding: 'preview_action', definitionRefs: [],
+      },
+    ];
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '帮张女士把预约改到明天下午三点',
+      cards,
+    });
+
+    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: [] });
+    expect(normalized.assumptions).toContain('能力 reservation_action_preview 将采用并披露已治理的默认分析口径。');
+  });
+
+  it('uses the single-capability path for a governed confirmation-gated action preview', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const card = {
+      key: 'reservation_action_preview', readOnly: false, sideEffect: true, requiresConfirmation: true,
+      idempotency: 'required', grounding: 'preview_action', intents: ['action'], domains: ['customer', 'reservation'],
+    };
+    const intent = { intent: 'action', domains: ['customer', 'reservation'] };
+
+    expect((service as any).canUseSingleCapabilityFastPath(card, intent)).toBe(true);
+  });
+
+  it('preserves an adapter-level action clarification instead of composing a fake completion message', async () => {
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
+    const question = '把张女士的预约改到明天下午三点';
+    const actionCard = {
+      key: 'reservation_action_preview', version: 1, name: '预约改期预览', description: '预约改期预览',
+      domains: ['customer', 'reservation'], intents: ['action'], examples: [], synonyms: [], negativeExamples: [],
+      readOnly: false, sideEffect: true, riskLevel: 'high', requiresConfirmation: true, idempotency: 'required',
+      grounding: 'preview_action', definitionRefs: [], requiredPermissions: [], allowedRoles: ['receptionist'],
+      inputSchema: {}, outputSchema: {}, successSchema: {}, timeoutMs: 10_000, sourceFingerprint: 'a'.repeat(64),
+    };
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([actionCard]);
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed', provider: 'fake-provider', model: 'fake-model', usage: {},
+      intent: {
+        schemaVersion: '1.0', objective: '预约改期预览', domains: ['customer', 'reservation'], intent: 'action',
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview',
+        successCriteria: ['生成待确认预览'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.95,
+        decisionSummary: '预约改期预览',
+      },
+    } as never);
+    modelPipeline!.retriever.retrieve.mockReturnValue({
+      status: 'selected', selected: actionCard, topK: [{ card: actionCard, score: 1, matchedFields: ['name'] }],
+      confidence: 1, margin: 1, reason: 'test',
+    } as never);
+    modelPipeline!.planner.plan.mockReturnValue({
+      status: 'planned',
+      plan: {
+        schemaVersion: '1.0', planId: 'action-clarification', objective: '预约改期', isSingleStep: true,
+        replanCount: 0, budgetMs: 11_000,
+        nodes: [{ id: 'capability_1', capabilityKey: actionCard.key, capabilityVersion: 1, dependsOn: [], previewOnly: true,
+          args: { objective: '预约改期', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] } }],
+      },
+    } as never);
+    modelPipeline!.planValidator.validate.mockImplementation(({ plan }) => plan as never);
+    modelPipeline!.executor.execute.mockResolvedValue({
+      status: 'completed', answer: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。', citations: [],
+      grounding: 'none', metadata: { unsupportedReason: 'customer_not_found' },
+    });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    const result = await service.sendMessage({ ...context, roles: ['receptionist'] }, 12, { message: question });
+
+    expect(result.answer).toBe('当前门店没有找到匹配客户，请核对姓名或手机号后四位。');
+    expect(result.grounding).toBe('none');
+  });
+
+  it('does not clear cross-store or permission ambiguities for an action capability', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0', objective: '修改其他门店预约', domains: ['front_desk'], intent: 'action', entities: [],
+      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview', successCriteria: ['生成待确认预览'],
+      ambiguities: [{ slot: 'storeScope', reason: '请求涉及跨门店目标，存在越权冲突', candidates: [] }],
+      missingSlots: ['storeScope'], assumptions: [], confidence: 0.92, decisionSummary: '跨门店预约改期',
+    };
+    const card = {
+      key: 'reservation_action_preview', version: 1, name: '预约创建改期取消预览', description: '预约改期预览',
+      domains: ['front_desk'], intents: ['action'], examples: [], synonyms: [], readOnly: false, sideEffect: true,
+      requiresConfirmation: true, grounding: 'preview_action', definitionRefs: [],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '修改其他门店张女士的预约',
+      cards: [card],
+    });
+
+    expect(normalized).toMatchObject({ missingSlots: ['storeScope'] });
+  });
+
+  it('always removes unsupported model dimensions from a governed draft contract', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const projectDimension = {
+      definitionType: 'dimension', definitionKey: 'dimension.projectName', definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+    };
+    const intent = {
+      schemaVersion: '1.0', objective: '生成老客预约提醒', domains: ['customer', 'reservation'], intent: 'draft', entities: [],
+      metrics: [], dimensions: [projectDimension], filters: [], orderBy: [], answerShape: 'draft', successCriteria: ['返回文案'],
+      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '预约提醒文案',
+    };
+    const card = {
+      key: 'marketing_message_draft', version: 1, name: '营销文案草稿', description: '生成预约提醒和召回文案',
+      domains: ['customer', 'reservation'], intents: ['draft'], examples: [], synonyms: [], readOnly: true, sideEffect: false,
+      grounding: 'domain_service', definitionRefs: [{ definitionKey: 'entity.customer' }, { definitionKey: 'entity.reservation' }],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '写一条提醒老客户预约护理的消息',
+      cards: [card],
+    });
+
+    expect(normalized.dimensions).toEqual([]);
+  });
+
   it('normalizes an unordered governed customer list from ranking to query plus list', async () => {
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
     const question = '哪些客户卡里的次数快用完了还没约';
@@ -2985,6 +3154,17 @@ describe('BrainChatService', () => {
 });
 
 describe('findCapabilityContractMissingDefinitions', () => {
+  it('does not treat nouns inside draft copy as required query dimensions', () => {
+    expect(findCapabilityContractMissingDefinitions(
+      {
+        intent: 'draft',
+        dimensions: [],
+      } as never,
+      { key: 'marketing_message_draft', domains: ['customer', 'reservation'], definitionRefs: [] },
+      '写一条提醒老客户预约护理的消息',
+    )).toEqual([]);
+  });
+
   it('rejects a capability that lacks the project dimension required by the model intent', () => {
     const missing = findCapabilityContractMissingDefinitions(
       {

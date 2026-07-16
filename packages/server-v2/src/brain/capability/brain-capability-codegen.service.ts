@@ -155,13 +155,13 @@ export interface BrainGeneratedCapabilityManifest {
   outputSchema: Record<string, unknown>;
   requiredPermissions: string[];
   allowedRoles: string[];
-  readOnly: true;
-  sideEffect: false;
+  readOnly: boolean;
+  sideEffect: boolean;
   riskLevel: BrainCapabilityScanRiskLevel;
-  requiresConfirmation: false;
-  idempotency: 'not_applicable';
+  requiresConfirmation: boolean;
+  idempotency: 'required' | 'not_applicable';
   timeoutMs: number;
-  grounding: 'semantic_query' | 'domain_service';
+  grounding: 'semantic_query' | 'domain_service' | 'preview_action';
   examples: string[];
   negativeExamples: string[];
   synonyms: string[];
@@ -268,7 +268,7 @@ export class BrainCapabilityCodegenService {
       const technicalOutputSchema = outputSchema(capability.outputContract.return);
       let canonicalSemantics: BrainCanonicalCapabilitySemantics | undefined;
       let narrative: BrainCapabilityNarrative | undefined;
-      let grounding: 'semantic_query' | 'domain_service' | undefined;
+      let grounding: 'semantic_query' | 'domain_service' | 'preview_action' | undefined;
       const useV2SemanticCompiler =
         Boolean(this.semanticCompiler) &&
         resolvedDefinitions.length === capability.businessDefinitionKeys.length &&
@@ -416,7 +416,7 @@ export class BrainCapabilityCodegenService {
     semantics: BrainCanonicalCapabilitySemantics,
     narrative: BrainCapabilityNarrative,
     technicalOutputSchema: Record<string, unknown>,
-    grounding: 'semantic_query' | 'domain_service',
+    grounding: 'semantic_query' | 'domain_service' | 'preview_action',
     workspaceRoot: string | undefined,
     generationMode: 'published_registry' | 'synthetic_contract_only',
   ): Promise<BrainCapabilityGenerationProposal> {
@@ -438,11 +438,11 @@ export class BrainCapabilityCodegenService {
       outputSchema: technicalOutputSchema,
       requiredPermissions: capability.requiredPermissions,
       allowedRoles: uniqueSorted(capability.allowedRoles ?? []),
-      readOnly: true as const,
-      sideEffect: false as const,
+      readOnly: capability.readOnly,
+      sideEffect: capability.sideEffect,
       riskLevel: semantics.riskLevel,
-      requiresConfirmation: false as const,
-      idempotency: 'not_applicable' as const,
+      requiresConfirmation: capability.requiresConfirmation,
+      idempotency: capability.idempotency === 'required' ? 'required' : 'not_applicable',
       timeoutMs: 10_000,
       grounding,
       examples: semantics.examples,
@@ -673,7 +673,15 @@ function eligibilityIssues(capability: BrainCapabilityCandidate): string[] {
   const reasons: string[] = [];
   if (capability.status !== 'draft' || capability.issues.length > 0) reasons.push('scanner_candidate_blocked');
   if (!capability.explicit) reasons.push('unmarked_api_codegen_forbidden');
-  if (!capability.readOnly || capability.sideEffect) reasons.push('write_capability_codegen_forbidden');
+  if (!capability.readOnly || capability.sideEffect) {
+    const governedPreviewAction =
+      capability.explicit &&
+      capability.readOnly === false &&
+      capability.sideEffect === true &&
+      capability.requiresConfirmation === true &&
+      capability.idempotency === 'required';
+    if (!governedPreviewAction) reasons.push('write_capability_codegen_forbidden');
+  }
   if (!capability.businessDefinitionKeys.length) reasons.push('missing_business_definition_reference');
   if (!capability.evidence.some((item) => ['controller', 'service'].includes(item.sourceType))) {
     reasons.push('missing_executor_binding');
@@ -828,13 +836,14 @@ function independentBranchProposal(
 function deriveExecutableCapabilityGrounding(
   capability: BrainCapabilityCandidate,
   definitions: BrainBusinessDefinitionSnapshotEntry[],
-): 'semantic_query' | 'domain_service' {
+): 'semantic_query' | 'domain_service' | 'preview_action' {
   const executorIdentity = capability.evidence
     .filter((item) => item.sourceType === 'decorator')
     .map((item) => `${item.path}#${item.symbol}`)
     .join('\n');
   if (executorIdentity.includes('BrainDomainServiceCapabilityExecutor')) return 'domain_service';
   if (executorIdentity.includes('BrainSemanticQueryCapabilityExecutor')) return 'semantic_query';
+  if (executorIdentity.includes('BrainActionCapabilityExecutor')) return 'preview_action';
   return deriveCanonicalCapabilityGrounding(capability.key, definitions);
 }
 

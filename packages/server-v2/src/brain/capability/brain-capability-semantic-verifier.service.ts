@@ -27,7 +27,7 @@ type UnknownRecord = Record<string, unknown>;
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const RISK_LEVELS = new Set(['low', 'medium', 'high', 'critical']);
-const GROUNDING_TYPES = new Set(['semantic_query', 'domain_service']);
+const GROUNDING_TYPES = new Set(['semantic_query', 'domain_service', 'preview_action']);
 
 function hasV2CapabilitySemanticView(definition: BrainBusinessDefinitionSnapshotEntry): boolean {
   return definition.projections.some(
@@ -131,7 +131,7 @@ export class BrainCapabilitySemanticVerifierService {
   private verifyManifestAgainstSnapshot(
     manifest: BrainVerifiedCapabilityManifest,
     snapshot: BrainBusinessDefinitionSnapshot,
-    executableGrounding?: 'semantic_query' | 'domain_service',
+    executableGrounding?: 'semantic_query' | 'domain_service' | 'preview_action',
   ) {
     if (!validSnapshot(snapshot)) throw new BadRequestException('generated_capability_snapshot_invalid');
     const definitions = this.resolveDefinitions(manifest.definitionRefs, snapshot);
@@ -192,7 +192,7 @@ export class BrainCapabilitySemanticVerifierService {
   private verifyV2ManifestAgainstDefinitions(
     manifest: BrainVerifiedCapabilityManifest,
     definitions: BrainBusinessDefinitionSnapshotEntry[],
-    executableGrounding?: 'semantic_query' | 'domain_service',
+    executableGrounding?: 'semantic_query' | 'domain_service' | 'preview_action',
   ) {
     const definitionDomains = new Set(definitions.map((definition) => definition.domain));
     if (manifest.domains.some((domain) => !definitionDomains.has(domain))) {
@@ -215,7 +215,12 @@ export class BrainCapabilitySemanticVerifierService {
     ) {
       throw new BadRequestException('generated_capability_semantics_mismatch');
     }
-    if (manifest.riskLevel !== 'low') throw new BadRequestException('generated_capability_semantics_mismatch');
+    if (manifest.readOnly && manifest.riskLevel !== 'low') {
+      throw new BadRequestException('generated_capability_semantics_mismatch');
+    }
+    if (!manifest.readOnly && !['medium', 'high', 'critical'].includes(manifest.riskLevel)) {
+      throw new BadRequestException('generated_capability_semantics_mismatch');
+    }
     if (manifest.grounding !== (executableGrounding ?? deriveCanonicalCapabilityGrounding(manifest.key, definitions))) {
       throw new BadRequestException('generated_capability_grounding_mismatch');
     }
@@ -278,12 +283,18 @@ export class BrainCapabilitySemanticVerifierService {
 
   private parseManifest(value: unknown, code: string): BrainVerifiedCapabilityManifest {
     const manifest = this.record(value, code);
-    if (
-      manifest.readOnly !== true ||
-      manifest.sideEffect !== false ||
-      manifest.requiresConfirmation !== false ||
-      manifest.idempotency !== 'not_applicable'
-    ) {
+    const readOnlyCapability =
+      manifest.readOnly === true &&
+      manifest.sideEffect === false &&
+      manifest.requiresConfirmation === false &&
+      manifest.idempotency === 'not_applicable';
+    const governedPreviewAction =
+      manifest.readOnly === false &&
+      manifest.sideEffect === true &&
+      manifest.requiresConfirmation === true &&
+      manifest.idempotency === 'required' &&
+      manifest.grounding === 'preview_action';
+    if (!readOnlyCapability && !governedPreviewAction) {
       throw new BadRequestException('generated_capability_read_only_policy_mismatch');
     }
     const riskLevel = this.enumValue(manifest.riskLevel, RISK_LEVELS, code);
@@ -300,11 +311,11 @@ export class BrainCapabilitySemanticVerifierService {
       outputSchema: this.recordClone(manifest.outputSchema, code),
       requiredPermissions: this.stringArray(manifest.requiredPermissions, code),
       allowedRoles: this.stringArray(manifest.allowedRoles, code, true),
-      readOnly: true,
-      sideEffect: false,
+      readOnly: manifest.readOnly as boolean,
+      sideEffect: manifest.sideEffect as boolean,
       riskLevel: riskLevel as BrainVerifiedCapabilityManifest['riskLevel'],
-      requiresConfirmation: false,
-      idempotency: 'not_applicable',
+      requiresConfirmation: manifest.requiresConfirmation as boolean,
+      idempotency: manifest.idempotency as 'required' | 'not_applicable',
       timeoutMs: this.timeout(manifest.timeoutMs, code),
       grounding: grounding as BrainVerifiedCapabilityManifest['grounding'],
       examples: this.stringArray(manifest.examples, code),
@@ -380,7 +391,7 @@ export class BrainCapabilitySemanticVerifierService {
 function executorGrounding(
   value: unknown,
   manifest: Pick<BrainVerifiedCapabilityManifest, 'key' | 'sourceFingerprint'>,
-): 'semantic_query' | 'domain_service' | undefined {
+): 'semantic_query' | 'domain_service' | 'preview_action' | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const binding = value as UnknownRecord;
   if (binding.capabilityKey !== manifest.key || binding.sourceFingerprint !== manifest.sourceFingerprint) return undefined;
@@ -400,6 +411,12 @@ function executorGrounding(
     sourcePath === 'packages/server-v2/src/brain/capability/executors/brain-semantic-query-capability.executor.ts'
   ) {
     return 'semantic_query';
+  }
+  if (
+    className === 'BrainActionCapabilityExecutor' &&
+    sourcePath === 'packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts'
+  ) {
+    return 'preview_action';
   }
   return undefined;
 }

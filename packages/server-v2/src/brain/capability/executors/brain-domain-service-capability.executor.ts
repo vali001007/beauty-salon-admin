@@ -32,6 +32,7 @@ const CAPABILITY_KEYS = [
   'reservation_list',
   'customer_facts',
   'marketing_customer_segment',
+  'marketing_message_draft',
   'finance_payment_breakdown',
   'inventory_procurement_advice',
 ] as const;
@@ -329,6 +330,26 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   })
   marketingCustomerSegment(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('marketing_customer_segment', args, input);
+  }
+
+  @BrainCapability({
+    key: 'marketing_message_draft',
+    name: '营销邀约与召回文案草稿',
+    description: '根据用户明确表达的预约提醒、空档邀约、老客召回或到店邀请目标生成可编辑文案草稿。该能力不查询客户名单、不自动发送，也不要求用户先指定具体收件人。',
+    intents: ['draft'],
+    examples: ['生成一条温和的预约提醒', '拟一段老客召回话术', '写一条空档邀约短信', '准备一段不过度推销的到店邀请'],
+    negativeExamples: ['直接给全部客户群发消息', '替我创建并执行营销触达任务', '查询沉睡客户名单'],
+    synonyms: ['预约提醒文案', '空档邀约话术', '老客召回文案', '到店邀请短信', '营销消息草稿'],
+    businessDefinitionKeys: ['entity.customer', 'entity.reservation'],
+    readOnly: true,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:marketing:create'],
+    allowedRoles: ['marketing', 'store_manager'],
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+  })
+  marketingMessageDraft(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('marketing_message_draft', args, input);
   }
 
   @BrainCapability({
@@ -1250,6 +1271,32 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           },
         };
       }
+      case 'marketing_message_draft': {
+        const recall = /召回|沉默|沉睡|没来|流失/.test(input.question);
+        const timeWindow = this.resolveDraftTimeWindow(input.question, range.label);
+        const answer = recall
+          ? this.skillRuntime.draftCustomerRecall({})
+          : this.skillRuntime.draftAppointmentReminder({ timeWindow });
+        const sourceId = recall ? 'marketing_draft_customer_recall' : 'marketing_draft_appointment_reminder';
+        return {
+          status: 'completed',
+          answer,
+          citations: [{ sourceType: 'skill', sourceId, label: recall ? '老客召回文案模板' : '预约邀约文案模板' }],
+          grounding: 'template_skill',
+          blocks: [{
+            kind: 'limitations',
+            items: ['这是可编辑文案草稿，未查询或选择具体客户，也不会自动发送。'],
+          }],
+          metadata: {
+            capabilityKey: 'marketing_message_draft',
+            mode: recall ? 'customer_recall' : 'appointment_invitation',
+            rangeLabel: range.label,
+            timeWindow: timeWindow ?? null,
+            deliveryStatus: 'draft_only',
+            completionCriteria: ['draft_generated', 'no_message_sent', 'limitations_disclosed'],
+          },
+        };
+      }
       case 'reservation_list': {
         const schedule = await this.skillRuntime.listReceptionReservations({
           storeId: input.context.storeId,
@@ -1958,6 +2005,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   private resolveLimit(value: unknown, fallback: number) {
     return typeof value === 'number' && Number.isInteger(value) && value > 0 ? Math.min(value, 100) : fallback;
+  }
+
+  private resolveDraftTimeWindow(question: string, rangeLabel: string) {
+    const explicit = question.match(/(?:今天|明天|后天|本周|下周|周[一二三四五六日天])?(?:上午|下午|晚上|晚间|空档)/)?.[0]?.trim();
+    if (explicit) return explicit;
+    return rangeLabel && !/全部|默认/.test(rangeLabel) ? rangeLabel : undefined;
   }
 
   private applyDataQualityGuard(answer: BrainDomainAnswer, assessment?: BrainDataQualityAssessment): BrainDomainAnswer {

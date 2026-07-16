@@ -155,7 +155,9 @@ export class BrainActionTargetResolverService {
       const isoDate = message.match(/(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
       if (isoDate) date.setFullYear(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
       else if (monthDay) date.setMonth(Number(monthDay[1]) - 1, Number(monthDay[2]));
-      else if (!message.includes('今天')) return undefined;
+      else if (!this.applyWeekday(date, message)) {
+        if (!message.includes('今天')) return undefined;
+      }
     }
     date.setHours(clock.hour, clock.minute, 0, 0);
     return date;
@@ -164,9 +166,9 @@ export class BrainActionTargetResolverService {
   private extractClock(message: string) {
     const colon = message.match(/(?:^|[^0-9])(\d{1,2})[:：](\d{2})(?:[^0-9]|$)/);
     if (colon) return this.validClock(Number(colon[1]), Number(colon[2]));
-    const chinese = message.match(/(上午|早上|下午|晚上)?\s*(\d{1,2})点(?:(半)|(\d{1,2})分?)?/);
+    const chinese = message.match(/(上午|早上|下午|晚上)?\s*(\d{1,2}|[一二三四五六七八九十两]{1,3})点(?:(半)|(\d{1,2})分?)?/);
     if (!chinese) return undefined;
-    let hour = Number(chinese[2]);
+    let hour = this.chineseNumber(chinese[2]);
     if ((chinese[1] === '下午' || chinese[1] === '晚上') && hour < 12) hour += 12;
     const minute = chinese[3] ? 30 : Number(chinese[4] ?? 0);
     return this.validClock(hour, minute);
@@ -176,9 +178,30 @@ export class BrainActionTargetResolverService {
     return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { hour, minute } : undefined;
   }
 
+  private chineseNumber(value: string) {
+    if (/^\d+$/.test(value)) return Number(value);
+    const digits = ({ 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 } as Record<string, number>);
+    if (value === '十') return 10;
+    if (value.startsWith('十')) return 10 + (digits[value[1]] ?? 0);
+    if (value.endsWith('十')) return (digits[value[0]] ?? 0) * 10;
+    const [tens, ones] = value.split('十');
+    return tens && ones ? (digits[tens] ?? 0) * 10 + (digits[ones] ?? 0) : digits[value] ?? Number.NaN;
+  }
+
+  private applyWeekday(date: Date, message: string) {
+    const matched = message.match(/(下)?(?:周|星期)([一二三四五六日天])/);
+    if (!matched) return false;
+    const target = ({ 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 } as Record<string, number>)[matched[2]];
+    let offset = (target - date.getDay() + 7) % 7;
+    if (matched[1]) offset += 7;
+    else if (offset === 0) offset = 7;
+    date.setDate(date.getDate() + offset);
+    return true;
+  }
+
   private extractCustomerName(message: string) {
     const patterns = [
-      /(?:给|为|帮我给|帮我为|查一下|找一下|叫)([\u4e00-\u9fa5]{2,5})(?=安排|创建|建立|改约|改期|取消|发|做|预约|，|,|\s|$)/,
+      /(?:给|为|把|帮|帮我给|帮我为|查一下|找一下|叫)([\u4e00-\u9fa5]{2,5})(?=安排|创建|建立|改约|改期|取消|发|做|预约|的预约|把|，|,|\s|$)/,
       /客户(?:是|叫)?([\u4e00-\u9fa5]{2,5})(?=，|,|\s|$|的)/,
       /^([\u4e00-\u9fa5]{2,5})(?=的预约|改约|改期|取消预约|做)/,
     ];

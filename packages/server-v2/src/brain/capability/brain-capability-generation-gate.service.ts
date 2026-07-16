@@ -150,7 +150,12 @@ export class BrainCapabilityGenerationGateService {
   ): BrainCapabilityGenerationGateResult {
     const reasons: string[] = [];
     const binding = proposal.executorBinding;
-    if (!capability.readOnly || capability.sideEffect || !binding.readOnly || binding.sideEffect) {
+    const readOnlyCapability = capability.readOnly && !capability.sideEffect && binding.readOnly && !binding.sideEffect;
+    const governedPreviewAction =
+      !capability.readOnly && capability.sideEffect && capability.requiresConfirmation && capability.idempotency === 'required' &&
+      !binding.readOnly && binding.sideEffect && binding.requiresConfirmation && binding.idempotency === 'required' &&
+      proposal.manifest.grounding === 'preview_action';
+    if (!readOnlyCapability && !governedPreviewAction) {
       reasons.push('generated_write_executor_forbidden');
     }
     if (canonical(binding.requiredPermissions) !== canonical(capability.requiredPermissions)) {

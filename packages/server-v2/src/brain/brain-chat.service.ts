@@ -1170,6 +1170,8 @@ export class BrainChatService {
           question: input.dto.message,
           context: input.context,
           cards,
+          readOnlyOnly: validation.intent.intent !== 'action',
+          maxRisk: validation.intent.intent === 'action' ? 'high' : 'low',
         });
     await this.recordModelTrace({
       runId: input.runId,
@@ -1344,7 +1346,9 @@ export class BrainChatService {
         output: this.toJsonValue({ capabilityKey: card.key, capabilityVersion: card.version, planId: plan.planId }),
         status: 'completed',
       });
-      const grounded = this.groundedAnswerComposer?.composeDomainAnswer(execution);
+      const grounded = execution.grounding === 'none'
+        ? undefined
+        : this.groundedAnswerComposer?.composeDomainAnswer(execution);
       return {
         status: 'completed',
         answer: grounded?.answer ?? execution.answer,
@@ -1449,21 +1453,33 @@ export class BrainChatService {
       ...input.intent.missingSlots.map((slot) => slot.trim().toLowerCase()),
       ...input.intent.ambiguities.map((ambiguity) => ambiguity.slot.trim().toLowerCase()),
     ]);
-    if (!requestedSlots.size || [...requestedSlots].some((slot) => this.isProtectedCapabilityClarificationSlot(slot))) {
+    if (
+      (!requestedSlots.size && !['action', 'draft'].includes(input.intent.intent)) ||
+      this.hasProtectedCapabilityClarification(input.intent)
+    ) {
       return input.intent;
     }
+    const isAction = input.intent.intent === 'action';
+    const isDraft = input.intent.intent === 'draft';
     const candidates = input.cards
       .filter((card) =>
-        card.readOnly &&
-        card.grounding === 'domain_service' &&
-        input.intent.domains.some((domain) => card.domains.includes(domain)) &&
+        (isAction
+          ? !card.readOnly && card.sideEffect && card.requiresConfirmation && card.intents.includes('action')
+          : card.readOnly && card.grounding === 'domain_service') &&
+        (isAction
+          ? input.intent.domains.every((domain) => card.domains.includes(domain))
+          : input.intent.domains.some((domain) => card.domains.includes(domain))) &&
         (card.intents.includes(input.intent.intent) || (input.intent.intent === 'ranking' && card.intents.includes('query'))),
       )
       .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
       .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key));
     const matched = candidates[0];
     const margin = matched ? matched.score - (candidates[1]?.score ?? 0) : 0;
-    if (!matched || matched.score < 0.68 || (matched.score < 0.82 && margin < 0.08)) return input.intent;
+    const governedSingleIntentCapability = (isAction || isDraft) && candidates.length === 1;
+    if (
+      !matched ||
+      (!governedSingleIntentCapability && (matched.score < 0.68 || (matched.score < 0.82 && margin < 0.08)))
+    ) return input.intent;
 
     const supportedDefinitions = new Set((matched.card.definitionRefs ?? []).map((ref) => ref.definitionKey));
     const metrics = input.intent.metrics.filter((metric) => supportedDefinitions.has(metric.definitionKey));
@@ -1480,11 +1496,14 @@ export class BrainChatService {
         definitionFingerprint: ref.definitionFingerprint,
         sourceFingerprint: ref.sourceFingerprint,
       }));
-    const dimensions = input.intent.dimensions.length > 0
-      ? input.intent.dimensions
+    const supportedInputDimensions = input.intent.dimensions.filter((dimension) =>
+      supportedDefinitions.has(dimension.definitionKey),
+    );
+    const dimensions = supportedInputDimensions.length > 0
+      ? supportedInputDimensions
       : ['list', 'ranking'].includes(input.intent.answerShape)
         ? governedDimensions
-        : input.intent.dimensions;
+        : supportedInputDimensions;
     const unorderedList = input.intent.intent === 'ranking' && metrics.length === 0 && orderBy.length === 0;
     return {
       ...input.intent,
@@ -1501,9 +1520,14 @@ export class BrainChatService {
     };
   }
 
-  private isProtectedCapabilityClarificationSlot(slot: string): boolean {
-    const normalized = slot.toLocaleLowerCase('zh-CN').replace(/[\s._-]+/g, '');
-    return /(?:entity|identity|customername|customerid|phone|actiontarget|permission|store|confirmation|recipient|具体客户|客户姓名|客户身份|手机号|操作对象|执行对象|门店|权限|确认对象|接收人)/.test(normalized);
+  private hasProtectedCapabilityClarification(intent: BrainSemanticIntent): boolean {
+    if (intent.ambiguities.some((ambiguity) => /越权|跨门店|权限|安全|冲突/.test(ambiguity.reason))) return true;
+    return [...intent.missingSlots, ...intent.ambiguities.map((ambiguity) => ambiguity.slot)].some((slot) => {
+      const normalized = slot.toLocaleLowerCase('zh-CN').replace(/[\s._-]+/g, '');
+      if (/(?:permission|store|securityscope|confirmation|门店|权限|安全范围|确认授权)/.test(normalized)) return true;
+      return !['action', 'draft'].includes(intent.intent) &&
+        /(?:entity|identity|customername|customerid|phone|recipient|具体客户|客户姓名|客户身份|手机号|接收人)/.test(normalized);
+    });
   }
 
   private governedCapabilitySemanticScore(question: string, card: BrainCapabilityCard): number {
@@ -1556,7 +1580,13 @@ export class BrainChatService {
   }
 
   private canUseSingleCapabilityFastPath(card: BrainCapabilityCard, intent: BrainSemanticIntent) {
-    if (!card.readOnly || card.sideEffect || intent.intent === 'workflow' || intent.intent === 'action') return false;
+    if (intent.intent === 'workflow') return false;
+    if (intent.intent === 'action') {
+      return !card.readOnly && card.sideEffect && card.requiresConfirmation && card.idempotency === 'required' &&
+        card.grounding === 'preview_action' && card.intents.includes('action') &&
+        intent.domains.every((domain) => card.domains.includes(domain));
+    }
+    if (!card.readOnly || card.sideEffect) return false;
     const intentCompatible = card.intents.includes(intent.intent) ||
       (intent.intent === 'recommendation' && card.intents.includes('diagnosis'));
     return intentCompatible && intent.domains.every((domain) => card.domains.includes(domain));
@@ -2842,6 +2872,7 @@ export function findCapabilityContractMissingDefinitions(
     ...(intent.dimensions ?? []).map((item) => item.definitionKey),
     ...inferQuestionDimensionDefinitions(question),
   ].filter((item): item is string => Boolean(item));
+  if (intent.intent === 'draft' || intent.intent === 'action') return [];
   if (intent.intent === 'diagnosis' && card.grounding === 'domain_service') return [];
   return [...new Set(requested.filter((item) => {
     if (declared.includes(normalizeDefinitionKey(item))) return false;

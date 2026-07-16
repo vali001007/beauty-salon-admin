@@ -13,6 +13,7 @@ import type {
   BrainCapabilityExecutor,
   BrainCapabilityToolArgs,
 } from '../brain-capability-executor.registry.js';
+import { BrainCapability } from '../brain-capability.decorator.js';
 import { structuredEntityMentions } from '../brain-capability-structured-args.js';
 
 interface ActionCapabilityDefinition {
@@ -34,6 +35,86 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   readonly capabilityKeys = Object.freeze(Object.keys(CAPABILITIES));
 
   constructor(private readonly adapterRegistry: BrainDomainAdapterRegistryService) {}
+
+  @BrainCapability({
+    key: 'reservation_action_preview',
+    name: '预约创建改期取消预览',
+    description: '解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。',
+    intents: ['action'],
+    examples: ['把一位客户的预约改到明天下午三点', '预览取消指定客户下一次预约', '为指定客户准备一个新预约方案'],
+    negativeExamples: ['直接执行改约不要确认', '操作其他门店预约', '只查询明天预约清单'],
+    synonyms: ['预约改期预览', '预约改约方案', '取消预约预览', '创建预约预览'],
+    businessDefinitionKeys: ['entity.customer', 'entity.reservation', 'entity.project'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:store:reservations'],
+    allowedRoles: ['receptionist', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  reservationActionPreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('reservation_action_preview', args, input);
+  }
+
+  @BrainCapability({
+    key: 'customer_follow_up_draft',
+    name: '客户跟进任务预览',
+    description: '解析当前门店内的唯一客户并生成待确认的客户跟进任务预览，不直接创建任务。',
+    intents: ['action'],
+    examples: ['给指定客户准备一个待确认跟进任务', '生成客户回访任务预览'],
+    negativeExamples: ['直接创建客户任务不要确认', '操作其他门店客户', '只写一段通用回访文案'],
+    synonyms: ['客户跟进预览', '客户回访任务草稿', '跟进任务方案'],
+    businessDefinitionKeys: ['entity.customer'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:customer:view'],
+    allowedRoles: ['customer_service', 'receptionist', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  customerFollowUpDraft(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('customer_follow_up_draft', args, input);
+  }
+
+  @BrainCapability({
+    key: 'purchase_order_draft',
+    name: '采购单预览',
+    description: '基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问，不直接创建采购单。',
+    intents: ['action'],
+    examples: ['根据补货建议准备采购单预览', '为指定商品生成采购草稿'],
+    negativeExamples: ['直接提交采购单', '使用查看权限创建采购单', '查询低库存商品名单'],
+    synonyms: ['采购单草稿', '补货单预览', '采购方案待确认'],
+    businessDefinitionKeys: ['entity.product'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:supply:manage'],
+    allowedRoles: ['inventory', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  purchaseOrderDraft(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('purchase_order_draft', args, input);
+  }
+
+  @BrainCapability({
+    key: 'marketing_touch_draft',
+    name: '单客户营销触达预览',
+    description: '解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示，不自动群发。',
+    intents: ['action'],
+    examples: ['给指定客户准备一条待确认的邀约任务', '生成单客户召回触达预览'],
+    negativeExamples: ['直接给全部客户群发', '操作其他门店客户', '只生成通用文案'],
+    synonyms: ['营销触达预览', '单客户邀约任务', '召回任务草稿'],
+    businessDefinitionKeys: ['entity.customer'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:marketing:create'],
+    allowedRoles: ['marketing', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  marketingTouchDraft(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('marketing_touch_draft', args, input);
+  }
 
   async execute(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
     const definition = CAPABILITIES[input.card.key];
@@ -142,5 +223,14 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
       allowsScalarMetric: false,
       reason: 'capability_action_execution',
     };
+  }
+
+  private executeDeclared(
+    key: keyof typeof CAPABILITIES,
+    args: BrainCapabilityToolArgs,
+    input: BrainCapabilityExecutionInput,
+  ) {
+    if (input.card.key !== key) throw new Error(`capability_contract_key_mismatch:${key}:${input.card.key}`);
+    return this.execute({ ...input, args });
   }
 }

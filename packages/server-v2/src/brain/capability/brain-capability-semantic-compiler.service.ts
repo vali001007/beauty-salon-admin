@@ -104,18 +104,30 @@ export class BrainCapabilitySemanticCompilerService {
     const governedIntents = new Set(views.flatMap((view) => view.allowedIntents));
     const reasons = validateModelOutput(proposal, new Set(views.map((view) => view.domain)));
     if (reasons.length) throw new BrainCapabilitySemanticCompilationError(reasons);
-    const proposedIntents = canonicalCapabilityIntents(proposal.intents);
+    const proposedIntents = canonicalCapabilityIntents(
+      input.capability.explicit && input.capability.semanticHints?.intents.length
+        ? input.capability.semanticHints.intents
+        : proposal.intents,
+    );
     const intents = governedIntents.size
       ? proposedIntents.filter((intent) => governedIntents.has(intent))
       : proposedIntents;
     if (!intents.length) throw new BrainCapabilitySemanticCompilationError(['model_intents_not_executable']);
     const positiveExamples = ensureReleaseGateExamples(
-      normalizeExecutableExamples({
-      examples: proposal.positiveExamples,
-      intents,
-      capabilityKey: input.capability.key,
-      storeScope: input.capability.storeScope,
-      }),
+      uniqueSorted([
+        ...normalizeExecutableExamples({
+          examples: proposal.positiveExamples,
+          intents,
+          capabilityKey: input.capability.key,
+          storeScope: input.capability.storeScope,
+        }),
+        ...normalizeExecutableExamples({
+          examples: input.capability.semanticHints?.examples ?? [],
+          intents,
+          capabilityKey: input.capability.key,
+          storeScope: input.capability.storeScope,
+        }),
+      ]),
       intents,
     );
     if (positiveExamples.length < 2) {
@@ -315,10 +327,17 @@ function normalizeScopedExample(value: string): string {
 }
 
 function inferExampleIntent(value: string): BrainSemanticIntentKind {
+  if (/(完整流程|完整方案|组合.*(?:再|并|最后)|先.*再.*(?:最后|生成)|规划.*流程)/.test(value)) return 'workflow';
+  if (
+    /(?:创建|修改|改约|改期|取消|提交|执行|采购|触达|跟进|回访|预约).*(?:预览|草稿|待确认|等我确认|先不要执行)|(?:预览|草稿|待确认).*(?:预约|采购|触达|任务|操作)/.test(value)
+  ) return 'action';
+  if (/(?:写|拟|生成|准备|编辑).*(?:文案|话术|短信|消息|通知|邀请)|(?:文案|话术|短信|消息).*(?:写|拟|生成|准备)/.test(value)) return 'draft';
   if (/(比较|对比|相比|差多少)/.test(value)) return 'comparison';
   if (/(排序|排列|排行|排名|最高|最低|前\s*\d+|前十|最好|最多|最少)/.test(value)) return 'ranking';
   if (/(趋势|走势|变化曲线)/.test(value)) return 'trend';
   if (/(诊断|原因|为什么|异常|下降)/.test(value)) return 'diagnosis';
+  if (/(推荐|建议|该怎么|怎么处理|适合什么|优先做什么)/.test(value)) return 'recommendation';
+  if (/(这个|那个|之前).*(?:是什么|指什么|哪个)|信息不足|需要澄清/.test(value)) return 'clarify';
   return 'query';
 }
 

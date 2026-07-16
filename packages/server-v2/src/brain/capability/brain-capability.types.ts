@@ -2,7 +2,7 @@ export const BRAIN_REGISTERED_PERMISSION_CODES = Symbol.for('BRAIN_REGISTERED_PE
 
 export type BrainCapabilityRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type BrainCapabilityIdempotency = 'not_applicable' | 'required';
-export type BrainCapabilityGrounding = 'semantic_query' | 'domain_service' | 'model' | 'template';
+export type BrainCapabilityGrounding = 'semantic_query' | 'domain_service' | 'preview_action' | 'model' | 'template';
 
 export interface BrainCapabilityDefinitionRef {
   readonly definitionId: number;

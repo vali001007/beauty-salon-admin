@@ -161,6 +161,92 @@ describe('BrainCapabilitySemanticCompilerService', () => {
     ]);
   });
 
+  it('keeps governed draft examples executable instead of degrading them to query intent', async () => {
+    const model: BrainCapabilitySemanticModel = {
+      generate: jest.fn().mockResolvedValue({
+        name: '营销文案草稿',
+        description: '生成只读营销文案草稿。',
+        domains: ['customer'],
+        intents: ['draft'],
+        positiveExamples: ['写一条预约提醒消息', '准备一段沉睡客户召回文案'],
+        negativeExamples: ['直接群发消息'],
+        synonyms: ['邀约话术'],
+        riskExplanation: '只生成草稿，不发送。',
+      }),
+    };
+    const service = new BrainCapabilitySemanticCompilerService(model);
+
+    const result = await service.compile({
+      capability: { ...candidate(), key: 'marketing_message_draft', businessDefinitionKeys: ['entity.customer'] },
+      definitions: [definition('entity.customer', 'entity', 'customer', ['marketing_message_draft'], [])],
+      successSchema: { type: 'object' },
+    });
+
+    expect(result.canonicalSemantics.intents).toEqual(['draft']);
+    expect(result.canonicalSemantics.examples).toEqual(['写一条预约提醒消息', '准备一段沉睡客户召回文案']);
+  });
+
+  it('keeps confirmation-gated action preview examples executable', async () => {
+    const model: BrainCapabilitySemanticModel = {
+      generate: jest.fn().mockResolvedValue({
+        name: '预约动作预览',
+        description: '生成预约改期待确认预览。',
+        domains: ['reservation'],
+        intents: ['action'],
+        positiveExamples: ['生成预约改期预览', '创建一份待确认的预约调整方案'],
+        negativeExamples: ['直接执行改约'],
+        synonyms: ['改约草稿'],
+        riskExplanation: '确认前不写入。',
+      }),
+    };
+    const service = new BrainCapabilitySemanticCompilerService(model);
+
+    const result = await service.compile({
+      capability: {
+        ...candidate(), key: 'reservation_action_preview', businessDefinitionKeys: ['entity.reservation'],
+        readOnly: false, sideEffect: true, riskLevel: 'high', requiresConfirmation: true, idempotency: 'required',
+      },
+      definitions: [definition('entity.reservation', 'entity', 'reservation', ['reservation_action_preview'], [])],
+      successSchema: { type: 'object' },
+    });
+
+    expect(result.canonicalSemantics.intents).toEqual(['action']);
+    expect(result.canonicalSemantics.examples).toEqual(['创建一份待确认的预约调整方案', '生成预约改期预览']);
+  });
+
+  it('uses explicit decorator examples when model wording is not executable for the governed intent', async () => {
+    const model: BrainCapabilitySemanticModel = {
+      generate: jest.fn().mockResolvedValue({
+        name: '客户跟进任务预览',
+        description: '生成客户跟进任务预览。',
+        domains: ['customer'],
+        intents: ['draft'],
+        positiveExamples: ['查看客户资料', '查询客户记录'],
+        negativeExamples: ['直接执行任务'],
+        synonyms: ['跟进任务'],
+        riskExplanation: '确认前不写入。',
+      }),
+    };
+    const service = new BrainCapabilitySemanticCompilerService(model);
+
+    const result = await service.compile({
+      capability: {
+        ...candidate(), key: 'customer_follow_up_draft', businessDefinitionKeys: ['entity.customer'],
+        readOnly: false, sideEffect: true, riskLevel: 'high', requiresConfirmation: true, idempotency: 'required',
+        semanticHints: {
+          name: '客户跟进任务预览', description: '生成待确认的客户跟进任务。', intents: ['action'],
+          examples: ['生成客户回访任务预览', '给指定客户准备一个待确认跟进任务'],
+          negativeExamples: ['直接创建任务'], synonyms: ['客户跟进预览'],
+        },
+      },
+      definitions: [definition('entity.customer', 'entity', 'customer', ['customer_follow_up_draft'], [])],
+      successSchema: { type: 'object' },
+    });
+
+    expect(result.canonicalSemantics.intents).toEqual(['action']);
+    expect(result.canonicalSemantics.examples).toEqual(['给指定客户准备一个待确认跟进任务', '生成客户回访任务预览']);
+  });
+
   it('fails closed when a definition capability binding contradicts the technical candidate', async () => {
     const model: BrainCapabilitySemanticModel = { generate: jest.fn() };
     const service = new BrainCapabilitySemanticCompilerService(model);

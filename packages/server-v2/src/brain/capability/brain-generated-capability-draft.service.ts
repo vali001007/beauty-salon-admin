@@ -125,7 +125,7 @@ export class BrainGeneratedCapabilityDraftService {
       skillKey: manifest.key,
       name: manifest.name,
       description: manifest.description,
-      type: 'query',
+      type: manifest.sideEffect ? 'action' : 'query',
       domains: this.json(manifest.domains),
       intents: this.json(manifest.intents),
       inputSchema: this.json(manifest.inputSchema),

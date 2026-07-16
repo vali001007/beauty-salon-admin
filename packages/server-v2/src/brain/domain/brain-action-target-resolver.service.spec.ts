@@ -24,6 +24,18 @@ describe('BrainActionTargetResolverService', () => {
     }));
   });
 
+  it.each(['把张女士的预约改到明天三点', '帮张女士把预约改到明天三点'])(
+    'extracts the customer from a natural reschedule request: %s',
+    async (message) => {
+      prisma.customer.findMany.mockResolvedValue([{ id: 7, name: '张女士', phone: '13800001234' }]);
+
+      await expect(service.resolveCustomer({ storeId: 6, message })).resolves.toMatchObject({
+        ok: true,
+        value: { id: 7, name: '张女士' },
+      });
+    },
+  );
+
   it('requires clarification when a customer is ambiguous', async () => {
     prisma.customer.findMany.mockResolvedValue([
       { id: 7, name: '张女士', phone: '13800001234' },
@@ -43,6 +55,17 @@ describe('BrainActionTargetResolverService', () => {
     expect(appointment?.getHours()).toBe(15);
     expect(appointment?.getMinutes()).toBe(30);
     expect(service.resolveAppointmentTime('明天下午', now)).toBeUndefined();
+  });
+
+  it('resolves the next named weekday deterministically', () => {
+    const now = new Date(2026, 6, 16, 10, 0, 0, 0);
+
+    const appointment = service.resolveAppointmentTime('挪到周五下午三点', now);
+
+    expect(appointment?.getFullYear()).toBe(2026);
+    expect(appointment?.getMonth()).toBe(6);
+    expect(appointment?.getDate()).toBe(17);
+    expect(appointment?.getHours()).toBe(15);
   });
 
   it('resolves one active reservation for an exact customer', async () => {
