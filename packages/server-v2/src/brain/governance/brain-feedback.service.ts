@@ -1,19 +1,68 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import {
+  BusinessSemanticEvidenceService,
+  isPersonSemanticEntity,
+  redactBusinessSemanticText,
+} from '../../semantic-data/business-semantic-evidence.service.js';
 
 @Injectable()
 export class BrainFeedbackService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly semanticEvidence: BusinessSemanticEvidenceService,
+  ) {}
 
-  createFeedback(input: {
+  async createFeedback(input: {
     runId: number;
     userId: number;
     storeId: number;
     rating: string;
     correction?: Prisma.InputJsonValue;
   }) {
-    return this.prisma.brainFeedback.create({ data: input });
+    return this.prisma.$transaction(async (tx) => {
+      const run = await tx.brainRun.findFirst({
+        where: { id: input.runId, userId: input.userId, storeId: input.storeId },
+        select: { id: true, userId: true, storeId: true, status: true, input: true, output: true },
+      });
+      if (!run) throw new ForbiddenException('brain_feedback_run_scope_mismatch');
+
+      const correction = sanitizeFeedbackCorrection(input.correction);
+      const structuredCorrection = parseStructuredCorrection(correction);
+      if (structuredCorrection && run.status !== 'completed') {
+        throw new BadRequestException('brain_feedback_correction_requires_completed_run');
+      }
+      if (structuredCorrection) {
+        if (isPersonEntityRuntimeAlias(run.output, structuredCorrection.definitionType, structuredCorrection.definitionKey)) {
+          throw new BadRequestException('person_entity_runtime_alias_forbidden');
+        }
+        const definitionRef = resolveRunDefinitionRef(
+          run.output,
+          structuredCorrection.definitionType,
+          structuredCorrection.definitionKey,
+        );
+        await this.semanticEvidence.captureStructuredCorrectionWithClient({
+          sourceType: 'feedback_correction',
+          runId: input.runId,
+          userId: input.userId,
+          storeId: input.storeId,
+          ...definitionRef,
+          alias: structuredCorrection.alias,
+          confidence: 0.99,
+          question: readRunQuestion(run.input),
+        }, tx);
+      }
+      return tx.brainFeedback.create({
+        data: {
+          runId: input.runId,
+          userId: input.userId,
+          storeId: input.storeId,
+          rating: String(input.rating ?? '').trim().slice(0, 40),
+          ...(correction ? { correction } : {}),
+        },
+      });
+    });
   }
 
   listFeedback(input: { storeId: number }) {
@@ -57,4 +106,172 @@ export class BrainFeedbackService {
       latestEvalSummary: latestEval?.summary ?? null,
     };
   }
+}
+
+function parseStructuredCorrection(value: Prisma.InputJsonValue | undefined) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const root = value as Record<string, unknown>;
+  const candidate =
+    root.semanticCorrection && typeof root.semanticCorrection === 'object' && !Array.isArray(root.semanticCorrection)
+      ? (root.semanticCorrection as Record<string, unknown>)
+      : root;
+  const definitionType = stringValue(candidate.definitionType);
+  const definitionKey = stringValue(candidate.definitionKey);
+  const alias = stringValue(candidate.alias);
+  return definitionType && definitionKey && alias ? { definitionType, definitionKey, alias } : null;
+}
+
+function sanitizeFeedbackCorrection(value: Prisma.InputJsonValue | undefined): Prisma.InputJsonValue | undefined {
+  if (value === undefined || value === null) return undefined;
+  const sanitized = JSON.parse(
+    JSON.stringify(value, (_key, item) =>
+      typeof item === 'string' ? redactBusinessSemanticText(item).slice(0, 1000) : item,
+    ),
+  ) as Prisma.InputJsonValue;
+  if (JSON.stringify(sanitized).length > 16_000) {
+    throw new BadRequestException('brain_feedback_correction_too_large');
+  }
+  return sanitized;
+}
+
+function readRunQuestion(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const message = (value as Record<string, unknown>).message;
+  return typeof message === 'string' ? message : undefined;
+}
+
+type RunDefinitionRef = {
+  definitionType: string;
+  definitionKey: string;
+  definitionVersion: number;
+  definitionFingerprint: string;
+  sourceFingerprint: string;
+};
+
+function resolveRunDefinitionRef(
+  output: unknown,
+  definitionType: string,
+  definitionKey: string,
+): RunDefinitionRef {
+  const semanticIntent = readObject(readObject(output)?.semanticIntent);
+  if (!semanticIntent) {
+    throw new BadRequestException('brain_feedback_correction_definition_ref_missing');
+  }
+
+  const normalizedType = definitionType.trim().toLowerCase();
+  const candidates = collectSemanticIntentRefs(semanticIntent).filter((candidate) => {
+    const candidateType = stringValue(candidate.definitionType)?.toLowerCase();
+    const candidateKey = stringValue(candidate.definitionKey);
+    return candidateType === normalizedType && candidateKey === definitionKey;
+  });
+  if (!candidates.length) {
+    throw new BadRequestException('brain_feedback_correction_definition_ref_missing');
+  }
+
+  const refs = candidates.map(parseCompleteRunDefinitionRef);
+  if (refs.some((ref) => ref === null)) {
+    throw new BadRequestException('brain_feedback_correction_definition_ref_incomplete');
+  }
+  const uniqueRefs = new Map(
+    (refs as RunDefinitionRef[]).map((ref) => [definitionRefLineage(ref), ref]),
+  );
+  if (uniqueRefs.size !== 1) {
+    throw new BadRequestException('brain_feedback_correction_definition_ref_ambiguous');
+  }
+  return [...uniqueRefs.values()][0];
+}
+
+function isPersonEntityRuntimeAlias(output: unknown, definitionType: string, definitionKey: string): boolean {
+  if (definitionType.trim().toLowerCase() !== 'entity') return false;
+  if (isPersonSemanticEntity({ definitionKey })) return true;
+
+  const semanticIntent = readObject(readObject(output)?.semanticIntent);
+  return readArray(semanticIntent?.entities).some((value) => {
+    const entity = readObject(value);
+    const definitionRef = readObject(entity?.definitionRef);
+    return (
+      stringValue(definitionRef?.definitionType)?.toLowerCase() === 'entity' &&
+      stringValue(definitionRef?.definitionKey) === definitionKey &&
+      isPersonSemanticEntity({
+        entityType: entity?.entityType,
+        definitionKey: definitionRef?.definitionKey,
+      })
+    );
+  });
+}
+
+function collectSemanticIntentRefs(semanticIntent: Record<string, unknown>): Array<Record<string, unknown>> {
+  return [
+    ...readArray(semanticIntent.entities).flatMap((entity) => {
+      const ref = readObject(readObject(entity)?.definitionRef);
+      return ref ? [ref] : [];
+    }),
+    ...readArray(semanticIntent.metrics).flatMap((ref) => {
+      const record = readObject(ref);
+      return record ? [record] : [];
+    }),
+    ...readArray(semanticIntent.dimensions).flatMap((ref) => {
+      const record = readObject(ref);
+      return record ? [record] : [];
+    }),
+    ...readArray(semanticIntent.filters).flatMap((filter) => {
+      const ref = readObject(readObject(filter)?.fieldRef);
+      return ref ? [ref] : [];
+    }),
+    ...readArray(semanticIntent.orderBy).flatMap((orderBy) => {
+      const ref = readObject(readObject(orderBy)?.definitionRef);
+      return ref ? [ref] : [];
+    }),
+  ];
+}
+
+function parseCompleteRunDefinitionRef(value: Record<string, unknown>): RunDefinitionRef | null {
+  const definitionType = stringValue(value.definitionType);
+  const definitionKey = stringValue(value.definitionKey);
+  const definitionVersion = value.definitionVersion;
+  const definitionFingerprint = stringValue(value.definitionFingerprint);
+  const sourceFingerprint = stringValue(value.sourceFingerprint);
+  if (
+    !definitionType ||
+    !definitionKey ||
+    !Number.isInteger(definitionVersion) ||
+    Number(definitionVersion) <= 0 ||
+    !definitionFingerprint ||
+    !/^[0-9a-f]{64}$/i.test(definitionFingerprint) ||
+    !sourceFingerprint ||
+    !/^[0-9a-f]{64}$/i.test(sourceFingerprint)
+  ) {
+    return null;
+  }
+  return {
+    definitionType,
+    definitionKey,
+    definitionVersion: Number(definitionVersion),
+    definitionFingerprint,
+    sourceFingerprint,
+  };
+}
+
+function definitionRefLineage(ref: RunDefinitionRef): string {
+  return [
+    ref.definitionType.toLowerCase(),
+    ref.definitionKey,
+    ref.definitionVersion,
+    ref.definitionFingerprint.toLowerCase(),
+    ref.sourceFingerprint.toLowerCase(),
+  ].join('\u0000');
+}
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }

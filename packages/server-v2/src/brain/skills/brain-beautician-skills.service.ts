@@ -29,6 +29,7 @@ export class BrainBeauticianSkillsService {
     endDate: Date;
     beauticianId?: number;
     userId?: number;
+    timezone?: string;
   }): Promise<BeauticianServiceSummary> {
     const beauticianId = input.beauticianId ?? (await this.findBeauticianId(input.storeId, input.userId));
     const reservations = await this.prisma.reservation.findMany({
@@ -66,7 +67,7 @@ export class BrainBeauticianSkillsService {
       nextTasks: reservations.map((reservation) => ({
         customerName: reservation.customer?.name ?? '客户',
         projectName: reservation.project?.name ?? '服务项目',
-        appointmentTime: `${reservation.date.toISOString().slice(0, 10)} ${reservation.startTime}`,
+        appointmentTime: `${this.formatDate(reservation.date, input.timezone ?? 'Asia/Shanghai')} ${reservation.startTime}`,
         attentionItems: this.buildAttentionItems(reservation.customer),
       })),
     };
@@ -186,8 +187,19 @@ export class BrainBeauticianSkillsService {
 
   private formatAttention(label: string, value?: string | null) {
     const text = String(value ?? '').trim();
-    if (!text || ['无', '否', '暂无', 'none', 'null'].includes(text.toLowerCase())) return undefined;
+    if (!text || ['无', '否', '没有', '无过敏', '暂无', 'none', 'null'].includes(text.toLowerCase())) return undefined;
     return `${label}：${text}`;
+  }
+
+  private formatDate(date: Date, timezone: string) {
+    const parts = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
   }
 
   private toNumber(value: unknown) {

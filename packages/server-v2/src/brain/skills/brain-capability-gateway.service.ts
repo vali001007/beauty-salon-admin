@@ -16,15 +16,18 @@ export interface BrainCapabilityReceipt {
   businessObjectType: string;
   businessObjectId: number | string;
   result: unknown;
+  status?: 'succeeded' | 'partially_succeeded';
 }
 
 export interface BrainCapabilityDescriptor {
   key: string;
+  version: number;
   endpoint: string;
   method: 'POST' | 'PUT' | 'PATCH';
   permission: string;
   riskLevel: BrainRiskLevel;
   requiredFields: string[];
+  allowedFields: string[];
   transactionBoundary: string;
   receiptType: string;
 }
@@ -32,71 +35,85 @@ export interface BrainCapabilityDescriptor {
 const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
   create_reservation: {
     key: 'create_reservation',
+    version: 1,
     endpoint: 'reservations',
     method: 'POST',
     permission: 'core:store:reservations',
     riskLevel: 'medium',
     requiredFields: ['customerId', 'projectId', 'appointmentTime'],
+    allowedFields: ['customerId', 'projectId', 'appointmentTime', 'duration', 'beauticianId', 'remark'],
     transactionBoundary: 'ReservationsService.create',
     receiptType: 'reservation',
   },
   reschedule_reservation: {
     key: 'reschedule_reservation',
+    version: 1,
     endpoint: 'reservations/:id',
     method: 'PATCH',
     permission: 'core:store:reservations',
     riskLevel: 'high',
     requiredFields: ['reservationId', 'appointmentTime'],
+    allowedFields: ['reservationId', 'appointmentTime', 'duration', 'beauticianId', 'reason', 'remark'],
     transactionBoundary: 'ReservationsService.update',
     receiptType: 'reservation',
   },
   cancel_reservation: {
     key: 'cancel_reservation',
+    version: 1,
     endpoint: 'reservations/:id/cancel',
     method: 'POST',
     permission: 'core:store:reservations',
     riskLevel: 'high',
     requiredFields: ['reservationId'],
+    allowedFields: ['reservationId', 'reason'],
     transactionBoundary: 'ReservationsService.cancel',
     receiptType: 'reservation',
   },
   create_customer_followup: {
     key: 'create_customer_followup',
+    version: 1,
     endpoint: 'marketing/follow-up-tasks',
     method: 'POST',
     permission: 'assist:followup:create',
     riskLevel: 'medium',
     requiredFields: ['customerId'],
+    allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
     transactionBoundary: 'TerminalService.createFollowUpTask',
     receiptType: 'follow_up_task',
   },
   create_purchase_order: {
     key: 'create_purchase_order',
+    version: 1,
     endpoint: 'inventory/purchase-orders',
     method: 'POST',
     permission: 'core:supply:manage',
     riskLevel: 'high',
     requiredFields: ['supplier', 'items'],
+    allowedFields: ['supplier', 'items', 'submitForApproval'],
     transactionBoundary: 'InventoryService.createPurchaseOrder',
     receiptType: 'purchase_order',
   },
   create_marketing_touch_draft: {
     key: 'create_marketing_touch_draft',
+    version: 1,
     endpoint: 'marketing/follow-up-tasks',
     method: 'POST',
     permission: 'core:marketing:create',
     riskLevel: 'medium',
     requiredFields: ['customerId', 'script'],
+    allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
     transactionBoundary: 'TerminalService.createFollowUpTask',
     receiptType: 'marketing_touch_draft',
   },
   save_service_record: {
     key: 'save_service_record',
+    version: 1,
     endpoint: 'terminal/tasks/:id/complete',
     method: 'POST',
     permission: 'aura:service-record:create',
     riskLevel: 'high',
     requiredFields: ['taskId', 'remark'],
+    allowedFields: ['taskId', 'remark', 'consumptionItems', 'images', 'beauticianId'],
     transactionBoundary: 'TerminalService.completeTask',
     receiptType: 'service_task',
   },
@@ -124,7 +141,7 @@ export class BrainCapabilityGatewayService {
   }): Promise<BrainCapabilityReceipt> {
     const descriptor = this.resolve(input.skillKey);
     this.assertPermission(descriptor.permission, input.context.permissions);
-    const payload = this.validatePayload(descriptor, input.payload);
+    const payload = this.validateForExecution(input.skillKey, descriptor.version, input.payload).payload;
 
     switch (input.skillKey) {
       case 'create_reservation':
@@ -144,6 +161,13 @@ export class BrainCapabilityGatewayService {
       default:
         throw new BadRequestException(`unsupported_capability:${input.skillKey}`);
     }
+  }
+
+  validateForExecution(skillKey: string, version: number, value: unknown) {
+    const descriptor = this.resolve(skillKey);
+    if (descriptor.version !== version) throw new BadRequestException(`capability_version_mismatch:${skillKey}@${version}`);
+    this.assertNoConfirmationClaim(value);
+    return { descriptor, payload: this.validatePayload(descriptor, value) };
   }
 
   private async createReservation(payload: Record<string, unknown>, context: BrainCapabilityContext) {
@@ -240,7 +264,12 @@ export class BrainCapabilityGatewayService {
 
   private validatePayload(descriptor: BrainCapabilityDescriptor, value: unknown) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException('invalid_capability_payload');
-    const payload = value as Record<string, unknown>;
+    const source = value as Record<string, unknown>;
+    const payload = Object.fromEntries(
+      descriptor.allowedFields
+        .filter((field) => Object.prototype.hasOwnProperty.call(source, field))
+        .map((field) => [field, source[field]]),
+    );
     const missing = descriptor.requiredFields.filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === '');
     if (missing.length) throw new BadRequestException(`missing_capability_fields:${missing.join(',')}`);
     return payload;
@@ -255,7 +284,6 @@ export class BrainCapabilityGatewayService {
       const quantity = this.positiveNumber(item.quantity, `items.${index}.quantity`);
       const unitPrice = this.nonNegativeNumber(item.unitPrice, `items.${index}.unitPrice`);
       return {
-        ...item,
         productId,
         productName: this.nonEmptyString(item.productName, `items.${index}.productName`),
         sku: this.nonEmptyString(item.sku, `items.${index}.sku`),
@@ -263,6 +291,26 @@ export class BrainCapabilityGatewayService {
         unitPrice,
       };
     });
+  }
+
+  private assertNoConfirmationClaim(value: unknown, seen = new WeakSet<object>(), depth = 0): void {
+    if (value === null || typeof value !== 'object') return;
+    if (depth > 12 || seen.has(value as object)) throw new BadRequestException('invalid_capability_payload');
+    seen.add(value as object);
+    try {
+      if (Array.isArray(value)) {
+        value.forEach((item) => this.assertNoConfirmationClaim(item, seen, depth + 1));
+        return;
+      }
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        if (/^(?:confirmed|confirmation|approved|approve|userConfirmed)$/i.test(key)) {
+          throw new BadRequestException(`model_confirmation_claim_forbidden:${key}`);
+        }
+        this.assertNoConfirmationClaim(item, seen, depth + 1);
+      }
+    } finally {
+      seen.delete(value as object);
+    }
   }
 
   private assertPermission(permission: string, permissions: string[]) {

@@ -36,5 +36,42 @@ describe('BrainManagerSkillsService staff analysis', () => {
       commissionAmount: 100,
       timeOffHours: 2.5,
     });
+    expect(prisma.serviceTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { not: 'cancelled' } }),
+      }),
+    );
+  });
+
+  it('paginates staff facts instead of silently truncating at the first page', async () => {
+    const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+      id: index + 1,
+      beauticianId: 1,
+      customerId: index + 1,
+      status: 'completed',
+    }));
+    const serviceTaskFindMany = jest
+      .fn()
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([{ id: 1001, beauticianId: 1, customerId: 1001, status: 'completed' }]);
+    const prisma = {
+      beautician: { findMany: jest.fn().mockResolvedValue([{ id: 1, name: '王美容师' }]) },
+      serviceTask: { findMany: serviceTaskFindMany },
+      commissionRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      beauticianTimeOff: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new BrainManagerSkillsService(prisma as never);
+
+    const result = await service.buildStaffAnalysis({
+      storeId: 6,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-31T23:59:59.999Z'),
+    });
+
+    expect(result.staff[0].serviceCount).toBe(1001);
+    expect(serviceTaskFindMany).toHaveBeenCalledTimes(2);
+    expect(serviceTaskFindMany.mock.calls[1][0]).toEqual(
+      expect.objectContaining({ cursor: { id: 1000 }, skip: 1, orderBy: { id: 'asc' }, take: 1000 }),
+    );
   });
 });

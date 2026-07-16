@@ -1,5 +1,6 @@
 import { DimensionRegistryService } from '../semantic-data/dimension-registry.service.js';
-import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
+import { createInMemoryBusinessMetricCatalog } from '../semantic-data/business-metric-catalog.testing.js';
+import { LEGACY_SEMANTIC_METRICS } from '../semantic-data/legacy-semantic-metric.fixture.js';
 import type { SemanticQueryPlan } from './query-plan.types.js';
 import { QuerySafetyGuardService } from './query-safety-guard.service.js';
 
@@ -9,10 +10,19 @@ function basePlan(overrides: Partial<SemanticQueryPlan> = {}): SemanticQueryPlan
     capabilityId: 'revenue_diagnosis',
     taskId: 'task_guard',
     originalQuestion: '今天收银多少',
+    taskType: 'query',
     role: 'manager',
+    actor: {
+      principalType: 'user',
+      userId: 9,
+      storeId: 1,
+      role: 'manager',
+      permissions: ['*'],
+    },
     storeScope: { storeIds: [1], scopeType: 'current_store' },
-    metrics: [{ key: 'paid_amount', aggregation: 'sum' }],
+    metrics: [{ key: 'paid_amount', aggregation: 'sum' } as any],
     dimensions: ['date'],
+    dimensionBindings: [{ key: 'date', name: '日期', model: 'ProductOrder', field: 'createdAt', sensitive: false }],
     filters: { storeId: 1 },
     timeRange: { preset: 'today', label: '今天' },
     orderBy: [{ key: 'paid_amount', direction: 'desc' }],
@@ -24,7 +34,7 @@ function basePlan(overrides: Partial<SemanticQueryPlan> = {}): SemanticQueryPlan
 }
 
 describe('QuerySafetyGuardService', () => {
-  const metricRegistry = new SemanticMetricRegistryService();
+  const metricRegistry = createInMemoryBusinessMetricCatalog(LEGACY_SEMANTIC_METRICS);
   const dimensionRegistry = new DimensionRegistryService();
   const guard = new QuerySafetyGuardService(metricRegistry, dimensionRegistry);
 
@@ -34,7 +44,7 @@ describe('QuerySafetyGuardService', () => {
 
   it('rejects unsupported dimensions and unknown metrics', () => {
     expect(guard.validate(basePlan({ dimensions: ['date', 'rawSqlColumn'] })).rejectedReason).toContain('维度');
-    expect(guard.validate(basePlan({ metrics: [{ key: 'raw_metric', aggregation: 'sum' }] })).rejectedReason).toContain('暂不支持指标');
+    expect(guard.validate(basePlan({ metrics: [{ key: 'raw_metric', aggregation: 'sum' } as any] })).rejectedReason).toContain('暂不支持指标');
   });
 
   it('rejects missing or invalid store scope', () => {
@@ -43,12 +53,52 @@ describe('QuerySafetyGuardService', () => {
   });
 
   it('blocks broad beautician query unless it has self scope', () => {
-    expect(guard.validate(basePlan({ role: 'beautician' })).rejectedReason).toContain('本人');
-    expect(guard.validate(basePlan({ role: 'beautician', filters: { storeId: 1, scope: 'self', beauticianId: 8 } })).allowed).toBe(true);
+    expect(
+      guard.validate(
+        basePlan({
+          role: 'beautician',
+          actor: { principalType: 'user', userId: 9, storeId: 1, role: 'beautician', permissions: ['*'] },
+        }),
+      ).rejectedReason,
+    ).toContain('本人');
+    expect(
+      guard.validate(
+        basePlan({
+          role: 'beautician',
+          actor: {
+            principalType: 'user',
+            userId: 9,
+            storeId: 1,
+            role: 'beautician',
+            beauticianId: 8,
+            permissions: ['*'],
+          },
+          metrics: [
+            {
+              key: 'staff_performance_score',
+              aggregation: 'score',
+              runtimeBinding: { runtimeQuery: { dimensions: ['beauticianId'] } },
+            } as any,
+          ],
+          dimensions: ['beauticianId'],
+          dimensionBindings: [
+            { key: 'beauticianId', name: '美容师', model: 'Beautician', field: 'id', sensitive: false },
+          ],
+          selfScope: { dimensionKey: 'beauticianId', value: 8 },
+          filters: { storeId: 1, scope: 'self', beauticianId: 8 },
+        }),
+      ).allowed,
+    ).toBe(true);
   });
 
   it('blocks sensitive finance metric for reception', () => {
-    const decision = guard.validate(basePlan({ role: 'reception', metrics: [{ key: 'net_revenue', aggregation: 'sum' }] }));
+    const decision = guard.validate(
+      basePlan({
+        role: 'reception',
+        actor: { principalType: 'user', userId: 9, storeId: 1, role: 'reception', permissions: ['*'] },
+        metrics: [{ key: 'net_revenue', aggregation: 'sum' } as any],
+      }),
+    );
     expect(decision.allowed).toBe(false);
     expect(decision.rejectedReason).toContain('前台');
   });

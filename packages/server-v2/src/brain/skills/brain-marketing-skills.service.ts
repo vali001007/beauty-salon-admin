@@ -1,9 +1,68 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 @Injectable()
 export class BrainMarketingSkillsService {
   constructor(private readonly prisma?: PrismaService) {}
+
+  async buildFollowUpPriorityRows(input: { storeId: number; asOf: Date }) {
+    return (await this.buildFollowUpPrioritySnapshot(input)).rows;
+  }
+
+  async buildFollowUpPrioritySnapshot(input: { storeId: number; asOf: Date }) {
+    if (!this.prisma) throw new Error('marketing_follow_up_prisma_not_configured');
+    const opportunityRows = await this.prisma.$queryRaw<Array<{
+      customerId: number;
+      customerName: string;
+      opportunityType: string;
+      priority: string;
+      score: number;
+      updatedAt: Date;
+    }>>(Prisma.sql`
+      WITH ranked_opportunities AS (
+        SELECT
+          opportunity."customerId",
+          customer."name" AS "customerName",
+          opportunity."opportunityType",
+          opportunity."priority",
+          opportunity."score",
+          opportunity."updatedAt",
+          ROW_NUMBER() OVER (
+            PARTITION BY opportunity."customerId"
+            ORDER BY opportunity."score" DESC, opportunity."updatedAt" DESC, opportunity."id" DESC
+          ) AS row_number
+        FROM "CustomerOpportunity" opportunity
+        INNER JOIN "Customer" customer ON customer."id" = opportunity."customerId"
+        WHERE opportunity."storeId" = ${input.storeId}
+          AND opportunity."status" = 'open'
+          AND opportunity."createdAt" <= ${input.asOf}
+          AND (opportunity."expiresAt" IS NULL OR opportunity."expiresAt" >= ${input.asOf})
+          AND customer."deletedAt" IS NULL
+      )
+      SELECT
+        "customerId",
+        "customerName",
+        "opportunityType",
+        "priority",
+        "score",
+        "updatedAt"
+      FROM ranked_opportunities
+      WHERE row_number = 1
+      ORDER BY "score" DESC, "updatedAt" DESC, "customerId" ASC
+      LIMIT 5001
+    `);
+    const truncated = opportunityRows.length > 5000;
+    const opportunities = opportunityRows.slice(0, 5000);
+    const rows = opportunities.map((opportunity) => ({
+      customerId: opportunity.customerId,
+      customerName: opportunity.customerName,
+      score: opportunity.score,
+      opportunityType: opportunity.opportunityType,
+      priority: opportunity.priority,
+    }));
+    return { rows, truncated, scannedOpportunityCount: opportunities.length };
+  }
 
   draftAppointmentReminder(input: { customerName?: string; timeWindow?: string }) {
     const prefix = input.customerName ? `${input.customerName}您好` : '您好';
@@ -27,48 +86,75 @@ export class BrainMarketingSkillsService {
 
   async buildMarketingAnalytics(input: { storeId: number; startDate: Date; endDate: Date }) {
     if (!this.prisma) throw new Error('marketing_analytics_prisma_not_configured');
-    const [touches, attributions, strategies] = await Promise.all([
-      this.prisma.marketingAutomationTouch.findMany({
-        where: {
-          customer: { storeId: input.storeId, deletedAt: null },
-          touchedAt: { gte: input.startDate, lte: input.endDate },
-        },
-        select: { status: true, channel: true, convertedAt: true, actualRevenue: true, strategyId: true },
-        take: 5000,
+    const touchWhere: Prisma.MarketingAutomationTouchWhereInput = {
+      customer: { storeId: input.storeId, deletedAt: null },
+      touchedAt: { gte: input.startDate, lte: input.endDate },
+    };
+    const conversionWhere: Prisma.MarketingAutomationTouchWhereInput = {
+      ...touchWhere,
+      OR: [{ convertedAt: { not: null } }, { status: 'converted' }],
+    };
+    const attributionWhere: Prisma.MarketingAttributionWhereInput = {
+      customer: { storeId: input.storeId, deletedAt: null },
+      occurredAt: { gte: input.startDate, lte: input.endDate },
+    };
+    const [reachedCount, convertedCount, channelTotals, channelConversions, attributionGroups, strategyRows] = await Promise.all([
+      this.prisma.marketingAutomationTouch.count({ where: touchWhere }),
+      this.prisma.marketingAutomationTouch.count({ where: conversionWhere }),
+      this.prisma.marketingAutomationTouch.groupBy({
+        by: ['channel'],
+        where: touchWhere,
+        _count: { _all: true },
+        _sum: { actualRevenue: true },
       }),
-      this.prisma.marketingAttribution.findMany({
-        where: {
-          customer: { storeId: input.storeId, deletedAt: null },
-          occurredAt: { gte: input.startDate, lte: input.endDate },
-        },
-        include: { strategy: { select: { id: true, name: true } } },
-        take: 5000,
+      this.prisma.marketingAutomationTouch.groupBy({
+        by: ['channel'],
+        where: conversionWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.marketingAttribution.groupBy({
+        by: ['strategyId'],
+        where: attributionWhere,
+        _sum: { attributedRevenue: true },
       }),
       this.prisma.marketingAutomationStrategy.findMany({
-        where: { touches: { some: { customer: { storeId: input.storeId, deletedAt: null } } } },
+        where: { storeId: input.storeId },
         orderBy: { updatedAt: 'desc' },
-        take: 30,
+        take: 31,
       }),
     ]);
-    const channelMap = new Map<string, { reached: number; converted: number; revenue: number }>();
-    for (const touch of touches) {
-      const channel = touch.channel || '未记录渠道';
-      const current = channelMap.get(channel) ?? { reached: 0, converted: 0, revenue: 0 };
-      current.reached += 1;
-      current.converted += touch.convertedAt || touch.status === 'converted' ? 1 : 0;
-      current.revenue += this.toNumber(touch.actualRevenue);
-      channelMap.set(channel, current);
-    }
-    const attributedRevenue = attributions.reduce((sum, item) => sum + this.toNumber(item.attributedRevenue), 0);
-    const convertedCount = touches.filter((touch) => touch.convertedAt || touch.status === 'converted').length;
+    const strategiesTruncated = strategyRows.length > 30;
+    const strategies = strategyRows.slice(0, 30);
+    const convertedByChannel = new Map(channelConversions.map((item) => [item.channel ?? '未记录渠道', item._count._all]));
+    const channels = channelTotals.map((item) => {
+      const channel = item.channel ?? '未记录渠道';
+      const reached = item._count._all;
+      const converted = convertedByChannel.get(channel) ?? 0;
+      const revenue = this.toNumber(item._sum.actualRevenue);
+      return { channel, reached, converted, revenue, conversionRate: reached ? converted / reached : 0 };
+    }).sort((left, right) => right.converted - left.converted || right.revenue - left.revenue);
+    const attributionStrategyIds = attributionGroups.map((item) => item.strategyId);
+    const attributionStrategies = attributionStrategyIds.length
+      ? await this.prisma.marketingAutomationStrategy.findMany({
+          where: { storeId: input.storeId, id: { in: attributionStrategyIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const strategyNames = new Map(attributionStrategies.map((strategy) => [strategy.id, strategy.name]));
+    const attributionByStrategy = attributionGroups
+      .map((item) => ({
+        id: item.strategyId,
+        name: strategyNames.get(item.strategyId) ?? `策略 ${item.strategyId}`,
+        revenue: this.toNumber(item._sum.attributedRevenue),
+      }))
+      .sort((left, right) => right.revenue - left.revenue);
+    const attributedRevenue = attributionByStrategy.reduce((sum, item) => sum + item.revenue, 0);
     return {
-      reachedCount: touches.length,
+      reachedCount,
       convertedCount,
-      conversionRate: touches.length ? convertedCount / touches.length : 0,
+      conversionRate: reachedCount ? convertedCount / reachedCount : 0,
       attributedRevenue,
-      channels: [...channelMap.entries()]
-        .map(([channel, value]) => ({ channel, ...value, conversionRate: value.reached ? value.converted / value.reached : 0 }))
-        .sort((left, right) => right.converted - left.converted || right.revenue - left.revenue),
+      channels,
       strategies: strategies.map((strategy) => ({
         id: strategy.id,
         name: strategy.name,
@@ -79,11 +165,14 @@ export class BrainMarketingSkillsService {
         actions: strategy.actions,
         lastExecutedAt: strategy.lastExecutedAt,
       })),
-      attributionByStrategy: [...new Map(attributions.map((item) => [item.strategy.id, item.strategy.name])).entries()].map(([id, name]) => ({
-        id,
-        name,
-        revenue: attributions.filter((item) => item.strategyId === id).reduce((sum, item) => sum + this.toNumber(item.attributedRevenue), 0),
-      })),
+      attributionByStrategy,
+      dataCoverage: {
+        touchesTruncated: false,
+        attributionsTruncated: false,
+        strategiesTruncated,
+        touchSampleSize: reachedCount,
+        attributionSampleSize: attributionGroups.length,
+      },
     };
   }
 

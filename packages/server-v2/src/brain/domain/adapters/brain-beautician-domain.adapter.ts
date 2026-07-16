@@ -146,6 +146,7 @@ export class BrainBeauticianDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: 'save_service_record',
+      planId: input.plan.executionPlanId,
       riskLevel: 'high',
       preview: {
         actionType: 'save_service_record',

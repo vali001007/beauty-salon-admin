@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { BrainRiskLevel, BrainSkillType, Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -27,40 +27,60 @@ export class BrainGovernanceResourceService {
     });
   }
 
-  createDraft(input: {
+  async createDraft(input: {
     resourceType: BrainGovernanceResourceType;
     resourceKey: string;
     payload: Record<string, unknown>;
     createdBy: number;
   }) {
+    this.assertResourceManagedHere(input.resourceType);
+    if (input.resourceType === 'skill') this.assertLegacySkillPayload(input.payload);
     const resourceKey = this.nonEmpty(input.resourceKey, 'resourceKey');
-    return this.prisma.$transaction(async (tx) => {
-      const previous = await tx.brainResourceVersion.findFirst({
-        where: { resourceType: input.resourceType, resourceKey },
-        orderBy: { version: 'desc' },
-      });
-      const version = (previous?.version ?? 0) + 1;
-      const previousSnapshot = previous ? this.record(previous.snapshot) : {};
-      const snapshot = { ...previousSnapshot, ...input.payload, resourceKey, version };
-      const sourceResourceId = await this.persistSource(tx, input.resourceType, resourceKey, version, snapshot);
-      return tx.brainResourceVersion.create({
-        data: {
-          resourceType: input.resourceType,
-          resourceKey,
-          version,
-          status: 'draft',
-          snapshot: this.toJson(snapshot),
-          checksum: this.checksum(snapshot),
-          sourceResourceId,
-          createdBy: input.createdBy,
-        },
-      });
-    });
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const previous = await tx.brainResourceVersion.findFirst({
+              where: { resourceType: input.resourceType, resourceKey },
+              orderBy: { version: 'desc' },
+            });
+            const version = (previous?.version ?? 0) + 1;
+            const previousSnapshot = previous ? this.record(previous.snapshot) : {};
+            if (input.resourceType === 'skill' && previousSnapshot.generatedCapability === true) {
+              throw new BadRequestException('generated_capability_governance_pipeline_required');
+            }
+            const snapshot = { ...previousSnapshot, ...input.payload, resourceKey, version };
+            const sourceResourceId = await this.persistSource(tx, input.resourceType, resourceKey, version, snapshot);
+            return tx.brainResourceVersion.create({
+              data: {
+                resourceType: input.resourceType,
+                resourceKey,
+                version,
+                status: 'draft',
+                snapshot: this.toJson(snapshot),
+                checksum: this.checksum(snapshot),
+                sourceResourceId,
+                createdBy: input.createdBy,
+              },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if ((isPrismaCode(error, 'P2034') || isPrismaCode(error, 'P2002')) && attempt < 3) continue;
+        if (isPrismaCode(error, 'P2034') || isPrismaCode(error, 'P2002')) {
+          throw new ConflictException('brain_resource_version_conflict');
+        }
+        throw error;
+      }
+    }
+    throw new ConflictException('brain_resource_version_conflict');
   }
 
   async changeStatus(input: { id: number; status: 'draft' | 'active' | 'disabled' | 'archived' }) {
     const current = await this.prisma.brainResourceVersion.findUnique({ where: { id: input.id } });
     if (!current) throw new BadRequestException('brain_resource_version_not_found');
+    this.assertResourceManagedHere(current.resourceType as BrainGovernanceResourceType);
     if (input.status === 'active') throw new BadRequestException('brain_resource_activation_requires_release');
     return this.prisma.brainResourceVersion.update({
       where: { id: input.id },
@@ -79,6 +99,7 @@ export class BrainGovernanceResourceService {
     version: number,
     payload: Record<string, unknown>,
   ) {
+    this.assertResourceManagedHere(type);
     switch (type) {
       case 'metric': {
         const row = await tx.brainMetric.create({
@@ -88,7 +109,8 @@ export class BrainGovernanceResourceService {
             domain: this.nonEmpty(payload.domain, 'domain'),
             formula: this.json(payload.formula, 'formula'),
             sourceTables: this.json(payload.sourceTables, 'sourceTables'),
-            defaultFilters: payload.defaultFilters == null ? undefined : this.json(payload.defaultFilters, 'defaultFilters'),
+            defaultFilters:
+              payload.defaultFilters == null ? undefined : this.json(payload.defaultFilters, 'defaultFilters'),
             permissions: this.json(payload.permissions, 'permissions'),
             description: this.nonEmpty(payload.description, 'description'),
             status: 'draft',
@@ -134,7 +156,8 @@ export class BrainGovernanceResourceService {
             systemPrompt: this.nonEmpty(payload.systemPrompt, 'systemPrompt'),
             allowedSkills: this.json(payload.allowedSkills ?? [], 'allowedSkills'),
             dataScopeRules: this.json(payload.dataScopeRules ?? {}, 'dataScopeRules'),
-            knowledgePack: payload.knowledgePack == null ? undefined : this.json(payload.knowledgePack, 'knowledgePack'),
+            knowledgePack:
+              payload.knowledgePack == null ? undefined : this.json(payload.knowledgePack, 'knowledgePack'),
             enabled: false,
             version,
           },
@@ -150,7 +173,11 @@ export class BrainGovernanceResourceService {
             inputSchema: this.json(payload.inputSchema ?? {}, 'inputSchema'),
             outputSchema: this.json(payload.outputSchema ?? {}, 'outputSchema'),
             permissions: this.json(payload.permissions ?? [], 'permissions'),
-            riskLevel: this.enumValue(payload.riskLevel ?? 'low', Object.values(BrainRiskLevel), 'riskLevel') as BrainRiskLevel,
+            riskLevel: this.enumValue(
+              payload.riskLevel ?? 'low',
+              Object.values(BrainRiskLevel),
+              'riskLevel',
+            ) as BrainRiskLevel,
             enabled: false,
             version,
           },
@@ -167,12 +194,41 @@ export class BrainGovernanceResourceService {
             eventTrigger: typeof payload.eventTrigger === 'string' ? payload.eventTrigger : undefined,
             condition: this.json(payload.condition ?? {}, 'condition'),
             suggestionTpl: this.json(payload.suggestionTpl ?? {}, 'suggestionTpl'),
-            riskLevel: this.enumValue(payload.riskLevel ?? 'medium', Object.values(BrainRiskLevel), 'riskLevel') as BrainRiskLevel,
+            riskLevel: this.enumValue(
+              payload.riskLevel ?? 'medium',
+              Object.values(BrainRiskLevel),
+              'riskLevel',
+            ) as BrainRiskLevel,
             enabled: false,
             version,
           },
         });
         return row.id;
+      }
+    }
+  }
+
+  private assertResourceManagedHere(type: BrainGovernanceResourceType) {
+    if (type === 'metric' || type === 'ontology_entity' || type === 'ontology_relation') {
+      throw new BadRequestException(`business_definition_registry_required:${type}`);
+    }
+  }
+
+  private assertLegacySkillPayload(payload: Record<string, unknown>) {
+    const generatedFields = [
+      'sourceFingerprint',
+      'definitionRefs',
+      'synonyms',
+      'negativeExamples',
+      'examples',
+      'domains',
+      'intents',
+      'description',
+      'successSchema',
+    ];
+    for (const field of generatedFields) {
+      if (Object.prototype.hasOwnProperty.call(payload, field)) {
+        throw new BadRequestException(`generated_capability_field_forbidden:${field}`);
       }
     }
   }
@@ -183,7 +239,8 @@ export class BrainGovernanceResourceService {
   }
 
   private enumValue(value: unknown, allowed: string[], field: string) {
-    if (typeof value !== 'string' || !allowed.includes(value)) throw new BadRequestException(`invalid_governance_field:${field}`);
+    if (typeof value !== 'string' || !allowed.includes(value))
+      throw new BadRequestException(`invalid_governance_field:${field}`);
     return value;
   }
 
@@ -203,4 +260,8 @@ export class BrainGovernanceResourceService {
   private checksum(value: unknown) {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }
+}
+
+function isPrismaCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === code);
 }

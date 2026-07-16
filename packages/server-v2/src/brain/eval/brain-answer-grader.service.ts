@@ -26,6 +26,7 @@ export type BrainAnswerGradeStatus =
   | 'security_blocked'
   | 'permission_denied'
   | 'not_found'
+  | 'provider_unavailable'
   | 'error';
 
 export interface BrainAnswerGraderCitation {
@@ -39,6 +40,9 @@ export interface BrainAnswerGraderInput {
   question: string;
   answer: string;
   citations: BrainAnswerGraderCitation[];
+  blocks?: unknown[];
+  expectedIntent?: BrainQuestionIntent;
+  expectedMetric?: string;
   brainStatus?: string;
   error?: string;
 }
@@ -59,11 +63,11 @@ export interface BrainAnswerGrade {
 @Injectable()
 export class BrainAnswerGraderService {
   grade(input: BrainAnswerGraderInput): BrainAnswerGrade {
-    const expectedIntent = this.detectExpectedIntent(input.question);
+    const expectedIntent = input.expectedIntent ?? this.detectExpectedIntent(input.question);
     const actualIntent = this.detectActualIntent(input);
     const expectedShape = this.shapeForIntent(expectedIntent);
     const actualShape = this.detectActualShape(input, expectedShape);
-    const expectedMetric = this.detectExpectedMetric(input.question, expectedIntent);
+    const expectedMetric = input.expectedMetric ?? this.detectExpectedMetric(input.question, expectedIntent);
     const actualMetric = this.detectActualMetric(input.citations);
     const groundingType = this.detectGroundingType(input.citations);
     const legacyUsableWithCitation = input.brainStatus === 'completed' && this.hasMetricCitation(input.citations);
@@ -130,6 +134,19 @@ export class BrainAnswerGraderService {
         expectedMetric,
         actualMetric,
         reason: '识别到指标，但真实口径尚未接入。',
+        legacyUsableWithCitation,
+      });
+    }
+    if (this.isUnsupportedIntent(input.answer)) {
+      return this.buildGrade(input, {
+        status: 'unsupported_intent',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: '当前能力明确说明该业务口径尚未注册。',
         legacyUsableWithCitation,
       });
     }
@@ -291,6 +308,11 @@ export class BrainAnswerGraderService {
     if (/(新建|创建|下单|开单|改约|取消|发券|发送|导出|调整|保存|确认|执行|帮我约|打开收银|打开核销|核销|结账)/.test(text)) return 'action';
     if (/(爽约率|到店率|超时服务|超时.*影响.*预约|爽约.*高不高)/.test(text)) return 'diagnosis';
     if (
+      /(按支付方式|支付方式.*(?:多少|拆分)|现金.*(?:微信|支付宝)|微信.*(?:现金|支付宝)|支付宝.*(?:现金|微信)|(?:现金|微信|支付宝|银行卡|储值).*(?:各|分别).*(?:多少|金额))/.test(text)
+    ) {
+      return 'list';
+    }
+    if (
       /(为什么|原因|诊断|分析一下|异常|怎么回事|总结|情况怎么样|风险|报告|复盘|核对|退款|折扣|优惠|漏收|多收|不正常|画像|渠道|对不上|利润.*降|收入.*利润|成本.*上涨|问题出在哪)/.test(
         text,
       )
@@ -333,7 +355,17 @@ export class BrainAnswerGraderService {
   private detectActualShape(input: BrainAnswerGraderInput, expectedShape: BrainAnswerShape): BrainAnswerShape {
     const answer = this.normalize(input.answer);
     const skillId = this.detectActualSkill(input.citations);
-    if (!answer) return 'empty';
+    const blockKinds = (input.blocks ?? []).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const kind = (value as Record<string, unknown>).kind;
+      return typeof kind === 'string' ? [kind] : [];
+    });
+    if (blockKinds.includes('ranking')) return 'ranking';
+    if (blockKinds.includes('comparison')) return 'comparison';
+    if (blockKinds.includes('table') && expectedShape === 'list') return 'list';
+    if (blockKinds.includes('table') && expectedShape === 'ranking') return 'ranking';
+    if (blockKinds.includes('kpi') && expectedShape === 'scalar_metric') return 'scalar_metric';
+    if (!answer && !blockKinds.length) return 'empty';
     if (
       skillId?.includes('service_summary') ||
       skillId?.includes('reservation_schedule') ||
@@ -369,17 +401,24 @@ export class BrainAnswerGraderService {
     if (/(次卡|储值|负债|会员卡|剩余次数|卡项余额)/.test(text)) return 'card_liability';
     if (/(缺货|临期|过期|库存预警|库存货值)/.test(text)) return 'expiring_stock_value';
     if (/(roi|投产|活动效果|营销效果)/i.test(text)) return 'marketing_roi';
+    if (/(最值得|优先).*(联系|跟进)|(?:联系|跟进).*(优先级|优先)/.test(text)) return 'follow_up_priority_score';
     if (/(流失|沉睡|召回)/.test(text)) return 'churn_risk_count';
 
     return undefined;
   }
 
   private detectActualMetric(citations: BrainAnswerGraderCitation[]) {
-    return citations.find((citation) => citation.sourceType === 'metric' && citation.sourceId)?.sourceId;
+    const sourceId = citations.find((citation) => this.isMetricCitation(citation) && citation.sourceId)?.sourceId;
+    if (!sourceId) return undefined;
+    const key = sourceId.replace(/^metric\./, '').replace(/@\d+$/, '');
+    return key;
   }
 
   private detectGroundingType(citations: BrainAnswerGraderCitation[]): BrainGroundingType {
-    const metric = citations.find((citation) => citation.sourceType === 'metric' && citation.sourceId);
+    if (citations.some((citation) => citation.sourceType === 'db_skill' && citation.sourceId)) return 'db_skill';
+    if (citations.some((citation) => citation.sourceType === 'template_skill' && citation.sourceId)) return 'template_skill';
+    if (citations.some((citation) => citation.sourceType === 'preview_action' && citation.sourceId)) return 'preview_action';
+    const metric = citations.find((citation) => this.isMetricCitation(citation) && citation.sourceId);
     if (metric) return 'metric_query';
 
     const skillId = this.detectActualSkill(citations) ?? '';
@@ -398,15 +437,38 @@ export class BrainAnswerGraderService {
   }
 
   private detectActualSkill(citations: BrainAnswerGraderCitation[]) {
-    return citations.find((citation) => citation.sourceType === 'skill' && citation.sourceId)?.sourceId;
+    return citations.find(
+      (citation) =>
+        (citation.sourceType === 'skill' ||
+          citation.sourceType === 'db_skill' ||
+          citation.sourceType === 'template_skill' ||
+          citation.sourceType === 'preview_action') &&
+        citation.sourceId,
+    )?.sourceId;
   }
 
   private hasAnswerCitation(citations: BrainAnswerGraderCitation[]) {
-    return citations.some((citation) => (citation.sourceType === 'metric' || citation.sourceType === 'skill') && Boolean(citation.sourceId));
+    return citations.some(
+      (citation) =>
+        (citation.sourceType === 'metric' ||
+          citation.sourceType === 'skill' ||
+          citation.sourceType === 'db_skill' ||
+          citation.sourceType === 'template_skill' ||
+          citation.sourceType === 'preview_action') &&
+        Boolean(citation.sourceId),
+    ) || citations.some((citation) => this.isMetricCitation(citation));
   }
 
   private hasMetricCitation(citations: BrainAnswerGraderCitation[]) {
-    return citations.some((citation) => citation.sourceType === 'metric' && Boolean(citation.sourceId));
+    return citations.some((citation) => this.isMetricCitation(citation));
+  }
+
+  private isMetricCitation(citation: BrainAnswerGraderCitation) {
+    return Boolean(
+      citation.sourceId &&
+      (citation.sourceType === 'metric' ||
+        (citation.sourceType === 'business_definition' && citation.sourceId.startsWith('metric.'))),
+    );
   }
 
   private isTemplateGroundingMismatch(
@@ -424,7 +486,10 @@ export class BrainAnswerGraderService {
   }
 
   private isUnsupportedIntent(answer: string) {
-    return answer.includes('尚未注册') || answer.includes('已接入门店经营指标问答') || answer.includes('不会编造回答');
+    return answer.includes('尚未注册') ||
+      /^(?:当前[^。\n]{0,40})?尚未接入/.test(answer.trim()) ||
+      answer.includes('已接入门店经营指标问答') ||
+      answer.includes('不会编造回答');
   }
 
   private isClarificationRequired(answer: string) {
@@ -435,7 +500,7 @@ export class BrainAnswerGraderService {
     if (groundingType !== 'db_skill' || !/\d/.test(input.answer)) return false;
     if (/尚未配置|尚未接入|不会自行编造|不会编造/.test(input.answer)) return false;
     const skillId = this.detectActualSkill(input.citations) ?? '';
-    return /operations_analysis|income_analysis|inventory_detail_analysis|personal_performance|exact_lookup|operations_snapshot|marketing_attribution_analytics|customer_care_facts|staff_analysis|procurement_analysis|cost_liability_analysis|catalog_snapshot|service_overrun_analysis|walk_in_availability|discount_margin_simulation|forecast_baseline/.test(
+    return /operations_analysis|income_analysis|inventory_detail_analysis|personal_performance|exact_lookup|operations_snapshot|marketing_attribution_analytics|customer_care_facts|staff_analysis|procurement_analysis|cost_liability_analysis|catalog_snapshot|service_overrun_analysis|walk_in_availability|discount_margin_simulation|forecast_baseline|member_balance_flow_summary/.test(
       skillId,
     );
   }

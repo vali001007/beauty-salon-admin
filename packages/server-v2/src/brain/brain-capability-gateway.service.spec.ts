@@ -7,7 +7,30 @@ describe('BrainCapabilityGatewayService', () => {
     expect(service.resolve('create_purchase_order')).toMatchObject({
       permission: 'core:supply:manage',
       riskLevel: 'high',
+      version: 1,
     });
+  });
+
+  it('canonicalizes approved arguments and rejects model confirmation claims', () => {
+    const service = new BrainCapabilityGatewayService();
+
+    expect(service.validateForExecution('create_reservation', 1, {
+      customerId: 11,
+      projectId: 22,
+      appointmentTime: '2026-07-12T10:00:00+08:00',
+      roleHint: 'finance',
+      sourceMessage: '帮我预约',
+    }).payload).toEqual({
+      customerId: 11,
+      projectId: 22,
+      appointmentTime: '2026-07-12T10:00:00+08:00',
+    });
+    expect(() => service.validateForExecution('create_reservation', 1, {
+      customerId: 11,
+      projectId: 22,
+      appointmentTime: '2026-07-12T10:00:00+08:00',
+      nested: { confirmed: true },
+    })).toThrow('model_confirmation_claim_forbidden:confirmed');
   });
 
   it('executes reservation creation through ReservationsService and forces current store scope', async () => {

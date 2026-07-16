@@ -81,6 +81,7 @@ export class BrainReceptionSkillsService {
     storeId: number;
     startDate: Date;
     endDate: Date;
+    timezone?: string;
   }): Promise<ReceptionReservationSchedule> {
     const reservations = await this.prisma.reservation.findMany({
       where: {
@@ -100,7 +101,7 @@ export class BrainReceptionSkillsService {
     return {
       count: reservations.length,
       reservations: reservations.map((reservation) => ({
-        date: reservation.date.toISOString().slice(0, 10),
+        date: this.formatDate(reservation.date, input.timezone ?? 'Asia/Shanghai'),
         customerName: reservation.customer?.name ?? '客户',
         projectName: reservation.project?.name ?? '服务项目',
         projectTypeName: reservation.project?.type?.name,
@@ -262,7 +263,15 @@ export class BrainReceptionSkillsService {
     const timezone = input.timezone ?? 'Asia/Shanghai';
     const items = tasks.flatMap((task) => {
       const plannedEnd = new Date(task.appointmentTime.getTime() + task.duration * 60_000);
-      const actualEnd = task.completedAt ?? (task.startedAt && now <= input.endDate ? now : undefined);
+      const activeStatuses = ['started', 'in_progress', 'in_service', '服务中', '进行中'];
+      const liveDuration = task.startedAt ? now.getTime() - task.startedAt.getTime() : Number.POSITIVE_INFINITY;
+      const canUseCurrentTime =
+        Boolean(task.startedAt) &&
+        activeStatuses.includes(String(task.status)) &&
+        liveDuration >= 0 &&
+        liveDuration <= 12 * 60 * 60_000 &&
+        now <= input.endDate;
+      const actualEnd = task.completedAt ?? (canUseCurrentTime ? now : undefined);
       if (!actualEnd || actualEnd.getTime() <= plannedEnd.getTime()) return [];
 
       const overrunMinutes = Math.ceil((actualEnd.getTime() - plannedEnd.getTime()) / 60_000);
@@ -350,5 +359,16 @@ export class BrainReceptionSkillsService {
       minute: '2-digit',
       hour12: false,
     }).format(date);
+  }
+
+  private formatDate(date: Date, timezone: string) {
+    const parts = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
   }
 }

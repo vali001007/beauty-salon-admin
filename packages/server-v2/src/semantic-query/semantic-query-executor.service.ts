@@ -1,10 +1,20 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import type { BusinessTimeRange } from '../agent/business-task/business-task.types.js';
 import type { SemanticQueryEvidence, SemanticQueryPlan, SemanticQueryResult } from './query-plan.types.js';
 import { QueryTemplateRegistryService } from './query-template-registry.service.js';
+import {
+  BUSINESS_METRIC_CATALOG,
+  BUSINESS_METRIC_CATALOG_REFRESHER,
+  BUSINESS_METRIC_CURRENT_LINEAGE_SOURCE,
+  type BusinessMetricCatalogDefinition,
+  type BusinessMetricCatalogReader,
+  type BusinessMetricCatalogRefresher,
+  type BusinessMetricCurrentLineageSource,
+} from '../semantic-data/business-metric-catalog.types.js';
+import { BusinessDefinitionRuntimeQueryEngineService } from './business-definition-runtime-query-engine.service.js';
 
 const DAY_MS = 86_400_000;
 const PAID_ORDER_STATUSES = ['completed', 'paid', '已完成', '已付款'];
@@ -16,34 +26,206 @@ export class SemanticQueryExecutorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly queryTemplateRegistry?: QueryTemplateRegistryService,
+    @Optional()
+    @Inject(BUSINESS_METRIC_CATALOG)
+    private readonly metricCatalog?: BusinessMetricCatalogReader,
+    @Optional()
+    private readonly runtimeQueryEngine?: BusinessDefinitionRuntimeQueryEngineService,
+    @Optional()
+    @Inject(BUSINESS_METRIC_CURRENT_LINEAGE_SOURCE)
+    private readonly currentLineageSource?: BusinessMetricCurrentLineageSource,
+    @Optional()
+    @Inject(BUSINESS_METRIC_CATALOG_REFRESHER)
+    private readonly metricCatalogRefresher?: BusinessMetricCatalogRefresher,
   ) {}
 
   async execute(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
-    const metricKeys = plan.metrics.map((metric) => metric.key);
-    const template =
-      (plan.templateId ? this.queryTemplateRegistry?.findById(plan.templateId) : undefined) ??
-      this.queryTemplateRegistry?.findByCapability(plan.capabilityId) ??
-      this.queryTemplateRegistry?.findForMetrics(metricKeys);
-    if (template?.id === 'order_customer_consumption_list' || plan.capabilityId === 'order_customer_consumption_list') {
-      return this.queryOrderCustomerConsumptionList(plan);
+    if (!this.metricCatalog || !this.runtimeQueryEngine || !this.currentLineageSource) {
+      throw new Error('semantic_runtime_query_dependencies_unavailable');
     }
-    if (template?.id === 'order_revenue' || metricKeys.some((key) => ['paid_amount', 'revenue', 'order_count', 'average_order_value', 'net_revenue'].includes(key))) {
-      return this.queryOrderRevenue(plan);
+    this.assertPlanEnvelope(plan);
+    const currentMetrics = plan.metrics.map((metric) =>
+      this.assertCurrentMetricBinding(metric, plan.taskType, plan.actor.permissions),
+    );
+    await this.assertFreshLineage(plan);
+    this.assertPlanDimensions(plan, currentMetrics);
+    const range = this.resolveDateRange(plan.timeRange);
+    const results = await Promise.all(
+      plan.metrics.map((metric) =>
+        this.runtimeQueryEngine!.executeMetric({
+          metric: {
+            metricKey: metric.key,
+            formula: metric.runtimeBinding.formula,
+            runtimeQuery: metric.runtimeBinding.runtimeQuery,
+          },
+          dimensions: plan.dimensionBindings,
+          storeId: plan.storeScope.storeIds[0],
+          ...(plan.selfScope ? { selfScope: plan.selfScope } : {}),
+          timeRange: { startDate: range.start, endExclusive: range.end, rangeLabel: range.label },
+        }),
+      ),
+    );
+    const rows = this.mergeRuntimeRows(plan, results).slice(0, plan.limit);
+    const scannedRows = results.reduce((sum, result) => sum + result.scannedRows, 0);
+    const sourceTables = [...new Set(currentMetrics.flatMap((metric) => sourceModels(metric.sourceDefinition)))];
+    return {
+      status: 'success',
+      queryId: plan.queryId,
+      capabilityId: plan.capabilityId,
+      title: currentMetrics.length === 1 ? currentMetrics[0].name : '经营指标查询',
+      summary: plan.dimensions.length
+        ? `${range.label}查询完成，共返回 ${rows.length} 条指标结果。`
+        : currentMetrics.map((metric, index) => `${metric.name}为 ${formatMetricValue(results[index].overallValue)}`).join('；'),
+      rows,
+      kpis: currentMetrics.map((metric, index) => ({
+        label: metric.name,
+        value: formatMetricValue(results[index].overallValue),
+        hint: `${metric.definitionKey}@${metric.version}`,
+      })),
+      actions: [],
+      userEvidence: { dateRange: range.label, dataSummary: `基于 ${scannedRows} 条业务记录统计` },
+      auditEvidence: this.evidence(plan, {
+        source: sourceTables,
+        sourceTables,
+        dateRange: this.formatRange(range),
+        metricDefinition: currentMetrics
+          .map((metric) => `${metric.definitionKey}@${metric.version}:${metric.definitionFingerprint}`)
+          .join(';'),
+        filters: currentMetrics.flatMap((metric) => metric.filters),
+        sampleSize: scannedRows,
+        limitations: [],
+      }),
+    };
+  }
+
+  private assertPlanEnvelope(plan: SemanticQueryPlan) {
+    if (plan.storeScope.scopeType !== 'current_store' || plan.storeScope.storeIds.length !== 1) {
+      throw new Error('semantic_runtime_store_scope_invalid');
     }
-    if (template?.id === 'product_sales' || metricKeys.some((key) => ['product_sales_quantity', 'product_sales_amount', 'product_sales_growth'].includes(key))) {
-      return this.queryProductSales(plan);
+    if (!Number.isInteger(plan.storeScope.storeIds[0]) || plan.storeScope.storeIds[0] <= 0) {
+      throw new Error('semantic_runtime_store_id_invalid');
     }
-    if (template?.id === 'project_service' || metricKeys.some((key) => ['project_service_count', 'project_service_growth'].includes(key))) return this.queryProjectService(plan);
-    if (template?.id === 'customer_follow_up' || metricKeys.some((key) => ['follow_up_priority_score', 'churn_risk_score', 'repurchase_opportunity_score'].includes(key))) return this.queryCustomerFollowUp(plan);
-    if (template?.id === 'inventory_risk' || metricKeys.includes('stock_risk_score')) return this.queryInventoryRisk(plan);
-    if (template?.id === 'member_balance' || metricKeys.includes('member_balance')) return this.queryMemberBalance(plan);
-    if (template?.id === 'card_usage' || metricKeys.includes('card_usage_times')) return this.queryCardUsage(plan);
-    if (template?.id === 'card_expiry' || metricKeys.includes('card_expiry_risk')) return this.queryCardExpiry(plan);
-    if (template?.id === 'staff_performance' || metricKeys.includes('staff_performance_score')) return this.queryStaffPerformance(plan);
-    if (template?.id === 'reservation_schedule' || metricKeys.some((key) => ['reservation_count', 'arrival_rate'].includes(key))) return this.queryReservationSchedule(plan);
-    if (template?.id === 'marketing_activity_list' || metricKeys.includes('marketing_activity_count')) return this.queryRecentMarketingActivities(plan);
-    if (template?.id === 'marketing_conversion' || metricKeys.includes('campaign_conversion_rate')) return this.queryMarketingConversion(plan);
-    return this.rejected(plan, '当前查询指标尚未接入统一查询执行器。');
+    if (
+      plan.actor.principalType !== 'user' ||
+      !Number.isInteger(plan.actor.userId) ||
+      plan.actor.userId <= 0 ||
+      plan.actor.storeId !== plan.storeScope.storeIds[0] ||
+      plan.actor.role !== plan.role
+    ) {
+      throw new Error('semantic_runtime_actor_context_invalid');
+    }
+    const allowedFilterKeys = new Set(['storeId', 'scope', 'beauticianId']);
+    const unsupported = Object.keys(plan.filters).filter((key) => !allowedFilterKeys.has(key));
+    if (unsupported.length) throw new Error(`semantic_runtime_dynamic_filter_unsupported:${unsupported.sort().join(',')}`);
+    if (!plan.metrics.length) throw new Error('semantic_runtime_metric_binding_missing');
+    if (Number(plan.filters.storeId) !== plan.actor.storeId) throw new Error('semantic_runtime_store_filter_tampered');
+    if (plan.actor.role === 'beautician') {
+      if (
+        !Number.isInteger(plan.actor.beauticianId) ||
+        plan.actor.beauticianId! <= 0 ||
+        plan.selfScope?.dimensionKey !== 'beauticianId' ||
+        plan.selfScope.value !== plan.actor.beauticianId ||
+        plan.filters.scope !== 'self' ||
+        Number(plan.filters.beauticianId) !== plan.actor.beauticianId
+      ) {
+        throw new Error('semantic_runtime_beautician_self_scope_invalid');
+      }
+    } else if (plan.selfScope || plan.filters.scope || plan.filters.beauticianId) {
+      throw new Error('semantic_runtime_self_scope_actor_mismatch');
+    }
+  }
+
+  private assertCurrentMetricBinding(
+    metricPlan: SemanticQueryPlan['metrics'][number],
+    taskType: SemanticQueryPlan['taskType'],
+    actorPermissions: readonly string[],
+  ): BusinessMetricCatalogDefinition {
+    const current = this.metricCatalog!.findByKey(metricPlan.key);
+    if (!current) throw new Error(`business_metric_catalog_metric_missing:${metricPlan.key}`);
+    if (!current.allowedTaskTypes.includes(taskType)) {
+      throw new Error(`business_metric_catalog_task_type_not_allowed:${metricPlan.key}:${taskType}`);
+    }
+    const binding = metricPlan.runtimeBinding;
+    const lineageMatches =
+      binding.definitionKey === current.definitionKey &&
+      binding.version === current.version &&
+      binding.definitionFingerprint === current.definitionFingerprint &&
+      binding.sourceFingerprint === current.sourceFingerprint;
+    if (!lineageMatches) throw new Error(`semantic_runtime_definition_lineage_stale:${metricPlan.key}`);
+    if (
+      canonicalJson(binding.runtimeQuery) !== canonicalJson(current.runtimeQuery) ||
+      canonicalJson(binding.formula) !== canonicalJson(current.formula) ||
+      canonicalJson(binding.permissions) !== canonicalJson(current.permissions)
+    ) {
+      throw new Error(`semantic_runtime_binding_tampered:${metricPlan.key}`);
+    }
+    if (!current.permissions.length) throw new Error(`semantic_runtime_permissions_missing:${metricPlan.key}`);
+    const missingPermission = current.permissions.find(
+      (permission) => !actorPermissions.includes('*') && !actorPermissions.includes(permission),
+    );
+    if (missingPermission) {
+      throw new Error(`semantic_runtime_permission_denied:${metricPlan.key}:${missingPermission}`);
+    }
+    if (metricPlan.aggregation !== current.runtimeQuery.aggregation) {
+      throw new Error(`semantic_runtime_aggregation_mismatch:${metricPlan.key}`);
+    }
+    return current;
+  }
+
+  private async assertFreshLineage(plan: SemanticQueryPlan) {
+    const current = await this.currentLineageSource!.loadCurrent(plan.metrics.map((metric) => metric.key));
+    for (const metric of plan.metrics) {
+      const lineage = current.get(metric.key);
+      const binding = metric.runtimeBinding;
+      if (
+        !lineage ||
+        lineage.definitionKey !== binding.definitionKey ||
+        lineage.version !== binding.version ||
+        lineage.definitionFingerprint !== binding.definitionFingerprint ||
+        lineage.sourceFingerprint !== binding.sourceFingerprint
+      ) {
+        void this.metricCatalogRefresher?.refresh();
+        throw new Error(`catalog_lineage_stale:${metric.key}`);
+      }
+    }
+  }
+
+  private assertPlanDimensions(plan: SemanticQueryPlan, metrics: BusinessMetricCatalogDefinition[]) {
+    const keys = plan.dimensionBindings.map((binding) => binding.key);
+    if (canonicalJson(keys) !== canonicalJson(plan.dimensions)) {
+      throw new Error('semantic_runtime_dimension_binding_mismatch');
+    }
+    for (const metric of metrics) {
+      if (canonicalJson(metric.runtimeQuery.dimensions) !== canonicalJson(plan.dimensions)) {
+        throw new Error(`semantic_runtime_metric_dimensions_mismatch:${metric.key}`);
+      }
+    }
+  }
+
+  private mergeRuntimeRows(
+    plan: SemanticQueryPlan,
+    results: Array<{ outputField: string; groups: Array<{ dimensions: Record<string, unknown>; value: number }> }>,
+  ) {
+    const merged = new Map<string, Record<string, unknown>>();
+    results.forEach((result, index) => {
+      for (const group of result.groups) {
+        const key = canonicalJson(group.dimensions);
+        const row = merged.get(key) ?? { ...group.dimensions };
+        row[result.outputField] = group.value;
+        row[plan.metrics[index].key] = group.value;
+        merged.set(key, row);
+      }
+    });
+    const rows = [...merged.values()];
+    const order = plan.orderBy[0];
+    if (order) {
+      rows.sort((left, right) => {
+        const leftValue = Number(left[order.key] ?? 0);
+        const rightValue = Number(right[order.key] ?? 0);
+        return order.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+      });
+    }
+    return rows;
   }
 
   private async queryOrderCustomerConsumptionList(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
@@ -1158,4 +1340,32 @@ export class SemanticQueryExecutorService {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+function sourceModels(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error('semantic_runtime_source_definition_invalid');
+  return value.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('semantic_runtime_source_definition_invalid');
+    }
+    const model = (item as Record<string, unknown>).model;
+    if (typeof model !== 'string' || !model.trim()) throw new Error('semantic_runtime_source_model_invalid');
+    return model.trim();
+  });
+}
+
+function formatMetricValue(value: number): string {
+  if (!Number.isFinite(value)) throw new Error('semantic_runtime_metric_value_invalid');
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }

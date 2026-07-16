@@ -28,6 +28,7 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'reservation_action_preview') return this.previewAction(input);
     const message = input.dto.message;
     if (/(超时服务|超时.*(?:预约|下一个)|影响.*下一个预约)/.test(message)) {
       const range = this.resolveRange(message);
@@ -333,6 +334,7 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: preview.actionType,
+      planId: input.plan.executionPlanId,
       riskLevel: preview.riskLevel as BrainRiskLevel,
       preview: preview as unknown as Prisma.InputJsonValue,
       payload: {

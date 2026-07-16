@@ -25,6 +25,13 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
     const message = input.dto.message;
+    if (input.plan.capabilityKey === 'purchase_order_draft') {
+      const analysis = await this.skillRuntime.buildInventoryProcurementAnalysis({
+        storeId: input.context.storeId,
+        keyword: this.extractProductKeyword(message),
+      });
+      return this.previewPurchaseOrder(input, analysis);
+    }
     if (/(临期|过期|快过期).*(怎么|如何|处理|规定|办法|方案|消化|优惠|减少|合适)/.test(message)) {
       return {
         status: 'completed' as const,
@@ -171,6 +178,7 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: 'create_purchase_order',
+      planId: input.plan.executionPlanId,
       riskLevel: 'high',
       preview: {
         actionType: 'create_purchase_order',

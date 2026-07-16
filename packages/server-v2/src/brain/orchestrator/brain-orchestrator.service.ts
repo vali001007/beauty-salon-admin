@@ -8,6 +8,12 @@ import type { BrainAgentRoleKey } from './brain-agent-card.registry.js';
 import type { BrainTaskNode, BrainTaskPlan } from './brain-task.types.js';
 import { BrainSkillRuntimeService } from '../skills/brain-skill-runtime.service.js';
 import { BrainTraceService } from '../governance/brain-trace.service.js';
+import type { BrainCapabilityRankedCandidate } from '../capability/brain-capability-retriever.service.js';
+import type { BrainSemanticIntent } from '../cognition/brain-semantic-intent.types.js';
+import type { BrainExecutionPlan } from '../planning/brain-execution-plan.schema.js';
+import type { BrainRoleRuntimeContext } from '../role/brain-role-context-builder.service.js';
+import type { BrainSupervisorPlannerAudit } from '../planning/brain-supervisor-planner.service.js';
+import { BrainSupervisorPlannerService } from '../planning/brain-supervisor-planner.service.js';
 
 interface PlanInput {
   intent: string;
@@ -121,7 +127,28 @@ export class BrainOrchestratorService {
     private readonly _cognition?: BrainCognitionService,
     private readonly _skillRuntime?: BrainSkillRuntimeService,
     private readonly _trace?: BrainTraceService,
+    private readonly supervisor?: BrainSupervisorPlannerService,
   ) {}
+
+  createModelExecutionPlan(input: {
+    question: string;
+    intent: BrainSemanticIntent;
+    topK: readonly BrainCapabilityRankedCandidate[];
+    audit: BrainSupervisorPlannerAudit;
+    previousPlan?: BrainExecutionPlan;
+    observations?: unknown[];
+    roleContext?: BrainRoleRuntimeContext;
+    deadlineAt?: number;
+  }) {
+    if (!this.supervisor) {
+      return Promise.resolve({
+        status: 'unavailable',
+        errorCode: 'MODEL_UNAVAILABLE',
+        reason: 'brain_supervisor_unavailable',
+      } as const);
+    }
+    return this.supervisor.plan(input);
+  }
 
   planTasks(input: PlanInput): { tasks: PlannedTask[] } {
     const legacyMap: Record<string, PlannedTask[]> = {

@@ -1,4 +1,7 @@
 import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import type { BrainResponseBlock } from '../response/brain-response.types.js';
+
+export type BrainChatResponseBlockDto = BrainResponseBlock;
 
 export class CreateBrainConversationDto {
   @IsOptional()

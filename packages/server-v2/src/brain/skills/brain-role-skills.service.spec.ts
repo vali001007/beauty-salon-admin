@@ -102,6 +102,33 @@ describe('Brain role skills', () => {
     expect(result.riskItems).toEqual(expect.arrayContaining([expect.stringContaining('退款金额'), expect.stringContaining('毛利率')]));
   });
 
+  it('separates member-balance recharge and consumption flows with gift amounts', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { type: 'recharge', amount: 1000, giftAmount: 200 },
+      { type: 'open', amount: 500, giftAmount: 50 },
+      { type: 'consume', amount: 180, giftAmount: 20 },
+      { type: 'deduct', amount: 70, giftAmount: 10 },
+    ]);
+    const service = new BrainFinanceSkillsService({ customerBalanceTransaction: { findMany } } as any);
+
+    await expect(service.buildMemberBalanceFlowSummary({ storeId: 6, startDate, endDate })).resolves.toEqual({
+      rechargeAmount: 1500,
+      rechargeGiftAmount: 250,
+      rechargeCount: 2,
+      consumedAmount: 250,
+      consumedGiftAmount: 30,
+      consumedCount: 2,
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 6,
+        createdAt: { gte: startDate, lte: endDate },
+        type: { in: ['recharge', 'open', 'deduct', 'consume'] },
+      },
+      select: { type: true, amount: true, giftAmount: true },
+    });
+  });
+
   it('builds beautician service summary and follow-up advice', async () => {
     const prisma = {
       beautician: { findFirst: jest.fn().mockResolvedValue({ id: 9 }) },
@@ -135,7 +162,10 @@ describe('Brain role skills', () => {
       { countReservations: jest.fn().mockResolvedValue(2), previewReservationAction: jest.fn().mockReturnValue({ actionType: 'create_reservation' }) } as any,
       { draftAppointmentReminder: jest.fn().mockReturnValue('reminder'), draftCustomerRecall: jest.fn().mockReturnValue('recall') } as any,
       { buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0 }) } as any,
-      { buildFinanceRiskSummary: jest.fn().mockResolvedValue({ refundAmount: 0 }) } as any,
+      {
+        buildFinanceRiskSummary: jest.fn().mockResolvedValue({ refundAmount: 0 }),
+        buildMemberBalanceFlowSummary: jest.fn().mockResolvedValue({ rechargeAmount: 100, consumedAmount: 50 }),
+      } as any,
       { buildTodayServiceSummary: jest.fn().mockResolvedValue({ serviceCount: 0 }), composeFollowUpAdvice: jest.fn().mockReturnValue('advice') } as any,
     );
 
@@ -144,6 +174,7 @@ describe('Brain role skills', () => {
     expect(runtime.draftAppointmentReminder({})).toBe('reminder');
     await expect(runtime.buildInventoryRiskSummary({ storeId: 6, expiringBefore: endDate })).resolves.toMatchObject({ stockoutSkuCount: 0 });
     await expect(runtime.buildFinanceRiskSummary({ storeId: 6, startDate, endDate })).resolves.toMatchObject({ refundAmount: 0 });
+    await expect(runtime.buildFinanceMemberBalanceFlowSummary({ storeId: 6, startDate, endDate })).resolves.toMatchObject({ rechargeAmount: 100, consumedAmount: 50 });
     await expect(runtime.buildBeauticianServiceSummary({ storeId: 6, startDate, endDate })).resolves.toMatchObject({ serviceCount: 0 });
   });
 });

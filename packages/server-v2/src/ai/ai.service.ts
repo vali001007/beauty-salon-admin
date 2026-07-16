@@ -1,11 +1,98 @@
 import { BadGatewayException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Ajv, type ErrorObject, type ValidateFunction } from 'ajv';
+import addFormatsImport from 'ajv-formats';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import { IndustryService } from '../industry/industry.service.js';
 
-type AiMessage = { role: string; content: string };
-type AiUsage = { provider: string; model: string; inputTokens: number; outputTokens: number };
+const applyAjvFormats = addFormatsImport as unknown as (ajv: Ajv) => Ajv;
+
+export type AiMessage = { role: string; content: string };
+export type AiUsageBreakdown = { provider: string; model: string; inputTokens: number; outputTokens: number };
+export type AiUsage = {
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  breakdown?: AiUsageBreakdown[];
+};
+export type AiStructuredOutputSchema = Record<string, unknown>;
+export type AiStructuredOutputInput = {
+  scenario: string;
+  messages: AiMessage[];
+  repairMessages?: AiMessage[];
+  allowFallback?: boolean;
+  fallbackMessages?: AiMessage[];
+  schema: AiStructuredOutputSchema;
+  promptSchema?: AiStructuredOutputSchema;
+  timeoutMs?: number;
+  temperature?: number;
+  userId?: number;
+  storeId?: number;
+};
+export type AiStructuredOutputResult<T> = {
+  data: T;
+  rawText: string;
+  usage: AiUsage;
+  provider: string;
+  model: string;
+};
+export type AiStructuredOutputErrorCode =
+  | 'SCHEMA_INVALID'
+  | 'JSON_INVALID'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'MOCK_GENERATION_UNSUPPORTED'
+  | 'BUDGET_EXCEEDED'
+  | 'AUDIT_FAILED';
+
+type StructuredOutputMode = 'auto' | 'json_schema' | 'json_object';
+
+export class AiStructuredOutputError extends Error {
+  readonly name = 'AiStructuredOutputError';
+
+  constructor(
+    public readonly code: AiStructuredOutputErrorCode,
+    message: string,
+    public readonly provider?: string,
+    public readonly model?: string,
+    public readonly usage?: AiUsage,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+  }
+}
+
+type StructuredProviderConfig = {
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  chatPath: string;
+  timeoutMs: number;
+  fallback: boolean;
+  structuredOutputMode: StructuredOutputMode;
+  maxTotalTokens: number;
+};
+
+type StructuredRequestBudget = {
+  deadlineAt: number;
+  callCount: number;
+  maxCalls: number;
+  receivedResponses: number;
+  lastProvider: string;
+  lastModel: string;
+  maxTotalTokens: number;
+  consumedTokens: number;
+  usageBuckets: Map<string, AiUsageBreakdown>;
+};
+
+type StructuredCallReservation = {
+  requestTimeoutMs: number;
+  estimatedInputTokens: number;
+  maxOutputTokens: number;
+};
+
 type TerminalIntentResolveRequest = {
   role: 'manager' | 'reception' | 'beautician';
   command: string;
@@ -151,6 +238,9 @@ class AiProviderError extends Error {
 
 @Injectable()
 export class AiService {
+  private static readonly STRUCTURED_VALIDATOR_CACHE_MAX = 64;
+  private readonly structuredAjv = applyAjvFormats(new Ajv({ allErrors: true, strict: true }));
+  private readonly structuredValidatorCache = new Map<string, ValidateFunction>();
   private provider: string;
   private model: string;
   private apiKey: string;
@@ -168,6 +258,10 @@ export class AiService {
   private fallbackBaseUrl: string;
   private fallbackChatPath: string;
   private fallbackTimeoutMs: number;
+  private structuredOutputMode: StructuredOutputMode;
+  private fallbackStructuredOutputMode: StructuredOutputMode;
+  private structuredMaxTotalTokens: number;
+  private fallbackStructuredMaxTotalTokens: number;
   private faceppApiKey: string;
   private faceppApiSecret: string;
   private faceppSkinAnalyzeUrl: string;
@@ -181,7 +275,7 @@ export class AiService {
   ) {
     this.provider = this.normalizeProviderName(String(config.get('LLM_PROVIDER', 'mock')));
     this.model = config.get('LLM_MODEL', 'deepseek-v4-flash');
-    this.apiKey = config.get('LLM_API_KEY', '');
+    this.apiKey = this.resolveConfiguredApiKey('LLM_API_KEY', 'LLM_API_KEY_ENV');
     this.baseUrl = config.get('LLM_BASE_URL', 'https://api.deepseek.com');
     this.chatPath = config.get('LLM_CHAT_PATH', '/chat/completions');
     this.timeoutMs = Number(config.get('LLM_TIMEOUT_MS', 30000));
@@ -192,17 +286,34 @@ export class AiService {
     this.reasoningEffort = String(config.get('LLM_REASONING_EFFORT', 'high')).toLowerCase();
     this.fallbackProvider = this.normalizeProviderName(String(config.get('LLM_FALLBACK_PROVIDER', '')));
     this.fallbackModel = String(config.get('LLM_FALLBACK_MODEL', '')).trim();
-    this.fallbackApiKey = String(config.get('LLM_FALLBACK_API_KEY', '')).trim();
+    this.fallbackApiKey = this.resolveConfiguredApiKey('LLM_FALLBACK_API_KEY', 'LLM_FALLBACK_API_KEY_ENV');
     this.fallbackBaseUrl = String(config.get('LLM_FALLBACK_BASE_URL', '')).trim();
     this.fallbackChatPath = String(config.get('LLM_FALLBACK_CHAT_PATH', this.chatPath)).trim();
     this.fallbackTimeoutMs = Number(config.get('LLM_FALLBACK_TIMEOUT_MS', 20000));
+    this.structuredOutputMode = this.parseStructuredOutputMode(
+      'LLM_STRUCTURED_OUTPUT_MODE',
+      config.get('LLM_STRUCTURED_OUTPUT_MODE', 'auto'),
+    );
+    this.fallbackStructuredOutputMode = this.parseStructuredOutputMode(
+      'LLM_FALLBACK_STRUCTURED_OUTPUT_MODE',
+      config.get('LLM_FALLBACK_STRUCTURED_OUTPUT_MODE', 'auto'),
+    );
+    this.structuredMaxTotalTokens = this.parsePositiveIntegerConfig(
+      'LLM_STRUCTURED_MAX_TOTAL_TOKENS',
+      config.get('LLM_STRUCTURED_MAX_TOTAL_TOKENS', String(Math.max(8192, this.maxTokens * 2))),
+    );
+    this.fallbackStructuredMaxTotalTokens = this.parsePositiveIntegerConfig(
+      'LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS',
+      config.get('LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS', String(this.structuredMaxTotalTokens)),
+    );
     this.faceppApiKey = String(config.get('FACEPP_API_KEY', '')).trim();
     this.faceppApiSecret = String(config.get('FACEPP_API_SECRET', '')).trim();
     this.faceppSkinAnalyzeUrl = String(
       config.get('FACEPP_SKIN_ANALYZE_URL', 'https://api-cn.faceplusplus.com/facepp/v1/skinanalyze'),
     ).trim();
     this.faceppSkinAnalyzeTimeoutMs = Number(config.get('FACEPP_SKIN_ANALYZE_TIMEOUT_MS', String(this.timeoutMs)));
-    this.faceppSkinAnalyzeFallback = String(config.get('FACEPP_SKIN_ANALYZE_FALLBACK', 'true')).toLowerCase() !== 'false';
+    this.faceppSkinAnalyzeFallback =
+      String(config.get('FACEPP_SKIN_ANALYZE_FALLBACK', 'true')).toLowerCase() !== 'false';
 
     this.validateProductionConfig();
     console.info(
@@ -216,6 +327,76 @@ export class AiService {
     );
   }
 
+  async generateStructured<T>(input: AiStructuredOutputInput): Promise<AiStructuredOutputResult<T>> {
+    const start = this.now();
+    const budget = this.createStructuredRequestBudget(input, start);
+    let auditProvider = this.provider;
+    let auditModel = this.model;
+
+    try {
+      const schemaSnapshot = this.createStructuredSchemaSnapshot(input.schema);
+      const promptSchemaSnapshot = input.promptSchema
+        ? this.createStructuredSchemaSnapshot(input.promptSchema)
+        : undefined;
+      const structuredInput = {
+        ...input,
+        schema: schemaSnapshot.schema,
+        ...(promptSchemaSnapshot ? { promptSchema: promptSchemaSnapshot.schema } : {}),
+      };
+      const validate = this.compileStructuredSchema<T>(schemaSnapshot.schema, schemaSnapshot.fingerprint);
+      const result = this.isMockProvider()
+        ? this.buildMockStructuredResult<T>(schemaSnapshot.schema, validate)
+        : await this.generateStructuredWithFallback<T>(structuredInput, validate, budget);
+      if (this.isMockProvider()) {
+        this.recordStructuredUsage(budget, result.usage, result.usage.inputTokens + result.usage.outputTokens);
+      }
+
+      auditProvider = result.provider;
+      auditModel = result.model;
+      try {
+        await this.logStructuredAudit({
+          scenario: input.scenario,
+          userId: input.userId,
+          storeId: input.storeId,
+          provider: result.usage.provider,
+          model: result.usage.model,
+          usage: result.usage,
+          latencyMs: this.now() - start,
+          status: 'success',
+        });
+      } catch (error) {
+        throw new AiStructuredOutputError(
+          'AUDIT_FAILED',
+          'Structured output audit logging failed.',
+          result.provider,
+          result.model,
+          result.usage,
+          { cause: error },
+        );
+      }
+      return result;
+    } catch (error) {
+      const controlledError = this.toStructuredOutputError(
+        error,
+        auditProvider,
+        auditModel,
+        this.getStructuredBudgetUsage(budget),
+      );
+      await this.logStructuredAuditBestEffort({
+        scenario: input.scenario,
+        userId: input.userId,
+        storeId: input.storeId,
+        provider: controlledError.usage?.provider || controlledError.provider || auditProvider,
+        model: controlledError.usage?.model || controlledError.model || auditModel,
+        usage: controlledError.usage,
+        latencyMs: this.now() - start,
+        status: 'failed',
+        errorCode: controlledError.code,
+      });
+      throw controlledError;
+    }
+  }
+
   async *chatStream(messages: AiMessage[], userId?: number, storeId?: number): AsyncGenerator<string> {
     const start = Date.now();
     let text = '';
@@ -224,7 +405,14 @@ export class AiService {
         text += chunk;
         yield chunk;
       }
-      await this.logAudit('chat_stream', userId, storeId, this.buildMockResult('chat_stream', text), Date.now() - start, 'success');
+      await this.logAudit(
+        'chat_stream',
+        userId,
+        storeId,
+        this.buildMockResult('chat_stream', text),
+        Date.now() - start,
+        'success',
+      );
     } catch (error) {
       const result = this.buildFailureResult('chat_stream', error);
       await this.logAudit('chat_stream', userId, storeId, result, Date.now() - start, 'failed');
@@ -293,28 +481,34 @@ export class AiService {
     const customerId = Number(data.customerId || 0);
     let customer: any = null;
     if (customerId && this.prisma.customer?.findUnique) {
-      customer = await this.prisma.customer.findUnique({
-        where: { id: customerId },
-        include: {
-          healthProfile: true,
-          consumptionRecords: {
-            orderBy: { consumeTime: 'desc' },
-            take: 3,
+      customer = await this.prisma.customer
+        .findUnique({
+          where: { id: customerId },
+          include: {
+            healthProfile: true,
+            consumptionRecords: {
+              orderBy: { consumeTime: 'desc' },
+              take: 3,
+            },
           },
-        },
-      }).catch(() => null);
+        })
+        .catch(() => null);
     }
 
     const evidence = [
       ...(Array.isArray(data.evidence) ? data.evidence : []),
       customer?.lastVisitDate ? `上次到店：${customer.lastVisitDate.toISOString?.().slice(0, 10)}` : '',
-      customer?.healthProfile?.skinType || data.skinType ? `肤质：${customer?.healthProfile?.skinType ?? data.skinType}` : '',
+      customer?.healthProfile?.skinType || data.skinType
+        ? `肤质：${customer?.healthProfile?.skinType ?? data.skinType}`
+        : '',
       ...(customer?.consumptionRecords ?? [])
         .map((record: any) => record.consumeContent || record.projectName || record.consumeType)
         .filter(Boolean)
         .slice(0, 2)
         .map((item: string) => `近期消费：${item}`),
-    ].filter(Boolean).slice(0, 6);
+    ]
+      .filter(Boolean)
+      .slice(0, 6);
 
     return {
       customerId: customer?.id ?? data.customerId,
@@ -362,26 +556,30 @@ export class AiService {
 
   private buildInvitationScriptMockResult(data: CustomerInvitationScriptRequest, context: Record<string, any>) {
     const name = this.sanitizeMarketingInputText(String(context.customerName || data.customerName || '会员')) || '会员';
-    const project = this.sanitizeMarketingInputText(String(data.projectName || context.projectName || '适合您的护理方案')) || '适合您的护理方案';
-    const offer = this.sanitizeMarketingInputText(String(data.offer || data.specialOffer || context.offer || '到店可享专属护理建议')) || '到店可享专属护理建议';
-    const evidenceText = Array.isArray(context.evidence) && context.evidence.length
-      ? `结合${context.evidence.slice(0, 2).join('、')}`
-      : '结合您近期的护理需求';
+    const project =
+      this.sanitizeMarketingInputText(String(data.projectName || context.projectName || '适合您的护理方案')) ||
+      '适合您的护理方案';
+    const offer =
+      this.sanitizeMarketingInputText(
+        String(data.offer || data.specialOffer || context.offer || '到店可享专属护理建议'),
+      ) || '到店可享专属护理建议';
+    const evidenceText =
+      Array.isArray(context.evidence) && context.evidence.length
+        ? `结合${context.evidence.slice(0, 2).join('、')}`
+        : '结合您近期的护理需求';
     const text = [
       `${name}您好，${evidenceText}，门店这边为您准备了「${project}」。`,
       `${offer}，到店后顾问会先确认您的肌肤状态和时间安排，再为您细化护理方案。`,
-      context.preferredTime ? `如果方便，可以优先为您预留 ${context.preferredTime}。` : '这周有空的话，可以帮您先预留一个合适时段。',
+      context.preferredTime
+        ? `如果方便，可以优先为您预留 ${context.preferredTime}。`
+        : '这周有空的话，可以帮您先预留一个合适时段。',
     ].join('\n');
 
-    return this.buildMockResult(
-      'customer_invitation_script',
-      text,
-      {
-        context,
-        channel: data.channel ?? 'wechat',
-        customerFacing: true,
-      },
-    );
+    return this.buildMockResult('customer_invitation_script', text, {
+      context,
+      channel: data.channel ?? 'wechat',
+      customerFacing: true,
+    });
   }
 
   async generateMarketingCopy(
@@ -450,7 +648,8 @@ export class AiService {
     };
     const variants = channels.map((channel, index) => {
       const template = channelTemplates[channel] || channelTemplates.wechat;
-      const rawText = data.styleInstruction === 'shorter' ? template.text.slice(0, channel === 'sms' ? 70 : 110) : template.text;
+      const rawText =
+        data.styleInstruction === 'shorter' ? template.text.slice(0, channel === 'sms' ? 70 : 110) : template.text;
       const text = this.sanitizeCustomerFacingMarketingCopy(
         rawText,
         this.buildSafeMarketingFallbackCopy(channel, campaignName, targetAudience, offer, projectNames, periodText),
@@ -546,7 +745,13 @@ export class AiService {
   }
 
   async generateCampaignVariants(
-    data: { campaignName?: string; targetAudience?: string; channels?: string[]; variantCount?: number; offer?: string },
+    data: {
+      campaignName?: string;
+      targetAudience?: string;
+      channels?: string[];
+      variantCount?: number;
+      offer?: string;
+    },
     userId?: number,
     storeId?: number,
   ) {
@@ -583,11 +788,19 @@ export class AiService {
     );
   }
 
-  async generateServiceNoteSummary(data: { notes?: string; customerId?: number; serviceTaskId?: number }, userId?: number, storeId?: number) {
+  async generateServiceNoteSummary(
+    data: { notes?: string; customerId?: number; serviceTaskId?: number },
+    userId?: number,
+    storeId?: number,
+  ) {
     const text = data.notes?.trim() || '本次服务记录暂无详细备注';
     return this.runScenario('service_note_summary', userId, storeId, () =>
       this.isMockProvider()
-        ? this.buildMockResult('service_note_summary', `服务摘要：${text.slice(0, 120)}。建议补充顾客反馈、使用耗材和下次护理计划。`, data)
+        ? this.buildMockResult(
+            'service_note_summary',
+            `服务摘要：${text.slice(0, 120)}。建议补充顾客反馈、使用耗材和下次护理计划。`,
+            data,
+          )
         : this.callLlm('service_note_summary', [{ role: 'user', content: JSON.stringify(data) }]),
     );
   }
@@ -595,12 +808,19 @@ export class AiService {
   async generateSkinTestExplanation(data: { metrics: any; skinType: string }, userId?: number, storeId?: number) {
     return this.runScenario('skin-test-explanation', userId, storeId, () =>
       this.isMockProvider()
-        ? this.buildMockResult('skin-test-explanation', `检测结果显示当前肤质为${data.skinType}，建议结合水油状态与敏感程度安排护理。`)
+        ? this.buildMockResult(
+            'skin-test-explanation',
+            `检测结果显示当前肤质为${data.skinType}，建议结合水油状态与敏感程度安排护理。`,
+          )
         : this.callLlm('skin-test-explanation', [{ role: 'user', content: JSON.stringify(data) }]),
     );
   }
 
-  async analyzeSkinPhoto(data: SkinPhotoAnalyzeRequest, userId?: number, storeId?: number): Promise<SkinPhotoAnalyzeResult> {
+  async analyzeSkinPhoto(
+    data: SkinPhotoAnalyzeRequest,
+    userId?: number,
+    storeId?: number,
+  ): Promise<SkinPhotoAnalyzeResult> {
     const start = Date.now();
     try {
       const result = this.hasFacePlusPlusSkinAnalyzer()
@@ -643,8 +863,7 @@ export class AiService {
         ...this.buildSkinPhotoAnalyzeResult(data),
         isFallback: true,
         instrument: 'Ami AI 初筛（仅供参考）',
-        explanation:
-          '正式肤质检测暂不可用，以下为 AI 初筛结果，仅供顾问接待参考；建议到店后由顾问使用专业仪器复核。',
+        explanation: '正式肤质检测暂不可用，以下为 AI 初筛结果，仅供顾问接待参考；建议到店后由顾问使用专业仪器复核。',
       };
       await this.logAudit(
         'skin_photo_analyze',
@@ -658,17 +877,20 @@ export class AiService {
     }
   }
 
-  async generateTerminalServiceAdvice(data: { customerId?: number; projectId?: number; taskId?: number; skinTestId?: number }, userId?: number, storeId?: number) {
+  async generateTerminalServiceAdvice(
+    data: { customerId?: number; projectId?: number; taskId?: number; skinTestId?: number },
+    userId?: number,
+    storeId?: number,
+  ) {
     const fallback = this.buildTerminalServiceAdviceFallback(data);
     const customerProfile = data.customerId ? await this.buildCustomerProfileContext(data.customerId) : null;
     const industryKnowledge = await this.getPublishedIndustryKnowledgeContext({ pageSize: 5 });
     return this.runScenario('terminal_service_advice', userId, storeId, async () => {
       if (this.isMockProvider()) {
-        return this.buildMockResult(
-          'terminal_service_advice',
-          this.formatTerminalServiceAdviceText(fallback),
-          { ...fallback, industryKnowledge },
-        );
+        return this.buildMockResult('terminal_service_advice', this.formatTerminalServiceAdviceText(fallback), {
+          ...fallback,
+          industryKnowledge,
+        });
       }
 
       const result = await this.callLlm('terminal_service_advice', [
@@ -749,7 +971,11 @@ export class AiService {
     });
   }
 
-  async resolveTerminalIntent(data: TerminalIntentResolveRequest, userId?: number, storeId?: number): Promise<TerminalIntentResolveResult> {
+  async resolveTerminalIntent(
+    data: TerminalIntentResolveRequest,
+    userId?: number,
+    storeId?: number,
+  ): Promise<TerminalIntentResolveResult> {
     if (this.isMockProvider()) {
       return this.normalizeTerminalIntentResult(this.mockTerminalIntent(data), data);
     }
@@ -775,7 +1001,14 @@ export class AiService {
 
     if (result.safety.blocked) {
       return this.normalizeTerminalIntentResult(
-        { intentName: 'unknown.clarify', action: null, confidence: 0.2, slots: {}, missingSlots: [], reason: result.text },
+        {
+          intentName: 'unknown.clarify',
+          action: null,
+          confidence: 0.2,
+          slots: {},
+          missingSlots: [],
+          reason: result.text,
+        },
         data,
       );
     }
@@ -991,13 +1224,9 @@ export class AiService {
   }
 
   private buildActivityPageSchema(data: any): ActivityPageSchema {
-    const signal = [
-      data.campaignName,
-      data.targetAudience,
-      data.source,
-      data.segment,
-      ...(data.triggerReasons ?? []),
-    ].filter(Boolean).join(' ');
+    const signal = [data.campaignName, data.targetAudience, data.source, data.segment, ...(data.triggerReasons ?? [])]
+      .filter(Boolean)
+      .join(' ');
     const isReturnCare = /流失|沉睡|未到店|回归|唤醒/.test(signal);
     const isBirthday = /生日|寿星/.test(signal);
     const title = this.toCustomerFacingMarketingCampaignName(data);
@@ -1015,7 +1244,12 @@ export class AiService {
       projectNames.push(isReturnCare ? '回店护理关怀方案' : '补水修护护理', '舒缓清洁护理');
     }
     const productNames = data.productNames ?? [];
-    const tone = data.styleInstruction === 'premium' ? 'premium' : data.styleInstruction === 'consultative' ? 'professional' : 'warm';
+    const tone =
+      data.styleInstruction === 'premium'
+        ? 'premium'
+        : data.styleInstruction === 'consultative'
+          ? 'professional'
+          : 'warm';
 
     return {
       schemaVersion: '1.0',
@@ -1066,9 +1300,9 @@ export class AiService {
             reason: '与本次活动权益和客户护理需求匹配。',
           })),
         },
-        ...(
-          productNames.length
-            ? [{
+        ...(productNames.length
+          ? [
+              {
                 type: 'product_recommendation',
                 title: '可搭配商品',
                 items: productNames.slice(0, 2).map((name: string) => ({
@@ -1077,9 +1311,9 @@ export class AiService {
                   activityPrice: 199,
                   category: '居家护理',
                 })),
-              }]
-            : []
-        ),
+              },
+            ]
+          : []),
         {
           type: 'consultant_note',
           title: '顾问提醒',
@@ -1091,13 +1325,20 @@ export class AiService {
           title: '常见问题',
           items: [
             { question: '这个活动一定适合我吗？', answer: '页面仅提供初步推荐，到店后会结合肤况和服务禁忌再确认。' },
-            { question: '优惠什么时候可用？', answer: `活动时间为 ${startDate} 至 ${endDate}，具体核销以门店规则为准。` },
+            {
+              question: '优惠什么时候可用？',
+              answer: `活动时间为 ${startDate} 至 ${endDate}，具体核销以门店规则为准。`,
+            },
           ],
         },
         {
           type: 'notice',
           title: '温馨提示',
-          items: ['本活动不替代医疗建议。', '优惠不可与部分活动叠加，以下单或核销页展示为准。', '预约成功后门店会尽快确认服务时间。'],
+          items: [
+            '本活动不替代医疗建议。',
+            '优惠不可与部分活动叠加，以下单或核销页展示为准。',
+            '预约成功后门店会尽快确认服务时间。',
+          ],
         },
         {
           type: 'store_info',
@@ -1182,7 +1423,12 @@ export class AiService {
     }
   }
 
-  async getAuditLogs(query: { page?: number | string; pageSize?: number | string; scenario?: string; status?: string }) {
+  async getAuditLogs(query: {
+    page?: number | string;
+    pageSize?: number | string;
+    scenario?: string;
+    status?: string;
+  }) {
     const page = Math.max(1, Number(query.page) || 1);
     const pageSize = Math.max(1, Number(query.pageSize) || 20);
     const scenario = query.scenario?.trim();
@@ -1235,19 +1481,54 @@ export class AiService {
   }
 
   private normalizeProviderName(provider: string) {
-    const normalized = String(provider || '').trim().toLowerCase();
-    return normalized === 'openai-compat' ? 'openai_compatible' : normalized;
+    const normalized = String(provider || '')
+      .trim()
+      .toLowerCase();
+    if (normalized === 'openai-compat') return 'openai_compatible';
+    if (normalized === 'openai-responses' || normalized === 'responses-compatible') return 'openai_responses';
+    if (normalized === 'anthropic' || normalized === 'claude' || normalized === 'claude-compatible') {
+      return 'claude_compatible';
+    }
+    return normalized;
+  }
+
+  private parseStructuredOutputMode(key: string, value: unknown): StructuredOutputMode {
+    const mode = String(value ?? 'auto')
+      .trim()
+      .toLowerCase();
+    if (mode === 'auto' || mode === 'json_schema' || mode === 'json_object') return mode;
+    throw new Error(`${key} must be one of auto, json_schema, json_object`);
+  }
+
+  private parsePositiveIntegerConfig(key: string, value: unknown) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`${key} must be a positive integer`);
+    }
+    return parsed;
   }
 
   private isOpenAiCompatibleProvider(provider: string) {
     return ['deepseek', 'openai_compatible', 'kimi'].includes(this.normalizeProviderName(provider));
   }
 
+  private isOpenAiResponsesProvider(provider: string) {
+    return this.normalizeProviderName(provider) === 'openai_responses';
+  }
+
+  private resolveConfiguredApiKey(valueKey: string, envKeyKey: string) {
+    const envKey = String(this.config.get(envKeyKey, '')).trim();
+    const indirect = envKey ? String(process.env[envKey] ?? '').trim() : '';
+    return indirect || String(this.config.get(valueKey, '')).trim();
+  }
+
   private validateProductionConfig() {
     if (process.env.NODE_ENV !== 'production') return;
 
     if (!this.isMockProvider() && (!this.apiKey || !this.baseUrl || !this.model)) {
-      throw new Error('LLM_API_KEY, LLM_BASE_URL and LLM_MODEL must be configured for non-mock AI provider in production.');
+      throw new Error(
+        'LLM_API_KEY, LLM_BASE_URL and LLM_MODEL must be configured for non-mock AI provider in production.',
+      );
     }
 
     if (!this.faceppSkinAnalyzeFallback && !this.hasFacePlusPlusSkinAnalyzer()) {
@@ -1305,16 +1586,46 @@ export class AiService {
       }
     }
 
+    if (this.isOpenAiResponsesProvider(this.provider)) {
+      try {
+        const result = await this.callOpenAiResponsesWithConfig('chat_stream', messages, {
+          provider: this.provider,
+          model: this.model,
+          apiKey: this.apiKey,
+          baseUrl: this.baseUrl,
+          chatPath: this.chatPath,
+          timeoutMs: this.timeoutMs,
+        });
+        yield* this.chunkText(result.text);
+        return;
+      } catch (error) {
+        if (!this.hasFallbackProvider()) throw error;
+      }
+    }
+
     if (this.hasFallbackProvider()) {
       try {
-        yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
-          provider: this.normalizeProviderName(this.fallbackProvider),
-          model: this.fallbackModel,
-          apiKey: this.fallbackApiKey,
-          baseUrl: this.fallbackBaseUrl,
-          chatPath: this.fallbackChatPath || this.chatPath,
-          timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
-        });
+        const fallbackProvider = this.normalizeProviderName(this.fallbackProvider);
+        if (this.isOpenAiResponsesProvider(fallbackProvider)) {
+          const result = await this.callOpenAiResponsesWithConfig('chat_stream', messages, {
+            provider: fallbackProvider,
+            model: this.fallbackModel,
+            apiKey: this.fallbackApiKey,
+            baseUrl: this.fallbackBaseUrl,
+            chatPath: this.fallbackChatPath || this.chatPath,
+            timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+          });
+          yield* this.chunkText(result.text);
+        } else {
+          yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
+            provider: fallbackProvider,
+            model: this.fallbackModel,
+            apiKey: this.fallbackApiKey,
+            baseUrl: this.fallbackBaseUrl,
+            chatPath: this.fallbackChatPath || this.chatPath,
+            timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+          });
+        }
         return;
       } catch {
         // Fall through to non-stream response.
@@ -1438,11 +1749,37 @@ export class AiService {
       this.pickLabel(result, ['skin_type', 'skinType', 'skin_texture', 'skinTexture', 'skin_quality', 'skinQuality']),
       result,
     );
-    const sensitivityScore = this.pickScore(result, ['sensitivity', 'sensitive', 'red_area', 'redArea', 'skin_sensitivity']);
-    const poreScore = this.pickScore(result, ['pores_forehead', 'pores_left_cheek', 'pores_right_cheek', 'pores_jaw', 'pore', 'pores']);
-    const pigmentationScore = this.pickScore(result, ['spot', 'spots', 'pigmentation', 'mole', 'skin_color_level', 'skin_tone']);
+    const sensitivityScore = this.pickScore(result, [
+      'sensitivity',
+      'sensitive',
+      'red_area',
+      'redArea',
+      'skin_sensitivity',
+    ]);
+    const poreScore = this.pickScore(result, [
+      'pores_forehead',
+      'pores_left_cheek',
+      'pores_right_cheek',
+      'pores_jaw',
+      'pore',
+      'pores',
+    ]);
+    const pigmentationScore = this.pickScore(result, [
+      'spot',
+      'spots',
+      'pigmentation',
+      'mole',
+      'skin_color_level',
+      'skin_tone',
+    ]);
     const acneScore = this.pickScore(result, ['acne', 'pimple', 'closed_comedones', 'blackhead']);
-    const wrinkleScore = this.pickScore(result, ['nasolabial_fold', 'forehead_wrinkle', 'crows_feet', 'eye_finelines', 'glabella_wrinkle']);
+    const wrinkleScore = this.pickScore(result, [
+      'nasolabial_fold',
+      'forehead_wrinkle',
+      'crows_feet',
+      'eye_finelines',
+      'glabella_wrinkle',
+    ]);
     const skinAge = this.pickNumber(result, ['skin_age', 'skinAge', 'age']);
     const oil = this.deriveOilScore(skinType, result);
     const moisture = this.deriveMoistureScore(skinType, sensitivityScore, acneScore);
@@ -1475,7 +1812,10 @@ export class AiService {
       skinType,
       skinStatus,
       mainProblems,
-      allergyHistory: sensitivityScore >= 55 ? '检测到敏感/泛红风险，需到店确认近期过敏史与护肤品使用情况' : '需到店确认近期过敏史和正在使用的护肤品',
+      allergyHistory:
+        sensitivityScore >= 55
+          ? '检测到敏感/泛红风险，需到店确认近期过敏史与护肤品使用情况'
+          : '需到店确认近期过敏史和正在使用的护肤品',
       goals,
       recommendedCare,
       instrument: 'Face++ 皮肤分析-高阶版',
@@ -1493,13 +1833,18 @@ export class AiService {
     };
   }
 
-  private buildSkinPhotoAuditResult(result: SkinPhotoAnalyzeResult, provider: string, model: string): AiGenerationResult {
+  private buildSkinPhotoAuditResult(
+    result: SkinPhotoAnalyzeResult,
+    provider: string,
+    model: string,
+  ): AiGenerationResult {
     return {
       id: result.id,
       scenario: 'skin_photo_analyze',
       text: result.explanation,
       structured: {
-        promptTemplateVersion: provider === 'faceplusplus' ? 'facepp.skin_analyze_premier.v1' : 'ami.skin_photo_fallback.v1',
+        promptTemplateVersion:
+          provider === 'faceplusplus' ? 'facepp.skin_analyze_premier.v1' : 'ami.skin_photo_fallback.v1',
         skinType: result.skinType,
         mainProblems: result.mainProblems,
         metrics: result.metrics,
@@ -1558,7 +1903,9 @@ export class AiService {
   }
 
   private normalizeKey(value: string) {
-    return String(value).replace(/[_\-\s]/g, '').toLowerCase();
+    return String(value)
+      .replace(/[_\-\s]/g, '')
+      .toLowerCase();
   }
 
   private extractLabel(value: unknown): string | undefined {
@@ -1630,7 +1977,8 @@ export class AiService {
   }
 
   private deriveMoistureScore(skinType: string, sensitivity: number, acne: number) {
-    const base = skinType === '干性' ? 38 : skinType === '敏感' ? 42 : skinType === '油性' ? 55 : skinType === '混合' ? 50 : 58;
+    const base =
+      skinType === '干性' ? 38 : skinType === '敏感' ? 42 : skinType === '油性' ? 55 : skinType === '混合' ? 50 : 58;
     return this.clampScore(base - Math.max(0, sensitivity - 55) * 0.2 - Math.max(0, acne - 60) * 0.1);
   }
 
@@ -1646,7 +1994,14 @@ export class AiService {
 
   private buildSkinStatus(
     skinType: string,
-    metrics: { moisture: number; oil: number; sensitivity: number; pore: number; pigmentation: number; skinAge?: number },
+    metrics: {
+      moisture: number;
+      oil: number;
+      sensitivity: number;
+      pore: number;
+      pigmentation: number;
+      skinAge?: number;
+    },
   ) {
     const parts = [
       `肤质倾向为${skinType}`,
@@ -1716,12 +2071,25 @@ export class AiService {
     const action = typeof raw?.action === 'string' && allowed.has(raw.action) ? raw.action : null;
     const confidence = Math.min(1, Math.max(0, Number(raw?.confidence ?? (action ? 0.7 : 0.2))));
     return {
-      intentName: typeof raw?.intentName === 'string' && raw.intentName ? raw.intentName : action ? 'assistant_chat' : 'unknown.clarify',
+      intentName:
+        typeof raw?.intentName === 'string' && raw.intentName
+          ? raw.intentName
+          : action
+            ? 'assistant_chat'
+            : 'unknown.clarify',
       action,
       confidence,
-      slots: raw?.slots && typeof raw.slots === 'object' && !Array.isArray(raw.slots) ? raw.slots : { rawText: request.command },
+      slots:
+        raw?.slots && typeof raw.slots === 'object' && !Array.isArray(raw.slots)
+          ? raw.slots
+          : { rawText: request.command },
       missingSlots: Array.isArray(raw?.missingSlots) ? raw.missingSlots.map(String) : [],
-      reason: typeof raw?.reason === 'string' ? raw.reason : action ? 'AI resolved to allowed action' : 'AI did not return an allowed action',
+      reason:
+        typeof raw?.reason === 'string'
+          ? raw.reason
+          : action
+            ? 'AI resolved to allowed action'
+            : 'AI did not return an allowed action',
     };
   }
 
@@ -1758,6 +2126,17 @@ export class AiService {
       return this.callOpenAiCompatible(scenario, messages);
     }
 
+    if (this.isOpenAiResponsesProvider(this.provider)) {
+      return this.callOpenAiResponsesWithConfig(scenario, messages, {
+        provider: this.provider,
+        model: this.model,
+        apiKey: this.apiKey,
+        baseUrl: this.baseUrl,
+        chatPath: this.chatPath,
+        timeoutMs: this.timeoutMs,
+      });
+    }
+
     return this.callAnthropicCompatible(scenario, messages);
   }
 
@@ -1773,17 +2152,24 @@ export class AiService {
 
   private async callFallbackLlm(scenario: string, messages: AiMessage[]) {
     const normalizedProvider = this.normalizeProviderName(this.fallbackProvider);
-    if (!this.isOpenAiCompatibleProvider(normalizedProvider)) {
-      throw new AiProviderError('FALLBACK_PROVIDER_UNSUPPORTED', 'Fallback AI Provider 仅支持 OpenAI-compatible、DeepSeek 或 Kimi', 502);
+    if (!this.isOpenAiCompatibleProvider(normalizedProvider) && !this.isOpenAiResponsesProvider(normalizedProvider)) {
+      throw new AiProviderError(
+        'FALLBACK_PROVIDER_UNSUPPORTED',
+        'Fallback AI Provider 仅支持 OpenAI-compatible、DeepSeek 或 Kimi',
+        502,
+      );
     }
-    const result = await this.callOpenAiCompatibleWithConfig(scenario, messages, {
+    const config = {
       provider: normalizedProvider,
       model: this.fallbackModel,
       apiKey: this.fallbackApiKey,
       baseUrl: this.fallbackBaseUrl,
       chatPath: this.fallbackChatPath || this.chatPath,
       timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
-    });
+    };
+    const result = this.isOpenAiResponsesProvider(normalizedProvider)
+      ? await this.callOpenAiResponsesWithConfig(scenario, messages, config)
+      : await this.callOpenAiCompatibleWithConfig(scenario, messages, config);
     return {
       ...result,
       usage: {
@@ -1910,6 +2296,79 @@ export class AiService {
     };
   }
 
+  private async callOpenAiResponsesWithConfig(
+    scenario: string,
+    messages: AiMessage[],
+    providerConfig: {
+      provider: string;
+      model: string;
+      apiKey: string;
+      baseUrl: string;
+      chatPath: string;
+      timeoutMs: number;
+    },
+  ) {
+    const body: Record<string, unknown> = {
+      model: providerConfig.model,
+      input: this.normalizeMessages(messages),
+      max_output_tokens: this.maxTokens,
+      ...(this.reasoningEffort ? { reasoning: { effort: this.reasoningEffort } } : {}),
+    };
+    if (
+      scenario === 'terminal_intent' ||
+      scenario === 'terminal_dashboard_insights' ||
+      scenario === 'terminal_service_advice' ||
+      scenario === 'next_best_action'
+    ) {
+      body.text = { format: { type: 'json_object' } };
+    }
+
+    const response = await fetch(this.getOpenAiCompatibleUrlFor(providerConfig.baseUrl, providerConfig.chatPath), {
+      method: 'POST',
+      signal: AbortSignal.timeout(providerConfig.timeoutMs),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${providerConfig.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    }).catch((error) => {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new AiProviderError('TIMEOUT', 'AI Responses 请求超时');
+      }
+      throw new AiProviderError('NETWORK_ERROR', 'AI Responses 网络请求失败');
+    });
+
+    if (!response.ok) {
+      throw new AiProviderError('UPSTREAM_ERROR', `AI Responses 服务返回 ${response.status}`, response.status);
+    }
+
+    const data = (await response.json()) as any;
+    return {
+      id: data.id || `ai-${scenario}-${Date.now()}`,
+      scenario,
+      text: this.extractResponsesOutputText(data),
+      safety: { masked: false, blocked: false, reasons: [] },
+      usage: {
+        provider: this.normalizeProviderName(providerConfig.provider),
+        model: providerConfig.model,
+        inputTokens: data.usage?.input_tokens || 0,
+        outputTokens: data.usage?.output_tokens || 0,
+      },
+    };
+  }
+
+  private extractResponsesOutputText(data: any) {
+    if (typeof data?.output_text === 'string') return data.output_text;
+    return Array.isArray(data?.output)
+      ? data.output
+          .filter((item: any) => item?.type === 'message' && Array.isArray(item.content))
+          .flatMap((item: any) => item.content)
+          .filter((item: any) => item?.type === 'output_text' && typeof item.text === 'string')
+          .map((item: any) => item.text)
+          .join('')
+      : '';
+  }
+
   private async *callOpenAiCompatibleStream(
     scenario: string,
     messages: AiMessage[],
@@ -1992,10 +2451,7 @@ export class AiService {
         try {
           const data = JSON.parse(payload);
           const delta =
-            data.choices?.[0]?.delta?.content ??
-            data.choices?.[0]?.message?.content ??
-            data.choices?.[0]?.text ??
-            '';
+            data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
           if (delta) yield String(delta);
         } catch {
           if (payload) yield payload;
@@ -2062,6 +2518,919 @@ export class AiService {
     } catch {
       return null;
     }
+  }
+
+  private createStructuredSchemaSnapshot(schema: AiStructuredOutputSchema) {
+    try {
+      const canonicalValue = this.canonicalizeStructuredSchemaValue(schema, new Set<object>());
+      const fingerprint = JSON.stringify(canonicalValue);
+      const snapshot = this.deepFreezeStructuredSchema(JSON.parse(fingerprint)) as AiStructuredOutputSchema;
+      return { schema: snapshot, fingerprint };
+    } catch (error) {
+      throw new AiStructuredOutputError(
+        'SCHEMA_INVALID',
+        'Structured output schema is invalid.',
+        this.provider,
+        this.model,
+        undefined,
+        { cause: error },
+      );
+    }
+  }
+
+  private canonicalizeStructuredSchemaValue(value: unknown, ancestors: Set<object>): unknown {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) throw new TypeError('Structured output schema contains a non-finite number.');
+      return value;
+    }
+    if (typeof value !== 'object') {
+      throw new TypeError('Structured output schema contains a non-JSON value.');
+    }
+    if (ancestors.has(value)) throw new TypeError('Structured output schema contains a circular reference.');
+
+    ancestors.add(value);
+    try {
+      if (Array.isArray(value)) {
+        return value.map((item) => this.canonicalizeStructuredSchemaValue(item, ancestors));
+      }
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype !== Object.prototype && prototype !== null) {
+        throw new TypeError('Structured output schema contains a non-plain object.');
+      }
+      return Object.fromEntries(
+        Object.keys(value)
+          .sort()
+          .map((key) => [
+            key,
+            this.canonicalizeStructuredSchemaValue((value as Record<string, unknown>)[key], ancestors),
+          ]),
+      );
+    } finally {
+      ancestors.delete(value);
+    }
+  }
+
+  private deepFreezeStructuredSchema<T>(value: T): T {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+    Object.freeze(value);
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      this.deepFreezeStructuredSchema(child);
+    }
+    return value;
+  }
+
+  private compileStructuredSchema<T>(
+    schema: AiStructuredOutputSchema,
+    fingerprint = JSON.stringify(this.canonicalizeStructuredSchemaValue(schema, new Set<object>())),
+  ): ValidateFunction<T> {
+    const cached = this.structuredValidatorCache.get(fingerprint);
+    if (cached) {
+      this.structuredValidatorCache.delete(fingerprint);
+      this.structuredValidatorCache.set(fingerprint, cached);
+      return cached as ValidateFunction<T>;
+    }
+
+    try {
+      const validate = this.structuredAjv.compile<T>(schema as any);
+      if (this.structuredValidatorCache.size >= AiService.STRUCTURED_VALIDATOR_CACHE_MAX) {
+        const oldestFingerprint = this.structuredValidatorCache.keys().next().value as string | undefined;
+        if (oldestFingerprint) this.structuredValidatorCache.delete(oldestFingerprint);
+      }
+      this.structuredValidatorCache.set(fingerprint, validate);
+      return validate;
+    } catch (error) {
+      throw new AiStructuredOutputError(
+        'SCHEMA_INVALID',
+        'Structured output schema is invalid.',
+        this.provider,
+        this.model,
+        undefined,
+        { cause: error },
+      );
+    }
+  }
+
+  private buildMockStructuredResult<T>(
+    schema: AiStructuredOutputSchema,
+    validate: ValidateFunction<T>,
+  ): AiStructuredOutputResult<T> {
+    const data = this.buildMockStructuredValue(schema) as T;
+    if (!validate(data)) {
+      throw new AiStructuredOutputError(
+        'MOCK_GENERATION_UNSUPPORTED',
+        'Mock structured output cannot construct a value for the requested schema.',
+        'mock',
+        'ami-core-mock-llm',
+        this.mockUsage(),
+      );
+    }
+
+    const rawText = JSON.stringify(data);
+    const usage = this.mockUsage();
+    return {
+      data,
+      rawText,
+      usage,
+      provider: usage.provider,
+      model: usage.model,
+    };
+  }
+
+  private buildMockStructuredValue(schema: AiStructuredOutputSchema, variantIndex = 0): unknown {
+    if ('const' in schema) return schema.const;
+    if (Array.isArray(schema.enum) && schema.enum.length > 0) return schema.enum[0];
+    if ('default' in schema) return schema.default;
+
+    const alternatives = Array.isArray(schema.oneOf) ? schema.oneOf : Array.isArray(schema.anyOf) ? schema.anyOf : null;
+    if (alternatives?.length && typeof alternatives[0] === 'object' && alternatives[0] !== null) {
+      return this.buildMockStructuredValue(alternatives[0] as AiStructuredOutputSchema, variantIndex);
+    }
+
+    const schemaType = Array.isArray(schema.type) ? schema.type[0] : schema.type;
+    if (schemaType === 'object' || (!schemaType && schema.properties)) {
+      const properties = (schema.properties ?? {}) as Record<string, AiStructuredOutputSchema>;
+      const required = Array.isArray(schema.required) ? schema.required.map(String) : [];
+      return Object.fromEntries(
+        required
+          .filter((key) => properties[key])
+          .map((key) => [key, this.buildMockStructuredValue(properties[key], variantIndex)]),
+      );
+    }
+    if (schemaType === 'array') {
+      const minItems = typeof schema.minItems === 'number' ? Math.max(0, Math.ceil(schema.minItems)) : 0;
+      const itemSchema =
+        schema.items && typeof schema.items === 'object' && !Array.isArray(schema.items)
+          ? (schema.items as AiStructuredOutputSchema)
+          : {};
+      const values = Array.from({ length: minItems }, (_, index) =>
+        this.buildMockStructuredValue(itemSchema, schema.uniqueItems === true ? index : variantIndex),
+      );
+      if (schema.uniqueItems === true && new Set(values.map((value) => JSON.stringify(value))).size !== values.length) {
+        throw this.buildMockGenerationUnsupportedError();
+      }
+      return values;
+    }
+    if (schemaType === 'integer') {
+      const minimum = typeof schema.minimum === 'number' ? Math.ceil(schema.minimum) : undefined;
+      const maximum = typeof schema.maximum === 'number' ? Math.floor(schema.maximum) : undefined;
+      const value =
+        minimum !== undefined ? minimum + variantIndex : maximum !== undefined ? maximum - variantIndex : variantIndex;
+      if ((minimum !== undefined && value < minimum) || (maximum !== undefined && value > maximum)) {
+        throw this.buildMockGenerationUnsupportedError();
+      }
+      return value;
+    }
+    if (schemaType === 'number') {
+      const minimum = typeof schema.minimum === 'number' ? schema.minimum : undefined;
+      const maximum = typeof schema.maximum === 'number' ? schema.maximum : undefined;
+      const value =
+        minimum !== undefined ? minimum + variantIndex : maximum !== undefined ? maximum - variantIndex : variantIndex;
+      if ((minimum !== undefined && value < minimum) || (maximum !== undefined && value > maximum)) {
+        throw this.buildMockGenerationUnsupportedError();
+      }
+      return value;
+    }
+    if (schemaType === 'boolean') return variantIndex % 2 === 1;
+    if (schemaType === 'null') return null;
+    if (schemaType === 'string') {
+      if (typeof schema.pattern === 'string') throw this.buildMockGenerationUnsupportedError();
+      const day = String((variantIndex % 28) + 1).padStart(2, '0');
+      if (schema.format === 'date') return `2026-01-${day}`;
+      if (schema.format === 'date-time') return `2026-01-${day}T00:00:00Z`;
+      if (schema.format === 'email') return variantIndex === 0 ? 'mock@example.com' : `mock${variantIndex}@example.com`;
+      const minLength = typeof schema.minLength === 'number' ? Math.max(0, Math.ceil(schema.minLength)) : 0;
+      if (variantIndex === 0) return minLength > 0 ? 'x'.repeat(minLength) : '';
+      const suffix = variantIndex.toString(36);
+      const targetLength = Math.max(1, minLength, suffix.length);
+      const maxLength = typeof schema.maxLength === 'number' ? Math.max(0, Math.floor(schema.maxLength)) : undefined;
+      if (maxLength !== undefined && targetLength > maxLength) throw this.buildMockGenerationUnsupportedError();
+      return `${'x'.repeat(targetLength - suffix.length)}${suffix}`;
+    }
+    return null;
+  }
+
+  private buildMockGenerationUnsupportedError() {
+    return new AiStructuredOutputError(
+      'MOCK_GENERATION_UNSUPPORTED',
+      'Mock structured output cannot construct a value for the requested schema.',
+      'mock',
+      'ami-core-mock-llm',
+      this.mockUsage(),
+    );
+  }
+
+  private async generateStructuredWithFallback<T>(
+    input: AiStructuredOutputInput,
+    validate: ValidateFunction<T>,
+    budget: StructuredRequestBudget,
+  ): Promise<AiStructuredOutputResult<T>> {
+    const primaryTimeoutMs = this.resolveStructuredPrimaryTimeout(input, budget);
+    const primaryConfig: StructuredProviderConfig = {
+      provider: this.provider,
+      model: this.model,
+      apiKey: this.apiKey,
+      baseUrl: this.baseUrl,
+      chatPath: this.chatPath,
+      timeoutMs: primaryTimeoutMs,
+      fallback: false,
+      structuredOutputMode: this.structuredOutputMode,
+      maxTotalTokens: this.structuredMaxTotalTokens,
+    };
+
+    let primaryError: AiStructuredOutputError;
+    try {
+      return await this.generateStructuredWithProvider(input, input.messages, validate, primaryConfig, budget);
+    } catch (error) {
+      if (error instanceof AiStructuredOutputError && error.code !== 'PROVIDER_UNAVAILABLE') {
+        throw error;
+      }
+      primaryError = this.toStructuredOutputError(
+        error,
+        this.getStructuredProviderLabel(primaryConfig),
+        primaryConfig.model,
+        this.getStructuredBudgetUsage(budget),
+      );
+      if (!this.canUseStructuredFallback(input)) throw primaryError;
+    }
+
+    const fallbackConfig: StructuredProviderConfig = {
+      provider: this.normalizeProviderName(this.fallbackProvider),
+      model: this.fallbackModel,
+      apiKey: this.fallbackApiKey,
+      baseUrl: this.fallbackBaseUrl,
+      chatPath: this.fallbackChatPath || this.chatPath,
+      timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+      fallback: true,
+      structuredOutputMode: this.fallbackStructuredOutputMode,
+      maxTotalTokens: this.fallbackStructuredMaxTotalTokens,
+    };
+    this.tightenStructuredTokenBudget(budget, fallbackConfig.maxTotalTokens);
+
+    try {
+      return await this.generateStructuredWithProvider(
+        input,
+        input.fallbackMessages!,
+        validate,
+        fallbackConfig,
+        budget,
+      );
+    } catch (error) {
+      throw this.toStructuredOutputError(
+        error,
+        this.getStructuredProviderLabel(fallbackConfig),
+        fallbackConfig.model,
+        this.getStructuredBudgetUsage(budget),
+      );
+    }
+  }
+
+  private async generateStructuredWithProvider<T>(
+    input: AiStructuredOutputInput,
+    initialMessages: AiMessage[],
+    validate: ValidateFunction<T>,
+    providerConfig: StructuredProviderConfig,
+    budget: StructuredRequestBudget,
+  ): Promise<AiStructuredOutputResult<T>> {
+    this.assertStructuredProviderAvailable(providerConfig);
+    const providerSchema = input.promptSchema ?? input.schema;
+    const firstResult = await this.callStructuredProvider(
+      input.scenario,
+      initialMessages,
+      providerSchema,
+      providerConfig,
+      false,
+      budget,
+      input.temperature,
+    );
+    const firstValidation = this.validateStructuredText(firstResult.text, validate);
+    if (firstValidation.ok) {
+      return this.buildStructuredOutputResult(
+        firstValidation.data,
+        firstResult.text,
+        this.getStructuredBudgetUsage(budget)!,
+        providerConfig,
+      );
+    }
+
+    if (!this.hasStructuredMessages(input.repairMessages)) {
+      throw this.buildStructuredValidationError(firstValidation.code, providerConfig, budget);
+    }
+
+    const repairResult = await this.callStructuredProvider(
+      input.scenario,
+      this.buildStructuredRepairMessages(input.repairMessages, firstValidation.errors, providerSchema),
+      providerSchema,
+      providerConfig,
+      true,
+      budget,
+      input.temperature,
+    );
+    const repairedValidation = this.validateStructuredText(repairResult.text, validate);
+    if (!repairedValidation.ok) {
+      throw this.buildStructuredValidationError(repairedValidation.code, providerConfig, budget);
+    }
+
+    return this.buildStructuredOutputResult(
+      repairedValidation.data,
+      repairResult.text,
+      this.getStructuredBudgetUsage(budget)!,
+      providerConfig,
+    );
+  }
+
+  private assertStructuredProviderAvailable(providerConfig: StructuredProviderConfig) {
+    const provider = this.normalizeProviderName(providerConfig.provider);
+    const supported = providerConfig.fallback
+      ? this.isOpenAiCompatibleProvider(provider) || this.isOpenAiResponsesProvider(provider)
+      : this.isOpenAiCompatibleProvider(provider) || this.isOpenAiResponsesProvider(provider) || provider === 'claude_compatible';
+    if (!supported) {
+      throw new AiStructuredOutputError(
+        'PROVIDER_UNAVAILABLE',
+        'Structured output provider is unsupported.',
+        this.getStructuredProviderLabel(providerConfig),
+        providerConfig.model,
+      );
+    }
+    if (!providerConfig.apiKey || !providerConfig.baseUrl || !providerConfig.model) {
+      throw new AiStructuredOutputError(
+        'PROVIDER_UNAVAILABLE',
+        'Structured output provider is unavailable.',
+        this.getStructuredProviderLabel(providerConfig),
+        providerConfig.model,
+      );
+    }
+  }
+
+  private resolveStructuredTimeout(timeoutMs: number | undefined, defaultTimeoutMs: number) {
+    if (typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0) {
+      return Math.floor(timeoutMs);
+    }
+    return defaultTimeoutMs;
+  }
+
+  private createStructuredRequestBudget(input: AiStructuredOutputInput, start: number): StructuredRequestBudget {
+    const totalTimeoutMs = this.resolveStructuredTimeout(input.timeoutMs, this.timeoutMs);
+    return {
+      deadlineAt: start + totalTimeoutMs,
+      callCount: 0,
+      maxCalls: 3,
+      receivedResponses: 0,
+      lastProvider: this.provider,
+      lastModel: this.model,
+      maxTotalTokens: this.structuredMaxTotalTokens,
+      consumedTokens: 0,
+      usageBuckets: new Map<string, AiUsageBreakdown>(),
+    };
+  }
+
+  private hasStructuredMessages(messages: AiMessage[] | undefined): messages is AiMessage[] {
+    if (!Array.isArray(messages) || messages.length === 0) return false;
+    const allowedRoles = new Set(['system', 'user', 'assistant']);
+    return messages.every((message) => {
+      if (!message || typeof message !== 'object') return false;
+      const candidate = message as { role?: unknown; content?: unknown };
+      return (
+        typeof candidate.role === 'string' &&
+        allowedRoles.has(candidate.role) &&
+        typeof candidate.content === 'string' &&
+        candidate.content.trim().length > 0
+      );
+    });
+  }
+
+  private canUseStructuredFallback(input: AiStructuredOutputInput) {
+    return Boolean(
+      input.allowFallback === true &&
+      this.hasStructuredMessages(input.fallbackMessages) &&
+      this.hasFallbackProvider() &&
+      this.isOpenAiCompatibleProvider(this.fallbackProvider),
+    );
+  }
+
+  private resolveStructuredPrimaryTimeout(input: AiStructuredOutputInput, budget: StructuredRequestBudget) {
+    if (!this.canUseStructuredFallback(input)) return this.timeoutMs;
+    const remainingMs = Math.max(1, Math.floor(budget.deadlineAt - this.now()));
+    if (remainingMs <= 2_000) return Math.min(this.timeoutMs, remainingMs);
+    const fallbackReserveMs = Math.min(5_000, Math.floor(remainingMs / 3));
+    return Math.max(1, Math.min(this.timeoutMs, remainingMs - fallbackReserveMs));
+  }
+
+  private reserveStructuredCall(
+    budget: StructuredRequestBudget,
+    providerConfig: StructuredProviderConfig,
+    messages: AiMessage[],
+    schema: AiStructuredOutputSchema,
+  ): StructuredCallReservation {
+    const remainingMs = Math.floor(budget.deadlineAt - this.now());
+    if (budget.callCount >= budget.maxCalls || remainingMs <= 0) {
+      throw new AiStructuredOutputError(
+        'PROVIDER_UNAVAILABLE',
+        'Structured output request budget is exhausted.',
+        budget.lastProvider,
+        budget.lastModel,
+        this.getStructuredBudgetUsage(budget),
+      );
+    }
+
+    budget.callCount += 1;
+    budget.lastProvider = this.getStructuredProviderLabel(providerConfig);
+    budget.lastModel = providerConfig.model;
+    const providerTimeoutMs = this.resolveStructuredTimeout(undefined, providerConfig.timeoutMs);
+    const estimatedInputTokens = this.estimateStructuredInputTokens(messages, schema);
+    const remainingTokens = budget.maxTotalTokens - budget.consumedTokens;
+    const maxOutputTokens = Math.min(this.maxTokens, remainingTokens - estimatedInputTokens);
+    if (maxOutputTokens <= 0) {
+      budget.callCount -= 1;
+      throw this.buildStructuredBudgetExceededError(budget);
+    }
+    return {
+      requestTimeoutMs: Math.max(1, Math.min(remainingMs, providerTimeoutMs)),
+      estimatedInputTokens,
+      maxOutputTokens,
+    };
+  }
+
+  private estimateStructuredInputTokens(messages: AiMessage[], schema: AiStructuredOutputSchema) {
+    const serialized = JSON.stringify({ messages, schema });
+    return Math.max(1, Math.ceil(serialized.length / 4) + 8);
+  }
+
+  private tightenStructuredTokenBudget(budget: StructuredRequestBudget, providerMaxTotalTokens: number) {
+    budget.maxTotalTokens = Math.min(budget.maxTotalTokens, providerMaxTotalTokens);
+    if (budget.consumedTokens >= budget.maxTotalTokens) {
+      throw this.buildStructuredBudgetExceededError(budget);
+    }
+  }
+
+  private recordStructuredUsage(budget: StructuredRequestBudget, usage: AiUsage, fallbackConsumedTokens: number) {
+    budget.receivedResponses += 1;
+    const key = JSON.stringify([usage.provider, usage.model]);
+    const existing = budget.usageBuckets.get(key);
+    if (existing) {
+      existing.inputTokens += usage.inputTokens;
+      existing.outputTokens += usage.outputTokens;
+    } else {
+      budget.usageBuckets.set(key, {
+        provider: usage.provider,
+        model: usage.model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+      });
+    }
+    const reportedTokens = usage.inputTokens + usage.outputTokens;
+    budget.consumedTokens += reportedTokens > 0 ? reportedTokens : fallbackConsumedTokens;
+    if (budget.consumedTokens > budget.maxTotalTokens) {
+      throw this.buildStructuredBudgetExceededError(budget);
+    }
+  }
+
+  private recordUnknownStructuredUsage(
+    budget: StructuredRequestBudget,
+    reservation: StructuredCallReservation,
+    error: unknown,
+  ) {
+    if (error instanceof AiProviderError && error.status && error.status >= 400 && error.status < 500) {
+      return;
+    }
+    budget.consumedTokens += reservation.estimatedInputTokens + reservation.maxOutputTokens;
+  }
+
+  private buildStructuredBudgetExceededError(budget: StructuredRequestBudget) {
+    return new AiStructuredOutputError(
+      'BUDGET_EXCEEDED',
+      'Structured output token budget is exhausted.',
+      budget.lastProvider,
+      budget.lastModel,
+      this.getStructuredBudgetUsage(budget),
+    );
+  }
+
+  private getStructuredBudgetUsage(budget: StructuredRequestBudget): AiUsage | undefined {
+    if (budget.receivedResponses === 0) return undefined;
+    const breakdown = [...budget.usageBuckets.values()].map((usage) => ({ ...usage }));
+    const totals = breakdown.reduce(
+      (sum, usage) => ({
+        inputTokens: sum.inputTokens + usage.inputTokens,
+        outputTokens: sum.outputTokens + usage.outputTokens,
+      }),
+      { inputTokens: 0, outputTokens: 0 },
+    );
+    if (breakdown.length === 1) {
+      return { ...breakdown[0] };
+    }
+    return {
+      provider: 'multiple',
+      model: 'multiple',
+      inputTokens: totals.inputTokens,
+      outputTokens: totals.outputTokens,
+      breakdown,
+    };
+  }
+
+  private async callStructuredProvider(
+    scenario: string,
+    messages: AiMessage[],
+    schema: AiStructuredOutputSchema,
+    providerConfig: StructuredProviderConfig,
+    repair: boolean,
+    budget: StructuredRequestBudget,
+    temperature?: number,
+  ): Promise<AiGenerationResult> {
+    const reservation = this.reserveStructuredCall(budget, providerConfig, messages, schema);
+    let result: AiGenerationResult;
+    try {
+      if (this.isOpenAiCompatibleProvider(providerConfig.provider)) {
+        result = await this.callStructuredOpenAiCompatible(
+          scenario,
+          messages,
+          schema,
+          providerConfig,
+          repair,
+          reservation.requestTimeoutMs,
+          reservation.maxOutputTokens,
+          temperature,
+        );
+      } else if (this.isOpenAiResponsesProvider(providerConfig.provider)) {
+        result = await this.callStructuredOpenAiResponses(
+          scenario,
+          messages,
+          schema,
+          providerConfig,
+          repair,
+          reservation.requestTimeoutMs,
+          reservation.maxOutputTokens,
+        );
+      } else {
+        result = await this.callStructuredAnthropicCompatible(
+          scenario,
+          messages,
+          schema,
+          providerConfig,
+          repair,
+          reservation.requestTimeoutMs,
+          reservation.maxOutputTokens,
+          temperature,
+        );
+      }
+    } catch (error) {
+      this.recordUnknownStructuredUsage(budget, reservation, error);
+      throw error;
+    }
+    this.recordStructuredUsage(budget, result.usage, reservation.estimatedInputTokens + reservation.maxOutputTokens);
+    return result;
+  }
+
+  private async callStructuredOpenAiCompatible(
+    scenario: string,
+    messages: AiMessage[],
+    schema: AiStructuredOutputSchema,
+    providerConfig: StructuredProviderConfig,
+    repair: boolean,
+    requestTimeoutMs: number,
+    maxOutputTokens: number,
+    temperature?: number,
+  ): Promise<AiGenerationResult> {
+    const provider = this.normalizeProviderName(providerConfig.provider);
+    const constrainedMessages = this.normalizeMessages(messages);
+    const structuredOutputMode = this.resolveStructuredOutputMode(providerConfig);
+    if (structuredOutputMode === 'json_object' && !repair) {
+      constrainedMessages.push(this.buildStructuredSchemaMessage(schema));
+    }
+    const body: Record<string, unknown> = {
+      model: providerConfig.model,
+      messages: constrainedMessages,
+      max_tokens: maxOutputTokens,
+      temperature: temperature ?? this.getOpenAiCompatibleTemperature(provider, providerConfig.model),
+      stream: false,
+      response_format:
+        structuredOutputMode === 'json_schema'
+          ? {
+              type: 'json_schema',
+              json_schema: {
+                name: this.getStructuredSchemaName(scenario),
+                strict: true,
+                schema,
+              },
+            }
+          : { type: 'json_object' },
+    };
+
+    if (provider === 'deepseek') {
+      // Schema-constrained routing and planning must stay inside the short Brain latency budget.
+      body.thinking = { type: 'disabled' };
+    }
+
+    const response = await fetch(this.getOpenAiCompatibleUrlFor(providerConfig.baseUrl, providerConfig.chatPath), {
+      method: 'POST',
+      signal: AbortSignal.timeout(requestTimeoutMs),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${providerConfig.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    }).catch((error) => {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new AiProviderError('TIMEOUT', 'AI structured output request timed out.');
+      }
+      throw new AiProviderError('NETWORK_ERROR', 'AI structured output network request failed.');
+    });
+
+    if (!response.ok) {
+      throw new AiProviderError(
+        'UPSTREAM_ERROR',
+        `AI structured output provider returned ${response.status}`,
+        response.status,
+      );
+    }
+
+    const data = (await response.json()) as any;
+    const text = data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
+    return this.buildStructuredGenerationResult(
+      scenario,
+      String(text),
+      this.getStructuredProviderLabel(providerConfig),
+      providerConfig.model,
+      data.usage?.prompt_tokens || 0,
+      data.usage?.completion_tokens || 0,
+      data.id,
+    );
+  }
+
+  private async callStructuredOpenAiResponses(
+    scenario: string,
+    messages: AiMessage[],
+    schema: AiStructuredOutputSchema,
+    providerConfig: StructuredProviderConfig,
+    repair: boolean,
+    requestTimeoutMs: number,
+    maxOutputTokens: number,
+  ): Promise<AiGenerationResult> {
+    const structuredOutputMode = this.resolveStructuredOutputMode(providerConfig);
+    const constrainedMessages = this.normalizeMessages(messages);
+    if (structuredOutputMode === 'json_object' && !repair) {
+      constrainedMessages.push(this.buildStructuredSchemaMessage(schema));
+    }
+    const format = structuredOutputMode === 'json_schema'
+      ? {
+          type: 'json_schema',
+          name: this.getStructuredSchemaName(scenario),
+          strict: true,
+          schema,
+        }
+      : { type: 'json_object' };
+    const body: Record<string, unknown> = {
+      model: providerConfig.model,
+      input: constrainedMessages,
+      max_output_tokens: maxOutputTokens,
+      text: { format },
+      ...(this.reasoningEffort ? { reasoning: { effort: this.reasoningEffort } } : {}),
+    };
+
+    const response = await fetch(this.getOpenAiCompatibleUrlFor(providerConfig.baseUrl, providerConfig.chatPath), {
+      method: 'POST',
+      signal: AbortSignal.timeout(requestTimeoutMs),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${providerConfig.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    }).catch((error) => {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new AiProviderError('TIMEOUT', 'AI Responses structured output request timed out.');
+      }
+      throw new AiProviderError('NETWORK_ERROR', 'AI Responses structured output network request failed.');
+    });
+
+    if (!response.ok) {
+      throw new AiProviderError(
+        'UPSTREAM_ERROR',
+        `AI Responses structured output provider returned ${response.status}`,
+        response.status,
+      );
+    }
+
+    const data = (await response.json()) as any;
+    return this.buildStructuredGenerationResult(
+      scenario,
+      this.extractResponsesOutputText(data),
+      this.getStructuredProviderLabel(providerConfig),
+      providerConfig.model,
+      data.usage?.input_tokens || 0,
+      data.usage?.output_tokens || 0,
+      data.id,
+    );
+  }
+
+  private async callStructuredAnthropicCompatible(
+    scenario: string,
+    messages: AiMessage[],
+    schema: AiStructuredOutputSchema,
+    providerConfig: StructuredProviderConfig,
+    repair: boolean,
+    requestTimeoutMs: number,
+    maxOutputTokens: number,
+    temperature?: number,
+  ): Promise<AiGenerationResult> {
+    const system = messages
+      .filter((message) => message.role === 'system')
+      .map((message) => String(message.content ?? '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+    const constrainedMessages = messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => ({
+        role: message.role === 'assistant' ? 'assistant' : 'user',
+        content: String(message.content ?? ''),
+      }));
+    if (!repair) {
+      constrainedMessages.push(this.buildStructuredSchemaMessage(schema));
+    }
+    const response = await fetch(providerConfig.baseUrl, {
+      method: 'POST',
+      signal: AbortSignal.timeout(requestTimeoutMs),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': providerConfig.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: providerConfig.model,
+        max_tokens: maxOutputTokens,
+        ...(temperature === undefined ? {} : { temperature }),
+        stream: false,
+        ...(system ? { system } : {}),
+        messages: constrainedMessages,
+      }),
+    }).catch((error) => {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        throw new AiProviderError('TIMEOUT', 'AI structured output request timed out.');
+      }
+      throw new AiProviderError('NETWORK_ERROR', 'AI structured output network request failed.');
+    });
+
+    if (!response.ok) {
+      throw new AiProviderError(
+        'UPSTREAM_ERROR',
+        `AI structured output provider returned ${response.status}`,
+        response.status,
+      );
+    }
+
+    const data = (await response.json()) as any;
+    const text = data.content?.find((item: any) => item.type === 'text')?.text ?? data.content?.[0]?.text ?? '';
+    return this.buildStructuredGenerationResult(
+      scenario,
+      String(text),
+      this.getStructuredProviderLabel(providerConfig),
+      providerConfig.model,
+      data.usage?.input_tokens || 0,
+      data.usage?.output_tokens || 0,
+      data.id,
+    );
+  }
+
+  private buildStructuredGenerationResult(
+    scenario: string,
+    text: string,
+    provider: string,
+    model: string,
+    inputTokens: number,
+    outputTokens: number,
+    id?: string,
+  ): AiGenerationResult {
+    return {
+      id: id || `ai-${scenario}-${this.now()}`,
+      scenario,
+      text,
+      safety: { masked: false, blocked: false, reasons: [] },
+      usage: { provider, model, inputTokens, outputTokens },
+    };
+  }
+
+  private validateStructuredText<T>(
+    rawText: string,
+    validate: ValidateFunction<T>,
+  ): { ok: true; data: T } | { ok: false; code: 'JSON_INVALID' | 'SCHEMA_INVALID'; errors: string[] } {
+    let data: unknown;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      return { ok: false, code: 'JSON_INVALID', errors: ['response must be valid JSON'] };
+    }
+
+    if (!validate(data)) {
+      return {
+        ok: false,
+        code: 'SCHEMA_INVALID',
+        errors: this.summarizeStructuredValidationErrors(validate.errors),
+      };
+    }
+    return { ok: true, data };
+  }
+
+  private summarizeStructuredValidationErrors(errors: ErrorObject[] | null | undefined) {
+    if (!errors?.length) return ['response does not match schema'];
+    return errors.slice(0, 8).map((error) => `${error.instancePath || '/'} ${error.message || 'is invalid'}`);
+  }
+
+  private buildStructuredSchemaMessage(schema: AiStructuredOutputSchema): AiMessage {
+    return {
+      role: 'user',
+      content: JSON.stringify({ instruction: 'Return only one JSON object matching this schema.', schema }),
+    };
+  }
+
+  private buildStructuredRepairMessages(
+    repairMessages: AiMessage[],
+    errors: string[],
+    schema: AiStructuredOutputSchema,
+  ): AiMessage[] {
+    return [
+      ...repairMessages.map((message) => ({ role: message.role, content: String(message.content ?? '') })),
+      {
+        role: 'user',
+        content: JSON.stringify({ instruction: 'Return a corrected JSON object only.', errors, schema }),
+      },
+    ];
+  }
+
+  private buildStructuredOutputResult<T>(
+    data: T,
+    rawText: string,
+    usage: AiUsage,
+    providerConfig: StructuredProviderConfig,
+  ): AiStructuredOutputResult<T> {
+    return {
+      data,
+      rawText,
+      usage,
+      provider: this.getStructuredProviderLabel(providerConfig),
+      model: providerConfig.model,
+    };
+  }
+
+  private buildStructuredValidationError(
+    code: 'JSON_INVALID' | 'SCHEMA_INVALID',
+    providerConfig: StructuredProviderConfig,
+    budget: StructuredRequestBudget,
+  ) {
+    return new AiStructuredOutputError(
+      code,
+      code === 'JSON_INVALID'
+        ? 'Structured output provider returned invalid JSON.'
+        : 'Structured output does not satisfy the requested schema.',
+      this.getStructuredProviderLabel(providerConfig),
+      providerConfig.model,
+      this.getStructuredBudgetUsage(budget),
+    );
+  }
+
+  private getStructuredProviderLabel(providerConfig: StructuredProviderConfig) {
+    const provider = this.normalizeProviderName(providerConfig.provider);
+    return providerConfig.fallback ? `${provider}(fallback)` : provider;
+  }
+
+  private resolveStructuredOutputMode(providerConfig: StructuredProviderConfig): 'json_schema' | 'json_object' {
+    const provider = this.normalizeProviderName(providerConfig.provider);
+    if (provider === 'deepseek' || provider === 'kimi') return 'json_object';
+    return providerConfig.structuredOutputMode === 'json_schema' ? 'json_schema' : 'json_object';
+  }
+
+  private now() {
+    return Date.now();
+  }
+
+  private getStructuredSchemaName(scenario: string) {
+    return (
+      String(scenario || 'structured_output')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 64) || 'structured_output'
+    );
+  }
+
+  private toStructuredOutputError(error: unknown, provider?: string, model?: string, usage?: AiUsage) {
+    if (error instanceof AiStructuredOutputError) {
+      if (error.usage || !usage) return error;
+      return new AiStructuredOutputError(
+        error.code,
+        error.message,
+        error.provider || provider,
+        error.model || model,
+        usage,
+        { cause: error },
+      );
+    }
+    return new AiStructuredOutputError(
+      'PROVIDER_UNAVAILABLE',
+      'Structured output provider is unavailable.',
+      provider,
+      model,
+      usage,
+      { cause: error },
+    );
   }
 
   private async buildCustomerProfileContext(customerId: number) {
@@ -2150,7 +3519,12 @@ export class AiService {
     };
   }
 
-  private buildTerminalServiceAdviceFallback(data: { customerId?: number; projectId?: number; taskId?: number; skinTestId?: number }): TerminalServiceAdviceStructured {
+  private buildTerminalServiceAdviceFallback(data: {
+    customerId?: number;
+    projectId?: number;
+    taskId?: number;
+    skinTestId?: number;
+  }): TerminalServiceAdviceStructured {
     return {
       preChecks: [
         data.customerId ? `确认客户 ${data.customerId} 禁忌` : '确认客户禁忌',
@@ -2163,7 +3537,10 @@ export class AiService {
     };
   }
 
-  private normalizeTerminalServiceAdvice(value: unknown, fallback: TerminalServiceAdviceStructured): TerminalServiceAdviceStructured {
+  private normalizeTerminalServiceAdvice(
+    value: unknown,
+    fallback: TerminalServiceAdviceStructured,
+  ): TerminalServiceAdviceStructured {
     const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const list = (key: keyof TerminalServiceAdviceStructured, fallbackItems: string[]) => {
       const source = Array.isArray(record[key]) ? (record[key] as unknown[]) : fallbackItems;
@@ -2200,7 +3577,11 @@ export class AiService {
     const projectName = data.context?.projectName || data.context?.lastProjectName;
     const daysSinceVisit = Number(data.context?.daysSinceVisit ?? data.context?.lastVisitDays ?? 0);
     return {
-      action: projectName ? 'recommend_project' : daysSinceVisit >= 30 ? 'send_care_reminder' : 'escalate_to_consultant',
+      action: projectName
+        ? 'recommend_project'
+        : daysSinceVisit >= 30
+          ? 'send_care_reminder'
+          : 'escalate_to_consultant',
       reason:
         daysSinceVisit > 0
           ? `客户距上次到店 ${daysSinceVisit} 天，适合安排下一步跟进。`
@@ -2318,6 +3699,46 @@ export class AiService {
     if (error.status === 429) return 'AI 服务请求过于频繁，请稍后重试。';
     if (error.status && error.status >= 500) return 'AI 服务暂时不可用，请稍后再试。';
     return 'AI 生成暂时失败，请稍后重试。';
+  }
+
+  private async logStructuredAudit(input: {
+    scenario: string;
+    userId?: number;
+    storeId?: number;
+    provider: string;
+    model: string;
+    usage?: AiUsage;
+    latencyMs: number;
+    status: 'success' | 'failed';
+    errorCode?: AiStructuredOutputErrorCode;
+  }) {
+    await this.prisma.aiAuditLog.create({
+      data: {
+        userId: input.userId,
+        storeId: input.storeId,
+        scenario: input.scenario,
+        provider: input.provider,
+        model: input.model,
+        inputTokens: input.usage?.inputTokens || 0,
+        outputTokens: input.usage?.outputTokens || 0,
+        ...(input.usage?.breakdown ? { inputSummary: JSON.stringify({ usageBreakdown: input.usage.breakdown }) } : {}),
+        outputSummary:
+          input.status === 'success'
+            ? 'structured_output_valid'
+            : `errorCode=${input.errorCode || 'PROVIDER_UNAVAILABLE'}`,
+        safetyBlocked: false,
+        latencyMs: input.latencyMs,
+        status: input.status,
+      },
+    });
+  }
+
+  private async logStructuredAuditBestEffort(input: Parameters<AiService['logStructuredAudit']>[0]) {
+    try {
+      await this.logStructuredAudit(input);
+    } catch (error) {
+      console.warn('AI structured audit log write failed', error);
+    }
   }
 
   private async logAudit(

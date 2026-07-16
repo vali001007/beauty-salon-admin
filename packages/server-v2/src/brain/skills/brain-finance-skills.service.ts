@@ -28,6 +28,15 @@ export interface FinanceCostAnalysis {
   costCategories: Array<{ category: string; amount: number }>;
 }
 
+export interface FinanceMemberBalanceFlowSummary {
+  rechargeAmount: number;
+  rechargeGiftAmount: number;
+  rechargeCount: number;
+  consumedAmount: number;
+  consumedGiftAmount: number;
+  consumedCount: number;
+}
+
 @Injectable()
 export class BrainFinanceSkillsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -168,6 +177,44 @@ export class BrainFinanceSkillsService {
           }
         : undefined,
     };
+  }
+
+  async buildMemberBalanceFlowSummary(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<FinanceMemberBalanceFlowSummary> {
+    const transactions = await this.prisma.customerBalanceTransaction.findMany({
+      where: {
+        storeId: input.storeId,
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        type: { in: ['recharge', 'open', 'deduct', 'consume'] },
+      },
+      select: { type: true, amount: true, giftAmount: true },
+    });
+
+    const summary: FinanceMemberBalanceFlowSummary = {
+      rechargeAmount: 0,
+      rechargeGiftAmount: 0,
+      rechargeCount: 0,
+      consumedAmount: 0,
+      consumedGiftAmount: 0,
+      consumedCount: 0,
+    };
+    for (const transaction of transactions) {
+      const amount = this.toNumber(transaction.amount);
+      const giftAmount = this.toNumber(transaction.giftAmount);
+      if (transaction.type === 'recharge' || transaction.type === 'open') {
+        summary.rechargeAmount += amount;
+        summary.rechargeGiftAmount += giftAmount;
+        summary.rechargeCount += 1;
+      } else {
+        summary.consumedAmount += amount;
+        summary.consumedGiftAmount += giftAmount;
+        summary.consumedCount += 1;
+      }
+    }
+    return summary;
   }
 
   async buildCostAnalysis(input: { storeId: number; startDate: Date; endDate: Date }): Promise<FinanceCostAnalysis> {

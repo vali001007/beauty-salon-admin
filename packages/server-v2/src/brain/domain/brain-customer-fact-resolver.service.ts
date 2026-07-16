@@ -2,9 +2,44 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
 
+export interface BrainNewCustomerSourceDistribution {
+  total: number;
+  missingSourceCount: number;
+  sourceRanking: Array<{ source: string; count: number; share: number }>;
+  weeklyRanking: Array<{ week: string; count: number }>;
+}
+
 @Injectable()
 export class BrainCustomerFactResolverService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async answerCustomerQuestion(input: {
+    storeId: number;
+    message: string;
+    specificCustomerMention?: string;
+    permissions: string[];
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    const exactMessage = input.specificCustomerMention?.trim() || input.message;
+    const hasExactLookup = Boolean(
+      input.specificCustomerMention?.trim() ||
+      /(?:尾号|手机尾号)[^0-9]*\d{4}/.test(exactMessage),
+    );
+    if (hasExactLookup) {
+      return this.answerExactCustomerQuestion({
+        storeId: input.storeId,
+        message: exactMessage,
+        permissions: input.permissions,
+      });
+    }
+    return this.answerCustomerFactQuestion({
+      storeId: input.storeId,
+      message: input.message,
+      startDate: input.startDate,
+      endDate: input.endDate,
+    });
+  }
 
   async answerExactCustomerQuestion(input: { storeId: number; message: string; permissions: string[] }) {
     const name = this.extractCustomerName(input.message);
@@ -115,8 +150,12 @@ export class BrainCustomerFactResolverService {
     if (/(优惠.*敏感|等打折|打折才来)/.test(message)) {
       return this.discountSensitiveCustomers(input.storeId);
     }
-    if (/(新客.*渠道|渠道.*新客|新客最多|时间段.*新客)/.test(message)) {
-      return this.newCustomerSourceTrend(input.storeId);
+    if (/(新客.*(?:渠道|来源)|(?:渠道|来源).*新客|新客最多|时间段.*新客)/.test(message)) {
+      return this.newCustomerSourceTrend({
+        storeId: input.storeId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      });
     }
     if (/卡里.*次数|次数快用完|卡.*快用完/.test(message)) {
       return this.lowRemainingCardCustomers(input.storeId);
@@ -124,8 +163,17 @@ export class BrainCustomerFactResolverService {
     if (/生日|关怀/.test(message)) {
       return this.upcomingBirthdayCustomers(input.storeId);
     }
-    if (/vip|高等级|重要客户/.test(message)) {
+    if (/vip|高等级|重要客户/i.test(message)) {
       return this.vipCustomers(input.storeId);
+    }
+    if (/(高价值.*(?:不(?:太)?活跃|好久没来|沉睡)|(?:不(?:太)?活跃|好久没来|沉睡).*高价值)/.test(message)) {
+      return this.highValueInactiveCustomers(input.storeId);
+    }
+    if (/消费频率.*(?:下降|减少|降低)/.test(message)) {
+      return this.decliningCustomerConsumption(input.storeId, 'frequency');
+    }
+    if (/消费.*(?:明显减少|明显下降|下降很多|减少很多)/.test(message)) {
+      return this.decliningCustomerConsumption(input.storeId, 'amount');
     }
     if (/高价值|消费很多|消费金额|分层/.test(message)) {
       return this.highValueCustomers(input.storeId);
@@ -133,11 +181,14 @@ export class BrainCustomerFactResolverService {
     if (/只来一次|一次就再没回来|潜力转成长期/.test(message)) {
       return this.oneTimeCustomers(input.storeId);
     }
+    if (/(?:沉睡客户.*唤醒.*迹象|唤醒.*迹象.*沉睡客户)/.test(message)) {
+      return '当前客户事实能力尚未接入“沉睡客户近期唤醒迹象”口径。该问题需同时核对触达、预约、到店或消费事件，Ami Brain 不会用沉睡客户名单代替回答。';
+    }
     if (/好久没来|不活跃|沉睡|流失|消费频率.*下降|续购|疗程快结束|\d+天没来|三个月没来/.test(message)) {
       const days = message.includes('三个月') ? 90 : Number(message.match(/(\d+)天没来/)?.[1] ?? 60);
       return this.inactiveCustomers(input.storeId, days);
     }
-    return this.summarizeCustomerSegments(input);
+    return '当前客户事实能力尚未注册该业务口径，不会编造回答。已接入精确客户、VIP、高价值、沉睡、生日、低余次卡、重要到店和营销响应客户查询。';
   }
 
   private async todayImportantVisitors(storeId: number) {
@@ -249,13 +300,21 @@ export class BrainCustomerFactResolverService {
     );
   }
 
-  private async newCustomerSourceTrend(storeId: number) {
-    const start = new Date();
-    start.setDate(start.getDate() - 90);
+  async getNewCustomerSourceDistribution(input: {
+    storeId: number;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<BrainNewCustomerSourceDistribution> {
+    const endDate = input.endDate ? new Date(input.endDate) : new Date();
+    const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate);
+    if (!input.startDate) startDate.setDate(startDate.getDate() - 90);
     const customers = await this.prisma.customer.findMany({
-      where: { storeId, deletedAt: null, createdAt: { gte: start } },
+      where: {
+        storeId: input.storeId,
+        deletedAt: null,
+        createdAt: { gte: startDate, lte: endDate },
+      },
       select: { createdAt: true, source: true },
-      take: 1000,
     });
 
     const byWeek = new Map<string, number>();
@@ -263,13 +322,47 @@ export class BrainCustomerFactResolverService {
     for (const customer of customers) {
       const weekLabel = this.weekLabel(customer.createdAt);
       byWeek.set(weekLabel, (byWeek.get(weekLabel) ?? 0) + 1);
-      const source = customer.source?.trim() || '未记录渠道';
+      const source = this.customerSourceLabel(customer.source);
       bySource.set(source, (bySource.get(source) ?? 0) + 1);
     }
 
-    const weekLines = this.topCountLines(byWeek, '当前没有命中近 90 天新客。');
+    const sourceRanking = Array.from(bySource.entries())
+      .map(([source, count]) => ({
+        source,
+        count,
+        share: customers.length > 0 ? count / customers.length : 0,
+      }))
+      .sort((left, right) => {
+        const countDiff = right.count - left.count;
+        if (countDiff !== 0) return countDiff;
+        if (left.source === '未记录渠道' && right.source !== '未记录渠道') return 1;
+        if (right.source === '未记录渠道' && left.source !== '未记录渠道') return -1;
+        return left.source.localeCompare(right.source, 'zh-CN');
+      });
+    const weeklyRanking = Array.from(byWeek.entries())
+      .map(([week, count]) => ({ week, count }))
+      .sort((left, right) => right.count - left.count || left.week.localeCompare(right.week, 'zh-CN'));
+
+    return {
+      total: customers.length,
+      missingSourceCount: bySource.get('未记录渠道') ?? 0,
+      sourceRanking,
+      weeklyRanking,
+    };
+  }
+
+  private async newCustomerSourceTrend(input: {
+    storeId: number;
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    const distribution = await this.getNewCustomerSourceDistribution(input);
+    const byWeek = new Map(distribution.weeklyRanking.map((item) => [item.week, item.count]));
+    const bySource = new Map(distribution.sourceRanking.map((item) => [item.source, item.count]));
+
+    const weekLines = this.topCountLines(byWeek, '当前时间范围没有新客。');
     const sourceLines = this.topCountLines(bySource, '当前没有记录新客渠道。');
-    return `近 90 天新客时间段与渠道：
+    return `当前时间范围新客共 ${distribution.total} 人，时间段与渠道分布：
 时间段分布：
 ${weekLines}
 渠道分布：
@@ -332,32 +425,48 @@ ${cardLines}`;
   }
 
   private async vipCustomers(storeId: number) {
-    const customers = await this.prisma.customer.findMany({
-      where: { storeId, deletedAt: null, memberLevel: { notIn: ['无', '普通', '普通会员', ''] } },
-      orderBy: [{ totalSpent: 'desc' }],
-      select: { name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
-      take: 10,
-    });
-    return this.formatCustomerRows('VIP 客户名单', customers, (customer) =>
-      `${customer.name}：${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}${this.lastVisitText(customer.lastVisitDate)}`,
+    const where = { storeId, deletedAt: null, memberLevel: { notIn: ['无', '普通', '普通会员', ''] } };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ totalSpent: 'desc' }],
+        select: { name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
+        take: 10,
+      }),
+    ]);
+    return this.formatCustomerRows(
+      'VIP 客户名单',
+      customers,
+      (customer) =>
+        `${customer.name}：${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}${this.lastVisitText(customer.lastVisitDate)}`,
+      total,
     );
   }
 
   private async inactiveCustomers(storeId: number, days = 60) {
     const inactiveBefore = new Date();
     inactiveBefore.setDate(inactiveBefore.getDate() - days);
-    const customers = await this.prisma.customer.findMany({
-      where: {
-        storeId,
-        deletedAt: null,
-        OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
-      },
-      orderBy: [{ totalSpent: 'desc' }],
-      select: { name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
-      take: 10,
-    });
-    return this.formatCustomerRows(`${days} 天未到店客户名单`, customers, (customer) =>
-      `${customer.name}：累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次${this.lastVisitText(customer.lastVisitDate)}`,
+    const where = {
+      storeId,
+      deletedAt: null,
+      OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
+    };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ totalSpent: 'desc' }],
+        select: { name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        take: 10,
+      }),
+    ]);
+    return this.formatCustomerRows(
+      `${days} 天未到店客户名单`,
+      customers,
+      (customer) =>
+        `${customer.name}：累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次${this.lastVisitText(customer.lastVisitDate)}`,
+      total,
     );
   }
 
@@ -412,6 +521,113 @@ ${cardLines}`;
     );
   }
 
+  private async highValueInactiveCustomers(storeId: number) {
+    const inactiveBefore = new Date();
+    inactiveBefore.setHours(0, 0, 0, 0);
+    inactiveBefore.setDate(inactiveBefore.getDate() - 30);
+    const where = {
+      storeId,
+      deletedAt: null,
+      totalSpent: { gte: 5000 },
+      OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
+    };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ totalSpent: 'desc' }],
+        select: { name: true, memberLevel: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        take: 10,
+      }),
+    ]);
+    return this.formatCustomerRows(
+      '高价值低活跃客户（统一口径：累计消费不少于 5000 元，且近 30 天未到店）',
+      customers,
+      (customer) =>
+        `${customer.name}：${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次${this.lastVisitText(customer.lastVisitDate)}`,
+      total,
+    );
+  }
+
+  private async decliningCustomerConsumption(storeId: number, mode: 'frequency' | 'amount') {
+    const currentEnd = new Date();
+    const currentStart = new Date(currentEnd);
+    currentStart.setDate(currentStart.getDate() - 30);
+    const previousStart = new Date(currentStart);
+    previousStart.setDate(previousStart.getDate() - 30);
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId,
+        customerId: { not: null },
+        createdAt: { gte: previousStart, lt: currentEnd },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+      },
+      select: {
+        customerId: true,
+        createdAt: true,
+        netAmount: true,
+        customer: { select: { name: true, memberLevel: true, totalSpent: true, lastVisitDate: true } },
+      },
+      take: 5000,
+    });
+    const grouped = new Map<number, {
+      name: string;
+      memberLevel: string;
+      totalSpent: number;
+      lastVisitDate: Date | null;
+      currentCount: number;
+      previousCount: number;
+      currentAmount: number;
+      previousAmount: number;
+    }>();
+    for (const order of orders) {
+      if (!order.customerId || !order.customer) continue;
+      const row = grouped.get(order.customerId) ?? {
+        name: order.customer.name,
+        memberLevel: order.customer.memberLevel,
+        totalSpent: toBrainNumber(order.customer.totalSpent),
+        lastVisitDate: order.customer.lastVisitDate,
+        currentCount: 0,
+        previousCount: 0,
+        currentAmount: 0,
+        previousAmount: 0,
+      };
+      const amount = toBrainNumber(order.netAmount);
+      if (order.createdAt >= currentStart) {
+        row.currentCount += 1;
+        row.currentAmount += amount;
+      } else {
+        row.previousCount += 1;
+        row.previousAmount += amount;
+      }
+      grouped.set(order.customerId, row);
+    }
+    const rows = [...grouped.values()]
+      .map((row) => {
+        const previous = mode === 'frequency' ? row.previousCount : row.previousAmount;
+        const current = mode === 'frequency' ? row.currentCount : row.currentAmount;
+        return { ...row, declineRate: previous > 0 ? (previous - current) / previous : 0 };
+      })
+      .filter((row) =>
+        mode === 'frequency'
+          ? row.previousCount >= 2 && row.currentCount < row.previousCount && row.declineRate >= 0.3
+          : row.previousAmount > 0 && row.currentAmount < row.previousAmount && row.declineRate >= 0.3,
+      )
+      .sort((left, right) => right.declineRate - left.declineRate || right.previousAmount - left.previousAmount);
+    const visible = rows.slice(0, 10);
+    const title = mode === 'frequency'
+      ? '消费频率下降客户（统一口径：近 30 天对比前 30 天，订单次数下降 30% 以上，且前期至少 2 单）'
+      : '消费金额下降客户（统一口径：近 30 天对比前 30 天，实付金额下降 30% 以上）';
+    return this.formatCustomerRows(
+      title,
+      visible,
+      (customer) => mode === 'frequency'
+        ? `${customer.name}：前期 ${customer.previousCount} 单，近期 ${customer.currentCount} 单，下降 ${(customer.declineRate * 100).toFixed(1)}%${this.lastVisitText(customer.lastVisitDate)}`
+        : `${customer.name}：前期 ${formatBrainMoney(customer.previousAmount)}，近期 ${formatBrainMoney(customer.currentAmount)}，下降 ${(customer.declineRate * 100).toFixed(1)}%${this.lastVisitText(customer.lastVisitDate)}`,
+      rows.length,
+    );
+  }
+
   private async lowRemainingCardCustomers(storeId: number) {
     const cards = await this.prisma.customerCard.findMany({
       where: {
@@ -457,9 +673,10 @@ ${cardLines}`;
     );
   }
 
-  private formatCustomerRows<T>(title: string, rows: T[], formatter: (row: T) => string) {
+  private formatCustomerRows<T>(title: string, rows: T[], formatter: (row: T) => string, total = rows.length) {
     const lines = rows.length > 0 ? rows.map((row, index) => `${index + 1}. ${formatter(row)}`).join('\n') : '1. 当前没有命中客户。';
-    return `${title}：\n${lines}`;
+    const coverage = total > rows.length ? `共 ${total} 人，展示前 ${rows.length} 人` : `共 ${total} 人`;
+    return `${title}：${coverage}。\n${lines}`;
   }
 
   private lastVisitText(value?: Date | null) {
@@ -479,6 +696,21 @@ ${cardLines}`;
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-CN'))
       .slice(0, 5);
     return rows.length ? rows.map(([label, count], index) => `${index + 1}. ${label}：${count} 人`).join('\n') : `1. ${emptyText}`;
+  }
+
+  private customerSourceLabel(value?: string | null) {
+    const source = value?.trim();
+    if (!source) return '未记录渠道';
+    const labels: Record<string, string> = {
+      ami_glow: 'Ami Glow',
+      ami_glow_h5: 'Ami Glow H5',
+      ami_aura_lite: 'Ami Aura Lite',
+      codex_acceptance: '验收测试',
+      manual: '门店手工建档',
+      referral: '客户推荐',
+      recommendation: '客户推荐',
+    };
+    return labels[source.toLowerCase()] ?? source;
   }
 
   private extractCustomerName(message: string) {

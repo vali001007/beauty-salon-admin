@@ -90,4 +90,50 @@ describe('BrainTimeRangeParserService', () => {
       granularity: 'day',
     });
   });
+
+  it('parses an explicit recent-day count instead of silently using 30 days', () => {
+    expect(range('查看最近7天的实收金额')).toMatchObject({
+      label: '最近7天',
+      startDate: new Date(2026, 6, 4, 0, 0, 0, 0),
+      endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+      granularity: 'day',
+    });
+  });
+
+  it.each(['过去7天实收金额', '近7天实收金额'])('normalizes a recent-day paraphrase: %s', (question) => {
+    expect(range(question)).toMatchObject({
+      label: '最近7天',
+      startDate: new Date(2026, 6, 4, 0, 0, 0, 0),
+      endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+    });
+  });
+
+  it.each([
+    ['帮我找一下45天没来的客户', '45天未活跃阈值', new Date(2026, 4, 27, 0, 0, 0, 0)],
+    ['帮我找一下三个月没来消费的客户', '3个月未活跃阈值', new Date(2026, 3, 12, 0, 0, 0, 0)],
+  ])('parses an explicit inactivity threshold: %s', (question, label, startDate) => {
+    expect(range(question)).toMatchObject({
+      label,
+      startDate,
+      endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+      granularity: 'day',
+    });
+  });
+
+  it('uses the previous 30 complete calendar days as the governed usual baseline', () => {
+    const result = parser.parse('今天客单价多少，跟平时比怎么样', { now: new Date(2026, 6, 10, 12, 0, 0) });
+
+    expect(result.comparison).toMatchObject({
+      current: {
+        label: '今天',
+        startDate: new Date(2026, 6, 10, 0, 0, 0, 0),
+        endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+      },
+      previous: {
+        label: '最近30个完整自然日',
+        startDate: new Date(2026, 5, 10, 0, 0, 0, 0),
+        endDate: new Date(2026, 6, 9, 23, 59, 59, 999),
+      },
+    });
+  });
 });

@@ -21,6 +21,20 @@ export class BrainAgentProfileService {
     });
   }
 
+  async getRuntimeProfile(roleKey: BrainAgentRoleKey | string) {
+    const profile = await this.getActiveProfile(roleKey);
+    if (!profile) return null;
+    return {
+      roleKey: profile.roleKey,
+      name: profile.name.trim(),
+      version: profile.version,
+      systemPrompt: profile.systemPrompt.trim().slice(0, 4000),
+      allowedSkills: this.stringArray(profile.allowedSkills),
+      dataScopeRules: { ...this.jsonObject(profile.dataScopeRules) },
+      knowledgePack: profile.knowledgePack ? { ...this.jsonObject(profile.knowledgePack) } : {},
+    };
+  }
+
   validateForPublish(input: {
     profile: Pick<BrainAgentProfile, 'roleKey' | 'allowedSkills' | 'dataScopeRules' | 'version'>;
     availableSkills: string[];

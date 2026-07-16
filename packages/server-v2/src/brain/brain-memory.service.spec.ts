@@ -22,6 +22,8 @@ describe('BrainMemoryService', () => {
       expect.objectContaining({ type: 'procedural', subjectKey: 'user.preference.general' }),
     ]);
     expect(service.extractMemoryCandidates('请记住，本月流水是 128000')).toEqual([]);
+    expect(service.extractMemoryCandidates('请记住，客户李女士手机号 13800138000')).toEqual([]);
+    expect(service.extractMemoryCandidates('请记住，李女士身份证号 440301199001011234')).toEqual([]);
   });
 
   it('replaces conflicting memory and records a revision', async () => {

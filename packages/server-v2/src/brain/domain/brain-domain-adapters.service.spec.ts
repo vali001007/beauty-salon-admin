@@ -33,26 +33,36 @@ describe('Brain domain adapters', () => {
     allowsScalarMetric: false,
     reason: 'test',
   };
-  const plan = (adapterKey: BrainRoleIntentPlan['adapterKey'], intent = 'diagnosis'): BrainRoleIntentPlan =>
+  const plan = (
+    adapterKey: BrainRoleIntentPlan['adapterKey'],
+    intent = 'diagnosis',
+    capabilityKey?: string,
+  ): BrainRoleIntentPlan =>
     ({
       role: 'store_manager',
       domain: 'store_operation',
       intent,
       answerShape: intent === 'list' ? 'list' : 'non_metric',
       adapterKey,
+      capabilityKey,
       requiredPermissions: [],
       confidence: 0.9,
       grounding: intent === 'draft' || intent === 'recommendation' ? 'template_skill' : 'db_skill',
       reason: 'test',
     }) as BrainRoleIntentPlan;
-  const execution = (message: string, adapterKey: BrainRoleIntentPlan['adapterKey'], intent = 'diagnosis') =>
+  const execution = (
+    message: string,
+    adapterKey: BrainRoleIntentPlan['adapterKey'],
+    intent = 'diagnosis',
+    capabilityKey?: string,
+  ) =>
     ({
       context,
       dto: { message, timezone: 'Asia/Shanghai' },
       runId: 1,
       cognition,
       runtimeIntent,
-      plan: plan(adapterKey, intent),
+      plan: plan(adapterKey, intent, capabilityKey),
     }) as BrainDomainAdapterExecution;
 
   const skillRuntime = {
@@ -217,6 +227,7 @@ describe('Brain domain adapters', () => {
       channels: [{ channel: 'wechat', reached: 80, converted: 18, revenue: 4500, conversionRate: 0.225 }],
       strategies: [{ id: 1, name: '沉睡客户召回', status: 'active', executionType: 'scheduled' }],
       attributionByStrategy: [{ id: 1, name: '沉睡客户召回', revenue: 5000 }],
+      dataCoverage: { touchesTruncated: false, attributionsTruncated: false, strategiesTruncated: false, touchSampleSize: 100, attributionSampleSize: 1 },
     }),
   };
   const timeRangeParser = {
@@ -739,5 +750,63 @@ describe('Brain domain adapters', () => {
     const answer = await adapter.execute(execution('今天退款有几笔，金额多少', 'finance_risk'));
     expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_risk_summary' });
     expect(answer?.answer).toContain('退款 2 笔');
+  });
+
+  it('front desk capability bridge enters reservation preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'front_desk', 'diagnosis', 'reservation_action_preview'),
+    );
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_reservation' }),
+    );
+  });
+
+  it('customer service capability bridge enters follow-up preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    const adapter = new BrainCustomerServiceDomainAdapter(customerFacts as never, actionConfirmation as never, actionTargets as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'customer_service', 'diagnosis', 'customer_follow_up_draft'),
+    );
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_customer_followup' }),
+    );
+  });
+
+  it('inventory capability bridge enters purchase order preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    skillRuntime.buildInventoryProcurementAnalysis.mockClear();
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'inventory_procurement', 'diagnosis', 'purchase_order_draft'),
+    );
+
+    expect(skillRuntime.buildInventoryProcurementAnalysis).toHaveBeenCalledWith({ storeId: 2, keyword: undefined });
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_purchase_order' }),
+    );
+  });
+
+  it('marketing capability bridge enters touch preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never, actionTargets as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'marketing_growth', 'diagnosis', 'marketing_touch_draft'),
+    );
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_marketing_touch_draft' }),
+    );
   });
 });

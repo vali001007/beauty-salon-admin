@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { BrainRiskLevel, Prisma } from '@prisma/client';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainSkillRuntimeService } from '../skills/brain-skill-runtime.service.js';
+import { BrainInspectionPlanBridgeService } from './brain-inspection-plan-bridge.service.js';
 
 interface InspectionFindingCandidate {
   dedupeKey: string;
@@ -29,6 +30,7 @@ export class BrainInspectionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly skillRuntime: BrainSkillRuntimeService,
+    @Optional() private readonly planBridge?: BrainInspectionPlanBridgeService,
   ) {}
 
   listRules() {
@@ -38,9 +40,24 @@ export class BrainInspectionService {
     });
   }
 
-  async runInspection(input: { storeId: number; triggerType: 'manual' | 'schedule' | 'event'; now?: Date }) {
+  async runInspection(input: {
+    storeId: number;
+    triggerType: 'manual' | 'schedule' | 'event';
+    now?: Date;
+    ruleKeys?: string[];
+    includeDisabledRules?: boolean;
+    planFindings?: boolean;
+  }) {
     const now = input.now ?? new Date();
-    const allRules = await this.listRules();
+    const allRules = input.ruleKeys?.length
+      ? await this.prisma.brainInspectionRule.findMany({
+          where: {
+            ruleKey: { in: [...new Set(input.ruleKeys)] },
+            ...(input.includeDisabledRules ? {} : { enabled: true }),
+          },
+          orderBy: [{ domain: 'asc' }, { ruleKey: 'asc' }, { version: 'desc' }],
+        })
+      : await this.listRules();
     const rules = this.latestRules(allRules);
     const run = await this.prisma.brainInspectionRun.create({
       data: { storeId: input.storeId, triggerType: input.triggerType, status: 'running', ruleCount: rules.length },
@@ -53,6 +70,17 @@ export class BrainInspectionService {
         const activeKeys: string[] = [];
         for (const candidate of candidates) {
           activeKeys.push(candidate.dedupeKey);
+          const planning = input.planFindings === false
+            ? undefined
+            : await this.planFinding({
+                storeId: input.storeId,
+                rule,
+                candidate,
+              });
+          const suggestion = {
+            ...candidate.suggestion,
+            ...(planning ? { planning } : {}),
+          };
           await this.prisma.brainInspectionFinding.upsert({
             where: { storeId_dedupeKey: { storeId: input.storeId, dedupeKey: candidate.dedupeKey } },
             create: {
@@ -63,7 +91,7 @@ export class BrainInspectionService {
               domain: rule.domain,
               ...candidate,
               evidence: this.toJson(candidate.evidence),
-              suggestion: this.toJson(candidate.suggestion),
+              suggestion: this.toJson(suggestion),
               status: 'open',
               firstDetectedAt: now,
               lastDetectedAt: now,
@@ -77,7 +105,7 @@ export class BrainInspectionService {
               severity: candidate.severity,
               title: candidate.title,
               evidence: this.toJson(candidate.evidence),
-              suggestion: this.toJson(candidate.suggestion),
+              suggestion: this.toJson(suggestion),
               status: 'open',
               lastDetectedAt: now,
               resolvedAt: null,
@@ -167,6 +195,14 @@ export class BrainInspectionService {
       case 'staff_productivity_drop':
       case 'beautician_capacity_gap':
         return this.evaluateStaffCapacity(rule, storeId, now);
+      case 'reception_in_store_state_stale':
+        return this.evaluateStaleInStoreState(rule, storeId, now);
+      case 'service_task_state_inconsistent':
+        return this.evaluateServiceTaskState(rule, storeId, now);
+      case 'inventory_safety_stock_invalid':
+        return this.evaluateInventorySafetyStock(rule, storeId);
+      case 'procurement_evidence_missing':
+        return this.evaluateProcurementEvidence(rule, storeId);
       default:
         return [];
     }
@@ -309,9 +345,171 @@ export class BrainInspectionService {
       }));
   }
 
+  private async evaluateStaleInStoreState(rule: InspectionRuleRecord, storeId: number, now: Date) {
+    const staleHours = this.number(this.record(rule.condition).staleHours, 12);
+    const cutoff = new Date(now.getTime() - staleHours * 60 * 60_000);
+    const reservations = await this.prisma.reservation.findMany({
+      where: {
+        storeId,
+        checkedInAt: { not: null, lt: cutoff },
+        status: { in: ['checked_in', 'in_service', 'arrived', '已到店', '服务中'] },
+      },
+      include: {
+        customer: { select: { name: true } },
+        project: { select: { name: true } },
+      },
+      orderBy: { checkedInAt: 'asc' },
+      take: 50,
+    });
+    return reservations.map((reservation) => ({
+      dedupeKey: `${rule.ruleKey}:reservation:${reservation.id}`,
+      objectType: 'reservation',
+      objectId: String(reservation.id),
+      severity: rule.riskLevel,
+      title: `${reservation.customer.name} 的到店状态已持续超过 ${staleHours} 小时`,
+      evidence: {
+        reservationId: reservation.id,
+        customerName: reservation.customer.name,
+        projectName: reservation.project.name,
+        status: reservation.status,
+        checkedInAt: reservation.checkedInAt?.toISOString() ?? null,
+        staleHours,
+      },
+      suggestion: this.suggestion(rule, { action: '核对客户是否仍在店，并修正预约履约状态', entry: '/stores/reservations' }),
+    }));
+  }
+
+  private async evaluateServiceTaskState(rule: InspectionRuleRecord, storeId: number, now: Date) {
+    const staleHours = this.number(this.record(rule.condition).staleHours, 12);
+    const historyDays = this.number(this.record(rule.condition).historyDays, 90);
+    const cutoff = new Date(now.getTime() - staleHours * 60 * 60_000);
+    const historyStart = this.daysAgo(now, historyDays);
+    const tasks = await this.prisma.serviceTask.findMany({
+      where: {
+        storeId,
+        appointmentTime: { gte: historyStart, lte: now },
+        status: { in: ['pending', 'in_progress', 'completed'] },
+      },
+      include: {
+        customer: { select: { name: true } },
+        project: { select: { name: true } },
+      },
+      orderBy: { appointmentTime: 'desc' },
+      take: 500,
+    });
+    return tasks.flatMap((task) => {
+      const reasons: string[] = [];
+      if (task.status === 'in_progress' && !task.startedAt) reasons.push('进行中但缺少开始时间');
+      if (task.status === 'in_progress' && task.startedAt && task.startedAt < cutoff) reasons.push(`进行中超过 ${staleHours} 小时`);
+      if (task.status === 'pending' && task.startedAt) reasons.push('待开始状态已有开始时间');
+      if (task.status === 'completed' && !task.completedAt) reasons.push('已完成但缺少完成时间');
+      if (task.completedAt && !task.startedAt) reasons.push('存在完成时间但缺少开始时间');
+      if (task.startedAt && task.completedAt && task.completedAt < task.startedAt) reasons.push('完成时间早于开始时间');
+      if (!reasons.length) return [];
+      return [{
+        dedupeKey: `${rule.ruleKey}:service_task:${task.id}`,
+        objectType: 'service_task',
+        objectId: String(task.id),
+        severity: rule.riskLevel,
+        title: `${task.customer.name} 的服务任务状态不一致`,
+        evidence: {
+          taskId: task.id,
+          taskNo: task.taskNo,
+          customerName: task.customer.name,
+          projectName: task.project.name,
+          status: task.status,
+          startedAt: task.startedAt?.toISOString() ?? null,
+          completedAt: task.completedAt?.toISOString() ?? null,
+          reasons,
+        },
+        suggestion: this.suggestion(rule, { action: '核对服务任务实际进度并修正状态与时间记录', entry: '/stores/reservations' }),
+      }];
+    });
+  }
+
+  private async evaluateInventorySafetyStock(rule: InspectionRuleRecord, storeId: number) {
+    const products = await this.prisma.product.findMany({
+      where: {
+        storeId,
+        deletedAt: null,
+        status: 'active',
+        OR: [{ safetyStock: { lte: 0 } }, { currentStock: { lt: 0 } }, { minPurchaseQty: { lt: 0 } }],
+      },
+      select: { id: true, sku: true, name: true, currentStock: true, safetyStock: true, minPurchaseQty: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
+    return products.map((product) => {
+      const currentStock = this.number(product.currentStock, 0);
+      const safetyStock = this.number(product.safetyStock, 0);
+      const reasons = [
+        ...(safetyStock <= 0 ? ['未配置有效安全库存'] : []),
+        ...(currentStock < 0 ? ['当前库存为负数'] : []),
+        ...(product.minPurchaseQty < 0 ? ['最小采购量为负数'] : []),
+      ];
+      return {
+        dedupeKey: `${rule.ruleKey}:product:${product.id}`,
+        objectType: 'product',
+        objectId: String(product.id),
+        severity: rule.riskLevel,
+        title: `${product.name} 的库存基础参数不完整`,
+        evidence: { productId: product.id, sku: product.sku, currentStock, safetyStock, minPurchaseQty: product.minPurchaseQty, reasons },
+        suggestion: this.suggestion(rule, { action: '补齐安全库存并复核当前库存与最小采购量', entry: '/inventory/products' }),
+      };
+    });
+  }
+
+  private async evaluateProcurementEvidence(rule: InspectionRuleRecord, storeId: number) {
+    const analysis = await this.skillRuntime.buildInventoryProcurementAnalysis({ storeId });
+    return analysis.suggestions
+      .filter((item) => item.suggestedQty > 0 && (!item.supplierName || item.unitPrice == null))
+      .slice(0, 50)
+      .map((item) => ({
+        dedupeKey: `${rule.ruleKey}:product:${item.productId}`,
+        objectType: 'product',
+        objectId: String(item.productId),
+        severity: rule.riskLevel,
+        title: `${item.productName} 需要补货但缺少供应商或报价证据`,
+        evidence: {
+          productId: item.productId,
+          sku: item.sku,
+          currentStock: item.currentStock,
+          safetyStock: item.safetyStock,
+          suggestedQty: item.suggestedQty,
+          supplierName: item.supplierName ?? null,
+          unitPrice: item.unitPrice ?? null,
+        },
+        suggestion: this.suggestion(rule, { action: '维护商品供应映射和有效报价后再生成采购单预览', entry: '/inventory/purchase' }),
+      }));
+  }
+
   private suggestion(rule: InspectionRuleRecord, fallback: Record<string, unknown>) {
     const configured = this.record(rule.suggestionTpl);
-    return Object.keys(configured).length ? configured : fallback;
+    return { ...fallback, ...configured };
+  }
+
+  private async planFinding(input: {
+    storeId: number;
+    rule: InspectionRuleRecord;
+    candidate: InspectionFindingCandidate;
+  }) {
+    if (!this.planBridge) return undefined;
+    try {
+      return await this.planBridge.planFinding({
+        storeId: input.storeId,
+        finding: {
+          ...input.candidate,
+          ruleKey: input.rule.ruleKey,
+          domain: input.rule.domain,
+        },
+      });
+    } catch (error) {
+      return {
+        status: 'unavailable' as const,
+        reason: error instanceof Error ? error.message : 'inspection_planning_failed',
+        actionPreviews: [],
+      };
+    }
   }
 
   private record(value: Prisma.JsonValue): Record<string, unknown> {

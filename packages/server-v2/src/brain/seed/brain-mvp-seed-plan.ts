@@ -73,6 +73,13 @@ const INSPECTION_RULES: BrainMvpInspectionRuleSeed[] = [
   inspectionRule('fulfillment_no_show', '预约未到风险', 'fulfillment', 'core:store:reservations', 'medium'),
   inspectionRule('marketing_low_roi', '营销 ROI 低效风险', 'marketing', 'core:marketing:analytics', 'medium'),
   inspectionRule('staff_productivity_drop', '美容师人效异常', 'staff', 'core:finance:view', 'medium'),
+  dataQualityRule('reception_in_store_state_stale', '在店状态陈旧', 'reservation', 'core:store:reservations', 'high', { staleHours: 12 }),
+  dataQualityRule('service_task_state_inconsistent', '服务任务状态不一致', 'beautician', 'core:store:reservations', 'high', {
+    staleHours: 12,
+    historyDays: 90,
+  }),
+  dataQualityRule('inventory_safety_stock_invalid', '库存安全线缺失或非法', 'product', 'core:inventory:stock', 'medium', {}),
+  dataQualityRule('procurement_evidence_missing', '采购建议缺少供应证据', 'product', 'core:inventory:purchase', 'medium', {}),
 ];
 
 export function buildBrainMvpSeedPlan() {
@@ -174,6 +181,40 @@ function inspectionRule(
     suggestionTpl: {
       structure: ['conclusion', 'evidence', 'action', 'benefit', 'entry'],
       entry: '/brain',
+    },
+    riskLevel,
+    enabled: true,
+    version: 1,
+  };
+}
+
+export function buildBrainDataQualityInspectionRules() {
+  return INSPECTION_RULES.filter((rule) => rule.condition.factType === 'data_quality').map((rule) => ({
+    ...rule,
+    condition: { ...rule.condition },
+    suggestionTpl: { ...rule.suggestionTpl },
+  }));
+}
+
+function dataQualityRule(
+  ruleKey: string,
+  name: string,
+  domain: string,
+  permission: string,
+  riskLevel: BrainRiskLevelSeed,
+  condition: Record<string, unknown>,
+): BrainMvpInspectionRuleSeed {
+  return {
+    ruleKey,
+    name,
+    domain,
+    scheduleCron: '0 8 * * *',
+    eventTrigger: null,
+    condition: { ...condition, permission, factType: 'data_quality' },
+    suggestionTpl: {
+      structure: ['risk', 'evidence', 'recommendedFix', 'entry'],
+      requiresUserReview: true,
+      autoRepair: false,
     },
     riskLevel,
     enabled: true,

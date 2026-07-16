@@ -86,11 +86,26 @@ model Store {
   commissionSettlements    CommissionSettlement[]
   cashierShifts            CashierShift[]
   dailySettlements         DailySettlement[]
+  dailySettlementSnapshots      DailySettlementSnapshot[]
+  financeAuditLogs              FinanceAuditLog[]
+  financeReconciliationRuns     FinanceReconciliationRun[]
+  financeReconciliationIssues   FinanceReconciliationIssue[]
+  dailySettlementAdjustments    DailySettlementAdjustment[]
+  monthlyProfitCloses           MonthlyProfitClose[]
+  memberLiabilitySnapshots      MemberLiabilitySnapshot[]
+  commissionAdjustments         CommissionAdjustment[]
   amiPerformanceRecords    AmiPerformanceRecord[]
   marketingRuleTemplates   MarketingRuleTemplate[]
   marketingActivities      MarketingActivity[]
   marketingAutomationStrategies MarketingAutomationStrategy[]
   marketingAutomationExecutions MarketingAutomationExecution[]
+  marketingDeliveryJobs       MarketingDeliveryJob[]
+  marketingEffectFacts        MarketingEffectFact[]
+  marketingRecommendationInstances MarketingRecommendationInstance[]
+  marketingRecommendationAudienceSnapshots MarketingRecommendationAudienceSnapshot[]
+  marketingRecommendationAudienceMembers MarketingRecommendationAudienceMember[]
+  marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
+  marketingRecommendationAdoptions MarketingRecommendationAdoption[]
   amiMonthlyBills          AmiMonthlyBill[]
   procurementOrders        ProcurementOrder[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
@@ -113,21 +128,6 @@ model Store {
   brainOperatingTargets    BrainStoreOperatingTarget[]
 
   @@index([status])
-  dailySettlementSnapshots      DailySettlementSnapshot[]
-  financeAuditLogs              FinanceAuditLog[]
-  financeReconciliationRuns     FinanceReconciliationRun[]
-  financeReconciliationIssues   FinanceReconciliationIssue[]
-  dailySettlementAdjustments    DailySettlementAdjustment[]
-  monthlyProfitCloses           MonthlyProfitClose[]
-  memberLiabilitySnapshots      MemberLiabilitySnapshot[]
-  commissionAdjustments         CommissionAdjustment[]
-  marketingDeliveryJobs       MarketingDeliveryJob[]
-  marketingEffectFacts        MarketingEffectFact[]
-  marketingRecommendationInstances MarketingRecommendationInstance[]
-  marketingRecommendationAudienceSnapshots MarketingRecommendationAudienceSnapshot[]
-  marketingRecommendationAudienceMembers MarketingRecommendationAudienceMember[]
-  marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
-  marketingRecommendationAdoptions MarketingRecommendationAdoption[]
 }
 
 model User {
@@ -166,6 +166,12 @@ model User {
   commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
   commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
   commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
+  financeAuditLogs               FinanceAuditLog[]              @relation("FinanceAuditUser")
+  confirmedDailySnapshots        DailySettlementSnapshot[]      @relation("DailySnapshotConfirmedBy")
+  confirmedMonthlyProfitCloses   MonthlyProfitClose[]           @relation("MonthlyProfitConfirmedBy")
+  confirmedLiabilitySnapshots    MemberLiabilitySnapshot[]      @relation("LiabilitySnapshotConfirmedBy")
+  createdCommissionAdjustments   CommissionAdjustment[]         @relation("CommissionAdjustmentCreatedBy")
+  confirmedCommissionAdjustments CommissionAdjustment[]         @relation("CommissionAdjustmentConfirmedBy")
   publishedLifecycleRules CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
   createdLifecycleBusinessPlans LifecycleBusinessPlan[] @relation("LifecycleBusinessPlanCreator")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
@@ -173,12 +179,6 @@ model User {
   @@index([status])
   @@index([phone])
   @@index([supplySupplierId])
-  financeAuditLogs               FinanceAuditLog[]              @relation("FinanceAuditUser")
-  confirmedDailySnapshots        DailySettlementSnapshot[]      @relation("DailySnapshotConfirmedBy")
-  confirmedMonthlyProfitCloses   MonthlyProfitClose[]           @relation("MonthlyProfitConfirmedBy")
-  confirmedLiabilitySnapshots    MemberLiabilitySnapshot[]      @relation("LiabilitySnapshotConfirmedBy")
-  createdCommissionAdjustments   CommissionAdjustment[]         @relation("CommissionAdjustmentCreatedBy")
-  confirmedCommissionAdjustments CommissionAdjustment[]         @relation("CommissionAdjustmentConfirmedBy")
 }
 
 model RefreshToken {
@@ -281,6 +281,7 @@ model Customer {
   lifecycleAttributionEvents LifecycleAttributionEvent[]
   amiPerformanceRecords AmiPerformanceRecord[]
   marketingTouches      MarketingAutomationTouch[]
+  marketingDeliveryJobs MarketingDeliveryJob[]
   marketingAttributions MarketingAttribution[]
   pageAttributions      MarketingPageAttribution[]
   recommendationEvents  RecommendationEvent[]
@@ -288,6 +289,7 @@ model Customer {
   balanceTransactions   CustomerBalanceTransaction[]
   customerAppIdentities CustomerAppIdentity[]
   terminalFollowUpTasks TerminalFollowUpTask[]
+  recommendationAudienceMemberships MarketingRecommendationAudienceMember[]
   customerAppEvents     CustomerAppEvent[]
   gapCandidates         AppointmentGapCandidate[]
   gapOpportunityEvents  AppointmentGapOpportunityEvent[]
@@ -296,8 +298,6 @@ model Customer {
   @@index([phone])
   @@index([memberLevel])
   @@index([name])
-  marketingDeliveryJobs MarketingDeliveryJob[]
-  recommendationAudienceMemberships MarketingRecommendationAudienceMember[]
 }
 
 model CustomerHealthProfile {
@@ -383,11 +383,11 @@ model Product {
   supplyMappings SupplyCatalogMapping[]
   procurementItems ProcurementOrderItem[]
 
+  @@unique([storeId, sku])
   @@index([storeId])
   @@index([status])
   @@index([miniappStatus])
   @@index([categoryId])
-  @@unique([storeId, sku])
 }
 
 model StockBatch {
@@ -1106,9 +1106,9 @@ model Beautician {
   projectSkills         BeauticianProjectSkill[]
   followUpTasks         TerminalFollowUpTask[]
 
+  @@unique([storeId, userId])
   @@index([storeId])
   @@index([userId])
-  @@unique([storeId, userId])
 }
 
 model BeauticianLevel {
@@ -1507,6 +1507,32 @@ model RefundRecord {
   @@index([refundMode])
   @@index([operatorId])
   @@index([refundedAt])
+}
+
+model CommissionAdjustment {
+  id                 Int       @id @default(autoincrement())
+  settlementId       Int
+  commissionRecordId Int?
+  storeId            Int
+  type               String
+  amount             Decimal
+  reason             String
+  status             String    @default("pending")
+  createdBy          Int?
+  confirmedBy        Int?
+  confirmedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  settlement       CommissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  commissionRecord CommissionRecord?    @relation(fields: [commissionRecordId], references: [id], onDelete: SetNull)
+  store            Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  creator          User?                @relation("CommissionAdjustmentCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  confirmer        User?                @relation("CommissionAdjustmentConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  @@index([settlementId, status])
+  @@index([commissionRecordId])
+  @@index([storeId, createdAt])
 }
 
 model RefundItem {
@@ -2610,6 +2636,43 @@ model MarketingAutomationTouch {
   @@index([predictionSnapshotId])
   @@index([status])
   @@index([touchedAt])
+}
+
+model MarketingDeliveryJob {
+  id             Int      @id @default(autoincrement())
+  storeId        Int
+  executionId    Int
+  touchId        Int      @unique
+  strategyId     Int
+  customerId     Int
+  channel        String
+  title          String
+  content        String
+  status         String   @default("queued")
+  attemptCount   Int      @default(0)
+  maxAttempts    Int      @default(4)
+  availableAt    DateTime @default(now())
+  leasedAt       DateTime?
+  leaseExpiresAt DateTime?
+  leaseOwner     String?
+  externalId     String?
+  errorCode      String?
+  errorMessage   String?
+  deliveredAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store     Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  execution MarketingAutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  touch     MarketingAutomationTouch     @relation(fields: [touchId], references: [id], onDelete: Cascade)
+  strategy  MarketingAutomationStrategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  customer  Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([storeId, status, availableAt])
+  @@index([executionId, status])
+  @@index([strategyId, customerId, channel])
+  @@index([leaseExpiresAt])
 }
 
 model MarketingInAppNotification {
@@ -4288,6 +4351,48 @@ model AgentV2GrayRule {
 
 // ─── Ami Brain Independent Namespace ─────────────────────────────────────────
 
+enum BusinessDefinitionKind {
+  entity
+  field
+  relation
+  metric
+  dimension
+  status_dictionary
+  time_policy
+  query_definition
+}
+
+enum BusinessDefinitionStatus {
+  active
+  archived
+}
+
+enum BusinessDefinitionLifecycleStatus {
+  candidate
+  draft
+  validated
+  published
+}
+
+enum BusinessDefinitionValidationStatus {
+  pending
+  passed
+  failed
+}
+
+enum BusinessDefinitionFixtureArtifactStatus {
+  active
+  archived
+}
+
+enum BusinessDefinitionProjectionType {
+  intent_semantic_index
+  capability_semantic_view
+  metric_query_view
+  ui_definition_view
+  eval_case_projection
+}
+
 enum BrainMessageRole {
   user
   assistant
@@ -4411,495 +4516,6 @@ model BrainStoreOperatingTarget {
   @@map("brain_store_operating_target")
 }
 
-model BrainMemoryRevision {
-  id              Int      @id @default(autoincrement())
-  memoryId        Int
-  previousMemoryId Int?
-  revisionType    String
-  previousContent Json?
-  nextContent     Json?
-  changedByUserId Int
-  reason          String?
-  createdAt       DateTime @default(now())
-
-  memory BrainMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
-
-  @@index([memoryId, createdAt])
-  @@index([previousMemoryId])
-  @@map("brain_memory_revision")
-}
-
-model BrainOntologyEntity {
-  id         Int      @id @default(autoincrement())
-  domain     String
-  entityKey  String
-  name       String
-  synonyms   Json
-  attributes Json
-  tableMap   Json
-  status     String   @default("active")
-  version    Int      @default(1)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([entityKey, version])
-  @@index([domain, status])
-  @@map("brain_ontology_entity")
-}
-
-model BrainOntologyRelation {
-  id            Int      @id @default(autoincrement())
-  relationKey   String
-  fromEntityKey String
-  toEntityKey   String
-  name          String
-  joinPath      Json
-  status        String   @default("active")
-  version       Int      @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@unique([relationKey, version])
-  @@index([fromEntityKey, toEntityKey])
-  @@map("brain_ontology_relation")
-}
-
-model BrainKgNode {
-  id        Int      @id @default(autoincrement())
-  storeId   Int?
-  nodeKey   String
-  entityKey String
-  label     String
-  payload   Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([storeId, nodeKey])
-  @@index([entityKey])
-  @@map("brain_kg_node")
-}
-
-model BrainKgEdge {
-  id          Int      @id @default(autoincrement())
-  storeId     Int?
-  edgeKey     String
-  fromNodeKey String
-  toNodeKey   String
-  relationKey String
-  payload     Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([storeId, edgeKey])
-  @@index([fromNodeKey, toNodeKey])
-  @@map("brain_kg_edge")
-}
-
-model BrainMetric {
-  id             Int      @id @default(autoincrement())
-  metricKey      String
-  name           String
-  domain         String
-  formula        Json
-  sourceTables   Json
-  defaultFilters Json?
-  permissions    Json
-  description    String
-  status         String   @default("active")
-  version        Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@unique([metricKey, version])
-  @@index([domain, status])
-  @@map("brain_metric")
-}
-
-model BrainDimension {
-  id           Int      @id @default(autoincrement())
-  dimensionKey String
-  name         String
-  domain       String
-  source       Json
-  permissions  Json
-  status       String   @default("active")
-  version      Int      @default(1)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([dimensionKey, version])
-  @@index([domain, status])
-  @@map("brain_dimension")
-}
-
-model BrainSkillRegistry {
-  id           Int            @id @default(autoincrement())
-  skillKey     String
-  name         String
-  type         BrainSkillType
-  inputSchema  Json
-  outputSchema Json
-  permissions  Json
-  riskLevel    BrainRiskLevel @default(low)
-  enabled      Boolean        @default(true)
-  version      Int            @default(1)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-
-  @@unique([skillKey, version])
-  @@index([type, enabled])
-  @@map("brain_skill_registry")
-}
-
-model BrainAgentProfile {
-  id             Int      @id @default(autoincrement())
-  roleKey        String
-  name           String
-  systemPrompt   String
-  allowedSkills  Json
-  dataScopeRules Json
-  knowledgePack  Json?
-  enabled        Boolean  @default(true)
-  version        Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@unique([roleKey, version])
-  @@index([enabled])
-  @@map("brain_agent_profile")
-}
-
-model BrainInspectionRule {
-  id            Int            @id @default(autoincrement())
-  ruleKey       String
-  name          String
-  domain        String
-  scheduleCron  String?
-  eventTrigger  String?
-  condition     Json
-  suggestionTpl Json
-  riskLevel     BrainRiskLevel
-  enabled       Boolean        @default(true)
-  version       Int            @default(1)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  @@unique([ruleKey, version])
-  @@index([domain, enabled])
-  @@map("brain_inspection_rule")
-}
-
-model BrainInspectionRun {
-  id           Int      @id @default(autoincrement())
-  storeId      Int
-  triggerType  String
-  status       String   @default("running")
-  ruleCount    Int      @default(0)
-  findingCount Int      @default(0)
-  error        Json?
-  startedAt    DateTime @default(now())
-  finishedAt   DateTime?
-  createdAt    DateTime @default(now())
-
-  findings BrainInspectionFinding[]
-
-  @@index([storeId, startedAt])
-  @@index([status, startedAt])
-  @@map("brain_inspection_run")
-}
-
-model BrainInspectionFinding {
-  id             Int            @id @default(autoincrement())
-  runId          Int?
-  storeId        Int
-  ruleKey        String
-  ruleVersion    Int
-  domain         String
-  objectType     String
-  objectId       String
-  severity       BrainRiskLevel
-  title          String
-  evidence       Json
-  suggestion     Json
-  dedupeKey      String
-  status         String         @default("open")
-  disposition    String?
-  dispositionNote String?
-  feedback       String?
-  firstDetectedAt DateTime      @default(now())
-  lastDetectedAt  DateTime      @default(now())
-  resolvedAt      DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  run BrainInspectionRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
-
-  @@unique([storeId, dedupeKey])
-  @@index([storeId, status, severity])
-  @@index([ruleKey, status])
-  @@index([runId])
-  @@map("brain_inspection_finding")
-}
-
-model BrainRun {
-  id             Int            @id @default(autoincrement())
-  conversationId Int?
-  storeId        Int
-  userId         Int
-  status         BrainRunStatus @default(queued)
-  input          Json
-  output         Json?
-  cost           Json?
-  latencyMs      Int?
-  error          Json?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  conversation BrainConversation? @relation(fields: [conversationId], references: [id])
-  steps        BrainRunStep[]
-
-  @@index([storeId, userId, createdAt])
-  @@index([status])
-  @@map("brain_run")
-}
-
-model BrainRunStep {
-  id        Int      @id @default(autoincrement())
-  runId     Int
-  stepKey   String
-  layer     String
-  input     Json?
-  output    Json?
-  status    String
-  latencyMs Int?
-  error     Json?
-  createdAt DateTime @default(now())
-
-  run BrainRun @relation(fields: [runId], references: [id])
-
-  @@index([runId, createdAt])
-  @@map("brain_run_step")
-}
-
-model BrainEvalCase {
-  id            Int      @id @default(autoincrement())
-  caseKey       String   @unique
-  roleKey       String?
-  scenario      String
-  input         Json
-  expected      Json
-  assertionType String
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([scenario, enabled])
-  @@map("brain_eval_case")
-}
-
-model BrainEvalRun {
-  id             Int      @id @default(autoincrement())
-  releaseId      Int?
-  storeId        Int?
-  roleKey        String?
-  modelVersion   String?
-  status         String
-  caseCount      Int      @default(0)
-  passedCount    Int      @default(0)
-  failedCount    Int      @default(0)
-  summary        Json
-  results        Json
-  error          Json?
-  startedAt      DateTime @default(now())
-  finishedAt     DateTime?
-  createdAt      DateTime @default(now())
-
-  evalResults BrainEvalResult[]
-
-  @@index([releaseId, createdAt])
-  @@index([storeId, status, createdAt])
-  @@map("brain_eval_run")
-}
-
-model BrainEvalResult {
-  id                 Int      @id @default(autoincrement())
-  evalRunId          Int
-  caseId             Int?
-  caseKey            String
-  roleKey            String?
-  question           String
-  answer             String
-  citations          Json
-  deterministicGrade Json
-  deterministicPassed Boolean
-  llmJudge           Json?
-  latencyMs          Int?
-  failureCluster     String?
-  error              Json?
-  metadata           Json?
-  createdAt          DateTime @default(now())
-
-  evalRun BrainEvalRun @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
-
-  @@unique([evalRunId, caseKey])
-  @@index([evalRunId, deterministicPassed])
-  @@index([failureCluster])
-  @@map("brain_eval_result")
-}
-
-model BrainResourceVersion {
-  id               Int      @id @default(autoincrement())
-  resourceType     String
-  resourceKey      String
-  version          Int
-  status           String   @default("draft")
-  snapshot         Json
-  checksum         String
-  sourceResourceId Int?
-  createdBy        Int
-  createdAt        DateTime @default(now())
-  activatedAt      DateTime?
-  archivedAt       DateTime?
-
-  releaseItems BrainReleaseItem[]
-
-  @@unique([resourceType, resourceKey, version])
-  @@index([resourceType, status])
-  @@index([resourceKey, createdAt])
-  @@map("brain_resource_version")
-}
-
-model BrainRelease {
-  id                Int                @id @default(autoincrement())
-  releaseKey        String             @unique
-  scope             String
-  versionMap        Json
-  rollout           Json
-  status            BrainReleaseStatus @default(draft)
-  createdBy         Int
-  previousReleaseId Int?
-  activatedAt       DateTime?
-  rolledBackAt      DateTime?
-  failureReason     String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-
-  items BrainReleaseItem[]
-
-  @@index([scope, status])
-  @@map("brain_release")
-}
-
-model BrainReleaseItem {
-  id                Int      @id @default(autoincrement())
-  releaseId         Int
-  resourceVersionId Int
-  resourceType      String
-  resourceKey       String
-  version           Int
-  snapshot          Json
-  createdAt         DateTime @default(now())
-
-  release         BrainRelease         @relation(fields: [releaseId], references: [id], onDelete: Cascade)
-  resourceVersion BrainResourceVersion @relation(fields: [resourceVersionId], references: [id])
-
-  @@unique([releaseId, resourceType, resourceKey])
-  @@index([resourceVersionId])
-  @@map("brain_release_item")
-}
-
-model BrainFeedback {
-  id         Int      @id @default(autoincrement())
-  runId      Int
-  userId     Int
-  storeId    Int
-  rating     String
-  correction Json?
-  status     String   @default("open")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([storeId, status, createdAt])
-  @@map("brain_feedback")
-}
-
-model BrainActionConfirmation {
-  id          Int            @id @default(autoincrement())
-  actionId    String         @unique
-  runId       Int
-  userId      Int
-  storeId     Int
-  skillKey    String
-  riskLevel   BrainRiskLevel
-  preview     Json
-  payload     Json
-  status      String         @default("pending")
-  confirmedAt DateTime?
-  executedAt  DateTime?
-  result      Json?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  @@index([runId, status])
-  @@map("brain_action_confirmation")
-}
-
-model BrainActionExecution {
-  id                 Int            @id @default(autoincrement())
-  confirmationId     Int
-  actionId           String
-  runId              Int
-  storeId            Int
-  userId             Int
-  capabilityKey      String
-  idempotencyKey     String
-  riskLevel          BrainRiskLevel
-  status             String         @default("queued")
-  requestPayload     Json
-  previewPayload     Json?
-  receiptPayload     Json?
-  businessObjectType String?
-  businessObjectId   String?
-  errorCode          String?
-  errorMessage       String?
-  startedAt          DateTime       @default(now())
-  completedAt        DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-
-  @@unique([storeId, capabilityKey, idempotencyKey])
-  @@index([confirmationId])
-  @@index([actionId])
-  @@index([status, createdAt])
-  @@map("brain_action_execution")
-}
-
-model CommissionAdjustment {
-  id                 Int       @id @default(autoincrement())
-  settlementId       Int
-  commissionRecordId Int?
-  storeId            Int
-  type               String
-  amount             Decimal
-  reason             String
-  status             String    @default("pending")
-  createdBy          Int?
-  confirmedBy        Int?
-  confirmedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  settlement       CommissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
-  commissionRecord CommissionRecord?    @relation(fields: [commissionRecordId], references: [id], onDelete: SetNull)
-  store            Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  creator          User?                @relation("CommissionAdjustmentCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
-  confirmer        User?                @relation("CommissionAdjustmentConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
-
-  @@index([settlementId, status])
-  @@index([commissionRecordId])
-  @@index([storeId, createdAt])
-}
-
 model DailySettlementSnapshot {
   id                Int       @id @default(autoincrement())
   dailySettlementId Int
@@ -5019,6 +4635,24 @@ model MemberLiabilitySnapshot {
   @@index([storeId, snapshotDate])
 }
 
+model BrainMemoryRevision {
+  id              Int      @id @default(autoincrement())
+  memoryId        Int
+  previousMemoryId Int?
+  revisionType    String
+  previousContent Json?
+  nextContent     Json?
+  changedByUserId Int
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  memory BrainMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId, createdAt])
+  @@index([previousMemoryId])
+  @@map("brain_memory_revision")
+}
+
 model FinanceReconciliationRun {
   id                Int       @id @default(autoincrement())
   storeId           Int
@@ -5101,4 +4735,750 @@ model DailySettlementAdjustment {
   @@index([dailySettlementId, status])
   @@index([storeId, createdAt])
   @@index([createdBy, createdAt])
+}
+
+model BusinessDefinition {
+  id                        Int                      @id @default(autoincrement())
+  definitionKey             String
+  kind                      BusinessDefinitionKind
+  domain                    String
+  name                      String
+  ownerType                 String
+  ownerId                   String?
+  status                    BusinessDefinitionStatus @default(active)
+  currentPublishedVersionId Int?                     @unique
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+
+  versions                BusinessDefinitionVersion[] @relation("BusinessDefinitionVersions")
+  currentPublishedVersion BusinessDefinitionVersion?  @relation("BusinessDefinitionCurrentPublishedVersion", fields: [currentPublishedVersionId], references: [id], onDelete: SetNull)
+  semanticEvidence        BusinessSemanticEvidence[]
+  aliasCandidates         BusinessDefinitionAliasCandidate[]
+
+  @@unique([kind, definitionKey])
+  @@index([domain, kind, status])
+  @@map("business_definition")
+}
+
+model BusinessDefinitionVersion {
+  id                 Int                                @id @default(autoincrement())
+  definitionId       Int
+  version            Int
+  schemaVersion      String                             @default("1.0")
+  payload            Json
+  lifecycleStatus    BusinessDefinitionLifecycleStatus @default(draft)
+  fingerprint        String
+  sourceFingerprint  String
+  validationStatus   BusinessDefinitionValidationStatus @default(pending)
+  validationReport   Json?
+  canonicalQueryRef  String?
+  fixtureSetKey      String?
+  timezone           String                             @default("Asia/Shanghai")
+  storeScope         Json
+  createdBy          Int
+  validatedBy        Int?
+  validatedAt        DateTime?
+  publishedBy        Int?
+  publishedAt        DateTime?
+  createdAt          DateTime                           @default(now())
+
+  definition                 BusinessDefinition             @relation("BusinessDefinitionVersions", fields: [definitionId], references: [id], onDelete: Cascade)
+  currentForDefinition        BusinessDefinition?            @relation("BusinessDefinitionCurrentPublishedVersion")
+  evidence                    BusinessDefinitionEvidence[]
+  projections                 BusinessDefinitionProjection[]
+  brainOntologyEntities       BrainOntologyEntity[]           @relation("BrainOntologyEntityBusinessDefinitionVersion")
+  brainOntologyRelations      BrainOntologyRelation[]         @relation("BrainOntologyRelationBusinessDefinitionVersion")
+  brainMetrics                BrainMetric[]                   @relation("BrainMetricBusinessDefinitionVersion")
+  brainDimensions             BrainDimension[]                @relation("BrainDimensionBusinessDefinitionVersion")
+  brainEvalCases              BrainEvalCase[]                 @relation("BrainEvalCaseBusinessDefinitionVersion")
+  semanticEvidence            BusinessSemanticEvidence[]
+  aliasCandidates             BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidateSourceVersion")
+  aliasCandidateDrafts        BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidateDraftVersion")
+  aliasCandidatePublications  BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidatePublishedVersion")
+
+  @@unique([definitionId, version])
+  @@unique([definitionId, fingerprint])
+  @@unique([id, definitionId])
+  @@index([lifecycleStatus, validationStatus])
+  @@index([sourceFingerprint])
+  @@map("business_definition_version")
+}
+
+model BusinessDefinitionEvidence {
+  id                  Int      @id @default(autoincrement())
+  versionId           Int
+  sourceType          String
+  sourcePath          String
+  sourceSymbol        String?
+  lineStart           Int?
+  lineEnd             Int?
+  evidenceKind        String
+  evidenceFingerprint String
+  confidence          Float
+  conflictGroup       String?
+  createdAt           DateTime @default(now())
+
+  version BusinessDefinitionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, evidenceFingerprint])
+  @@index([sourceType, sourcePath])
+  @@index([conflictGroup])
+  @@map("business_definition_evidence")
+}
+
+model BusinessSemanticEvidence {
+  id                     Int      @id @default(autoincrement())
+  sourceType             String   @db.VarChar(40)
+  evidenceKind           String   @db.VarChar(40)
+  runId                  Int?
+  storeId                Int
+  userId                 Int
+  definitionId           Int
+  definitionVersionId    Int
+  definitionType         String   @db.VarChar(40)
+  definitionKey          String   @db.VarChar(160)
+  definitionVersion      Int
+  definitionFingerprint  String   @db.VarChar(64)
+  definitionSourceFingerprint String @db.VarChar(64)
+  redactedText           String   @db.VarChar(1000)
+  normalizedValue        String   @db.VarChar(256)
+  confidence             Float
+  status                 String   @default("pooled") @db.VarChar(32)
+  idempotencyFingerprint String   @unique @db.VarChar(64)
+  firstSeenAt            DateTime @default(now())
+  lastSeenAt             DateTime @default(now())
+  metadata               Json?
+  aliasCandidateId       Int?
+
+  run               BrainRun?                 @relation(fields: [runId], references: [id], onDelete: SetNull)
+  definition        BusinessDefinition        @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  definitionVersionRecord BusinessDefinitionVersion @relation(fields: [definitionVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  aliasCandidate    BusinessDefinitionAliasCandidate? @relation(fields: [aliasCandidateId, definitionId], references: [id, definitionId], onDelete: Restrict)
+
+  @@index([definitionType, definitionKey, normalizedValue, status])
+  @@index([definitionVersionId])
+  @@index([runId])
+  @@index([aliasCandidateId])
+  @@index([storeId, userId, firstSeenAt])
+  @@map("business_semantic_evidence")
+}
+
+model BusinessDefinitionAliasCandidate {
+  id                      Int      @id @default(autoincrement())
+  definitionId            Int
+  versionId               Int
+  definitionType          String   @db.VarChar(40)
+  definitionKey           String   @db.VarChar(160)
+  alias                    String   @db.VarChar(256)
+  normalizedAlias         String   @db.VarChar(256)
+  occurrenceCount         Int      @default(0)
+  distinctUserCount       Int      @default(0)
+  averageConfidence       Float    @default(0)
+  explicitCorrectionCount Int      @default(0)
+  maxExplicitConfidence   Float    @default(0)
+  conflictDefinitions     Json     @default("[]")
+  regressionCaseIds       Json     @default("[]")
+  status                  String   @default("pending") @db.VarChar(32)
+  blockReason             String?  @db.VarChar(1000)
+  evalReport              Json?
+  draftVersionId          Int?
+  publishedVersionId      Int?
+  attemptCount            Int      @default(0)
+  leaseOwner              String?  @db.VarChar(160)
+  leaseExpiresAt          DateTime?
+  firstSeenAt             DateTime @default(now())
+  lastSeenAt              DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  definition       BusinessDefinition        @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  version          BusinessDefinitionVersion @relation("BusinessDefinitionAliasCandidateSourceVersion", fields: [versionId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  draftVersion     BusinessDefinitionVersion? @relation("BusinessDefinitionAliasCandidateDraftVersion", fields: [draftVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  publishedVersion BusinessDefinitionVersion? @relation("BusinessDefinitionAliasCandidatePublishedVersion", fields: [publishedVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  evidence         BusinessSemanticEvidence[]
+
+  @@unique([definitionId, normalizedAlias])
+  @@unique([id, definitionId])
+  @@index([definitionId, versionId])
+  @@index([status, leaseExpiresAt])
+  @@index([draftVersionId])
+  @@index([publishedVersionId])
+  @@map("business_definition_alias_candidate")
+}
+
+model BusinessDefinitionProjection {
+  id                    Int                              @id @default(autoincrement())
+  definitionVersionId   Int
+  targetType            BusinessDefinitionProjectionType
+  targetKey             String
+  definitionKey         String
+  definitionVersion     Int
+  definitionFingerprint String
+  sourceFingerprint     String
+  payload               Json
+  projectionFingerprint String
+  generatedAt           DateTime                         @default(now())
+  readOnly              Boolean                          @default(true)
+
+  versionRecord BusinessDefinitionVersion @relation(fields: [definitionVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([definitionVersionId, targetType, targetKey])
+  @@index([targetType, targetKey])
+  @@index([definitionKey, definitionVersion])
+  @@index([projectionFingerprint])
+  @@map("business_definition_projection")
+}
+
+model BusinessDefinitionFixtureArtifact {
+  id            Int                                     @id @default(autoincrement())
+  fixtureSetKey String
+  version       Int
+  status        BusinessDefinitionFixtureArtifactStatus @default(active)
+  payload       Json
+  fingerprint   String
+  createdBy     Int?
+  createdAt     DateTime                                @default(now())
+
+  @@unique([fixtureSetKey, version])
+  @@index([fixtureSetKey, status, version])
+  @@index([fingerprint])
+  @@map("business_definition_fixture_artifact")
+}
+
+model BrainOntologyEntity {
+  id                          Int      @id @default(autoincrement())
+  domain                      String
+  entityKey                   String
+  name                        String
+  synonyms                    Json
+  attributes                  Json
+  tableMap                    Json
+  status                      String   @default("active")
+  version                     Int      @default(1)
+  businessDefinitionVersionId Int?
+  definitionFingerprint       String?
+  projectedAt                 DateTime?
+  projectionStatus            String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainOntologyEntityBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([entityKey, version])
+  @@index([domain, status])
+  @@index([businessDefinitionVersionId])
+  @@map("brain_ontology_entity")
+}
+
+model BrainOntologyRelation {
+  id                          Int      @id @default(autoincrement())
+  relationKey                 String
+  fromEntityKey               String
+  toEntityKey                 String
+  name                        String
+  joinPath                    Json
+  status                      String   @default("active")
+  version                     Int      @default(1)
+  businessDefinitionVersionId Int?
+  definitionFingerprint       String?
+  projectedAt                 DateTime?
+  projectionStatus            String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainOntologyRelationBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([relationKey, version])
+  @@index([fromEntityKey, toEntityKey])
+  @@index([businessDefinitionVersionId])
+  @@map("brain_ontology_relation")
+}
+
+model BrainKgNode {
+  id        Int      @id @default(autoincrement())
+  storeId   Int?
+  nodeKey   String
+  entityKey String
+  label     String
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, nodeKey])
+  @@index([entityKey])
+  @@map("brain_kg_node")
+}
+
+model BrainKgEdge {
+  id          Int      @id @default(autoincrement())
+  storeId     Int?
+  edgeKey     String
+  fromNodeKey String
+  toNodeKey   String
+  relationKey String
+  payload     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([storeId, edgeKey])
+  @@index([fromNodeKey, toNodeKey])
+  @@map("brain_kg_edge")
+}
+
+model BrainMetric {
+  id                          Int      @id @default(autoincrement())
+  metricKey                   String
+  name                        String
+  domain                      String
+  formula                     Json
+  sourceTables                Json
+  defaultFilters              Json?
+  permissions                 Json
+  description                 String
+  status                      String   @default("active")
+  version                     Int      @default(1)
+  businessDefinitionVersionId Int?
+  definitionFingerprint       String?
+  projectedAt                 DateTime?
+  projectionStatus            String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainMetricBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([metricKey, version])
+  @@index([domain, status])
+  @@index([businessDefinitionVersionId])
+  @@map("brain_metric")
+}
+
+model BrainDimension {
+  id                          Int      @id @default(autoincrement())
+  dimensionKey                String
+  name                        String
+  domain                      String
+  source                      Json
+  permissions                 Json
+  status                      String   @default("active")
+  version                     Int      @default(1)
+  businessDefinitionVersionId Int?
+  definitionFingerprint       String?
+  projectedAt                 DateTime?
+  projectionStatus            String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainDimensionBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([dimensionKey, version])
+  @@index([domain, status])
+  @@index([businessDefinitionVersionId])
+  @@map("brain_dimension")
+}
+
+model BrainSkillRegistry {
+  id                   Int            @id @default(autoincrement())
+  skillKey             String
+  name                 String
+  description          String         @default("")
+  type                 BrainSkillType
+  domains              Json           @default("[]")
+  intents              Json           @default("[]")
+  inputSchema          Json
+  outputSchema         Json
+  permissions          Json
+  allowedRoles         Json           @default("[]")
+  readOnly             Boolean        @default(true)
+  sideEffect           Boolean        @default(false)
+  riskLevel            BrainRiskLevel @default(low)
+  requiresConfirmation Boolean        @default(false)
+  idempotency          String         @default("not_applicable")
+  timeoutMs            Int            @default(10000)
+  grounding            String         @default("domain_service")
+  examples             Json           @default("[]")
+  sourceFingerprint    String?
+  definitionRefs       Json?
+  synonyms             Json           @default("[]")
+  negativeExamples     Json           @default("[]")
+  successSchema        Json           @default("{}")
+  enabled              Boolean        @default(true)
+  version              Int            @default(1)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@unique([skillKey, version])
+  @@index([type, enabled])
+  @@map("brain_skill_registry")
+}
+
+model BrainAgentProfile {
+  id             Int      @id @default(autoincrement())
+  roleKey        String
+  name           String
+  systemPrompt   String
+  allowedSkills  Json
+  dataScopeRules Json
+  knowledgePack  Json?
+  enabled        Boolean  @default(true)
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([roleKey, version])
+  @@index([enabled])
+  @@map("brain_agent_profile")
+}
+
+model BrainInspectionRule {
+  id            Int            @id @default(autoincrement())
+  ruleKey       String
+  name          String
+  domain        String
+  scheduleCron  String?
+  eventTrigger  String?
+  condition     Json
+  suggestionTpl Json
+  riskLevel     BrainRiskLevel
+  enabled       Boolean        @default(true)
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([ruleKey, version])
+  @@index([domain, enabled])
+  @@map("brain_inspection_rule")
+}
+
+model BrainInspectionRun {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  triggerType  String
+  status       String   @default("running")
+  ruleCount    Int      @default(0)
+  findingCount Int      @default(0)
+  error        Json?
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  findings BrainInspectionFinding[]
+
+  @@index([storeId, startedAt])
+  @@index([status, startedAt])
+  @@map("brain_inspection_run")
+}
+
+model BrainInspectionFinding {
+  id             Int            @id @default(autoincrement())
+  runId          Int?
+  storeId        Int
+  ruleKey        String
+  ruleVersion    Int
+  domain         String
+  objectType     String
+  objectId       String
+  severity       BrainRiskLevel
+  title          String
+  evidence       Json
+  suggestion     Json
+  dedupeKey      String
+  status         String         @default("open")
+  disposition    String?
+  dispositionNote String?
+  feedback       String?
+  firstDetectedAt DateTime      @default(now())
+  lastDetectedAt  DateTime      @default(now())
+  resolvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  run BrainInspectionRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, dedupeKey])
+  @@index([storeId, status, severity])
+  @@index([ruleKey, status])
+  @@index([runId])
+  @@map("brain_inspection_finding")
+}
+
+model BrainRun {
+  id             Int            @id @default(autoincrement())
+  conversationId Int?
+  storeId        Int
+  userId         Int
+  status         BrainRunStatus @default(queued)
+  input          Json
+  output         Json?
+  cost           Json?
+  latencyMs      Int?
+  error          Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  conversation BrainConversation? @relation(fields: [conversationId], references: [id])
+  steps        BrainRunStep[]
+  semanticEvidence BusinessSemanticEvidence[]
+
+  @@index([storeId, userId, createdAt])
+  @@index([status])
+  @@map("brain_run")
+}
+
+model BrainRunStep {
+  id        Int      @id @default(autoincrement())
+  runId     Int
+  stepKey   String
+  layer     String
+  input     Json?
+  output    Json?
+  status    String
+  latencyMs Int?
+  error     Json?
+  createdAt DateTime @default(now())
+
+  run BrainRun @relation(fields: [runId], references: [id])
+
+  @@index([runId, createdAt])
+  @@map("brain_run_step")
+}
+
+model BrainEvalCase {
+  id                          Int      @id @default(autoincrement())
+  caseKey                     String   @unique
+  roleKey                     String?
+  scenario                    String
+  input                       Json
+  expected                    Json
+  assertionType               String
+  enabled                     Boolean  @default(true)
+  businessDefinitionVersionId Int?
+  definitionFingerprint       String?
+  generatedByProjection       Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainEvalCaseBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
+
+  @@index([scenario, enabled])
+  @@index([businessDefinitionVersionId])
+  @@map("brain_eval_case")
+}
+
+model BrainEvalRun {
+  id             Int      @id @default(autoincrement())
+  releaseId      Int?
+  storeId        Int?
+  roleKey        String?
+  modelVersion   String?
+  status         String
+  caseCount      Int      @default(0)
+  passedCount    Int      @default(0)
+  failedCount    Int      @default(0)
+  summary        Json
+  results        Json
+  error          Json?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  evalResults BrainEvalResult[]
+
+  @@index([releaseId, createdAt])
+  @@index([storeId, status, createdAt])
+  @@map("brain_eval_run")
+}
+
+model BrainEvalResult {
+  id                 Int      @id @default(autoincrement())
+  evalRunId          Int
+  caseId             Int?
+  caseKey            String
+  roleKey            String?
+  question           String
+  answer             String
+  citations          Json
+  deterministicGrade Json
+  deterministicPassed Boolean
+  llmJudge           Json?
+  latencyMs          Int?
+  failureCluster     String?
+  error              Json?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  evalRun BrainEvalRun @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+
+  @@unique([evalRunId, caseKey])
+  @@index([evalRunId, deterministicPassed])
+  @@index([failureCluster])
+  @@map("brain_eval_result")
+}
+
+model BrainResourceVersion {
+  id                           Int      @id @default(autoincrement())
+  resourceType                 String
+  resourceKey                  String
+  version                      Int
+  status                       String   @default("draft")
+  snapshot                     Json
+  checksum                     String
+  sourceResourceId             Int?
+  generatedByRegenerationJobId Int?
+  createdBy                    Int
+  createdAt                    DateTime @default(now())
+  activatedAt                  DateTime?
+  archivedAt                   DateTime?
+
+  releaseItems                   BrainReleaseItem[]
+  regenerationRequestJob         BrainCapabilityRegenerationJob?  @relation("BrainCapabilityRegenerationRequest")
+  generatedByRegenerationJob     BrainCapabilityRegenerationJob?  @relation("BrainCapabilityRegenerationGeneratedVersions", fields: [generatedByRegenerationJobId], references: [id], onDelete: Restrict)
+
+  @@unique([resourceType, resourceKey, version])
+  @@unique([generatedByRegenerationJobId, resourceType, resourceKey])
+  @@index([resourceType, status])
+  @@index([resourceKey, createdAt])
+  @@index([generatedByRegenerationJobId])
+  @@map("brain_resource_version")
+}
+
+model BrainRelease {
+  id                Int                @id @default(autoincrement())
+  releaseKey        String             @unique
+  scope             String
+  versionMap        Json
+  rollout           Json
+  status            BrainReleaseStatus @default(draft)
+  createdBy         Int
+  previousReleaseId Int?
+  activatedAt       DateTime?
+  rolledBackAt      DateTime?
+  failureReason     String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  items            BrainReleaseItem[]
+  regenerationJobs BrainCapabilityRegenerationJob[]
+
+  @@index([scope, status])
+  @@map("brain_release")
+}
+
+model BrainCapabilityRegenerationJob {
+  id                          Int      @id @default(autoincrement())
+  releaseId                   Int
+  requestVersionId            Int      @unique
+  idempotencyKey              String   @unique
+  releaseFingerprint          String
+  requirement                 String
+  inferredChanges             Json
+  affectedCapabilities        Json
+  status                      String   @default("queued")
+  attemptCount                Int      @default(0)
+  maxAttempts                 Int      @default(3)
+  availableAt                 DateTime @default(now())
+  leasedAt                    DateTime?
+  leaseExpiresAt              DateTime?
+  leaseOwner                  String?
+  errorCode                   String?
+  errorMessage                String?
+  report                      Json?
+  generatedResourceVersionIds Json
+  completedAt                 DateTime?
+  createdBy                   Int
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  release                   BrainRelease           @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  requestVersion            BrainResourceVersion   @relation("BrainCapabilityRegenerationRequest", fields: [requestVersionId], references: [id], onDelete: Restrict)
+  generatedResourceVersions BrainResourceVersion[] @relation("BrainCapabilityRegenerationGeneratedVersions")
+
+  @@index([releaseId, status, createdAt])
+  @@index([releaseFingerprint, status])
+  @@index([status, availableAt])
+  @@index([status, leaseExpiresAt])
+  @@map("brain_capability_regeneration_job")
+}
+
+model BrainReleaseItem {
+  id                Int      @id @default(autoincrement())
+  releaseId         Int
+  resourceVersionId Int
+  resourceType      String
+  resourceKey       String
+  version           Int
+  snapshot          Json
+  createdAt         DateTime @default(now())
+
+  release         BrainRelease         @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  resourceVersion BrainResourceVersion @relation(fields: [resourceVersionId], references: [id])
+
+  @@unique([releaseId, resourceType, resourceKey])
+  @@index([resourceVersionId])
+  @@map("brain_release_item")
+}
+
+model BrainFeedback {
+  id         Int      @id @default(autoincrement())
+  runId      Int
+  userId     Int
+  storeId    Int
+  rating     String
+  correction Json?
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([storeId, status, createdAt])
+  @@map("brain_feedback")
+}
+
+model BrainActionConfirmation {
+  id          Int            @id @default(autoincrement())
+  actionId    String         @unique
+  runId       Int
+  userId      Int
+  storeId     Int
+  skillKey    String
+  riskLevel   BrainRiskLevel
+  preview     Json
+  payload     Json
+  status      String         @default("pending")
+  confirmedAt DateTime?
+  executedAt  DateTime?
+  result      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([runId, status])
+  @@map("brain_action_confirmation")
+}
+
+model BrainActionExecution {
+  id                 Int            @id @default(autoincrement())
+  confirmationId     Int
+  actionId           String
+  runId              Int
+  storeId            Int
+  userId             Int
+  capabilityKey      String
+  idempotencyKey     String
+  riskLevel          BrainRiskLevel
+  status             String         @default("queued")
+  requestPayload     Json
+  previewPayload     Json?
+  receiptPayload     Json?
+  businessObjectType String?
+  businessObjectId   String?
+  errorCode          String?
+  errorMessage       String?
+  startedAt          DateTime       @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([storeId, capabilityKey, idempotencyKey])
+  @@index([confirmationId])
+  @@index([actionId])
+  @@index([status, createdAt])
+  @@map("brain_action_execution")
 }

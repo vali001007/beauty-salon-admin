@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BrainMemory, BrainMemoryType, Prisma } from '@prisma/client';
 import { BrainMemoryRepository } from './brain-memory.repository.js';
 
@@ -33,7 +33,7 @@ export class BrainMemoryService {
     }
 
     const preference = normalized.match(/(?:以后|今后|默认|请记住)[，,:：\s]*(.{2,50})/);
-    if (preference && !this.containsVolatileFact(preference[1]) && !normalized.includes('先看毛利再看流水')) {
+    if (preference && this.isLongTermSafe(preference[1]) && !normalized.includes('先看毛利再看流水')) {
       candidates.push({
         type: 'procedural',
         subjectKey: 'user.preference.general',
@@ -43,7 +43,7 @@ export class BrainMemoryService {
     }
 
     const customerPreference = normalized.match(/客户?([\u4e00-\u9fa5]{2,8})(?:喜欢|偏好|不喜欢)[，,:：\s]*(.{2,40})/);
-    if (customerPreference && !this.containsVolatileFact(customerPreference[2])) {
+    if (customerPreference && this.isLongTermSafe(customerPreference[2])) {
       candidates.push({
         type: 'semantic',
         subjectKey: `customer.${customerPreference[1]}.preference`,
@@ -53,7 +53,7 @@ export class BrainMemoryService {
     }
 
     const decision = normalized.match(/(?:我决定|决定|确定)[，,:：\s]*(.{3,50})/);
-    if (decision && !this.containsVolatileFact(decision[1])) {
+    if (decision && this.isLongTermSafe(decision[1])) {
       candidates.push({
         type: 'episodic',
         subjectKey: `store.decision.${this.subjectFragment(decision[1])}`,
@@ -130,6 +130,9 @@ export class BrainMemoryService {
     content: Record<string, unknown>;
     reason?: string;
   }) {
+    if (!this.isLongTermContentSafe(input.content)) {
+      throw new BadRequestException('长期记忆不能保存短期经营数值或敏感字段');
+    }
     const existing = await this.repository.findScopedById({ id: input.id, storeId: input.storeId, userId: input.userId });
     if (!existing) throw new NotFoundException('记忆不存在或无权修改');
     const created = await this.repository.writeMemory({
@@ -197,7 +200,28 @@ export class BrainMemoryService {
   }
 
   private containsVolatileFact(value: string) {
-    return /\d|流水(?:是|为)|收入(?:是|为)|毛利(?:是|为)|预约(?:有|是|为)/.test(value);
+    return /(?:今天|昨天|明天|本周|上周|本月|上月|本季度|今年|当前|现在)|\d|流水(?:是|为)|收入(?:是|为)|毛利(?:是|为)|预约(?:有|是|为)|退款(?:是|为)|库存(?:是|为)/.test(value);
+  }
+
+  private containsSensitiveFact(value: string) {
+    return /(?:手机号|手机|电话|身份证|证件号|银行卡|卡号|住址|地址|病史|过敏原文|密码|验证码)|1\d{10}|\d{6}(?:19|20)\d{2}\d{2}\d{2}\d{3}[\dXx]/.test(value);
+  }
+
+  private isLongTermSafe(value: string) {
+    return !this.containsVolatileFact(value) && !this.containsSensitiveFact(value);
+  }
+
+  private isLongTermContentSafe(value: unknown): boolean {
+    if (value === null || typeof value === 'boolean') return true;
+    if (typeof value === 'number') return false;
+    if (typeof value === 'string') return this.isLongTermSafe(value);
+    if (Array.isArray(value)) return value.every((item) => this.isLongTermContentSafe(item));
+    if (value && typeof value === 'object') {
+      return Object.entries(value).every(
+        ([key, item]) => !this.containsSensitiveFact(key) && this.isLongTermContentSafe(item),
+      );
+    }
+    return false;
   }
 
   private subjectFragment(value: string) {

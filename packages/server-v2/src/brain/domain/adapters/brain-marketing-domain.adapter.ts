@@ -29,6 +29,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'marketing_touch_draft') return this.previewDirectTouch(input);
     const message = input.dto.message;
     if (/(流失|复购|响应|客户价值|ltv).*(预测|概率|风险|评分)|预测.*(流失|复购|响应|客户价值|ltv)/i.test(message)) {
       return this.answerCustomerPrediction(input);
@@ -53,6 +54,9 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
         startDate: range.startDate,
         endDate: range.endDate,
       });
+      const coverageLabel = analytics.dataCoverage.touchesTruncated
+        ? `前 ${analytics.dataCoverage.touchSampleSize} 条触达样本`
+        : `${analytics.reachedCount} 条触达记录`;
       const channelLines = analytics.channels.length
         ? analytics.channels.map((item, index) => `${index + 1}. ${item.channel}：触达 ${item.reached}，转化 ${item.converted}，转化率 ${formatBrainPercent(item.conversionRate)}，收入 ${formatBrainMoney(item.revenue)}`).join('\n')
         : '当前没有渠道触达记录。';
@@ -61,10 +65,10 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
         : '当前门店没有已运行过的自动化策略。';
       return {
         status: 'completed',
-        answer: `${range.label}营销分析：触达 ${analytics.reachedCount} 人，转化 ${analytics.convertedCount} 人，转化率 ${formatBrainPercent(analytics.conversionRate)}，归因收入 ${formatBrainMoney(analytics.attributedRevenue)}。\n渠道表现：\n${channelLines}\n自动化策略：\n${strategyLines}\n当前 schema 没有统一活动成本事实，因此不计算虚假的 ROI；录入成本后才能用归因收入/成本计算。`,
+        answer: `${range.label}营销分析：${coverageLabel}，样本内转化 ${analytics.convertedCount} 人，转化率 ${formatBrainPercent(analytics.conversionRate)}，归因收入 ${formatBrainMoney(analytics.attributedRevenue)}。\n渠道表现：\n${channelLines}\n自动化策略：\n${strategyLines}\n当前 schema 没有统一活动成本事实，因此不计算虚假的 ROI；录入成本后才能用归因收入/成本计算。${analytics.dataCoverage.touchesTruncated || analytics.dataCoverage.attributionsTruncated ? '\n当前明细达到读取上限，上述触达、转化或归因是受控样本，不代表完整总量。' : ''}`,
         citations: [{ sourceType: 'skill', sourceId: 'marketing_attribution_analytics', label: '营销触达、转化与归因分析' }],
         grounding: 'db_skill',
-        metadata: { adapterKey: this.key, rangeLabel: range.label, costStatus: 'not_modelled' },
+        metadata: { adapterKey: this.key, rangeLabel: range.label, costStatus: 'not_modelled', dataCoverage: analytics.dataCoverage },
       };
     }
     if (
@@ -178,6 +182,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: 'create_marketing_touch_draft',
+      planId: input.plan.executionPlanId,
       riskLevel: 'medium',
       preview: {
         actionType: 'create_marketing_touch_draft',

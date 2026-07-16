@@ -97,6 +97,14 @@ export class BrainSkillRuntimeService {
     return this.marketingSkills.buildMarketingAnalytics(input);
   }
 
+  buildMarketingFollowUpPriority(input: Parameters<BrainMarketingSkillsService['buildFollowUpPriorityRows']>[0]) {
+    return this.marketingSkills.buildFollowUpPriorityRows(input);
+  }
+
+  buildMarketingFollowUpPrioritySnapshot(input: Parameters<BrainMarketingSkillsService['buildFollowUpPrioritySnapshot']>[0]) {
+    return this.marketingSkills.buildFollowUpPrioritySnapshot(input);
+  }
+
   buildInventoryRiskSummary(input: Parameters<BrainInventorySkillsService['buildInventoryRiskSummary']>[0]) {
     return this.inventorySkills.buildInventoryRiskSummary(input);
   }
@@ -119,6 +127,10 @@ export class BrainSkillRuntimeService {
 
   buildFinanceIncomeAnalysis(input: Parameters<BrainFinanceSkillsService['buildIncomeAnalysis']>[0]) {
     return this.financeSkills.buildIncomeAnalysis(input);
+  }
+
+  buildFinanceMemberBalanceFlowSummary(input: Parameters<BrainFinanceSkillsService['buildMemberBalanceFlowSummary']>[0]) {
+    return this.financeSkills.buildMemberBalanceFlowSummary(input);
   }
 
   buildFinanceCostAnalysis(input: Parameters<BrainFinanceSkillsService['buildCostAnalysis']>[0]) {

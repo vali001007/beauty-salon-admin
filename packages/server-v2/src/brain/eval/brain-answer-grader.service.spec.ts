@@ -55,6 +55,17 @@ describe('BrainAnswerGraderService', () => {
     expect(result.actualIntent).toBe('metric_query');
   });
 
+  it('never counts an explicit capability boundary answer as usable', () => {
+    const result = grader.grade({
+      question: '我们店里的 VIP 客户有多少个',
+      answer: '当前客户事实能力尚未注册该业务口径，不会编造回答。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_customer_facts', label: '客户事实查询' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.status).toBe('unsupported_intent');
+  });
+
   it('classifies cashier and card-redemption interface requests as actions', () => {
     const result = grader.grade({
       question: '帮我打开核销界面，客人要用次卡',
@@ -77,6 +88,50 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
     expect(result.expectedShape).toBe('scalar_metric');
     expect(result.actualShape).toBe('scalar_metric');
+  });
+
+  it('grades model-driven business definition KPI blocks as metric answers', () => {
+    const result = grader.grade({
+      question: '今天营业额到多少了',
+      answer: '已完成经营任务，结构化结果见下方。',
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.paid_amount@4',
+          label: '业务定义：实收金额',
+        },
+      ],
+      blocks: [{ kind: 'kpi', items: [{ label: '指标：实收金额', value: '116377.31' }] }],
+      expectedIntent: 'metric_query',
+      expectedMetric: 'paid_amount',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      actualMetric: 'paid_amount',
+      actualShape: 'scalar_metric',
+      groundingType: 'metric_query',
+      legacyUsableWithCitation: true,
+    });
+  });
+
+  it('uses structured ranking blocks instead of generic wrapper text', () => {
+    const result = grader.grade({
+      question: '本月商品销售排行',
+      answer: '已完成经营任务，结构化结果见下方。',
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.product_sales_quantity@4',
+          label: '业务定义：商品销售数量',
+        },
+      ],
+      blocks: [{ kind: 'ranking', rows: [{ productName: '眼霜', productSalesQuantity: 14 }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', actualShape: 'ranking' });
   });
 
   it('keeps gross margin rate answers usable when the question asks for rate', () => {
@@ -158,6 +213,22 @@ describe('BrainAnswerGraderService', () => {
         brainStatus: 'completed',
       }).groundingType,
     ).toBe('preview_action');
+  });
+
+  it('accepts runtime-native db_skill citations as grounded list answers', () => {
+    const result = grader.grade({
+      question: '今天所有的预约给我列一下',
+      answer: '预约清单：共 0 个。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_reservation_list', label: '门店预约清单' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      groundingType: 'db_skill',
+      expectedShape: 'list',
+      actualShape: 'list',
+    });
   });
 
   it('keeps list skill answers usable when the answer has list granularity', () => {
@@ -269,6 +340,21 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
+  it('grades explicitly split payment-method amounts as a list instead of a scalar total', () => {
+    const result = grader.grade({
+      question: '今天现金收了多少，微信支付宝各多少',
+      answer: '排行：\n1. 支付方式=现金，金额=0.00，笔数=0\n2. 支付方式=微信，金额=0.00，笔数=0\n3. 支付方式=支付宝，金额=0.00，笔数=0',
+      blocks: [{ kind: 'ranking', rows: [{ paymentMethod: '现金', amount: 0 }] }],
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown', label: '财务支付方式拆分' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedIntent).toBe('list');
+    expect(result.expectedShape).toBe('list');
+    expect(result.actualShape).toBe('ranking');
+    expect(result.status).toBe('usable_exact');
+  });
+
   it('counts a database-backed domain skill with the requested scalar as partially usable', () => {
     const result = grader.grade({
       question: '我这个月业绩是多少',
@@ -282,6 +368,30 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_partial');
   });
 
+  it('counts member balance flow KPIs as a database-backed scalar answer', () => {
+    const result = grader.grade({
+      question: '今天储值卡消耗了多少，新充值了多少',
+      answer: '储值消耗：200.00 元；新充值入账：1200.00 元。',
+      blocks: [{ kind: 'kpi', items: [{ label: '储值消耗', value: '200.00 元' }] }],
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_member_balance_flow_summary', label: '会员储值充值与消耗流水' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedShape).toBe('scalar_metric');
+    expect(result.status).toBe('usable_partial');
+  });
+
+  it('grades an explicit unsupported business boundary as unsupported', () => {
+    const result = grader.grade({
+      question: '哪些沉睡客户最近有点被唤醒的迹象',
+      answer: '当前客户事实能力尚未接入“沉睡客户近期唤醒迹象”口径。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_customer_facts', label: '客户事实查询' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.status).toBe('unsupported_intent');
+  });
+
   it('does not count a configured-target miss as a partial scalar answer', () => {
     const result = grader.grade({
       question: '这个月目标完成率多少了，还差多远',
@@ -291,6 +401,19 @@ describe('BrainAnswerGraderService', () => {
     });
 
     expect(result.status).not.toBe('usable_partial');
+  });
+
+  it('grades recall contact priority against the governed follow-up priority metric', () => {
+    const result = grader.grade({
+      question: '我想做个召回活动，哪些客户最值得联系',
+      answer: '优先联系客户：\n1. 李女士，评分 100。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.follow_up_priority_score@3', label: '客户跟进优先级评分' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedMetric).toBe('follow_up_priority_score');
+    expect(result.actualMetric).toBe('follow_up_priority_score');
+    expect(result.status).toBe('usable_exact');
   });
 
   it.each([

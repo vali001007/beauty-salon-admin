@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 export type BrainTargetResolution<T> =
@@ -8,6 +8,45 @@ export type BrainTargetResolution<T> =
 @Injectable()
 export class BrainActionTargetResolverService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async revalidateCapabilityTarget(input: {
+    capabilityKey: string;
+    storeId: number;
+    args: Record<string, unknown>;
+  }): Promise<void> {
+    switch (input.capabilityKey) {
+      case 'create_reservation':
+        await Promise.all([
+          this.requireScopedRecord('customer', input.args.customerId, input.storeId),
+          this.requireScopedRecord('project', input.args.projectId, input.storeId),
+        ]);
+        return;
+      case 'reschedule_reservation':
+      case 'cancel_reservation':
+        await this.requireScopedRecord('reservation', input.args.reservationId, input.storeId);
+        return;
+      case 'create_customer_followup':
+      case 'create_marketing_touch_draft':
+        await this.requireScopedRecord('customer', input.args.customerId, input.storeId);
+        return;
+      case 'save_service_record':
+        await this.requireScopedRecord('serviceTask', input.args.taskId, input.storeId);
+        return;
+      case 'create_purchase_order': {
+        if (!Array.isArray(input.args.items) || input.args.items.length === 0) {
+          throw new BadRequestException('purchase_items_required');
+        }
+        const productIds = [...new Set(input.args.items.map((item) => this.positiveId((item as Record<string, unknown>)?.productId)))];
+        const matched = await this.prisma.product.count({
+          where: { id: { in: productIds }, storeId: input.storeId, deletedAt: null },
+        });
+        if (matched !== productIds.length) throw new ForbiddenException('cross_store_action_target');
+        return;
+      }
+      default:
+        throw new BadRequestException(`unsupported_action_target:${input.capabilityKey}`);
+    }
+  }
 
   async resolveCustomer(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; name: string; maskedPhone: string }>> {
     const name = this.extractCustomerName(input.message);
@@ -153,5 +192,24 @@ export class BrainActionTargetResolverService {
   private maskPhone(phone?: string | null) {
     const value = String(phone ?? '').replace(/\s+/g, '');
     return value.length >= 4 ? `***${value.slice(-4)}` : '未记录';
+  }
+
+  private async requireScopedRecord(
+    model: 'customer' | 'project' | 'reservation' | 'serviceTask',
+    rawId: unknown,
+    storeId: number,
+  ) {
+    const id = this.positiveId(rawId);
+    const delegate = this.prisma[model] as unknown as {
+      findFirst(input: { where: { id: number; storeId: number }; select: { id: true } }): Promise<{ id: number } | null>;
+    };
+    const record = await delegate.findFirst({ where: { id, storeId }, select: { id: true } });
+    if (!record) throw new ForbiddenException('cross_store_action_target');
+  }
+
+  private positiveId(value: unknown) {
+    const id = Number(value);
+    if (!Number.isInteger(id) || id <= 0) throw new BadRequestException('invalid_action_target_id');
+    return id;
   }
 }

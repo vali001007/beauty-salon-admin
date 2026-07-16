@@ -33,6 +33,7 @@ describe('Agent eval question bank', () => {
       }),
     );
     expect(bank.questions).toHaveLength(650);
+    expect(bank.questions.every((item) => item.expectedSemanticIntent && item.expectedDomains && item.expectedEntities && item.expectedMetrics && item.expectedDimensions)).toBe(true);
     expect(countBy(bank.questions, 'persona')).toEqual({
       manager: 100,
       marketing: 100,
@@ -42,6 +43,20 @@ describe('Agent eval question bank', () => {
       finance: 100,
       edge: 50,
     });
+    expect(bank.questions.find((item) => item.input === '今天店里情况怎么样，给我来个总结')).toMatchObject({
+      expectedSemanticIntent: 'diagnosis',
+      requiresApproval: false,
+    });
+    expect(bank.questions.find((item) => item.input === '今天退款有几笔，金额多少')).toMatchObject({
+      expectedSemanticIntent: 'query',
+      requiresApproval: false,
+    });
+    expect(bank.questions.find((item) => item.input === '今天新客老客各来了几个')?.expectedDimensions).not.toContain('customer');
+    expect(bank.questions.find((item) => item.input === '哪个美容师接的客人最多')?.expectedDimensions).toEqual(['beautician']);
+    expect(bank.questions.find((item) => item.input === '哪个美容师接的客人最多')?.expectedMetrics).toContain('staff_unique_customer_count');
+    expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedDimensions).toEqual(['beautician']);
+    expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedMetrics).toContain('staff_unique_customer_count');
+    expect(bank.questions.find((item) => item.input === '最近有没有现金流异常的情况')?.expectedDimensions).not.toContain('payment_method');
   });
 
   it('selects the first 120 P0 gate cases by role and edge strategy', () => {

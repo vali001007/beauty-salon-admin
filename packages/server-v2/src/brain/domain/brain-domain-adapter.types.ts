@@ -2,6 +2,7 @@ import type { BrainCognitionResult } from '../cognition/brain-cognition.service.
 import type { BrainQuestionIntentResult, BrainRuntimeQuestionIntent, BrainRuntimeAnswerShape } from '../cognition/brain-question-intent.service.js';
 import type { BrainRequestContext } from '../context/brain-request-context.js';
 import type { SendBrainMessageDto } from '../dto/brain-chat.dto.js';
+import type { BrainResponseBlock } from '../response/brain-response.types.js';
 
 export type BrainDomainRole =
   | 'store_manager'
@@ -37,6 +38,9 @@ export interface BrainRoleIntentPlan {
   intent: BrainRuntimeQuestionIntent;
   answerShape: BrainRuntimeAnswerShape;
   adapterKey?: BrainDomainAdapterKey;
+  capabilityKey?: string;
+  capabilityVersion?: number;
+  executionPlanId?: string;
   expectedMetric?: string;
   requiredPermissions: string[];
   confidence: number;
@@ -51,8 +55,11 @@ export interface BrainDomainAnswer {
   citations: Array<{ sourceType: string; sourceId: string; label?: string; definition?: string }>;
   suggestedActions?: unknown[];
   grounding: BrainDomainGrounding;
+  blocks?: BrainResponseBlock[];
   metadata?: Record<string, unknown>;
 }
+
+export type BrainDomainAnswerBlock = BrainResponseBlock;
 
 export interface BrainDomainAdapterExecution {
   context: BrainRequestContext;

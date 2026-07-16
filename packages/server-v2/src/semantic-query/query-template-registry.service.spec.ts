@@ -10,6 +10,9 @@ describe('QueryTemplateRegistryService', () => {
     expect(registry.findByMetric('follow_up_priority_score')?.id).toBe('customer_follow_up');
     expect(registry.findByMetric('stock_risk_score')?.id).toBe('inventory_risk');
     expect(registry.findByMetric('card_expiry_risk')?.id).toBe('card_expiry');
+    expect(registry.findByMetric('staff_service_count')?.id).toBe('staff_performance');
+    expect(registry.findByMetric('staff_unique_customer_count')?.id).toBe('staff_performance');
+    expect(registry.findByMetric('staff_unique_customer_count')?.sourceModels).toContain('Customer');
     expect(registry.findByMetric('staff_performance_score')?.id).toBe('staff_performance');
     expect(registry.findByMetric('campaign_conversion_rate')?.id).toBe('marketing_conversion');
   });
@@ -17,7 +20,7 @@ describe('QueryTemplateRegistryService', () => {
   it('maps P0 skill capabilities to dedicated templates without stealing generic metrics', () => {
     expect(registry.findByCapability('order_revenue_analysis')).toMatchObject({
       id: 'order_revenue',
-      defaultDimensions: ['payMethod'],
+      defaultDimensions: ['paymentMethod'],
     });
     expect(registry.findByCapability('order_customer_consumption_list')).toMatchObject({
       id: 'order_customer_consumption_list',
@@ -34,6 +37,8 @@ describe('QueryTemplateRegistryService', () => {
     expect(registry.findByCapability('inventory_risk_ranking')?.id).toBe('inventory_risk');
     expect(registry.findByCapability('reservation_schedule_diagnosis')?.id).toBe('reservation_schedule');
     expect(registry.findByCapability('staff_performance_ranking')?.id).toBe('staff_performance');
+    expect(registry.findByCapability('manager_staff_overview')?.id).toBe('staff_performance');
+    expect(registry.findById('project_service')?.capabilityIds).not.toContain('manager_staff_overview');
     expect(registry.findByCapability('marketing_conversion_diagnosis')?.id).toBe('marketing_conversion');
   });
 

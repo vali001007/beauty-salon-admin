@@ -61,6 +61,9 @@ export interface BrainRevenueForecastBaseline {
 
 @Injectable()
 export class BrainManagerSkillsService {
+  private static readonly STAFF_FACT_PAGE_SIZE = 1000;
+  private static readonly STAFF_FACT_MAX_ROWS = 100000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async buildDailyOverview(input: { storeId: number; startDate: Date; endDate: Date }): Promise<BrainDailyOverview> {
@@ -115,7 +118,11 @@ export class BrainManagerSkillsService {
     };
   }
 
-  async buildOperationsAnalysis(input: { storeId: number; startDate: Date; endDate: Date }): Promise<BrainOperationsAnalysis> {
+  async buildOperationsAnalysis(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<BrainOperationsAnalysis> {
     const [settlements, reservations, orders, newCustomerCount, target] = await Promise.all([
       this.prisma.dailySettlement.findMany({
         where: { storeId: input.storeId, settleDate: { gte: input.startDate, lte: input.endDate } },
@@ -187,7 +194,9 @@ export class BrainManagerSkillsService {
       .map(([method, amount]) => ({ method, amount }));
     const uniqueCustomers = new Set(reservations.map((reservation) => reservation.customerId));
     const returningCustomerCount = new Set(
-      reservations.filter((reservation) => reservation.customer.createdAt < input.startDate).map((reservation) => reservation.customerId),
+      reservations
+        .filter((reservation) => reservation.customer.createdAt < input.startDate)
+        .map((reservation) => reservation.customerId),
     ).size;
     return {
       revenue: settlements.reduce((sum, row) => sum + this.toNumber(row.totalRevenue), 0),
@@ -198,15 +207,30 @@ export class BrainManagerSkillsService {
           ? settlements.reduce((sum, row) => sum + this.toNumber(row.totalRevenue), 0) /
             settlements.reduce((sum, row) => sum + row.orderCount, 0)
           : 0,
-      inStoreCount: reservations.filter((reservation) => ['checked_in', 'in_service', 'arrived', '已到店', '服务中'].includes(reservation.status)).length,
+      inStoreCount: reservations.filter((reservation) =>
+        ['checked_in', 'in_service', 'arrived', '已到店', '服务中'].includes(reservation.status),
+      ).length,
       newCustomerCount,
       returningCustomerCount,
       paymentBreakdown,
-      dailyTrend: settlements.map((row) => ({ date: row.settleDate.toISOString().slice(0, 10), revenue: this.toNumber(row.totalRevenue) })),
-      projectRanking: [...projectCounts.entries()].map(([name, count]) => ({ name, count })).sort((left, right) => right.count - left.count).slice(0, 10),
-      beauticianRanking: [...beauticianCounts.entries()].map(([name, count]) => ({ name, count })).sort((left, right) => right.count - left.count).slice(0, 10),
+      dailyTrend: settlements.map((row) => ({
+        date: row.settleDate.toISOString().slice(0, 10),
+        revenue: this.toNumber(row.totalRevenue),
+      })),
+      projectRanking: [...projectCounts.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 10),
+      beauticianRanking: [...beauticianCounts.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 10),
       largestOrder: orders[0]
-        ? { orderNo: orders[0].orderNo, amount: this.toNumber(orders[0].netAmount), customerName: orders[0].customerName }
+        ? {
+            orderNo: orders[0].orderNo,
+            amount: this.toNumber(orders[0].netAmount),
+            customerName: orders[0].customerName,
+          }
         : undefined,
       target: target
         ? {
@@ -224,34 +248,41 @@ export class BrainManagerSkillsService {
         where: { storeId: input.storeId, status: 'active' },
         select: { id: true, name: true },
       }),
-      this.prisma.serviceTask.findMany({
-        where: {
-          storeId: input.storeId,
-          beauticianId: { not: null },
-          appointmentTime: { gte: input.startDate, lte: input.endDate },
-        },
-        select: { beauticianId: true, customerId: true, status: true },
-        take: 5000,
-      }),
-      this.prisma.commissionRecord.findMany({
-        where: {
-          storeId: input.storeId,
-          beauticianId: { not: null },
-          createdAt: { gte: input.startDate, lte: input.endDate },
-          status: { notIn: ['cancelled', 'rejected'] },
-        },
-        select: { beauticianId: true, sourceAmount: true, amount: true },
-        take: 5000,
-      }),
-      this.prisma.beauticianTimeOff.findMany({
-        where: {
-          storeId: input.storeId,
-          date: { gte: input.startDate, lte: input.endDate },
-          status: 'approved',
-        },
-        select: { beauticianId: true, startTime: true, endTime: true },
-        take: 1000,
-      }),
+      this.readStaffFactPages((page) =>
+        this.prisma.serviceTask.findMany({
+          where: {
+            storeId: input.storeId,
+            beauticianId: { not: null },
+            appointmentTime: { gte: input.startDate, lte: input.endDate },
+            status: { not: 'cancelled' },
+          },
+          select: { id: true, beauticianId: true, customerId: true, status: true },
+          ...page,
+        }),
+      ),
+      this.readStaffFactPages((page) =>
+        this.prisma.commissionRecord.findMany({
+          where: {
+            storeId: input.storeId,
+            beauticianId: { not: null },
+            createdAt: { gte: input.startDate, lte: input.endDate },
+            status: { notIn: ['cancelled', 'rejected'] },
+          },
+          select: { id: true, beauticianId: true, sourceAmount: true, amount: true },
+          ...page,
+        }),
+      ),
+      this.readStaffFactPages((page) =>
+        this.prisma.beauticianTimeOff.findMany({
+          where: {
+            storeId: input.storeId,
+            date: { gte: input.startDate, lte: input.endDate },
+            status: 'approved',
+          },
+          select: { id: true, beauticianId: true, startTime: true, endTime: true },
+          ...page,
+        }),
+      ),
     ]);
     return {
       staff: beauticians
@@ -259,7 +290,8 @@ export class BrainManagerSkillsService {
           const ownTasks = tasks.filter((task) => task.beauticianId === beautician.id);
           const ownCommissions = commissions.filter((record) => record.beauticianId === beautician.id);
           const customerCounts = new Map<number, number>();
-          for (const task of ownTasks) customerCounts.set(task.customerId, (customerCounts.get(task.customerId) ?? 0) + 1);
+          for (const task of ownTasks)
+            customerCounts.set(task.customerId, (customerCounts.get(task.customerId) ?? 0) + 1);
           return {
             beauticianId: beautician.id,
             name: beautician.name,
@@ -276,6 +308,28 @@ export class BrainManagerSkillsService {
         })
         .sort((left, right) => right.serviceCount - left.serviceCount || right.revenueAmount - left.revenueAmount),
     };
+  }
+
+  private async readStaffFactPages<T extends { id: number }>(
+    loadPage: (page: { orderBy: { id: 'asc' }; take: number; cursor?: { id: number }; skip?: 1 }) => Promise<T[]>,
+  ): Promise<T[]> {
+    const rows: T[] = [];
+    let cursor: number | undefined;
+    while (true) {
+      const page = await loadPage({
+        orderBy: { id: 'asc' },
+        take: BrainManagerSkillsService.STAFF_FACT_PAGE_SIZE,
+        ...(cursor === undefined ? {} : { cursor: { id: cursor }, skip: 1 as const }),
+      });
+      if (rows.length + page.length > BrainManagerSkillsService.STAFF_FACT_MAX_ROWS) {
+        throw new Error('brain_staff_analysis_row_limit_exceeded');
+      }
+      rows.push(...page);
+      if (page.length < BrainManagerSkillsService.STAFF_FACT_PAGE_SIZE) return rows;
+      const lastId = page.at(-1)?.id;
+      if (!Number.isInteger(lastId) || lastId === cursor) throw new Error('brain_staff_analysis_cursor_invalid');
+      cursor = lastId;
+    }
   }
 
   async buildRevenueForecastBaseline(input: { storeId: number; asOf: Date }): Promise<BrainRevenueForecastBaseline> {

@@ -1,0 +1,222 @@
+import { BrainEvalExpectationResolverService } from './brain-eval-expectation-resolver.service.js';
+
+describe('BrainEvalExpectationResolverService', () => {
+  const service = new BrainEvalExpectationResolverService();
+  const definitions = {
+    entities: [
+      {
+        definitionKey: 'entity.customer', entityKey: 'customer', name: '客户', aliases: ['顾客'], domain: 'customer',
+        source: {}, permissions: [], version: 1, definitionFingerprint: '3'.repeat(64), sourceFingerprint: '4'.repeat(64),
+      },
+      {
+        definitionKey: 'entity.product', entityKey: 'product', name: '商品', aliases: ['产品'], domain: 'product',
+        source: {}, permissions: [], version: 1, definitionFingerprint: '5'.repeat(64), sourceFingerprint: '6'.repeat(64),
+      },
+    ],
+    relations: [],
+    metrics: [
+      {
+        definitionKey: 'metric.paid_amount',
+        metricKey: 'paid_amount',
+        name: '实收金额',
+        aliases: ['营业额', 'paid_revenue'],
+        domain: 'payment',
+        formula: {},
+        source: [],
+        defaultFilters: [],
+        permissions: [],
+        description: '实收',
+        runtimeQuery: { capabilityKeys: ['order_revenue_analysis'], dimensions: [] },
+        version: 4,
+        definitionFingerprint: 'a'.repeat(64),
+        sourceFingerprint: 'b'.repeat(64),
+      },
+      {
+        definitionKey: 'metric.product_sales_quantity',
+        metricKey: 'product_sales_quantity',
+        name: '商品销量',
+        aliases: ['产品销量'],
+        domain: 'order',
+        formula: {},
+        source: [],
+        defaultFilters: [],
+        permissions: [],
+        description: '销量',
+        runtimeQuery: {
+          capabilityKeys: ['product_sales_ranking'],
+          dimensions: ['productId', 'productName'],
+        },
+        version: 4,
+        definitionFingerprint: 'c'.repeat(64),
+        sourceFingerprint: 'd'.repeat(64),
+      },
+    ],
+    dimensions: [
+      {
+        definitionKey: 'dimension.productId',
+        dimensionKey: 'productId',
+        name: '商品 ID',
+        aliases: ['商品编号'],
+        domain: 'product',
+        source: {},
+        permissions: [],
+        version: 1,
+        definitionFingerprint: 'e'.repeat(64),
+        sourceFingerprint: 'f'.repeat(64),
+      },
+      {
+        definitionKey: 'dimension.productName',
+        dimensionKey: 'productName',
+        name: '商品名称',
+        aliases: ['产品名称'],
+        domain: 'product',
+        source: {},
+        permissions: [],
+        version: 1,
+        definitionFingerprint: '1'.repeat(64),
+        sourceFingerprint: '2'.repeat(64),
+      },
+      {
+        definitionKey: 'dimension.customerName',
+        dimensionKey: 'customerName',
+        name: '客户名称',
+        aliases: ['客户姓名'],
+        domain: 'customer',
+        source: {},
+        permissions: [],
+        version: 1,
+        definitionFingerprint: '7'.repeat(64),
+        sourceFingerprint: '8'.repeat(64),
+      },
+    ],
+  } as never;
+
+  it('resolves legacy metric keys through published aliases and derives canonical domain and capability', () => {
+    const result = service.resolve({
+      base: {
+        intent: 'query',
+        domains: ['store_operation'],
+        metrics: ['paid_revenue'],
+        capabilityKeys: ['store.operations.overview'],
+      },
+      definitions,
+      releaseSnapshot: { capabilityKeys: ['order_revenue_analysis'] } as never,
+    });
+
+    expect(result.expectation).toMatchObject({
+      domains: ['payment'],
+      metrics: ['paid_amount'],
+      capabilityKeys: [],
+      capabilityAnyOf: ['order_revenue_analysis'],
+    });
+    expect(result.evidence.unresolved).toEqual([]);
+  });
+
+  it('uses the published metric dimension binding instead of a persona-level dimension label', () => {
+    const result = service.resolve({
+      base: {
+        intent: 'ranking',
+        domains: ['store_operation'],
+        metrics: ['product_sales_quantity'],
+        dimensions: ['product'],
+      },
+      definitions,
+      releaseSnapshot: { capabilityKeys: ['product_sales_ranking'] } as never,
+    });
+
+    expect(result.expectation).toMatchObject({
+      metrics: ['product_sales_quantity'],
+      dimensions: ['productName'],
+      domains: ['order', 'product'],
+      capabilityKeys: [],
+      capabilityAnyOf: ['product_sales_ranking'],
+    });
+  });
+
+  it('keeps unresolved expectations as evidence without enforcing stale labels', () => {
+    const result = service.resolve({
+      base: { metrics: ['gross_margin_rate'], domains: ['finance_risk'] },
+      definitions,
+    });
+
+    expect(result.expectation.metrics).toEqual([]);
+    expect(result.expectation.domains).toEqual([]);
+    expect(result.evidence.unresolved).toEqual(['metric:gross_margin_rate']);
+  });
+
+  it('uses role-scoped release capabilities as alternatives when no metric binding exists', () => {
+    const result = service.resolve({
+      base: { intent: 'diagnosis', capabilityKeys: ['store.operations.overview'] },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['store_operations_overview', 'finance_risk_overview'],
+        capabilityCandidates: [
+          { key: 'store_operations_overview', allowedRoles: ['store_manager'] },
+          { key: 'finance_risk_overview', allowedRoles: ['finance'] },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation).toMatchObject({
+      capabilityKeys: [],
+      capabilityAnyOf: ['store_operations_overview'],
+    });
+  });
+
+  it('includes release capabilities whose frozen definition refs cover the expected metric', () => {
+    const result = service.resolve({
+      base: { intent: 'query', metrics: ['paid_amount'] },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['order_revenue_analysis', 'store_operations_overview'],
+        capabilityCandidates: [
+          {
+            key: 'store_operations_overview',
+            allowedRoles: ['store_manager'],
+            definitionRefs: [{ definitionKey: 'metric.paid_amount' }],
+          },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toEqual([
+      'order_revenue_analysis',
+      'store_operations_overview',
+    ]);
+  });
+
+  it('uses entity, domain, intent and role evidence instead of falling back to an unrelated role capability', () => {
+    const result = service.resolve({
+      base: { intent: 'query', domains: ['product'], entities: ['product'], dimensions: ['productName'] },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['store_operations_overview', 'inventory_operations_overview', 'customer_facts'],
+        capabilityCandidates: [
+          {
+            key: 'store_operations_overview', allowedRoles: ['store_manager'], intents: ['query'], domains: ['customer'],
+            definitionRefs: [{ definitionKey: 'entity.customer' }],
+          },
+          {
+            key: 'inventory_operations_overview', allowedRoles: ['inventory', 'store_manager'], intents: ['query'], domains: ['product'],
+            definitionRefs: [{ definitionKey: 'entity.product' }],
+          },
+          {
+            key: 'customer_facts', allowedRoles: ['store_manager'], intents: ['query'], domains: ['customer'],
+            definitionRefs: [{ definitionKey: 'entity.customer' }],
+          },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toEqual(['inventory_operations_overview']);
+    expect(result.evidence).toMatchObject({
+      entityKeys: ['product'],
+      dimensionKeys: ['productName'],
+      domainKeys: ['product'],
+      capabilityKeys: ['inventory_operations_overview'],
+    });
+  });
+});

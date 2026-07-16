@@ -234,7 +234,8 @@ export class BrainInventorySkillsService {
       .map((product) => {
         const currentStock = this.toNumber(product.currentStock);
         const safetyStock = this.toNumber(product.safetyStock);
-        const baseQty = Math.max(0, Math.ceil(safetyStock * 2 - currentStock), product.minPurchaseQty);
+        const needsReorder = safetyStock > 0 && currentStock < safetyStock;
+        const baseQty = needsReorder ? Math.max(Math.ceil(safetyStock * 2 - currentStock), product.minPurchaseQty) : 0;
         const quotes = (mappingsByProduct.get(product.id) ?? [])
           .flatMap((mapping) => mapping.supplySku.quotes)
           .sort((left, right) => this.toNumber(left.price) - this.toNumber(right.price) || (left.leadDays ?? 999) - (right.leadDays ?? 999));
@@ -249,7 +250,7 @@ export class BrainInventorySkillsService {
           supplierStats.set(quote.supplier.name, current);
         }
         const quote = quotes[0];
-        const suggestedQty = Math.max(baseQty, quote?.moq ?? 0);
+        const suggestedQty = needsReorder ? Math.max(baseQty, quote?.moq ?? 0) : 0;
         const unitPrice = quote ? this.toNumber(quote.price) : undefined;
         return {
           productId: product.id,

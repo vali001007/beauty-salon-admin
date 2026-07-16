@@ -1,13 +1,52 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from '../ai/ai.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
+import { MarketingModule } from '../marketing/marketing.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { ReservationsModule } from '../reservations/reservations.module.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
+import { BusinessDefinitionModule } from '../semantic-data/business-definition.module.js';
+import { SemanticDataModule } from '../semantic-data/semantic-data.module.js';
 import { BrainController } from './brain.controller.js';
 import { BrainChatService } from './brain-chat.service.js';
+import { BrainCapabilityCatalogService } from './capability/brain-capability-catalog.service.js';
+import { BRAIN_REGISTERED_PERMISSION_CODES } from './capability/brain-capability.types.js';
+import { loadRegisteredBrainPermissionCodes } from './capability/brain-registered-permission-codes.provider.js';
+import { BrainCapabilityArgsValidatorService } from './capability/brain-capability-args-validator.service.js';
+import { BrainCapabilityRetrieverService } from './capability/brain-capability-retriever.service.js';
+import { BrainCapabilitySemanticVerifierService } from './capability/brain-capability-semantic-verifier.service.js';
+import { BrainCapabilityGenerationGateService } from './capability/brain-capability-generation-gate.service.js';
+import { BrainCapabilityPublishedGateService } from './capability/brain-capability-published-gate.service.js';
+import { BrainGeneratedCapabilityDraftService } from './capability/brain-generated-capability-draft.service.js';
+import {
+  BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_SOURCE,
+  BRAIN_CAPABILITY_NARRATIVE_GENERATOR,
+  BrainCapabilityCodegenService,
+} from './capability/brain-capability-codegen.service.js';
+import { BrainCapabilityDefinitionSnapshotSourceService } from './capability/brain-capability-definition-snapshot-source.service.js';
+import { BrainCapabilityNarrativeGeneratorService } from './capability/brain-capability-narrative.service.js';
+import {
+  BRAIN_CAPABILITY_SEMANTIC_MODEL,
+  BrainCapabilitySemanticCompilerService,
+} from './capability/brain-capability-semantic-compiler.service.js';
+import { BrainCapabilitySemanticModelService } from './capability/brain-capability-semantic-model.service.js';
+import { BrainCapabilityScannerService } from './capability/brain-capability-scanner.service.js';
+import {
+  BRAIN_CAPABILITY_EXECUTORS,
+  BrainCapabilityExecutorRegistryService,
+} from './capability/brain-capability-executor.registry.js';
+import { BrainActionCapabilityExecutor } from './capability/executors/brain-action-capability.executor.js';
+import { BrainDomainServiceCapabilityExecutor } from './capability/executors/brain-domain-service-capability.executor.js';
+import { BrainSemanticQueryCapabilityExecutor } from './capability/executors/brain-semantic-query-capability.executor.js';
 import { BrainCognitionService } from './cognition/brain-cognition.service.js';
+import { BrainCognitionShadowService } from './cognition/brain-cognition-shadow.service.js';
+import { BrainOntologyRuntimeService } from './cognition/brain-ontology-runtime.service.js';
+import { BrainSemanticIntentCompilerService } from './cognition/brain-semantic-intent-compiler.service.js';
+import { BrainSemanticIntentValidatorService } from './cognition/brain-semantic-intent-validator.service.js';
 import { BrainQuestionIntentService } from './cognition/brain-question-intent.service.js';
 import { BrainTimeRangeParserService } from './cognition/brain-time-range-parser.service.js';
+import { BrainRuntimeConfigService } from './config/brain-runtime-config.service.js';
 import { EntityLinkerService } from './cognition/entity-linker.service.js';
 import { IntentClassifierService } from './cognition/intent-classifier.service.js';
 import { TermNormalizerService } from './cognition/term-normalizer.service.js';
@@ -28,22 +67,46 @@ import { BrainMarketingDomainAdapter } from './domain/adapters/brain-marketing-d
 import { BrainStoreManagerDomainAdapter } from './domain/adapters/brain-store-manager-domain.adapter.js';
 import { BrainCustomerServiceDomainAdapter } from './domain/adapters/brain-customer-service-domain.adapter.js';
 import { BrainAnswerGraderService } from './eval/brain-answer-grader.service.js';
+import { BrainCapabilityGraderService } from './eval/brain-capability-grader.service.js';
+import { BrainCompletionGraderService } from './eval/brain-completion-grader.service.js';
+import { BrainIntentGraderService } from './eval/brain-intent-grader.service.js';
+import { BrainPlanGraderService } from './eval/brain-plan-grader.service.js';
 import { BrainEvalService } from './governance/brain-eval.service.js';
 import { BrainFeedbackService } from './governance/brain-feedback.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
 import { BrainTraceService } from './governance/brain-trace.service.js';
 import { BrainGovernanceResourceService } from './governance/brain-governance-resource.service.js';
+import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
+import { BrainCapabilityGovernancePolicyService } from './governance/brain-capability-governance-policy.service.js';
+import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
+import { BrainCapabilityRegenerationWorkerService } from './governance/brain-capability-regeneration-worker.service.js';
+import { BrainCapabilityRequirementInterpreterService } from './governance/brain-capability-requirement-interpreter.service.js';
 import { BrainMemoryConsolidationService } from './memory/brain-memory-consolidation.service.js';
 import { BrainMemoryRepository } from './memory/brain-memory.repository.js';
 import { BrainMemoryService } from './memory/brain-memory.service.js';
 import { BrainInspectionService } from './inspection/brain-inspection.service.js';
+import { BrainInspectionPlanBridgeService } from './inspection/brain-inspection-plan-bridge.service.js';
+import { BrainDataQualityGuardService } from './inspection/brain-data-quality-guard.service.js';
+import { BrainInspectionRepairPreviewService } from './inspection/brain-inspection-repair-preview.service.js';
 import { BrainAgentProfileService } from './orchestrator/brain-agent-profile.service.js';
 import { BrainOrchestratorService } from './orchestrator/brain-orchestrator.service.js';
 import { BrainTaskExecutorService } from './orchestrator/brain-task-executor.service.js';
+import { BrainSingleStepPlannerService } from './planning/brain-single-step-planner.service.js';
+import { BrainExecutionPlanValidatorService } from './planning/brain-execution-plan-validator.service.js';
+import { BrainExecutionBudgetService } from './execution/brain-execution-budget.service.js';
+import { BrainSupervisorPlannerService } from './planning/brain-supervisor-planner.service.js';
+import { BrainReplannerService } from './planning/brain-replanner.service.js';
+import { BrainObservationService } from './execution/brain-observation.service.js';
+import { BrainCompletionVerifierService } from './execution/brain-completion-verifier.service.js';
+import { BrainBoundedExecutorService } from './execution/brain-bounded-executor.service.js';
+import { BrainAnswerCompletionGuardService } from './response/brain-answer-completion-guard.service.js';
+import { BrainGroundedAnswerComposerService } from './response/brain-grounded-answer-composer.service.js';
+import { BrainRoleContextBuilderService } from './role/brain-role-context-builder.service.js';
 import { BrainPermissionService } from './security/brain-permission.service.js';
 import { BrainRedactionService } from './security/brain-redaction.service.js';
 import { BrainRoleSkillPolicyService } from './security/brain-role-skill-policy.service.js';
 import { PromptInjectionGuardService } from './security/prompt-injection-guard.service.js';
+import { BrainUntrustedActionClaimGuardService } from './security/brain-untrusted-action-claim-guard.service.js';
 import { BrainKnowledgeGraphService } from './semantic/brain-knowledge-graph.service.js';
 import { BrainMetricRegistryService } from './semantic/brain-metric-registry.service.js';
 import { BrainOntologyService } from './semantic/brain-ontology.service.js';
@@ -67,7 +130,16 @@ import { BrainSkillRegistryService } from './skills/brain-skill-registry.service
 import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.js';
 
 @Module({
-  imports: [PrismaModule, ReservationsModule, InventoryModule, TerminalModule],
+  imports: [
+    AiModule,
+    PrismaModule,
+    ReservationsModule,
+    InventoryModule,
+    MarketingModule,
+    TerminalModule,
+    SemanticDataModule,
+    BusinessDefinitionModule,
+  ],
   controllers: [BrainController],
   providers: [
     BrainContextService,
@@ -106,14 +178,28 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
       ) => [storeManager, frontDesk, marketing, beautician, inventory, finance, customerService],
     },
     BrainAnswerGraderService,
+    BrainIntentGraderService,
+    BrainCapabilityGraderService,
+    BrainPlanGraderService,
+    BrainCompletionGraderService,
     BrainQuestionIntentService,
+    BrainRuntimeConfigService,
+    BrainOntologyRuntimeService,
+    BrainSemanticIntentCompilerService,
+    BrainSemanticIntentValidatorService,
     BrainTimeRangeParserService,
     TermNormalizerService,
     EntityLinkerService,
     IntentClassifierService,
     BrainCognitionService,
+    BrainCognitionShadowService,
     BrainTraceService,
     BrainGovernanceResourceService,
+    BrainGovernanceApprovalService,
+    BrainCapabilityGovernancePolicyService,
+    BrainCapabilityRequirementInterpreterService,
+    BrainCapabilityRegenerationService,
+    BrainCapabilityRegenerationWorkerService,
     BrainEvalService,
     BrainReleaseService,
     BrainFeedbackService,
@@ -121,13 +207,29 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     BrainRedactionService,
     BrainRoleSkillPolicyService,
     PromptInjectionGuardService,
+    BrainUntrustedActionClaimGuardService,
     BrainMemoryRepository,
     BrainMemoryService,
     BrainMemoryConsolidationService,
     BrainInspectionService,
+    BrainInspectionPlanBridgeService,
+    BrainInspectionRepairPreviewService,
+    BrainDataQualityGuardService,
     BrainAgentProfileService,
+    BrainRoleContextBuilderService,
     BrainOrchestratorService,
     BrainTaskExecutorService,
+    BrainSingleStepPlannerService,
+    BrainSupervisorPlannerService,
+    BrainReplannerService,
+    BrainCapabilityArgsValidatorService,
+    BrainExecutionBudgetService,
+    BrainExecutionPlanValidatorService,
+    BrainObservationService,
+    BrainCompletionVerifierService,
+    BrainBoundedExecutorService,
+    BrainAnswerCompletionGuardService,
+    BrainGroundedAnswerComposerService,
     BrainKnowledgeGraphService,
     BrainMetricRegistryService,
     BrainOntologyService,
@@ -135,6 +237,52 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     BrainQueryCompilerService,
     BrainReadonlyQueryExecutorService,
     BrainSemanticQueryEngineService,
+    {
+      provide: BRAIN_REGISTERED_PERMISSION_CODES,
+      inject: [PrismaService],
+      useFactory: loadRegisteredBrainPermissionCodes,
+    },
+    BrainCapabilityCatalogService,
+    BrainCapabilityRetrieverService,
+    BrainCapabilitySemanticVerifierService,
+    BrainCapabilityGenerationGateService,
+    BrainCapabilityPublishedGateService,
+    BrainGeneratedCapabilityDraftService,
+    BrainCapabilityScannerService,
+    BrainSemanticQueryCapabilityExecutor,
+    BrainDomainServiceCapabilityExecutor,
+    BrainActionCapabilityExecutor,
+    {
+      provide: BRAIN_CAPABILITY_EXECUTORS,
+      inject: [
+        BrainSemanticQueryCapabilityExecutor,
+        BrainDomainServiceCapabilityExecutor,
+        BrainActionCapabilityExecutor,
+      ],
+      useFactory: (
+        semantic: BrainSemanticQueryCapabilityExecutor,
+        domain: BrainDomainServiceCapabilityExecutor,
+        action: BrainActionCapabilityExecutor,
+      ) => [semantic, domain, action],
+    },
+    BrainCapabilityExecutorRegistryService,
+    BrainCapabilityDefinitionSnapshotSourceService,
+    {
+      provide: BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_SOURCE,
+      useExisting: BrainCapabilityDefinitionSnapshotSourceService,
+    },
+    BrainCapabilityNarrativeGeneratorService,
+    {
+      provide: BRAIN_CAPABILITY_NARRATIVE_GENERATOR,
+      useExisting: BrainCapabilityNarrativeGeneratorService,
+    },
+    BrainCapabilitySemanticModelService,
+    {
+      provide: BRAIN_CAPABILITY_SEMANTIC_MODEL,
+      useExisting: BrainCapabilitySemanticModelService,
+    },
+    BrainCapabilitySemanticCompilerService,
+    BrainCapabilityCodegenService,
     BrainSkillRegistryService,
     BrainQuerySkillsService,
     BrainManagerSkillsService,
@@ -151,6 +299,7 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     BrainCapabilityGatewayService,
   ],
   exports: [
+    BusinessDefinitionModule,
     BrainContextService,
     BrainConversationContextService,
     BrainChatService,
@@ -159,14 +308,26 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     BrainCustomerFactResolverService,
     BrainActionTargetResolverService,
     BrainAnswerGraderService,
+    BrainIntentGraderService,
+    BrainCapabilityGraderService,
+    BrainPlanGraderService,
+    BrainCompletionGraderService,
     BrainQuestionIntentService,
+    BrainRuntimeConfigService,
+    SemanticDataModule,
+    BrainOntologyRuntimeService,
+    BrainSemanticIntentCompilerService,
+    BrainSemanticIntentValidatorService,
     BrainTimeRangeParserService,
     TermNormalizerService,
     EntityLinkerService,
     IntentClassifierService,
     BrainCognitionService,
+    BrainCognitionShadowService,
     BrainTraceService,
     BrainGovernanceResourceService,
+    BrainGovernanceApprovalService,
+    BrainCapabilityRegenerationService,
     BrainEvalService,
     BrainReleaseService,
     BrainFeedbackService,
@@ -174,13 +335,28 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     BrainRedactionService,
     BrainRoleSkillPolicyService,
     PromptInjectionGuardService,
+    BrainUntrustedActionClaimGuardService,
     BrainMemoryRepository,
     BrainMemoryService,
     BrainMemoryConsolidationService,
     BrainInspectionService,
+    BrainInspectionPlanBridgeService,
+    BrainDataQualityGuardService,
     BrainAgentProfileService,
+    BrainRoleContextBuilderService,
     BrainOrchestratorService,
     BrainTaskExecutorService,
+    BrainSingleStepPlannerService,
+    BrainSupervisorPlannerService,
+    BrainReplannerService,
+    BrainCapabilityArgsValidatorService,
+    BrainExecutionBudgetService,
+    BrainExecutionPlanValidatorService,
+    BrainObservationService,
+    BrainCompletionVerifierService,
+    BrainBoundedExecutorService,
+    BrainAnswerCompletionGuardService,
+    BrainGroundedAnswerComposerService,
     BrainKnowledgeGraphService,
     BrainMetricRegistryService,
     BrainOntologyService,
@@ -188,6 +364,16 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     BrainQueryCompilerService,
     BrainReadonlyQueryExecutorService,
     BrainSemanticQueryEngineService,
+    BrainCapabilityCatalogService,
+    BrainCapabilityRetrieverService,
+    BrainCapabilitySemanticVerifierService,
+    BrainCapabilityGenerationGateService,
+    BrainCapabilityPublishedGateService,
+    BrainGeneratedCapabilityDraftService,
+    BrainCapabilityScannerService,
+    BrainCapabilityExecutorRegistryService,
+    BrainCapabilityCodegenService,
+    BrainCapabilitySemanticCompilerService,
     BrainSkillRegistryService,
     BrainQuerySkillsService,
     BrainManagerSkillsService,

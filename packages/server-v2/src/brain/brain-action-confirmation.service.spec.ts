@@ -1,6 +1,76 @@
 import { BrainActionConfirmationService } from './skills/brain-action-confirmation.service.js';
 
 describe('BrainActionConfirmationService', () => {
+  it('stores a versioned approval envelope instead of loose model payload', async () => {
+    const prisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, ...data })),
+      },
+    };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: { key: 'create_reservation', version: 2, riskLevel: 'medium' },
+        payload: { customerId: 11, projectId: 22, appointmentTime: '2026-07-12T10:00:00+08:00' },
+      }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    await service.createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      planId: 'plan-7',
+      idempotencyKey: 'idem-7',
+      preview: { summary: '创建预约' },
+      payload: {
+        customerId: 11,
+        projectId: 22,
+        appointmentTime: '2026-07-12T10:00:00+08:00',
+        roleHint: 'finance',
+      },
+    } as never);
+
+    expect(prisma.brainActionConfirmation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        skillKey: 'create_reservation',
+        payload: expect.objectContaining({
+          protocolVersion: '1.0',
+          capabilityKey: 'create_reservation',
+          capabilityVersion: 2,
+          validatedArgs: expect.not.objectContaining({ roleHint: expect.anything() }),
+          actor: { userId: 9 },
+          store: { storeId: 6 },
+          riskLevel: 'medium',
+          idempotencyKey: 'idem-7',
+          planId: 'plan-7',
+          argsDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+          expiresAt: expect.any(String),
+        }),
+      }),
+    });
+  });
+
+  it('rejects model-authored confirmation claims before a preview is persisted', async () => {
+    const prisma = { brainActionConfirmation: { create: jest.fn() } };
+    const service = new BrainActionConfirmationService(prisma as never);
+
+    await expect(
+      service.createPreview({
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        skillKey: 'create_reservation',
+        riskLevel: 'medium',
+        preview: { summary: '创建预约' },
+        payload: { customerId: 11, projectId: 22, appointmentTime: '2026-07-12', confirmed: true },
+      } as never),
+    ).rejects.toThrow('model_confirmation_claim_forbidden:confirmed');
+    expect(prisma.brainActionConfirmation.create).not.toHaveBeenCalled();
+  });
+
   it('requires confirmation for high-risk actions', () => {
     const service = new BrainActionConfirmationService({} as never);
     expect(service.requiresConfirmation('high')).toBe(true);
@@ -67,8 +137,10 @@ describe('BrainActionConfirmationService', () => {
       userId: 9,
       storeId: 6,
       skillKey: 'create_reservation',
+      riskLevel: 'medium',
       status: 'pending',
       payload: { customerId: 11, projectId: 22, appointmentTime: '2026-07-12T10:00:00+08:00' },
+      preview: { summary: '创建预约' },
       createdAt: new Date(),
     };
     const tx = {
@@ -89,7 +161,11 @@ describe('BrainActionConfirmationService', () => {
       $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const gateway = {
-      resolve: jest.fn().mockReturnValue({ permission: 'core:store:reservations' }),
+      resolve: jest.fn().mockReturnValue({ permission: 'core:store:reservations', version: 1, riskLevel: 'medium' }),
+      validateForExecution: jest.fn().mockImplementation((_key, _version, payload) => ({
+        descriptor: { permission: 'core:store:reservations', version: 1, riskLevel: 'medium' },
+        payload,
+      })),
       execute: jest.fn().mockResolvedValue({
         capabilityKey: 'create_reservation',
         businessObjectType: 'reservation',
@@ -123,6 +199,106 @@ describe('BrainActionConfirmationService', () => {
       status: 'succeeded',
     }));
     expect(result).toMatchObject({ status: 'succeeded', receipt: { businessObjectId: 101 } });
+  });
+
+  it('revalidates the approval envelope and action target before claiming execution', async () => {
+    const validatedArgs = { reservationId: 18, appointmentTime: '2026-07-14T15:00:00+08:00' };
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: { key: 'reschedule_reservation', version: 1, riskLevel: 'high', permission: 'core:store:reservations' },
+        payload: validatedArgs,
+      }),
+      resolve: jest.fn().mockReturnValue({ key: 'reschedule_reservation', version: 1, riskLevel: 'high', permission: 'core:store:reservations' }),
+      execute: jest.fn().mockResolvedValue({ capabilityKey: 'reschedule_reservation', businessObjectType: 'reservation', businessObjectId: 18, result: { id: 18 } }),
+    };
+    const created = await new BrainActionConfirmationService(bootstrapPrisma as never, gateway as never).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'reschedule_reservation',
+      riskLevel: 'high',
+      preview: { summary: '改约' },
+      payload: validatedArgs,
+    } as never);
+    const action = { ...created, status: 'pending', createdAt: new Date() };
+    const tx = {
+      brainActionConfirmation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      brainActionExecution: { create: jest.fn().mockResolvedValue({ id: 91 }) },
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action), update: jest.fn() },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const targetResolver = { revalidateCapabilityTarget: jest.fn().mockResolvedValue(undefined) };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never, undefined, targetResolver as never);
+
+    await service.confirmAndExecute({
+      actionId: action.actionId,
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:store:reservations'],
+    });
+
+    expect(gateway.validateForExecution).toHaveBeenCalledWith('reschedule_reservation', 1, validatedArgs);
+    expect(targetResolver.revalidateCapabilityTarget).toHaveBeenCalledWith({
+      capabilityKey: 'reschedule_reservation',
+      storeId: 6,
+      args: validatedArgs,
+    });
+    expect(tx.brainActionConfirmation.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when the stored arguments no longer match their approval digest', async () => {
+    const action = {
+      id: 1,
+      actionId: 'act_tampered',
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      riskLevel: 'medium',
+      status: 'pending',
+      payload: {
+        protocolVersion: '1.0',
+        capabilityKey: 'create_reservation',
+        capabilityVersion: 1,
+        validatedArgs: { customerId: 99, projectId: 22, appointmentTime: '2026-07-12' },
+        actor: { userId: 9 },
+        store: { storeId: 6 },
+        riskLevel: 'medium',
+        idempotencyKey: 'idem-1',
+        planId: 'plan-1',
+        argsDigest: '0'.repeat(64),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      createdAt: new Date(),
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn() },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ key: 'create_reservation', version: 1, riskLevel: 'medium', permission: 'core:store:reservations' }),
+      validateForExecution: jest.fn().mockReturnValue({ descriptor: { key: 'create_reservation', version: 1, riskLevel: 'medium' }, payload: action.payload.validatedArgs }),
+      execute: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    await expect(service.confirmAndExecute({
+      actionId: action.actionId,
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:store:reservations'],
+    })).rejects.toThrow('action_args_digest_mismatch');
+    expect(gateway.execute).not.toHaveBeenCalled();
   });
 
   it('returns the existing succeeded execution for duplicate confirmations', async () => {

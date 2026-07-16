@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import type { BusinessTask, BusinessTimeRange } from '../agent/business-task/business-task.types.js';
+import { Inject, Injectable } from '@nestjs/common';
+import type { BusinessTask, BusinessTaskDomain, BusinessTimeRange } from '../agent/business-task/business-task.types.js';
 import { DimensionRegistryService } from '../semantic-data/dimension-registry.service.js';
-import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
+import {
+  BUSINESS_METRIC_CATALOG,
+  type BusinessMetricCatalogDefinition,
+  type BusinessMetricCatalogReader,
+} from '../semantic-data/business-metric-catalog.types.js';
 import type { SemanticQueryAggregation, SemanticQueryOutputShape, SemanticQueryPlan, SemanticQueryPlanInput } from './query-plan.types.js';
 import { QuerySafetyGuardService } from './query-safety-guard.service.js';
 import { QueryTemplateRegistryService, type SemanticQueryTemplateDefinition } from './query-template-registry.service.js';
@@ -9,20 +13,42 @@ import { QueryTemplateRegistryService, type SemanticQueryTemplateDefinition } fr
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 
+export const QUERY_PLANNER_DEFAULT_METRICS: Readonly<Partial<Record<BusinessTaskDomain, readonly string[]>>> =
+  Object.freeze({
+    order: Object.freeze(['paid_amount', 'order_count', 'average_order_value']),
+    business: Object.freeze(['paid_amount', 'order_count', 'average_order_value']),
+    product: Object.freeze(['product_sales_quantity', 'product_sales_amount']),
+    inventory: Object.freeze(['stock_risk_score']),
+    staff: Object.freeze(['staff_performance_score']),
+    reservation: Object.freeze(['reservation_count', 'arrival_rate']),
+    schedule: Object.freeze(['reservation_count', 'arrival_rate']),
+    card: Object.freeze(['card_usage_times']),
+    memberCard: Object.freeze(['member_balance']),
+    marketing: Object.freeze(['marketing_activity_count']),
+  });
+
+export const QUERY_PLANNER_DEFAULT_METRIC_KEYS = Object.freeze([
+  ...new Set(Object.values(QUERY_PLANNER_DEFAULT_METRICS).flatMap((keys) => keys ?? [])),
+]);
+
 @Injectable()
 export class QueryPlannerService {
   constructor(
-    private readonly metricRegistry: SemanticMetricRegistryService,
+    @Inject(BUSINESS_METRIC_CATALOG)
+    private readonly metricCatalog: BusinessMetricCatalogReader,
     private readonly dimensionRegistry: DimensionRegistryService,
     private readonly safetyGuard: QuerySafetyGuardService,
     private readonly templateRegistry: QueryTemplateRegistryService,
   ) {}
 
   plan(input: SemanticQueryPlanInput): { plan?: SemanticQueryPlan; rejectedReason?: string; warnings: string[] } {
+    const actor = input.actor;
+    if (!actor) throw new Error('semantic_query_actor_required');
     const task = input.task;
     const template = this.resolveTemplate(input.capabilityId, task.metrics);
-    const metrics = this.resolveMetrics(task, template);
+    const metrics = this.resolveMetrics(task, actor.permissions, template);
     const dimensions = this.resolveDimensions(task, metrics.map((metric) => metric.key), template);
+    const dimensionBindings = this.resolveDimensionBindings(dimensions, metrics);
     const timeRange = this.resolveTimeRange(task);
     const outputShape = this.resolveOutputShape(task, dimensions, template);
     const limit = Math.min(Math.max(Number(task.limit) || template?.defaultLimit || DEFAULT_LIMIT, 1), MAX_LIMIT);
@@ -32,15 +58,20 @@ export class QueryPlannerService {
       templateId: template?.id,
       taskId: `task_${Date.now().toString(36)}`,
       originalQuestion: task.objective,
-      role: input.role,
-      storeScope: { storeIds: [input.storeId], scopeType: 'current_store' },
+      taskType: task.taskType,
+      role: actor.role,
+      actor,
+      storeScope: { storeIds: [actor.storeId], scopeType: 'current_store' },
       metrics,
       dimensions,
-      filters: {
-        ...task.filters,
-        storeId: input.storeId,
-        operatorId: input.operatorId,
-      },
+      dimensionBindings,
+      ...(actor.role === 'beautician' && actor.beauticianId
+        ? { selfScope: { dimensionKey: 'beauticianId' as const, value: actor.beauticianId } }
+        : {}),
+      filters:
+        actor.role === 'beautician' && actor.beauticianId
+          ? { storeId: actor.storeId, scope: 'self', beauticianId: actor.beauticianId }
+          : { storeId: actor.storeId },
       timeRange,
       orderBy: this.resolveOrderBy(task, metrics, template),
       limit,
@@ -59,32 +90,88 @@ export class QueryPlannerService {
     return this.templateRegistry.findByCapability(capabilityId) ?? this.templateRegistry.findForMetrics(metricKeys);
   }
 
-  private resolveMetrics(task: BusinessTask, template?: SemanticQueryTemplateDefinition) {
+  private resolveMetrics(
+    task: BusinessTask,
+    permissions: readonly string[],
+    template?: SemanticQueryTemplateDefinition,
+  ) {
     const keys = template?.metricKeys.length
       ? [...new Set([...task.metrics.filter((key) => template.metricKeys.includes(key)), ...template.metricKeys])]
       : task.metrics.length
         ? task.metrics
         : this.defaultMetrics(task);
     return keys
-      .map((key) => this.metricRegistry.findByKey(key))
-      .filter((metric): metric is NonNullable<ReturnType<SemanticMetricRegistryService['findByKey']>> => Boolean(metric))
+      .map((key) => this.requireMetric(key, task.taskType, permissions))
       .map((metric) => ({
         key: metric.key,
         aggregation: (metric.defaultAggregation ?? this.defaultAggregation(metric.key)) as SemanticQueryAggregation,
+        runtimeBinding: deepFreeze({
+          definitionKey: metric.definitionKey,
+          version: metric.version,
+          definitionFingerprint: metric.definitionFingerprint,
+          sourceFingerprint: metric.sourceFingerprint,
+          name: metric.name,
+          description: metric.description,
+          permissions: [...metric.permissions],
+          allowedTaskTypes: [...metric.allowedTaskTypes],
+          sensitive: metric.sensitive,
+          formula: structuredClone(metric.formula),
+          sourceDefinition: structuredClone(metric.sourceDefinition),
+          runtimeQuery: structuredClone(metric.runtimeQuery),
+        }),
       }))
       .slice(0, 4);
   }
 
   private defaultMetrics(task: BusinessTask) {
-    if (task.domain === 'order' || task.domain === 'business') return ['paid_amount', 'order_count', 'average_order_value'];
-    if (task.domain === 'product') return ['product_sales_quantity', 'product_sales_amount'];
-    if (task.domain === 'inventory') return ['stock_risk_score'];
-    if (task.domain === 'staff') return ['staff_performance_score'];
-    if (task.domain === 'reservation' || task.domain === 'schedule') return ['reservation_count', 'arrival_rate'];
-    if (task.domain === 'card') return ['card_usage_times'];
-    if (task.domain === 'memberCard') return ['member_balance'];
-    if (task.domain === 'marketing') return ['marketing_activity_count'];
-    return [];
+    return QUERY_PLANNER_DEFAULT_METRICS[task.domain] ?? [];
+  }
+
+  private requireMetric(
+    key: string,
+    taskType: BusinessTask['taskType'],
+    permissions: readonly string[],
+  ): BusinessMetricCatalogDefinition {
+    const metric = this.metricCatalog.findByKey(key);
+    if (!metric) throw new Error(`business_metric_catalog_metric_missing:${key}`);
+    if (!metric.allowedTaskTypes.includes(taskType)) {
+      throw new Error(`business_metric_catalog_task_type_not_allowed:${key}:${taskType}`);
+    }
+    const missingPermission = metric.permissions.find(
+      (permission) => !permissions.includes('*') && !permissions.includes(permission),
+    );
+    if (missingPermission) {
+      throw new Error(`business_metric_catalog_permission_denied:${key}:${missingPermission}`);
+    }
+    return metric;
+  }
+
+  private resolveDimensionBindings(
+    dimensionKeys: string[],
+    metrics: Array<{ runtimeBinding: { formula: unknown; runtimeQuery: BusinessMetricCatalogDefinition['runtimeQuery'] } }>,
+  ) {
+    const primary = metrics[0]?.runtimeBinding;
+    if (!primary && dimensionKeys.length) throw new Error('semantic_dimension_metric_binding_missing');
+    return Object.freeze(
+      dimensionKeys.map((key) => {
+        const dimension = this.dimensionRegistry.findByKey(key);
+        if (!dimension) throw new Error(`semantic_dimension_not_registered:${key}`);
+        const formula = asRecord(primary?.formula);
+        const baseModel = requiredString(formula.model, `semantic_dimension_formula_model_missing:${key}`);
+        const timeField = primary?.runtimeQuery.timePolicy.field;
+        const source = key === 'date'
+          ? (typeof timeField === 'string' && timeField.trim() ? timeField : `${baseModel}.createdAt`)
+          : dimension.source.find((candidate) => candidate.includes('.')) ?? `${baseModel}.${dimension.source[0]}`;
+        const separator = source.lastIndexOf('.');
+        return deepFreeze({
+          key,
+          name: dimension.label,
+          model: separator >= 0 ? source.slice(0, separator) : baseModel,
+          field: separator >= 0 ? source.slice(separator + 1) : source,
+          sensitive: dimension.sensitive,
+        });
+      }),
+    );
   }
 
   private resolveDimensions(task: BusinessTask, metricKeys: string[], template?: SemanticQueryTemplateDefinition) {
@@ -159,4 +246,20 @@ export class QueryPlannerService {
     if (key.includes('count') || key.includes('times') || key.includes('quantity')) return 'sum';
     return 'sum';
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function requiredString(value: unknown, message: string): string {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(message);
+  return value.trim();
+}
+
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested);
+  return value;
 }

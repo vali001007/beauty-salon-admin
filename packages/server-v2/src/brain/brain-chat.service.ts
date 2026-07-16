@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { BrainRiskLevel, Prisma } from '@prisma/client';
 import { BrainCognitionService, type BrainCognitionResult } from './cognition/brain-cognition.service.js';
 import {
@@ -15,6 +15,7 @@ import { BrainPermissionService } from './security/brain-permission.service.js';
 import { BrainRedactionService } from './security/brain-redaction.service.js';
 import { BrainRoleSkillPolicyService, type BrainRoleSkillKey } from './security/brain-role-skill-policy.service.js';
 import { PromptInjectionGuardService } from './security/prompt-injection-guard.service.js';
+import { BrainUntrustedActionClaimGuardService } from './security/brain-untrusted-action-claim-guard.service.js';
 import { BrainTimeRangeParserService } from './cognition/brain-time-range-parser.service.js';
 import { BrainAnswerComposerService } from './semantic/brain-answer-composer.service.js';
 import { BrainSemanticQueryEngineService } from './semantic/brain-semantic-query-engine.service.js';
@@ -26,19 +27,63 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
 import { BrainMemoryService } from './memory/brain-memory.service.js';
 import { BrainOrchestratorService } from './orchestrator/brain-orchestrator.service.js';
 import { BrainTaskExecutorService } from './orchestrator/brain-task-executor.service.js';
+import { BrainCognitionShadowService } from './cognition/brain-cognition-shadow.service.js';
+import type { BrainDomainRole } from './domain/brain-domain-adapter.types.js';
+import { BrainRuntimeConfigService } from './config/brain-runtime-config.service.js';
+import { BrainSemanticIntentCompilerService } from './cognition/brain-semantic-intent-compiler.service.js';
+import { BrainSemanticIntentValidatorService } from './cognition/brain-semantic-intent-validator.service.js';
+import { BrainOntologyRuntimeService } from './cognition/brain-ontology-runtime.service.js';
+import type { BrainDefinitionRef, BrainSemanticIntent } from './cognition/brain-semantic-intent.types.js';
+import type { BusinessDefinitionBase, ProductionReadyBusinessDefinitionSnapshot } from './cognition/business-definition-snapshot.types.js';
+import { BrainCapabilityCatalogService } from './capability/brain-capability-catalog.service.js';
+import type { BrainCapabilityCandidate, BrainCapabilityCard } from './capability/brain-capability.types.js';
+import {
+  BrainCapabilityRetrieverService,
+  type BrainCapabilityRankedCandidate,
+} from './capability/brain-capability-retriever.service.js';
+import { BrainSingleStepPlannerService } from './planning/brain-single-step-planner.service.js';
+import { BrainExecutionPlanValidatorService } from './planning/brain-execution-plan-validator.service.js';
+import { BrainCapabilityExecutorRegistryService } from './capability/brain-capability-executor.registry.js';
+import { BrainExecutionBudgetService } from './execution/brain-execution-budget.service.js';
+import { BrainBoundedExecutorService } from './execution/brain-bounded-executor.service.js';
+import { BrainGroundedAnswerComposerService } from './response/brain-grounded-answer-composer.service.js';
+import {
+  BrainRoleContextBuilderService,
+  type BrainRoleRuntimeContext,
+} from './role/brain-role-context-builder.service.js';
+import type { BrainModelConversationCorrection } from './context/brain-conversation-context.service.js';
+import { BrainReleaseService } from './governance/brain-release.service.js';
+import { BusinessSemanticEvidenceService } from '../semantic-data/business-semantic-evidence.service.js';
 
 type BrainChatStatus = 'completed' | 'failed';
+type BrainModelStage = 'prepare' | 'compile' | 'validate' | 'retrieve' | 'plan' | 'execute';
+
+interface BrainModelMetadata {
+  cognitionMode: 'model';
+  modelStage: BrainModelStage;
+  failureCode: string | null;
+  intentSchemaVersion: BrainSemanticIntent['schemaVersion'] | null;
+  capabilityKey: string | null;
+  capabilityVersion: number | null;
+  planId: string | null;
+  model: string | null;
+  provider: string | null;
+}
 
 interface BrainChatAnswer {
   status: BrainChatStatus;
   answer: string;
   citations: Array<{ sourceType: string; sourceId: string; label?: string; definition?: string }>;
   suggestedActions: unknown[];
+  blocks?: BrainDomainAnswer['blocks'];
   cognition?: BrainCognitionResult;
   routePlan?: BrainRoleIntentPlan;
   adapterKey?: string;
   grounding?: string;
   adapterMetadata?: Record<string, unknown>;
+  modelMetadata?: BrainModelMetadata;
+  modelContextIntent?: BrainSemanticIntent;
+  modelContextCorrections?: BrainModelConversationCorrection[];
 }
 
 interface BrainAnswerReadyEvent {
@@ -48,6 +93,8 @@ interface BrainAnswerReadyEvent {
   answer: string;
   citations: BrainChatAnswer['citations'];
   suggestedActions: unknown[];
+  blocks?: BrainDomainAnswer['blocks'];
+  [key: string]: unknown;
 }
 
 @Injectable()
@@ -74,6 +121,23 @@ export class BrainChatService {
     private readonly memoryService?: BrainMemoryService,
     private readonly orchestrator?: BrainOrchestratorService,
     private readonly taskExecutor?: BrainTaskExecutorService,
+    private readonly shadowCognition?: BrainCognitionShadowService,
+    private readonly runtimeConfig?: BrainRuntimeConfigService,
+    private readonly semanticIntentCompiler?: BrainSemanticIntentCompilerService,
+    private readonly semanticIntentValidator?: BrainSemanticIntentValidatorService,
+    private readonly ontologyRuntime?: BrainOntologyRuntimeService,
+    private readonly capabilityCatalog?: BrainCapabilityCatalogService,
+    private readonly capabilityRetriever?: BrainCapabilityRetrieverService,
+    private readonly singleStepPlanner?: BrainSingleStepPlannerService,
+    private readonly executionPlanValidator?: BrainExecutionPlanValidatorService,
+    private readonly executionBudget?: BrainExecutionBudgetService,
+    private readonly capabilityExecutorRegistry?: BrainCapabilityExecutorRegistryService,
+    private readonly boundedExecutor?: BrainBoundedExecutorService,
+    private readonly groundedAnswerComposer?: BrainGroundedAnswerComposerService,
+    private readonly roleContextBuilder?: BrainRoleContextBuilderService,
+    private readonly releaseService?: BrainReleaseService,
+    @Optional() private readonly semanticEvidence?: BusinessSemanticEvidenceService,
+    @Optional() private readonly untrustedActionClaimGuard?: BrainUntrustedActionClaimGuardService,
   ) {}
 
   async createConversation(context: BrainRequestContext, dto: CreateBrainConversationDto) {
@@ -118,38 +182,43 @@ export class BrainChatService {
     if (!inspection.safe) {
       throw new ForbiddenException('输入包含绕过系统、权限或安全策略的指令，Ami Brain 已拦截。');
     }
+    const actionClaimInspection = this.untrustedActionClaimGuard?.inspectText(dto.message);
+    if (actionClaimInspection && !actionClaimInspection.safe) {
+      throw new ForbiddenException('聊天文本不能充当操作确认凭证，请先查看动作预览，再通过预览卡片确认。');
+    }
 
     await this.ensureConversation(context, conversationId);
 
     const startedAt = Date.now();
-    const createEnvelope = () => this.prisma.$transaction([
-      this.prisma.brainMessage.create({
-        data: {
-          conversationId,
-          role: 'user',
-          content: dto.message,
-          metadata: {
-            requestId: context.requestId,
-            timezone: dto.timezone ?? context.timezone,
-            roleHint: dto.roleHint,
-          } as Prisma.InputJsonValue,
-        },
-      }),
-      this.prisma.brainRun.create({
-        data: {
-          conversationId,
-          storeId: context.storeId,
-          userId: context.userId,
-          status: 'running',
-          input: {
-            message: dto.message,
-            roleHint: dto.roleHint,
-            timezone: dto.timezone ?? context.timezone,
-            requestId: context.requestId,
-          } as Prisma.InputJsonValue,
-        },
-      }),
-    ]);
+    const createEnvelope = () =>
+      this.prisma.$transaction([
+        this.prisma.brainMessage.create({
+          data: {
+            conversationId,
+            role: 'user',
+            content: dto.message,
+            metadata: {
+              requestId: context.requestId,
+              timezone: dto.timezone ?? context.timezone,
+              roleHint: dto.roleHint,
+            } as Prisma.InputJsonValue,
+          },
+        }),
+        this.prisma.brainRun.create({
+          data: {
+            conversationId,
+            storeId: context.storeId,
+            userId: context.userId,
+            status: 'running',
+            input: {
+              message: dto.message,
+              roleHint: dto.roleHint,
+              timezone: dto.timezone ?? context.timezone,
+              requestId: context.requestId,
+            } as Prisma.InputJsonValue,
+          },
+        }),
+      ]);
     let envelope: Awaited<ReturnType<typeof createEnvelope>>;
     try {
       envelope = await createEnvelope();
@@ -159,7 +228,25 @@ export class BrainChatService {
     }
     const [, run] = envelope;
 
-    let chatAnswer = await this.buildAnswer(context, conversationId, dto, run.id);
+    let chatAnswer: BrainChatAnswer;
+    try {
+      chatAnswer = await this.buildAnswer(context, conversationId, dto, run.id);
+    } catch (error) {
+      const message = this.errorMessage(error);
+      try {
+        await this.prisma.brainRun.update({
+          where: { id: run.id },
+          data: {
+            status: 'failed',
+            latencyMs: Date.now() - startedAt,
+            error: { message } as Prisma.InputJsonValue,
+          },
+        });
+      } catch {
+        // Preserve the original runtime failure for the caller.
+      }
+      throw error;
+    }
     if (this.memoryService && /(按我的习惯|照之前|照旧|默认方式|按之前)/.test(dto.message)) {
       try {
         const memories = await this.memoryService.retrieveRelevant({
@@ -205,25 +292,24 @@ export class BrainChatService {
         });
       }
     }
-    options?.onAnswerReady?.({
+    const responseEnvelope = {
       conversationId,
       runId: run.id,
       status: chatAnswer.status,
       answer: chatAnswer.answer,
       citations: chatAnswer.citations,
       suggestedActions: chatAnswer.suggestedActions,
-    });
-    const outputPayload = {
-      answer: chatAnswer.answer,
-      citations: chatAnswer.citations,
-      suggestedActions: chatAnswer.suggestedActions,
-      cognition: chatAnswer.cognition,
-      routePlan: chatAnswer.routePlan,
-      adapterKey: chatAnswer.adapterKey,
-      grounding: chatAnswer.grounding,
-      adapterMetadata: chatAnswer.adapterMetadata,
+      blocks: chatAnswer.blocks ?? [],
+      ...(chatAnswer.cognition ? { cognition: chatAnswer.cognition } : {}),
+      ...(chatAnswer.routePlan ? { routePlan: chatAnswer.routePlan } : {}),
+      ...(chatAnswer.adapterKey ? { adapterKey: chatAnswer.adapterKey } : {}),
+      ...(chatAnswer.grounding ? { grounding: chatAnswer.grounding } : {}),
+      ...(chatAnswer.adapterMetadata ? { adapterMetadata: chatAnswer.adapterMetadata } : {}),
+      ...(chatAnswer.modelContextIntent ? { semanticIntent: chatAnswer.modelContextIntent } : {}),
+      ...chatAnswer.modelMetadata,
+      contextStoreId: context.storeId,
     };
-    const output = this.toJsonValue(outputPayload);
+    const output = this.toJsonValue(responseEnvelope);
 
     await this.prisma.brainRun.update({
       where: { id: run.id },
@@ -231,9 +317,7 @@ export class BrainChatService {
         status: chatAnswer.status,
         output,
         latencyMs: Date.now() - startedAt,
-        ...(chatAnswer.status === 'failed'
-          ? { error: { message: chatAnswer.answer } as Prisma.InputJsonValue }
-          : {}),
+        ...(chatAnswer.status === 'failed' ? { error: { message: chatAnswer.answer } as Prisma.InputJsonValue } : {}),
       },
     });
     await this.prisma.brainMessage.create({
@@ -241,43 +325,90 @@ export class BrainChatService {
         conversationId,
         role: 'assistant',
         content: chatAnswer.answer,
-        metadata: this.toJsonValue({
-          runId: run.id,
-          status: chatAnswer.status,
-          citations: chatAnswer.citations,
-          suggestedActions: chatAnswer.suggestedActions,
-          routePlan: chatAnswer.routePlan,
-          adapterKey: chatAnswer.adapterKey,
-          grounding: chatAnswer.grounding,
-          adapterMetadata: chatAnswer.adapterMetadata,
-        }),
+        metadata: output,
       },
     });
     await this.prisma.brainConversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
-    if (this.conversationContext) {
+    if (chatAnswer.status === 'completed' && chatAnswer.modelContextIntent && this.semanticEvidence) {
       try {
-        await this.conversationContext.updateAfterRun({
-          conversationId,
+        const captured = await this.semanticEvidence.captureModelSuccess({
           runId: run.id,
-          userId: context.userId,
           storeId: context.storeId,
-          dto,
-          cognition: chatAnswer.cognition,
-          routePlan: chatAnswer.routePlan,
+          userId: context.userId,
+          question: dto.message,
+          intent: chatAnswer.modelContextIntent,
+          corrections: this.semanticEvidenceCorrections(
+            chatAnswer.modelContextIntent,
+            chatAnswer.modelContextCorrections ?? [],
+          ),
+        });
+        await this.recordSemanticEvidenceTrace({
+          runId: run.id,
+          status: 'completed',
+          output: { capturedCount: captured.capturedCount },
         });
       } catch (error) {
-        await this.traceService.recordStep({
+        await this.recordSemanticEvidenceTrace({
           runId: run.id,
-          stepKey: 'conversation_context_write',
-          layer: 'memory',
           status: 'failed',
-          error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
+          error: { message: this.errorMessage(error) },
         });
       }
     }
+    if (this.conversationContext) {
+      if (chatAnswer.modelContextIntent) {
+        try {
+          await this.conversationContext.updateAfterModelRun({
+            conversationId,
+            runId: run.id,
+            userId: context.userId,
+            storeId: context.storeId,
+            intent: chatAnswer.modelContextIntent,
+            ...(chatAnswer.modelMetadata?.capabilityKey && chatAnswer.modelMetadata.capabilityVersion
+              ? {
+                  capability: {
+                    key: chatAnswer.modelMetadata.capabilityKey,
+                    version: chatAnswer.modelMetadata.capabilityVersion,
+                  },
+                }
+              : {}),
+            corrections: chatAnswer.modelContextCorrections ?? [],
+          });
+        } catch (error) {
+          await this.traceService.recordStep({
+            runId: run.id,
+            stepKey: 'model_conversation_context_write',
+            layer: 'memory',
+            status: 'failed',
+            error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
+          });
+        }
+      } else if (!chatAnswer.modelMetadata) {
+        try {
+          await this.conversationContext.updateAfterRun({
+            conversationId,
+            runId: run.id,
+            userId: context.userId,
+            storeId: context.storeId,
+            dto,
+            cognition: chatAnswer.cognition,
+            routePlan: chatAnswer.routePlan,
+          });
+        } catch (error) {
+          await this.traceService.recordStep({
+            runId: run.id,
+            stepKey: 'conversation_context_write',
+            layer: 'memory',
+            status: 'failed',
+            error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
+          });
+        }
+      }
+    }
+    options?.onAnswerReady?.(responseEnvelope);
     if (this.memoryService) {
       try {
         const persistedMemories = await this.memoryService.persistCandidates({
@@ -307,15 +438,7 @@ export class BrainChatService {
       }
     }
 
-    return {
-      conversationId,
-      runId: run.id,
-      status: chatAnswer.status,
-      answer: chatAnswer.answer,
-      citations: chatAnswer.citations,
-      suggestedActions: chatAnswer.suggestedActions,
-      contextStoreId: context.storeId,
-    };
+    return responseEnvelope;
   }
 
   async listMessages(context: BrainRequestContext, conversationId: number) {
@@ -375,6 +498,56 @@ export class BrainChatService {
     inputDto: SendBrainMessageDto,
     runId: number,
   ): Promise<BrainChatAnswer> {
+    const releaseRuntime = await this.resolveReleaseRuntime(context);
+    const releaseMode = releaseRuntime.mode;
+    if (this.isModelSingleToolPathEnabled(releaseMode)) {
+      const deadlineAt = Date.now() + this.runtimeConfig!.runtime.totalTimeoutMs;
+      let prepared: Awaited<ReturnType<BrainConversationContextService['prepareModelTurn']>> | undefined;
+      if (this.conversationContext) {
+        try {
+          prepared = await this.conversationContext.prepareModelTurn({
+            conversationId,
+            dto: inputDto,
+            snapshot: this.ontologyRuntime?.getSnapshot() ?? null,
+          });
+          if (prepared.rejectionCode) {
+            await this.traceService.recordStep({
+              runId,
+              stepKey: 'model_conversation_context_rejected',
+              layer: 'memory',
+              status: 'completed',
+              output: { code: prepared.rejectionCode } as Prisma.InputJsonValue,
+            });
+          }
+        } catch (error) {
+          await this.traceService.recordStep({
+            runId,
+            stepKey: 'model_conversation_context_read',
+            layer: 'memory',
+            status: 'failed',
+            error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
+          });
+        }
+      }
+      const answer = await this.buildModelSingleToolAnswer({
+        context,
+        dto: inputDto,
+        runId,
+        deadlineAt,
+        conversationSlots: {
+          ...(prepared?.previous ?? {}),
+          ...(prepared?.directives ? { turnDirectives: prepared.directives } : {}),
+        },
+        capabilityCandidates: releaseRuntime.capabilityCandidates,
+      });
+      return {
+        ...answer,
+        ...(prepared?.directives?.corrections.length
+          ? { modelContextCorrections: prepared.directives.corrections }
+          : {}),
+      };
+    }
+
     const initialCognition = this.cognition.understand({ message: inputDto.message });
     const initialRuntimeIntent = this.questionIntent.classify(inputDto.message);
     let prepared: Awaited<ReturnType<BrainConversationContextService['prepareTurn']>> | undefined;
@@ -399,14 +572,6 @@ export class BrainChatService {
     const dto = prepared?.dto ?? inputDto;
     const cognition = prepared?.cognition ?? initialCognition;
     const runtimeIntent = prepared?.runtimeIntent ?? initialRuntimeIntent;
-    await this.traceService.recordStep({
-      runId,
-      stepKey: 'cognition',
-      layer: 'cognition',
-      input: { message: dto.message } as Prisma.InputJsonValue,
-      output: cognition as unknown as Prisma.InputJsonValue,
-      status: 'completed',
-    });
     if (prepared && (prepared.inheritedSlots.length || prepared.corrections.length)) {
       await this.traceService.recordStep({
         runId,
@@ -422,6 +587,46 @@ export class BrainChatService {
       });
     }
 
+    const routePlan = this.roleIntentRouter?.route({
+      message: dto.message,
+      roleHint: dto.roleHint,
+      runtimeIntent,
+    });
+    await this.traceService.recordStep({
+      runId,
+      stepKey: 'cognition_rules',
+      layer: 'cognition',
+      input: { message: dto.message } as Prisma.InputJsonValue,
+      output: this.toJsonValue({
+        raw: cognition,
+        domain: routePlan ? [routePlan.domain] : [],
+        intent: routePlan?.intent ?? cognition.intent.key,
+        metric: [...new Set(cognition.metrics)].sort(),
+        dimension: [...new Set(cognition.dimensions)].sort(),
+        entity: [...new Set(cognition.entities.map((entity) => entity.entityKey))].sort(),
+        time: this.readShadowRuleTime(prepared?.previous),
+        answerShape: routePlan?.answerShape ?? null,
+        confidence: routePlan?.confidence ?? cognition.intent.confidence,
+      }),
+      status: 'completed',
+    });
+    try {
+      this.shadowCognition?.observe({
+        runId,
+        requestId: context.requestId,
+        userId: context.userId,
+        storeId: context.storeId,
+        question: inputDto.message,
+        timezone: this.normalizeShadowTimezone(inputDto.timezone ?? context.timezone),
+        role: routePlan?.role ?? this.normalizeShadowRole(dto.roleHint),
+        conversationSlots: prepared?.previous ?? {},
+        rules: { cognition, routePlan },
+        force: releaseMode === 'shadow',
+      });
+    } catch {
+      // Shadow cognition is observability-only and cannot affect the rules response.
+    }
+
     if (cognition.needsClarification && cognition.clarification) {
       return {
         status: 'completed',
@@ -432,11 +637,6 @@ export class BrainChatService {
       };
     }
 
-    const routePlan = this.roleIntentRouter?.route({
-      message: dto.message,
-      roleHint: dto.roleHint,
-      runtimeIntent,
-    });
     if (routePlan) {
       await this.traceService.recordStep({
         runId,
@@ -610,6 +810,1204 @@ export class BrainChatService {
     }
   }
 
+  private isModelSingleToolPathEnabled(releaseMode?: 'rules' | 'shadow' | 'model'): boolean {
+    if (releaseMode) return releaseMode === 'model';
+    const runtime = this.runtimeConfig?.runtime;
+    return Boolean(
+      runtime?.cognitionMode === 'model' &&
+        runtime.plannerMode === 'model' &&
+        runtime.singleToolFastPath,
+    );
+  }
+
+  private async resolveReleaseRuntime(
+    context: BrainRequestContext,
+  ): Promise<{
+    mode?: 'rules' | 'shadow' | 'model';
+    capabilityCandidates?: readonly BrainCapabilityCandidate[];
+  }> {
+    if (context.governanceEvalReleaseSnapshot) {
+      return {
+        mode: context.governanceEvalReleaseSnapshot.mode,
+        capabilityCandidates: context.governanceEvalReleaseSnapshot.capabilityCandidates,
+      };
+    }
+    if (!this.releaseService) return {};
+    try {
+      const resolved = await this.releaseService.resolveRuntimeMode({
+        storeId: context.storeId,
+        userId: context.userId,
+        roleKey: this.modelRoleFromContext(context),
+        evaluationReleaseId: context.governanceEvalReleaseId,
+      });
+      const mode = resolved.mode === 'rules' || resolved.mode === 'shadow' || resolved.mode === 'model'
+        ? resolved.mode
+        : 'rules';
+      return {
+        mode,
+        capabilityCandidates: resolved.capabilityCandidates,
+      };
+    } catch (error) {
+      if (context.governanceEvalReleaseId !== undefined) throw error;
+      return { mode: 'rules' };
+    }
+  }
+
+  private async buildModelSingleToolAnswer(input: {
+    context: BrainRequestContext;
+    dto: SendBrainMessageDto;
+    runId: number;
+    deadlineAt: number;
+    conversationSlots: object;
+    capabilityCandidates?: readonly BrainCapabilityCandidate[];
+  }): Promise<BrainChatAnswer> {
+    let modelMetadata = this.modelMetadata('prepare');
+    if (
+      !this.semanticIntentCompiler ||
+      !this.semanticIntentValidator ||
+      !this.ontologyRuntime ||
+      !this.capabilityCatalog ||
+      !this.capabilityRetriever ||
+      !this.singleStepPlanner ||
+      !this.executionPlanValidator ||
+      !this.executionBudget ||
+      !this.capabilityExecutorRegistry
+    ) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_compile',
+        layer: 'cognition',
+        stage: 'prepare',
+        code: 'MODEL_PIPELINE_UNAVAILABLE',
+      });
+      return this.modelFailure('MODEL_PIPELINE_UNAVAILABLE', modelMetadata);
+    }
+    const snapshot = this.ontologyRuntime!.getSnapshot();
+    if (!snapshot) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_compile',
+        layer: 'cognition',
+        stage: 'prepare',
+        code: 'MODEL_SNAPSHOT_UNAVAILABLE',
+      });
+      return this.modelFailure('MODEL_SNAPSHOT_UNAVAILABLE', modelMetadata);
+    }
+
+    let roleContext: BrainRoleRuntimeContext | undefined;
+    if (this.roleContextBuilder) {
+      try {
+        roleContext = await this.roleContextBuilder.build({ context: input.context, roleHint: input.dto.roleHint });
+      } catch (error) {
+        await this.recordModelFailure({
+          runId: input.runId,
+          stepKey: 'model_role_context',
+          layer: 'planning',
+          stage: 'prepare',
+          code: 'MODEL_ROLE_PROFILE_UNAVAILABLE',
+          error,
+        });
+        return this.modelFailure('MODEL_ROLE_PROFILE_UNAVAILABLE', modelMetadata);
+      }
+    }
+
+    let cards: readonly BrainCapabilityCard[];
+    try {
+      cards = input.capabilityCandidates === undefined
+        ? await this.capabilityCatalog!.listEnabledCapabilities()
+        : await this.capabilityCatalog!.listEnabledCapabilities(input.capabilityCandidates);
+      if (roleContext) cards = this.roleContextBuilder!.filterCapabilities(roleContext, input.context, cards);
+    } catch (error) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'capability_retrieval',
+        layer: 'planning',
+        stage: 'retrieve',
+        code: 'MODEL_CATALOG_UNAVAILABLE',
+        diagnosticCode: this.modelDiagnosticCode(error),
+        error,
+      });
+      return this.modelFailure('MODEL_CATALOG_UNAVAILABLE', this.modelMetadata('retrieve'));
+    }
+    if (!cards.length) {
+      return this.modelFailure('MODEL_ROLE_CAPABILITY_NONE', this.modelMetadata('retrieve'));
+    }
+
+    const compilerInput = {
+      question: input.dto.message,
+      deadlineAt: input.deadlineAt,
+      audit: { userId: input.context.userId, storeId: input.context.storeId },
+      timezone: this.normalizeShadowTimezone(input.dto.timezone ?? input.context.timezone),
+      role: roleContext?.role ?? this.modelRoleFromContext(input.context),
+      roleContext,
+      conversationSlots: this.withModelCatalogMetadata(this.modelConversationSlots(input.conversationSlots), snapshot, cards),
+      ontologySnapshot: snapshot,
+      ontologyCandidates: this.modelOntologyCandidates(snapshot),
+      metricRefs: snapshot.metrics.map((metric) => this.modelDefinitionRef('metric', metric)),
+      dimensionRefs: snapshot.dimensions.map((dimension) => this.modelDefinitionRef('dimension', dimension)),
+      capabilitySummaries: cards.map((card) => ({
+        key: card.key,
+        name: card.name,
+        description: card.description,
+        domains: [...card.domains],
+        intents: [...card.intents],
+        examples: Array.isArray(card.examples) ? [...card.examples] : [],
+        readOnly: card.readOnly,
+        definitionRefs: (card.definitionRefs ?? []).flatMap((ref) => {
+          const definitionType = ref.definitionKey.split('.')[0];
+          if (!['entity', 'relation', 'metric', 'dimension'].includes(definitionType)) return [];
+          return [{
+            definitionType: definitionType as 'entity' | 'relation' | 'metric' | 'dimension',
+            definitionKey: ref.definitionKey,
+            definitionVersion: ref.version,
+            definitionFingerprint: ref.definitionFingerprint,
+            sourceFingerprint: ref.sourceFingerprint,
+          }];
+        }),
+      })),
+    };
+    let compilation: Awaited<ReturnType<BrainSemanticIntentCompilerService['compile']>>;
+    try {
+      compilation = await this.semanticIntentCompiler!.compile(compilerInput);
+    } catch (error) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_compile',
+        layer: 'cognition',
+        stage: 'compile',
+        code: 'MODEL_INTENT_UNAVAILABLE',
+        error,
+      });
+      return this.modelFailure('MODEL_INTENT_UNAVAILABLE', this.modelMetadata('compile'));
+    }
+    if (compilation.status !== 'completed') {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_compile',
+        layer: 'cognition',
+        stage: 'compile',
+        code: 'MODEL_INTENT_UNAVAILABLE',
+        diagnosticCode: compilation.errorCode,
+      });
+      return this.modelFailure('MODEL_INTENT_UNAVAILABLE', this.modelMetadata('compile'));
+    }
+    modelMetadata = this.modelMetadata('compile', {
+      provider: compilation.provider,
+      model: compilation.model,
+      intentSchemaVersion: compilation.intent.schemaVersion,
+    });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'model_intent_compile',
+      layer: 'cognition',
+      input: this.toJsonValue({ snapshotFingerprint: snapshot.fingerprint, catalogCount: cards.length }),
+      output: this.toJsonValue({ status: compilation.status, provider: compilation.provider, model: compilation.model }),
+      status: 'completed',
+    });
+
+    let enrichedIntent = this.normalizeGovernedCapabilityContractIntent({
+      intent: this.normalizeGovernedCapabilityExampleIntent({
+        intent: this.enrichModelEntityRefs(compilation.intent),
+        question: input.dto.message,
+        cards,
+        snapshot,
+      }),
+      question: input.dto.message,
+      cards,
+    });
+    let validation: ReturnType<BrainSemanticIntentValidatorService['validate']>;
+    try {
+      validation = this.semanticIntentValidator!.validate(enrichedIntent);
+    } catch (error) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_validation',
+        layer: 'cognition',
+        stage: 'validate',
+        code: 'MODEL_INTENT_INVALID',
+        error,
+      });
+      return this.modelFailure('MODEL_INTENT_INVALID', this.modelMetadata('validate', modelMetadata));
+    }
+    if (validation.status !== 'valid' && this.shouldRepairModelIntent(validation)) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'model_intent_validation_retry',
+        layer: 'cognition',
+        input: this.toJsonValue({
+          issueCodes: validation.issues.map((issue) => issue.code),
+          issueSlots: validation.issues.map((issue) => issue.slot).filter(Boolean),
+        }),
+        output: { status: 'retrying', stage: 'validate', code: 'MODEL_INTENT_REPAIR' },
+        status: 'completed',
+      });
+      const repairCompilation = await this.semanticIntentCompiler!.compile({
+        ...compilerInput,
+        repairFeedback: {
+          previousIntent: enrichedIntent,
+          issues: validation.issues.map((issue) => ({
+            code: issue.code,
+            ...(issue.slot ? { slot: issue.slot } : {}),
+            message: issue.message,
+          })),
+        },
+      });
+      if (repairCompilation.status === 'completed') {
+        const repairedIntent = this.normalizeGovernedCapabilityContractIntent({
+          intent: this.normalizeGovernedCapabilityExampleIntent({
+            intent: this.enrichModelEntityRefs(repairCompilation.intent),
+            question: input.dto.message,
+            cards,
+            snapshot,
+          }),
+          question: input.dto.message,
+          cards,
+        });
+        const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent);
+        compilation = repairCompilation;
+        enrichedIntent = repairedIntent;
+        validation = repairedValidation;
+        modelMetadata = this.modelMetadata('compile', {
+          provider: repairCompilation.provider,
+          model: repairCompilation.model,
+          intentSchemaVersion: repairCompilation.intent.schemaVersion,
+        });
+        await this.recordModelTrace({
+          runId: input.runId,
+          stepKey: 'model_intent_validation_retry_result',
+          layer: 'cognition',
+          output: this.toJsonValue({
+            status: repairedValidation.status,
+            stage: 'validate',
+            code: repairedValidation.status === 'valid' ? 'MODEL_INTENT_REPAIRED' : 'MODEL_INTENT_REPAIR_INCOMPLETE',
+            issueCodes: repairedValidation.status === 'valid'
+              ? []
+              : repairedValidation.issues.map((issue) => issue.code),
+          }),
+          status: repairedValidation.status === 'valid' ? 'completed' : 'failed',
+        });
+      }
+    }
+    if (validation.status === 'clarification_required') {
+      const clarificationMetadata = this.modelMetadata('validate', modelMetadata);
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'model_intent_validation',
+        layer: 'cognition',
+        output: { status: 'clarification_required', stage: 'validate', code: 'MODEL_INTENT_CLARIFICATION_REQUIRED' },
+        status: 'completed',
+      });
+      return {
+        status: 'completed',
+        answer: this.safeModelFailureAnswer('MODEL_INTENT_CLARIFICATION_REQUIRED'),
+        citations: [],
+        suggestedActions: validation.clarification.missingSlots,
+        modelContextIntent: validation.intent,
+        modelMetadata: { ...clarificationMetadata, failureCode: 'MODEL_INTENT_CLARIFICATION_REQUIRED' },
+      };
+    }
+    if (validation.status !== 'valid') {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_validation',
+        layer: 'cognition',
+        stage: 'validate',
+        code: 'MODEL_INTENT_INVALID',
+        diagnosticCode: validation.issues[0]?.code,
+      });
+      return this.modelFailure('MODEL_INTENT_INVALID', this.modelMetadata('validate', modelMetadata));
+    }
+    modelMetadata = this.modelMetadata('validate', modelMetadata);
+
+    const unresolvedRequirements = findUnresolvedBusinessDefinitionRequirements(
+      validation.intent,
+      input.dto.message,
+    );
+    if (unresolvedRequirements.length > 0) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_validation',
+        layer: 'cognition',
+        stage: 'validate',
+        code: 'CAPABILITY_CONTRACT_MISMATCH',
+        diagnosticCode: `MISSING_${unresolvedRequirements[0]!.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}`,
+      });
+      return this.modelFailure(
+        'CAPABILITY_CONTRACT_MISMATCH',
+        this.modelMetadata('validate', modelMetadata),
+        validation.intent,
+      );
+    }
+
+    const governedExampleCard = this.findGovernedCapabilityExampleCard(input.dto.message, cards);
+    if (validation.intent.intent === 'workflow' && !governedExampleCard) {
+      return this.buildModelSupervisorAnswer({
+        context: input.context,
+        dto: input.dto,
+        runId: input.runId,
+        intent: validation.intent,
+        cards,
+        modelMetadata,
+        roleContext,
+        deadlineAt: input.deadlineAt,
+      });
+    }
+
+    const retrieval: ReturnType<BrainCapabilityRetrieverService['retrieve']> = governedExampleCard
+      ? {
+          status: 'selected',
+          selected: governedExampleCard,
+          topK: [{ card: governedExampleCard, score: 1, matchedFields: ['examples'] }],
+          confidence: 1,
+          margin: 1,
+          reason: 'governed_example_selected',
+        }
+      : this.capabilityRetriever!.retrieve({
+          intent: validation.intent,
+          question: input.dto.message,
+          context: input.context,
+          cards,
+        });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'capability_retrieval',
+      layer: 'planning',
+      output: this.toJsonValue({
+        status: retrieval.status,
+        stage: 'retrieve',
+        code: retrieval.status === 'selected' ? 'CAPABILITY_SELECTED' : `CAPABILITY_RETRIEVAL_${retrieval.status.toUpperCase()}`,
+        confidence: retrieval.confidence,
+        margin: retrieval.margin,
+        capabilityKey: retrieval.selected?.key ?? null,
+        capabilityVersion: retrieval.selected?.version ?? null,
+      }),
+      status: retrieval.status === 'selected' ? 'completed' : 'failed',
+    });
+    if (retrieval.status === 'clarify' && retrieval.topK.length > 0) {
+      return this.buildModelSupervisorAnswer({
+        context: input.context,
+        dto: input.dto,
+        runId: input.runId,
+        intent: validation.intent,
+        cards,
+        modelMetadata,
+        roleContext,
+        deadlineAt: input.deadlineAt,
+        topK: retrieval.topK,
+      });
+    }
+    if (retrieval.status !== 'selected' || !retrieval.selected) {
+      const failureCode = retrieval.status === 'clarify' ? 'CAPABILITY_RETRIEVAL_CLARIFY' : 'CAPABILITY_RETRIEVAL_NONE';
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'capability_retrieval',
+        layer: 'planning',
+        stage: 'retrieve',
+        code: failureCode,
+      });
+      return this.modelFailure(failureCode, this.modelMetadata('retrieve', modelMetadata), validation.intent);
+    }
+    const contractMismatches = findCapabilityContractMissingDefinitions(
+      validation.intent,
+      retrieval.selected,
+      input.dto.message,
+    );
+    if (contractMismatches.length > 0) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'capability_retrieval',
+        layer: 'planning',
+        stage: 'retrieve',
+        code: 'CAPABILITY_CONTRACT_MISMATCH',
+        diagnosticCode: `MISSING_${contractMismatches[0]!.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}`,
+      });
+      return this.modelFailure(
+        'CAPABILITY_CONTRACT_MISMATCH',
+        this.modelMetadata('retrieve', modelMetadata),
+        validation.intent,
+      );
+    }
+    if (
+      this.shouldUseModelSupervisor(validation.intent) &&
+      !governedExampleCard &&
+      !this.canUseSingleCapabilityFastPath(retrieval.selected, validation.intent)
+    ) {
+      return this.buildModelSupervisorAnswer({
+        context: input.context,
+        dto: input.dto,
+        runId: input.runId,
+        intent: validation.intent,
+        cards,
+        modelMetadata,
+        roleContext,
+        deadlineAt: input.deadlineAt,
+        topK: retrieval.topK,
+      });
+    }
+    modelMetadata = this.modelMetadata('retrieve', {
+      ...modelMetadata,
+      capabilityKey: retrieval.selected.key,
+      capabilityVersion: retrieval.selected.version,
+    });
+
+    const planning = this.singleStepPlanner!.plan({ intent: validation.intent, retrieval });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'single_step_plan',
+      layer: 'planning',
+      output: this.toJsonValue(
+        planning.status === 'planned'
+          ? { status: planning.status, stage: 'plan', code: 'MODEL_PLAN_READY', planId: planning.plan.planId, nodeCount: planning.plan.nodes.length }
+          : { status: planning.status, stage: 'plan', code: 'MODEL_PLAN_UNAVAILABLE' },
+      ),
+      status: planning.status === 'planned' ? 'completed' : 'failed',
+    });
+    if (planning.status !== 'planned') {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'single_step_plan',
+        layer: 'planning',
+        stage: 'plan',
+        code: 'MODEL_PLAN_UNAVAILABLE',
+      });
+      return this.modelFailure('MODEL_PLAN_UNAVAILABLE', this.modelMetadata('plan', modelMetadata));
+    }
+    modelMetadata = this.modelMetadata('plan', { ...modelMetadata, planId: planning.plan.planId });
+
+    let plan: ReturnType<BrainExecutionPlanValidatorService['validate']>;
+    try {
+      plan = this.executionPlanValidator!.validate({ plan: planning.plan, cards, context: input.context });
+    } catch (error) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'single_step_plan',
+        layer: 'planning',
+        stage: 'plan',
+        code: 'MODEL_PLAN_INVALID',
+        diagnosticCode: this.modelDiagnosticCode(error),
+        error,
+      });
+      return this.modelFailure('MODEL_PLAN_INVALID', modelMetadata);
+    }
+    const node = plan.nodes[0];
+    if (!node) return this.modelFailure('MODEL_PLAN_INVALID', modelMetadata);
+    const card = cards.find((candidate) => candidate.key === node.capabilityKey && candidate.version === node.capabilityVersion);
+    if (!card) return this.modelFailure('MODEL_PLAN_INVALID', modelMetadata);
+
+    try {
+      const budgetState = this.executionBudget!.start(plan);
+      this.executionPlanValidator!.revalidateNodeExecution({ node, card, context: input.context });
+      this.executionBudget!.assertCanStartNode(budgetState, card);
+      const execution = await this.capabilityExecutorRegistry!.execute({
+        card,
+        context: input.context,
+        runId: input.runId,
+        planId: plan.planId,
+        question: input.dto.message,
+        args: node.args,
+      });
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'capability_execution',
+        layer: 'execution',
+        output: this.toJsonValue({
+          capabilityKey: card.key,
+          capabilityVersion: card.version,
+          status: execution.status,
+          grounding: execution.grounding,
+        }),
+        status: execution.status === 'completed' ? 'completed' : 'failed',
+      });
+      const executionMetadata = this.modelMetadata('execute', {
+        ...modelMetadata,
+        capabilityKey: card.key,
+        capabilityVersion: card.version,
+      });
+      if (execution.status !== 'completed') {
+        await this.recordModelFailure({
+          runId: input.runId,
+          stepKey: 'capability_execution',
+          layer: 'execution',
+          stage: 'execute',
+          code: 'CAPABILITY_EXECUTION_FAILED',
+        });
+        return this.modelFailure('CAPABILITY_EXECUTION_FAILED', executionMetadata);
+      }
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'model_answer_compose',
+        layer: 'response',
+        output: this.toJsonValue({ capabilityKey: card.key, capabilityVersion: card.version, planId: plan.planId }),
+        status: 'completed',
+      });
+      const grounded = this.groundedAnswerComposer?.composeDomainAnswer(execution);
+      return {
+        status: 'completed',
+        answer: grounded?.answer ?? execution.answer,
+        citations: grounded?.citations ?? execution.citations,
+        suggestedActions: grounded?.suggestedActions ?? execution.suggestedActions ?? [],
+        blocks: grounded?.blocks ?? execution.blocks,
+        grounding: execution.grounding,
+        adapterMetadata: {
+          ...(execution.metadata ?? {}),
+          executionPlan: plan,
+          observations: [
+            {
+              capabilityKey: card.key,
+              capabilityVersion: card.version,
+              status: execution.status,
+              grounding: execution.grounding,
+              citationCount: execution.citations.length,
+            },
+          ],
+          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+        },
+        modelMetadata: executionMetadata,
+        modelContextIntent: validation.intent,
+      };
+    } catch (error) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'capability_execution',
+        layer: 'execution',
+        stage: 'execute',
+        code: 'CAPABILITY_EXECUTION_FAILED',
+        diagnosticCode: this.modelDiagnosticCode(error),
+        error,
+      });
+      return this.modelFailure(
+        'CAPABILITY_EXECUTION_FAILED',
+        this.modelMetadata('execute', { ...modelMetadata, capabilityKey: card.key, capabilityVersion: card.version }),
+      );
+    }
+  }
+
+  private shouldRepairModelIntent(
+    validation: Exclude<ReturnType<BrainSemanticIntentValidatorService['validate']>, { status: 'valid' }>,
+  ): boolean {
+    if (validation.issues.length === 0) return false;
+    return validation.issues.every((issue) =>
+      issue.code !== 'UNTRUSTED_SECURITY_SCOPE' && issue.code !== 'ENTITY_CONFLICT',
+    );
+  }
+
+  private normalizeGovernedCapabilityExampleIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+    snapshot: ProductionReadyBusinessDefinitionSnapshot;
+  }): BrainSemanticIntent {
+    const matched = this.findGovernedCapabilityExampleCard(input.question, input.cards);
+    if (!matched) return input.intent;
+    const activeDomains = new Set([
+      ...input.snapshot.entities.map((definition) => definition.domain),
+      ...input.snapshot.metrics.map((definition) => definition.domain),
+      ...input.snapshot.dimensions.map((definition) => definition.domain),
+    ]);
+    const modelDomains = input.intent.domains.filter((domain) => activeDomains.has(domain));
+    const cardDomains = matched.domains.filter((domain) => activeDomains.has(domain));
+    const unorderedListIntent =
+      input.intent.intent === 'ranking' &&
+      input.intent.metrics.length === 0 &&
+      input.intent.orderBy.length === 0 &&
+      matched.intents.includes('query');
+    const inferredDimensionKeys = new Set(inferQuestionDimensionDefinitions(input.question));
+    const governedDimensions = (matched.definitionRefs ?? [])
+      .filter((ref) => inferredDimensionKeys.has(ref.definitionKey))
+      .map((ref) => definitionRefFromCard(ref, 'dimension'));
+    const inferredMetricKey = inferGovernedQuestionMetricKey(input.question);
+    const governedMetric = inferredMetricKey
+      ? (matched.definitionRefs ?? []).find((ref) => ref.definitionKey === inferredMetricKey)
+      : undefined;
+    const metrics = governedMetric ? [definitionRefFromCard(governedMetric, 'metric')] : input.intent.metrics;
+    const orderBy = governedMetric && input.intent.intent === 'ranking'
+      ? [{ definitionRef: definitionRefFromCard(governedMetric, 'metric'), direction: 'desc' as const }]
+      : input.intent.orderBy;
+    return {
+      ...input.intent,
+      ...(unorderedListIntent ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
+      domains: modelDomains.length ? modelDomains : cardDomains,
+      metrics,
+      dimensions: input.intent.dimensions.length > 0 ? input.intent.dimensions : governedDimensions,
+      orderBy,
+      filters: [],
+      ambiguities: [],
+      missingSlots: [],
+    };
+  }
+
+  private normalizeGovernedCapabilityContractIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+  }): BrainSemanticIntent {
+    const requestedSlots = new Set([
+      ...input.intent.missingSlots.map((slot) => slot.trim().toLowerCase()),
+      ...input.intent.ambiguities.map((ambiguity) => ambiguity.slot.trim().toLowerCase()),
+    ]);
+    if (!requestedSlots.size || [...requestedSlots].some((slot) => this.isProtectedCapabilityClarificationSlot(slot))) {
+      return input.intent;
+    }
+    const candidates = input.cards
+      .filter((card) =>
+        card.readOnly &&
+        card.grounding === 'domain_service' &&
+        input.intent.domains.some((domain) => card.domains.includes(domain)) &&
+        (card.intents.includes(input.intent.intent) || (input.intent.intent === 'ranking' && card.intents.includes('query'))),
+      )
+      .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
+      .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key));
+    const matched = candidates[0];
+    const margin = matched ? matched.score - (candidates[1]?.score ?? 0) : 0;
+    if (!matched || matched.score < 0.68 || (matched.score < 0.82 && margin < 0.08)) return input.intent;
+
+    const supportedDefinitions = new Set((matched.card.definitionRefs ?? []).map((ref) => ref.definitionKey));
+    const metrics = input.intent.metrics.filter((metric) => supportedDefinitions.has(metric.definitionKey));
+    const removedMetricKeys = new Set(
+      input.intent.metrics.filter((metric) => !supportedDefinitions.has(metric.definitionKey)).map((metric) => metric.definitionKey),
+    );
+    const orderBy = input.intent.orderBy.filter((item) => !removedMetricKeys.has(item.definitionRef.definitionKey));
+    const governedDimensions = (matched.card.definitionRefs ?? [])
+      .filter((ref) => ref.definitionKey.startsWith('dimension.'))
+      .map((ref) => ({
+        definitionType: 'dimension' as const,
+        definitionKey: ref.definitionKey,
+        definitionVersion: ref.version,
+        definitionFingerprint: ref.definitionFingerprint,
+        sourceFingerprint: ref.sourceFingerprint,
+      }));
+    const dimensions = input.intent.dimensions.length > 0
+      ? input.intent.dimensions
+      : ['list', 'ranking'].includes(input.intent.answerShape)
+        ? governedDimensions
+        : input.intent.dimensions;
+    const unorderedList = input.intent.intent === 'ranking' && metrics.length === 0 && orderBy.length === 0;
+    return {
+      ...input.intent,
+      ...(unorderedList ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
+      metrics,
+      dimensions,
+      orderBy,
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        ...input.intent.assumptions,
+        `能力 ${matched.card.key} 将采用并披露已治理的默认分析口径。`,
+      ],
+    };
+  }
+
+  private isProtectedCapabilityClarificationSlot(slot: string): boolean {
+    const normalized = slot.toLocaleLowerCase('zh-CN').replace(/[\s._-]+/g, '');
+    return /(?:entity|identity|customername|customerid|phone|actiontarget|permission|store|confirmation|recipient|具体客户|客户姓名|客户身份|手机号|操作对象|执行对象|门店|权限|确认对象|接收人)/.test(normalized);
+  }
+
+  private governedCapabilitySemanticScore(question: string, card: BrainCapabilityCard): number {
+    const candidates = [card.name, card.description, ...(card.examples ?? []), ...(card.synonyms ?? [])];
+    return candidates.reduce(
+      (best, candidate) => Math.max(best, this.governedTextSimilarity(question, candidate)),
+      0,
+    );
+  }
+
+  private governedTextSimilarity(leftValue: string, rightValue: string): number {
+    const left = this.normalizeGovernedExampleText(leftValue);
+    const right = this.normalizeGovernedExampleText(rightValue);
+    if (!left || !right) return 0;
+    if (left === right) return 1;
+    if (left.includes(right) || right.includes(left)) {
+      return Math.min(1, 0.75 + 0.25 * (Math.min(left.length, right.length) / Math.max(left.length, right.length)));
+    }
+    const leftPairs = new Set(Array.from({ length: Math.max(0, left.length - 1) }, (_, index) => left.slice(index, index + 2)));
+    const rightPairs = new Set(Array.from({ length: Math.max(0, right.length - 1) }, (_, index) => right.slice(index, index + 2)));
+    if (!leftPairs.size || !rightPairs.size) return 0;
+    let overlap = 0;
+    for (const pair of leftPairs) if (rightPairs.has(pair)) overlap += 1;
+    return (2 * overlap) / (leftPairs.size + rightPairs.size);
+  }
+
+  private normalizeGovernedExampleText(value: string): string {
+    return value.toLocaleLowerCase('zh-CN').replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
+  }
+
+  private findGovernedCapabilityExampleCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    const normalizedQuestion = this.normalizeGovernedExampleText(question);
+    return cards.find((card) =>
+      (card.examples ?? []).some((example) =>
+        this.normalizeGovernedExampleText(example) === normalizedQuestion,
+      ),
+    );
+  }
+
+  private shouldUseModelSupervisor(intent: BrainSemanticIntent) {
+    return (
+      intent.intent === 'workflow' ||
+      intent.domains.length > 1 ||
+      (['diagnosis', 'recommendation', 'action'].includes(intent.intent) && intent.successCriteria.length > 1)
+    );
+  }
+
+  private canUseSingleCapabilityFastPath(card: BrainCapabilityCard, intent: BrainSemanticIntent) {
+    if (!card.readOnly || card.sideEffect || intent.intent === 'workflow' || intent.intent === 'action') return false;
+    const intentCompatible = card.intents.includes(intent.intent) ||
+      (intent.intent === 'recommendation' && card.intents.includes('diagnosis'));
+    return intentCompatible && intent.domains.every((domain) => card.domains.includes(domain));
+  }
+
+  private async buildModelSupervisorAnswer(input: {
+    context: BrainRequestContext;
+    dto: SendBrainMessageDto;
+    runId: number;
+    intent: BrainSemanticIntent;
+    cards: readonly BrainCapabilityCard[];
+    modelMetadata: BrainModelMetadata;
+    roleContext?: BrainRoleRuntimeContext;
+    deadlineAt: number;
+    topK?: readonly BrainCapabilityRankedCandidate[];
+  }): Promise<BrainChatAnswer> {
+    if (!this.orchestrator || !this.boundedExecutor || !this.capabilityRetriever) {
+      return this.modelFailure('MODEL_SUPERVISOR_UNAVAILABLE', this.modelMetadata('plan', input.modelMetadata));
+    }
+    const topK = input.topK ?? this.capabilityRetriever.retrieveTopKForSupervisor({
+      intent: input.intent,
+      question: input.dto.message,
+      context: input.context,
+      cards: input.cards,
+      maxRisk: 'high',
+    });
+    if (!topK.length) {
+      return this.modelFailure('CAPABILITY_RETRIEVAL_NONE', this.modelMetadata('retrieve', input.modelMetadata));
+    }
+    const planning = await this.orchestrator.createModelExecutionPlan({
+      question: input.dto.message,
+      intent: input.intent,
+      topK,
+      audit: { userId: input.context.userId, storeId: input.context.storeId },
+      roleContext: input.roleContext,
+      deadlineAt: input.deadlineAt,
+    });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'supervisor_model_plan',
+      layer: 'planning',
+      output: this.toJsonValue(
+        planning.status === 'planned'
+          ? {
+              status: 'planned',
+              planId: planning.plan.planId,
+              nodeCount: planning.plan.nodes.length,
+              plan: planning.plan,
+              candidateCapabilities: topK.map((candidate) => ({
+                key: candidate.card.key,
+                version: candidate.card.version,
+                name: candidate.card.name,
+                score: candidate.score,
+                matchedFields: candidate.matchedFields,
+                domains: candidate.card.domains,
+                intents: candidate.card.intents,
+                riskLevel: candidate.card.riskLevel,
+              })),
+            }
+          : {
+              status: 'unavailable',
+              code: planning.errorCode,
+              ...(planning.errorCode === 'PLAN_POLICY_INVALID' ? { diagnosticCode: planning.reason } : {}),
+            },
+      ),
+      status: planning.status === 'planned' ? 'completed' : 'failed',
+    });
+    if (planning.status !== 'planned') {
+      const failureCode = planning.errorCode === 'PROVIDER_UNAVAILABLE'
+        ? 'PROVIDER_UNAVAILABLE'
+        : 'MODEL_SUPERVISOR_PLAN_UNAVAILABLE';
+      return this.modelFailure(failureCode, this.modelMetadata('plan', input.modelMetadata));
+    }
+    const execution = await this.boundedExecutor.execute({
+      plan: planning.plan,
+      topK,
+      context: input.context,
+      runId: input.runId,
+      question: input.dto.message,
+      intent: input.intent,
+    });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'bounded_dag_execution',
+      layer: 'execution',
+      output: this.toJsonValue({
+        status: execution.status,
+        planId: execution.plan.planId,
+        replanCount: execution.replanCount,
+        completion: execution.completion,
+        observations: execution.observations.map((item) => ({
+          nodeId: item.nodeId,
+          capabilityKey: item.capabilityKey,
+          capabilityVersion: item.capabilityVersion,
+          status: item.status,
+          grounding: item.grounding,
+          citationCount: item.citations.length,
+        })),
+      }),
+      status: execution.status === 'rejected' ? 'failed' : 'completed',
+    });
+
+    const completed = execution.observations.filter((item) => item.status === 'completed');
+    const grounded = this.groundedAnswerComposer?.compose({
+      observations: execution.observations,
+      completion: execution.completion,
+    });
+    const summaries = completed.map((item) => item.summary.trim()).filter(Boolean);
+    const limitations = execution.completion.missingCriteria;
+    const fallbackAnswer = [
+      summaries.join('\n\n') || '当前复合任务没有产生可用结果。',
+      ...(limitations.length ? [`未完成范围：${limitations.join('；')}。`] : []),
+    ].join('\n\n');
+    const citations = completed.flatMap((item) => [...item.citations]);
+    const suggestedActions = completed.flatMap((item) =>
+      Array.isArray(item.data.suggestedActions) ? item.data.suggestedActions : [],
+    );
+    const blocks = completed.flatMap((item) =>
+      Array.isArray(item.data.blocks) ? item.data.blocks : [],
+    ) as NonNullable<BrainDomainAnswer['blocks']>;
+    const metadata = this.modelMetadata('execute', {
+      ...input.modelMetadata,
+      planId: execution.plan.planId,
+      provider: planning.provider,
+      model: planning.model,
+    });
+    return {
+      status: execution.status === 'rejected' ? 'failed' : 'completed',
+      answer: grounded?.answer ?? fallbackAnswer,
+      citations: grounded?.citations ?? citations,
+      suggestedActions: grounded?.suggestedActions ?? suggestedActions,
+      blocks: grounded?.blocks ?? blocks,
+      grounding: completed.some((item) => item.grounding === 'preview_action') ? 'preview_action' : 'db_skill',
+      adapterMetadata: {
+        supervisorPlan: execution.plan,
+        observations: execution.observations,
+        completion: execution.completion,
+      },
+      modelMetadata: execution.status === 'rejected' ? { ...metadata, failureCode: 'MODEL_EXECUTION_REJECTED' } : metadata,
+      modelContextIntent: input.intent,
+    };
+  }
+
+  private modelMetadata(stage: BrainModelStage, values: Partial<BrainModelMetadata> = {}): BrainModelMetadata {
+    const defaults: BrainModelMetadata = {
+      cognitionMode: 'model',
+      modelStage: stage,
+      failureCode: null,
+      intentSchemaVersion: null,
+      capabilityKey: null,
+      capabilityVersion: null,
+      planId: null,
+      model: null,
+      provider: null,
+    };
+    return {
+      ...defaults,
+      ...values,
+      cognitionMode: 'model',
+      modelStage: stage,
+    };
+  }
+
+  private modelFailure(
+    code: string,
+    metadata: BrainModelMetadata,
+    modelContextIntent?: BrainSemanticIntent,
+  ): BrainChatAnswer {
+    return {
+      status: 'failed',
+      answer: this.safeModelFailureAnswer(code),
+      citations: [],
+      suggestedActions: [],
+      ...(modelContextIntent ? { modelContextIntent } : {}),
+      modelMetadata: { ...metadata, failureCode: code },
+    };
+  }
+
+  private safeModelFailureAnswer(code: string): string {
+    const messages: Record<string, string> = {
+      MODEL_PIPELINE_UNAVAILABLE: '模型能力暂不可用，本次未执行查询。',
+      MODEL_SNAPSHOT_UNAVAILABLE: '业务定义暂不可用，本次未执行查询。',
+      MODEL_CATALOG_UNAVAILABLE: '可用能力目录暂不可用，本次未执行查询。',
+      MODEL_ROLE_PROFILE_UNAVAILABLE: '当前角色配置未发布，本次未执行查询。',
+      MODEL_ROLE_CAPABILITY_NONE: '当前角色没有可执行的已发布能力，本次未执行查询。',
+      MODEL_INTENT_UNAVAILABLE: '当前无法理解该问题，请换一种清晰表述后重试。',
+      MODEL_INTENT_INVALID: '当前问题未通过业务定义校验，请补充业务对象、指标或时间范围。',
+      MODEL_INTENT_CLARIFICATION_REQUIRED: '请补充业务对象、指标或时间范围。',
+      CAPABILITY_RETRIEVAL_NONE: '未找到可执行的已发布能力，请补充业务对象、指标或时间范围。',
+      CAPABILITY_RETRIEVAL_CLARIFY: '能力匹配存在歧义，请补充业务对象、指标或时间范围。',
+      CAPABILITY_CONTRACT_MISMATCH: '当前已发布能力缺少该问题需要的业务对象或分析维度，本次不执行泛化查询。',
+      MODEL_PLAN_UNAVAILABLE: '当前暂无法生成执行计划，本次未执行查询。',
+      MODEL_PLAN_INVALID: '当前执行计划未通过校验，本次未执行查询。',
+      MODEL_SUPERVISOR_UNAVAILABLE: '复合任务规划能力暂不可用，本次未执行查询。',
+      MODEL_SUPERVISOR_PLAN_UNAVAILABLE: '当前无法生成受控复合计划，本次未执行查询。',
+      PROVIDER_UNAVAILABLE: '模型服务暂不可用，本次未执行查询，请稍后重试。',
+      CAPABILITY_EXECUTION_FAILED: '当前无法完成查询，请稍后重试。',
+    };
+    return messages[code] ?? '当前无法完成查询，请稍后重试。';
+  }
+
+  private async recordModelFailure(input: {
+    runId: number;
+    stepKey: string;
+    layer: Parameters<BrainTraceService['recordStep']>[0]['layer'];
+    stage: BrainModelStage;
+    code: string;
+    diagnosticCode?: string;
+    error?: unknown;
+  }): Promise<void> {
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: input.stepKey,
+      layer: input.layer,
+      output: {
+        status: 'failed',
+        stage: input.stage,
+        code: input.code,
+        ...(input.diagnosticCode && /^[A-Z0-9_]+$/.test(input.diagnosticCode)
+          ? { diagnosticCode: input.diagnosticCode }
+          : {}),
+      },
+      status: 'failed',
+      ...(input.error
+        ? { error: { stage: input.stage, code: input.code, errorClass: this.modelErrorClass(input.error) } as Prisma.InputJsonValue }
+        : {}),
+    });
+  }
+
+  private modelErrorClass(error: unknown): 'forbidden' | 'internal' | 'unknown' {
+    if (error instanceof ForbiddenException) return 'forbidden';
+    if (error instanceof Error) return 'internal';
+    return 'unknown';
+  }
+
+  private modelDiagnosticCode(error: unknown): string | undefined {
+    if (!(error instanceof Error) || !error.message) return undefined;
+    const prefix = error.message.split(':', 1)[0]!.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_');
+    return prefix && prefix.length <= 80 ? prefix : undefined;
+  }
+
+  private enrichModelEntityRefs(intent: BrainSemanticIntent): BrainSemanticIntent {
+    const resolver = this.ontologyRuntime?.resolveEntityAlias;
+    if (typeof resolver !== 'function') return intent;
+    let changed = false;
+    const entities = intent.entities.map((entity) => {
+      if (entity.definitionRef) return entity;
+      const resolution = resolver.call(this.ontologyRuntime, entity.mention || entity.entityType);
+      if (resolution.status !== 'resolved' || resolution.matchType !== 'exact' || resolution.refs.length !== 1) {
+        return entity;
+      }
+      changed = true;
+      return {
+        ...entity,
+        entityKey: entity.entityKey ?? resolution.entity.entityKey,
+        definitionRef: resolution.refs[0] as BrainSemanticIntent['entities'][number]['definitionRef'],
+      };
+    });
+    return changed ? { ...intent, entities } : intent;
+  }
+
+  private async recordModelTrace(input: Parameters<BrainTraceService['recordStep']>[0]): Promise<void> {
+    try {
+      await this.traceService.recordStep(input);
+    } catch {
+      // Trace persistence is observability-only and cannot alter the governed execution decision.
+    }
+  }
+
+  private withModelCatalogMetadata(
+    slots: object,
+    snapshot: ProductionReadyBusinessDefinitionSnapshot,
+    cards: readonly BrainCapabilityCard[],
+  ): Record<string, unknown> {
+    return {
+      ...Object.fromEntries(Object.entries(slots)),
+      metadata: {
+        businessDefinitionSnapshotFingerprint: snapshot.fingerprint,
+        publishedCapabilityCount: cards.length,
+      },
+    };
+  }
+
+  private modelConversationSlots(slots: object): Record<string, unknown> {
+    const snapshot = slots as {
+      version?: unknown;
+      definitionRefs?: unknown;
+      entities?: unknown;
+      intent?: unknown;
+      answerShape?: unknown;
+      timeRange?: unknown;
+      objective?: unknown;
+      metrics?: unknown;
+      dimensions?: unknown;
+      capability?: unknown;
+      lastCorrections?: unknown;
+      turnDirectives?: unknown;
+      updatedAt?: unknown;
+    };
+    if (snapshot.version !== 1) return {};
+    return {
+      modelContext: {
+        version: snapshot.version,
+        objective: snapshot.objective,
+        definitionRefs: snapshot.definitionRefs,
+        metrics: snapshot.metrics,
+        dimensions: snapshot.dimensions,
+        entities: snapshot.entities,
+        intent: snapshot.intent,
+        answerShape: snapshot.answerShape,
+        timeRange: snapshot.timeRange,
+        capability: snapshot.capability,
+        lastCorrections: snapshot.lastCorrections,
+        updatedAt: snapshot.updatedAt,
+      },
+      ...(snapshot.turnDirectives ? { turnDirectives: snapshot.turnDirectives } : {}),
+    };
+  }
+
+  private modelOntologyCandidates(snapshot: ProductionReadyBusinessDefinitionSnapshot) {
+    return [
+      ...snapshot.entities.map((entity) => ({
+        definitionRef: this.modelDefinitionRef('entity', entity),
+        name: entity.name,
+        domain: entity.domain,
+        aliases: [...entity.aliases],
+        entityKey: entity.entityKey,
+      })),
+      ...snapshot.relations.map((relation) => ({
+        definitionRef: this.modelDefinitionRef('relation', relation),
+        name: relation.name,
+        fromEntityKey: relation.fromEntityKey,
+        toEntityKey: relation.toEntityKey,
+      })),
+    ];
+  }
+
+  private modelDefinitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension'>(
+    definitionType: T,
+    definition: BusinessDefinitionBase,
+  ): BrainDefinitionRef<T> {
+    return {
+      definitionType,
+      definitionKey: definition.definitionKey,
+      definitionVersion: definition.version,
+      definitionFingerprint: definition.definitionFingerprint,
+      sourceFingerprint: definition.sourceFingerprint,
+    };
+  }
+
+  private semanticEvidenceCorrections(
+    intent: BrainSemanticIntent,
+    corrections: BrainModelConversationCorrection[],
+  ): Array<{
+    sourceType: string;
+    definitionType: string;
+    definitionKey: string;
+    definitionVersion: number;
+    definitionFingerprint: string;
+    sourceFingerprint?: string;
+    alias: string;
+    confidence: number;
+  }> {
+    const result: Array<{
+      sourceType: string;
+      definitionType: string;
+      definitionKey: string;
+      definitionVersion: number;
+      definitionFingerprint: string;
+      sourceFingerprint?: string;
+      alias: string;
+      confidence: number;
+    }> = [];
+    for (const correction of corrections) {
+      if (!correction.next?.trim()) continue;
+      if (correction.slot === 'entities') {
+        const entities = intent.entities.filter((entity) => entity.definitionRef);
+        const selected =
+          entities.find((entity) => entity.mention.trim() === correction.next.trim()) ??
+          (entities.length === 1 ? entities[0] : undefined);
+        if (!selected?.definitionRef) continue;
+        result.push({
+          sourceType: 'conversation_correction',
+          ...selected.definitionRef,
+          alias: correction.next,
+          confidence: 0.99,
+        });
+        continue;
+      }
+      const refs = correction.slot === 'metrics' ? intent.metrics : correction.slot === 'dimensions' ? intent.dimensions : [];
+      if (refs.length !== 1) continue;
+      result.push({
+        sourceType: 'conversation_correction',
+        ...refs[0],
+        alias: correction.next,
+        confidence: 0.99,
+      });
+    }
+    return result;
+  }
+
+  private async recordSemanticEvidenceTrace(input: {
+    runId: number;
+    status: 'completed' | 'failed';
+    output?: Record<string, unknown>;
+    error?: Record<string, unknown>;
+  }) {
+    try {
+      await this.traceService.recordStep({
+        runId: input.runId,
+        stepKey: 'business_semantic_evidence_capture',
+        layer: 'semantic',
+        status: input.status,
+        ...(input.output ? { output: input.output as Prisma.InputJsonValue } : {}),
+        ...(input.error ? { error: input.error as Prisma.InputJsonValue } : {}),
+      });
+    } catch {
+      // Evidence trace is observability-only and cannot alter the answer.
+    }
+  }
+
+  private normalizeShadowTimezone(timezone: string): 'Asia/Shanghai' | 'UTC' {
+    return timezone === 'UTC' ? 'UTC' : 'Asia/Shanghai';
+  }
+
+  private readShadowRuleTime(previous: unknown): unknown {
+    if (!previous || typeof previous !== 'object' || Array.isArray(previous)) return null;
+    return (previous as Record<string, unknown>).timeRange ?? null;
+  }
+
+  private normalizeShadowRole(roleHint?: string): BrainDomainRole {
+    const roles: BrainDomainRole[] = [
+      'store_manager',
+      'receptionist',
+      'marketing',
+      'beautician',
+      'inventory',
+      'finance',
+      'customer_service',
+    ];
+    return roles.includes(roleHint as BrainDomainRole) ? (roleHint as BrainDomainRole) : 'store_manager';
+  }
+
+  private modelRoleFromContext(context: BrainRequestContext): BrainDomainRole {
+    const roles: BrainDomainRole[] = [
+      'store_manager',
+      'receptionist',
+      'marketing',
+      'beautician',
+      'inventory',
+      'finance',
+      'customer_service',
+    ];
+    return roles.find((role) => context.roles?.includes(role)) ?? 'store_manager';
+  }
+
   private async answerPaidRevenueComparison(
     context: BrainRequestContext,
     dto: SendBrainMessageDto,
@@ -644,12 +2042,14 @@ export class BrainChatService {
         answerShape: 'comparison',
       });
       const rows = queryResult.rows as Array<Record<string, unknown>>;
-      const answer = `${timeRange.comparison.current.label}对比${timeRange.comparison.previous.label}：${this.answerComposer.compose({
-        shape: 'comparison',
-        label: queryResult.compiled.label,
-        metric,
-        rows,
-      })}`;
+      const answer = `${timeRange.comparison.current.label}对比${timeRange.comparison.previous.label}：${this.answerComposer.compose(
+        {
+          shape: 'comparison',
+          label: queryResult.compiled.label,
+          metric,
+          rows,
+        },
+      )}`;
       const citations = queryResult.citations;
 
       await this.traceService.recordStep({
@@ -783,7 +2183,8 @@ export class BrainChatService {
     if (runtimeIntent.allowsScalarMetric) return undefined;
     const adapter = this.domainAdapterRegistry.resolve(routePlan);
     if (!adapter) return undefined;
-    const requiredPermissions = routePlan.requiredPermissions.length > 0 ? routePlan.requiredPermissions : adapter.requiredPermissions;
+    const requiredPermissions =
+      routePlan.requiredPermissions.length > 0 ? routePlan.requiredPermissions : adapter.requiredPermissions;
     this.assertPermission(context, requiredPermissions);
     const answer = await adapter.execute({
       context,
@@ -800,6 +2201,7 @@ export class BrainChatService {
       answer: answer.answer,
       citations: answer.citations,
       suggestedActions: answer.suggestedActions ?? [],
+      blocks: answer.blocks,
       cognition,
       routePlan,
       adapterKey: adapter.key,
@@ -827,6 +2229,7 @@ export class BrainChatService {
         answer: answer.answer,
         citations: answer.citations,
         suggestedActions: answer.suggestedActions ?? [],
+        blocks: answer.blocks,
         grounding: answer.grounding,
         metadata: answer.metadata,
       }),
@@ -885,7 +2288,8 @@ export class BrainChatService {
         startDate: range.startDate,
         endDate: range.endDate,
       });
-      const riskText = overview.riskItems.length > 0 ? `风险：${overview.riskItems.join('；')}。` : '风险：当前未发现明确预警。';
+      const riskText =
+        overview.riskItems.length > 0 ? `风险：${overview.riskItems.join('；')}。` : '风险：当前未发现明确预警。';
       return this.completedSkillAnswer({
         runId,
         stepKey: 'skill_manager_daily_overview',
@@ -925,7 +2329,11 @@ export class BrainChatService {
       });
     }
 
-    if (dto.roleHint === 'receptionist' && runtimeIntent.intent === 'action' && this.shouldUseReceptionReservationAction(dto.message)) {
+    if (
+      dto.roleHint === 'receptionist' &&
+      runtimeIntent.intent === 'action' &&
+      this.shouldUseReceptionReservationAction(dto.message)
+    ) {
       this.assertRoleSkillAccess(_context, 'reception_action_preview');
       const targetTime = this.extractTargetTimeLabel(dto.message);
       const preview = this.skillRuntime.previewReservationAction({
@@ -958,7 +2366,10 @@ export class BrainChatService {
       });
     }
 
-    if ((dto.roleHint === 'inventory' || dto.roleHint === 'store_manager') && this.shouldUseInventoryDisposalAdvice(dto.message)) {
+    if (
+      (dto.roleHint === 'inventory' || dto.roleHint === 'store_manager') &&
+      this.shouldUseInventoryDisposalAdvice(dto.message)
+    ) {
       this.assertRoleSkillAccess(_context, 'inventory_disposal_advice');
       const answer = this.skillRuntime.composeInventoryDisposalAdvice();
       return this.completedSkillAnswer({
@@ -972,7 +2383,10 @@ export class BrainChatService {
       });
     }
 
-    if ((dto.roleHint === 'inventory' || dto.roleHint === 'store_manager') && this.shouldUseInventorySkill(dto.message)) {
+    if (
+      (dto.roleHint === 'inventory' || dto.roleHint === 'store_manager') &&
+      this.shouldUseInventorySkill(dto.message)
+    ) {
       this.assertRoleSkillAccess(_context, 'inventory_risk_summary');
       const summary = await this.skillRuntime.buildInventoryRiskSummary({
         storeId: _context.storeId,
@@ -1003,7 +2417,10 @@ export class BrainChatService {
         summary.lowStockProducts.length > 0
           ? summary.lowStockProducts
               .slice(0, 10)
-              .map((item, index) => `${index + 1}. ${item.name}：当前 ${item.currentStock}，安全库存 ${item.safetyStock}。`)
+              .map(
+                (item, index) =>
+                  `${index + 1}. ${item.name}：当前 ${item.currentStock}，安全库存 ${item.safetyStock}。`,
+              )
               .join('\n')
           : '当前没有低于安全库存的产品。';
       return this.completedSkillAnswer({
@@ -1024,9 +2441,12 @@ export class BrainChatService {
         startDate: range.startDate,
         endDate: range.endDate,
       });
-      const riskText = summary.riskItems.length > 0 ? `风险：${summary.riskItems.join('；')}` : '风险：当前未发现明确财务预警。';
+      const riskText =
+        summary.riskItems.length > 0 ? `风险：${summary.riskItems.join('；')}` : '风险：当前未发现明确财务预警。';
       const marginText =
-        summary.grossMarginRate === undefined ? '毛利率暂无结算数据' : `毛利率 ${this.formatPercent(summary.grossMarginRate)}`;
+        summary.grossMarginRate === undefined
+          ? '毛利率暂无结算数据'
+          : `毛利率 ${this.formatPercent(summary.grossMarginRate)}`;
       return this.completedSkillAnswer({
         runId,
         stepKey: 'skill_finance_risk_summary',
@@ -1065,14 +2485,13 @@ export class BrainChatService {
           ? summary.nextTasks
               .slice(0, 10)
               .map((item, index) => {
-                const attention =
-                  includeAttention
-                    ? `；注意事项：${
-                        item.attentionItems?.length
-                          ? item.attentionItems.join('；')
-                          : '当前客户档案未记录过敏、皮肤状态或情绪备注'
-                      }`
-                    : '';
+                const attention = includeAttention
+                  ? `；注意事项：${
+                      item.attentionItems?.length
+                        ? item.attentionItems.join('；')
+                        : '当前客户档案未记录过敏、皮肤状态或情绪备注'
+                    }`
+                  : '';
                 return `${index + 1}. ${item.appointmentTime} ${item.customerName} - ${item.projectName}${attention}`;
               })
               .join('\n')
@@ -1126,7 +2545,11 @@ export class BrainChatService {
   }
 
   private shouldUseMarketingCampaignPlan(message: string) {
-    if (/(响应.*客户|效果|花了多少钱|带来.*收入|核销|转化率|roi|投产|吸引力最大|渠道|客户质量|滥用|多少|比例)/i.test(message)) {
+    if (
+      /(响应.*客户|效果|花了多少钱|带来.*收入|核销|转化率|roi|投产|吸引力最大|渠道|客户质量|滥用|多少|比例)/i.test(
+        message,
+      )
+    ) {
       return false;
     }
     return /(策划|促销|推广|活动主题|活动方案|做什么活动|专属活动|活动.*(怎么|设计|方案|主题|做什么|准备|拉动|有意义)|老带新|母亲节|国庆|夏天|沉睡客户|储值送赠品|新客.*礼包|vip.*活动|情人节|线上引流|赠品.*打折|不用打折|吸引客户)/i.test(
@@ -1358,7 +2781,12 @@ export class BrainChatService {
     if (metric.endsWith('_rate') || metric === 'repurchase_rate') {
       return `${(normalizedValue * 100).toFixed(1)}%`;
     }
-    if (metric.includes('revenue') || metric.includes('margin') || metric.includes('liability') || metric.includes('value')) {
+    if (
+      metric.includes('revenue') ||
+      metric.includes('margin') ||
+      metric.includes('liability') ||
+      metric.includes('value')
+    ) {
       return `${normalizedValue.toFixed(2)} 元`;
     }
     return String(Math.round(normalizedValue));
@@ -1390,4 +2818,109 @@ export class BrainChatService {
   private errorMessage(error: unknown) {
     return error instanceof Error ? error.message : String(error);
   }
+}
+
+export function findCapabilityContractMissingDefinitions(
+  intent: BrainSemanticIntent,
+  card: Pick<BrainCapabilityCard, 'definitionRefs' | 'domains'> & { key?: string },
+  question = '',
+): string[] {
+  const declared = Array.isArray(card.definitionRefs)
+    ? card.definitionRefs.map((item) => normalizeDefinitionKey(item.definitionKey))
+    : [];
+  const domains = [
+    ...(Array.isArray(card.domains) ? card.domains.map((item) => item.toLowerCase()) : []),
+    ...capabilityKeyDomains(card.key),
+  ];
+  const requested = [
+    ...(intent.dimensions ?? []).map((item) => item.definitionKey),
+    ...inferQuestionDimensionDefinitions(question),
+  ].filter((item): item is string => Boolean(item));
+  return [...new Set(requested.filter((item) => {
+    if (declared.includes(normalizeDefinitionKey(item))) return false;
+    const requiredDomains = definitionDomains(item);
+    return requiredDomains.length > 0 && !requiredDomains.some((domain) => domains.includes(domain));
+  }))];
+}
+
+export function findUnresolvedBusinessDefinitionRequirements(
+  intent: BrainSemanticIntent,
+  question: string,
+): string[] {
+  if (
+    /(?:产品|商品|货品).*(?:低于成本|毛利率|毛利)|(?:低于成本|毛利率|毛利).*(?:产品|商品|货品)/.test(question) &&
+    !intent.metrics.some((metric) => {
+      const key = normalizeDefinitionKey(metric.definitionKey);
+      return key.includes('product') && (key.includes('margin') || key.includes('cost'));
+    })
+  ) {
+    return ['metric.product_margin'];
+  }
+  return [];
+}
+
+function definitionRefFromCard<T extends 'metric' | 'dimension'>(
+  ref: BrainCapabilityCard['definitionRefs'][number],
+  definitionType: T,
+): BrainDefinitionRef<T> {
+  return {
+    definitionType,
+    definitionKey: ref.definitionKey,
+    definitionVersion: ref.version,
+    definitionFingerprint: ref.definitionFingerprint,
+    sourceFingerprint: ref.sourceFingerprint,
+  };
+}
+
+function inferGovernedQuestionMetricKey(question: string): string | undefined {
+  if (/(?:美容师|员工|谁).*(?:接|服务).*(?:客户|客人).*(?:最多|几个|排行)|(?:客户|客人).*(?:最多|几个).*(?:美容师|员工|谁)/.test(question)) {
+    return 'metric.staff_unique_customer_count';
+  }
+  if (/(?:美容师|员工).*(?:服务次数|做了几次)|服务次数.*(?:美容师|员工)/.test(question)) {
+    return 'metric.staff_service_count';
+  }
+  return undefined;
+}
+
+function capabilityKeyDomains(capabilityKey?: string): string[] {
+  if (!capabilityKey) return [];
+  const domains: string[] = [];
+  if (capabilityKey.includes('customer')) domains.push('customer');
+  if (capabilityKey.includes('project')) domains.push('project');
+  if (capabilityKey.includes('product')) domains.push('product');
+  if (capabilityKey.includes('inventory')) domains.push('inventory', 'product');
+  if (capabilityKey.includes('staff') || capabilityKey.includes('beautician')) domains.push('staff', 'beautician');
+  if (capabilityKey.includes('finance') || capabilityKey.includes('payment')) domains.push('finance', 'payment');
+  if (capabilityKey.includes('marketing')) domains.push('marketing');
+  if (capabilityKey.includes('store_operations')) domains.push('project', 'staff', 'beautician', 'payment');
+  if (capabilityKey.includes('beautician_service')) domains.push('customer', 'project', 'reservation');
+  if (capabilityKey.includes('front_desk') || capabilityKey.includes('reservation')) {
+    domains.push('customer', 'staff', 'beautician', 'reservation', 'project');
+  }
+  return domains;
+}
+
+function inferQuestionDimensionDefinitions(question: string): string[] {
+  const definitions: string[] = [];
+  if (/(?:项目|套餐|护理)/.test(question)) definitions.push('dimension.projectName');
+  if (/(?:产品|商品|货品)/.test(question)) definitions.push('dimension.productName');
+  if (/(?:员工|美容师|技师)/.test(question)) definitions.push('dimension.beauticianName');
+  if (/(?:客户|客人|会员)/.test(question)) definitions.push('dimension.customerName');
+  return definitions;
+}
+
+function normalizeDefinitionKey(value: string) {
+  return value.toLowerCase().replace(/^(?:metric|dimension|entity)\./, '').replace(/[._-]/g, '');
+}
+
+function definitionDomains(definitionKey: string): string[] {
+  const key = normalizeDefinitionKey(definitionKey);
+  if (key.includes('customer')) return ['customer'];
+  if (key.includes('project')) return ['project'];
+  if (key.includes('product')) return ['product', 'inventory'];
+  if (key.includes('beautician') || key.includes('staff')) return ['staff', 'beautician'];
+  if (key.includes('payment')) return ['finance', 'payment'];
+  if (key.includes('cost')) return ['finance', 'operating_cost'];
+  if (key.includes('marketing') || key.includes('campaign')) return ['marketing'];
+  return [];
 }

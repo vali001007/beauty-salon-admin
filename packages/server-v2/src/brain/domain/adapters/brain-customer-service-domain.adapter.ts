@@ -22,6 +22,7 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'customer_follow_up_draft') return this.previewAction(input);
     const message = input.dto.message;
     if (input.plan.intent === 'action' || /(建|创建).*(跟进任务)|群发|发券/.test(message)) {
       return this.previewAction(input);
@@ -74,6 +75,7 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: actionType,
+      planId: input.plan.executionPlanId,
       riskLevel,
       preview: {
         actionType,

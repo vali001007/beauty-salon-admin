@@ -7,13 +7,16 @@ import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 import { BrainChatService } from './brain-chat.service.js';
 import { BrainContextService } from './context/brain-context.service.js';
 import { ConfirmBrainActionDto, CreateBrainConversationDto, SendBrainMessageDto } from './dto/brain-chat.dto.js';
-import { CreateBrainFeedbackDto } from './dto/brain-governance.dto.js';
+import { CreateBrainEvalRunDto, CreateBrainFeedbackDto } from './dto/brain-governance.dto.js';
 import { BrainEvalService } from './governance/brain-eval.service.js';
 import { BrainFeedbackService } from './governance/brain-feedback.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
 import { BrainTraceService } from './governance/brain-trace.service.js';
 import { BrainGovernanceResourceService, type BrainGovernanceResourceType } from './governance/brain-governance-resource.service.js';
+import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
+import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
 import { BrainInspectionService } from './inspection/brain-inspection.service.js';
+import { BrainInspectionRepairPreviewService, type BrainInspectionRepairDecision } from './inspection/brain-inspection-repair-preview.service.js';
 import { BrainAgentProfileService } from './orchestrator/brain-agent-profile.service.js';
 import { BrainKnowledgeGraphService } from './semantic/brain-knowledge-graph.service.js';
 import { BrainMetricRegistryService } from './semantic/brain-metric-registry.service.js';
@@ -21,6 +24,7 @@ import { BrainOntologyService } from './semantic/brain-ontology.service.js';
 import { BrainActionConfirmationService } from './skills/brain-action-confirmation.service.js';
 import { BrainSkillRegistryService } from './skills/brain-skill-registry.service.js';
 import { BrainMemoryService } from './memory/brain-memory.service.js';
+import { BrainRuntimeConfigService } from './config/brain-runtime-config.service.js';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('brain')
@@ -41,6 +45,10 @@ export class BrainController {
     private readonly actionConfirmationService?: BrainActionConfirmationService,
     private readonly memoryService?: BrainMemoryService,
     private readonly governanceResourceService?: BrainGovernanceResourceService,
+    private readonly governanceApprovalService?: BrainGovernanceApprovalService,
+    private readonly runtimeConfigService?: BrainRuntimeConfigService,
+    private readonly capabilityRegenerationService?: BrainCapabilityRegenerationService,
+    private readonly inspectionRepairPreviewService?: BrainInspectionRepairPreviewService,
   ) {}
 
   @Post('conversations')
@@ -95,12 +103,17 @@ export class BrainController {
     emit('run_started', { conversationId, transport: 'sse', answerMode: 'buffered_chunks' });
     try {
       let answerEmitted = false;
-      const emitAnswer = (result: { runId: number; answer: string; suggestedActions?: unknown[] }) => {
+      const emitAnswer = (result: { runId: number; answer: string; suggestedActions?: unknown[]; blocks?: unknown[] }) => {
         if (answerEmitted) return;
         answerEmitted = true;
         emit('step', { conversationId, runId: result.runId, stepKey: 'answer_ready', status: 'completed' });
         for (const action of result.suggestedActions ?? []) {
           emit('action_preview', { conversationId, runId: result.runId, action });
+        }
+        for (const [index, block] of (result.blocks ?? []).entries()) {
+          const kind = block && typeof block === 'object' && 'kind' in block ? String((block as { kind: unknown }).kind) : 'unknown';
+          emit('block_delta', { conversationId, runId: result.runId, index, kind });
+          emit('block_completed', { conversationId, runId: result.runId, index, block });
         }
         const chunks = result.answer.match(/[\s\S]{1,24}/g) ?? [];
         for (const delta of chunks) emit('answer_delta', { conversationId, runId: result.runId, delta });
@@ -365,6 +378,36 @@ export class BrainController {
     });
   }
 
+  @Get('inspections/findings/:findingId/repair-preview')
+  @Permissions('core:brain:execute')
+  getInspectionRepairPreview(@Req() req: Request, @Param('findingId') findingId: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.inspectionRepairPreviewService) throw new NotFoundException('巡检修复预览服务不可用');
+    return this.inspectionRepairPreviewService.getPreview({
+      storeId: context.storeId,
+      findingId: Number(findingId),
+    });
+  }
+
+  @Post('inspections/findings/:findingId/repair-decisions')
+  @Permissions('core:brain:execute')
+  decideInspectionRepair(
+    @Req() req: Request,
+    @Param('findingId') findingId: string,
+    @Body() body: { decision: BrainInspectionRepairDecision; modifications?: Record<string, unknown>; note?: string },
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.inspectionRepairPreviewService) throw new NotFoundException('巡检修复预览服务不可用');
+    return this.inspectionRepairPreviewService.recordDecision({
+      storeId: context.storeId,
+      findingId: Number(findingId),
+      userId: context.userId,
+      decision: body.decision,
+      modifications: body.modifications,
+      note: body.note,
+    });
+  }
+
   @Post('governance/inspection-rules')
   @Permissions('core:brain-governance:manage')
   createInspectionRule(@Req() req: Request, @Body() body: Record<string, unknown>) {
@@ -392,7 +435,7 @@ export class BrainController {
 
   @Post('governance/evals/runs')
   @Permissions('core:brain-governance:manage')
-  createEvalRun(@Req() req: Request, @Body() body: { releaseId?: number; caseKeys?: string[]; roleKey?: string; modelVersion?: string }) {
+  createEvalRun(@Req() req: Request, @Body() body: CreateBrainEvalRunDto) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.evalService) throw new NotFoundException('评测服务不可用');
     return this.evalService.createEvalRun({
@@ -434,10 +477,54 @@ export class BrainController {
     });
   }
 
+  @Post('governance/releases/rollout-sequence')
+  @Permissions('core:brain-governance:manage')
+  createRolloutSequence(
+    @Req() req: Request,
+    @Body() body: { releaseKey?: string; resourceVersionIds?: number[] },
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.releaseService) throw new NotFoundException('发布服务不可用');
+    return this.releaseService.createRolloutSequence({
+      releaseKey: String(body.releaseKey ?? ''),
+      resourceVersionIds: body.resourceVersionIds ?? [],
+      createdBy: context.userId,
+    });
+  }
+
   @Get('governance/releases')
   @Permissions('core:brain-governance:view')
   async listReleases() {
     return { items: this.releaseService ? await this.releaseService.listReleases() : [] };
+  }
+
+  @Get('governance/runtime-config')
+  @Permissions('core:brain-governance:view')
+  async getRuntimeConfig(@Req() req: Request) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    const configured = this.runtimeConfigService?.runtime ?? null;
+    const roleKey = context.roles?.find((role) => role.trim().length > 0) ?? 'store_manager';
+    const resolved = this.releaseService
+      ? await this.releaseService.resolveRuntimeMode({ storeId: context.storeId, userId: context.userId, roleKey })
+      : { mode: undefined, release: null };
+    const release = resolved.release as
+      | { id?: number; releaseKey?: string; rollout?: Prisma.JsonValue }
+      | null
+      | undefined;
+    const rollout = release?.rollout && typeof release.rollout === 'object' && !Array.isArray(release.rollout)
+      ? release.rollout as Record<string, unknown>
+      : {};
+
+    return {
+      configured,
+      effective: {
+        mode: resolved.mode ?? configured?.cognitionMode ?? 'rules',
+        releaseId: release?.id ?? null,
+        releaseKey: release?.releaseKey ?? null,
+        stage: typeof rollout.stage === 'string' ? rollout.stage : null,
+        userPercentage: Number.isFinite(Number(rollout.userPercentage)) ? Number(rollout.userPercentage) : null,
+      },
+    };
   }
 
   @Post('governance/releases/:releaseId/activate')
@@ -453,6 +540,63 @@ export class BrainController {
   rollbackRelease(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rollbackRelease({ releaseId: Number(releaseId), reason: String(body.reason ?? 'manual_rollback') });
+  }
+
+  @Post('governance/releases/:releaseId/rollback-to-rules')
+  @Permissions('core:brain-governance:manage')
+  rollbackReleaseToRules(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
+    if (!this.releaseService) throw new NotFoundException('发布服务不可用');
+    return this.releaseService.rollbackToRules({
+      releaseId: Number(releaseId),
+      reason: String(body.reason ?? 'emergency_rules_rollback'),
+    });
+  }
+
+  @Post('governance/releases/:releaseId/reject')
+  @Permissions('core:brain-governance:manage')
+  rejectRelease(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
+    if (!this.releaseService) throw new NotFoundException('发布服务不可用');
+    return this.releaseService.rejectRelease({
+      releaseId: Number(releaseId),
+      reason: String(body.reason ?? 'governance_rejected'),
+    });
+  }
+
+  @Post('governance/releases/:releaseId/modification-requirements')
+  @Permissions('core:brain-governance:manage')
+  submitReleaseModification(
+    @Req() req: Request,
+    @Param('releaseId') releaseId: string,
+    @Body() body: { requirement?: string },
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceApprovalService) throw new NotFoundException('治理审批服务不可用');
+    return this.governanceApprovalService.submitModificationRequirement({
+      releaseId: Number(releaseId),
+      requirement: String(body.requirement ?? ''),
+      createdBy: context.userId,
+    });
+  }
+
+  @Get('governance/regeneration-jobs')
+  @Permissions('core:brain-governance:view')
+  listCapabilityRegenerationJobs(@Query('releaseId') releaseId?: string) {
+    if (!this.capabilityRegenerationService) throw new NotFoundException('能力再生成服务不可用');
+    return this.capabilityRegenerationService.listPublicJobs(releaseId ? Number(releaseId) : undefined);
+  }
+
+  @Get('governance/regeneration-jobs/:id')
+  @Permissions('core:brain-governance:view')
+  getCapabilityRegenerationJob(@Param('id') id: string) {
+    if (!this.capabilityRegenerationService) throw new NotFoundException('能力再生成服务不可用');
+    return this.capabilityRegenerationService.getPublicJob(Number(id));
+  }
+
+  @Post('governance/regeneration-jobs/:id/retry')
+  @Permissions('core:brain-governance:manage')
+  retryCapabilityRegenerationJob(@Param('id') id: string) {
+    if (!this.capabilityRegenerationService) throw new NotFoundException('能力再生成服务不可用');
+    return this.capabilityRegenerationService.retryJob(Number(id));
   }
 
   @Post('feedback')

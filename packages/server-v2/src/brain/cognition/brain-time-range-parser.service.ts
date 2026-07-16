@@ -99,6 +99,23 @@ export class BrainTimeRangeParserService {
         comparison: { label: '今天对比昨天', current, previous },
       };
     }
+    if (text.includes('今天') && /(平时|平常|日常|通常)/.test(text)) {
+      const current = this.dayRange('今天', now, 0);
+      const previousStart = this.startOfDay(now);
+      previousStart.setDate(previousStart.getDate() - 30);
+      const previousEnd = this.endOfDay(now);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      const previous = {
+        label: '最近30个完整自然日',
+        startDate: previousStart,
+        endDate: previousEnd,
+        granularity: 'day' as const,
+      };
+      return {
+        range: { ...current, label: '今天对比平时' },
+        comparison: { label: '今天对比平时', current, previous },
+      };
+    }
     if (text.includes('去年同期')) {
       const start = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
       const end = new Date(
@@ -119,6 +136,30 @@ export class BrainTimeRangeParserService {
   }
 
   private parseScalarRange(text: string, now: Date): BrainDateRange | undefined {
+    const inactiveDays = text.match(/(\d{1,3})\s*天(?:没来|未到店|未消费)/);
+    if (inactiveDays) {
+      const days = Number(inactiveDays[1]);
+      if (days >= 1 && days <= 366) return this.relativeThresholdRange(now, days, `${days}天未活跃阈值`);
+    }
+    const inactiveMonths = text.match(/([一二三四五六七八九十]|\d{1,2})\s*个月(?:没来|未到店|未消费)/);
+    if (inactiveMonths) {
+      const months = chineseOrArabicNumber(inactiveMonths[1]);
+      if (months >= 1 && months <= 24) return this.relativeThresholdRange(now, months * 30, `${months}个月未活跃阈值`);
+    }
+    const recentDays = text.match(/(?:最近|过去|近)\s*(\d{1,3})\s*天/);
+    if (recentDays) {
+      const days = Number(recentDays[1]);
+      if (days >= 1 && days <= 366) {
+        const startDate = this.startOfDay(now);
+        startDate.setDate(startDate.getDate() - (days - 1));
+        return {
+          label: `最近${days}天`,
+          startDate,
+          endDate: this.endOfDay(now),
+          granularity: 'day',
+        };
+      }
+    }
     if (text.includes('最近')) {
       const startDate = this.startOfDay(now);
       startDate.setDate(startDate.getDate() - 29);
@@ -218,6 +259,12 @@ export class BrainTimeRangeParserService {
     return undefined;
   }
 
+  private relativeThresholdRange(now: Date, days: number, label: string): BrainDateRange {
+    const startDate = this.startOfDay(now);
+    startDate.setDate(startDate.getDate() - (days - 1));
+    return { label, startDate, endDate: this.endOfDay(now), granularity: 'day' };
+  }
+
   private dayRange(label: string, now: Date, offsetDays: number): BrainDateRange {
     const date = new Date(now);
     date.setDate(date.getDate() + offsetDays);
@@ -290,4 +337,21 @@ export class BrainTimeRangeParserService {
     start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
     return start;
   }
+}
+
+function chineseOrArabicNumber(value: string): number {
+  if (/^\d+$/.test(value)) return Number(value);
+  const digits: Record<string, number> = {
+    一: 1,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+    十: 10,
+  };
+  return digits[value] ?? Number.NaN;
 }

@@ -85,4 +85,33 @@ describe('BrainReceptionSkillsService operations snapshot', () => {
       impactedReservation: { startTime: '15:00', customerName: '赵女士' },
     });
   });
+
+  it('ignores stale unfinished service tasks instead of reporting multi-day overruns', async () => {
+    const prisma = {
+      serviceTask: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: 10,
+          status: 'in_service',
+          appointmentTime: new Date('2026-07-01T06:00:00.000Z'),
+          duration: 60,
+          startedAt: new Date('2026-07-01T06:00:00.000Z'),
+          completedAt: null,
+          beauticianId: 1,
+          beautician: { name: '王美容师' },
+          customer: { name: '李女士' },
+          project: { name: '补水护理' },
+        }]),
+      },
+      reservation: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new BrainReceptionSkillsService(prisma as never);
+
+    const result = await service.buildServiceOverrunAnalysis({
+      storeId: 6,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2099-07-31T23:59:59.999Z'),
+    });
+
+    expect(result).toEqual({ overrunCount: 0, impactedCount: 0, items: [] });
+  });
 });
