@@ -368,6 +368,26 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_partial');
   });
 
+  it('treats a structured clarification as an exact supported outcome without citations', () => {
+    const result = grader.grade({
+      question: '帮我看看这个',
+      answer: '请明确你要查看的业务对象。',
+      blocks: [{ kind: 'clarification', question: '请明确你要查看的业务对象。', options: [] }],
+      citations: [],
+      expectedIntent: 'clarify',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'clarify',
+      actualIntent: 'clarify',
+      expectedShape: 'clarification',
+      actualShape: 'clarification',
+      groundingType: 'none',
+    });
+  });
+
   it('accepts a scalar database skill as exact when it cites the governed metric definition', () => {
     const result = grader.grade({
       question: '这个月店里实际收了多少钱',

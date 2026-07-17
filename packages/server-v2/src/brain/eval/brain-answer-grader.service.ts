@@ -9,9 +9,17 @@ export type BrainQuestionIntent =
   | 'action'
   | 'recommendation'
   | 'diagnosis'
+  | 'clarify'
   | 'unknown';
 
-export type BrainAnswerShape = 'scalar_metric' | 'comparison' | 'ranking' | 'list' | 'non_metric' | 'empty';
+export type BrainAnswerShape =
+  | 'scalar_metric'
+  | 'comparison'
+  | 'ranking'
+  | 'list'
+  | 'clarification'
+  | 'non_metric'
+  | 'empty';
 export type BrainGroundingType = 'metric_query' | 'db_skill' | 'template_skill' | 'preview_action' | 'none';
 
 export type BrainAnswerGradeStatus =
@@ -121,6 +129,20 @@ export class BrainAnswerGraderService {
         expectedMetric,
         actualMetric,
         reason: '语义问数链路执行失败。',
+        legacyUsableWithCitation,
+      });
+    }
+    if (expectedIntent === 'clarify') {
+      const matched = actualIntent === 'clarify' && actualShape === 'clarification';
+      return this.buildGrade(input, {
+        status: matched ? 'usable_exact' : 'false_positive_intent_mismatch',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: matched ? '返回了结构化合并式澄清。' : '问题需要澄清，但系统未返回可继续的澄清结果。',
         legacyUsableWithCitation,
       });
     }
@@ -332,6 +354,7 @@ export class BrainAnswerGraderService {
   }
 
   private detectActualIntent(input: BrainAnswerGraderInput): BrainQuestionIntent {
+    if (this.hasClarificationBlock(input.blocks) || this.isGeneralClarification(input.answer)) return 'clarify';
     if (this.hasMetricCitation(input.citations)) return 'metric_query';
     const skillId = this.detectActualSkill(input.citations);
     if (skillId?.includes('draft')) return 'draft';
@@ -345,6 +368,7 @@ export class BrainAnswerGraderService {
   }
 
   private shapeForIntent(intent: BrainQuestionIntent): BrainAnswerShape {
+    if (intent === 'clarify') return 'clarification';
     if (intent === 'comparison') return 'comparison';
     if (intent === 'ranking') return 'ranking';
     if (intent === 'list') return 'list';
@@ -360,6 +384,7 @@ export class BrainAnswerGraderService {
       const kind = (value as Record<string, unknown>).kind;
       return typeof kind === 'string' ? [kind] : [];
     });
+    if (blockKinds.includes('clarification') || blockKinds.includes('clarification_card')) return 'clarification';
     if (blockKinds.includes('ranking')) return 'ranking';
     if (blockKinds.includes('comparison')) return 'comparison';
     if (blockKinds.includes('table') && expectedShape === 'list') return 'list';
@@ -494,6 +519,18 @@ export class BrainAnswerGraderService {
 
   private isClarificationRequired(answer: string) {
     return answer.includes('请提供客户姓名或手机号后四位') || answer.includes('请补充完整姓名或手机号后四位');
+  }
+
+  private isGeneralClarification(answer: string) {
+    return /^(?:请|需要你|需要您)(?:确认|补充|说明|选择|提供|明确)/.test(answer.trim());
+  }
+
+  private hasClarificationBlock(blocks: unknown[] | undefined) {
+    return (blocks ?? []).some((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+      const kind = (value as Record<string, unknown>).kind;
+      return kind === 'clarification' || kind === 'clarification_card';
+    });
   }
 
   private isDbSkillScalarPartial(input: BrainAnswerGraderInput, groundingType: BrainGroundingType) {

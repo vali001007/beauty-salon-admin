@@ -198,6 +198,42 @@ describe('BrainCapabilitySemanticVerifierService', () => {
     await expect(verifier.verifyProposal(wrongSchema)).rejects.toThrow('generated_capability_semantics_mismatch');
   });
 
+  it('accepts shared V2 dimensions when at least one referenced definition binds the semantic query capability', async () => {
+    const current = v2Snapshot();
+    const sharedDimension = sharedV2DimensionDefinition();
+    current.definitions.push(sharedDimension);
+    current.snapshotFingerprint = createHash('sha256')
+      .update(canonicalizeBusinessDefinition(current.definitions))
+      .digest('hex');
+    const generated = proposal(current);
+    const sharedRef = {
+      definitionId: sharedDimension.definitionId,
+      versionId: sharedDimension.versionId,
+      definitionKey: sharedDimension.definitionKey,
+      version: sharedDimension.version,
+      definitionFingerprint: sharedDimension.fingerprint,
+      sourceFingerprint: sharedDimension.sourceFingerprint,
+    };
+    generated.businessDefinitions.push(sharedRef);
+    generated.manifest.definitionRefs.push(sharedRef);
+    generated.manifest.domains = ['product'];
+    generated.manifest.requiredPermissions = ['core:order:products'];
+    generated.manifest.description = '模型编译：按统一商品销量口径排序。';
+    generated.manifest.grounding = 'semantic_query';
+    const verifier = new BrainCapabilitySemanticVerifierService({
+      loadPublishedSnapshot: jest.fn().mockResolvedValue(current),
+    } as never);
+
+    await expect(verifier.verifyProposal(generated)).resolves.toMatchObject({
+      manifest: expect.objectContaining({ key: 'product_sales_ranking' }),
+    });
+
+    const unbound = structuredClone(generated);
+    unbound.capabilityKey = 'unbound_semantic_query';
+    unbound.manifest.key = 'unbound_semantic_query';
+    await expect(verifier.verifyProposal(unbound)).rejects.toThrow('generated_capability_semantics_mismatch');
+  });
+
   it('allows an explicit domain-service composite to cite governed definitions without claiming metric executor bindings', async () => {
     const current = v2Snapshot();
     const generated = proposal(current);
@@ -479,6 +515,80 @@ function v2Snapshot(): BrainBusinessDefinitionSnapshot {
     snapshotFingerprint: createHash('sha256')
       .update(canonicalizeBusinessDefinition([definition]))
       .digest('hex'),
+  };
+}
+
+function sharedV2DimensionDefinition(): BrainBusinessDefinitionSnapshot['definitions'][number] {
+  const immutable = {
+    definitionKey: 'dimension.productName',
+    kind: 'dimension',
+    domain: 'product',
+    name: '商品名称',
+    ownerType: 'system',
+    ownerId: null,
+    schemaVersion: '1.0',
+    payload: {
+      dimensionKey: 'productName',
+      aliases: ['商品'],
+      bindings: { capability: ['inventory_risk_ranking'] },
+    },
+    sourceFingerprint: 'c'.repeat(64),
+    canonicalQueryRef: null,
+    fixtureSetKey: null,
+    timezone: 'Asia/Shanghai',
+    storeScope: { mode: 'current_store' },
+  };
+  const fingerprint = createBusinessDefinitionFingerprint(immutable);
+  const version = {
+    id: 43,
+    definitionId: 42,
+    version: 1,
+    ...immutable,
+    lifecycleStatus: 'published',
+    fingerprint,
+    validationStatus: 'passed',
+    validationReport: null,
+    evidence: [],
+    definition: {
+      id: 42,
+      definitionKey: immutable.definitionKey,
+      kind: immutable.kind,
+      domain: immutable.domain,
+      name: immutable.name,
+      ownerType: immutable.ownerType,
+      ownerId: immutable.ownerId,
+    },
+  };
+  const payload = createBusinessDefinitionProjectionV2Payload(version, 'capability_semantic_view', false);
+  const projection = {
+    definitionVersionId: version.id,
+    targetType: 'capability_semantic_view' as const,
+    targetKey: `${immutable.definitionKey}@${version.version}`,
+    definitionKey: immutable.definitionKey,
+    definitionVersion: version.version,
+    definitionFingerprint: fingerprint,
+    sourceFingerprint: immutable.sourceFingerprint,
+    payload,
+    projectionFingerprint: createBusinessDefinitionProjectionFingerprint({
+      targetType: 'capability_semantic_view',
+      targetKey: `${immutable.definitionKey}@${version.version}`,
+      definitionVersionId: version.id,
+      definitionRef: payload.definitionRef,
+      payload,
+      readOnly: true,
+    }),
+    readOnly: true,
+  };
+  return {
+    definitionId: version.definitionId,
+    versionId: version.id,
+    ...immutable,
+    version: version.version,
+    fingerprint,
+    validationStatus: 'passed',
+    validationReport: null,
+    evidence: [],
+    projections: [projection],
   };
 }
 

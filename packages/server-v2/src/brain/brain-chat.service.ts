@@ -51,7 +51,10 @@ import {
   BrainRoleContextBuilderService,
   type BrainRoleRuntimeContext,
 } from './role/brain-role-context-builder.service.js';
-import type { BrainModelConversationCorrection } from './context/brain-conversation-context.service.js';
+import type {
+  BrainModelConversationCorrection,
+  BrainModelPendingClarification,
+} from './context/brain-conversation-context.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
 import { BusinessSemanticEvidenceService } from '../semantic-data/business-semantic-evidence.service.js';
 
@@ -84,6 +87,7 @@ interface BrainChatAnswer {
   modelMetadata?: BrainModelMetadata;
   modelContextIntent?: BrainSemanticIntent;
   modelContextCorrections?: BrainModelConversationCorrection[];
+  modelContextPendingClarification?: BrainModelPendingClarification;
 }
 
 interface BrainAnswerReadyEvent {
@@ -376,6 +380,7 @@ export class BrainChatService {
                 }
               : {}),
             corrections: chatAnswer.modelContextCorrections ?? [],
+            pendingClarification: chatAnswer.modelContextPendingClarification,
           });
         } catch (error) {
           await this.traceService.recordStep({
@@ -1008,15 +1013,22 @@ export class BrainChatService {
       status: 'completed',
     });
 
-    let enrichedIntent = this.normalizeGovernedCapabilityContractIntent({
-      intent: this.normalizeGovernedCapabilityExampleIntent({
-        intent: this.enrichModelEntityRefs(compilation.intent),
+    let enrichedIntent = this.normalizePendingClarificationResolution({
+      intent: this.normalizeUnboundReferenceIntent({
+        intent: this.normalizeGovernedCapabilityContractIntent({
+          intent: this.normalizeGovernedCapabilityExampleIntent({
+            intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(compilation.intent)),
+            question: input.dto.message,
+            cards,
+            snapshot,
+          }),
+          question: input.dto.message,
+          cards,
+        }),
         question: input.dto.message,
-        cards,
-        snapshot,
+        conversationSlots: compilerInput.conversationSlots,
       }),
-      question: input.dto.message,
-      cards,
+      conversationSlots: compilerInput.conversationSlots,
     });
     let validation: ReturnType<BrainSemanticIntentValidatorService['validate']>;
     try {
@@ -1056,15 +1068,22 @@ export class BrainChatService {
         },
       });
       if (repairCompilation.status === 'completed') {
-        const repairedIntent = this.normalizeGovernedCapabilityContractIntent({
-          intent: this.normalizeGovernedCapabilityExampleIntent({
-            intent: this.enrichModelEntityRefs(repairCompilation.intent),
+        const repairedIntent = this.normalizePendingClarificationResolution({
+          intent: this.normalizeUnboundReferenceIntent({
+            intent: this.normalizeGovernedCapabilityContractIntent({
+              intent: this.normalizeGovernedCapabilityExampleIntent({
+                intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(repairCompilation.intent)),
+                question: input.dto.message,
+                cards,
+                snapshot,
+              }),
+              question: input.dto.message,
+              cards,
+            }),
             question: input.dto.message,
-            cards,
-            snapshot,
+            conversationSlots: compilerInput.conversationSlots,
           }),
-          question: input.dto.message,
-          cards,
+          conversationSlots: compilerInput.conversationSlots,
         });
         const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent);
         compilation = repairCompilation;
@@ -1093,6 +1112,17 @@ export class BrainChatService {
     }
     if (validation.status === 'clarification_required') {
       const clarificationMetadata = this.modelMetadata('validate', modelMetadata);
+      const question =
+        validation.clarification.questions[0] ?? this.safeModelFailureAnswer('MODEL_INTENT_CLARIFICATION_REQUIRED');
+      const options = this.modelClarificationOptions(validation.clarification.ambiguities);
+      const pendingClarification: BrainModelPendingClarification = {
+        missingSlots: [...validation.clarification.missingSlots],
+        questions: [...validation.clarification.questions],
+        ambiguities: validation.clarification.ambiguities.map((ambiguity) => ({
+          ...ambiguity,
+          candidates: [...ambiguity.candidates],
+        })),
+      };
       await this.recordModelTrace({
         runId: input.runId,
         stepKey: 'model_intent_validation',
@@ -1102,11 +1132,22 @@ export class BrainChatService {
       });
       return {
         status: 'completed',
-        answer: this.safeModelFailureAnswer('MODEL_INTENT_CLARIFICATION_REQUIRED'),
+        answer: question,
         citations: [],
-        suggestedActions: validation.clarification.missingSlots,
+        suggestedActions: options,
+        blocks: [{ kind: 'clarification', question, options }],
+        grounding: 'none',
+        adapterMetadata: {
+          clarification: pendingClarification,
+          completion: {
+            status: 'partial',
+            missingCriteria: [...validation.clarification.missingSlots],
+            recoverable: true,
+          },
+        },
         modelContextIntent: validation.intent,
-        modelMetadata: { ...clarificationMetadata, failureCode: 'MODEL_INTENT_CLARIFICATION_REQUIRED' },
+        modelContextPendingClarification: pendingClarification,
+        modelMetadata: clarificationMetadata,
       };
     }
     if (validation.status !== 'valid') {
@@ -1574,6 +1615,123 @@ export class BrainChatService {
     };
   }
 
+  private normalizeModelClarificationIntent(intent: BrainSemanticIntent): BrainSemanticIntent {
+    if (intent.intent !== 'clarify') return intent;
+    const allowedSlots = new Set([
+      'objective',
+      'entity',
+      'metric',
+      'dimension',
+      'timeRange',
+      'comparisonTarget',
+      'comparisonEntities',
+      'orderBy',
+      'actionTarget',
+      'successCriteria',
+    ]);
+    const missingSlots = [
+      ...intent.missingSlots.filter((slot) => allowedSlots.has(slot)),
+      ...intent.ambiguities.map((ambiguity) => ambiguity.slot).filter((slot) => allowedSlots.has(slot)),
+    ];
+    return {
+      ...intent,
+      domains: [],
+      entities: intent.entities.filter((entity) => Boolean(entity.definitionRef)),
+      answerShape: 'clarification',
+      missingSlots: [...new Set(missingSlots.length ? missingSlots : ['objective'])],
+    };
+  }
+
+  private normalizeUnboundReferenceIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    conversationSlots: Record<string, unknown>;
+  }): BrainSemanticIntent {
+    const hasUnboundReference =
+      /(?:这个|那个)(?:数据|情况|指标|报表|问题|结果|方案|对象|记录)/.test(input.question) ||
+      /(?:帮我看看|处理一下|分析一下)?(?:这个|那个)(?:[，。？！?]|$)/.test(input.question) ||
+      /(?:按|照)?(?:之前|刚才|上面|前面)(?:的)?(?:那个|这个|数据|结果|方案|口径|操作)/.test(input.question);
+    if (!hasUnboundReference || this.hasModelReferenceContext(input.conversationSlots)) return input.intent;
+    const missingSlot = /数据|指标|报表|记录/.test(input.question) ? 'entity' : 'objective';
+    const reason = '指代内容未绑定到当前会话中的业务对象、指标、报表或上一轮结果。';
+    return {
+      ...input.intent,
+      domains: [],
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      orderBy: [],
+      missingSlots: [...new Set([...input.intent.missingSlots, missingSlot])],
+      ambiguities: [
+        ...input.intent.ambiguities.filter((ambiguity) => ambiguity.slot !== missingSlot),
+        { slot: missingSlot, reason, candidates: [] },
+      ],
+      assumptions: input.intent.assumptions.filter((assumption) => !assumption.startsWith('能力 ')),
+      confidence: Math.min(input.intent.confidence, 0.55),
+    };
+  }
+
+  private hasModelReferenceContext(conversationSlots: Record<string, unknown>): boolean {
+    const modelContext = this.modelContextRecord(conversationSlots.modelContext);
+    if (typeof modelContext.objective === 'string' && modelContext.objective.trim()) return true;
+    if (modelContext.capability && typeof modelContext.capability === 'object') return true;
+    for (const key of ['definitionRefs', 'entities', 'metrics', 'dimensions']) {
+      if (Array.isArray(modelContext[key]) && modelContext[key].length > 0) return true;
+    }
+    return false;
+  }
+
+  private normalizePendingClarificationResolution(input: {
+    intent: BrainSemanticIntent;
+    conversationSlots: Record<string, unknown>;
+  }): BrainSemanticIntent {
+    const directives = this.modelContextRecord(input.conversationSlots.turnDirectives);
+    if (directives.mode !== 'resolve_pending_or_new') return input.intent;
+    const resolve = this.modelContextRecord(directives.resolve);
+    const comparisonTarget = this.modelContextTimeRange(resolve.comparisonTarget);
+    if (input.intent.intent !== 'comparison' || !comparisonTarget) return input.intent;
+    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    const currentRange = this.modelContextTimeRange(modelContext.timeRange) ?? input.intent.timeRange;
+    if (!currentRange) return input.intent;
+    return {
+      ...input.intent,
+      timeRange: currentRange,
+      comparisonTarget: { type: 'time', timeRange: comparisonTarget },
+      missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'comparisonTarget'),
+      ambiguities: input.intent.ambiguities.filter((ambiguity) => ambiguity.slot !== 'comparisonTarget'),
+    };
+  }
+
+  private modelContextRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  }
+
+  private modelContextTimeRange(value: unknown): BrainSemanticIntent['timeRange'] | undefined {
+    const range = this.modelContextRecord(value);
+    if (typeof range.label !== 'string' || (range.timezone !== 'Asia/Shanghai' && range.timezone !== 'UTC')) {
+      return undefined;
+    }
+    const optionalString = (candidate: unknown) =>
+      typeof candidate === 'string' && candidate.trim() ? candidate : undefined;
+    return {
+      ...(optionalString(range.preset) ? { preset: optionalString(range.preset) } : {}),
+      ...(optionalString(range.startDate) ? { startDate: optionalString(range.startDate) } : {}),
+      ...(optionalString(range.endDate) ? { endDate: optionalString(range.endDate) } : {}),
+      label: range.label,
+      timezone: range.timezone,
+    };
+  }
+
+  private modelClarificationOptions(ambiguities: readonly BrainSemanticIntent['ambiguities'][number][]) {
+    return ambiguities.flatMap((ambiguity) =>
+      ambiguity.candidates.map((candidate, index) => ({
+        id: `${ambiguity.slot}:${index + 1}`,
+        label: candidate,
+        value: { slot: ambiguity.slot, candidate },
+      })),
+    );
+  }
+
   private normalizeGovernedWorkflowIntent(input: {
     intent: BrainSemanticIntent;
     question: string;
@@ -1989,6 +2147,7 @@ export class BrainChatService {
       metrics?: unknown;
       dimensions?: unknown;
       capability?: unknown;
+      pendingClarification?: unknown;
       lastCorrections?: unknown;
       turnDirectives?: unknown;
       updatedAt?: unknown;
@@ -2006,6 +2165,7 @@ export class BrainChatService {
         answerShape: snapshot.answerShape,
         timeRange: snapshot.timeRange,
         capability: snapshot.capability,
+        pendingClarification: snapshot.pendingClarification,
         lastCorrections: snapshot.lastCorrections,
         updatedAt: snapshot.updatedAt,
       },

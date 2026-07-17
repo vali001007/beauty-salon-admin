@@ -410,6 +410,7 @@ const SLOT_LABELS: Record<string, string> = {
   dimension: '分组维度',
   entity: '业务对象',
   metric: '指标口径',
+  objective: '目标或要处理的问题',
   orderBy: '排序依据',
   successCriteria: '完成标准',
   timeRange: '时间范围',
@@ -430,7 +431,8 @@ function buildMergedClarificationQuestion(
     if (issue.code !== 'ENTITY_CONFLICT') continue;
     parts.push(`${issue.message}${issue.candidates?.length ? `（${issue.candidates.join('、')}）` : ''}`);
   }
-  return `为了准确处理，请一次确认：${Array.from(new Set(parts)).join('；')}？`;
+  const normalizedParts = parts.map((part) => part.trim().replace(/[，。；：！？,.!?:;]+$/u, ''));
+  return `为了准确处理，请一次确认：${Array.from(new Set(normalizedParts)).join('；')}？`;
 }
 
 function isExecutableTimeRange(value: unknown): boolean {

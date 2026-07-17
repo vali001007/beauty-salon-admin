@@ -1055,9 +1055,87 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           { sourceType: 'db_skill', sourceId: 'finance_income_analysis', label: '实收、支付方式与收入趋势' },
           { sourceType: 'db_skill', sourceId: 'finance_cost_analysis', label: '成本、毛利与会员卡负债' },
         ];
-        const diagnosis = diagnosisAnswer && previousRisk && previousIncome && previousCost
-          ? this.buildFinanceDiagnosis({ risk, income, cost, previousRisk, previousIncome, previousCost, currentLabel: diagnosisRange.label, previousLabel: comparisonRange!.label })
-          : undefined;
+        if (input.answerShape === 'scalar') {
+          const requestedMetricKeys = structuredDefinitionKeys(input.args.metrics);
+          const scalarItems: Array<{ label: string; value: string; definitionKey: string; citationId: string }> = [];
+          if (requestedMetricKeys.has('metric.paid_amount')) {
+            scalarItems.push({
+              label: '实收金额',
+              value: `${income.totalCollected.toFixed(2)} 元`,
+              definitionKey: 'metric.paid_amount',
+              citationId: 'finance_income_analysis',
+            });
+          }
+          if (requestedMetricKeys.has('metric.refund_amount')) {
+            scalarItems.push({
+              label: '退款金额',
+              value: `${risk.refundAmount.toFixed(2)} 元`,
+              definitionKey: 'metric.refund_amount',
+              citationId: 'finance_risk_summary',
+            });
+          }
+          if (requestedMetricKeys.has('metric.operating_cost_amount')) {
+            scalarItems.push({
+              label: '经营费用',
+              value: `${cost.operatingCost.toFixed(2)} 元`,
+              definitionKey: 'metric.operating_cost_amount',
+              citationId: 'finance_cost_analysis',
+            });
+          }
+          if (scalarItems.length > 0) {
+            const definitionCitations = scalarItems.map((item) => {
+              const ref = structuredDefinitionRef(input.args.metrics, item.definitionKey);
+              return {
+                sourceType: 'business_definition',
+                sourceId: ref ? `${ref.definitionKey}@${ref.definitionVersion}` : item.definitionKey,
+                label: `业务定义：${item.label}`,
+              };
+            });
+            const dataCitations = [...new Set(scalarItems.map((item) => item.citationId))]
+              .map((sourceId) => citations.find((citation) => citation.sourceId === sourceId)!)
+              .filter(Boolean);
+            const multipleMetrics = scalarItems.length > 1;
+            const limitation = '当前请求包含多个独立已发布指标，本次分别展示，不将其自动合成未发布的派生指标。';
+            return {
+              status: 'completed',
+              answer: `${diagnosisRange.label}${scalarItems.map((item) => `${item.label} ${item.value}`).join('，')}。${multipleMetrics ? limitation : ''}`,
+              citations: [...definitionCitations, ...dataCitations],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: scalarItems.map((item) => ({ label: item.label, value: item.value })),
+                  citationIds: [
+                    ...definitionCitations.map((citation) => citation.sourceId),
+                    ...dataCitations.map((citation) => citation.sourceId),
+                  ],
+                },
+                ...(multipleMetrics ? [{ kind: 'limitations' as const, items: [limitation] }] : []),
+              ],
+              metadata: {
+                capabilityKey: 'finance_risk_overview',
+                rangeLabel: diagnosisRange.label,
+                answerShape: input.answerShape,
+                answerScope: 'requested_scalar_metrics',
+                requestedMetricKeys: [...requestedMetricKeys],
+                completionCriteria: scalarItems.map((item) => `${item.definitionKey}_loaded`),
+              },
+            };
+          }
+        }
+        const diagnosis =
+          diagnosisAnswer && previousRisk && previousIncome && previousCost
+            ? this.buildFinanceDiagnosis({
+                risk,
+                income,
+                cost,
+                previousRisk,
+                previousIncome,
+                previousCost,
+                currentLabel: diagnosisRange.label,
+                previousLabel: comparisonRange!.label,
+              })
+            : undefined;
         const requestedDiagnosisDimensions = structuredDefinitionKeys(input.args.dimensions);
         const projectStructureGap = diagnosisAnswer && (
           /(?:项目|品项|商品|产品|结构)/.test(input.question) ||

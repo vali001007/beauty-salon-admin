@@ -2198,6 +2198,91 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     expect(answer.metadata).toMatchObject({ answerShape: 'scalar', totalCollected: 28756.3 });
   });
 
+  it('projects a broad finance capability to only the requested scalar metrics', async () => {
+    const skillRuntime = {
+      buildFinanceRiskSummary: jest.fn().mockResolvedValue({
+        refundAmount: 125.5,
+        refundCount: 2,
+        discountAmount: 0,
+        riskItems: [],
+      }),
+      buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
+        totalCollected: 28756.3,
+        paymentBreakdown: [{ method: 'wechat', amount: 28756.3, count: 8 }],
+        dailyTrend: [{ date: '2026-07-17', revenue: 28756.3 }],
+      }),
+      buildFinanceCostAnalysis: jest.fn().mockResolvedValue({
+        operatingCost: 3000,
+        grossProfit: 0,
+        cardLiability: 0,
+        materialCost: 0,
+        commissionCost: 0,
+        costCategories: [],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: true,
+          range: {
+            label: '本月截至现在',
+            startDate: new Date('2026-07-01T00:00:00.000Z'),
+            endDate: new Date('2026-07-17T10:00:00.000Z'),
+            granularity: 'month',
+          },
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+        }),
+      } as never,
+    );
+
+    const answer = await executor.execute(
+      input(card('finance_risk_overview', 'domain'), {
+        answerShape: 'scalar',
+        args: {
+          metrics: [
+            { definitionKey: 'metric.paid_amount', definitionVersion: 8 },
+            { definitionKey: 'metric.refund_amount', definitionVersion: 1 },
+          ],
+        },
+        question: '截至现在本月净收款是多少',
+      }),
+    );
+
+    expect(answer.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'kpi',
+        items: [
+          { label: '实收金额', value: '28756.30 元' },
+          { label: '退款金额', value: '125.50 元' },
+        ],
+      }),
+      expect.objectContaining({ kind: 'limitations' }),
+    ]);
+    expect(answer.blocks).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'ranking' }),
+        expect.objectContaining({ kind: 'chart' }),
+        expect.objectContaining({ kind: 'table' }),
+        expect.objectContaining({ kind: 'diagnosis' }),
+      ]),
+    );
+    expect(answer.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' }),
+        expect.objectContaining({ sourceType: 'business_definition', sourceId: 'metric.refund_amount@1' }),
+      ]),
+    );
+    expect(answer.metadata).toMatchObject({
+      answerShape: 'scalar',
+      answerScope: 'requested_scalar_metrics',
+      requestedMetricKeys: ['metric.paid_amount', 'metric.refund_amount'],
+    });
+  });
+
   it('returns paid amount as a daily line chart when the semantic plan requests a trend answer', async () => {
     const skillRuntime = {
       buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
@@ -2385,7 +2470,11 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
       customerFacts as never,
-      { parse: jest.fn().mockReturnValue({ range: { label: '本月', startDate: new Date('2026-07-01'), endDate: new Date('2026-07-31') } }) } as never,
+      {
+        parse: jest.fn().mockReturnValue({
+          range: { label: '本月', startDate: new Date('2026-07-01'), endDate: new Date('2026-07-31') },
+        }),
+      } as never,
     );
 
     const answer = await executor.execute(input(card('marketing_growth_overview', 'domain')));
@@ -2550,7 +2639,14 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
       {} as never,
-      { parse: jest.fn().mockReturnValue({ mentionedTime: false, filters: [], requiresComparison: false, unsupportedExpressions: [] }) } as never,
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: false,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+        }),
+      } as never,
       dataQuality as never,
     );
 

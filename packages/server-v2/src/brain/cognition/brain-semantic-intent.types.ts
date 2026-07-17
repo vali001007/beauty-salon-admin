@@ -20,6 +20,7 @@ export const BRAIN_SEMANTIC_ANSWER_SHAPES = [
   'diagnosis',
   'draft',
   'action_preview',
+  'clarification',
 ] as const;
 
 export type BrainSemanticIntentKind = (typeof BRAIN_SEMANTIC_INTENTS)[number];

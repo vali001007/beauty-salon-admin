@@ -940,8 +940,146 @@ describe('BrainChatService', () => {
 
     await service.sendMessage(context, 12, { message: '本月商品销售排行' });
 
-    expect(conversationContext.updateAfterModelRun).toHaveBeenCalledWith(expect.objectContaining({ runId: 77 }));
+    expect(conversationContext.updateAfterModelRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 77,
+        pendingClarification: {
+          questions: ['请补充时间范围'],
+          missingSlots: ['timeRange'],
+          ambiguities: [],
+        },
+      }),
+    );
+    expect(prisma.brainRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          output: expect.objectContaining({
+            blocks: [{ kind: 'clarification', question: '请补充时间范围', options: [] }],
+            grounding: 'none',
+            failureCode: null,
+          }),
+        }),
+      }),
+    );
     expect(conversationContext.updateAfterRun).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a pure clarification as domain-neutral structured context', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const normalized = (service as any).normalizeModelClarificationIntent({
+      schemaVersion: '1.0',
+      objective: '澄清“这个”所指内容',
+      domains: ['general_unknown'],
+      intent: 'clarify',
+      entities: [{ entityType: 'unknown', mention: '这个', source: 'user', confidence: 0.5 }],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['明确用户目标'],
+      ambiguities: [{ slot: 'objective', reason: '指代不明', candidates: [] }],
+      missingSlots: ['请说明要看什么'],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '需要澄清',
+    });
+
+    expect(normalized).toMatchObject({
+      intent: 'clarify',
+      answerShape: 'clarification',
+      domains: [],
+      entities: [],
+      missingSlots: ['objective'],
+    });
+  });
+
+  it('forces an unbound deictic reference back into clarification without discarding a bound prior turn', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const diagnosisIntent = {
+      schemaVersion: '1.0',
+      objective: '判断用户所指数据是否异常',
+      domains: ['finance'],
+      intent: 'diagnosis',
+      answerShape: 'diagnosis',
+      timeRange: undefined,
+      comparisonTarget: undefined,
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['能力 finance_risk_overview 将采用并披露已治理的默认分析口径。'],
+      successCriteria: ['判断异常'],
+      confidence: 0.8,
+      decisionSummary: '诊断数据异常',
+    };
+
+    const unbound = (service as any).normalizeUnboundReferenceIntent({
+      intent: diagnosisIntent,
+      question: '这个数据有问题吗',
+      conversationSlots: { modelContext: {} },
+    });
+    expect(unbound).toMatchObject({
+      intent: 'diagnosis',
+      domains: [],
+      missingSlots: ['entity'],
+      ambiguities: [expect.objectContaining({ slot: 'entity' })],
+      assumptions: [],
+    });
+
+    const bound = (service as any).normalizeUnboundReferenceIntent({
+      intent: diagnosisIntent,
+      question: '这个数据有问题吗',
+      conversationSlots: { modelContext: { objective: '检查本月实收', metrics: [{ definitionKey: 'metric.paid_amount' }] } },
+    });
+    expect(bound).toBe(diagnosisIntent);
+  });
+
+  it('merges a pending comparison target into the inherited current period deterministically', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const current = { preset: 'this_month', label: '本月', timezone: 'Asia/Shanghai' };
+    const previous = { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' };
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '比较本月与上月实收',
+      domains: ['finance'],
+      intent: 'comparison',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'comparison',
+      successCriteria: ['返回差额'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '对比实收',
+      timeRange: previous,
+    };
+
+    const normalized = (service as any).normalizePendingClarificationResolution({
+      intent,
+      conversationSlots: {
+        modelContext: { timeRange: current },
+        turnDirectives: {
+          mode: 'resolve_pending_or_new',
+          pendingSlots: ['comparisonTarget'],
+          resolve: { comparisonTarget: previous },
+        },
+      },
+    });
+
+    expect(normalized).toMatchObject({
+      timeRange: current,
+      comparisonTarget: { type: 'time', timeRange: previous },
+      missingSlots: [],
+      ambiguities: [],
+    });
   });
 
   it('returns model blocks through the ready event, run output, assistant metadata, and final response', async () => {

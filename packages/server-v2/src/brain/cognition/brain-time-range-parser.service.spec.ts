@@ -46,6 +46,15 @@ describe('BrainTimeRangeParserService', () => {
     });
   });
 
+  it('parses a current calendar period capped at now before the generic now range', () => {
+    expect(range('截至现在本月净收款是多少')).toMatchObject({
+      label: '本月截至现在',
+      startDate: new Date(2026, 6, 1, 0, 0, 0, 0),
+      endDate: now,
+      granularity: 'month',
+    });
+  });
+
   it('marks year-over-year same period as comparison instead of scalar all-history', () => {
     const result = parser.parse('去年同期收入多少', { now });
 
@@ -72,6 +81,21 @@ describe('BrainTimeRangeParserService', () => {
         endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
       },
     });
+  });
+
+  it('keeps a recognized current period when the comparison target is still missing', () => {
+    const result = parser.parse('把本月实收跟另一个周期比较', { now });
+
+    expect(result).toMatchObject({
+      mentionedTime: true,
+      requiresComparison: true,
+      range: {
+        label: '本月',
+        startDate: new Date(2026, 6, 1, 0, 0, 0, 0),
+      },
+      unsupportedExpressions: [],
+    });
+    expect(result.comparison).toBeUndefined();
   });
 
   it('defaults generic month-over-month wording to current month versus previous month', () => {

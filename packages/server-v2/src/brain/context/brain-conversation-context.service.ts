@@ -5,6 +5,7 @@ import type { BrainQuestionIntentResult } from '../cognition/brain-question-inte
 import { BrainTimeRangeParserService } from '../cognition/brain-time-range-parser.service.js';
 import type {
   BrainDefinitionRef,
+  BrainSemanticAmbiguity,
   BrainSemanticEntityReference,
   BrainSemanticIntent,
   BrainSemanticTimeRange,
@@ -55,10 +56,20 @@ export interface BrainModelConversationCorrection {
 }
 
 export interface BrainModelConversationTurnDirectives {
+  mode: 'continue' | 'resolve_pending_or_new';
   inherit: Array<'objective' | 'entities' | 'metrics' | 'dimensions' | 'timeRange' | 'capability'>;
   doNotInherit: Array<'objective' | 'entities' | 'metrics' | 'dimensions' | 'timeRange' | 'capability'>;
   replace?: { timeRange?: BrainSemanticTimeRange };
+  resolve?: { comparisonTarget?: BrainSemanticTimeRange };
   corrections: BrainModelConversationCorrection[];
+  pendingSlots?: string[];
+  pendingQuestion?: string;
+}
+
+export interface BrainModelPendingClarification {
+  missingSlots: string[];
+  questions: string[];
+  ambiguities: BrainSemanticAmbiguity[];
 }
 
 export interface BrainModelConversationContextSnapshot {
@@ -72,6 +83,7 @@ export interface BrainModelConversationContextSnapshot {
   answerShape: BrainSemanticIntent['answerShape'];
   timeRange?: BrainSemanticTimeRange;
   capability?: { key: string; version: number };
+  pendingClarification?: BrainModelPendingClarification;
   lastCorrections: BrainModelConversationCorrection[];
   updatedFromRunId: number;
   updatedAt: string;
@@ -251,6 +263,7 @@ export class BrainConversationContextService {
     intent: BrainSemanticIntent;
     capability?: { key: string; version: number };
     corrections?: BrainModelConversationCorrection[];
+    pendingClarification?: BrainModelPendingClarification;
   }) {
     const current = await this.prisma.brainConversation.findFirst({
       where: { id: input.conversationId, userId: input.userId, storeId: input.storeId, deletedAt: null },
@@ -276,6 +289,18 @@ export class BrainConversationContextService {
       answerShape: input.intent.answerShape,
       ...(input.intent.timeRange ? { timeRange: this.normalizeModelTimeRange(input.intent.timeRange) } : {}),
       ...(input.capability ? { capability: { ...input.capability } } : {}),
+      ...(input.pendingClarification
+        ? {
+            pendingClarification: {
+              missingSlots: [...input.pendingClarification.missingSlots],
+              questions: [...input.pendingClarification.questions],
+              ambiguities: input.pendingClarification.ambiguities.map((ambiguity) => ({
+                ...ambiguity,
+                candidates: [...ambiguity.candidates],
+              })),
+            },
+          }
+        : {}),
       lastCorrections: (input.corrections ?? []).map((correction) => ({ ...correction })),
       updatedFromRunId: input.runId,
       updatedAt: new Date().toISOString(),
@@ -344,6 +369,7 @@ export class BrainConversationContextService {
         'answerShape',
         'timeRange',
         'capability',
+        'pendingClarification',
         'lastCorrections',
         'updatedFromRunId',
         'updatedAt',
@@ -371,6 +397,8 @@ export class BrainConversationContextService {
     if (
       (snapshot.timeRange !== undefined && !this.isModelTimeRange(snapshot.timeRange)) ||
       (snapshot.capability !== undefined && !this.isModelCapability(snapshot.capability)) ||
+      (snapshot.pendingClarification !== undefined &&
+        !this.isModelPendingClarification(snapshot.pendingClarification)) ||
       (snapshot.lastCorrections !== undefined &&
         (!Array.isArray(snapshot.lastCorrections) ||
           !snapshot.lastCorrections.every((correction) => this.isModelCorrection(correction))))
@@ -398,6 +426,16 @@ export class BrainConversationContextService {
       answerShape: snapshot.answerShape as BrainSemanticIntent['answerShape'],
       timeRange: snapshot.timeRange ? { ...snapshot.timeRange } : undefined,
       capability: snapshot.capability ? { ...snapshot.capability } : undefined,
+      pendingClarification: snapshot.pendingClarification
+        ? {
+            missingSlots: [...snapshot.pendingClarification.missingSlots],
+            questions: [...snapshot.pendingClarification.questions],
+            ambiguities: snapshot.pendingClarification.ambiguities.map((ambiguity) => ({
+              ...ambiguity,
+              candidates: [...ambiguity.candidates],
+            })),
+          }
+        : undefined,
       lastCorrections: Array.isArray(snapshot.lastCorrections)
         ? snapshot.lastCorrections.map((correction) => ({ ...correction })) as BrainModelConversationCorrection[]
         : [],
@@ -626,8 +664,11 @@ export class BrainConversationContextService {
     previous: BrainModelConversationContextSnapshot,
   ): BrainModelConversationTurnDirectives | undefined {
     const corrections = this.detectModelCorrections(dto.message);
-    const continuation = this.isContinuation(dto.message) || corrections.length > 0;
-    if (!continuation) return corrections.length ? { inherit: [], doNotInherit: [], corrections } : undefined;
+    const pendingClarification = previous.pendingClarification;
+    const continuation = Boolean(pendingClarification) || this.isContinuation(dto.message) || corrections.length > 0;
+    if (!continuation) {
+      return corrections.length ? { mode: 'continue', inherit: [], doNotInherit: [], corrections } : undefined;
+    }
 
     const inherit: BrainModelConversationTurnDirectives['inherit'] = [
       'objective',
@@ -644,17 +685,51 @@ export class BrainConversationContextService {
     }
 
     const parsed = this.timeRangeParser.parse(dto.message);
-    const timeRange = parsed?.mentionedTime && parsed.range
-      ? this.fromLegacyTimeRange(parsed.range, dto.timezone)
-      : undefined;
-    if (!timeRange && previous.timeRange) inherit.push('timeRange');
+    const timeRange =
+      parsed?.mentionedTime && parsed.range ? this.fromLegacyTimeRange(parsed.range, dto.timezone) : undefined;
+    const resolvesComparisonTarget = Boolean(
+      timeRange && pendingClarification?.missingSlots.includes('comparisonTarget'),
+    );
+    if ((!timeRange || resolvesComparisonTarget) && previous.timeRange) inherit.push('timeRange');
 
     return {
+      mode: pendingClarification ? 'resolve_pending_or_new' : 'continue',
       inherit,
       doNotInherit,
-      ...(timeRange ? { replace: { timeRange } } : {}),
+      ...(timeRange && !resolvesComparisonTarget ? { replace: { timeRange } } : {}),
+      ...(timeRange && resolvesComparisonTarget ? { resolve: { comparisonTarget: timeRange } } : {}),
       corrections,
+      ...(pendingClarification
+        ? {
+            pendingSlots: [...pendingClarification.missingSlots],
+            pendingQuestion: pendingClarification.questions[0],
+          }
+        : {}),
     };
+  }
+
+  private isModelPendingClarification(value: unknown): value is BrainModelPendingClarification {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const pending = value as Record<string, unknown>;
+    if (!this.hasOnlyKeys(pending, ['missingSlots', 'questions', 'ambiguities'])) return false;
+    if (!Array.isArray(pending.missingSlots) || !pending.missingSlots.every((slot) => this.isNonEmptyString(slot))) {
+      return false;
+    }
+    if (!Array.isArray(pending.questions) || !pending.questions.every((question) => this.isNonEmptyString(question))) {
+      return false;
+    }
+    if (!Array.isArray(pending.ambiguities)) return false;
+    return pending.ambiguities.every((ambiguity) => {
+      if (!ambiguity || typeof ambiguity !== 'object' || Array.isArray(ambiguity)) return false;
+      const record = ambiguity as Record<string, unknown>;
+      return (
+        this.hasOnlyKeys(record, ['slot', 'reason', 'candidates']) &&
+        this.isNonEmptyString(record.slot) &&
+        this.isNonEmptyString(record.reason) &&
+        Array.isArray(record.candidates) &&
+        record.candidates.every((candidate) => this.isNonEmptyString(candidate))
+      );
+    });
   }
 
   private detectModelCorrections(message: string): BrainModelConversationCorrection[] {
@@ -667,12 +742,24 @@ export class BrainConversationContextService {
     range: { label: string; startDate: Date; endDate: Date },
     timezone?: string,
   ): BrainSemanticTimeRange {
+    const supportedTimezone = timezone === 'UTC' ? 'UTC' : 'Asia/Shanghai';
     return {
       label: range.label,
-      startDate: range.startDate.toISOString().slice(0, 10),
-      endDate: range.endDate.toISOString().slice(0, 10),
-      timezone: timezone === 'UTC' ? 'UTC' : 'Asia/Shanghai',
+      startDate: this.localIsoDate(range.startDate, supportedTimezone),
+      endDate: this.localIsoDate(range.endDate, supportedTimezone),
+      timezone: supportedTimezone,
     };
+  }
+
+  private localIsoDate(value: Date, timezone: BrainSemanticTimeRange['timezone']): string {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(value);
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
   }
 
   private normalizeModelTimeRange(range: BrainSemanticTimeRange): BrainSemanticTimeRange {

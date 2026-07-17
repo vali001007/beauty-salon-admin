@@ -136,8 +136,8 @@ describe('BrainConversationContextService model conversation preparation', () =>
       mentionedTime: true,
       range: {
         label: '上月',
-        startDate: new Date('2026-06-01T00:00:00.000Z'),
-        endDate: new Date('2026-06-30T23:59:59.999Z'),
+        startDate: new Date('2026-05-31T16:00:00.000Z'),
+        endDate: new Date('2026-06-30T15:59:59.999Z'),
         granularity: 'month',
       },
       filters: [],
@@ -183,6 +183,86 @@ describe('BrainConversationContextService model conversation preparation', () =>
       doNotInherit: ['entities', 'objective'],
       corrections: [{ slot: 'entities', previous: '员工', next: '商品' }],
     });
+  });
+
+  it('treats the next turn as pending-slot resolution without relying on continuation wording', async () => {
+    const model = {
+      ...validModelSnapshot(),
+      pendingClarification: {
+        missingSlots: ['timeRange'],
+        questions: ['请补充时间范围'],
+        ambiguities: [],
+      },
+    };
+    const { service, timeRangeParser } = createService({ model });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: true,
+      range: {
+        label: '本月',
+        startDate: new Date('2026-07-01T00:00:00.000Z'),
+        endDate: new Date('2026-07-17T00:00:00.000Z'),
+        granularity: 'month',
+      },
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message: '本月', timezone: 'Asia/Shanghai' },
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(prepared.directives).toMatchObject({
+      mode: 'resolve_pending_or_new',
+      pendingSlots: ['timeRange'],
+      pendingQuestion: '请补充时间范围',
+      inherit: ['objective', 'entities', 'metrics', 'dimensions', 'capability'],
+      replace: { timeRange: expect.objectContaining({ label: '本月' }) },
+    });
+  });
+
+  it('resolves a pending comparison target without replacing the inherited current period', async () => {
+    const model = {
+      ...validModelSnapshot(),
+      pendingClarification: {
+        missingSlots: ['comparisonTarget'],
+        questions: ['请补充对比周期'],
+        ambiguities: [],
+      },
+    };
+    const { service, timeRangeParser } = createService({ model });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: true,
+      range: {
+        label: '上月',
+        startDate: new Date('2026-05-31T16:00:00.000Z'),
+        endDate: new Date('2026-06-30T15:59:59.999Z'),
+        granularity: 'month',
+      },
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message: '上个月', timezone: 'Asia/Shanghai' },
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(prepared.directives).toMatchObject({
+      mode: 'resolve_pending_or_new',
+      pendingSlots: ['comparisonTarget'],
+      inherit: expect.arrayContaining(['objective', 'metrics', 'timeRange']),
+      resolve: { comparisonTarget: expect.objectContaining({ label: '上月' }) },
+    });
+    expect(prepared.directives?.resolve?.comparisonTarget).toMatchObject({
+      startDate: '2026-06-01',
+      endDate: '2026-06-30',
+    });
+    expect(prepared.directives).not.toHaveProperty('replace');
   });
 
   it('drops forged model snapshots with identity fields instead of attempting model-side inheritance', async () => {
@@ -336,6 +416,11 @@ describe('BrainConversationContextService model conversation preparation', () =>
       },
       capability: { key: 'product_sales_ranking', version: 2 },
       corrections: [{ slot: 'entities', previous: '员工', next: '商品' }],
+      pendingClarification: {
+        missingSlots: ['timeRange'],
+        questions: ['请补充时间范围'],
+        ambiguities: [],
+      },
     });
 
     expect(prisma.brainConversation.update).toHaveBeenCalledWith(
@@ -353,6 +438,11 @@ describe('BrainConversationContextService model conversation preparation', () =>
               metrics: [metricRef],
               capability: { key: 'product_sales_ranking', version: 2 },
               lastCorrections: [{ slot: 'entities', previous: '员工', next: '商品' }],
+              pendingClarification: {
+                missingSlots: ['timeRange'],
+                questions: ['请补充时间范围'],
+                ambiguities: [],
+              },
               entities: [expect.objectContaining({ mention: '李女士' })],
             }),
           }),

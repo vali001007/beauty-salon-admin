@@ -104,6 +104,14 @@ function intentMatches(expected: string, actual: Record<string, unknown>): boole
   const actualIntent = normalizeIntent(actual.intent);
   if (actualIntent === expectedIntent) return true;
   if (
+    expectedIntent === 'clarify' &&
+    (actual.answerShape === 'clarification' ||
+      stringArray(actual.missingSlots).length > 0 ||
+      (Array.isArray(actual.ambiguities) && actual.ambiguities.length > 0))
+  ) {
+    return true;
+  }
+  if (
     expectedIntent === 'query' &&
     ['ranking', 'comparison', 'trend', 'diagnosis', 'recommendation'].includes(actualIntent) &&
     ['ranking', 'list', 'comparison', 'trend', 'diagnosis'].includes(String(actual.answerShape))

@@ -1,0 +1,927 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-17T03:50:39.355Z",
+    "startedAt": "2026-07-17T03:48:57.849Z",
+    "finishedAt": "2026-07-17T03:50:39.355Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "questionCount": 6,
+    "actualRunCount": 6,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 286,
+    "releaseSnapshot": {
+      "releaseFingerprint": "869ffa31f2f101198e90eb771830b39deb95800b43aab7863a29c4f9ad7ff405",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        231,
+        236,
+        240,
+        241,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250,
+        251,
+        253,
+        254,
+        256,
+        257,
+        259
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "finance",
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 6,
+    "evaluableTotal": 6,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 1,
+    "legacyUsableRate": 0.16666666666666666,
+    "trueUsable": 6,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 6,
+        "evaluableTotal": 6,
+        "usable": 6,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "edge",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 5,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "finance",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "clarify",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 5,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "query",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 5
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 6
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "none",
+        "count": 5
+      },
+      {
+        "reason": "finance",
+        "count": 1
+      },
+      {
+        "reason": "payment",
+        "count": 1
+      },
+      {
+        "reason": "payment_record",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "none",
+        "count": 5
+      },
+      {
+        "reason": "finance_payment_breakdown",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 6
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 16843,
+      "p95Ms": 23344,
+      "maxMs": 23344
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-query-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 3,
+      "persona": "finance",
+      "question": "截至现在本月净收款是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 23344,
+      "conversationId": 23217,
+      "runId": 23134,
+      "answer": "本月截至现在实收合计：28756.30 元。\n\n数据依据：财务支付方式拆分；业务定义：实收金额。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_finance_payment_breakdown",
+          "label": "财务支付方式拆分"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@8",
+          "label": "业务定义：实收金额"
+        }
+      ],
+      "domains": [
+        "finance",
+        "payment",
+        "payment_record"
+      ],
+      "capabilityKeys": [
+        "finance_payment_breakdown"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "paid_amount",
+        "actualMetric": "paid_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-clarify-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "clarify",
+      "sourceIndex": 46,
+      "persona": "edge",
+      "question": "帮我看看这个",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10032,
+      "conversationId": 23218,
+      "runId": 23135,
+      "answer": "为了准确处理，请一次确认：指代内容未绑定到当前会话中的业务对象、指标、报表或上一轮结果？",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "clarify",
+        "actualIntent": "clarify",
+        "expectedShape": "clarification",
+        "actualShape": "clarification",
+        "reason": "返回了结构化合并式澄清。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "clarify",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false,
+        "capabilityAnyOf": []
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-clarify-02",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "clarify",
+      "sourceIndex": 47,
+      "persona": "edge",
+      "question": "那个情况怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 13697,
+      "conversationId": 23219,
+      "runId": 23136,
+      "answer": "为了准确处理，请一次确认：指代内容未绑定到当前会话中的业务对象、指标、报表或上一轮结果？",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "clarify",
+        "actualIntent": "clarify",
+        "expectedShape": "clarification",
+        "actualShape": "clarification",
+        "reason": "返回了结构化合并式澄清。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "clarify",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false,
+        "capabilityAnyOf": []
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-clarify-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "clarify",
+      "sourceIndex": 48,
+      "persona": "edge",
+      "question": "给我处理一下",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 17744,
+      "conversationId": 23220,
+      "runId": 23137,
+      "answer": "为了准确处理，请一次确认：“给我处理一下”未说明需要处理的业务事项、对象或期望结果？",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "clarify",
+        "actualIntent": "clarify",
+        "expectedShape": "clarification",
+        "actualShape": "clarification",
+        "reason": "返回了结构化合并式澄清。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "clarify",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false,
+        "capabilityAnyOf": []
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-clarify-04",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "clarify",
+      "sourceIndex": 49,
+      "persona": "edge",
+      "question": "这个数据有问题吗",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 20825,
+      "conversationId": 23221,
+      "runId": 23138,
+      "answer": "为了准确处理，请一次确认：指代内容未绑定到当前会话中的业务对象、指标、报表或上一轮结果？",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "clarify",
+        "actualIntent": "clarify",
+        "expectedShape": "clarification",
+        "actualShape": "clarification",
+        "reason": "返回了结构化合并式澄清。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "clarify",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false,
+        "capabilityAnyOf": []
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-clarify-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "clarify",
+      "sourceIndex": 50,
+      "persona": "edge",
+      "question": "按之前那个做",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 15414,
+      "conversationId": 23222,
+      "runId": 23139,
+      "answer": "为了准确处理，请一次确认：指代内容未绑定到当前会话中的业务对象、指标、报表或上一轮结果？",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "clarify",
+        "actualIntent": "clarify",
+        "expectedShape": "clarification",
+        "actualShape": "clarification",
+        "reason": "返回了结构化合并式澄清。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "clarify",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false,
+        "capabilityAnyOf": []
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

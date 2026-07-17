@@ -101,6 +101,23 @@ describe('Ami Brain model-driven deterministic graders', () => {
     })).toMatchObject({ passed: false });
   });
 
+  it('treats clarification as an execution state while preserving the identified business intent', () => {
+    const grader = new BrainIntentGraderService();
+    expect(grader.grade({
+      expected: { intent: 'clarify' },
+      actual: {
+        intent: 'diagnosis',
+        answerShape: 'diagnosis',
+        missingSlots: ['entity'],
+        ambiguities: [{ slot: 'entity', reason: '缺少待检查的数据对象' }],
+      },
+    })).toMatchObject({ passed: true, failures: [] });
+    expect(grader.grade({
+      expected: { intent: 'clarify' },
+      actual: { intent: 'diagnosis', answerShape: 'diagnosis', missingSlots: [], ambiguities: [] },
+    })).toMatchObject({ passed: false, failures: ['intent_mismatch'] });
+  });
+
 });
 
 describe('BrainIntentGraderService implicit list dimensions', () => {

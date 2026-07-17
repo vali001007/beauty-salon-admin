@@ -198,6 +198,7 @@ export class BrainCapabilitySemanticVerifierService {
     if (manifest.domains.some((domain) => !definitionDomains.has(domain))) {
       throw new BadRequestException('generated_capability_semantics_mismatch');
     }
+    const governedCapabilityBindings = new Set<string>();
     for (const definition of definitions) {
       const projection = definition.projections.find((item) => item.targetType === 'capability_semantic_view');
       const payload =
@@ -206,9 +207,10 @@ export class BrainCapabilitySemanticVerifierService {
       const bindings = data
         ? this.stringArray(data.capabilityBindings, 'generated_capability_semantics_missing', true)
         : [];
-      if (manifest.grounding === 'semantic_query' && bindings.length > 0 && !bindings.includes(manifest.key)) {
-        throw new BadRequestException('generated_capability_semantics_mismatch');
-      }
+      bindings.forEach((binding) => governedCapabilityBindings.add(binding));
+    }
+    if (manifest.grounding === 'semantic_query' && !governedCapabilityBindings.has(manifest.key)) {
+      throw new BadRequestException('generated_capability_semantics_mismatch');
     }
     if (
       canonicalizeBusinessDefinition(manifest.successSchema) !== canonicalizeBusinessDefinition(manifest.outputSchema)

@@ -550,6 +550,7 @@ async function runOne(
 }
 
 function answerIntentForExpectation(expected: BrainEvalExpectation): BrainQuestionIntent | undefined {
+  if (expected.intent === 'clarify') return 'clarify';
   if (expected.intent === 'ranking') return 'ranking';
   if (expected.intent === 'comparison' || expected.intent === 'trend') return 'comparison';
   if (expected.intent === 'draft') return 'draft';
@@ -600,6 +601,7 @@ function buildEvalContext(
 }
 
 function expectationForQuestion(question: AgentEvalQuestionCase): BrainEvalExpectation {
+  const clarification = question.expectedSemanticIntent === 'clarify';
   return {
     intent: question.expectedSemanticIntent,
     domains: question.expectedDomains ?? [],
@@ -608,8 +610,8 @@ function expectationForQuestion(question: AgentEvalQuestionCase): BrainEvalExpec
     dimensions: question.expectedDimensions ?? [],
     capabilityKeys: question.expectedCapabilityKeys ?? [],
     planShape: question.expectedPlanShape,
-    requiresGrounding: question.systemSupportStatus !== 'system_unsupported',
-    requiresComplete: question.systemSupportStatus !== 'system_unsupported',
+    requiresGrounding: !clarification && question.systemSupportStatus !== 'system_unsupported',
+    requiresComplete: !clarification && question.systemSupportStatus !== 'system_unsupported',
   };
 }
 
