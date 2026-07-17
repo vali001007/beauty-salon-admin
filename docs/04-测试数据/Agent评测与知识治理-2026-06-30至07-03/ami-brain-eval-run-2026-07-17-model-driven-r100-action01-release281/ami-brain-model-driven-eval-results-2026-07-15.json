@@ -1,0 +1,359 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-16T22:21:42.630Z",
+    "startedAt": "2026-07-16T22:21:31.711Z",
+    "finishedAt": "2026-07-16T22:21:42.630Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "questionCount": 1,
+    "actualRunCount": 1,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 281,
+    "releaseSnapshot": {
+      "releaseFingerprint": "fee849ce9e84c9ed193ac698da339ce86ed32042767a976a575f260084fc4c13",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        150,
+        151,
+        153,
+        159,
+        160,
+        163,
+        168,
+        169,
+        174,
+        175,
+        176,
+        178,
+        183,
+        184,
+        185,
+        190,
+        191,
+        193
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "receptionist"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "evaluableTotal": 1,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 0,
+    "trueUsableRate": 0,
+    "observedTrueUsableRate": 0,
+    "byStatus": [
+      {
+        "key": "unsupported_intent",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "reception",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "action",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "completion:completion_grounding_missing",
+        "count": 1
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 0,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 1
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 1
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 1
+      },
+      {
+        "reason": "reservation",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "reservation_action_preview",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 1,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0.5
+      },
+      "answer": {
+        "total": 1,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      }
+    },
+    "latency": {
+      "avgMs": 10844,
+      "p95Ms": 10844,
+      "maxMs": 10844
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-action-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 36,
+      "persona": "reception",
+      "question": "把张女士的预约改到明天下午三点",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 10844,
+      "conversationId": 23002,
+      "runId": 22915,
+      "answer": "已完成经营任务，结构化结果见下方。",
+      "citations": [],
+      "domains": [
+        "customer",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "reservation_action_preview"
+      ],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.5,
+          "checked": 4,
+          "failures": [
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "completion:completion_grounding_missing"
+    }
+  ]
+}

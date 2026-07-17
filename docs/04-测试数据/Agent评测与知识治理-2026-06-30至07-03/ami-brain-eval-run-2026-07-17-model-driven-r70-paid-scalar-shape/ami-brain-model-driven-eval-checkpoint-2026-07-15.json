@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-16T18:18:00.612Z",
+  "identity": {
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "storeId": 6,
+    "evaluationRoleKey": "persona",
+    "releaseFingerprint": "d74fbb7654ef4ef93a06fcb195df2157b22282f3bf6d4ba5fcba31f9c02bee4e"
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-query-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 1,
+      "persona": "finance",
+      "question": "这个月店里实际收了多少钱",
+      "status": "provider_unavailable",
+      "brainStatus": "failed",
+      "latencyMs": 16293,
+      "conversationId": 22793,
+      "runId": 22706,
+      "answer": "模型服务鉴权配置无效，本次未执行查询，请联系管理员修复模型配置。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "compile",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_amount",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:payment",
+            "metric_missing:paid_amount"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:finance_payment_breakdown|finance_risk_overview|store_operations_overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "infrastructure:provider_unavailable"
+    },
+    {
+      "questionId": "paraphrase-query-02",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 2,
+      "persona": "finance",
+      "question": "帮我报一下本月实到账",
+      "status": "provider_unavailable",
+      "brainStatus": "failed",
+      "latencyMs": 22360,
+      "conversationId": 22794,
+      "runId": 22707,
+      "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "plan",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_amount",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:payment",
+            "metric_missing:paid_amount"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:finance_payment_breakdown|finance_risk_overview|store_operations_overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "infrastructure:provider_unavailable"
+    },
+    {
+      "questionId": "paraphrase-query-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 5,
+      "persona": "finance",
+      "question": "本月扣除无效订单后收款合计",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 20197,
+      "conversationId": 22795,
+      "runId": 22708,
+      "answer": "排行：\n1. 支付方式=微信，金额=15086.10，笔数=26\n2. 支付方式=储值余额，金额=7625.00，笔数=10\n3. 支付方式=支付宝，金额=6044.20，笔数=4\n4. 支付方式=现金，金额=1.00，笔数=1\n\n数据依据：财务支付方式拆分。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_finance_payment_breakdown",
+          "label": "财务支付方式拆分"
+        }
+      ],
+      "domains": [
+        "finance",
+        "payment",
+        "order",
+        "payment_record",
+        "product_order"
+      ],
+      "capabilityKeys": [
+        "finance_payment_breakdown"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "ranking",
+        "expectedMetric": "paid_amount",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "false_positive_granularity_mismatch"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "answer:false_positive_granularity_mismatch"
+    }
+  ]
+}

@@ -1,0 +1,689 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-17T00:03:13.045Z",
+    "startedAt": "2026-07-17T00:02:36.099Z",
+    "finishedAt": "2026-07-17T00:03:13.045Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "questionCount": 3,
+    "actualRunCount": 3,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 283,
+    "releaseSnapshot": {
+      "releaseFingerprint": "d0322ba6a8ed4d0503344a26a5ee9028dce32ff702bd154b69c2c15d4e31c949",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        150,
+        151,
+        153,
+        159,
+        160,
+        163,
+        168,
+        169,
+        174,
+        175,
+        176,
+        178,
+        183,
+        184,
+        185,
+        190,
+        191,
+        193,
+        195
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "finance",
+      "inventory"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 3,
+    "evaluableTotal": 3,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 1,
+    "legacyUsableRate": 0.3333333333333333,
+    "trueUsable": 3,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "inventory",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 2,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "finance",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "diagnosis",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "ranking",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "recommendation",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 1,
+      "dbSkillCount": 2,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 3
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "order",
+        "count": 2
+      },
+      {
+        "reason": "product",
+        "count": 2
+      },
+      {
+        "reason": "finance",
+        "count": 1
+      },
+      {
+        "reason": "operating_cost",
+        "count": 1
+      },
+      {
+        "reason": "payment",
+        "count": 1
+      },
+      {
+        "reason": "refund",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "finance_risk_overview",
+        "count": 1
+      },
+      {
+        "reason": "inventory_procurement_advice",
+        "count": 1
+      },
+      {
+        "reason": "product_sales_ranking",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 3
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 12247,
+      "p95Ms": 18034,
+      "maxMs": 18034
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-ranking-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "ranking",
+      "sourceIndex": 10,
+      "persona": "inventory",
+      "question": "按销售件数把产品从高到低列出来",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9562,
+      "conversationId": 23129,
+      "runId": 23042,
+      "answer": "排行：\n1. 商品=抗衰紧致眼霜，销量=26\n2. 商品=氨基酸洁面乳，销量=21\n3. 商品=玻尿酸保湿精华，销量=16\n4. 商品=烟酰胺亮肤精华，销量=13\n5. 商品=屏障修护乳，销量=3\n6. 商品=水氧护理耗材包，销量=3\n7. 商品=日间防晒乳，销量=1\n8. 商品=舒缓修护面膜，销量=1\n\n指标：商品销量：84（口径版本 5）。\n\n数据依据：业务定义：商品销量。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.product_sales_quantity@5",
+          "label": "业务定义：商品销量",
+          "definition": "指定周期内当前门店已完成或已支付商品订单明细的销售数量。"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "product_sales_ranking"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "metric_query",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "product_sales_quantity",
+        "actualMetric": "product_sales_quantity",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "ranking",
+        "domains": [
+          "order",
+          "product"
+        ],
+        "entities": [],
+        "metrics": [
+          "product_sales_quantity"
+        ],
+        "dimensions": [
+          "productName"
+        ],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "product_sales_ranking",
+          "inventory_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "product_sales_quantity"
+        ],
+        "dimensionKeys": [
+          "productName"
+        ],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [
+          "order",
+          "product"
+        ],
+        "capabilityKeys": [
+          "product_sales_ranking",
+          "inventory_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-diagnosis-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "diagnosis",
+      "sourceIndex": 23,
+      "persona": "finance",
+      "question": "为什么最近做得不少却不赚钱",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9146,
+      "conversationId": 23130,
+      "runId": 23043,
+      "answer": "实收：120885.31 元；退款：4299.00 元（5 笔）；优惠：4357.69 元；毛利：78804.36 元；毛利率：71.7%；会员卡负债：1067817.81 元。\n\n排行：\n1. 支付方式=wechat，金额=75057.67，笔数=107\n2. 支付方式=alipay，金额=13620.20，笔数=9\n3. 支付方式=cash，金额=11181.00，笔数=8\n4. 支付方式=member_balance，金额=10844.44，笔数=18\n5. 支付方式=card，金额=10182.00，笔数=6\n\n趋势数据：\n1. 日期=2026-06-18，实收=8616.00\n2. 日期=2026-06-19，实收=0.00\n3. 日期=2026-06-20，实收=7086.00\n4. 日期=2026-06-21，实收=0.00\n5. 日期=2026-06-22，实收=8677.44\n6. 日期=2026-06-23，实收=19624.40\n7. 日期=2026-06-24，实收=0.00\n8. 日期=2026-06-25，实收=0.00\n9. 日期=2026-06-26，实收=25553.27\n10. 日期=2026-06-27，实收=3407.00\n11. 日期=2026-06-28，实收=0.00\n12. 日期=2026-06-29，实收=4264.00\n13. 日期=2026-06-30，实收=5498.90\n14. 日期=2026-07-01，实收=15019.40\n15. 日期=2026-07-02，实收=0.00\n16. 日期=2026-07-03，实收=0.00\n17. 日期=2026-07-04，实收=476.00\n18. 日期=2026-07-05，实收=0.00\n19. 日期=2026-07-06，实收=896.00\n20. 日期=2026-07-07，实收=1686.33\n21. 日期=2026-07-08，实收=741.70\n22. 日期=2026-07-09，实收=0.00\n23. 日期=2026-07-10，实收=0.00\n24. 日期=2026-07-11，实收=0.00\n25. 日期=2026-07-12，实收=0.00\n26. 日期=2026-07-13，实收=3407.53\n27. 日期=2026-07-14，实收=0.00\n28. 日期=2026-07-15，实收=4904.00\n29. 日期=2026-07-16，实收=0.00\n30. 日期=2026-07-17，实收=0.00\n\n明细：\n1. 成本类别=物料成本，金额=26514.68\n2. 成本类别=提成成本，金额=4629.48\n3. 成本类别=经营费用，金额=0.00\n\n诊断：\n1. [严重风险] 基准期财务比例异常：当前期或上一可比期出现超出可信范围的毛利/成本比例，需先复核结算收入、成本归属期和重复记录；本次不据此判定毛利涨跌或根因。\n\n对比：实收金额，当前 120885.31 元，上一期 44220.00 元，变化 +76665.31 元；毛利率，当前 71.7%，上一期 -278.4%，变化 +350.1 个百分点；折扣率，当前 3.6%，上一期 2.6%，变化 +1.0 个百分点；退款率，当前 3.6%，上一期 8.0%，变化 -4.4 个百分点；物料成本率，当前 24.1%，上一期 378.4%，变化 -354.2 个百分点；提成成本率，当前 4.2%，上一期 21.7%，变化 -17.5 个百分点；经营费用率，当前 0.0%，上一期 8040.9%，变化 -8040.9 个百分点。\n\n数据依据：退款、优惠与毛利风险；实收、支付方式与收入趋势；成本、毛利与会员卡负债。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_risk_summary",
+          "label": "退款、优惠与毛利风险"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_income_analysis",
+          "label": "实收、支付方式与收入趋势"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_cost_analysis",
+          "label": "成本、毛利与会员卡负债"
+        }
+      ],
+      "domains": [
+        "finance",
+        "operating_cost",
+        "payment",
+        "refund"
+      ],
+      "capabilityKeys": [
+        "finance_risk_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "diagnosis",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "finance_risk_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "finance_risk_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-recommendation-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "recommendation",
+      "sourceIndex": 30,
+      "persona": "inventory",
+      "question": "根据安全库存和近期销量推荐采购清单",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 18034,
+      "conversationId": 23131,
+      "runId": 23044,
+      "answer": "库存采购建议：共 1 项。\n1. 玻尿酸保湿精华：当前库存 131，安全库存 143，建议采购 155，候选供应商 Ami MVP 供应商\n\n数据依据：库存采购建议分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_inventory_procurement_advice",
+          "label": "库存采购建议分析"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "inventory_procurement_advice"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}
