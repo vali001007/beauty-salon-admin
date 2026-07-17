@@ -337,7 +337,9 @@ function inferExpectedEntities(input: string, category: string) {
 function inferExpectedMetrics(input: string) {
   const values = new Set<string>();
   if (/营业额|流水|实收|收入|营收/.test(input)) values.add('paid_revenue');
-  if (/毛利率|毛利/.test(input)) values.add('gross_margin_rate');
+  if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(input)) values.add('product_gross_margin_rate');
+  else if (/毛利率|毛利/.test(input)) values.add('gross_margin_rate');
+  if (/(?:产品|商品|货品).*(?:低于成本|亏本)|(?:低于成本|亏本).*(?:产品|商品|货品)/.test(input)) values.add('product_below_cost_sale_count');
   if (/预约.*(?:多少|几个|数量)|几个预约/.test(input)) values.add('appointment_count');
   if (/谁|员工|美容师/.test(input) && /客户复购率/.test(input)) values.add('staff_customer_repurchase_rate');
   else if (/复购率/.test(input)) values.add('repurchase_rate');

@@ -37,6 +37,40 @@ export interface FinanceMemberBalanceFlowSummary {
   consumedCount: number;
 }
 
+export interface FinanceRefundReasonAnalysis {
+  refundAmount: number;
+  refundCount: number;
+  reasons: Array<{ reason: string; amount: number; count: number }>;
+  records: Array<{
+    refundNo: string;
+    orderNo: string;
+    customerName?: string | null;
+    reason: string;
+    amount: number;
+    refundedAt: Date;
+  }>;
+}
+
+export interface FinanceProductMarginRow {
+  productId: number;
+  productName: string;
+  quantity: number;
+  netRevenue: number;
+  costAmount: number;
+  grossProfit: number;
+  grossMarginRate?: number;
+  belowCostSaleCount: number;
+  costCoverageRate: number;
+  costSources: string[];
+}
+
+export interface FinanceProductMarginAnalysis {
+  rows: FinanceProductMarginRow[];
+  totalProductCount: number;
+  belowCostProductCount: number;
+  incompleteCostProductCount: number;
+}
+
 @Injectable()
 export class BrainFinanceSkillsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -92,6 +126,153 @@ export class BrainFinanceSkillsService {
     ];
 
     return { refundAmount, refundCount: refunds.length, discountAmount, grossMarginRate, riskItems };
+  }
+
+  async buildRefundReasonAnalysis(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<FinanceRefundReasonAnalysis> {
+    const refunds = await this.prisma.refundRecord.findMany({
+      where: {
+        refundedAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'rejected'] },
+        order: { storeId: input.storeId },
+      },
+      select: {
+        refundNo: true,
+        amount: true,
+        reason: true,
+        refundedAt: true,
+        order: { select: { orderNo: true, customerName: true } },
+      },
+      orderBy: [{ refundedAt: 'desc' }, { id: 'desc' }],
+      take: 1000,
+    });
+    const reasonMap = new Map<string, { amount: number; count: number }>();
+    for (const refund of refunds) {
+      const reason = refund.reason?.trim() || '未填写原因';
+      const current = reasonMap.get(reason) ?? { amount: 0, count: 0 };
+      current.amount += this.toNumber(refund.amount);
+      current.count += 1;
+      reasonMap.set(reason, current);
+    }
+    const records = refunds.flatMap((refund) => refund.refundedAt ? [{
+      refundNo: refund.refundNo,
+      orderNo: refund.order.orderNo,
+      customerName: refund.order.customerName,
+      reason: refund.reason?.trim() || '未填写原因',
+      amount: this.roundMoney(this.toNumber(refund.amount)),
+      refundedAt: refund.refundedAt,
+    }] : []);
+    return {
+      refundAmount: this.roundMoney(refunds.reduce((sum, refund) => sum + this.toNumber(refund.amount), 0)),
+      refundCount: refunds.length,
+      reasons: [...reasonMap.entries()]
+        .map(([reason, value]) => ({ reason, amount: this.roundMoney(value.amount), count: value.count }))
+        .sort((left, right) => right.amount - left.amount || right.count - left.count || left.reason.localeCompare(right.reason)),
+      records,
+    };
+  }
+
+  async buildProductMarginAnalysis(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<FinanceProductMarginAnalysis> {
+    const items = await this.prisma.orderItem.findMany({
+      where: {
+        itemType: { in: ['product', 'goods'] },
+        itemId: { not: null },
+        order: {
+          storeId: input.storeId,
+          createdAt: { gte: input.startDate, lte: input.endDate },
+          status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+        },
+      },
+      select: {
+        itemId: true,
+        name: true,
+        quantity: true,
+        netAmount: true,
+        payload: true,
+        isGift: true,
+        refundItems: {
+          where: { refund: { status: { notIn: ['cancelled', 'rejected'] } } },
+          select: { quantity: true, refundAmount: true },
+        },
+      },
+      take: 20_000,
+    });
+    const productIds = [...new Set(items.map((item) => Number(item.itemId)).filter((id) => Number.isInteger(id) && id > 0))];
+    const products = productIds.length
+      ? await this.prisma.product.findMany({
+          where: { storeId: input.storeId, id: { in: productIds } },
+          select: { id: true, name: true, costPrice: true },
+        })
+      : [];
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    const grouped = new Map<number, {
+      productName: string;
+      quantity: number;
+      netRevenue: number;
+      costAmount: number;
+      belowCostSaleCount: number;
+      knownCostQuantity: number;
+      costSources: Set<string>;
+    }>();
+    for (const item of items) {
+      const productId = Number(item.itemId);
+      if (!Number.isInteger(productId) || productId < 1) continue;
+      const soldQuantity = this.toNumber(item.quantity);
+      const refundedQuantity = item.refundItems.reduce((sum, refund) => sum + this.toNumber(refund.quantity), 0);
+      const remainingQuantity = Math.max(0, soldQuantity - refundedQuantity);
+      if (remainingQuantity <= 0) continue;
+      const refundedAmount = item.refundItems.reduce((sum, refund) => sum + this.toNumber(refund.refundAmount), 0);
+      const netRevenue = Math.max(0, this.toNumber(item.netAmount) - refundedAmount);
+      const snapshotUnitCost = this.payloadNumber(item.payload, ['costPrice', 'unitCost', 'productCostPrice']);
+      const masterUnitCost = this.toNumber(productMap.get(productId)?.costPrice);
+      const unitCost = snapshotUnitCost > 0 ? snapshotUnitCost : masterUnitCost;
+      const costSource = snapshotUnitCost > 0 ? 'order_snapshot' : masterUnitCost > 0 ? 'product_master_fallback' : 'missing';
+      const costAmount = unitCost > 0 ? unitCost * remainingQuantity : 0;
+      const current = grouped.get(productId) ?? {
+        productName: productMap.get(productId)?.name ?? item.name,
+        quantity: 0,
+        netRevenue: 0,
+        costAmount: 0,
+        belowCostSaleCount: 0,
+        knownCostQuantity: 0,
+        costSources: new Set<string>(),
+      };
+      current.quantity += remainingQuantity;
+      current.netRevenue += netRevenue;
+      current.costAmount += costAmount;
+      if (unitCost > 0) current.knownCostQuantity += remainingQuantity;
+      current.costSources.add(costSource);
+      if (!item.isGift && unitCost > 0 && netRevenue / remainingQuantity < unitCost) current.belowCostSaleCount += 1;
+      grouped.set(productId, current);
+    }
+    const rows = [...grouped.entries()].map(([productId, value]) => {
+      const grossProfit = value.netRevenue - value.costAmount;
+      return {
+        productId,
+        productName: value.productName,
+        quantity: this.roundMoney(value.quantity),
+        netRevenue: this.roundMoney(value.netRevenue),
+        costAmount: this.roundMoney(value.costAmount),
+        grossProfit: this.roundMoney(grossProfit),
+        grossMarginRate: value.netRevenue > 0 ? grossProfit / value.netRevenue : undefined,
+        belowCostSaleCount: value.belowCostSaleCount,
+        costCoverageRate: value.quantity > 0 ? value.knownCostQuantity / value.quantity : 0,
+        costSources: [...value.costSources].sort(),
+      };
+    });
+    return {
+      rows: rows.sort((left, right) => (right.grossMarginRate ?? -Infinity) - (left.grossMarginRate ?? -Infinity) || right.netRevenue - left.netRevenue),
+      totalProductCount: rows.length,
+      belowCostProductCount: rows.filter((row) => row.belowCostSaleCount > 0).length,
+      incompleteCostProductCount: rows.filter((row) => row.costCoverageRate < 1).length,
+    };
   }
 
   async buildIncomeAnalysis(input: { storeId: number; startDate: Date; endDate: Date }): Promise<FinanceIncomeAnalysis> {
@@ -324,6 +505,16 @@ export class BrainFinanceSkillsService {
     if (typeof value === 'bigint') return Number(value);
     if (typeof value === 'string') return Number(value);
     if (value && typeof value === 'object' && 'toString' in value) return Number(value.toString());
+    return 0;
+  }
+
+  private payloadNumber(value: unknown, keys: string[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return 0;
+    const payload = value as Record<string, unknown>;
+    for (const key of keys) {
+      const number = this.toNumber(payload[key]);
+      if (Number.isFinite(number) && number > 0) return number;
+    }
     return 0;
   }
 

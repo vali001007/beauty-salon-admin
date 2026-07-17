@@ -118,4 +118,69 @@ describe('BrainFinanceSkillsService', () => {
       grossMarginRate: 0.6,
     });
   });
+
+  it('groups refund reasons from scoped successful refund records', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { refundNo: 'R-2', amount: 300, reason: '客户不适', refundedAt: new Date('2026-07-10T08:00:00.000Z'), order: { orderNo: 'O-2', customerName: '李女士' } },
+      { refundNo: 'R-1', amount: 100, reason: '客户不适', refundedAt: new Date('2026-07-09T08:00:00.000Z'), order: { orderNo: 'O-1', customerName: '王女士' } },
+      { refundNo: 'R-0', amount: 50, reason: null, refundedAt: new Date('2026-07-08T08:00:00.000Z'), order: { orderNo: 'O-0', customerName: null } },
+    ]);
+    const service = new BrainFinanceSkillsService({ refundRecord: { findMany } } as never);
+
+    const result = await service.buildRefundReasonAnalysis({
+      storeId: 6,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-31T23:59:59.999Z'),
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ order: { storeId: 6 }, status: { notIn: ['cancelled', 'rejected'] } }),
+    }));
+    expect(result).toMatchObject({ refundAmount: 450, refundCount: 3 });
+    expect(result.reasons).toEqual([
+      { reason: '客户不适', amount: 400, count: 2 },
+      { reason: '未填写原因', amount: 50, count: 1 },
+    ]);
+    expect(result.records[0]).toMatchObject({ refundNo: 'R-2', orderNo: 'O-2', reason: '客户不适', amount: 300 });
+  });
+
+  it('calculates product margin from order snapshots and refund offsets', async () => {
+    const orderItemFindMany = jest.fn().mockResolvedValue([
+      {
+        itemId: 1, name: '眼霜', quantity: 2, netAmount: 300, payload: { costPrice: 100 }, isGift: false,
+        refundItems: [{ quantity: 1, refundAmount: 150 }],
+      },
+      {
+        itemId: 2, name: '精华', quantity: 1, netAmount: 80, payload: {}, isGift: false, refundItems: [],
+      },
+      {
+        itemId: 3, name: '面膜赠品', quantity: 1, netAmount: 0, payload: { costPrice: 20 }, isGift: true, refundItems: [],
+      },
+    ]);
+    const productFindMany = jest.fn().mockResolvedValue([
+      { id: 1, name: '眼霜', costPrice: 120 },
+      { id: 2, name: '精华', costPrice: 100 },
+      { id: 3, name: '面膜赠品', costPrice: 20 },
+    ]);
+    const service = new BrainFinanceSkillsService({
+      orderItem: { findMany: orderItemFindMany },
+      product: { findMany: productFindMany },
+    } as never);
+
+    const result = await service.buildProductMarginAnalysis({
+      storeId: 6,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-31T23:59:59.999Z'),
+    });
+
+    expect(orderItemFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ order: expect.objectContaining({ storeId: 6 }) }),
+    }));
+    expect(result).toMatchObject({ totalProductCount: 3, belowCostProductCount: 1, incompleteCostProductCount: 0 });
+    expect(result.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ productName: '眼霜', quantity: 1, netRevenue: 150, costAmount: 100, grossProfit: 50, grossMarginRate: 1 / 3, belowCostSaleCount: 0, costSources: ['order_snapshot'] }),
+      expect.objectContaining({ productName: '精华', netRevenue: 80, costAmount: 100, grossProfit: -20, grossMarginRate: -0.25, belowCostSaleCount: 1, costSources: ['product_master_fallback'] }),
+      expect.objectContaining({ productName: '面膜赠品', belowCostSaleCount: 0 }),
+    ]));
+  });
 });

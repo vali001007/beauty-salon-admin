@@ -516,6 +516,18 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
+  it('distinguishes product margin ranking from whole-store gross margin', () => {
+    const result = grader.grade({
+      question: '哪些产品毛利率最高',
+      answer: '商品毛利率最高的是眼霜，毛利率 60.0%。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.product_gross_margin_rate@1', label: '业务定义：商品毛利率' }],
+      blocks: [{ kind: 'ranking', rows: [{ productName: '眼霜', grossMarginRate: '60.0%' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', expectedMetric: 'product_gross_margin_rate', actualMetric: 'product_gross_margin_rate', actualShape: 'ranking' });
+  });
+
   it('does not count a configured-target miss as a partial scalar answer', () => {
     const result = grader.grade({
       question: '这个月目标完成率多少了，还差多远',

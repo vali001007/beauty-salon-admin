@@ -84,6 +84,8 @@ describe('Agent eval question bank', () => {
     expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedDimensions).toEqual(['beautician']);
     expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedMetrics).toContain('staff_unique_customer_count');
     expect(bank.questions.find((item) => item.input === '这个月产品销售额是多少')?.expectedMetrics).toEqual(['product_sales_amount']);
+    expect(bank.questions.find((item) => item.input === '哪些产品毛利率最高')?.expectedMetrics).toContain('product_gross_margin_rate');
+    expect(bank.questions.find((item) => item.input === '有没有产品卖出去的价格低于成本的')?.expectedMetrics).toContain('product_below_cost_sale_count');
     expect(bank.questions.find((item) => item.input === '哪些耗材消耗速度最快')?.expectedMetrics).toContain('inventory_consumption_quantity');
     expect(bank.questions.find((item) => item.input === '最近有没有现金流异常的情况')?.expectedDimensions).not.toContain('payment_method');
     expect(bank.questions.find((item) => item.input === '最近有没有客户投诉或者表达不满')?.expectedMetrics)

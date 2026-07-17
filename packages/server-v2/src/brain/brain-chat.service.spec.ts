@@ -2397,6 +2397,57 @@ describe('BrainChatService', () => {
     expect(normalized).toMatchObject({ intent: 'diagnosis', answerShape: 'diagnosis' });
   });
 
+  it('normalizes an exact payment-method breakdown to a governed list query', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '今天现金收了多少，微信支付宝各多少';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [{ domain: 'finance' }], dimensions: [{ domain: 'finance' }] },
+      cards: [{
+        key: 'finance_payment_breakdown', domains: ['finance'], intents: ['query', 'ranking', 'comparison', 'trend'],
+        examples: [question], definitionRefs: [
+          { ...definitionRef('metric.paid_amount'), version: 1 },
+          { ...definitionRef('dimension.paymentMethod'), version: 1 },
+        ],
+      }],
+      intent: {
+        schemaVersion: '1.0', objective: question, domains: [], intent: 'comparison', entities: [], metrics: [], dimensions: [],
+        filters: [], orderBy: [], answerShape: 'comparison', successCriteria: ['返回支付方式拆分'], ambiguities: [], missingSlots: [],
+        assumptions: [], confidence: 0.9, decisionSummary: '支付方式对比',
+      },
+    });
+
+    expect(normalized).toMatchObject({ intent: 'query', answerShape: 'list', domains: ['finance'] });
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.paid_amount' })]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })]);
+  });
+
+  it('normalizes an exact product-margin maximum question to ranking', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '哪些产品毛利率最高';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [{ domain: 'product' }], dimensions: [{ domain: 'product' }] },
+      cards: [{
+        key: 'finance_risk_overview', domains: ['finance', 'product'], intents: ['query', 'diagnosis'],
+        examples: [question], definitionRefs: [
+          { ...definitionRef('metric.product_gross_margin_rate'), version: 1 },
+          { ...definitionRef('dimension.productName'), version: 1 },
+        ],
+      }],
+      intent: {
+        schemaVersion: '1.0', objective: question, domains: ['product'], intent: 'query', entities: [], metrics: [], dimensions: [],
+        filters: [], orderBy: [], answerShape: 'list', successCriteria: ['返回商品毛利排行'], ambiguities: [], missingSlots: [],
+        assumptions: [], confidence: 0.9, decisionSummary: '商品毛利查询',
+      },
+    });
+
+    expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.product_gross_margin_rate' })]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.productName' })]);
+    expect(normalized.orderBy).toEqual([expect.objectContaining({ direction: 'desc' })]);
+  });
+
   it('normalizes an unordered governed customer list from ranking to query plus list', async () => {
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
     const question = '哪些客户卡里的次数快用完了还没约';

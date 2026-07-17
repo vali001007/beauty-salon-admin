@@ -434,6 +434,8 @@ export class BrainAnswerGraderService {
     if (/平均多久回来|回访间隔|回店间隔/.test(text)) return 'average_return_interval_days';
     if (/(折扣|优惠|让利).*(多少|金额|送出去)/.test(text)) return 'discount_amount';
     if (/提成/.test(text)) return 'staff_commission_amount';
+    if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(text)) return 'product_gross_margin_rate';
+    if (/(?:产品|商品|货品).*(?:低于成本|亏本)|(?:低于成本|亏本).*(?:产品|商品|货品)/.test(text)) return 'product_below_cost_sale_count';
     if (/毛利率/.test(text)) return 'gross_margin_rate';
     if (/(毛利|利润)/.test(text)) return 'gross_margin';
     if (/(次卡|储值|负债|会员卡|剩余次数|卡项余额)/.test(text)) return 'card_liability';

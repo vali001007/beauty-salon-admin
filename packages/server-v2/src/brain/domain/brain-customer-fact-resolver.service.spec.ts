@@ -302,4 +302,29 @@ describe('BrainCustomerFactResolverService', () => {
       take: 5000,
     }));
   });
+
+  it('returns only cards expiring soon with a governed high remaining balance', async () => {
+    const asOf = new Date('2026-07-18T00:00:00.000Z');
+    const findMany = jest.fn().mockResolvedValue([
+      { cardName: '抗衰 10 次卡', totalTimes: 10, remainingTimes: 6, recognizedUnitValue: 200, expiryDate: new Date('2026-07-25T00:00:00.000Z'), customer: { name: '李女士' } },
+      { cardName: '补水 10 次卡', totalTimes: 10, remainingTimes: 1, recognizedUnitValue: 100, expiryDate: new Date('2026-07-22T00:00:00.000Z'), customer: { name: '王女士' } },
+      { cardName: '修护 5 次卡', totalTimes: 5, remainingTimes: 2, recognizedUnitValue: 300, expiryDate: new Date('2026-08-01T00:00:00.000Z'), customer: { name: '赵女士' } },
+    ]);
+    const service = new BrainCustomerFactResolverService({ customerCard: { findMany } } as never);
+
+    const result = await service.getExpiringHighBalanceCards({ storeId: 6, asOf, windowDays: 30, limit: 10 });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        status: 'active',
+        expiryDate: { gte: asOf, lte: new Date('2026-08-17T00:00:00.000Z') },
+        customer: { storeId: 6, deletedAt: null },
+      }),
+    }));
+    expect(result.total).toBe(2);
+    expect(result.rows).toEqual([
+      expect.objectContaining({ customerName: '李女士', remainingTimes: 6, remainingRate: 0.6, daysToExpiry: 7, unfulfilledValue: 1200 }),
+      expect.objectContaining({ customerName: '赵女士', remainingTimes: 2, remainingRate: 0.4, daysToExpiry: 14, unfulfilledValue: 600 }),
+    ]);
+  });
 });

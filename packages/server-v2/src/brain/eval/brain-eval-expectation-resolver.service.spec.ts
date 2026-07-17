@@ -278,4 +278,21 @@ describe('BrainEvalExpectationResolverService', () => {
       capabilityKeys: ['inventory_operations_overview'],
     });
   });
+
+  it('allows a governed query capability to satisfy a ranking answer shape', () => {
+    const result = service.resolve({
+      base: { intent: 'ranking', domains: ['product'], entities: ['product'], dimensions: ['productName'] },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['finance_risk_overview'],
+        capabilityCandidates: [{
+          key: 'finance_risk_overview', allowedRoles: ['store_manager'], intents: ['query', 'diagnosis'], domains: ['product', 'finance'],
+          definitionRefs: [{ definitionKey: 'entity.product' }, { definitionKey: 'dimension.productName' }],
+        }],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toEqual(['finance_risk_overview']);
+  });
 });

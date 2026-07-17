@@ -167,6 +167,31 @@ describe('business metric resolver runtime', () => {
     expect(result.overallValue).toBe(42);
   });
 
+  it('evaluates governed product margin rows by product dimensions', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'product_gross_margin_rate',
+      resolver: {
+        kind: 'domain_service', key: 'product_margin_rows',
+        dimensionFields: { productId: 'productId', productName: 'productName' },
+        expression: { op: 'field', field: 'grossMarginRate' }, overallAggregation: 'avg',
+      },
+      dimensions: ['productId', 'productName'],
+      outputField: 'product_gross_margin_rate',
+      sourceModels: ['ProductOrder', 'OrderItem', 'RefundItem', 'Product'],
+      storeScope: { mode: 'current_store', anchorModel: 'Product', model: 'Product', field: 'storeId', joinPath: [] },
+      rows: [
+        { productId: 1, productName: '眼霜', grossMarginRate: 0.5 },
+        { productId: 2, productName: '精华', grossMarginRate: 0.25 },
+      ],
+    });
+
+    expect(result.groups).toEqual([
+      { dimensions: { productId: 1, productName: '眼霜' }, value: 0.5 },
+      { dimensions: { productId: 2, productName: '精华' }, value: 0.25 },
+    ]);
+    expect(result.overallValue).toBe(0.375);
+  });
+
   it('evaluates satisfaction and coverage from the shared feedback summary row', () => {
     const feedbackScope: BusinessMetricRuntimeQuery['storeScope'] = {
       mode: 'current_store',

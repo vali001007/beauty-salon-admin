@@ -308,6 +308,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     examples: [
       '本月财务情况和风险怎么样',
       '今天退款有几笔，金额多少',
+      '这个月退货了多少，原因是什么',
+      '有没有产品卖出去的价格低于成本的',
+      '哪些产品毛利率最高',
       '今天折扣优惠送出去多少钱',
       '收入成本退款有哪些异常',
       '给我看支付方式和毛利情况',
@@ -316,17 +319,22 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '查一下毛利异常是折扣、成本还是项目结构造成的',
     ],
     negativeExamples: ['直接修改结算数据', '查看其他门店的财务数据'],
-    synonyms: ['财务概览', '财务风险', '收入成本分析', '退款优惠风险', '大额异常退款', '会员卡负债', '毛利下降', '利润率变差', '盈利能力下降', '不赚钱', '毛利根因', '项目结构影响'],
+    synonyms: ['财务概览', '财务风险', '收入成本分析', '退款优惠风险', '退款原因', '商品毛利排行', '低于成本销售', '大额异常退款', '会员卡负债', '毛利下降', '利润率变差', '盈利能力下降', '不赚钱', '毛利根因', '项目结构影响'],
     businessDefinitionKeys: [
       'metric.paid_amount',
       'metric.refund_amount',
       'metric.refund_count',
       'metric.discount_amount',
       'metric.operating_cost_amount',
+      'metric.product_gross_margin_rate',
+      'metric.product_below_cost_sale_count',
+      'entity.product',
       'entity.payment_record',
       'entity.product_order',
       'entity.project',
       'dimension.projectName',
+      'dimension.productId',
+      'dimension.productName',
       'dimension.paymentMethod',
     ],
     readOnly: true,
@@ -409,11 +417,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '最近哪个时间段新客最多，从哪些渠道来',
       '最近新客转化效果好不好，问题出在哪',
       '上个月新来了多少新客，转化了多少',
+      '有没有次卡即将过期但客户还有很多余量',
       '帮我看一下今天到店客人的画像，主要是什么年龄段',
       '帮我查一下张女士的客户资料',
     ],
     negativeExamples: ['查询其他门店的客户名单', '直接修改客户会员等级'],
-    synonyms: ['客户事实', '客户名单', '沉睡客户', '沉睡客户唤醒迹象', '客户回流信号', '触达后预约客户', '触达后到店客户', '触达后消费客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
+    synonyms: ['客户事实', '客户名单', '沉睡客户', '沉睡客户唤醒迹象', '客户回流信号', '触达后预约客户', '触达后到店客户', '触达后消费客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡临期高余量客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
     businessDefinitionKeys: [
       'entity.customer',
       'dimension.customerId',
@@ -484,6 +493,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     examples: [
       '本月实收按支付方式怎么分',
       '今天实收按支付方式怎么分',
+      '今天现金收了多少，微信支付宝各多少',
       '最近三十天每天收入走势',
       '这个月比上个月少收了多少',
       '收入环比是涨了还是跌了，差额多少',
@@ -1615,6 +1625,123 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       case 'finance_risk_overview': {
         const diagnosisAnswer = input.answerShape === 'diagnosis';
         const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
+        if (/(?:退款|退货).*(?:原因|为什么)|(?:原因|为什么).*(?:退款|退货)/.test(input.question)) {
+          const refundAnalysis = await this.skillRuntime.buildFinanceRefundReasonAnalysis({
+            storeId: input.context.storeId,
+            startDate: diagnosisRange.startDate,
+            endDate: diagnosisRange.endDate,
+          });
+          const rows = refundAnalysis.records.slice(0, this.resolveLimit(input.args.limit, 20));
+          const reasonText = refundAnalysis.reasons.length
+            ? refundAnalysis.reasons.map((item) => `${item.reason} ${item.count} 笔/${item.amount.toFixed(2)} 元`).join('；')
+            : '当前没有退款原因记录';
+          return this.answer({
+            answer: `${diagnosisRange.label}退款 ${refundAnalysis.refundCount} 笔、合计 ${refundAnalysis.refundAmount.toFixed(2)} 元。原因汇总：${reasonText}。`,
+            citationId: 'finance_refund_reason_analysis',
+            citationLabel: '退款记录、金额与原因',
+            citations: [
+              { sourceType: 'business_definition', sourceId: 'metric.refund_amount', label: '业务定义：退款金额' },
+              { sourceType: 'business_definition', sourceId: 'metric.refund_count', label: '业务定义：退款笔数' },
+            ],
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '退款金额', value: `${refundAnalysis.refundAmount.toFixed(2)} 元` },
+                  { label: '退款笔数', value: `${refundAnalysis.refundCount} 笔` },
+                ],
+                citationIds: ['finance_refund_reason_analysis'],
+              },
+              {
+                kind: 'table',
+                rows: rows.map((item) => ({
+                  refundNo: item.refundNo,
+                  orderNo: item.orderNo,
+                  customerName: item.customerName ?? '',
+                  reason: item.reason,
+                  amount: item.amount,
+                  refundedAt: item.refundedAt.toISOString(),
+                })),
+                columns: ['refundNo', 'orderNo', 'customerName', 'reason', 'amount', 'refundedAt'],
+                citationIds: ['finance_refund_reason_analysis'],
+              },
+              ...(refundAnalysis.reasons.some((item) => item.reason === '未填写原因')
+                ? [{ kind: 'limitations' as const, items: ['部分退款记录没有填写原因，不能进一步归因。'] }]
+                : []),
+            ],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              answerScope: 'refund_reason_analysis',
+              rangeLabel: diagnosisRange.label,
+              refundCount: refundAnalysis.refundCount,
+              reasonCount: refundAnalysis.reasons.length,
+            },
+          });
+        }
+        if (/(?:产品|商品|货品).*(?:低于成本|毛利率|毛利)|(?:低于成本|毛利率|毛利).*(?:产品|商品|货品)/.test(input.question)) {
+          const margin = await this.skillRuntime.buildFinanceProductMarginAnalysis({
+            storeId: input.context.storeId,
+            startDate: diagnosisRange.startDate,
+            endDate: diagnosisRange.endDate,
+          });
+          const belowCostRequested = /低于成本/.test(input.question);
+          const selected = (belowCostRequested ? margin.rows.filter((row) => row.belowCostSaleCount > 0) : margin.rows)
+            .slice(0, this.resolveLimit(input.args.limit, 20));
+          const metricKey = belowCostRequested ? 'metric.product_below_cost_sale_count' : 'metric.product_gross_margin_rate';
+          const metricRef = structuredDefinitionRef(input.args.metrics, metricKey);
+          const limitations = [
+            ...(margin.incompleteCostProductCount > 0
+              ? [`${margin.incompleteCostProductCount} 个商品存在成本快照覆盖不足，未覆盖部分不参与低于成本判断。`]
+              : []),
+            ...(margin.rows.some((row) => row.costSources.includes('product_master_fallback'))
+              ? ['部分历史订单缺少下单成本快照，使用商品主数据成本作为明确标注的回退值。']
+              : []),
+          ];
+          return {
+            status: 'completed',
+            answer: belowCostRequested
+              ? `${diagnosisRange.label}发现 ${margin.belowCostProductCount} 个商品存在至少一笔非赠品成交单价低于可用成本。${selected.length ? ` 其中首项为 ${selected[0]!.productName}。` : ''}${limitations.length ? ` ${limitations.join('')}` : ''}`
+              : selected.length
+                ? `${diagnosisRange.label}商品毛利率最高的是 ${selected[0]!.productName}，毛利率 ${((selected[0]!.grossMarginRate ?? 0) * 100).toFixed(1)}%。${limitations.length ? ` ${limitations.join('')}` : ''}`
+                : `${diagnosisRange.label}没有可计算商品毛利率的有效销售与成本数据。`,
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: metricRef ? `${metricRef.definitionKey}@${metricRef.definitionVersion}` : metricKey,
+                label: belowCostRequested ? '业务定义：低于成本销售笔数' : '业务定义：商品毛利率',
+              },
+              { sourceType: 'db_skill', sourceId: 'finance_product_margin_analysis', label: '订单商品净额、退款冲减与成本快照分析' },
+            ],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'ranking',
+                rows: selected.map((row) => ({
+                  productName: row.productName,
+                  quantity: row.quantity,
+                  netRevenue: row.netRevenue,
+                  costAmount: row.costAmount,
+                  grossProfit: row.grossProfit,
+                  grossMarginRate: row.grossMarginRate === undefined ? null : `${(row.grossMarginRate * 100).toFixed(1)}%`,
+                  belowCostSaleCount: row.belowCostSaleCount,
+                  costCoverageRate: `${(row.costCoverageRate * 100).toFixed(1)}%`,
+                  costSources: row.costSources.join(','),
+                })),
+                columns: ['productName', 'quantity', 'netRevenue', 'costAmount', 'grossProfit', 'grossMarginRate', 'belowCostSaleCount', 'costCoverageRate', 'costSources'],
+                citationIds: ['finance_product_margin_analysis'],
+              },
+              ...(limitations.length ? [{ kind: 'limitations' as const, items: limitations }] : []),
+            ],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              answerScope: belowCostRequested ? 'product_below_cost_sales' : 'product_margin_ranking',
+              rangeLabel: diagnosisRange.label,
+              totalProductCount: margin.totalProductCount,
+              belowCostProductCount: margin.belowCostProductCount,
+              incompleteCostProductCount: margin.incompleteCostProductCount,
+            },
+          };
+        }
         const comparisonRange = diagnosisAnswer ? this.previousComparableRange(diagnosisRange) : undefined;
         const [risk, income, cost, previousRisk, previousIncome, previousCost] = await Promise.all([
           this.skillRuntime.buildFinanceRiskSummary({
@@ -2320,6 +2447,43 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               sampleCount: summary.repeatIntervalCount,
             },
           };
+        }
+        if (/(?:次卡|卡项).*(?:即将过期|快过期|临期).*(?:余量|剩余|次数)|(?:余量|剩余|次数).*(?:多|很多).*(?:次卡|卡项).*(?:过期|临期)/.test(input.question)) {
+          const result = await this.customerFacts.getExpiringHighBalanceCards({
+            storeId: input.context.storeId,
+            asOf: new Date(),
+            windowDays: 30,
+            limit: this.resolveLimit(input.args.limit, 10),
+          });
+          return this.answer({
+            answer: `未来 ${result.windowDays} 天内有 ${result.total} 张活跃次卡临期且余量较高。统一口径：剩余至少 3 次，或剩余比例不低于 30%。${result.rows.length ? `\n${result.rows.map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次（${(row.remainingRate * 100).toFixed(1)}%），${row.daysToExpiry} 天后到期，估算未履约 ${row.unfulfilledValue.toFixed(2)} 元`).join('\n')}` : ''}`,
+            citationId: 'customer_card_expiry_balance_facts',
+            citationLabel: '客户次卡有效期与剩余次数事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '临期高余量次卡', value: `${result.total} 张`, hint: `未来 ${result.windowDays} 天` }],
+                citationIds: ['customer_card_expiry_balance_facts'],
+              },
+              {
+                kind: 'table',
+                rows: result.rows.map((row) => ({
+                  ...row,
+                  remainingRate: `${(row.remainingRate * 100).toFixed(1)}%`,
+                  expiryDate: row.expiryDate.toISOString(),
+                  unfulfilledValue: row.unfulfilledValue.toFixed(2),
+                })),
+                columns: ['customerName', 'cardName', 'remainingTimes', 'totalTimes', 'remainingRate', 'daysToExpiry', 'expiryDate', 'unfulfilledValue'],
+                citationIds: ['customer_card_expiry_balance_facts'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'expiring_high_balance_cards',
+              windowDays: result.windowDays,
+              definition: 'active card expiring within 30 days and remainingTimes >= 3 OR remainingTimes / totalTimes >= 0.3',
+            },
+          });
         }
         if (/消费了钱.*(?:很少用|少用).*次卡|次卡.*(?:很少用|使用少|不来用|一直不来)/.test(input.question)) {
           const result = await this.customerFacts.getLowCardUsageCustomers(

@@ -199,7 +199,12 @@ function candidateMatchesExpectation(
   if (roleKey && allowedRoles.length > 0 && !allowedRoles.includes('*') && !allowedRoles.includes(roleKey)) return false;
 
   const intents = strings(candidate.intents);
-  if (expectedIntent && intents.length > 0 && !intents.includes(expectedIntent)) return false;
+  if (
+    expectedIntent &&
+    intents.length > 0 &&
+    !intents.includes(expectedIntent) &&
+    !(expectedIntent === 'ranking' && intents.includes('query'))
+  ) return false;
 
   const domains = strings(candidate.domains);
   if (expectedDomains.length > 0 && domains.length > 0 && !expectedDomains.some((domain) => domains.includes(domain))) {

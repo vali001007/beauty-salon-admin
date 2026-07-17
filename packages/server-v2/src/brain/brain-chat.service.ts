@@ -1507,6 +1507,12 @@ export class BrainChatService {
       input.intent.intent === 'query' &&
       /(?:问题|原因).*(?:在哪|是什么)|为什么/.test(input.question) &&
       matched.intents.includes('diagnosis');
+    const paymentBreakdownIntent =
+      /(?:现金|微信|支付宝|储值|银行卡).*(?:各多少|分别多少|怎么分|占比)|(?:各多少|分别多少).*(?:现金|微信|支付宝|储值|银行卡)/.test(input.question) &&
+      matched.key === 'finance_payment_breakdown';
+    const productMarginRankingIntent =
+      /(?:产品|商品|货品).*(?:毛利率|利润率).*(?:最高|最低|排行|排名)|(?:最高|最低|排行|排名).*(?:产品|商品|货品).*(?:毛利率|利润率)/.test(input.question) &&
+      matched.key === 'finance_risk_overview';
     const inferredDimensionKeys = new Set(inferQuestionDimensionDefinitions(input.question));
     const governedDimensions = (matched.definitionRefs ?? [])
       .filter((ref) => inferredDimensionKeys.has(ref.definitionKey))
@@ -1522,7 +1528,7 @@ export class BrainChatService {
       .flatMap((definitionKey) => (matched.definitionRefs ?? []).filter((ref) => ref.definitionKey === definitionKey))
       .map((ref) => definitionRefFromCard(ref, 'metric'));
     const metrics = governedMetrics.length ? governedMetrics : input.intent.metrics;
-    const orderBy = governedMetrics.length && (input.intent.intent === 'ranking' || orderedRankingIntent)
+    const orderBy = governedMetrics.length && (input.intent.intent === 'ranking' || orderedRankingIntent || productMarginRankingIntent)
       ? [{ definitionRef: governedMetrics[0]!, direction: 'desc' as const }]
       : input.intent.orderBy;
     return {
@@ -1530,6 +1536,8 @@ export class BrainChatService {
       ...(unorderedListIntent ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
       ...(orderedRankingIntent ? { intent: 'ranking' as const, answerShape: 'ranking' as const } : {}),
       ...(diagnosisIntent ? { intent: 'diagnosis' as const, answerShape: 'diagnosis' as const } : {}),
+      ...(paymentBreakdownIntent ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
+      ...(productMarginRankingIntent ? { intent: 'ranking' as const, answerShape: 'ranking' as const } : {}),
       domains: modelDomains.length ? modelDomains : cardDomains,
       metrics,
       dimensions,
@@ -3331,6 +3339,15 @@ function inferGovernedQuestionMetricKeys(question: string): string[] {
   if (/(?:产品|商品).*(?:销售额|销售金额)|(?:销售额|销售金额).*(?:产品|商品)/.test(question)) {
     metrics.push('metric.product_sales_amount');
   }
+  if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(question)) {
+    metrics.push('metric.product_gross_margin_rate');
+  }
+  if (/(?:产品|商品|货品).*(?:低于成本|亏本)|(?:低于成本|亏本).*(?:产品|商品|货品)/.test(question)) {
+    metrics.push('metric.product_below_cost_sale_count');
+  }
+  if (/(?:现金|微信|支付宝|储值|银行卡).*(?:收了多少|各多少|分别多少|怎么分|占比)|(?:支付方式|收款渠道).*(?:拆分|构成|怎么分)/.test(question)) {
+    metrics.push('metric.paid_amount');
+  }
   if (/(?:耗材|物料|产品|商品).*(?:消耗|用量|出库).*(?:最快|最多|排行|排名)|(?:消耗|用量|出库).*(?:最快|最多).*(?:耗材|物料|产品|商品)/.test(question)) {
     metrics.push('metric.inventory_consumption_quantity');
   }
@@ -3358,6 +3375,7 @@ function capabilityKeyDomains(capabilityKey?: string): string[] {
 function inferQuestionDimensionDefinitions(question: string): string[] {
   const definitions: string[] = [];
   if (/新客/.test(question) && /(?:渠道|来源)/.test(question)) definitions.push('dimension.customerSource');
+  if (/(?:现金|微信|支付宝|储值|银行卡|支付方式|收款渠道)/.test(question)) definitions.push('dimension.paymentMethod');
   if (/(?:项目|套餐|护理)/.test(question)) definitions.push('dimension.projectName');
   if (/(?:产品|商品|货品|耗材|物料)/.test(question)) definitions.push('dimension.productName');
   if (/(?:员工|美容师|技师)/.test(question)) definitions.push('dimension.beauticianName');

@@ -86,6 +86,7 @@ export interface BusinessMetricRuntimeResolver {
     | 'manager_staff_analysis'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
+    | 'product_margin_rows'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'
     | 'customer_acquisition_conversion_summary'

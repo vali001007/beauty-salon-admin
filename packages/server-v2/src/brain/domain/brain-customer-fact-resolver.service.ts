@@ -46,6 +46,18 @@ export interface BrainCustomerCardUsageRow {
   lastVisitDate: Date | null;
 }
 
+export interface BrainExpiringCardBalanceRow {
+  [key: string]: unknown;
+  customerName: string;
+  cardName: string;
+  totalTimes: number;
+  remainingTimes: number;
+  remainingRate: number;
+  expiryDate: Date;
+  daysToExpiry: number;
+  unfulfilledValue: number;
+}
+
 @Injectable()
 export class BrainCustomerFactResolverService {
   constructor(
@@ -466,6 +478,52 @@ export class BrainCustomerFactResolverService {
       lastVisitDate: card.customer.lastVisitDate,
     }));
     return { total: rows.length, rows: rows.slice(0, limit) };
+  }
+
+  async getExpiringHighBalanceCards(input: {
+    storeId: number;
+    asOf: Date;
+    windowDays?: number;
+    limit?: number;
+  }): Promise<{ total: number; windowDays: number; rows: BrainExpiringCardBalanceRow[] }> {
+    const windowDays = Math.max(1, Math.min(180, input.windowDays ?? 30));
+    const end = new Date(input.asOf.getTime() + windowDays * 86_400_000);
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        status: 'active',
+        totalTimes: { gt: 0 },
+        remainingTimes: { gt: 0 },
+        expiryDate: { gte: input.asOf, lte: end },
+        customer: { storeId: input.storeId, deletedAt: null },
+      },
+      select: {
+        cardName: true,
+        totalTimes: true,
+        remainingTimes: true,
+        recognizedUnitValue: true,
+        expiryDate: true,
+        customer: { select: { name: true } },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { remainingTimes: 'desc' }],
+      take: 5000,
+    });
+    const rows = cards
+      .map((card) => {
+        const remainingRate = card.totalTimes > 0 ? card.remainingTimes / card.totalTimes : 0;
+        return {
+          customerName: card.customer.name,
+          cardName: card.cardName,
+          totalTimes: card.totalTimes,
+          remainingTimes: card.remainingTimes,
+          remainingRate,
+          expiryDate: card.expiryDate,
+          daysToExpiry: Math.max(0, Math.ceil((card.expiryDate.getTime() - input.asOf.getTime()) / 86_400_000)),
+          unfulfilledValue: toBrainNumber(card.remainingTimes) * toBrainNumber(card.recognizedUnitValue),
+        };
+      })
+      .filter((row) => row.remainingTimes >= 3 || row.remainingRate >= 0.3)
+      .sort((left, right) => left.daysToExpiry - right.daysToExpiry || right.remainingTimes - left.remainingTimes);
+    return { total: rows.length, windowDays, rows: rows.slice(0, input.limit ?? 10) };
   }
 
   private async todayImportantVisitors(storeId: number) {

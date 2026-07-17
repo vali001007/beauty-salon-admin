@@ -1251,6 +1251,125 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.blocks?.some((block) => block.kind === 'ranking')).toBe(false);
   });
 
+  it('answers refund amount and reasons without expanding to the full finance overview', async () => {
+    const skillRuntime = {
+      buildFinanceRefundReasonAnalysis: jest.fn().mockResolvedValue({
+        refundAmount: 450,
+        refundCount: 3,
+        reasons: [
+          { reason: '客户不适', amount: 400, count: 2 },
+          { reason: '未填写原因', amount: 50, count: 1 },
+        ],
+        records: [
+          { refundNo: 'R-2', orderNo: 'O-2', customerName: '李女士', reason: '客户不适', amount: 300, refundedAt: new Date('2026-07-10T08:00:00.000Z') },
+        ],
+      }),
+      buildFinanceRiskSummary: jest.fn(),
+      buildFinanceIncomeAnalysis: jest.fn(),
+      buildFinanceCostAnalysis: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', intents: ['query', 'diagnosis'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'refund-reason-test', timezone: 'Asia/Shanghai' },
+      runId: 55,
+      question: '这个月退货了多少，原因是什么',
+      answerShape: 'list',
+      args: { objective: '退款金额与原因', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('退款 3 笔、合计 450.00 元');
+    expect(result.answer).toContain('客户不适 2 笔/400.00 元');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'table', rows: [expect.objectContaining({ refundNo: 'R-2', reason: '客户不适' })] }),
+      expect.objectContaining({ kind: 'limitations' }),
+    ]));
+    expect(skillRuntime.buildFinanceRiskSummary).not.toHaveBeenCalled();
+  });
+
+  it('ranks product margins and discloses cost fallback quality', async () => {
+    const skillRuntime = {
+      buildFinanceProductMarginAnalysis: jest.fn().mockResolvedValue({
+        totalProductCount: 2,
+        belowCostProductCount: 1,
+        incompleteCostProductCount: 0,
+        rows: [
+          { productId: 1, productName: '眼霜', quantity: 2, netRevenue: 500, costAmount: 200, grossProfit: 300, grossMarginRate: 0.6, belowCostSaleCount: 0, costCoverageRate: 1, costSources: ['order_snapshot'] },
+          { productId: 2, productName: '精华', quantity: 1, netRevenue: 80, costAmount: 100, grossProfit: -20, grossMarginRate: -0.25, belowCostSaleCount: 1, costCoverageRate: 1, costSources: ['product_master_fallback'] },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', intents: ['query', 'diagnosis', 'ranking'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'product-margin-test', timezone: 'Asia/Shanghai' },
+      runId: 57,
+      question: '哪些产品毛利率最高',
+      answerShape: 'ranking',
+      args: { objective: '商品毛利率排行', entities: [], metrics: [{ definitionKey: 'metric.product_gross_margin_rate', definitionVersion: 1 }], dimensions: [{ definitionKey: 'dimension.productName' }], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('商品毛利率最高的是 眼霜，毛利率 60.0%');
+    expect(result.answer).toContain('商品主数据成本作为明确标注的回退值');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      rows: expect.arrayContaining([expect.objectContaining({ productName: '眼霜', grossMarginRate: '60.0%' })]),
+    });
+  });
+
+  it('lists products with non-gift sales below governed cost', async () => {
+    const skillRuntime = {
+      buildFinanceProductMarginAnalysis: jest.fn().mockResolvedValue({
+        totalProductCount: 2, belowCostProductCount: 1, incompleteCostProductCount: 0,
+        rows: [
+          { productId: 1, productName: '眼霜', quantity: 2, netRevenue: 500, costAmount: 200, grossProfit: 300, grossMarginRate: 0.6, belowCostSaleCount: 0, costCoverageRate: 1, costSources: ['order_snapshot'] },
+          { productId: 2, productName: '精华', quantity: 1, netRevenue: 80, costAmount: 100, grossProfit: -20, grossMarginRate: -0.25, belowCostSaleCount: 1, costCoverageRate: 1, costSources: ['order_snapshot'] },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', intents: ['query', 'diagnosis', 'ranking'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'below-cost-test', timezone: 'Asia/Shanghai' },
+      runId: 58,
+      question: '有没有产品卖出去的价格低于成本的',
+      answerShape: 'list',
+      args: { objective: '低于成本销售商品', entities: [], metrics: [{ definitionKey: 'metric.product_below_cost_sale_count', definitionVersion: 1 }], dimensions: [{ definitionKey: 'dimension.productName' }], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('发现 1 个商品存在至少一笔非赠品成交单价低于可用成本');
+    expect(result.blocks?.[0]).toMatchObject({ kind: 'ranking', rows: [expect.objectContaining({ productName: '精华', belowCostSaleCount: 1 })] });
+  });
+
+  it('answers expiring high-balance cards from customer card facts', async () => {
+    const customerFacts = {
+      getExpiringHighBalanceCards: jest.fn().mockResolvedValue({
+        total: 1,
+        windowDays: 30,
+        rows: [{
+          customerName: '李女士', cardName: '抗衰 10 次卡', totalTimes: 10, remainingTimes: 6,
+          remainingRate: 0.6, expiryDate: new Date('2026-07-25T00:00:00.000Z'), daysToExpiry: 7, unfulfilledValue: 1200,
+        }],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor({} as never, customerFacts as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query', 'ranking', 'diagnosis'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'expiring-card-test', timezone: 'Asia/Shanghai' },
+      runId: 56,
+      question: '有没有次卡即将过期但客户还有很多余量',
+      answerShape: 'list',
+      args: { objective: '次卡临期高余量名单', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('未来 30 天内有 1 张活跃次卡临期且余量较高');
+    expect(result.answer).toContain('剩余 6/10 次');
+    expect(result.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'table' })]));
+  });
+
   it('compares governed paid amounts across two structured time ranges', async () => {
     const skillRuntime = {
       buildFinanceIncomeAnalysis: jest.fn()

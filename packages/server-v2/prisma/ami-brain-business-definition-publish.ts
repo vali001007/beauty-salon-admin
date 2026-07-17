@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capability-cli.helpers.js';
 import { BrainInventorySkillsService } from '../src/brain/skills/brain-inventory-skills.service.js';
+import { BrainFinanceSkillsService } from '../src/brain/skills/brain-finance-skills.service.js';
 import { BrainManagerSkillsService } from '../src/brain/skills/brain-manager-skills.service.js';
 import { BrainMarketingSkillsService } from '../src/brain/skills/brain-marketing-skills.service.js';
 import { BrainCustomerFactResolverService } from '../src/brain/domain/brain-customer-fact-resolver.service.js';
@@ -42,6 +43,7 @@ async function main() {
     const registry = app.get(BusinessDefinitionRegistryService);
     const managerSkills = new BrainManagerSkillsService(prisma);
     const inventorySkills = new BrainInventorySkillsService(prisma);
+    const financeSkills = new BrainFinanceSkillsService(prisma);
     const marketingSkills = new BrainMarketingSkillsService(prisma);
     const customerFacts = new BrainCustomerFactResolverService(prisma);
     const customerFeedback = new CustomerFeedbackService(prisma);
@@ -71,6 +73,14 @@ async function main() {
             endDate: new Date(input.endExclusive.getTime() - 1),
           });
           return result.products as unknown as Record<string, unknown>[];
+        }
+        if (input.resolverKey === 'product_margin_rows') {
+          const result = await financeSkills.buildProductMarginAnalysis({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          });
+          return result.rows as unknown as Record<string, unknown>[];
         }
         if (input.resolverKey === 'customer_retention_summary') {
           const result = await customerFacts.getCustomerRetentionSummary({

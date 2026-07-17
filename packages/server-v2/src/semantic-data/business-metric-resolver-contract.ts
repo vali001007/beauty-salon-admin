@@ -8,6 +8,7 @@ export interface BusinessMetricResolverContract {
     | 'manager_staff_analysis'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
+    | 'product_margin_rows'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'
     | 'customer_acquisition_conversion_summary'
@@ -72,6 +73,15 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
       storeModel: 'Product',
       dimensionFields: Object.freeze(['productId', 'name']),
       numericExpressionFields: Object.freeze(['outboundQty']),
+    }),
+    product_margin_rows: Object.freeze({
+      key: 'product_margin_rows' as const,
+      storeModel: 'Product',
+      dimensionFields: Object.freeze(['productId', 'productName']),
+      numericExpressionFields: Object.freeze([
+        'quantity', 'netRevenue', 'costAmount', 'grossProfit', 'grossMarginRate',
+        'belowCostSaleCount', 'costCoverageRate',
+      ]),
     }),
     marketing_follow_up_opportunities: Object.freeze({
       key: 'marketing_follow_up_opportunities' as const,

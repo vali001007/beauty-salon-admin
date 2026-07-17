@@ -1,0 +1,1073 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-17T20:30:05.064Z",
+    "startedAt": "2026-07-17T20:29:54.441Z",
+    "finishedAt": "2026-07-17T20:30:05.064Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 5,
+    "actualRunCount": 5,
+    "actualTurnCount": 5,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 297,
+    "releaseSnapshot": {
+      "releaseFingerprint": "f56f0d309b3ea906fdbda0d140aa44a33a3f51b056cf7ed1ca5381156de69d56",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        275,
+        276,
+        281,
+        284,
+        336,
+        337,
+        339,
+        340,
+        341,
+        342,
+        343,
+        345,
+        346,
+        347,
+        348,
+        350,
+        351,
+        352,
+        354
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 5,
+    "evaluableTotal": 5,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 4,
+    "legacyUsableRate": 0.8,
+    "trueUsable": 5,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "turnCount": 5,
+      "passedTurnCount": 5
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 5,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 5,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "库存运营",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "风险预警",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "经营概览",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 5,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 5
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "finance",
+        "count": 4
+      },
+      {
+        "reason": "payment",
+        "count": 4
+      },
+      {
+        "reason": "operating_cost",
+        "count": 3
+      },
+      {
+        "reason": "order",
+        "count": 3
+      },
+      {
+        "reason": "payment_record",
+        "count": 3
+      },
+      {
+        "reason": "product",
+        "count": 3
+      },
+      {
+        "reason": "product_order",
+        "count": 3
+      },
+      {
+        "reason": "project",
+        "count": 3
+      },
+      {
+        "reason": "refund",
+        "count": 3
+      },
+      {
+        "reason": "customer",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "finance_risk_overview",
+        "count": 3
+      },
+      {
+        "reason": "customer_facts",
+        "count": 1
+      },
+      {
+        "reason": "finance_payment_breakdown",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "exact_contract_fast_path",
+        "count": 5
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 5,
+        "passed": 5,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 5,
+        "passed": 5,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 5,
+        "passed": 5,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 5,
+        "passed": 5,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 5,
+        "passed": 5,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 5,
+        "passed": 5,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 2060,
+      "p95Ms": 3710,
+      "maxMs": 3710
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "80.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "100.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-business-overview-019",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 19,
+      "persona": "manager",
+      "question": "今天现金收了多少，微信支付宝各多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3710,
+      "conversationId": 24031,
+      "runId": 24001,
+      "answer": "排行：\n1. 支付方式=现金，金额=0.00，笔数=0\n2. 支付方式=微信，金额=0.00，笔数=0\n3. 支付方式=支付宝，金额=0.00，笔数=0\n\n数据依据：财务支付方式拆分；业务定义：实收金额。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_finance_payment_breakdown",
+          "label": "财务支付方式拆分"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@8",
+          "label": "业务定义：实收金额"
+        }
+      ],
+      "domains": [
+        "finance",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "finance_payment_breakdown"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "ranking",
+        "expectedShape": "list",
+        "actualShape": "ranking",
+        "expectedMetric": "paid_revenue",
+        "actualMetric": "paid_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "finance"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "paymentMethod"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "paymentMethod"
+        ],
+        "entityKeys": [],
+        "domainKeys": [
+          "finance"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:order"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-075",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 75,
+      "persona": "manager",
+      "question": "有没有产品卖出去的价格低于成本的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1559,
+      "conversationId": 24032,
+      "runId": 24002,
+      "answer": "排行：当前时间范围没有可排行的数据。\n\n说明：当前时间范围没有可排行的数据。\n\n数据依据：业务定义：低于成本销售笔数；订单商品净额、退款冲减与成本快照分析。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.product_below_cost_sale_count@1",
+          "label": "业务定义：低于成本销售笔数"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_product_margin_analysis",
+          "label": "订单商品净额、退款冲减与成本快照分析"
+        }
+      ],
+      "domains": [
+        "finance",
+        "product",
+        "project",
+        "payment_record",
+        "product_order",
+        "operating_cost",
+        "payment",
+        "order",
+        "refund"
+      ],
+      "capabilityKeys": [
+        "finance_risk_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "ranking",
+        "expectedShape": "scalar_metric",
+        "actualShape": "ranking",
+        "expectedMetric": "product_below_cost_sale_count",
+        "actualMetric": "product_below_cost_sale_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "product_below_cost_sale_count"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_risk_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "product_sales_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "product_below_cost_sale_count"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_risk_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "product_sales_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-077",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 77,
+      "persona": "manager",
+      "question": "这个月退货了多少，原因是什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1429,
+      "conversationId": 24033,
+      "runId": 24003,
+      "answer": "退款金额：1419.00 元；退款笔数：4 笔。\n\n明细：\n1. refundNo=REFMRKH8OB89ZF5，orderNo=MKT-E2E-20260714-001，客户=刘思琪，reason=[验收] 智能推荐归因退款冲减，金额=1.00，refundedAt=2026-07-14T09:56:54.932Z\n2. refundNo=REFMRJD085QZCTP，orderNo=POMRIU2W6W-G，客户=林伟明，reason=Codex 退款退货闭环真实验收 2026-07-13，金额=298.00，refundedAt=2026-07-13T15:10:36.110Z\n3. refundNo=REFMR1KVPDSGQY0，orderNo=ACPTRECHMR1KV4JL，客户=比例分摊验收MR1KV4JL，reason=CODEx比例分摊验收-MR1KV4JL 退卡退款，金额=1000.00，refundedAt=2026-07-01T04:31:10.912Z\n4. refundNo=REFMR1KVFLMN8K5，orderNo=ACPTDEDMR1KV4JL，客户=比例分摊验收MR1KV4JL，reason=CODEx比例分摊验收-MR1KV4JL 订单退款，金额=120.00，refundedAt=2026-07-01T04:30:58.234Z\n\n数据依据：退款记录、金额与原因；业务定义：退款金额；业务定义：退款笔数。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_refund_reason_analysis",
+          "label": "退款记录、金额与原因"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.refund_amount",
+          "label": "业务定义：退款金额"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.refund_count",
+          "label": "业务定义：退款笔数"
+        }
+      ],
+      "domains": [
+        "finance",
+        "product",
+        "project",
+        "payment_record",
+        "product_order",
+        "operating_cost",
+        "payment",
+        "order",
+        "refund"
+      ],
+      "capabilityKeys": [
+        "finance_risk_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "list",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "actualMetric": "refund_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "diagnosis",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_risk_overview",
+          "inventory_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_risk_overview",
+          "inventory_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-078",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 78,
+      "persona": "manager",
+      "question": "哪些产品毛利率最高",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1541,
+      "conversationId": 24034,
+      "runId": 24004,
+      "answer": "排行：当前时间范围没有可排行的数据。\n\n说明：当前时间范围没有可排行的数据。\n\n数据依据：业务定义：商品毛利率；订单商品净额、退款冲减与成本快照分析。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.product_gross_margin_rate@1",
+          "label": "业务定义：商品毛利率"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_product_margin_analysis",
+          "label": "订单商品净额、退款冲减与成本快照分析"
+        }
+      ],
+      "domains": [
+        "finance",
+        "product",
+        "project",
+        "payment_record",
+        "product_order",
+        "operating_cost",
+        "payment",
+        "order",
+        "refund"
+      ],
+      "capabilityKeys": [
+        "finance_risk_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "ranking",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "product_gross_margin_rate",
+        "actualMetric": "product_gross_margin_rate",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "ranking",
+        "answerShape": "ranking",
+        "domains": [
+          "product"
+        ],
+        "entities": [],
+        "metrics": [
+          "product_gross_margin_rate"
+        ],
+        "dimensions": [
+          "productName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_risk_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "product_sales_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "product_gross_margin_rate"
+        ],
+        "dimensionKeys": [
+          "productName"
+        ],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [
+          "product"
+        ],
+        "capabilityKeys": [
+          "finance_risk_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "product_sales_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-092",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 92,
+      "persona": "manager",
+      "question": "有没有次卡即将过期但客户还有很多余量",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2063,
+      "conversationId": 24035,
+      "runId": 24005,
+      "answer": "临期高余量次卡：0 张（未来 30 天）。\n\n明细：当前没有匹配数据。\n\n数据依据：客户次卡有效期与剩余次数事实。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "customer_card_expiry_balance_facts",
+          "label": "客户次卡有效期与剩余次数事实"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:customer_card"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

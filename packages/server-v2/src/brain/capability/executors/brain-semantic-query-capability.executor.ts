@@ -381,6 +381,14 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       });
       return result.products as unknown as UnknownRecord[];
     }
+    if (resolverKey === 'product_margin_rows') {
+      const result = await this.skillRuntime!.buildFinanceProductMarginAnalysis({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return result.rows as unknown as UnknownRecord[];
+    }
     if (resolverKey === 'marketing_follow_up_opportunities') {
       return this.skillRuntime!.buildMarketingFollowUpPriority({
         storeId,

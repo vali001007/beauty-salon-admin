@@ -125,6 +125,14 @@ export class BrainSkillRuntimeService {
     return this.financeSkills.buildFinanceRiskSummary(input);
   }
 
+  buildFinanceRefundReasonAnalysis(input: Parameters<BrainFinanceSkillsService['buildRefundReasonAnalysis']>[0]) {
+    return this.financeSkills.buildRefundReasonAnalysis(input);
+  }
+
+  buildFinanceProductMarginAnalysis(input: Parameters<BrainFinanceSkillsService['buildProductMarginAnalysis']>[0]) {
+    return this.financeSkills.buildProductMarginAnalysis(input);
+  }
+
   buildFinanceIncomeAnalysis(input: Parameters<BrainFinanceSkillsService['buildIncomeAnalysis']>[0]) {
     return this.financeSkills.buildIncomeAnalysis(input);
   }
