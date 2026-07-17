@@ -97,4 +97,90 @@ describe('business metric resolver runtime', () => {
       overallValue: 0.11111111,
     });
   });
+
+  it('evaluates satisfaction and coverage from the shared feedback summary row', () => {
+    const feedbackScope: BusinessMetricRuntimeQuery['storeScope'] = {
+      mode: 'current_store',
+      anchorModel: 'CustomerServiceFeedback',
+      model: 'CustomerServiceFeedback',
+      field: 'storeId',
+      joinPath: [],
+    };
+    const base = {
+      dimensions: [],
+      sourceModels: ['CustomerServiceFeedback', 'ServiceTask'],
+      storeScope: feedbackScope,
+      rows: [{ ratingTotal: 14, ratedFeedbackCount: 4, linkedServiceTaskCount: 4, completedServiceTaskCount: 10 }],
+    };
+    const satisfaction = evaluateBusinessMetricResolver({
+      ...base,
+      metricKey: 'customer_average_satisfaction_rating',
+      outputField: 'customer_average_satisfaction_rating',
+      resolver: {
+        kind: 'domain_service',
+        key: 'customer_service_feedback_summary',
+        dimensionFields: {},
+        expression: {
+          op: 'divide',
+          numerator: { op: 'field', field: 'ratingTotal' },
+          denominator: { op: 'field', field: 'ratedFeedbackCount' },
+          zero: 'zero',
+        },
+        overallAggregation: 'avg',
+      },
+    });
+    const coverage = evaluateBusinessMetricResolver({
+      ...base,
+      metricKey: 'customer_feedback_collection_coverage_rate',
+      outputField: 'customer_feedback_collection_coverage_rate',
+      resolver: {
+        kind: 'domain_service',
+        key: 'customer_service_feedback_summary',
+        dimensionFields: {},
+        expression: {
+          op: 'divide',
+          numerator: { op: 'field', field: 'linkedServiceTaskCount' },
+          denominator: { op: 'field', field: 'completedServiceTaskCount' },
+          zero: 'zero',
+        },
+        overallAggregation: 'avg',
+      },
+    });
+
+    expect(satisfaction.overallValue).toBe(3.5);
+    expect(coverage.overallValue).toBe(0.4);
+  });
+
+  it('evaluates staff complaint ranking without reading undeclared employee metrics', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'staff_customer_complaint_count',
+      resolver: {
+        kind: 'domain_service',
+        key: 'customer_service_feedback_by_staff',
+        dimensionFields: { beauticianId: 'beauticianId', beauticianName: 'beauticianName' },
+        expression: { op: 'field', field: 'complaintCount' },
+        overallAggregation: 'sum',
+      },
+      dimensions: ['beauticianId', 'beauticianName'],
+      outputField: 'staff_customer_complaint_count',
+      sourceModels: ['CustomerServiceFeedback', 'Beautician'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'CustomerServiceFeedback',
+        model: 'CustomerServiceFeedback',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [
+        { beauticianId: 8, beauticianName: '唐伊', complaintCount: 2 },
+        { beauticianId: 9, beauticianName: '沈晴', complaintCount: 1 },
+      ],
+    });
+
+    expect(result.groups).toEqual([
+      { dimensions: { beauticianId: 8, beauticianName: '唐伊' }, value: 2 },
+      { dimensions: { beauticianId: 9, beauticianName: '沈晴' }, value: 1 },
+    ]);
+    expect(result.overallValue).toBe(3);
+  });
 });

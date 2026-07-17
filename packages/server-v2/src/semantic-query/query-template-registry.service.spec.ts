@@ -18,6 +18,9 @@ describe('QueryTemplateRegistryService', () => {
     expect(registry.findByMetric('new_customer_count')?.id).toBe('customer_acquisition');
     expect(registry.findByMetric('new_customer_conversion_count')?.id).toBe('customer_acquisition');
     expect(registry.findByMetric('new_customer_conversion_rate')?.id).toBe('customer_acquisition');
+    expect(registry.findByMetric('customer_complaint_count')?.id).toBe('customer_feedback');
+    expect(registry.findByMetric('customer_average_satisfaction_rating')?.id).toBe('customer_feedback');
+    expect(registry.findByMetric('staff_customer_complaint_count')?.id).toBe('customer_feedback_staff');
   });
 
   it('maps P0 skill capabilities to dedicated templates without stealing generic metrics', () => {
@@ -42,6 +45,7 @@ describe('QueryTemplateRegistryService', () => {
     expect(registry.findByCapability('staff_performance_ranking')?.id).toBe('staff_performance');
     expect(registry.findByCapability('manager_staff_overview')?.id).toBe('staff_performance');
     expect(registry.findByCapability('customer_facts')?.id).toBe('customer_retention');
+    expect(registry.findByCapability('customer_feedback_overview')?.id).toBe('customer_feedback');
     expect(registry.findForMetrics([
       'new_customer_count',
       'new_customer_conversion_count',

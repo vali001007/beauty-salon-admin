@@ -1173,7 +1173,134 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       projectStructureGap: true,
     });
   });
+
+  it('answers complaint summary from the unified feedback fact and discloses collection coverage', async () => {
+    const customerFeedback = { analytics: jest.fn().mockResolvedValue(feedbackAnalytics()) };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      customerFeedback as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_feedback_overview', name: '客户投诉与满意度分析' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'feedback-summary-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 10,
+      question: '最近有没有客户投诉或者表达不满',
+      args: {
+        objective: '查询客户投诉',
+        time: { label: '最近30天', timezone: 'Asia/Shanghai', startDate: '2026-06-18', endDate: '2026-07-17' },
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(customerFeedback.analytics).toHaveBeenCalledWith(6, {
+      startDate: '2026-06-17T16:00:00.000Z',
+      endDate: '2026-07-17T15:59:59.999Z',
+    });
+    expect(result.answer).toContain('共录入 3 条客户投诉或不满，其中 2 条尚未解决');
+    expect(result.answer).toContain('评价采集覆盖率 40.0%');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'kpi' }),
+      expect.objectContaining({ kind: 'limitations', items: [expect.stringContaining('未记录不代表客户没有不满')] }),
+    ]));
+  });
+
+  it('returns satisfaction KPIs without treating missing ratings as zero', async () => {
+    const customerFeedback = { analytics: jest.fn().mockResolvedValue(feedbackAnalytics()) };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      customerFeedback as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_feedback_overview', name: '客户投诉与满意度分析' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'feedback-rating-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 11,
+      question: '帮我看一下客户满意度整体情况',
+      args: { objective: '查询客户满意度', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('客户平均满意度为 3.5/5');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'kpi',
+        items: expect.arrayContaining([{ label: '平均满意度', value: '3.5 / 5' }]),
+      }),
+    ]));
+    expect(result.metadata).toMatchObject({ answerScope: 'satisfaction_summary' });
+  });
+
+  it('ranks beauticians by complaint count instead of substituting performance metrics', async () => {
+    const customerFeedback = { analytics: jest.fn().mockResolvedValue(feedbackAnalytics()) };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      customerFeedback as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_feedback_overview', name: '客户投诉与满意度分析' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'feedback-ranking-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 12,
+      question: '哪个美容师的客诉最多，最近有没有',
+      answerShape: 'ranking',
+      args: { objective: '美容师客诉排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], limit: 10 },
+    });
+
+    expect(result.answer).toContain('唐伊的客诉最多，共 2 条');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'ranking',
+        columns: expect.arrayContaining(['beauticianName', 'complaintCount', 'unresolvedComplaintCount']),
+      }),
+    ]));
+    expect(result.metadata).toMatchObject({ answerScope: 'staff_complaint_ranking' });
+  });
 });
+
+function feedbackAnalytics(): any {
+  return {
+    range: { startDate: new Date('2026-06-17T16:00:00.000Z'), endDate: new Date('2026-07-17T15:59:59.999Z') },
+    summary: {
+      feedbackCount: 5,
+      complaintCount: 3,
+      unresolvedComplaintCount: 2,
+      ratedFeedbackCount: 4,
+      averageRating: 3.5,
+      lowRatingCount: 1,
+      completedServiceTaskCount: 10,
+      linkedServiceTaskCount: 4,
+      collectionCoverageRate: 0.4,
+    },
+    staff: [
+      { beauticianId: 8, beauticianName: '唐伊', feedbackCount: 3, complaintCount: 2, unresolvedComplaintCount: 1, lowRatingCount: 1, ratedFeedbackCount: 2, averageRating: 3 },
+      { beauticianId: 9, beauticianName: '沈晴', feedbackCount: 2, complaintCount: 1, unresolvedComplaintCount: 1, lowRatingCount: 0, ratedFeedbackCount: 2, averageRating: 4 },
+    ],
+  };
+}
 
 function operations(override: Record<string, unknown> = {}): any {
   return {

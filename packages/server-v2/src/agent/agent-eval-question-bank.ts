@@ -356,6 +356,18 @@ function inferExpectedMetrics(input: string) {
     values.add('new_customer_conversion_count');
     values.add('new_customer_conversion_rate');
   }
+  if (/(投诉|客诉|差评|不满|负面反馈)/.test(input)) {
+    if (/(员工|美容师|谁|哪个|哪位)/.test(input)) values.add('staff_customer_complaint_count');
+    else values.add('customer_complaint_count');
+    values.add('customer_feedback_collection_coverage_rate');
+  }
+  if (/(投诉|客诉|不满)/.test(input) && /(未解决|没解决|待处理|处理中|还有多少)/.test(input)) {
+    values.add('customer_unresolved_complaint_count');
+  }
+  if (/(满意度|满意评价|服务评分|星级|评分)/.test(input)) {
+    values.add('customer_average_satisfaction_rating');
+    values.add('customer_feedback_collection_coverage_rate');
+  }
   return [...values];
 }
 

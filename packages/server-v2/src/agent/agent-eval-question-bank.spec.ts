@@ -84,6 +84,12 @@ describe('Agent eval question bank', () => {
     expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedDimensions).toEqual(['beautician']);
     expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedMetrics).toContain('staff_unique_customer_count');
     expect(bank.questions.find((item) => item.input === '最近有没有现金流异常的情况')?.expectedDimensions).not.toContain('payment_method');
+    expect(bank.questions.find((item) => item.input === '最近有没有客户投诉或者表达不满')?.expectedMetrics)
+      .toEqual(expect.arrayContaining(['customer_complaint_count', 'customer_feedback_collection_coverage_rate']));
+    expect(bank.questions.find((item) => item.input === '帮我看一下客户满意度整体情况')?.expectedMetrics)
+      .toEqual(expect.arrayContaining(['customer_average_satisfaction_rating', 'customer_feedback_collection_coverage_rate']));
+    expect(bank.questions.find((item) => item.input === '哪个美容师的客诉最多，最近有没有')?.expectedMetrics)
+      .toContain('staff_customer_complaint_count');
   });
 
   it('selects the first 120 P0 gate cases by role and edge strategy', () => {

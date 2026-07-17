@@ -129,6 +129,7 @@ import { BrainRiskSkillsService } from './skills/brain-risk-skills.service.js';
 import { BrainSkillRegistryService } from './skills/brain-skill-registry.service.js';
 import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
+import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.module.js';
 
 @Module({
   imports: [
@@ -141,6 +142,7 @@ import { SchedulingModule } from '../scheduling/scheduling.module.js';
     TerminalModule,
     SemanticDataModule,
     BusinessDefinitionModule,
+    CustomerFeedbackModule,
   ],
   controllers: [BrainController],
   providers: [

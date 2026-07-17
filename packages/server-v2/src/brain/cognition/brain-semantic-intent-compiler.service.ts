@@ -980,6 +980,17 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
       return /新客/.test(normalizedQuestion) && /(转化|成交|首单)/.test(normalizedQuestion);
     case 'new_customer_conversion_rate':
       return /新客/.test(normalizedQuestion) && /(转化率|成交率|首单率|转化)/.test(normalizedQuestion);
+    case 'customer_complaint_count':
+      return /(投诉|客诉|差评|不满|负面反馈)/.test(normalizedQuestion) &&
+        !/(?:美容师|员工|谁|哪个|哪位).*(?:投诉|客诉|差评).*(?:最多|排行|排名)/.test(normalizedQuestion);
+    case 'customer_unresolved_complaint_count':
+      return /(投诉|客诉|不满)/.test(normalizedQuestion) && /(未解决|没解决|待处理|处理中|还有多少)/.test(normalizedQuestion);
+    case 'customer_average_satisfaction_rating':
+      return /(满意度|满意评价|服务评分|星级|评分)/.test(normalizedQuestion);
+    case 'customer_feedback_collection_coverage_rate':
+      return /(反馈|评价|满意度)/.test(normalizedQuestion) && /(覆盖率|采集率|整体情况|总体情况)/.test(normalizedQuestion);
+    case 'staff_customer_complaint_count':
+      return /(美容师|员工|谁|哪个|哪位)/.test(normalizedQuestion) && /(投诉|客诉|差评)/.test(normalizedQuestion);
     default:
       return false;
   }

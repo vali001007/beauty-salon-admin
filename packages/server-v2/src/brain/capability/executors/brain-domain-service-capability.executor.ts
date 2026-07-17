@@ -5,6 +5,7 @@ import { extractSpecificCustomerNameFromMention } from '../../domain/brain-custo
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import { MarketingService } from '../../../marketing/marketing.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { CustomerFeedbackService } from '../../../customer-feedback/customer-feedback.service.js';
 import type { BrainDomainAnswer } from '../../domain/brain-domain-adapter.types.js';
 import { BrainDataQualityGuardService, type BrainDataQualityAssessment } from '../../inspection/brain-data-quality-guard.service.js';
 import type { BrainResponseBlock } from '../../response/brain-response.types.js';
@@ -32,6 +33,7 @@ function specificCustomerMention(
 const CAPABILITY_KEYS = [
   'store_operations_overview',
   'manager_staff_overview',
+  'customer_feedback_overview',
   'front_desk_operations_overview',
   'beautician_service_overview',
   'inventory_operations_overview',
@@ -81,6 +83,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     @Optional() private readonly dataQuality?: BrainDataQualityGuardService,
     @Optional() private readonly marketing?: MarketingService,
     @Optional() private readonly prisma?: PrismaService,
+    @Optional() private readonly customerFeedback?: CustomerFeedbackService,
   ) {}
 
   @BrainCapability({
@@ -127,7 +130,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'manager_staff_overview',
     name: '店长员工运营分析',
-    description: '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。客户投诉、差评、满意度和试用期评估没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。',
+    description: '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期评估没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
     intents: ['query', 'ranking', 'comparison', 'diagnosis'],
     examples: [
       '哪个美容师接的客人最多',
@@ -137,11 +140,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '谁的客户复购率最高',
       '这个月提成最高的是谁，大概多少',
       '今天谁请假了，有没有影响接待',
-      '最近有没有客户投诉或者表达不满',
-      '帮我看一下客户满意度整体情况',
       '新员工试用期表现怎么样',
     ],
-    negativeExamples: ['查看其他门店员工数据', '直接修改员工排班或提成', '哪个美容师的客诉最多'],
+    negativeExamples: ['查看其他门店员工数据', '直接修改员工排班或提成', '最近有没有客户投诉或者表达不满'],
     synonyms: ['员工运营分析', '美容师服务排行', '美容师接客排行', '员工服务次数对比', '员工客户复购率排行', '员工提成排行', '员工排班空档', '员工工作饱和度'],
     businessDefinitionKeys: [
       'metric.staff_service_count',
@@ -163,6 +164,40 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   })
   managerStaffOverview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('manager_staff_overview', args, input);
+  }
+
+  @BrainCapability({
+    key: 'customer_feedback_overview',
+    name: '客户投诉与满意度分析',
+    description: '基于统一客户服务反馈事实，查询当前门店投诉、未解决投诉、满意度、评价采集覆盖率和美容师客诉排行。无反馈记录时必须同时披露采集覆盖率，不得把未采集解释为没有投诉。',
+    intents: ['query', 'ranking', 'diagnosis'],
+    examples: [
+      '最近有没有客户投诉或者表达不满',
+      '帮我看一下客户满意度整体情况',
+      '哪个美容师的客诉最多，最近有没有',
+      '本月还有多少投诉没有解决',
+    ],
+    negativeExamples: ['查看其他门店的客户投诉', '直接删除客户投诉记录', '帮我评价新员工试用期表现'],
+    synonyms: ['客户投诉', '客户不满', '负面反馈', '客户满意度', '客诉排行', '差评', '服务评价'],
+    businessDefinitionKeys: [
+      'metric.customer_complaint_count',
+      'metric.customer_unresolved_complaint_count',
+      'metric.customer_average_satisfaction_rating',
+      'metric.customer_feedback_collection_coverage_rate',
+      'metric.staff_customer_complaint_count',
+      'entity.customer',
+      'entity.beautician',
+      'dimension.beauticianName',
+    ],
+    readOnly: true,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:customer:view'],
+    allowedRoles: ['store_manager', 'customer_service'],
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+  })
+  customerFeedbackOverview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('customer_feedback_overview', args, input);
   }
 
   @BrainCapability({
@@ -913,6 +948,125 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             completionCriteria: ['staff_performance_loaded', 'staff_schedule_loaded'],
           },
         }, dataQuality);
+      }
+      case 'customer_feedback_overview': {
+        if (!this.customerFeedback) {
+          return {
+            status: 'failed',
+            answer: '客户反馈事实服务未接入，本次不推断投诉或满意度。',
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: ['客户反馈事实服务未接入'] }],
+            metadata: {
+              capabilityKey: 'customer_feedback_overview',
+              failureCode: 'CUSTOMER_FEEDBACK_SERVICE_UNAVAILABLE',
+            },
+          };
+        }
+        const result = await this.customerFeedback.analytics(input.context.storeId, {
+          startDate: range.startDate.toISOString(),
+          endDate: range.endDate.toISOString(),
+        });
+        const summary = result.summary;
+        const coverageText = `评价采集覆盖率 ${(summary.collectionCoverageRate * 100).toFixed(1)}%（${summary.linkedServiceTaskCount}/${summary.completedServiceTaskCount} 个已完成服务）`;
+        const coverageLimitation = summary.completedServiceTaskCount > 0 && summary.collectionCoverageRate < 0.8
+          ? `当前${coverageText}，未记录不代表客户没有不满。`
+          : undefined;
+        const citations = [
+          { sourceType: 'db_skill', sourceId: 'customer_service_feedback_summary', label: '客户投诉与满意度统一事实' },
+          { sourceType: 'db_skill', sourceId: 'customer_service_feedback_by_staff', label: '美容师客户反馈聚合' },
+        ];
+        const isStaffRanking = /(?:哪个|哪位|谁|美容师|员工).*(?:客诉|投诉|差评).*(?:最多|排行|排名)|(?:客诉|投诉|差评).*(?:最多|排行|排名).*(?:美容师|员工|谁)/.test(input.question);
+        const isSatisfaction = /满意度|满意评价|评分|星级/.test(input.question);
+        if (isStaffRanking) {
+          const rows = result.staff.slice(0, this.resolveLimit(input.args.limit, 10));
+          const leader = rows[0];
+          const answer = leader && leader.complaintCount > 0
+            ? `${range.label}${leader.beauticianName}的客诉最多，共 ${leader.complaintCount} 条，其中 ${leader.unresolvedComplaintCount} 条未解决。${coverageText}。`
+            : `${range.label}已录入反馈中没有关联到美容师的投诉。${coverageText}。`;
+          return {
+            status: 'completed',
+            answer: coverageLimitation ? `${answer}\n${coverageLimitation}` : answer,
+            citations,
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'ranking',
+                rows,
+                columns: ['beauticianName', 'complaintCount', 'unresolvedComplaintCount', 'averageRating', 'ratedFeedbackCount'],
+                citationIds: ['customer_service_feedback_by_staff'],
+              },
+              ...(coverageLimitation ? [{ kind: 'limitations' as const, items: [coverageLimitation] }] : []),
+            ],
+            metadata: {
+              capabilityKey: 'customer_feedback_overview',
+              answerScope: 'staff_complaint_ranking',
+              rangeLabel: range.label,
+              collectionCoverageRate: summary.collectionCoverageRate,
+              completionCriteria: ['customer_feedback_loaded', 'staff_complaints_ranked', 'coverage_disclosed'],
+            },
+          };
+        }
+        if (isSatisfaction) {
+          const satisfactionText = summary.ratedFeedbackCount > 0 && summary.averageRating !== null
+            ? `${range.label}客户平均满意度为 ${summary.averageRating.toFixed(1)}/5，共采集 ${summary.ratedFeedbackCount} 条评分，其中 ${summary.lowRatingCount} 条为 1-2 星低分。`
+            : `${range.label}尚未采集到可计算满意度的评分记录。`;
+          return {
+            status: 'completed',
+            answer: `${satisfactionText}${coverageText}。${coverageLimitation ? `\n${coverageLimitation}` : ''}`,
+            citations,
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '平均满意度', value: summary.averageRating === null ? '未采集' : `${summary.averageRating.toFixed(1)} / 5` },
+                  { label: '有效评分', value: `${summary.ratedFeedbackCount} 条` },
+                  { label: '低分评价', value: `${summary.lowRatingCount} 条` },
+                  { label: '评价覆盖率', value: `${(summary.collectionCoverageRate * 100).toFixed(1)}%` },
+                ],
+                citationIds: ['customer_service_feedback_summary'],
+              },
+              ...(coverageLimitation ? [{ kind: 'limitations' as const, items: [coverageLimitation] }] : []),
+            ],
+            metadata: {
+              capabilityKey: 'customer_feedback_overview',
+              answerScope: 'satisfaction_summary',
+              rangeLabel: range.label,
+              collectionCoverageRate: summary.collectionCoverageRate,
+              completionCriteria: ['satisfaction_loaded', 'coverage_disclosed'],
+            },
+          };
+        }
+        const complaintAnswer = summary.complaintCount > 0
+          ? `${range.label}共录入 ${summary.complaintCount} 条客户投诉或不满，其中 ${summary.unresolvedComplaintCount} 条尚未解决。${coverageText}。`
+          : `${range.label}已录入反馈中没有投诉记录。${coverageText}。`;
+        return {
+          status: 'completed',
+          answer: coverageLimitation ? `${complaintAnswer}\n${coverageLimitation}` : complaintAnswer,
+          citations,
+          grounding: 'db_skill',
+          blocks: [
+            {
+              kind: 'kpi',
+              items: [
+                { label: '投诉', value: `${summary.complaintCount} 条` },
+                { label: '待解决投诉', value: `${summary.unresolvedComplaintCount} 条` },
+                { label: '反馈总数', value: `${summary.feedbackCount} 条` },
+                { label: '评价覆盖率', value: `${(summary.collectionCoverageRate * 100).toFixed(1)}%` },
+              ],
+              citationIds: ['customer_service_feedback_summary'],
+            },
+            ...(coverageLimitation ? [{ kind: 'limitations' as const, items: [coverageLimitation] }] : []),
+          ],
+          metadata: {
+            capabilityKey: 'customer_feedback_overview',
+            answerScope: 'complaint_summary',
+            rangeLabel: range.label,
+            collectionCoverageRate: summary.collectionCoverageRate,
+            completionCriteria: ['complaints_loaded', 'unresolved_complaints_loaded', 'coverage_disclosed'],
+          },
+        };
       }
       case 'front_desk_operations_overview': {
         const [snapshot, overrun, schedule] = await Promise.all([

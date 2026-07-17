@@ -87,7 +87,9 @@ export interface BusinessMetricRuntimeResolver {
     | 'inventory_risk_summary'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'
-    | 'customer_acquisition_conversion_summary';
+    | 'customer_acquisition_conversion_summary'
+    | 'customer_service_feedback_summary'
+    | 'customer_service_feedback_by_staff';
   readonly dimensionFields: Readonly<Record<string, string>>;
   readonly expression: BusinessMetricRuntimeExpression;
   readonly overallAggregation: 'sum' | 'avg' | 'min' | 'max';

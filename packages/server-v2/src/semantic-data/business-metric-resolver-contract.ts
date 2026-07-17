@@ -9,7 +9,9 @@ export interface BusinessMetricResolverContract {
     | 'inventory_risk_summary'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'
-    | 'customer_acquisition_conversion_summary';
+    | 'customer_acquisition_conversion_summary'
+    | 'customer_service_feedback_summary'
+    | 'customer_service_feedback_by_staff';
   readonly storeModel: string;
   readonly dimensionFields: readonly string[];
   readonly numericExpressionFields: readonly string[];
@@ -89,6 +91,35 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
         'convertedCustomerCount',
         'unconvertedCustomerCount',
         'conversionRate',
+      ]),
+    }),
+    customer_service_feedback_summary: Object.freeze({
+      key: 'customer_service_feedback_summary' as const,
+      storeModel: 'CustomerServiceFeedback',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze([
+        'feedbackCount',
+        'complaintCount',
+        'unresolvedComplaintCount',
+        'ratedFeedbackCount',
+        'ratingTotal',
+        'lowRatingCount',
+        'completedServiceTaskCount',
+        'linkedServiceTaskCount',
+        'collectionCoverageRate',
+      ]),
+    }),
+    customer_service_feedback_by_staff: Object.freeze({
+      key: 'customer_service_feedback_by_staff' as const,
+      storeModel: 'CustomerServiceFeedback',
+      dimensionFields: Object.freeze(['beauticianId', 'beauticianName']),
+      numericExpressionFields: Object.freeze([
+        'feedbackCount',
+        'complaintCount',
+        'unresolvedComplaintCount',
+        'lowRatingCount',
+        'ratedFeedbackCount',
+        'averageRating',
       ]),
     }),
   });
