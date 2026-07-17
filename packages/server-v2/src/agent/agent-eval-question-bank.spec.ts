@@ -50,7 +50,22 @@ describe('Agent eval question bank', () => {
     expect(bank.questions.find((item) => item.input === '今天退款有几笔，金额多少')).toMatchObject({
       expectedSemanticIntent: 'query',
       requiresApproval: false,
+      expectedOutputKinds: expect.not.arrayContaining(['action_card']),
     });
+    expect(bank.questions.find((item) => item.input === '哪些客户最近消费频率明显下降')?.expectedOutputKinds)
+      .not.toContain('kpi');
+    expect(bank.questions.find((item) => item.input === '这个月提成最高的是谁，大概多少')).toMatchObject({
+      expectedSemanticIntent: 'ranking',
+      expectedMetrics: ['staff_commission_amount'],
+    });
+    expect(bank.questions.find((item) => item.input === '谁的客户复购率最高')).toMatchObject({
+      expectedSemanticIntent: 'ranking',
+      expectedMetrics: ['staff_customer_repurchase_rate'],
+    });
+    expect(bank.questions.find((item) => item.input === '今天退款有几笔，金额多少')?.expectedMetrics)
+      .toEqual(expect.arrayContaining(['refund_amount', 'refund_count']));
+    expect(bank.questions.find((item) => item.input === '今天折扣优惠送出去多少钱')?.expectedMetrics)
+      .toContain('discount_amount');
     expect(bank.questions.find((item) => item.input === '今天新客老客各来了几个')?.expectedDimensions).not.toContain('customer');
     expect(bank.questions.find((item) => item.input === '哪个美容师接的客人最多')?.expectedDimensions).toEqual(['beautician']);
     expect(bank.questions.find((item) => item.input === '哪个美容师接的客人最多')?.expectedMetrics).toContain('staff_unique_customer_count');
@@ -85,7 +100,7 @@ describe('Agent eval question bank', () => {
           input: '我想做个召回活动，哪些客户最值得联系',
           persona: 'marketing',
           expectedSkill: 'marketing.growth.execution',
-          expectedOutputKinds: expect.arrayContaining(['table', 'action_card']),
+          expectedOutputKinds: expect.arrayContaining(['table', 'evidence']),
         }),
         expect.objectContaining({
           input: '这个客人用次卡核销，帮我看一下她的次卡情况',

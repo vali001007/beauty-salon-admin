@@ -131,7 +131,29 @@ describe('BrainAnswerGraderService', () => {
       brainStatus: 'completed',
     });
 
-    expect(result).toMatchObject({ status: 'usable_exact', actualShape: 'ranking' });
+    expect(result).toMatchObject({ status: 'usable_exact', actualIntent: 'ranking', actualShape: 'ranking' });
+  });
+
+  it('keeps a metric-backed staff ranking as ranking instead of scalar metric intent', () => {
+    const result = grader.grade({
+      question: '谁的客户复购率最高',
+      answer: '本月客户复购率最高的是沈晴，复购率 35.0%。',
+      citations: [
+        { sourceType: 'business_definition', sourceId: 'metric.staff_customer_repurchase_rate@1', label: '业务定义：员工客户复购率' },
+        { sourceType: 'db_skill', sourceId: 'manager_staff_analysis', label: '员工客户复购分析' },
+      ],
+      blocks: [{ kind: 'ranking', rows: [{ staff: '沈晴', customerRepurchaseRate: 0.35 }] }],
+      expectedIntent: 'ranking',
+      expectedMetric: 'staff_customer_repurchase_rate',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      actualIntent: 'ranking',
+      actualShape: 'ranking',
+      actualMetric: 'staff_customer_repurchase_rate',
+    });
   });
 
   it('keeps gross margin rate answers usable when the question asks for rate', () => {

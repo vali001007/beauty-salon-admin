@@ -1,9 +1,21 @@
 import {
   readCapabilityStructuredComparisonTarget,
+  structuredEntityMentions,
   structuredTimeUtcRange,
 } from './brain-capability-structured-args.js';
 
 describe('brain capability structured comparison args', () => {
+  it('preserves entity source evidence for identity resolution', () => {
+    expect(structuredEntityMentions({
+      objective: 'resolve customer segment',
+      entities: [{ entityType: 'customer', mention: 'Customer', source: 'system' }],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+    })).toEqual([{ entityType: 'customer', mention: 'Customer', source: 'system' }]);
+  });
+
   it('accepts a governed time comparison target and converts explicit dates', () => {
     const target = readCapabilityStructuredComparisonTarget({
       comparisonTarget: {

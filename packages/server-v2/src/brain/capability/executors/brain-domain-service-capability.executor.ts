@@ -25,8 +25,7 @@ import {
 function specificCustomerMention(
   entity: ReturnType<typeof structuredEntityMentions>[number] | undefined,
 ): string | undefined {
-  if (!entity) return undefined;
-  if (entity.entityKey && entity.entityKey !== 'customer') return entity.mention;
+  if (!entity || entity.source === 'system') return undefined;
   return extractSpecificCustomerNameFromMention(entity.mention);
 }
 
@@ -87,7 +86,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'store_operations_overview',
     name: '店长经营概览',
-    description: '组合实收、订单、客户、客单价、经营目标、预约到店、当前在店、退款、支付拆分、项目与美容师排行、员工忙闲、趋势和周期对比，返回可追溯的门店经营概览。跨周期逐日差距问题未指定指标时，按已发布实收指标 metric.paid_amount 比较并披露口径。',
+    description: '组合实收、订单、客户、客单价、经营目标、预约到店、当前在店、支付拆分、项目与美容师排行、员工忙闲、趋势和周期对比，返回可追溯的门店经营概览。跨周期逐日差距问题未指定指标时，按已发布实收指标 metric.paid_amount 比较并披露口径。退款和优惠的精确问数由财务经营风险能力处理。',
     intents: ['query', 'ranking', 'comparison', 'trend', 'diagnosis'],
     examples: [
       '今天店里情况怎么样，给我来个总结',
@@ -99,15 +98,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '这个月目标完成率多少了，还差多远',
       '今天客单价多少，跟平时比怎么样',
       '现在店里哪些美容师在忙，哪些空着',
-      '今天退款有几笔，金额多少',
       '今天有没有什么异常情况我需要知道',
       '今天最大的一笔消费是多少',
     ],
     negativeExamples: ['帮我直接修改本月经营目标', '查询其他门店的经营数据'],
-    synonyms: ['经营概览', '经营总结', '店里情况', '门店经营诊断', '经营对比', '目标完成率', '客单价', '美容师忙闲', '退款统计', '新客老客到店'],
+    synonyms: ['经营概览', '经营总结', '店里情况', '门店经营诊断', '经营对比', '目标完成率', '客单价', '美容师忙闲', '新客老客到店'],
     businessDefinitionKeys: [
       'metric.paid_amount',
-      'metric.refund_amount',
       'metric.project_service_count',
       'metric.staff_performance_score',
       'entity.beautician',
@@ -129,19 +126,26 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'manager_staff_overview',
     name: '店长员工运营分析',
-    description: '按当前门店和时间范围分析美容师服务次数、独立客户数、复购客户数、业绩、提成、请假时长、排班忙闲和可用空档，支持员工排行、对比和工作饱和度诊断。',
+    description: '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。客户投诉、差评、满意度和试用期评估没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。',
     intents: ['query', 'ranking', 'comparison', 'diagnosis'],
     examples: [
       '哪个美容师接的客人最多',
       '各美容师今天的排班情况，有没有空档',
       '帮我看一下各美容师的服务次数对比',
       '帮我看一下员工这周的工作饱和度',
+      '谁的客户复购率最高',
+      '这个月提成最高的是谁，大概多少',
+      '最近有没有客户投诉或者表达不满',
+      '帮我看一下客户满意度整体情况',
+      '新员工试用期表现怎么样',
     ],
-    negativeExamples: ['查看其他门店员工数据', '直接修改员工排班或提成'],
-    synonyms: ['员工运营分析', '美容师服务排行', '美容师接客排行', '员工服务次数对比', '员工排班空档', '员工工作饱和度'],
+    negativeExamples: ['查看其他门店员工数据', '直接修改员工排班或提成', '哪个美容师的客诉最多'],
+    synonyms: ['员工运营分析', '美容师服务排行', '美容师接客排行', '员工服务次数对比', '员工客户复购率排行', '员工提成排行', '员工排班空档', '员工工作饱和度'],
     businessDefinitionKeys: [
       'metric.staff_service_count',
       'metric.staff_unique_customer_count',
+      'metric.staff_customer_repurchase_rate',
+      'metric.staff_commission_amount',
       'metric.staff_performance_score',
       'entity.beautician',
       'entity.customer',
@@ -226,6 +230,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     intents: ['query', 'diagnosis'],
     examples: [
       '本月财务情况和风险怎么样',
+      '今天退款有几笔，金额多少',
+      '今天折扣优惠送出去多少钱',
       '收入成本退款有哪些异常',
       '给我看支付方式和毛利情况',
       '有没有大额异常退款我不知道的',
@@ -234,7 +240,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     ],
     negativeExamples: ['直接修改结算数据', '查看其他门店的财务数据'],
     synonyms: ['财务概览', '财务风险', '收入成本分析', '退款优惠风险', '大额异常退款', '会员卡负债', '毛利下降', '利润率变差', '盈利能力下降', '不赚钱', '毛利根因', '项目结构影响'],
-    businessDefinitionKeys: ['metric.paid_amount', 'metric.refund_amount', 'metric.operating_cost_amount', 'dimension.paymentMethod'],
+    businessDefinitionKeys: [
+      'metric.paid_amount',
+      'metric.refund_amount',
+      'metric.refund_count',
+      'metric.discount_amount',
+      'metric.operating_cost_amount',
+      'dimension.paymentMethod',
+    ],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:finance:view'],
@@ -290,16 +303,21 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'customer_facts',
     name: '客户事实与客群查询',
-    description: '查询当前门店的精确客户事实、VIP、新老客、沉睡客户、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、高价值低活跃客户，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
+    description: '查询当前门店的精确客户事实、VIP、新老客、沉睡客户、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
     intents: ['query', 'ranking', 'diagnosis'],
     examples: [
       '最近哪些老客好久没来了，帮我列一下',
       '帮我找一下45天没来的客户，大概有多少人',
+      '帮我找一下三个月没来消费的客户',
       '我们店里的 VIP 客户有多少个',
       '哪些客户卡里的次数快用完了还没约',
       '哪些客户是高价值但最近不太活跃的',
       '哪些客户最近消费频率明显下降',
       '哪些客户最近消费明显减少',
+      '哪些客户消费了钱但很少用次卡',
+      '我们有多少客户开了次卡但从来不来消费',
+      '我们的老客回头率大概是多少',
+      '老客户平均多久回来一次',
       '有没有哪些客户快到生日了可以做关怀',
       '今天有没有重要客户来店，需要特别关注的',
       '帮我找一下对我们上次活动有响应的客户',
@@ -308,8 +326,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我查一下张女士的客户资料',
     ],
     negativeExamples: ['查询其他门店的客户名单', '直接修改客户会员等级'],
-    synonyms: ['客户事实', '客户名单', '沉睡客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道'],
-    businessDefinitionKeys: ['entity.customer', 'dimension.customerName', 'dimension.customerSource'],
+    synonyms: ['客户事实', '客户名单', '沉睡客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道'],
+    businessDefinitionKeys: [
+      'entity.customer',
+      'dimension.customerName',
+      'dimension.customerSource',
+    ],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:customer:view'],
@@ -664,6 +686,36 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }, dataQuality);
       }
       case 'manager_staff_overview': {
+        if (/(投诉|客诉|差评|满意度|负面反馈)/.test(input.question)) {
+          const limitation = '当前后台没有客户投诉、差评或满意度事实闭环，无法按美容师统计或排行。Ami Brain 不会用服务量、业绩或综合表现分替代客诉指标。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'manager_staff_overview',
+              unsupportedReason: 'staff_complaint_fact_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
+        if (/(试用期|转正评估|新员工.*表现)/.test(input.question)) {
+          const limitation = '当前后台没有员工试用期目标、阶段评价、带教记录或转正结论事实闭环，无法评价新员工试用期表现。Ami Brain 不会用服务量、接客数或通用业绩分替代试用期评估。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'manager_staff_overview',
+              unsupportedReason: 'staff_probation_fact_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
         const [staffAnalysis, reception] = await Promise.all([
           this.skillRuntime.buildManagerStaffAnalysis({
             storeId: input.context.storeId,
@@ -676,7 +728,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             endDate: range.endDate,
           }),
         ]);
+        const requestedMetricKeys = structuredDefinitionKeys(input.args.metrics);
+        const focusMetric = this.resolveManagerStaffFocusMetric(requestedMetricKeys, input.question);
+        const focusMetricRef = focusMetric ? structuredDefinitionRef(input.args.metrics, focusMetric) : undefined;
         const citations = [
+          ...(focusMetric
+            ? [{
+                sourceType: 'business_definition',
+                sourceId: focusMetricRef ? `${focusMetricRef.definitionKey}@${focusMetricRef.definitionVersion}` : focusMetric,
+                label: `业务定义：${this.managerStaffMetricLabel(focusMetric)}`,
+              }]
+            : []),
           { sourceType: 'db_skill', sourceId: 'manager_staff_analysis', label: '员工服务、客户、业绩与提成分析' },
           { sourceType: 'db_skill', sourceId: 'reception_operations_snapshot', label: '员工排班忙闲与可用空档' },
         ];
@@ -695,37 +757,49 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             completedCount: item.completedCount,
             uniqueCustomerCount: item.uniqueCustomerCount,
             repeatCustomerCount: item.repeatCustomerCount,
+            customerRepurchaseRate: item.uniqueCustomerCount > 0 ? item.repeatCustomerCount / item.uniqueCustomerCount : 0,
             revenueAmount: item.revenueAmount,
             commissionAmount: item.commissionAmount,
             timeOffHours: item.timeOffHours,
             status: state?.onTimeOff ? '请假' : state?.inService ? '服务中' : state?.available ? '可接待' : '暂不可用',
             nextAvailableAt: state?.nextAvailableAt ?? '',
           };
-        }), input.args.orderBy);
+        }), input.args.orderBy, input.question);
+        const visibleRows = rows.slice(0, this.resolveLimit(input.args.limit, 15));
+        const focusedColumns = focusMetric === 'metric.staff_customer_repurchase_rate'
+          ? ['staff', 'customerRepurchaseRate', 'repeatCustomerCount', 'uniqueCustomerCount']
+          : focusMetric === 'metric.staff_commission_amount'
+            ? ['staff', 'commissionAmount']
+            : focusMetric === 'metric.staff_unique_customer_count'
+              ? ['staff', 'uniqueCustomerCount']
+              : focusMetric === 'metric.staff_service_count'
+                ? ['staff', 'serviceCount']
+                : [
+                    'staff',
+                    'performanceScore',
+                    'serviceCount',
+                    'uniqueCustomerCount',
+                    'repeatCustomerCount',
+                    'revenueAmount',
+                    'commissionAmount',
+                    'timeOffHours',
+                  ];
+        const focusedAnswer = this.managerStaffFocusedAnswer(range.label, visibleRows, focusMetric);
         return this.applyDataQualityGuard({
           status: 'completed',
-          answer: `${range.label}员工运营分析已完成，共 ${rows.length} 位美容师，包含服务次数、独立客户、复购客户、业绩、提成、请假时长和当前空档。`,
+          answer: focusedAnswer ?? `${range.label}员工运营分析已完成，共 ${rows.length} 位美容师，包含服务次数、独立客户、客户复购率、业绩、提成、请假时长和当前空档。`,
           citations,
           grounding: 'db_skill',
           blocks: [
             {
               kind: 'ranking',
-              rows,
-              columns: [
-                'staff',
-                'performanceScore',
-                'serviceCount',
-                'uniqueCustomerCount',
-                'repeatCustomerCount',
-                'revenueAmount',
-                'commissionAmount',
-                'timeOffHours',
-              ],
+              rows: visibleRows,
+              columns: focusedColumns,
               citationIds: ['manager_staff_analysis'],
             },
-            {
-              kind: 'table',
-              rows: rows.map((item) => ({
+            ...(!focusMetric ? [{
+              kind: 'table' as const,
+              rows: visibleRows.map((item) => ({
                 staff: item.staff,
                 status: item.status,
                 nextAvailableAt: item.nextAvailableAt,
@@ -733,12 +807,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               })),
               columns: ['staff', 'status', 'nextAvailableAt', 'appointmentCount'],
               citationIds: ['reception_operations_snapshot'],
-            },
+            }] : []),
           ],
           metadata: {
             capabilityKey: 'manager_staff_overview',
             rangeLabel: range.label,
             staffCount: rows.length,
+            focusMetric: focusMetric ?? null,
             componentCapabilities: ['manager_staff_analysis', 'reception_operations_snapshot'],
             completionCriteria: ['staff_performance_loaded', 'staff_schedule_loaded'],
           },
@@ -1066,6 +1141,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         ];
         if (input.answerShape === 'scalar') {
           const requestedMetricKeys = structuredDefinitionKeys(input.args.metrics);
+          if (/退款/.test(input.question) && /几笔|笔数|次数/.test(input.question)) {
+            requestedMetricKeys.add('metric.refund_count');
+          }
+          if (/折扣|优惠|让利/.test(input.question) && /多少|金额|送出去/.test(input.question)) {
+            requestedMetricKeys.add('metric.discount_amount');
+          }
           const scalarItems: Array<{ label: string; value: string; definitionKey: string; citationId: string }> = [];
           if (requestedMetricKeys.has('metric.paid_amount')) {
             scalarItems.push({
@@ -1080,6 +1161,22 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               label: '退款金额',
               value: `${risk.refundAmount.toFixed(2)} 元`,
               definitionKey: 'metric.refund_amount',
+              citationId: 'finance_risk_summary',
+            });
+          }
+          if (requestedMetricKeys.has('metric.refund_count')) {
+            scalarItems.push({
+              label: '退款笔数',
+              value: `${risk.refundCount} 笔`,
+              definitionKey: 'metric.refund_count',
+              citationId: 'finance_risk_summary',
+            });
+          }
+          if (requestedMetricKeys.has('metric.discount_amount')) {
+            scalarItems.push({
+              label: '优惠金额',
+              value: `${risk.discountAmount.toFixed(2)} 元`,
+              definitionKey: 'metric.discount_amount',
               citationId: 'finance_risk_summary',
             });
           }
@@ -1408,6 +1505,121 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         });
       }
       case 'customer_facts': {
+        if (/(老客|客户).*(回头率|复购率)|(?:回头率|复购率).*(老客|客户)/.test(input.question)) {
+          const explicitTime = readCapabilityStructuredTime(input.args, input.context.timezone);
+          const summary = await this.customerFacts.getCustomerRetentionSummary({
+            storeId: input.context.storeId,
+            startDate: explicitTime ? range.startDate : undefined,
+            endDate: explicitTime ? range.endDate : undefined,
+          });
+          const metricRef = structuredDefinitionRef(input.args.metrics, 'metric.repurchase_rate');
+          return {
+            status: 'completed',
+            answer: `${summary.rangeLabel}客户复购率 ${(summary.repurchaseRate * 100).toFixed(1)}%：有有效消费的 ${summary.activeCustomerCount} 位客户中，${summary.repeatCustomerCount} 位至少消费 2 次。`,
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: metricRef ? `${metricRef.definitionKey}@${metricRef.definitionVersion}` : 'metric.repurchase_rate',
+                label: '业务定义：客户复购率',
+              },
+              { sourceType: 'db_skill', sourceId: 'customer_retention_summary', label: '客户有效消费与复购统计' },
+            ],
+            grounding: 'db_skill',
+            blocks: [{
+              kind: 'kpi',
+              items: [
+                { label: '客户复购率', value: `${(summary.repurchaseRate * 100).toFixed(1)}%` },
+                { label: '有效消费客户', value: `${summary.activeCustomerCount} 人` },
+                { label: '复购客户', value: `${summary.repeatCustomerCount} 人` },
+              ],
+              citationIds: ['customer_retention_summary'],
+            }],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              rangeLabel: summary.rangeLabel,
+              metricKey: 'repurchase_rate',
+              definition: 'customers_with_at_least_2_valid_orders / customers_with_at_least_1_valid_order',
+            },
+          };
+        }
+        if (/(老客|客户).*(平均多久|多久回来|回访间隔|回店间隔)|平均多久回来一次/.test(input.question)) {
+          const explicitTime = readCapabilityStructuredTime(input.args, input.context.timezone);
+          const summary = await this.customerFacts.getCustomerRetentionSummary({
+            storeId: input.context.storeId,
+            startDate: explicitTime ? range.startDate : undefined,
+            endDate: explicitTime ? range.endDate : undefined,
+          });
+          const metricRef = structuredDefinitionRef(input.args.metrics, 'metric.average_return_interval_days');
+          const value = summary.averageReturnIntervalDays;
+          const answer = value === null
+            ? `${summary.rangeLabel}没有足够的重复消费样本，无法计算客户平均回访间隔。`
+            : `${summary.rangeLabel}老客户相邻两次有效消费的平均间隔为 ${value.toFixed(1)} 天，样本为 ${summary.repeatIntervalCount} 个相邻消费间隔。`;
+          return {
+            status: 'completed',
+            answer,
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: metricRef ? `${metricRef.definitionKey}@${metricRef.definitionVersion}` : 'metric.average_return_interval_days',
+                label: '业务定义：客户平均回访间隔',
+              },
+              { sourceType: 'db_skill', sourceId: 'customer_retention_summary', label: '客户有效消费间隔统计' },
+            ],
+            grounding: 'db_skill',
+            blocks: value === null
+              ? [{ kind: 'limitations', items: ['当前时间范围没有至少两次有效消费的客户样本。'] }]
+              : [{
+                  kind: 'kpi',
+                  items: [{ label: '平均回访间隔', value: `${value.toFixed(1)} 天`, hint: `${summary.repeatIntervalCount} 个相邻消费间隔` }],
+                  citationIds: ['customer_retention_summary'],
+                }],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              rangeLabel: summary.rangeLabel,
+              metricKey: 'average_return_interval_days',
+              sampleCount: summary.repeatIntervalCount,
+            },
+          };
+        }
+        if (/消费了钱.*(?:很少用|少用).*次卡|次卡.*(?:很少用|使用少)/.test(input.question)) {
+          const result = await this.customerFacts.getLowCardUsageCustomers(
+            input.context.storeId,
+            this.resolveLimit(input.args.limit, 10),
+          );
+          return this.answer({
+            answer: `次卡低使用客户共 ${result.total} 人次卡。统一口径：客户累计消费大于 0，活跃次卡已核销不超过 1 次或使用率不超过 20%。${result.rows.length ? `\n${result.rows.map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，已用 ${row.usedTimes}/${row.totalTimes} 次（${(row.usageRate * 100).toFixed(1)}%），累计消费 ${row.totalSpent.toFixed(2)} 元`).join('\n')}` : ''}`,
+            citationId: 'customer_card_usage_facts',
+            citationLabel: '客户次卡开卡与核销事实',
+            blocks: [{
+              kind: 'table',
+              rows: result.rows,
+              columns: ['customerName', 'cardName', 'usedTimes', 'totalTimes', 'remainingTimes', 'usageRate', 'totalSpent'],
+              citationIds: ['customer_card_usage_facts'],
+            }],
+            metadata: { capabilityKey: 'customer_facts', total: result.total, definition: 'usedTimes <= 1 OR usedTimes / totalTimes <= 0.2' },
+          });
+        }
+        if (/开了次卡.*(?:从来不来消费|从未消费|没来消费|从来没用)|次卡.*(?:从未核销|一次没用)/.test(input.question)) {
+          const result = await this.customerFacts.getNeverUsedCardCustomers(
+            input.context.storeId,
+            this.resolveLimit(input.args.limit, 10),
+          );
+          return this.answer({
+            answer: `当前有 ${result.total} 人次卡开卡后从未发生次卡核销。这里严格回答“次卡未使用”，不把它扩大解释为客户从未发生任何消费。${result.rows.length ? `\n${result.rows.map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次`).join('\n')}` : ''}`,
+            citationId: 'customer_card_usage_facts',
+            citationLabel: '客户次卡开卡与核销事实',
+            blocks: [
+              { kind: 'kpi', items: [{ label: '开卡未核销', value: `${result.total} 人次卡` }], citationIds: ['customer_card_usage_facts'] },
+              {
+                kind: 'table',
+                rows: result.rows,
+                columns: ['customerName', 'cardName', 'remainingTimes', 'totalTimes', 'totalSpent'],
+                citationIds: ['customer_card_usage_facts'],
+              },
+            ],
+            metadata: { capabilityKey: 'customer_facts', total: result.total, definition: 'active CustomerCard with zero CardUsageRecord' },
+          });
+        }
         if (/(?:新客.*(?:渠道|来源)|(?:渠道|来源).*新客)/.test(input.question)) {
           const distribution = await this.customerFacts.getNewCustomerSourceDistribution({
             storeId: input.context.storeId,
@@ -1530,9 +1742,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           });
         }
-        const comparisonAnswer = input.answerShape === 'comparison';
-        const comparisonRange = comparisonAnswer ? this.resolveComparisonRange(input, range) : undefined;
-        if (comparisonAnswer && !comparisonRange) throw new Error('capability_comparison_time_unresolved');
+        const requestedMethods = this.requestedPaymentMethods(input.question);
+        const requestedDimensions = structuredDefinitionKeys(input.args.dimensions);
+        const comparisonRequested = input.answerShape === 'comparison';
+        const comparisonRange = comparisonRequested ? this.resolveComparisonRange(input, range) : undefined;
+        const groupedPaymentBreakdown = comparisonRequested && !comparisonRange && (
+          requestedMethods.length > 1 || requestedDimensions.has('dimension.paymentMethod')
+        );
+        if (comparisonRequested && !comparisonRange && !groupedPaymentBreakdown) {
+          throw new Error('capability_comparison_time_unresolved');
+        }
+        const comparisonAnswer = comparisonRequested && Boolean(comparisonRange);
         const [analysis, previousAnalysis] = await Promise.all([
           this.skillRuntime.buildFinanceIncomeAnalysis({
             storeId: input.context.storeId,
@@ -1547,7 +1767,6 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               })
             : Promise.resolve(undefined),
         ]);
-        const requestedMethods = this.requestedPaymentMethods(input.question);
         const rowsByMethod = new Map(
           analysis.paymentBreakdown.map((item) => [item.method, { ...item }]),
         );
@@ -2056,9 +2275,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     if (!valid) throw new Error(`domain_order_args_unsupported:${input.card.key}`);
   }
 
-  private orderManagerStaffRows<T extends { staff: string; performanceScore: number; serviceCount: number; uniqueCustomerCount: number }>(
+  private orderManagerStaffRows<T extends {
+    staff: string;
+    performanceScore: number;
+    serviceCount: number;
+    uniqueCustomerCount: number;
+    customerRepurchaseRate: number;
+    commissionAmount: number;
+  }>(
     rows: T[],
     orderBy: unknown,
+    question: string,
   ): T[] {
     const order = Array.isArray(orderBy) && orderBy[0] && typeof orderBy[0] === 'object'
       ? orderBy[0] as Record<string, unknown>
@@ -2066,7 +2293,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     const definitionRef = order?.definitionRef && typeof order.definitionRef === 'object' && !Array.isArray(order.definitionRef)
       ? order.definitionRef as Record<string, unknown>
       : undefined;
-    const definitionKey = String(definitionRef?.definitionKey ?? '');
+    const definitionKey = String(
+      definitionRef?.definitionKey ?? this.resolveManagerStaffFocusMetric(new Set<string>(), question) ?? '',
+    );
     const direction = order?.direction === 'asc' ? 1 : -1;
     return [...rows].sort((left, right) => {
       if (definitionKey === 'dimension.beauticianName') {
@@ -2081,8 +2310,76 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       if (definitionKey === 'metric.staff_unique_customer_count') {
         return direction * (left.uniqueCustomerCount - right.uniqueCustomerCount) || left.staff.localeCompare(right.staff, 'zh-CN');
       }
+      if (definitionKey === 'metric.staff_customer_repurchase_rate') {
+        return direction * (left.customerRepurchaseRate - right.customerRepurchaseRate) || left.staff.localeCompare(right.staff, 'zh-CN');
+      }
+      if (definitionKey === 'metric.staff_commission_amount') {
+        return direction * (left.commissionAmount - right.commissionAmount) || left.staff.localeCompare(right.staff, 'zh-CN');
+      }
       return right.serviceCount - left.serviceCount || right.performanceScore - left.performanceScore || left.staff.localeCompare(right.staff, 'zh-CN');
     });
+  }
+
+  private resolveManagerStaffFocusMetric(metricKeys: Set<string>, question: string): string | undefined {
+    for (const key of [
+      'metric.staff_customer_repurchase_rate',
+      'metric.staff_commission_amount',
+      'metric.staff_unique_customer_count',
+      'metric.staff_service_count',
+      'metric.staff_performance_score',
+    ]) {
+      if (metricKeys.has(key)) return key;
+    }
+    if (/复购率/.test(question)) return 'metric.staff_customer_repurchase_rate';
+    if (/提成/.test(question)) return 'metric.staff_commission_amount';
+    if (/(接的客人|接客人数|服务客户)/.test(question)) return 'metric.staff_unique_customer_count';
+    if (/服务次数|服务量/.test(question)) return 'metric.staff_service_count';
+    if (/业绩|表现/.test(question)) return 'metric.staff_performance_score';
+    return undefined;
+  }
+
+  private managerStaffMetricLabel(metricKey: string) {
+    const labels: Record<string, string> = {
+      'metric.staff_customer_repurchase_rate': '员工客户复购率',
+      'metric.staff_commission_amount': '员工提成金额',
+      'metric.staff_unique_customer_count': '员工服务客户数',
+      'metric.staff_service_count': '员工服务次数',
+      'metric.staff_performance_score': '员工表现评分',
+    };
+    return labels[metricKey] ?? metricKey;
+  }
+
+  private managerStaffFocusedAnswer(
+    rangeLabel: string,
+    rows: Array<{
+      staff: string;
+      customerRepurchaseRate: number;
+      repeatCustomerCount: number;
+      uniqueCustomerCount: number;
+      commissionAmount: number;
+      serviceCount: number;
+      performanceScore: number;
+    }>,
+    metricKey: string | undefined,
+  ) {
+    const top = rows[0];
+    if (!top || !metricKey) return undefined;
+    if (metricKey === 'metric.staff_customer_repurchase_rate') {
+      return `${rangeLabel}客户复购率最高的是 ${top.staff}，复购率 ${(top.customerRepurchaseRate * 100).toFixed(1)}%（重复服务客户 ${top.repeatCustomerCount} 人 / 独立服务客户 ${top.uniqueCustomerCount} 人）。`;
+    }
+    if (metricKey === 'metric.staff_commission_amount') {
+      return `${rangeLabel}提成最高的是 ${top.staff}，提成 ${top.commissionAmount.toFixed(2)} 元。`;
+    }
+    if (metricKey === 'metric.staff_unique_customer_count') {
+      return `${rangeLabel}服务客户数最多的是 ${top.staff}，共 ${top.uniqueCustomerCount} 位独立客户。`;
+    }
+    if (metricKey === 'metric.staff_service_count') {
+      return `${rangeLabel}服务次数最多的是 ${top.staff}，共 ${top.serviceCount} 次。`;
+    }
+    if (metricKey === 'metric.staff_performance_score') {
+      return `${rangeLabel}综合表现分最高的是 ${top.staff}，表现分 ${top.performanceScore.toFixed(1)}。`;
+    }
+    return undefined;
   }
 
   private requestedPaymentMethods(question: string): string[] {

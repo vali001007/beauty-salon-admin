@@ -61,6 +61,30 @@ const refundAmountMetricRef = {
   sourceFingerprint: 'a'.repeat(64),
 } as const;
 
+const refundCountMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.refund_count',
+  definitionVersion: 2,
+  definitionFingerprint: 'f'.repeat(64),
+  sourceFingerprint: '0'.repeat(64),
+} as const;
+
+const staffCommissionMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.staff_commission_amount',
+  definitionVersion: 2,
+  definitionFingerprint: '1'.repeat(64),
+  sourceFingerprint: '2'.repeat(64),
+} as const;
+
+const staffServiceCountMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.staff_service_count',
+  definitionVersion: 3,
+  definitionFingerprint: '3'.repeat(64),
+  sourceFingerprint: '4'.repeat(64),
+} as const;
+
 const stockRiskMetricRef = {
   definitionType: 'metric',
   definitionKey: 'metric.stock_risk_score',
@@ -1144,6 +1168,64 @@ describe('BrainSemanticIntentCompilerService', () => {
         metrics: [refundAmountMetricRef],
       },
     });
+  });
+
+  it('hydrates candidate refund metrics from an exact governed contract before they enter the published ontology', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('今天退款有几笔，金额多少');
+    input.capabilitySummaries = [{
+      key: 'finance_risk_overview',
+      name: '财务风控概览',
+      description: '退款金额与笔数',
+      domains: ['refund'],
+      intents: ['query'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef, refundAmountMetricRef, refundCountMetricRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'scalar',
+        metrics: [refundAmountMetricRef, refundCountMetricRef],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('hydrates only the candidate commission metric for an exact governed staff ranking contract', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月员工提成排行');
+    input.capabilitySummaries = [{
+      key: 'manager_staff_overview',
+      name: '员工经营概览',
+      description: '员工绩效与提成排行',
+      domains: ['staff_performance'],
+      intents: ['ranking'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [staffServiceCountMetricRef, staffCommissionMetricRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'ranking',
+        metrics: [staffCommissionMetricRef],
+        orderBy: [{ definitionRef: staffCommissionMetricRef, direction: 'desc' }],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
   });
 
   it('hydrates runtime grouping dimensions for an exact low-stock example', async () => {

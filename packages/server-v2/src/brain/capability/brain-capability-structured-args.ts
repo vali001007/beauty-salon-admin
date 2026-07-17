@@ -85,6 +85,7 @@ export function structuredEntityMentions(args: BrainCapabilityToolArgs): Array<{
   entityType: string;
   entityKey?: string;
   mention: string;
+  source?: string;
 }> {
   if (!Array.isArray(args.entities)) return [];
   return args.entities.flatMap((value) => {
@@ -95,6 +96,7 @@ export function structuredEntityMentions(args: BrainCapabilityToolArgs): Array<{
       entityType: entity.entityType,
       ...(typeof entity.entityKey === 'string' ? { entityKey: entity.entityKey } : {}),
       mention: entity.mention,
+      ...(typeof entity.source === 'string' ? { source: entity.source } : {}),
     }];
   });
 }

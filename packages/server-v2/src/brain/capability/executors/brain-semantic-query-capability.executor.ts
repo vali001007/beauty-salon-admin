@@ -1,6 +1,7 @@
 import { ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
+import { BrainCustomerFactResolverService } from '../../domain/brain-customer-fact-resolver.service.js';
 import {
   BUSINESS_DEFINITION_SNAPSHOT_PROVIDER,
   type BusinessDefinitionSnapshotInput,
@@ -87,6 +88,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     private readonly timeRangeParser: BrainTimeRangeParserService,
     private readonly prisma: PrismaService,
     @Optional() private readonly skillRuntime?: BrainSkillRuntimeService,
+    @Optional() private readonly customerFacts?: BrainCustomerFactResolverService,
   ) {
     this.runtimeQueryEngine = new BusinessDefinitionRuntimeQueryEngineService(prisma, definitionProvider);
   }
@@ -347,6 +349,15 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
         storeId,
         asOf: new Date(Math.min(Date.now(), timeRange.endExclusive.getTime() - 1)),
       });
+    }
+    if (resolverKey === 'customer_retention_summary') {
+      if (!this.customerFacts) throw new Error('semantic_customer_retention_resolver_unavailable');
+      const result = await this.customerFacts.getCustomerRetentionSummary({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return [result as unknown as UnknownRecord];
     }
     throw new Error(`semantic_resolver_key_unsupported:${resolverKey}`);
   }

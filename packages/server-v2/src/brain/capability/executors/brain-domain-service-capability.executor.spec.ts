@@ -251,6 +251,43 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toBe('沉睡客户名单');
   });
 
+  it('does not treat a governed customer segment key as a concrete customer identity', async () => {
+    const customerFacts = { answerCustomerQuestion: jest.fn().mockResolvedValue('VIP 客户名单') };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-segment-key-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 5,
+      question: '我们店里的 VIP 客户有多少个',
+      args: {
+        objective: '统计 VIP 客户',
+        entities: [{ entityType: 'customer', entityKey: 'customer', mention: 'Customer', source: 'system' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(customerFacts.answerCustomerQuestion).toHaveBeenCalledWith(expect.objectContaining({
+      specificCustomerMention: undefined,
+    }));
+  });
+
   it('returns structured clarification when an exact customer mention matches multiple records', async () => {
     const customerFacts = {
       answerCustomerQuestion: jest.fn().mockResolvedValue(
@@ -411,6 +448,51 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
   });
 
+  it('answers governed customer retention metrics without using the default today range', async () => {
+    const customerFacts = {
+      getCustomerRetentionSummary: jest.fn().mockResolvedValue({
+        rangeLabel: '最近 180 天', activeCustomerCount: 40, repeatCustomerCount: 12,
+        repurchaseRate: 0.3, repeatIntervalCount: 18, averageReturnIntervalDays: 28.5,
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor({} as never, customerFacts as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'retention-test', timezone: 'Asia/Shanghai' },
+      runId: 3,
+      question: '我们的老客回头率大概是多少',
+      answerShape: 'scalar',
+      args: {
+        objective: '查询客户复购率', entities: [], dimensions: [], filters: [], orderBy: [],
+        metrics: [{ definitionType: 'metric', definitionKey: 'metric.repurchase_rate', definitionVersion: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) }],
+      },
+    });
+
+    expect(customerFacts.getCustomerRetentionSummary).toHaveBeenCalledWith({ storeId: 6, startDate: undefined, endDate: undefined });
+    expect(result.answer).toContain('客户复购率 30.0%');
+    expect(result.citations).toEqual(expect.arrayContaining([expect.objectContaining({ sourceId: 'metric.repurchase_rate@1' })]));
+  });
+
+  it('returns real customer-card usage facts for low-use card customers', async () => {
+    const customerFacts = {
+      getLowCardUsageCustomers: jest.fn().mockResolvedValue({
+        total: 1,
+        rows: [{ customerName: '李女士', cardName: '护理 10 次卡', totalTimes: 10, remainingTimes: 9, usedTimes: 1, usageRate: 0.1, totalSpent: 6800, lastVisitDate: null }],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor({} as never, customerFacts as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'low-card-use-test', timezone: 'Asia/Shanghai' },
+      runId: 4,
+      question: '哪些客户消费了钱但很少用次卡',
+      args: { objective: '查询次卡低使用客户', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('李女士：护理 10 次卡，已用 1/10 次（10.0%）');
+    expect(result.blocks?.[0]).toMatchObject({ kind: 'table', rows: [expect.objectContaining({ customerName: '李女士', usageRate: 0.1 })] });
+  });
+
   it('returns a dedicated manager staff ranking and current availability view', async () => {
     const skillRuntime = {
       buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
@@ -491,22 +573,94 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
 
-    expect(result.blocks).toEqual(expect.arrayContaining([
+    expect(result.blocks).toEqual([
       expect.objectContaining({
         kind: 'ranking',
+        columns: ['staff', 'uniqueCustomerCount'],
         rows: [
           expect.objectContaining({ staff: '沈晴', serviceCount: 6, uniqueCustomerCount: 7 }),
           expect.objectContaining({ staff: '唐伊', serviceCount: 8, uniqueCustomerCount: 6 }),
         ],
       }),
-      expect.objectContaining({
-        kind: 'table',
-        rows: expect.arrayContaining([
-          expect.objectContaining({ staff: '唐伊', status: '服务中', appointmentCount: 3 }),
-        ]),
+    ]);
+    expect(result.answer).toBe('今天服务客户数最多的是 沈晴，共 7 位独立客户。');
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'manager_staff_overview',
+      staffCount: 2,
+      focusMetric: 'metric.staff_unique_customer_count',
+    });
+  });
+
+  it('ranks staff by the requested commission metric instead of the generic service score', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          { beauticianId: 1, name: '唐伊', serviceCount: 8, completedCount: 8, uniqueCustomerCount: 6, repeatCustomerCount: 2, revenueAmount: 5000, commissionAmount: 320, timeOffHours: 0 },
+          { beauticianId: 2, name: '沈晴', serviceCount: 4, completedCount: 4, uniqueCustomerCount: 4, repeatCustomerCount: 1, revenueAmount: 4000, commissionAmount: 560, timeOffHours: 0 },
+        ],
       }),
-    ]));
-    expect(result.metadata).toMatchObject({ capabilityKey: 'manager_staff_overview', staffCount: 2 });
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue(reception(0)),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['ranking'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'commission-rank-test', timezone: 'Asia/Shanghai' },
+      runId: 5,
+      question: '这个月提成最高的是谁，大概多少',
+      answerShape: 'ranking',
+      args: {
+        objective: '员工提成排行', entities: [], dimensions: [], filters: [],
+        metrics: [{ definitionType: 'metric', definitionKey: 'metric.staff_commission_amount', definitionVersion: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) }],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('提成最高的是 沈晴，提成 560.00 元');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      columns: ['staff', 'commissionAmount'],
+      rows: [expect.objectContaining({ staff: '沈晴', commissionAmount: 560 }), expect.objectContaining({ staff: '唐伊', commissionAmount: 320 })],
+    });
+  });
+
+  it('fails closed when the requested staff complaint fact does not exist', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn(),
+      buildReceptionOperationsSnapshot: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['ranking'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'complaint-rank-test', timezone: 'Asia/Shanghai' },
+      runId: 6,
+      question: '哪个美容师的客诉最多，最近有没有',
+      answerShape: 'ranking',
+      args: { objective: '员工客诉排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'staff_complaint_fact_not_available' } });
+    expect(result.answer).toContain('不会用服务量、业绩或综合表现分替代客诉指标');
+    expect(skillRuntime.buildManagerStaffAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when probation evaluation facts do not exist', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn(),
+      buildReceptionOperationsSnapshot: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['diagnosis'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'probation-evaluation-test', timezone: 'Asia/Shanghai' },
+      runId: 7,
+      question: '新员工试用期表现怎么样',
+      answerShape: 'diagnosis',
+      args: { objective: '评价新员工试用期表现', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'staff_probation_fact_not_available' } });
+    expect(result.answer).toContain('不会用服务量、接客数或通用业绩分替代试用期评估');
+    expect(skillRuntime.buildManagerStaffAnalysis).not.toHaveBeenCalled();
   });
 
   it('returns only low-stock rows for a governed stock-risk ranking', async () => {
@@ -582,7 +736,15 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
       runId: 6,
       question: '今天现金收了多少，微信支付宝各多少',
-      args: { objective: '查询支付方式实收', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+      answerShape: 'comparison',
+      args: {
+        objective: '查询支付方式实收',
+        entities: [],
+        metrics: [],
+        dimensions: [{ definitionKey: 'dimension.paymentMethod' }],
+        filters: [],
+        orderBy: [],
+      },
     });
 
     expect(result.answer).toContain('现金：0.00 元');
@@ -598,6 +760,75 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         ],
       }),
     ]);
+  });
+
+  it('returns only the requested refund scalar metrics instead of the full finance overview', async () => {
+    const skillRuntime = {
+      buildFinanceRiskSummary: jest.fn().mockResolvedValue({
+        refundAmount: 88,
+        refundCount: 2,
+        discountAmount: 30,
+        grossMarginRate: 0.6,
+        riskItems: [],
+      }),
+      buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
+        totalCollected: 1000,
+        paymentBreakdown: [{ method: '微信', amount: 1000, count: 3 }],
+        dailyTrend: [],
+        orderKindBreakdown: [],
+      }),
+      buildFinanceCostAnalysis: jest.fn().mockResolvedValue({
+        revenue: 1000,
+        materialCost: 100,
+        commissionCost: 100,
+        operatingCost: 50,
+        grossProfit: 750,
+        grossMarginRate: 0.75,
+        cardLiability: 200,
+        costCategories: [],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'finance-refund-scalar-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 7,
+      question: '今天退款有几笔，金额多少',
+      answerShape: 'scalar',
+      args: {
+        objective: '查询退款金额和笔数',
+        entities: [],
+        metrics: [
+          { definitionKey: 'metric.refund_amount' },
+          { definitionKey: 'metric.refund_count' },
+        ],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('退款金额 88.00 元');
+    expect(result.answer).toContain('退款笔数 2 笔');
+    expect(result.answer).not.toContain('实收');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'kpi',
+        items: [
+          { label: '退款金额', value: '88.00 元' },
+          { label: '退款笔数', value: '2 笔' },
+        ],
+      }),
+    ]));
+    expect(result.blocks?.some((block) => block.kind === 'ranking')).toBe(false);
   });
 
   it('compares governed paid amounts across two structured time ranges', async () => {

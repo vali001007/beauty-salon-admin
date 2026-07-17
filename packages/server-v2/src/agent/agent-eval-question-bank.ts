@@ -239,12 +239,22 @@ function inferIntentType(input: string, category: string): AgentQuestionIntentTy
 function inferOutputKinds(input: string, intentType: AgentQuestionIntentType): AgentQuestionOutputKind[] {
   if (intentType === 'clarify') return ['clarify'];
   const kinds = new Set<AgentQuestionOutputKind>(['text', 'evidence']);
-  if (/多少|几个|金额|营业额|收入|毛利|利润|客单价|完成率|率|比例|总计/.test(input)) kinds.add('kpi');
+  const asksForCollection = /哪些|哪几个|谁|哪个|各(?:员工|美容师|客户|商品|项目)|排行|排名|名单|列出/.test(input);
+  if (
+    !asksForCollection &&
+    /多少|几个|金额|营业额|收入|毛利|利润|客单价|完成率|(?:率|比例)(?:多少|多高|怎么样|如何|$)|总计/.test(input)
+  ) {
+    kinds.add('kpi');
+  }
   if (/哪些|列|清单|明细|所有|排名|对比|列表|记录|客户|客人|员工|产品|预约|订单|次卡|卡项|权益/.test(input)) {
     kinds.add('table');
   }
   if (/趋势|近三|最近三|这周每天|最近三个月|季度|对比/.test(input)) kinds.add('chart');
-  if (/设置|生成|制定|策划|设计|写|提醒|发|联系|采购|补货|退款|核销|收银|办卡|充值/.test(input)) kinds.add('action_card');
+  if (
+    /设置|创建|新建|执行|提交|发起|自动(?:提醒|触达|发送)|群发|发券|改约|取消预约|打开收银|打开核销|生成.*(?:任务|预览|采购单)/.test(input)
+  ) {
+    kinds.add('action_card');
+  }
   return [...kinds];
 }
 
@@ -307,7 +317,7 @@ function inferSemanticIntent(
   if (intentType === 'analysis_and_recommendation') return /建议|怎么办|怎么处理|推荐/.test(input) ? 'recommendation' : 'diagnosis';
   if (/趋势|走势|每天|近三天|最近三天|最近三个月/.test(input)) return 'trend';
   if (/相比|对比|跟.*比|和.*比|比.*差|差多少/.test(input)) return 'comparison';
-  if (/排行|排名|谁.*(?:最好|最高|最多|最少)|哪个.*(?:最好|最高|最多|最少)|哪些.*(?:最高|最多|最快|最慢)/.test(input)) return 'ranking';
+  if (/排行|排名|谁.*(?:最好|最高|最多|最少)|(?:最好|最高|最多|最少).*(?:谁|哪个)|哪个.*(?:最好|最高|最多|最少)|哪些.*(?:最高|最多|最快|最慢)/.test(input)) return 'ranking';
   return 'query';
 }
 
@@ -329,14 +339,17 @@ function inferExpectedMetrics(input: string) {
   if (/营业额|流水|实收|收入|营收/.test(input)) values.add('paid_revenue');
   if (/毛利率|毛利/.test(input)) values.add('gross_margin_rate');
   if (/预约.*(?:多少|几个|数量)|几个预约/.test(input)) values.add('appointment_count');
-  if (/复购率|回头率/.test(input)) values.add('repurchase_rate');
-  if (/退款.*(?:金额|多少)|退款有几笔/.test(input)) values.add('refund_amount');
+  if (/谁|员工|美容师/.test(input) && /客户复购率/.test(input)) values.add('staff_customer_repurchase_rate');
+  else if (/复购率/.test(input)) values.add('repurchase_rate');
+  if (/退款.*(?:金额|多少)/.test(input)) values.add('refund_amount');
+  if (/退款有几笔|退款.*(?:笔数|几笔|次数)/.test(input)) values.add('refund_count');
+  if (/(折扣|优惠|让利).*(?:多少钱|多少|金额|送出去)/.test(input)) values.add('discount_amount');
   if (/商品|产品/.test(input) && /销售|卖得|销量/.test(input)) values.add('product_sales_quantity');
   if (/员工|美容师|谁/.test(input) && /业绩|表现/.test(input)) values.add('staff_performance_score');
   if (/员工|美容师|谁/.test(input) && /(?:接的客人|接待客户|接客|服务了几个客人|服务客户)/.test(input)) {
     values.add('staff_unique_customer_count');
   }
-  if (/提成/.test(input)) values.add('commission_amount');
+  if (/提成/.test(input)) values.add('staff_commission_amount');
   if (/负债|未消耗|剩余次数/.test(input)) values.add('card_liability');
   return [...values];
 }

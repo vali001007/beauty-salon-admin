@@ -1,6 +1,25 @@
-import { parseBrainParaphraseEvalJson } from './brain-paraphrase-eval-source.js';
+import {
+  expectedAnswerShapeForQuestion,
+  parseBrainParaphraseEvalJson,
+} from './brain-paraphrase-eval-source.js';
 
 describe('parseBrainParaphraseEvalJson', () => {
+  it('uses semantic intent before legacy display-kind heuristics', () => {
+    expect(expectedAnswerShapeForQuestion({
+      expectedSemanticIntent: 'comparison',
+      expectedOutputKinds: ['kpi', 'chart'],
+    } as never)).toBe('comparison');
+    expect(expectedAnswerShapeForQuestion({
+      expectedSemanticIntent: 'query',
+      expectedMetrics: [],
+      expectedOutputKinds: ['kpi', 'table'],
+    } as never)).toBeUndefined();
+    expect(expectedAnswerShapeForQuestion({
+      expectedSemanticIntent: 'action',
+      expectedOutputKinds: ['text'],
+    } as never)).toBe('action_preview');
+  });
+
   it('maps semantic paraphrase cases into the shared real-path evaluator contract', () => {
     const questions = parseBrainParaphraseEvalJson(JSON.stringify({
       cases: [

@@ -246,7 +246,10 @@ export class BrainSemanticIntentCompilerService {
       ...(timeRange ? { timeRange } : {}),
       ...(comparisonTarget ? { comparisonTarget } : {}),
       orderBy: exactDefinitions.orderBy,
-      answerShape: exactCapabilityAnswerShape(intent),
+      answerShape:
+        intent === 'query' && exactDefinitions.metrics.length > 0 && exactDefinitions.dimensions.length === 0
+          ? 'scalar'
+          : exactCapabilityAnswerShape(intent),
       successCriteria: [`执行已发布能力 ${capability.key} 并返回可追溯结果`],
       ambiguities: [],
       missingSlots: [],
@@ -273,7 +276,9 @@ export class BrainSemanticIntentCompilerService {
     );
     const matchedMetrics = availableMetrics.filter((ref) => {
       const definition = input.ontologySnapshot?.metrics.find((item) => item.definitionKey === ref.definitionKey);
-      return definition ? definitionMatchesQuestion(input.question, definition.name, definition.aliases) : false;
+      return definition
+        ? definitionMatchesQuestion(input.question, definition.name, definition.aliases)
+        : governedMetricKeyMatchesQuestion(input.question, ref.definitionKey);
     });
     const metrics = matchedMetrics.length > 0
       ? matchedMetrics
@@ -939,6 +944,31 @@ function definitionMatchesQuestion(question: string, name: string, aliases: read
     .map(normalizeSemanticText)
     .filter((value) => value.length >= 2)
     .some((value) => normalizedQuestion.includes(value));
+}
+
+function governedMetricKeyMatchesQuestion(question: string, definitionKey: string): boolean {
+  const normalizedQuestion = normalizeSemanticText(question);
+  const metricKey = definitionKey.replace(/^metric\./, '');
+  switch (metricKey) {
+    case 'refund_amount':
+      return /退款/.test(normalizedQuestion) && /(金额|多少)/.test(normalizedQuestion);
+    case 'refund_count':
+      return /退款/.test(normalizedQuestion) && /(几笔|笔数|次数)/.test(normalizedQuestion);
+    case 'discount_amount':
+      return /(折扣|优惠|让利)/.test(normalizedQuestion);
+    case 'staff_customer_repurchase_rate':
+      return /复购率/.test(normalizedQuestion);
+    case 'staff_commission_amount':
+      return /提成/.test(normalizedQuestion);
+    case 'staff_unique_customer_count':
+      return /(接的客人|接客|服务客户)/.test(normalizedQuestion);
+    case 'staff_service_count':
+      return /(服务次数|服务量)/.test(normalizedQuestion);
+    case 'staff_performance_score':
+      return /(业绩|表现)/.test(normalizedQuestion);
+    default:
+      return false;
+  }
 }
 
 function selectCapabilityExamples(question: string, examples: readonly string[], limit = 3): string[] {

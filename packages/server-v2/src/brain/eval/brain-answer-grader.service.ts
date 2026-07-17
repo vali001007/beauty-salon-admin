@@ -355,6 +355,11 @@ export class BrainAnswerGraderService {
 
   private detectActualIntent(input: BrainAnswerGraderInput): BrainQuestionIntent {
     if (this.hasClarificationBlock(input.blocks) || this.isGeneralClarification(input.answer)) return 'clarify';
+    const blockKinds = this.blockKinds(input.blocks);
+    if (blockKinds.has('action_preview')) return 'action';
+    if (blockKinds.has('comparison')) return 'comparison';
+    if (blockKinds.has('ranking')) return 'ranking';
+    if (blockKinds.has('table')) return 'list';
     if (this.hasMetricCitation(input.citations)) return 'metric_query';
     const skillId = this.detectActualSkill(input.citations);
     if (skillId?.includes('draft')) return 'draft';
@@ -420,7 +425,11 @@ export class BrainAnswerGraderService {
     const text = this.normalize(question);
     if (/(预约|到店|空档|排班)/.test(text)) return 'appointment_count';
     if (/(收入|流水|业绩|实收|营收|营业额|收款|收了|销售额)/.test(text)) return 'paid_revenue';
-    if (/(复购|回购|再次消费)/.test(text)) return 'repurchase_rate';
+    if (/(谁|员工|美容师).*(客户复购率)|客户复购率.*(谁|员工|美容师)/.test(text)) return 'staff_customer_repurchase_rate';
+    if (/(复购|回购|再次消费|回头率)/.test(text)) return 'repurchase_rate';
+    if (/平均多久回来|回访间隔|回店间隔/.test(text)) return 'average_return_interval_days';
+    if (/(折扣|优惠|让利).*(多少|金额|送出去)/.test(text)) return 'discount_amount';
+    if (/提成/.test(text)) return 'staff_commission_amount';
     if (/毛利率/.test(text)) return 'gross_margin_rate';
     if (/(毛利|利润)/.test(text)) return 'gross_margin';
     if (/(次卡|储值|负债|会员卡|剩余次数|卡项余额)/.test(text)) return 'card_liability';
@@ -531,6 +540,14 @@ export class BrainAnswerGraderService {
       const kind = (value as Record<string, unknown>).kind;
       return kind === 'clarification' || kind === 'clarification_card';
     });
+  }
+
+  private blockKinds(blocks: unknown[] | undefined) {
+    return new Set((blocks ?? []).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const kind = (value as Record<string, unknown>).kind;
+      return typeof kind === 'string' ? [kind] : [];
+    }));
   }
 
   private isDbSkillScalarPartial(input: BrainAnswerGraderInput, groundingType: BrainGroundingType) {

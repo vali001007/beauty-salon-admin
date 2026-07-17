@@ -106,6 +106,7 @@ import {
   type BrainEvalExecutionPath,
 } from '../src/brain/eval/brain-eval-execution-path.js';
 import {
+  expectedAnswerShapeForQuestion,
   parseBrainParaphraseEvalJson,
   type BrainEvalQuestionCase,
 } from '../src/brain/eval/brain-paraphrase-eval-source.js';
@@ -729,7 +730,7 @@ function expectationForQuestion(question: BrainEvalQuestionCase): BrainEvalExpec
     question.expectedBrainStatus === 'clarify';
   return {
     intent: question.expectedSemanticIntent,
-    answerShape: answerShapeForQuestion(question),
+    answerShape: expectedAnswerShapeForQuestion(question),
     domains: question.expectedDomains ?? [],
     entities: question.expectedEntities ?? [],
     metrics: question.expectedMetrics ?? [],
@@ -742,17 +743,6 @@ function expectationForQuestion(question: BrainEvalQuestionCase): BrainEvalExpec
     requiresGrounding: !clarification && question.systemSupportStatus !== 'system_unsupported',
     requiresComplete: !clarification && question.systemSupportStatus !== 'system_unsupported',
   };
-}
-
-function answerShapeForQuestion(question: BrainEvalQuestionCase) {
-  if (question.expectedAnswerShape) return question.expectedAnswerShape;
-  const outputKinds = question.expectedOutputKinds ?? [];
-  if (outputKinds.includes('clarify')) return 'clarification';
-  if (outputKinds.includes('action_card')) return 'action_preview';
-  if (outputKinds.includes('chart')) return 'trend';
-  if (outputKinds.includes('table') && question.expectedSemanticIntent === 'ranking') return 'ranking';
-  if (outputKinds.includes('kpi')) return 'scalar';
-  return undefined;
 }
 
 function actualCapabilityKeys(runOutput: Record<string, unknown> | undefined, planValue: unknown) {

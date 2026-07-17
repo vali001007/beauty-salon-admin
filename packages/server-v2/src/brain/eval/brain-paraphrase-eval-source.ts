@@ -50,6 +50,28 @@ export type BrainEvalQuestionCase = AgentEvalQuestionCase & {
   turnCount?: number;
 };
 
+export function expectedAnswerShapeForQuestion(question: BrainEvalQuestionCase): string | undefined {
+  if (question.expectedAnswerShape) return question.expectedAnswerShape;
+  if (question.expectedSemanticIntent === 'clarify') return 'clarification';
+  if (question.expectedSemanticIntent === 'action' || question.expectedSemanticIntent === 'workflow') {
+    return 'action_preview';
+  }
+  if (question.expectedSemanticIntent === 'ranking') return 'ranking';
+  if (question.expectedSemanticIntent === 'comparison') return 'comparison';
+  if (question.expectedSemanticIntent === 'trend') return 'trend';
+  if (question.expectedSemanticIntent === 'draft') return 'draft';
+  const outputKinds = question.expectedOutputKinds ?? [];
+  if (
+    question.expectedSemanticIntent === 'query' &&
+    question.expectedMetrics?.length === 1 &&
+    outputKinds.includes('kpi') &&
+    !outputKinds.includes('table')
+  ) {
+    return 'scalar';
+  }
+  return undefined;
+}
+
 export function parseBrainParaphraseEvalJson(raw: string): BrainEvalQuestionCase[] {
   const payload = JSON.parse(raw) as { cases?: unknown };
   if (!Array.isArray(payload.cases)) throw new Error('ami_brain_paraphrase_cases_missing');

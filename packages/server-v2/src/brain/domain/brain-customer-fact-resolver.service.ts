@@ -10,6 +10,27 @@ export interface BrainNewCustomerSourceDistribution {
   weeklyRanking: Array<{ week: string; count: number }>;
 }
 
+export interface BrainCustomerRetentionSummary {
+  rangeLabel: string;
+  activeCustomerCount: number;
+  repeatCustomerCount: number;
+  repurchaseRate: number;
+  repeatIntervalCount: number;
+  averageReturnIntervalDays: number | null;
+}
+
+export interface BrainCustomerCardUsageRow {
+  [key: string]: unknown;
+  customerName: string;
+  cardName: string;
+  totalTimes: number;
+  remainingTimes: number;
+  usedTimes: number;
+  usageRate: number;
+  totalSpent: number;
+  lastVisitDate: Date | null;
+}
+
 @Injectable()
 export class BrainCustomerFactResolverService {
   constructor(private readonly prisma: PrismaService) {}
@@ -190,6 +211,122 @@ export class BrainCustomerFactResolverService {
       return this.inactiveCustomers(input.storeId, days);
     }
     return '当前客户事实能力尚未注册该业务口径，不会编造回答。已接入精确客户、VIP、高价值、沉睡、生日、低余次卡、重要到店和营销响应客户查询。';
+  }
+
+  async getCustomerRetentionSummary(input: {
+    storeId: number;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<BrainCustomerRetentionSummary> {
+    const endDate = input.endDate ? new Date(input.endDate) : new Date();
+    const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate);
+    if (!input.startDate) startDate.setDate(startDate.getDate() - 180);
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { not: null },
+        createdAt: { gte: startDate, lte: endDate },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+      },
+      select: { customerId: true, createdAt: true },
+      orderBy: [{ customerId: 'asc' }, { createdAt: 'asc' }],
+      take: 20_000,
+    });
+    const byCustomer = new Map<number, Date[]>();
+    for (const order of orders) {
+      if (!order.customerId) continue;
+      const values = byCustomer.get(order.customerId) ?? [];
+      values.push(order.createdAt);
+      byCustomer.set(order.customerId, values);
+    }
+    const intervals: number[] = [];
+    let repeatCustomerCount = 0;
+    for (const dates of byCustomer.values()) {
+      if (dates.length < 2) continue;
+      repeatCustomerCount += 1;
+      for (let index = 1; index < dates.length; index += 1) {
+        intervals.push((dates[index]!.getTime() - dates[index - 1]!.getTime()) / 86_400_000);
+      }
+    }
+    const activeCustomerCount = byCustomer.size;
+    return {
+      rangeLabel: input.startDate ? `${startDate.toISOString().slice(0, 10)} 至 ${endDate.toISOString().slice(0, 10)}` : '最近 180 天',
+      activeCustomerCount,
+      repeatCustomerCount,
+      repurchaseRate: activeCustomerCount > 0 ? repeatCustomerCount / activeCustomerCount : 0,
+      repeatIntervalCount: intervals.length,
+      averageReturnIntervalDays: intervals.length
+        ? intervals.reduce((sum, value) => sum + value, 0) / intervals.length
+        : null,
+    };
+  }
+
+  async getLowCardUsageCustomers(storeId: number, limit = 10): Promise<{ total: number; rows: BrainCustomerCardUsageRow[] }> {
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        status: 'active',
+        totalTimes: { gt: 0 },
+        remainingTimes: { gt: 0 },
+        customer: { storeId, deletedAt: null, totalSpent: { gt: 0 } },
+      },
+      select: {
+        cardName: true,
+        totalTimes: true,
+        remainingTimes: true,
+        customer: { select: { name: true, totalSpent: true, lastVisitDate: true } },
+        usageRecords: { select: { times: true } },
+      },
+      take: 5_000,
+    });
+    const matches = cards
+      .map((card) => {
+        const usedTimes = card.usageRecords.reduce((sum, record) => sum + record.times, 0);
+        return {
+          customerName: card.customer.name,
+          cardName: card.cardName,
+          totalTimes: card.totalTimes,
+          remainingTimes: card.remainingTimes,
+          usedTimes,
+          usageRate: card.totalTimes > 0 ? usedTimes / card.totalTimes : 0,
+          totalSpent: toBrainNumber(card.customer.totalSpent),
+          lastVisitDate: card.customer.lastVisitDate,
+        };
+      })
+      .filter((row) => row.usedTimes <= 1 || row.usageRate <= 0.2)
+      .sort((left, right) => left.usageRate - right.usageRate || right.totalSpent - left.totalSpent);
+    return { total: matches.length, rows: matches.slice(0, limit) };
+  }
+
+  async getNeverUsedCardCustomers(storeId: number, limit = 10): Promise<{ total: number; rows: BrainCustomerCardUsageRow[] }> {
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        status: 'active',
+        totalTimes: { gt: 0 },
+        remainingTimes: { gt: 0 },
+        usageRecords: { none: {} },
+        customer: { storeId, deletedAt: null },
+      },
+      select: {
+        cardName: true,
+        totalTimes: true,
+        remainingTimes: true,
+        customer: { select: { name: true, totalSpent: true, lastVisitDate: true } },
+      },
+      orderBy: [{ createdAt: 'asc' }],
+      take: 5_000,
+    });
+    const rows = cards.map((card) => ({
+      customerName: card.customer.name,
+      cardName: card.cardName,
+      totalTimes: card.totalTimes,
+      remainingTimes: card.remainingTimes,
+      usedTimes: 0,
+      usageRate: 0,
+      totalSpent: toBrainNumber(card.customer.totalSpent),
+      lastVisitDate: card.customer.lastVisitDate,
+    }));
+    return { total: rows.length, rows: rows.slice(0, limit) };
   }
 
   private async todayImportantVisitors(storeId: number) {
