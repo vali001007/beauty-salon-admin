@@ -35,3 +35,4 @@ export * from './agentV5';
 export * from './agentCapabilityCenter';
 export * from './agentGovernance';
 export * from './operationProfit';
+export * from './businessDefinition';

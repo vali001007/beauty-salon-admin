@@ -57,6 +57,7 @@ const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManage
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
 const AgentGovernanceCenter = lazyWithRetry(() => import('./pages/system/AgentGovernanceCenter').then(m => ({ default: m.AgentGovernanceCenter })), 'AgentGovernanceCenter');
 const AgentCapabilityCenter = lazyWithRetry(() => import('./pages/system/AgentCapabilityCenter').then(m => ({ default: m.AgentCapabilityCenter })), 'AgentCapabilityCenter');
+const BusinessDefinitionCenter = lazyWithRetry(() => import('./pages/system/BusinessDefinitionCenter').then(m => ({ default: m.BusinessDefinitionCenter })), 'BusinessDefinitionCenter');
 const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
 const FinanceOverview = lazyWithRetry(() => import('./pages/finance/FinanceOverview').then(m => ({ default: m.FinanceOverview })), 'FinanceOverview');
 const CashierReconciliation = lazyWithRetry(() => import('./pages/finance/CashierReconciliation').then(m => ({ default: m.CashierReconciliation })), 'CashierReconciliation');
@@ -164,7 +165,7 @@ export const router = createBrowserRouter([
       { path: 'customer-marketing/activity-effect/:id', element: withGuard('core:marketing:view', MarketingActivityEffect) },
       { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:view', MarketingRecommendation) },
       { path: 'customer-marketing/assets', element: withGuard('core:marketing:view', MarketingAssets) },
-      { path: 'customer-marketing/automation', element: withGuard('core:marketing:template', CreateMarketing) },
+      { path: 'customer-marketing/automation', element: withGuard('core:marketing:view', CreateMarketing) },
       { path: 'customer-marketing/strategy-templates', element: withGuard('core:marketing:template', CreateMarketing) },
       { path: 'customer-marketing/rule-library', element: withGuard('core:marketing:template', MarketingRuleLibrary) },
       { path: 'customer-marketing/effect-analysis', element: withGuard('core:marketing:analytics', MarketingAnalytics) },
@@ -204,7 +205,7 @@ export const router = createBrowserRouter([
       { path: 'finance/staff-commission', element: withGuard('core:finance:view', StaffCommissionWorkbench) },
       { path: 'finance/profit', element: withGuard('core:operation-profit:view', ProfitWorkbench) },
       { path: 'finance/member-assets', element: withGuard('core:prepaid-liability:view', MemberAssets) },
-      { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailyClose) },
+        { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailyClose) },
       { path: 'finance/commission-rules', element: withGuard('core:finance:manage', CommissionRules) },
       { path: 'finance/commission-records', element: withGuard('core:finance:view', CommissionRecords) },
       { path: 'finance/monthly-settlement', element: withGuard('core:finance:view', MonthlySettlement) },
@@ -242,6 +243,7 @@ export const router = createBrowserRouter([
       { path: 'system/stores', element: withGuard('core:system:stores', StoreSettings) },
       { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
+      { path: 'system/business-definitions', element: withGuard('core:system:view', BusinessDefinitionCenter) },
       { path: 'system/agent-audit', element: <Navigate to="/system/agent-governance/runs" replace /> },
       { path: 'system/agent-governance', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/runs', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
