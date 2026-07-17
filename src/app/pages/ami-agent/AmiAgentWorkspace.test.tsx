@@ -109,7 +109,7 @@ describe('AmiAgentWorkspace MessageItem', () => {
                 kind: 'inventory_item_card',
                 title: '预约排班诊断',
                 itemName: '排班容量',
-                riskLevel: 'warning',
+                riskLevel: 'medium',
                 metrics: [{ label: '预约数', value: '4' }],
                 reason: '今日有预约可能未覆盖。',
                 actions: [

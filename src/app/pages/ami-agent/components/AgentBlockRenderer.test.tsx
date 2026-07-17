@@ -278,7 +278,6 @@ describe('AgentBlockRenderer', () => {
         kind: 'evidence_panel',
         sources: ['Customer', 'ProductOrder'],
         metricDefinition: '按有效订单和最近服务记录统计。',
-        filters: [],
       },
       {
         kind: 'table',
