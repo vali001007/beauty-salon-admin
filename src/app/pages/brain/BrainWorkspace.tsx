@@ -17,6 +17,7 @@ import type {
   BrainConversation,
   BrainMessage,
   BrainRoleKey,
+  BrainResponseBlock,
   BrainRunEvent,
 } from '@/types/brain';
 import { BrainChatPanel } from './components/BrainChatPanel';
@@ -172,6 +173,7 @@ export function BrainWorkspace() {
 
     try {
       let streamedAnswer = '';
+      const streamedBlocks: BrainResponseBlock[] = [];
       const response = await streamBrainMessage(
         activeConversationId,
         {
@@ -180,8 +182,13 @@ export function BrainWorkspace() {
           timezone: 'Asia/Shanghai',
         },
         (event) => {
-          if (event.type !== 'answer_delta') return;
-          streamedAnswer += String(event.data.delta ?? '');
+          if (event.type === 'answer_delta') {
+            streamedAnswer += String(event.data.delta ?? '');
+          } else if (event.type === 'block_completed' && event.data.block && typeof event.data.block === 'object') {
+            streamedBlocks[Number(event.data.index ?? streamedBlocks.length)] = event.data.block as BrainResponseBlock;
+          } else {
+            return;
+          }
           setMessages((current) => {
             const existing = current.some((item) => item.id === streamingAssistantId);
             const streamingMessage: BrainMessage = {
@@ -189,7 +196,7 @@ export function BrainWorkspace() {
               conversationId: activeConversationId,
               role: 'assistant',
               content: streamedAnswer,
-              metadata: { status: 'running' },
+              metadata: { status: 'running', blocks: streamedBlocks.filter(Boolean) },
               createdAt: new Date().toISOString(),
             };
             return existing

@@ -41,6 +41,11 @@ test.describe('Ami Brain real product flow', () => {
     await page.goto('/brain-governance');
     await expect(page.getByRole('heading', { name: 'Ami Brain 治理中心' })).toBeVisible();
 
+    await page.getByRole('button', { name: '模型规划' }).click();
+    await expect(page.getByText('模型运行配置')).toBeVisible();
+    await expect(page.getByText('Capability Card')).toBeVisible();
+    await expect(page.getByText('执行 DAG')).toBeVisible();
+
     await page.getByRole('button', { name: '评测中心' }).click();
     await expect(page.getByText(/评测运行|评测任务|评测集/).first()).toBeVisible();
 
@@ -60,6 +65,15 @@ test.describe('Ami Brain mobile width', () => {
     await page.goto('/brain');
     await expect(page.getByPlaceholder('问经营数据、风险和下一步动作')).toBeVisible();
     await expect(page.getByRole('button', { name: '新会话' })).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test('renders model plans as a linear list without governance page overflow', async ({ page }) => {
+    await login(page);
+    await page.goto('/brain-governance');
+    await page.getByRole('button', { name: '模型规划' }).click();
+    await expect(page.getByText('执行 DAG')).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });

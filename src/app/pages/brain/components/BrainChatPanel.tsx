@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Loader2, MessageSquarePlus, Send, UserRound } from 'lucide-react';
 import type { BrainMessage, BrainRoleKey } from '@/types/brain';
+import { BrainResponseRenderer } from './BrainResponseRenderer';
 
 const roleOptions: Array<{ value: BrainRoleKey | ''; label: string }> = [
   { value: '', label: '自动识别角色' },
@@ -110,7 +111,11 @@ export function BrainChatPanel({
                         : 'border-primary bg-primary text-primary-foreground'
                     }`}
                   >
-                    <span className="whitespace-pre-wrap break-words">{item.content}</span>
+                    {assistant ? (
+                      <BrainResponseRenderer blocks={item.metadata?.blocks} fallback={item.content} />
+                    ) : (
+                      <span className="whitespace-pre-wrap break-words">{item.content}</span>
+                    )}
                     <span className={`mt-2 block text-xs ${assistant ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>
                       {formatTime(item.createdAt)}
                       {assistant && item.metadata?.adapterKey ? ` · ${item.metadata.adapterKey}` : ''}

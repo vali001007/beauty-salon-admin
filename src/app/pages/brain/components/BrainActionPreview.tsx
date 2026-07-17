@@ -20,6 +20,7 @@ const statusLabels: Record<BrainActionDecisionResponse['status'], string> = {
   queued: '动作已排队',
   executing: '正在执行',
   succeeded: '执行成功',
+  partially_succeeded: '部分执行成功',
   failed: '执行失败',
   expired: '确认已过期',
   rejected: '已拒绝该动作',

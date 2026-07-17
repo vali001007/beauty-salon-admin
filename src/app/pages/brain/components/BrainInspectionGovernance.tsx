@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, Play, RefreshCw, XCircle } from 'lucide-react';
+import { Loader2, Play, RefreshCw, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createBrainInspectionRule,
+  decideBrainInspectionRepair,
+  getBrainInspectionRepairPreview,
   listBrainInspectionFindings,
   listBrainInspectionRules,
   runBrainInspection,
-  updateBrainInspectionFinding,
   updateBrainInspectionRule,
 } from '@/api/brain';
+import type { BrainInspectionRepairDecision, BrainInspectionRepairPreview } from '@/types/brain';
 import { BrainResourceGovernancePanel } from './BrainResourceGovernancePanel';
+import { BrainInspectionRepairDialog } from './BrainInspectionRepairDialog';
 
 interface Finding {
   id: number;
@@ -31,6 +34,9 @@ export function BrainInspectionGovernance() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [preview, setPreview] = useState<BrainInspectionRepairPreview | null>(null);
+  const [loadingPreviewId, setLoadingPreviewId] = useState<number | null>(null);
+  const [savingDecision, setSavingDecision] = useState(false);
 
   async function loadFindings() {
     setLoading(true);
@@ -58,13 +64,33 @@ export function BrainInspectionGovernance() {
     }
   }
 
-  async function dispose(id: number, disposition: 'adopted' | 'ignored' | 'false_positive') {
+  async function openRepairPreview(id: number) {
+    setLoadingPreviewId(id);
     try {
-      await updateBrainInspectionFinding(id, { disposition });
-      toast.success('处置状态已记录');
+      setPreview(await getBrainInspectionRepairPreview(id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '修复预览加载失败');
+    } finally {
+      setLoadingPreviewId(null);
+    }
+  }
+
+  async function decideRepair(
+    decision: BrainInspectionRepairDecision,
+    modifications: Record<string, unknown>,
+    note: string,
+  ) {
+    if (!preview) return;
+    setSavingDecision(true);
+    try {
+      await decideBrainInspectionRepair(preview.findingId, { decision, modifications, note });
+      toast.success(decision === 'reject' ? '已拒绝修复预览' : '审批已记录，业务数据尚未修改');
+      setPreview(null);
       await loadFindings();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '处置失败');
+      toast.error(error instanceof Error ? error.message : '修复预览审批失败');
+    } finally {
+      setSavingDecision(false);
     }
   }
 
@@ -103,17 +129,29 @@ export function BrainInspectionGovernance() {
                   <td className="px-3 py-3 text-xs">{item.ruleKey}<br />{item.severity}</td>
                   <td className="max-w-sm px-3 py-3 text-xs text-muted-foreground"><pre className="whitespace-pre-wrap font-sans">{JSON.stringify(item.evidence, null, 2)}</pre></td>
                   <td className="max-w-xs px-3 py-3 text-xs text-muted-foreground"><pre className="whitespace-pre-wrap font-sans">{JSON.stringify(item.suggestion, null, 2)}</pre></td>
-                  <td className="px-3 py-3"><div className="flex gap-1">
-                    <button type="button" title="采纳" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border" onClick={() => void dispose(item.id, 'adopted')}><CheckCircle2 className="h-4 w-4" /></button>
-                    <button type="button" title="忽略" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border" onClick={() => void dispose(item.id, 'ignored')}><XCircle className="h-4 w-4" /></button>
-                    <button type="button" className="h-8 rounded-md border border-border px-2 text-xs" onClick={() => void dispose(item.id, 'false_positive')}>误报</button>
-                  </div></td>
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center gap-2 rounded-md border border-border px-2 text-xs disabled:opacity-60"
+                      disabled={loadingPreviewId === item.id}
+                      onClick={() => void openRepairPreview(item.id)}
+                    >
+                      {loadingPreviewId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                      审查
+                    </button>
+                  </td>
                 </tr>
               )) : <tr><td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">{loading ? '加载中' : '暂无巡检发现'}</td></tr>}</tbody>
             </table>
           </div>
         </section>
       )}
+      <BrainInspectionRepairDialog
+        preview={preview}
+        saving={savingDecision}
+        onClose={() => setPreview(null)}
+        onDecision={(decision, modifications, note) => void decideRepair(decision, modifications, note)}
+      />
     </div>
   );
 }

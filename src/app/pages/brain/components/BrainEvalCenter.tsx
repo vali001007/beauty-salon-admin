@@ -51,7 +51,7 @@ export function BrainEvalCenter() {
   }
 
   async function openDetail(id: number) {
-    try { setDetail(await getBrainEvalRun(id) as Record<string, unknown>); }
+    try { setDetail(await getBrainEvalRun(id) as unknown as Record<string, unknown>); }
     catch (error) { toast.error(error instanceof Error ? error.message : '评测详情加载失败'); }
   }
 
