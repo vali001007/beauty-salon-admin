@@ -117,6 +117,7 @@
     "brain:semantic:publish": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-business-definition-publish.ts",
     "brain:inspection:data-quality": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-data-quality-inspection.ts",
     "brain:inspection:repair-preview": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-inspection-repair-preview.ts",
+    "brain:migration:preflight": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-pending-migration-preflight.ts",
     "prebrain:release:pilot": "tsc -p tsconfig.release-pilot.json",
     "brain:release:pilot": "node dist-release-pilot/prisma/ami-brain-release-pilot.js",
     "brain:release:audit": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-release-audit.ts",

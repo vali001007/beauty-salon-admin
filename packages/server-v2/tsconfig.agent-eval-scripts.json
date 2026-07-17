@@ -14,6 +14,7 @@
     "prisma/agent-knowledge-*.ts",
     "prisma/agent-v2-*.ts",
     "prisma/ami-brain-data-quality-inspection.ts",
+    "prisma/ami-brain-pending-migration-preflight.ts",
     "prisma/ami-brain-capability-archive-superseded.ts",
     "prisma/generate-schema-graph.ts",
     "src/**/*"
