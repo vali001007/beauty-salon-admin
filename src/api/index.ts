@@ -1,6 +1,7 @@
 export * from './product';
 export * from './inventory';
 export * from './customer';
+export * from './customerFeedback';
 export * from './customerApp';
 export * from './order';
 export * from './auth';

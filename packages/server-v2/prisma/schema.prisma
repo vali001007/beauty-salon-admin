@@ -125,6 +125,7 @@ model Store {
   operatingCosts           OperatingCost[]
   cardUsageRecords         CardUsageRecord[]
   cards                    Card[]
+  customerServiceFeedback CustomerServiceFeedback[]
   brainOperatingTargets    BrainStoreOperatingTarget[]
 
   @@index([status])
@@ -289,6 +290,7 @@ model Customer {
   balanceTransactions   CustomerBalanceTransaction[]
   customerAppIdentities CustomerAppIdentity[]
   terminalFollowUpTasks TerminalFollowUpTask[]
+  serviceFeedback      CustomerServiceFeedback[]
   recommendationAudienceMemberships MarketingRecommendationAudienceMember[]
   customerAppEvents     CustomerAppEvent[]
   gapCandidates         AppointmentGapCandidate[]
@@ -331,6 +333,46 @@ model ConsumptionRecord {
 
   @@index([customerId])
   @@index([consumeTime])
+}
+
+model CustomerServiceFeedback {
+  id              Int       @id @default(autoincrement())
+  storeId         Int
+  customerId      Int?
+  serviceTaskId   Int?
+  reservationId   Int?
+  orderId         Int?
+  beauticianId    Int?
+  projectId       Int?
+  feedbackType    String
+  rating          Int?
+  category        String?
+  severity        String    @default("normal")
+  content         String?   @db.Text
+  sourceChannel   String    @default("manual")
+  status          String    @default("open")
+  assignedUserId  Int?
+  handledByUserId Int?
+  resolutionNote  String?   @db.Text
+  occurredAt      DateTime  @default(now())
+  handledAt       DateTime?
+  resolvedAt      DateTime?
+  createdBy       Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, occurredAt])
+  @@index([storeId, feedbackType, status])
+  @@index([storeId, rating])
+  @@index([customerId, occurredAt])
+  @@index([beauticianId, occurredAt])
+  @@index([serviceTaskId])
+  @@index([reservationId])
+  @@index([orderId])
+  @@map("customer_service_feedback")
 }
 
 // ─── Products & Inventory ────────────────────────────────────────────────────

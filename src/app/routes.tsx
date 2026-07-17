@@ -15,6 +15,7 @@ const AskDataWorkbench = lazyWithRetry(() => import('./pages/ask-data/AskDataWor
 const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
 const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
 const CustomerData = lazyWithRetry(() => import('./pages/CustomerData').then(m => ({ default: m.CustomerData })), 'CustomerData');
+const CustomerFeedbackWorkbench = lazyWithRetry(() => import('./pages/CustomerFeedbackWorkbench').then(m => ({ default: m.CustomerFeedbackWorkbench })), 'CustomerFeedbackWorkbench');
 const CustomerInvitationScript = lazyWithRetry(() => import('./pages/CustomerInvitationScript').then(m => ({ default: m.CustomerInvitationScript })), 'CustomerInvitationScript');
 const ProjectManagement = lazyWithRetry(() => import('./pages/ProjectManagement').then(m => ({ default: m.ProjectManagement })), 'ProjectManagement');
 const Scheduling = lazyWithRetry(() => import('./pages/Scheduling').then(m => ({ default: m.Scheduling })), 'Scheduling');
@@ -152,6 +153,7 @@ export const router = createBrowserRouter([
 
       // Customers
       { path: 'customers/data', element: withGuard('core:customer:view', CustomerData) },
+      { path: 'customers/feedback', element: withGuard('core:customer:view', CustomerFeedbackWorkbench) },
       { path: 'customers/profile', element: withGuard('core:customer:profile', UserProfile) },
       { path: 'customers/script', element: withGuard('core:customer:script', CustomerInvitationScript) },
 

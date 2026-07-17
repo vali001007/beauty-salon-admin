@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { 
   Users, Store, ShoppingBag, FileText, 
   ChevronDown, ChevronRight, Menu, UserCircle, LogOut,
-  MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
+  MessageSquare, MessageSquareWarning, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
   Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
   Database, BookOpen, BookKey, CheckCircle2, ShieldCheck, BrainCircuit,
@@ -52,6 +52,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/customers',
     children: [
       { title: '客户数据', path: '/customers/data', icon: LayoutGrid, permission: 'core:customer:view' },
+      { title: '客户反馈', path: '/customers/feedback', icon: MessageSquareWarning, permission: 'core:customer:view' },
       { title: '客户画像', path: '/customers/profile', icon: User, permission: 'core:customer:profile' },
       { title: '智能邀约', path: '/customers/script', icon: MessageSquare, permission: 'core:customer:script' },
     ],

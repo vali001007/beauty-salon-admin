@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module.js';
 import { RolesModule } from './roles/roles.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { CustomersModule } from './customers/customers.module.js';
+import { CustomerFeedbackModule } from './customer-feedback/customer-feedback.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { CardsModule } from './cards/cards.module.js';
@@ -52,6 +53,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     RolesModule,
     StoresModule,
     CustomersModule,
+    CustomerFeedbackModule,
     ProductsModule,
     OrdersModule,
     CardsModule,
