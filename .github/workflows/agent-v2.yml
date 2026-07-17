@@ -17,6 +17,10 @@ on:
           - hash
           - git_diff
           - full
+      capability_base_ref:
+        description: Optional git ref used as the Ami Brain capability drift baseline
+        required: false
+        type: string
 
 jobs:
   agent-v2:
@@ -25,16 +29,18 @@ jobs:
       run:
         working-directory: packages/server-v2
     env:
-      DATABASE_URL: "postgresql://test:test@localhost:5432/test"
-      JWT_SECRET: "ci-test-secret"
-      JWT_REFRESH_SECRET: "ci-test-refresh-secret"
-      AGENT_CAPABILITY_DECISION_V2: "true"
-      AGENT_V2_EVAL_STRICT: "1"
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test'
+      JWT_SECRET: 'ci-test-secret'
+      JWT_REFRESH_SECRET: 'ci-test-refresh-secret'
+      AGENT_CAPABILITY_DECISION_V2: 'true'
+      AGENT_V2_EVAL_STRICT: '1'
       AGENT_V2_DEPLOY_HOOK_URL: ${{ secrets.AGENT_V2_DEPLOY_HOOK_URL }}
       AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN: ${{ secrets.AGENT_V2_AUTO_PUBLISH_DEPLOY_TOKEN }}
       AGENT_V2_PRODUCTION_HOOK_ENABLED: ${{ vars.AGENT_V2_PRODUCTION_HOOK_ENABLED }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -49,6 +55,117 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: Run Ami Brain capability contract tests
+        run: >
+          npm run test -- --runTestsByPath
+          src/brain/capability/brain-capability-scanner.service.spec.ts
+          src/brain/capability/brain-capability-codegen.service.spec.ts
+          src/brain/capability/brain-capability-generation-gate.service.spec.ts
+          src/brain/capability/brain-capability-generation-bundle.service.spec.ts
+          src/brain/capability/brain-generated-capability-args.spec.ts
+          src/brain/capability/brain-capability-published-gate.service.spec.ts
+          src/brain/capability/brain-capability-cli.helpers.spec.ts
+          src/brain/capability/brain-capability-narrative.service.spec.ts
+      - name: Gate Ami Brain capability contract drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            base_sha="${{ github.event.before }}"
+          else
+            base_ref="${{ inputs.capability_base_ref || '' }}"
+            if [ -n "$base_ref" ]; then
+              git fetch --no-tags origin "$base_ref"
+              base_sha="$(git rev-parse FETCH_HEAD)"
+            else
+              default_branch="${{ github.event.repository.default_branch }}"
+              git fetch --no-tags origin "$default_branch"
+              base_sha="$(git merge-base HEAD "origin/$default_branch")"
+            fi
+          fi
+
+          if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$base_sha" || {
+              echo "Cannot fetch capability baseline commit: $base_sha" >&2
+              exit 1
+            }
+          fi
+
+          base_dir="$RUNNER_TEMP/ami-brain-capability-base"
+          base_report="$RUNNER_TEMP/ami-brain-capability-base.json"
+          current_report="$RUNNER_TEMP/ami-brain-capability-current.json"
+          current_markdown="$RUNNER_TEMP/ami-brain-capability-current.md"
+          trap 'git worktree remove --force "$base_dir" >/dev/null 2>&1 || true' EXIT
+          git worktree add --detach "$base_dir" "$base_sha"
+
+          export TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json
+          export TS_NODE_TRANSPILE_ONLY=true
+          node --loader ts-node/esm --experimental-specifier-resolution=node \
+            prisma/ami-brain-capability-scan.ts \
+            --workspace-root="$base_dir" \
+            --output="$base_report"
+          node --loader ts-node/esm --experimental-specifier-resolution=node \
+            prisma/ami-brain-capability-scan.ts \
+            --workspace-root="$GITHUB_WORKSPACE" \
+            --baseline="$base_report" \
+            --output="$current_report" \
+            --md="$current_markdown" \
+            --strict
+      - name: Run non-production Ami Brain synthetic contract gates
+        id: capability_synthetic
+        shell: bash
+        run: |
+          set +e
+          generation_output="$(npm run brain:capability:gate:synthetic -- --workspace-root="$GITHUB_WORKSPACE" 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$generation_output"
+          output_dir="$(printf '%s\n' "$generation_output" | node -e '
+          let input = "";
+          process.stdin.setEncoding("utf8");
+          process.stdin.on("data", (chunk) => { input += chunk; });
+          process.stdin.on("end", () => {
+            for (const line of input.split(/\r?\n/).reverse()) {
+              try {
+                const value = JSON.parse(line);
+                if (typeof value.outputDir === "string" && value.outputDir.length > 0) {
+                  process.stdout.write(value.outputDir);
+                  return;
+                }
+              } catch {}
+            }
+            process.exitCode = 1;
+          });
+          ')" || true
+          if [ -n "$output_dir" ]; then
+            echo "output_dir=$output_dir" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if [ -z "$output_dir" ]; then
+            echo "Synthetic gate did not return its private staging directory." >&2
+            exit 1
+          fi
+      - name: Upload Ami Brain drift evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ami-brain-capability-drift-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/ami-brain-capability-base.json
+            ${{ runner.temp }}/ami-brain-capability-current.json
+            ${{ runner.temp }}/ami-brain-capability-current.md
+          if-no-files-found: warn
+      - name: Upload non-production Ami Brain synthetic evidence
+        if: ${{ always() && steps.capability_synthetic.outputs.output_dir != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ami-brain-capability-synthetic-${{ github.run_id }}
+          path: ${{ steps.capability_synthetic.outputs.output_dir }}/
+          if-no-files-found: error
       - name: Run Agent V2 unit tests
         run: >
           npm run test -- --runTestsByPath

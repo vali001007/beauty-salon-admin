@@ -11,7 +11,7 @@ npm run dev:full
 
 管理端地址：`http://localhost:5173`，API 默认代理到 `http://127.0.0.1:8080/api`。
 
-`npm run dev` 和 `npm run dev:full` 都会先确认本地 API 可用；如果 API 未启动，会自动拉起 `server-v2`，再启动管理端前端，避免登录时才出现 Vite `ECONNREFUSED` 代理错误。
+`npm run dev` 和 `npm run dev:full` 都会先确认本地 API 可用；如果 API 未启动，会自动拉起 `server-v2`，再启动管理端前端。前端运行期间也会持续检查 API 健康状态，后端掉线时自动重启，避免登录或页面刷新时才出现 Vite `ECONNREFUSED` 代理错误。
 
 智能终端本地联调使用：
 
