@@ -234,7 +234,7 @@ describe('AgentV5OrchestratorService', () => {
     expect(marketing.createLifecycleBusinessPlan).toHaveBeenCalledWith(expect.objectContaining({
       goalsJson: expect.objectContaining({ sourceAgentCode: 'agent_v5', sourceRunId: 501 }),
     }), 1, 2);
-    expect(marketing.submitLifecycleBusinessPlanActions).toHaveBeenCalledWith(61, expect.objectContaining({
+    expect(marketing.submitLifecycleBusinessPlanActions).toHaveBeenCalledWith(61, 1, expect.objectContaining({
       sourceAgentCode: 'agent_v5',
       sourceRunId: 501,
       sourceEntrypoint: 'ami-agent:auto',
