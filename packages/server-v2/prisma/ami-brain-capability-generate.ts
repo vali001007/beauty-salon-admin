@@ -36,6 +36,7 @@ interface CliOptions {
   persistDrafts: boolean;
   createdBy?: number;
   capabilityKeys: string[];
+  candidateDefinitionVersionIds: number[];
 }
 
 async function main() {
@@ -72,7 +73,10 @@ async function main() {
       ? undefined
       : new BrainCapabilitySemanticCompilerService(new BrainCapabilitySemanticModelService(aiService!));
     const registry = new BusinessDefinitionRegistryService(prisma, new BusinessDefinitionProjectionCompilerService());
-    const definitionSource = await freezeDefinitionSnapshotSource(new BrainCapabilityDefinitionSnapshotSourceService(registry));
+    const definitionSource = await freezeDefinitionSnapshotSource(
+      new BrainCapabilityDefinitionSnapshotSourceService(registry),
+      options.candidateDefinitionVersionIds,
+    );
     try {
       result = await new BrainCapabilityCodegenService(
         narrativeGenerator,
@@ -92,7 +96,14 @@ async function main() {
 
   const mode = options.deterministicFixture ? 'synthetic_contract_only' : 'published_registry';
   const persistedDrafts = options.persistDrafts
-    ? await persistCapabilityDrafts(result, scan, options.workspaceRoot, options.createdBy, options.capabilityKeys)
+    ? await persistCapabilityDrafts(
+        result,
+        scan,
+        options.workspaceRoot,
+        options.createdBy,
+        options.capabilityKeys,
+        options.candidateDefinitionVersionIds,
+      )
     : [];
   const payload = {
     schemaVersion: 1,
@@ -156,6 +167,10 @@ async function parseOptions(args: string[]): Promise<CliOptions> {
     persistDrafts: args.includes('--persist-drafts'),
     createdBy: value('created-by') ? Number(value('created-by')) : undefined,
     capabilityKeys: (value('capability-keys') ?? '').split(',').map((item) => item.trim()).filter(Boolean),
+    candidateDefinitionVersionIds: (value('candidate-definition-version-ids') ?? '')
+      .split(',')
+      .map((item) => Number(item.trim()))
+      .filter((item) => Number.isInteger(item) && item > 0),
   };
 }
 
@@ -198,6 +213,7 @@ async function persistCapabilityDrafts(
   workspaceRoot: string,
   createdBy: number | undefined,
   capabilityKeys: readonly string[],
+  candidateDefinitionVersionIds: readonly number[],
 ) {
   if (!Number.isInteger(createdBy) || Number(createdBy) < 1) {
     throw new Error('capability_generation_created_by_required');
@@ -205,7 +221,10 @@ async function persistCapabilityDrafts(
   const prisma = new PrismaService();
   try {
     const registry = new BusinessDefinitionRegistryService(prisma, new BusinessDefinitionProjectionCompilerService());
-    const definitionSource = await freezeDefinitionSnapshotSource(new BrainCapabilityDefinitionSnapshotSourceService(registry));
+    const definitionSource = await freezeDefinitionSnapshotSource(
+      new BrainCapabilityDefinitionSnapshotSourceService(registry),
+      candidateDefinitionVersionIds,
+    );
     const publishedGate = new BrainCapabilityPublishedGateService(
       new BrainCapabilityScannerService(),
       new BrainCapabilityGenerationGateService(),
@@ -253,11 +272,16 @@ async function detectWorkspaceRoot(): Promise<string> {
   throw new Error('Cannot locate workspace root; pass --workspace-root=<path>.');
 }
 
-async function freezeDefinitionSnapshotSource(source: BrainCapabilityDefinitionSnapshotSourceService) {
+async function freezeDefinitionSnapshotSource(
+  source: BrainCapabilityDefinitionSnapshotSourceService,
+  candidateDefinitionVersionIds: readonly number[] = [],
+) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      const snapshot = await source.loadPublishedSnapshot();
+      const snapshot = candidateDefinitionVersionIds.length
+        ? await source.loadEvaluationSnapshot(candidateDefinitionVersionIds)
+        : await source.loadPublishedSnapshot();
       return { loadPublishedSnapshot: async () => snapshot };
     } catch (error) {
       lastError = error;

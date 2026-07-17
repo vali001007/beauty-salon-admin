@@ -27,6 +27,16 @@ export interface BrainSemanticIntentValidationIssue {
   candidates?: string[];
 }
 
+export interface BrainSemanticIntentGovernedScope {
+  domains: readonly string[];
+  definitionRefs: readonly {
+    definitionKey: string;
+    version: number;
+    definitionFingerprint: string;
+    sourceFingerprint: string;
+  }[];
+}
+
 export type BrainSemanticIntentValidationResult =
   | {
       status: 'valid';
@@ -55,7 +65,10 @@ export type BrainSemanticIntentValidationResult =
 export class BrainSemanticIntentValidatorService {
   constructor(private readonly ontologyRuntime: BrainOntologyRuntimeService) {}
 
-  validate(intent: BrainSemanticIntent): BrainSemanticIntentValidationResult {
+  validate(
+    intent: BrainSemanticIntent,
+    governedScope?: BrainSemanticIntentGovernedScope,
+  ): BrainSemanticIntentValidationResult {
     const snapshot = this.ontologyRuntime.getSnapshot();
     if (!snapshot) {
       return this.invalid(intent, [
@@ -69,7 +82,7 @@ export class BrainSemanticIntentValidatorService {
     const hardIssues = dedupeIssues([
       ...this.validateSecurityBoundary(intent),
       ...this.validateComparisonTargetStructure(intent),
-      ...this.validateDefinitions(intent, snapshot),
+      ...this.validateDefinitions(intent, snapshot, governedScope),
     ]);
     if (hardIssues.length > 0) {
       return this.invalid(intent, hardIssues, snapshot.fingerprint);
@@ -152,12 +165,14 @@ export class BrainSemanticIntentValidatorService {
   private validateDefinitions(
     intent: BrainSemanticIntent,
     snapshot: ProductionReadyBusinessDefinitionSnapshot,
+    governedScope?: BrainSemanticIntentGovernedScope,
   ): BrainSemanticIntentValidationIssue[] {
     const issues: BrainSemanticIntentValidationIssue[] = [];
     const domains = new Set([
       ...snapshot.entities.map((definition) => definition.domain),
       ...snapshot.metrics.map((definition) => definition.domain),
       ...snapshot.dimensions.map((definition) => definition.domain),
+      ...(governedScope?.domains ?? []),
     ]);
     for (const domain of intent.domains) {
       if (!domains.has(domain)) {
@@ -167,7 +182,10 @@ export class BrainSemanticIntentValidatorService {
 
     for (const entity of intent.entities) {
       if (!entity.definitionRef) continue;
-      if (!hasCanonicalRef(snapshot.entities, entity.definitionRef, 'entity')) {
+      if (
+        !hasCanonicalRef(snapshot.entities, entity.definitionRef, 'entity') &&
+        !hasGovernedRef(governedScope, entity.definitionRef)
+      ) {
         issues.push({
           code: 'UNKNOWN_ENTITY_REFERENCE',
           slot: 'entity',
@@ -176,7 +194,7 @@ export class BrainSemanticIntentValidatorService {
       }
     }
     for (const metric of intent.metrics) {
-      if (!hasCanonicalRef(snapshot.metrics, metric, 'metric')) {
+      if (!hasCanonicalRef(snapshot.metrics, metric, 'metric') && !hasGovernedRef(governedScope, metric)) {
         issues.push({
           code: 'UNKNOWN_METRIC_REFERENCE',
           slot: 'metric',
@@ -185,7 +203,7 @@ export class BrainSemanticIntentValidatorService {
       }
     }
     for (const dimension of intent.dimensions) {
-      if (!hasCanonicalRef(snapshot.dimensions, dimension, 'dimension')) {
+      if (!hasCanonicalRef(snapshot.dimensions, dimension, 'dimension') && !hasGovernedRef(governedScope, dimension)) {
         issues.push({
           code: 'UNKNOWN_DIMENSION_REFERENCE',
           slot: 'dimension',
@@ -210,7 +228,10 @@ export class BrainSemanticIntentValidatorService {
         continue;
       }
       const definitions = order.definitionRef.definitionType === 'metric' ? snapshot.metrics : snapshot.dimensions;
-      if (!hasCanonicalRef(definitions, order.definitionRef, order.definitionRef.definitionType)) {
+      if (
+        !hasCanonicalRef(definitions, order.definitionRef, order.definitionRef.definitionType) &&
+        !hasGovernedRef(governedScope, order.definitionRef)
+      ) {
         issues.push({
           code: 'UNKNOWN_ORDER_REFERENCE',
           slot: 'orderBy',
@@ -354,6 +375,16 @@ function hasCanonicalRef(
       definition.definitionFingerprint === ref.definitionFingerprint &&
       definition.sourceFingerprint === ref.sourceFingerprint,
   );
+}
+
+function hasGovernedRef(scope: BrainSemanticIntentGovernedScope | undefined, ref: BrainDefinitionRef): boolean {
+  return scope?.definitionRefs.some(
+    (candidate) =>
+      candidate.definitionKey === ref.definitionKey &&
+      candidate.version === ref.definitionVersion &&
+      candidate.definitionFingerprint === ref.definitionFingerprint &&
+      candidate.sourceFingerprint === ref.sourceFingerprint,
+  ) ?? false;
 }
 
 const FORBIDDEN_SECURITY_KEYS = new Set([

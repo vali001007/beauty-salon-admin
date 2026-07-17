@@ -4,7 +4,11 @@ import type {
 } from '../brain/cognition/business-definition-snapshot.types.js';
 
 export interface BusinessMetricResolverContract {
-  readonly key: 'manager_staff_analysis' | 'inventory_risk_summary' | 'marketing_follow_up_opportunities';
+  readonly key:
+    | 'manager_staff_analysis'
+    | 'inventory_risk_summary'
+    | 'marketing_follow_up_opportunities'
+    | 'customer_retention_summary';
   readonly storeModel: string;
   readonly dimensionFields: readonly string[];
   readonly numericExpressionFields: readonly string[];
@@ -62,6 +66,18 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
       storeModel: 'CustomerOpportunity',
       dimensionFields: Object.freeze(['customerId', 'customerName']),
       numericExpressionFields: Object.freeze(['score']),
+    }),
+    customer_retention_summary: Object.freeze({
+      key: 'customer_retention_summary' as const,
+      storeModel: 'Customer',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze([
+        'activeCustomerCount',
+        'repeatCustomerCount',
+        'repurchaseRate',
+        'repeatIntervalCount',
+        'averageReturnIntervalDays',
+      ]),
     }),
   });
 

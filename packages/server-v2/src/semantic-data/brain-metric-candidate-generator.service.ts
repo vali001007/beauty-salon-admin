@@ -554,7 +554,7 @@ function validateMetricResolver(
   }
   const dimensionEntries = Object.entries(resolver.dimensionFields ?? {});
   if (
-    !dimensionEntries.length ||
+    (!dimensionEntries.length && (contract?.dimensionFields.length ?? 1) > 0) ||
     dimensionEntries.some(
       ([dimension, field]) => !dimension.trim() || typeof field !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field),
     )

@@ -12,4 +12,15 @@ describe('BrainCapabilityDefinitionSnapshotSourceService', () => {
     await expect(source.loadPublishedSnapshot()).resolves.toBe(snapshot);
     expect(registry.getPublishedSnapshot).toHaveBeenCalledWith();
   });
+
+  it('loads a read-only evaluation snapshot for validated candidate definition versions', async () => {
+    const snapshot = { snapshotFingerprint: 'b'.repeat(64), definitions: [] };
+    const registry = {
+      getEvaluationSnapshot: jest.fn().mockResolvedValue(snapshot),
+    } as unknown as jest.Mocked<BusinessDefinitionRegistryService>;
+    const source = new BrainCapabilityDefinitionSnapshotSourceService(registry);
+
+    await expect(source.loadEvaluationSnapshot([128, 129])).resolves.toBe(snapshot);
+    expect(registry.getEvaluationSnapshot).toHaveBeenCalledWith([128, 129]);
+  });
 });

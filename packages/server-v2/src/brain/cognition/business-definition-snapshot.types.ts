@@ -82,7 +82,11 @@ export type BusinessMetricRuntimeExpression =
 
 export interface BusinessMetricRuntimeResolver {
   readonly kind: 'domain_service';
-  readonly key: 'manager_staff_analysis' | 'inventory_risk_summary' | 'marketing_follow_up_opportunities';
+  readonly key:
+    | 'manager_staff_analysis'
+    | 'inventory_risk_summary'
+    | 'marketing_follow_up_opportunities'
+    | 'customer_retention_summary';
   readonly dimensionFields: Readonly<Record<string, string>>;
   readonly expression: BusinessMetricRuntimeExpression;
   readonly overallAggregation: 'sum' | 'avg' | 'min' | 'max';

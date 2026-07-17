@@ -1031,9 +1031,13 @@ export class BrainChatService {
       conversationSlots: compilerInput.conversationSlots,
       question: input.dto.message,
     });
+    const governedValidationScope = {
+      domains: [...new Set(cards.flatMap((card) => card.domains))],
+      definitionRefs: cards.flatMap((card) => card.definitionRefs),
+    };
     let validation: ReturnType<BrainSemanticIntentValidatorService['validate']>;
     try {
-      validation = this.semanticIntentValidator!.validate(enrichedIntent);
+      validation = this.semanticIntentValidator!.validate(enrichedIntent, governedValidationScope);
     } catch (error) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -1087,7 +1091,7 @@ export class BrainChatService {
           conversationSlots: compilerInput.conversationSlots,
           question: input.dto.message,
         });
-        const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent);
+        const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent, governedValidationScope);
         compilation = repairCompilation;
         enrichedIntent = repairedIntent;
         validation = repairedValidation;

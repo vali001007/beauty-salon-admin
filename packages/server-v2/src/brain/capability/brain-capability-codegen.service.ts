@@ -82,6 +82,7 @@ export interface BrainBusinessDefinitionSnapshot {
 
 export interface BrainCapabilityDefinitionSnapshotSource {
   loadPublishedSnapshot(): Promise<BrainBusinessDefinitionSnapshot>;
+  loadEvaluationSnapshot?(definitionVersionIds: readonly number[]): Promise<BrainBusinessDefinitionSnapshot>;
 }
 
 export const BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_SOURCE = Symbol('BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_SOURCE');

@@ -34,6 +34,13 @@ const employeeEntityRef = {
   definitionFingerprint: '7'.repeat(64),
   sourceFingerprint: '8'.repeat(64),
 } as const;
+const candidateMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.staff_commission_amount',
+  definitionVersion: 2,
+  definitionFingerprint: '9'.repeat(64),
+  sourceFingerprint: 'a'.repeat(64),
+} as const;
 
 const snapshot: ProductionReadyBusinessDefinitionSnapshot = {
   productionReady: true,
@@ -141,6 +148,50 @@ describe('BrainSemanticIntentValidatorService', () => {
       intent: rankingIntent(),
       snapshotFingerprint: snapshot.fingerprint,
     });
+  });
+
+  it('accepts an exact validated release definition reference without activating it in the production ontology', () => {
+    const result = createValidator().validate(
+      rankingIntent({
+        domains: ['staff_performance'],
+        metrics: [candidateMetricRef],
+        orderBy: [{ definitionRef: candidateMetricRef, direction: 'desc' }],
+      }),
+      {
+        domains: ['staff_performance'],
+        definitionRefs: [{
+          definitionKey: candidateMetricRef.definitionKey,
+          version: candidateMetricRef.definitionVersion,
+          definitionFingerprint: candidateMetricRef.definitionFingerprint,
+          sourceFingerprint: candidateMetricRef.sourceFingerprint,
+        }],
+      },
+    );
+
+    expect(result.status).toBe('valid');
+  });
+
+  it('rejects a release-scoped definition reference when its immutable lineage does not match', () => {
+    const result = createValidator().validate(
+      rankingIntent({
+        metrics: [candidateMetricRef],
+        orderBy: [{ definitionRef: candidateMetricRef, direction: 'desc' }],
+      }),
+      {
+        domains: ['staff_performance'],
+        definitionRefs: [{
+          definitionKey: candidateMetricRef.definitionKey,
+          version: candidateMetricRef.definitionVersion,
+          definitionFingerprint: '0'.repeat(64),
+          sourceFingerprint: candidateMetricRef.sourceFingerprint,
+        }],
+      },
+    );
+
+    expect(result.status).toBe('invalid');
+    if (result.status === 'invalid') {
+      expect(result.issues.map((issue) => issue.code)).toContain('UNKNOWN_METRIC_REFERENCE');
+    }
   });
 
   it('rejects unknown domains and stale definition versions or fingerprints', () => {

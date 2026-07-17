@@ -37,7 +37,11 @@ export type BrainMetricResolverExpression =
 
 export interface BrainMetricDomainResolver {
   kind: 'domain_service';
-  key: 'manager_staff_analysis' | 'inventory_risk_summary' | 'marketing_follow_up_opportunities';
+  key:
+    | 'manager_staff_analysis'
+    | 'inventory_risk_summary'
+    | 'marketing_follow_up_opportunities'
+    | 'customer_retention_summary';
   dimensionFields: Record<string, string>;
   expression: BrainMetricResolverExpression;
   overallAggregation: 'sum' | 'avg' | 'min' | 'max';

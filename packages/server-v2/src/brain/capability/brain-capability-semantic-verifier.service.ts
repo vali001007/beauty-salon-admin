@@ -84,6 +84,15 @@ export class BrainCapabilitySemanticVerifierService {
     return deepCloneFreeze(snapshot);
   }
 
+  async loadEvaluationSnapshot(definitionVersionIds: readonly number[]): Promise<BrainBusinessDefinitionSnapshot> {
+    if (!this.definitionSource.loadEvaluationSnapshot) {
+      throw new BadRequestException('generated_capability_evaluation_snapshot_unavailable');
+    }
+    const snapshot = await this.definitionSource.loadEvaluationSnapshot(definitionVersionIds);
+    if (!validSnapshot(snapshot)) throw new BadRequestException('generated_capability_snapshot_invalid');
+    return deepCloneFreeze(snapshot);
+  }
+
   async verifyCards(cards: readonly BrainCapabilityCard[]): Promise<void> {
     const snapshot = await this.loadVerifiedSnapshot();
     for (const card of cards) await this.verifyCard(card, snapshot);

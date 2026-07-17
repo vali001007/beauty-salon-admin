@@ -1739,12 +1739,15 @@ describe('BrainChatService', () => {
 
     await service.sendMessage(context, 12, { message: '本月商品销售排行' });
 
-    expect(modelPipeline!.validator.validate).toHaveBeenCalledWith(expect.objectContaining({
-      domains: [],
-      filters: [],
-      ambiguities: [],
-      missingSlots: [],
-    }));
+    expect(modelPipeline!.validator.validate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domains: [],
+        filters: [],
+        ambiguities: [],
+        missingSlots: [],
+      }),
+      expect.objectContaining({ domains: ['sales'] }),
+    );
   });
 
   it('uses a governed domain capability contract to resolve internal qualitative thresholds', () => {
@@ -2273,13 +2276,16 @@ describe('BrainChatService', () => {
 
     await service.sendMessage({ ...context, roles: ['customer_service'] }, 12, { message: question });
 
-    expect(modelPipeline!.validator.validate).toHaveBeenCalledWith(expect.objectContaining({
-      intent: 'query',
-      answerShape: 'list',
-      metrics: [],
-      dimensions: [expect.objectContaining({ definitionKey: 'dimension.customerName' })],
-      orderBy: [],
-    }));
+    expect(modelPipeline!.validator.validate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'query',
+        answerShape: 'list',
+        metrics: [],
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.customerName' })],
+        orderBy: [],
+      }),
+      expect.objectContaining({ domains: ['customer'] }),
+    );
   });
 
   it('uses the governed unique-customer metric for an exact staff customer ranking example', () => {

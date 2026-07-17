@@ -95,7 +95,11 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
       } else {
         let snapshot: Awaited<ReturnType<BrainCapabilitySemanticVerifierService['loadVerifiedSnapshot']>> | undefined;
         try {
-          snapshot = await this.semanticVerifier.loadVerifiedSnapshot();
+          snapshot = releaseCandidates === undefined
+            ? await this.semanticVerifier.loadVerifiedSnapshot()
+            : await this.semanticVerifier.loadEvaluationSnapshot(
+                [...new Set(structurallyValidCards.flatMap((card) => card.definitionRefs.map((ref) => ref.versionId)))],
+              );
         } catch (error) {
           for (const card of structurallyValidCards) {
             issues.push(

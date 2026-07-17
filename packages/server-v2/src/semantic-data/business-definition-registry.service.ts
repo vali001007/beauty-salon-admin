@@ -222,6 +222,37 @@ export class BusinessDefinitionRegistryService {
     });
   }
 
+  async validateVersionForEvaluation(versionId: number, input: ValidateBusinessDefinitionVersionInput) {
+    const validated = await this.validateVersion(versionId, input);
+    if (validated.validationStatus !== 'passed') return validated;
+    const projections = this.projectionCompiler.compilePublishedVersion({
+      ...(validated as unknown as BusinessDefinitionVersionRecord),
+      lifecycleStatus: 'published',
+    });
+    await this.db().$transaction(async (tx: any) => {
+      await tx.businessDefinitionProjection.deleteMany({ where: { definitionVersionId: versionId } });
+      await tx.businessDefinitionProjection.createMany({
+        data: projections.map((projection) => ({
+          definitionVersionId: projection.definitionVersionId,
+          targetType: projection.targetType,
+          targetKey: projection.targetKey,
+          definitionKey: projection.definitionKey,
+          definitionVersion: projection.definitionVersion,
+          definitionFingerprint: projection.definitionFingerprint,
+          sourceFingerprint: projection.sourceFingerprint,
+          payload: projection.payload as Prisma.InputJsonValue,
+          projectionFingerprint: projection.projectionFingerprint,
+          generatedAt: projection.generatedAt,
+          readOnly: true,
+        })),
+      });
+    });
+    return this.db().businessDefinitionVersion.findUnique({
+      where: { id: versionId },
+      include: VERSION_INCLUDE,
+    });
+  }
+
   async publishVersion(versionId: number, input: PublishBusinessDefinitionVersionInput) {
     assertPositiveInteger(versionId, 'versionId');
     assertPositiveInteger(input.publishedBy, 'publishedBy');
@@ -359,6 +390,60 @@ export class BusinessDefinitionRegistryService {
       .update(canonicalizeBusinessDefinition(snapshotDefinitions))
       .digest('hex');
     return deepFreeze({ snapshotFingerprint, definitions: snapshotDefinitions });
+  }
+
+  async getEvaluationSnapshot(candidateVersionIds: readonly number[]) {
+    const published = await this.getPublishedSnapshot();
+    const uniqueIds = [...new Set(candidateVersionIds.filter((id) => Number.isInteger(id) && id > 0))];
+    if (!uniqueIds.length) return published;
+    const versions = await this.db().businessDefinitionVersion.findMany({
+      where: { id: { in: uniqueIds } },
+      include: { definition: true, evidence: true, projections: true },
+      orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+    });
+    if (versions.length !== uniqueIds.length) {
+      const found = new Set(versions.map((version: any) => version.id));
+      throw new Error(`business_definition_evaluation_candidate_missing:${uniqueIds.filter((id) => !found.has(id)).join(',')}`);
+    }
+    const publishedVersionIds = new Set(published.definitions.map((definition: any) => definition.versionId));
+    const candidates = versions.flatMap((version: any) => {
+      if (String(version.lifecycleStatus) === 'published' && publishedVersionIds.has(version.id)) return [];
+      if (!['candidate', 'validated'].includes(String(version.lifecycleStatus)) || version.validationStatus !== 'passed') {
+        throw new Error(`business_definition_evaluation_candidate_not_validated:${version.id}`);
+      }
+      return {
+        definitionId: version.definition.id,
+        versionId: version.id,
+        definitionKey: version.definition.definitionKey,
+        kind: version.definition.kind,
+        domain: version.definition.domain,
+        name: version.definition.name,
+        ownerType: version.definition.ownerType,
+        ownerId: version.definition.ownerId,
+        version: version.version,
+        schemaVersion: version.schemaVersion,
+        fingerprint: version.fingerprint,
+        sourceFingerprint: version.sourceFingerprint,
+        validationStatus: version.validationStatus,
+        validationReport: cloneJson(version.validationReport ?? null),
+        payload: cloneJson(version.payload),
+        canonicalQueryRef: version.canonicalQueryRef,
+        fixtureSetKey: version.fixtureSetKey,
+        timezone: version.timezone,
+        storeScope: cloneJson(version.storeScope),
+        evidence: cloneJson(version.evidence),
+        projections: cloneJson(version.projections),
+      };
+    });
+    const byKey = new Map(published.definitions.map((definition: any) => [definition.definitionKey, definition]));
+    for (const candidate of candidates) byKey.set(candidate.definitionKey, candidate);
+    const definitions = [...byKey.values()].sort((left: any, right: any) =>
+      left.domain.localeCompare(right.domain) || left.kind.localeCompare(right.kind) || left.definitionKey.localeCompare(right.definitionKey),
+    );
+    const snapshotFingerprint = createHash('sha256')
+      .update(canonicalizeBusinessDefinition(definitions))
+      .digest('hex');
+    return deepFreeze({ snapshotFingerprint, definitions });
   }
 
   private async getPublishedSnapshotFromSql(filters: { kind?: string; domain?: string }) {

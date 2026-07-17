@@ -12,4 +12,8 @@ export class BrainCapabilityDefinitionSnapshotSourceService implements BrainCapa
   async loadPublishedSnapshot(): Promise<BrainBusinessDefinitionSnapshot> {
     return (await this.registry.getPublishedSnapshot()) as BrainBusinessDefinitionSnapshot;
   }
+
+  async loadEvaluationSnapshot(candidateVersionIds: readonly number[]): Promise<BrainBusinessDefinitionSnapshot> {
+    return (await this.registry.getEvaluationSnapshot(candidateVersionIds)) as BrainBusinessDefinitionSnapshot;
+  }
 }

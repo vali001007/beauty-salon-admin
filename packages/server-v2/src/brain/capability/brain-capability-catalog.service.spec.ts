@@ -61,6 +61,7 @@ describe('BrainCapabilityCatalogService', () => {
     },
     semanticVerifier = {
       loadVerifiedSnapshot: jest.fn().mockResolvedValue({ definitions: [], snapshotFingerprint: 'a'.repeat(64) }),
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue({ definitions: [], snapshotFingerprint: 'b'.repeat(64) }),
       verifyCard: jest.fn().mockResolvedValue(undefined),
     },
   ) => {
@@ -90,12 +91,13 @@ describe('BrainCapabilityCatalogService', () => {
   it('validates release snapshot candidates without reading the active skill registry', async () => {
     const active = validCandidate({ key: 'active_capability' });
     const candidate = validCandidate({ key: 'release_candidate', version: 7 });
-    const { registry, service } = createService([active]);
+    const { registry, semanticVerifier, service } = createService([active]);
 
     await expect(service.listEnabledCapabilities([candidate])).resolves.toEqual([
       validCard({ key: 'release_candidate', version: 7 }),
     ]);
     expect(registry.listLatestEnabledCapabilityCandidates).not.toHaveBeenCalled();
+    expect(semanticVerifier.loadEvaluationSnapshot).toHaveBeenCalledWith([21]);
   });
 
   it('reuses a successful immutable release catalog validation by candidate fingerprint', async () => {
@@ -105,7 +107,8 @@ describe('BrainCapabilityCatalogService', () => {
     await expect(service.listEnabledCapabilities([candidate])).resolves.toHaveLength(1);
     await expect(service.listEnabledCapabilities([candidate])).resolves.toHaveLength(1);
 
-    expect(semanticVerifier.loadVerifiedSnapshot).toHaveBeenCalledTimes(1);
+    expect(semanticVerifier.loadEvaluationSnapshot).toHaveBeenCalledTimes(1);
+    expect(semanticVerifier.loadVerifiedSnapshot).not.toHaveBeenCalled();
     expect(semanticVerifier.verifyCard).toHaveBeenCalledTimes(1);
   });
 
@@ -136,6 +139,7 @@ describe('BrainCapabilityCatalogService', () => {
   it('loads one definition snapshot and reuses it for every structurally valid capability', async () => {
     const semanticVerifier = {
       loadVerifiedSnapshot: jest.fn().mockResolvedValue({ definitions: [], snapshotFingerprint: 'a'.repeat(64) }),
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue({ definitions: [], snapshotFingerprint: 'b'.repeat(64) }),
       verifyCard: jest.fn().mockResolvedValue(undefined),
     };
     const { service } = createService(
@@ -206,6 +210,7 @@ describe('BrainCapabilityCatalogService', () => {
   it('rejects a formatted DB card when current published semantics or lineage no longer match', async () => {
     const semanticVerifier = {
       loadVerifiedSnapshot: jest.fn().mockResolvedValue({ definitions: [], snapshotFingerprint: 'a'.repeat(64) }),
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue({ definitions: [], snapshotFingerprint: 'b'.repeat(64) }),
       verifyCard: jest.fn().mockRejectedValue(new Error('generated_capability_semantics_mismatch')),
     };
     const { service } = createService([validCandidate()], permissionCodes, undefined, semanticVerifier);

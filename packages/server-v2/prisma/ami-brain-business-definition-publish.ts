@@ -6,6 +6,7 @@ import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capabili
 import { BrainInventorySkillsService } from '../src/brain/skills/brain-inventory-skills.service.js';
 import { BrainManagerSkillsService } from '../src/brain/skills/brain-manager-skills.service.js';
 import { BrainMarketingSkillsService } from '../src/brain/skills/brain-marketing-skills.service.js';
+import { BrainCustomerFactResolverService } from '../src/brain/domain/brain-customer-fact-resolver.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { BusinessDefinitionModule } from '../src/semantic-data/business-definition.module.js';
 import { createBusinessDefinitionFixtureArtifactFingerprint } from '../src/semantic-data/business-definition-fixture-source.service.js';
@@ -26,6 +27,7 @@ async function main() {
   const actorId = Number(value('actor-id') ?? process.env.BRAIN_GOVERNANCE_SYSTEM_USER_ID);
   const apply = args.includes('--apply');
   const yes = args.includes('--yes');
+  const validateOnly = args.includes('--validate-only');
   if (!versionIds.length) throw new Error('business_definition_publish_version_ids_required');
   if (!Number.isInteger(storeId) || storeId < 1) throw new Error('business_definition_publish_store_id_invalid');
   if (!Number.isInteger(actorId) || actorId < 1) throw new Error('business_definition_publish_actor_id_invalid');
@@ -38,6 +40,7 @@ async function main() {
     const managerSkills = new BrainManagerSkillsService(prisma);
     const inventorySkills = new BrainInventorySkillsService(prisma);
     const marketingSkills = new BrainMarketingSkillsService(prisma);
+    const customerFacts = new BrainCustomerFactResolverService(prisma);
     const candidateAdapter = app.get(BusinessDefinitionCandidateRuntimeQueryAdapter).useResolverRowSource({
       async loadRows(input) {
         if (input.resolverKey === 'manager_staff_analysis') {
@@ -54,6 +57,14 @@ async function main() {
             expiringBefore: new Date(input.endExclusive.getTime() - 1),
           });
           return result.lowStockProducts as unknown as Record<string, unknown>[];
+        }
+        if (input.resolverKey === 'customer_retention_summary') {
+          const result = await customerFacts.getCustomerRetentionSummary({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          });
+          return [result as unknown as Record<string, unknown>];
         }
         return marketingSkills.buildFollowUpPriorityRows({
           storeId: input.storeId,
@@ -157,11 +168,17 @@ async function main() {
         items.push({ versionId, definitionKey, status: 'ready', fixturePrepared });
         continue;
       }
-      const validated = await registry.validateVersion(versionId, { validatedBy: actorId });
+      const validated = validateOnly
+        ? await registry.validateVersionForEvaluation(versionId, { validatedBy: actorId })
+        : await registry.validateVersion(versionId, { validatedBy: actorId });
       if (validated.validationStatus !== 'passed') {
         throw new Error(
           `business_definition_publish_validation_failed:${definitionKey}:${JSON.stringify(validated.validationReport)}`,
         );
+      }
+      if (validateOnly) {
+        items.push({ versionId, definitionKey, status: 'validated_candidate', fixturePrepared });
+        continue;
       }
       const published = await registry.publishVersion(versionId, {
         publishedBy: actorId,
