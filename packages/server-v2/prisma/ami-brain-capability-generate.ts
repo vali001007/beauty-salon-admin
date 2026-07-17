@@ -92,7 +92,7 @@ async function main() {
 
   const mode = options.deterministicFixture ? 'synthetic_contract_only' : 'published_registry';
   const persistedDrafts = options.persistDrafts
-    ? await persistCapabilityDrafts(result, options.workspaceRoot, options.createdBy, options.capabilityKeys)
+    ? await persistCapabilityDrafts(result, scan, options.workspaceRoot, options.createdBy, options.capabilityKeys)
     : [];
   const payload = {
     schemaVersion: 1,
@@ -194,6 +194,7 @@ function preferConfiguredFallbackAsPrimary() {
 
 async function persistCapabilityDrafts(
   result: BrainCapabilityGenerationResult,
+  sourceScan: BrainCapabilityScanReport,
   workspaceRoot: string,
   createdBy: number | undefined,
   capabilityKeys: readonly string[],
@@ -226,6 +227,7 @@ async function persistCapabilityDrafts(
           proposal,
           createdBy: Number(createdBy),
           workspaceRoot,
+          sourceScan,
         });
         items.push({ capabilityKey: proposal.capabilityKey, resourceVersionId: created.id, version: created.version });
       } catch (error) {

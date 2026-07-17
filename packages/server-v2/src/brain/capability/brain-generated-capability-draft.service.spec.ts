@@ -150,6 +150,32 @@ describe('BrainGeneratedCapabilityDraftService', () => {
     });
   });
 
+  it('reuses the latest manual draft when the proposal and source fingerprints are unchanged', async () => {
+    const generated = proposal();
+    const existing = {
+      id: 51,
+      version: 4,
+      snapshot: {
+        sourceProposalFingerprint: generated.proposalFingerprint,
+        sourceFingerprint: generated.sourceFingerprint,
+      },
+    };
+    const verifier = { verify: jest.fn().mockResolvedValue({ manifest: generated.manifest }) };
+    const tx = {
+      brainSkillRegistry: { create: jest.fn() },
+      brainResourceVersion: {
+        findFirst: jest.fn().mockResolvedValue(existing),
+        create: jest.fn(),
+      },
+    };
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const service = new BrainGeneratedCapabilityDraftService(prisma as never, verifier as never);
+
+    await expect(service.createDraft({ proposal: generated, createdBy: 9 })).resolves.toBe(existing);
+    expect(tx.brainSkillRegistry.create).not.toHaveBeenCalled();
+    expect(tx.brainResourceVersion.create).not.toHaveBeenCalled();
+  });
+
   it.each(['P2034', 'P2002'])('maps exhausted %s version races to ConflictException', async (code) => {
     const generated = proposal();
     const verifier = { verify: jest.fn().mockResolvedValue({ manifest: generated.manifest }) };

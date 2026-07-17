@@ -153,6 +153,24 @@ function scanClass(
   const exportedClass = hasModifier(node, ts.SyntaxKind.ExportKeyword);
   const controllerDecorator = decoratorCall(node, 'Controller');
   const classPermissions = decoratorStrings(node, 'Permissions');
+  const constructorParameters = node.members
+    .filter(ts.isConstructorDeclaration)
+    .flatMap((constructor) => constructor.parameters);
+  const serviceBindings = Object.fromEntries(
+    constructorParameters
+      .filter((parameter) => parameter.name && parameter.type)
+      .map((parameter) => [parameter.name.getText(sourceFile), parameter.type!.getText(sourceFile)]),
+  );
+  const injectionBindings = Object.fromEntries(
+    constructorParameters.flatMap((parameter) => {
+      const injection = decoratorCall(parameter, 'Inject')?.arguments[0];
+      return parameter.name && injection
+        ? [[parameter.name.getText(sourceFile), injection.getText(sourceFile)]]
+        : [];
+    }),
+  );
+
+  scanNestModuleProviders(node, sourceFile, path, evidence);
 
   if (/Dto$/.test(className) || path.includes('/dto/')) {
     const fields = Object.fromEntries(
@@ -170,13 +188,6 @@ function scanClass(
 
   if (controllerDecorator) {
     const controllerPath = firstStringArgument(controllerDecorator) ?? '';
-    const serviceBindings = Object.fromEntries(
-      node.members
-        .filter(ts.isConstructorDeclaration)
-        .flatMap((constructor) => constructor.parameters)
-        .filter((parameter) => parameter.name && parameter.type)
-        .map((parameter) => [parameter.name.getText(sourceFile), parameter.type!.getText(sourceFile)]),
-    );
     for (const method of node.members.filter(ts.isMethodDeclaration)) {
       const http = [...HTTP_DECORATORS.entries()].find(([name]) => decoratorCall(method, name));
       if (!http || !method.name) continue;
@@ -211,6 +222,7 @@ function scanClass(
           returnType,
           serviceCalls,
           serviceBindings,
+          injectionBindings,
           executorTarget,
           methodSemantics,
           writeHint: httpMethod !== 'GET',
@@ -253,6 +265,8 @@ function scanClass(
           returnType,
           prismaOperations,
           methodSemantics,
+          serviceBindings,
+          injectionBindings,
           writes: prismaOperations.some((operation) => isPrismaWriteOperation(operation)),
           capability,
         }),
@@ -262,6 +276,32 @@ function scanClass(
   }
 
   scanGovernanceEvidence(node, sourceFile, path, evidence, className);
+}
+
+function scanNestModuleProviders(
+  node: ts.ClassDeclaration,
+  sourceFile: ts.SourceFile,
+  path: string,
+  evidence: BrainCapabilitySourceEvidence[],
+) {
+  const moduleArgument = decoratorCall(node, 'Module')?.arguments[0];
+  if (!moduleArgument || !ts.isObjectLiteralExpression(moduleArgument)) return;
+  const providers = objectProperty(moduleArgument, 'providers');
+  if (!providers || !ts.isArrayLiteralExpression(providers)) return;
+  for (const provider of providers.elements) {
+    if (!ts.isObjectLiteralExpression(provider)) continue;
+    const provide = objectProperty(provider, 'provide');
+    if (!provide) continue;
+    const inject = objectProperty(provider, 'inject');
+    const dependencies = inject && ts.isArrayLiteralExpression(inject)
+      ? inject.elements.map((item) => item.getText(sourceFile)).filter(Boolean)
+      : [];
+    const useExisting = objectProperty(provider, 'useExisting')?.getText(sourceFile);
+    if (useExisting) dependencies.push(useExisting);
+    evidence.push(record('provider', path, sourceFile, provider, provide.getText(sourceFile), {
+      dependencies: [...new Set(dependencies)].sort(),
+    }));
+  }
 }
 
 function scanGovernanceEvidence(

@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { BrainCapabilityGenerationProposal } from './brain-capability-codegen.service.js';
 import { BrainCapabilityPublishedGateService } from './brain-capability-published-gate.service.js';
+import type { BrainCapabilityScanReport } from './brain-capability-scan.types.js';
 
 const SERIALIZABLE_TRANSACTION_OPTIONS = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -26,6 +27,7 @@ export class BrainGeneratedCapabilityDraftService {
     generatedByJobId?: number;
     leaseOwner?: string;
     workspaceRoot?: string;
+    sourceScan?: BrainCapabilityScanReport;
   }) {
     if (input.generatedByJobId && (!input.leaseOwner || !input.workspaceRoot)) {
       throw new ConflictException('regeneration_lease_context_required');
@@ -33,6 +35,7 @@ export class BrainGeneratedCapabilityDraftService {
     const verified = await this.publishedGate.verify({
       proposal: input.proposal,
       workspaceRoot: input.workspaceRoot ?? (await detectWorkspaceRoot()),
+      sourceScan: input.sourceScan,
     });
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
@@ -66,6 +69,9 @@ export class BrainGeneratedCapabilityDraftService {
             where: { resourceType: 'skill', resourceKey: verified.manifest.key },
             orderBy: { version: 'desc' },
           });
+          if (!input.generatedByJobId && previous && this.existingMatches(previous.snapshot, input.proposal)) {
+            return previous;
+          }
           const version = (previous?.version ?? 0) + 1;
           const manifest = { ...verified.manifest, version };
           const source = await this.createRegistrySource(tx, manifest, version);
@@ -103,13 +109,14 @@ export class BrainGeneratedCapabilityDraftService {
   }
 
   private assertExistingMatches(snapshotValue: unknown, proposal: BrainCapabilityGenerationProposal) {
+    if (this.existingMatches(snapshotValue, proposal)) return;
+    throw new ConflictException('generated_capability_existing_fingerprint_mismatch');
+  }
+
+  private existingMatches(snapshotValue: unknown, proposal: BrainCapabilityGenerationProposal) {
     const snapshot = record(snapshotValue);
-    if (
-      snapshot.sourceProposalFingerprint !== proposal.proposalFingerprint ||
-      snapshot.sourceFingerprint !== proposal.sourceFingerprint
-    ) {
-      throw new ConflictException('generated_capability_existing_fingerprint_mismatch');
-    }
+    return snapshot.sourceProposalFingerprint === proposal.proposalFingerprint &&
+      snapshot.sourceFingerprint === proposal.sourceFingerprint;
   }
 
   private json(value: unknown): Prisma.InputJsonValue {

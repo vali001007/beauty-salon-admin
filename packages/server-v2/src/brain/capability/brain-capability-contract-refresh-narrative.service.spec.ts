@@ -6,6 +6,10 @@ describe('BrainCapabilityContractRefreshNarrativeService', () => {
     sourceFingerprint: 'a'.repeat(64),
     requiredPermissions: ['core:brain:use'],
     storeScope: 'required',
+    readOnly: true,
+    sideEffect: false,
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
   } as never;
   const successSchema = { type: 'object', properties: { paidAmount: { type: 'number' } } };
   const canonicalSemantics = {
@@ -24,7 +28,7 @@ describe('BrainCapabilityContractRefreshNarrativeService', () => {
       negativeExamples: ['帮我退款'],
       synonyms: ['营业额', '实收'],
       successSchema,
-      riskExplanation: '仅刷新已发布业务定义引用，不改变权限、写入边界或确认策略。',
+      riskExplanation: '仅刷新已发布业务定义与实现依赖指纹，不改变权限、写入边界或确认策略。',
     });
   });
 
@@ -113,6 +117,44 @@ describe('BrainCapabilityContractRefreshNarrativeService', () => {
       positiveExamples: ['今天店里情况怎么样', '本月经营风险有哪些'],
       negativeExamples: ['修改经营目标', '查询其他门店'],
       synonyms: ['经营概览'],
+    });
+  });
+
+  it('refreshes a confirmation-gated action snapshot without weakening its safety contract', async () => {
+    const actionCapability = {
+      ...(capability as Record<string, unknown>),
+      key: 'gap_fill_touch_preview',
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      requiredPermissions: ['core:brain:use', 'core:marketing:create'],
+    } as never;
+    const actionSnapshot = {
+      ...snapshot(),
+      key: 'gap_fill_touch_preview',
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      requiredPermissions: ['core:brain:use', 'core:marketing:create'],
+      intents: ['workflow', 'action'],
+      examples: ['找出空档并生成触达预览'],
+      negativeExamples: ['直接发送消息'],
+      synonyms: ['空档补位'],
+    };
+    const service = new BrainCapabilityContractRefreshNarrativeService(
+      new Map([['gap_fill_touch_preview', actionSnapshot]]),
+    );
+
+    await expect(service.generate({
+      capability: actionCapability,
+      businessDefinitions: [],
+      canonicalSemantics,
+    })).resolves.toMatchObject({
+      positiveExamples: ['找出空档并生成触达预览'],
+      negativeExamples: ['直接发送消息'],
+      riskExplanation: '仅刷新已发布业务定义与实现依赖指纹，不改变权限、写入边界或确认策略。',
     });
   });
 });

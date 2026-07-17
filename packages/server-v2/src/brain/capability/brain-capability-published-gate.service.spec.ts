@@ -54,4 +54,25 @@ describe('BrainCapabilityPublishedGateService', () => {
       capability: expect.objectContaining({ requiredPermissions: ['core:finance:view', 'core:metric:view'] }),
     }));
   });
+
+  it('reuses a frozen source scan for batch draft publication', async () => {
+    const proposal = generatedProposalFixture();
+    const candidate = {
+      key: proposal.capabilityKey,
+      sourceFingerprint: proposal.sourceFingerprint,
+    };
+    const scanner = { scan: jest.fn() };
+    const service = new BrainCapabilityPublishedGateService(
+      scanner as never,
+      { evaluate: jest.fn().mockResolvedValue({ passed: true, gates: [] }) } as never,
+      { verifyProposal: jest.fn().mockResolvedValue({ manifest: proposal.manifest }) } as never,
+    );
+
+    await expect(service.verify({
+      proposal,
+      workspaceRoot: 'D:/workspace',
+      sourceScan: { capabilities: [candidate] } as never,
+    })).resolves.toMatchObject({ passed: true });
+    expect(scanner.scan).not.toHaveBeenCalled();
+  });
 });

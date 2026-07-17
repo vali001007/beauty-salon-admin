@@ -244,9 +244,10 @@ export class BrainCapabilityScannerService {
   }): BrainCapabilityCandidate {
     const controllerData = input.controller?.data ?? {};
     const metadata = input.metadata;
+    const primaryEvidence = input.evidence.filter((item) => item.data.transitiveDependency !== true);
     const writes =
       metadata?.readOnly === false ||
-      input.evidence.some((item) => item.sourceType === 'service' && item.data.writes === true);
+      primaryEvidence.some((item) => item.sourceType === 'service' && item.data.writes === true);
     const readOnly = metadata?.readOnly ?? !writes;
     const sideEffect = !readOnly || writes;
     const businessDefinitionKeys = uniqueSorted(metadata?.businessDefinitionKeys ?? []);
@@ -254,31 +255,31 @@ export class BrainCapabilityScannerService {
     const permissions = uniqueSorted([
       ...(metadata?.permissions ?? []),
       ...asStringArray(controllerData.permissions),
-      ...input.evidence.flatMap((item) => {
+      ...primaryEvidence.flatMap((item) => {
         const value = item.data.permission;
         return typeof value === 'string' ? [value] : [];
       }),
       ...(metadata ? [] : input.anchor.permissionHints.filter((item) => input.registeredPermissions.has(item))),
     ]);
-    const storeScope = metadata?.storeScope ?? this.inferStoreScope(input.evidence);
+    const storeScope = metadata?.storeScope ?? this.inferStoreScope(primaryEvidence);
     const requiresConfirmation =
-      metadata?.requiresConfirmation ?? input.evidence.some((item) => item.sourceType === 'approval');
+      metadata?.requiresConfirmation ?? primaryEvidence.some((item) => item.sourceType === 'approval');
     const idempotency =
       metadata?.idempotency ??
-      (input.evidence.some((item) => item.sourceType === 'idempotency')
+      (primaryEvidence.some((item) => item.sourceType === 'idempotency')
         ? 'required'
         : sideEffect
           ? 'unknown'
           : 'not_applicable');
     const inputTypes = input.controller
       ? controllerData.inputTypes
-      : input.evidence
+      : primaryEvidence
           .filter((item) => item.sourceType === 'controller')
           .flatMap((item) => asStringArray(item.data.inputTypes));
     const returnTypes = uniqueSorted(
       input.controller
         ? [typeof controllerData.returnType === 'string' ? controllerData.returnType : 'unknown']
-        : input.evidence
+        : primaryEvidence
             .filter((item) => item.sourceType === 'controller')
             .map((item) => item.data.returnType)
             .filter((item): item is string => typeof item === 'string'),
@@ -292,7 +293,7 @@ export class BrainCapabilityScannerService {
       storeScope,
       requiresConfirmation,
       idempotency,
-      evidence: input.evidence,
+      evidence: primaryEvidence,
       registeredPermissions: input.registeredPermissions,
       requireAnchorEvidence: input.requireAnchorEvidence,
     });
@@ -312,6 +313,16 @@ export class BrainCapabilityScannerService {
         `${right.sourceType}:${right.symbol}:${JSON.stringify(right.data)}`,
       ),
     );
+    const executorClass = input.controller?.symbol.split('.')[0];
+    const implementationDependencies = uniqueSorted([
+      ...normalizedEvidence
+        .filter((item) => item.sourceType === 'service')
+        .map((item) => item.symbol.split('.')[0]!)
+        .filter((className) => className && className !== executorClass),
+      ...normalizedEvidence
+        .filter((item) => item.sourceType === 'provider')
+        .map((item) => `provider:${item.symbol}`),
+    ]);
     const sourceFingerprint = fingerprint({
       key: input.anchor.key,
       metadata,
@@ -326,6 +337,7 @@ export class BrainCapabilityScannerService {
       idempotency,
       inputContract,
       outputContract,
+      implementationDependencies,
       evidence: normalizedEvidence,
     });
 
@@ -347,7 +359,8 @@ export class BrainCapabilityScannerService {
       inputContract,
       outputContract,
       sourceFingerprint,
-      evidence: dedupeEvidence(input.evidence),
+      implementationDependencies,
+      evidence: dedupeEvidence(primaryEvidence),
       issues,
       ...(metadata?.name && metadata.description && metadata.intents?.length && metadata.examples?.length && metadata.negativeExamples?.length
         ? {
@@ -475,22 +488,81 @@ export class BrainCapabilityScannerService {
     all: BrainCapabilitySourceEvidence[],
     anchor?: CapabilityAnchor,
   ) {
-    const selected = new Set<BrainCapabilitySourceEvidence>([service]);
-    const className = service.symbol.split('.')[0];
-    const inputTypes = asStringArray(service.data.inputTypes).flatMap(extractTypeNames);
-    const metadata = this.capabilityMetadata(service);
-    for (const item of all) {
-      if (item.sourceType === 'service' && item.symbol.startsWith(`${className}.`)) selected.add(item);
-      if (item.sourceType === 'decorator' && item.symbol === service.symbol) selected.add(item);
-      if (item.sourceType === 'dto' && inputTypes.includes(item.symbol)) selected.add(item);
-      if (item.sourceType === 'permission' && metadata?.permissions.includes(item.symbol)) selected.add(item);
+    const selected = new Map<string, BrainCapabilitySourceEvidence>();
+    const queue: BrainCapabilitySourceEvidence[] = [];
+    const serviceEvidence = all.filter((item) => item.sourceType === 'service');
+    const serviceBySymbol = new Map(serviceEvidence.map((item) => [item.symbol, item]));
+    const providersByToken = new Map<string, BrainCapabilitySourceEvidence[]>();
+    for (const provider of all.filter((item) => item.sourceType === 'provider')) {
+      const values = providersByToken.get(provider.symbol) ?? [];
+      values.push(provider);
+      providersByToken.set(provider.symbol, values);
+    }
+    const evidenceKey = (item: BrainCapabilitySourceEvidence) => `${item.sourceType}:${item.path}:${item.symbol}`;
+    const addEvidence = (item: BrainCapabilitySourceEvidence, transitive: boolean) => {
+      const key = evidenceKey(item);
+      const existing = selected.get(key);
+      if (existing && (!existing.data.transitiveDependency || transitive)) return;
+      const value = transitive
+        ? { ...item, data: { ...item.data, transitiveDependency: true } }
+        : item;
+      selected.set(key, value);
+      if (item.sourceType === 'service') queue.push(value);
+    };
+    const addServiceMethod = (className: string, methodName: string, transitive: boolean) => {
+      const target = serviceBySymbol.get(`${className}.${methodName}`);
+      if (target) addEvidence(target, transitive);
+    };
+
+    addEvidence(service, false);
+    while (queue.length) {
+      const current = queue.shift()!;
+      const transitive = current.data.transitiveDependency === true;
+      const currentClass = current.symbol.split('.')[0]!;
+      const inputTypes = asStringArray(current.data.inputTypes).flatMap(extractTypeNames);
+      const metadata = this.capabilityMetadata(current);
+      for (const item of all) {
+        if (item.sourceType === 'decorator' && item.symbol === current.symbol) addEvidence(item, transitive);
+        if (item.sourceType === 'dto' && inputTypes.includes(item.symbol)) addEvidence(item, transitive);
+        if (item.sourceType === 'permission' && metadata?.permissions.includes(item.symbol)) addEvidence(item, transitive);
+      }
+
+      const serviceBindings = asStringRecord(current.data.serviceBindings);
+      const injectionBindings = asStringRecord(current.data.injectionBindings);
+      const semantics = current.data.methodSemantics;
+      const propertyCalls = semantics && typeof semantics === 'object' && !Array.isArray(semantics)
+        ? asStringArray((semantics as Record<string, unknown>).propertyCalls)
+        : [];
+      for (const call of propertyCalls) {
+        const ownCall = /^this\.(\w+)$/.exec(call);
+        if (ownCall) {
+          addServiceMethod(currentClass, ownCall[1]!, transitive);
+          continue;
+        }
+        const injectedCall = /^this\.(\w+)\.(\w+)$/.exec(call);
+        if (!injectedCall) continue;
+        const property = injectedCall[1]!;
+        const methodName = injectedCall[2]!;
+        for (const className of extractTypeNames(serviceBindings[property] ?? '')) {
+          addServiceMethod(className, methodName, true);
+        }
+        const injectionToken = injectionBindings[property];
+        if (!injectionToken) continue;
+        for (const provider of providersByToken.get(injectionToken) ?? []) {
+          addEvidence(provider, true);
+          for (const className of asStringArray(provider.data.dependencies).flatMap(extractTypeNames)) {
+            addServiceMethod(className, 'canHandle', true);
+            addServiceMethod(className, 'execute', true);
+          }
+        }
+      }
     }
     if (anchor) {
       for (const item of this.collectAnchorEvidence(anchor, all)) {
-        if (!['controller', 'service', 'decorator'].includes(item.sourceType)) selected.add(item);
+        if (!['controller', 'service', 'decorator'].includes(item.sourceType)) addEvidence(item, false);
       }
     }
-    return dedupeEvidence([...selected]);
+    return dedupeEvidence([...selected.values()]);
   }
 
   private resolveInputContract(value: unknown, dtoContracts: Map<string, Record<string, string>>) {

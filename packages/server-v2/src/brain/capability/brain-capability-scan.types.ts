@@ -3,6 +3,7 @@ export type BrainCapabilitySourceType =
   | 'controller'
   | 'dto'
   | 'service'
+  | 'provider'
   | 'route'
   | 'menu'
   | 'real_facade'
@@ -58,6 +59,7 @@ export interface BrainCapabilityCandidate {
   inputContract: Record<string, string>;
   outputContract: Record<string, string>;
   sourceFingerprint: string;
+  implementationDependencies?: string[];
   evidence: BrainCapabilitySourceEvidence[];
   issues: BrainCapabilityScanIssue[];
   semanticHints?: {

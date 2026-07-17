@@ -4,6 +4,7 @@ import { BrainCapabilityGenerationGateService } from './brain-capability-generat
 import { BrainCapabilityScannerService } from './brain-capability-scanner.service.js';
 import { BrainCapabilitySemanticVerifierService } from './brain-capability-semantic-verifier.service.js';
 import { canonicalizeBusinessDefinition } from '../../semantic-data/business-definition-projection-compiler.service.js';
+import type { BrainCapabilityScanReport } from './brain-capability-scan.types.js';
 
 @Injectable()
 export class BrainCapabilityPublishedGateService {
@@ -13,11 +14,15 @@ export class BrainCapabilityPublishedGateService {
     private readonly semanticVerifier: BrainCapabilitySemanticVerifierService,
   ) {}
 
-  async verify(input: { proposal: BrainCapabilityGenerationProposal; workspaceRoot: string }) {
+  async verify(input: {
+    proposal: BrainCapabilityGenerationProposal;
+    workspaceRoot: string;
+    sourceScan?: BrainCapabilityScanReport;
+  }) {
     if (input.proposal.status !== 'ready') {
       throw new BadRequestException('generated_capability_published_gate_requires_registry_proposal');
     }
-    const scan = await this.scanner.scan({ workspaceRoot: input.workspaceRoot, explicitOnly: true });
+    const scan = input.sourceScan ?? await this.scanner.scan({ workspaceRoot: input.workspaceRoot, explicitOnly: true });
     const capability = scan.capabilities.find((item) => item.key === input.proposal.capabilityKey);
     if (!capability || capability.sourceFingerprint !== input.proposal.sourceFingerprint) {
       throw new BadRequestException('generated_capability_published_gate_scanner_mismatch');

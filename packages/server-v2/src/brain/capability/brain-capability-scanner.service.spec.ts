@@ -107,6 +107,78 @@ describe('BrainCapabilityScannerService', () => {
     return root;
   };
 
+  const createTransitiveDependencyFixture = async (gapBody: string) => {
+    const root = await mkdtemp(join(tmpdir(), 'ami-brain-capability-dependency-scan-'));
+    await writeFixture(
+      root,
+      'packages/server-v2/src/brain/workflow.executor.ts',
+      `@Injectable()
+       export class WorkflowExecutor {
+         constructor(private readonly registry: AdapterRegistryService) {}
+         @BrainCapability({
+           key: 'gap_fill_touch_preview',
+           businessDefinitionKeys: ['entity.reservation'],
+           readOnly: false,
+           storeScope: 'required',
+           permissions: ['core:brain:use', 'core:marketing:create'],
+           requiresConfirmation: true,
+           idempotency: 'required'
+         })
+         execute() { return this.executeDeclared(); }
+         private executeDeclared() { return this.registry.resolve({ adapterKey: 'marketing' }); }
+       }`,
+    );
+    await writeFixture(
+      root,
+      'packages/server-v2/src/brain/adapter-registry.service.ts',
+      `export const ADAPTERS = Symbol('ADAPTERS');
+       @Injectable()
+       export class AdapterRegistryService {
+         constructor(@Inject(ADAPTERS) private readonly adapters: DomainAdapter[]) {}
+         resolve(plan: unknown) {
+           const adapter = this.adapters.find((item) => item.canHandle(plan));
+           return adapter?.execute(plan);
+         }
+       }`,
+    );
+    await writeFixture(
+      root,
+      'packages/server-v2/src/brain/marketing.adapter.ts',
+      `@Injectable()
+       export class MarketingAdapter {
+         constructor(private readonly gaps: GapService) {}
+         canHandle() { return true; }
+         execute() { return this.gaps.preview(); }
+       }`,
+    );
+    await writeFixture(
+      root,
+      'packages/server-v2/src/scheduling/gap.service.ts',
+      `@Injectable() export class GapService { preview() { ${gapBody} } }`,
+    );
+    await writeFixture(
+      root,
+      'packages/server-v2/src/brain/brain.module.ts',
+      `@Module({ providers: [
+         WorkflowExecutor,
+         AdapterRegistryService,
+         MarketingAdapter,
+         GapService,
+         { provide: ADAPTERS, inject: [MarketingAdapter], useFactory: (marketing: MarketingAdapter) => [marketing] }
+       ] }) export class BrainModule {}`,
+    );
+    await writeFixture(
+      root,
+      'src/config/permissions.ts',
+      `export const PERMISSION_CATALOG = [
+        { code: 'core:brain:use', type: 'operation' },
+        { code: 'core:marketing:create', type: 'operation' }
+      ];`,
+    );
+    await writeFixture(root, 'packages/server-v2/prisma/schema.prisma', 'model Store { id Int @id }');
+    return root;
+  };
+
   it('scans explicit metadata and applies method permissions as an override', async () => {
     const root = await createFixture();
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot: root });
@@ -552,6 +624,28 @@ describe('BrainCapabilityScannerService', () => {
     expect(getFingerprint(direct)).not.toBe(getFingerprint(before));
   });
 
+  it('changes a capability fingerprint when an injected adapter business service changes', async () => {
+    const beforeRoot = await createTransitiveDependencyFixture("return { status: 'empty' };");
+    const afterRoot = await createTransitiveDependencyFixture("return { status: 'ready', candidateCount: 1 };");
+    const scanner = new BrainCapabilityScannerService();
+    const before = await scanner.scan({ workspaceRoot: beforeRoot, explicitOnly: true });
+    const after = await scanner.scan({ workspaceRoot: afterRoot, explicitOnly: true });
+    const beforeCapability = before.capabilities[0]!;
+    const afterCapability = after.capabilities[0]!;
+
+    expect(afterCapability.sourceFingerprint).not.toBe(beforeCapability.sourceFingerprint);
+    expect(afterCapability.implementationDependencies).toEqual(expect.arrayContaining([
+      'AdapterRegistryService',
+      'MarketingAdapter',
+      'GapService',
+      'provider:ADAPTERS',
+    ]));
+    expect(afterCapability.evidence.some((item) => item.symbol === 'GapService.preview')).toBe(false);
+    expect(new BrainCapabilityDriftService().compare(after, before).items).toEqual([
+      expect.objectContaining({ key: 'gap_fill_touch_preview', type: 'changed' }),
+    ]);
+  });
+
   it('blocks parse failures and fails strict against an empty baseline', async () => {
     const root = await createFixture();
     await writeFixture(
@@ -658,6 +752,9 @@ describe('BrainCapabilityScannerService', () => {
       report.capabilities.every((item) => item.evidence.some((evidence) => evidence.sourceType === 'service')),
     ).toBe(true);
     expect(report.capabilities.every((item) => item.issues.length === 0)).toBe(true);
+    expect(new Map(report.capabilities.map((item) => [item.key, item.implementationDependencies])).get('gap_fill_touch_preview')).toEqual(
+      expect.arrayContaining(['BrainMarketingDomainAdapter', 'GapOpportunityService', 'provider:BRAIN_DOMAIN_ADAPTERS']),
+    );
     expect(new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('beautician_service_overview')).toEqual(['beautician']);
     expect(new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('finance_payment_breakdown')).toEqual(['finance', 'store_manager']);
     expect(new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('store_operations_overview')).toEqual(['store_manager']);

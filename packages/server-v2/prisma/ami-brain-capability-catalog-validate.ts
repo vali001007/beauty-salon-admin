@@ -4,6 +4,8 @@ import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capabili
 import { BrainCapabilityCatalogService } from '../src/brain/capability/brain-capability-catalog.service.js';
 import { BrainCapabilityDefinitionSnapshotSourceService } from '../src/brain/capability/brain-capability-definition-snapshot-source.service.js';
 import { BrainCapabilitySemanticVerifierService } from '../src/brain/capability/brain-capability-semantic-verifier.service.js';
+import { BrainCapabilityScannerService } from '../src/brain/capability/brain-capability-scanner.service.js';
+import { evaluateCapabilitySourceFreshness } from '../src/brain/capability/brain-capability-source-freshness.js';
 import { loadRegisteredBrainPermissionCodes } from '../src/brain/capability/brain-registered-permission-codes.provider.js';
 import { BrainRuntimeConfigService } from '../src/brain/config/brain-runtime-config.service.js';
 import { BrainReleaseService } from '../src/brain/governance/brain-release.service.js';
@@ -13,7 +15,8 @@ import { BusinessDefinitionRegistryService } from '../src/semantic-data/business
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 async function main() {
-  loadWorkspaceEnvironment(resolve(process.cwd(), '..', '..'));
+  const workspaceRoot = resolve(process.cwd(), '..', '..');
+  loadWorkspaceEnvironment(workspaceRoot);
   const releaseId = Number(process.argv.find((item) => item.startsWith('--release-id='))?.split('=')[1]);
   if (!Number.isInteger(releaseId) || releaseId < 1) throw new Error('capability_catalog_release_id_required');
   const prisma = new PrismaService();
@@ -30,15 +33,19 @@ async function main() {
     );
     const snapshot = await new BrainReleaseService(prisma).freezeEvaluationRelease(releaseId);
     const report = await catalog.validateEnabledCapabilities(snapshot.capabilityCandidates);
+    const sourceScan = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
+    const freshness = evaluateCapabilitySourceFreshness(snapshot.capabilityCandidates, sourceScan);
+    const valid = report.valid && freshness.valid;
     process.stdout.write(`${JSON.stringify({
       releaseId,
       releaseFingerprint: snapshot.releaseFingerprint,
       capabilityCount: snapshot.capabilityCandidates.length,
-      valid: report.valid,
+      valid,
       cardCount: report.cards.length,
       issues: report.issues,
+      sourceFreshness: freshness,
     }, null, 2)}\n`);
-    if (!report.valid) process.exitCode = 1;
+    if (!valid) process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
