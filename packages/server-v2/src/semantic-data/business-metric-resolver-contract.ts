@@ -11,7 +11,8 @@ export interface BusinessMetricResolverContract {
     | 'customer_retention_summary'
     | 'customer_acquisition_conversion_summary'
     | 'customer_service_feedback_summary'
-    | 'customer_service_feedback_by_staff';
+    | 'customer_service_feedback_by_staff'
+    | 'customer_waiting_summary';
   readonly storeModel: string;
   readonly dimensionFields: readonly string[];
   readonly numericExpressionFields: readonly string[];
@@ -120,6 +121,23 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
         'lowRatingCount',
         'ratedFeedbackCount',
         'averageRating',
+      ]),
+    }),
+    customer_waiting_summary: Object.freeze({
+      key: 'customer_waiting_summary' as const,
+      storeModel: 'CustomerWaitingEpisode',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze([
+        'waitingEpisodeCount',
+        'activeWaitingCount',
+        'endedWaitingCount',
+        'servedCount',
+        'leftCount',
+        'longWaitDepartureCount',
+        'averageWaitMinutes',
+        'checkedInReservationCount',
+        'linkedReservationCount',
+        'collectionCoverageRate',
       ]),
     }),
   });

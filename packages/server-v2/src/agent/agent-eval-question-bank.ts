@@ -368,6 +368,10 @@ function inferExpectedMetrics(input: string) {
     values.add('customer_average_satisfaction_rating');
     values.add('customer_feedback_collection_coverage_rate');
   }
+  if (/(等待|排队).*(过久|太久|时间长).*(离开|离店|走了)|等太久.*(?:离开|离店|走了)/.test(input)) {
+    values.add('customer_long_wait_departure_count');
+    values.add('customer_waiting_collection_coverage_rate');
+  }
   return [...values];
 }
 

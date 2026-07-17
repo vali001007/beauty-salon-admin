@@ -189,3 +189,18 @@ export async function realCancelReservation(id: string | number, reason?: string
   const response = await apiClient.post<unknown, ApiReservation>(`/reservations/${id}/cancel`, { reason });
   return normalizeReservation(response);
 }
+
+export async function realStartCustomerWaiting(id: string | number, expectedWaitMinutes?: number): Promise<any> {
+  return apiClient.post(`/customer-waiting/reservations/${id}/start`, { expectedWaitMinutes });
+}
+
+export async function realMarkCustomerWaitingServed(episodeId: string | number): Promise<any> {
+  return apiClient.post(`/customer-waiting/episodes/${episodeId}/served`);
+}
+
+export async function realMarkCustomerWaitingLeft(
+  episodeId: string | number,
+  data: { reasonCode: string; reasonNote?: string },
+): Promise<any> {
+  return apiClient.post(`/customer-waiting/episodes/${episodeId}/left`, data);
+}

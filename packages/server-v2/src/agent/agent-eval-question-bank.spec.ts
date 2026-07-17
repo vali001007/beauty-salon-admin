@@ -90,6 +90,8 @@ describe('Agent eval question bank', () => {
       .toEqual(expect.arrayContaining(['customer_average_satisfaction_rating', 'customer_feedback_collection_coverage_rate']));
     expect(bank.questions.find((item) => item.input === '哪个美容师的客诉最多，最近有没有')?.expectedMetrics)
       .toContain('staff_customer_complaint_count');
+    expect(bank.questions.find((item) => item.input === '最近有没有客户因为等待时间长而离开')?.expectedMetrics)
+      .toEqual(expect.arrayContaining(['customer_long_wait_departure_count', 'customer_waiting_collection_coverage_rate']));
   });
 
   it('selects the first 120 P0 gate cases by role and edge strategy', () => {

@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate, toBusinessDateOnly } from '../common/utils/business-time.js';
+import { CustomerWaitingService } from './customer-waiting.service.js';
 
 @Injectable()
 export class ReservationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly customerWaiting: CustomerWaitingService) {}
 
   async findPaginated(query: {
     page?: number;
@@ -68,7 +69,7 @@ export class ReservationsService {
         orderBy: scope === 'future'
           ? [{ date: 'asc' }, { startTime: 'asc' }, { id: 'asc' }]
           : [{ date: 'desc' }, { startTime: 'desc' }, { id: 'desc' }],
-        include: { store: true, customer: true, project: true, beautician: true },
+        include: { store: true, customer: true, project: true, beautician: true, waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' } } },
       }),
       this.prisma.reservation.count({ where }),
     ]);
@@ -85,7 +86,7 @@ export class ReservationsService {
   async findById(id: number) {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id },
-      include: { store: true, customer: true, project: true, beautician: true },
+      include: { store: true, customer: true, project: true, beautician: true, waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' } } },
     });
     if (!reservation) throw new NotFoundException('预约不存在');
     return this.mapReservation(reservation);
@@ -98,7 +99,7 @@ export class ReservationsService {
     const updated = await this.prisma.reservation.update({
       where: { id },
       data: updateData,
-      include: { store: true, customer: true, project: true, beautician: true },
+      include: { store: true, customer: true, project: true, beautician: true, waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' } } },
     });
     return this.mapReservation(updated);
   }
@@ -115,15 +116,17 @@ export class ReservationsService {
     return this.mapReservation(updated);
   }
 
-  async checkIn(id: number) {
-    const reservation = await this.prisma.reservation.findUnique({ where: { id } });
+  async checkIn(id: number, storeId?: number, userId?: number) {
+    const reservation = await this.prisma.reservation.findFirst({ where: { id, ...(storeId ? { storeId } : {}) } });
     if (!reservation) throw new NotFoundException('预约不存在');
     if (!['pending', 'confirmed'].includes(this.getEffectiveStatus(reservation))) throw new BadRequestException('当前预约状态不能到店');
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id },
       data: { status: 'checked_in', checkedInAt: new Date() },
       include: { store: true, customer: true, project: true, beautician: true },
-    }).then((item) => this.mapReservation(item));
+    });
+    await this.customerWaiting.startForReservation(updated.storeId, userId, updated.id, undefined, 'reservation_check_in');
+    return this.findById(updated.id);
   }
 
   async cancel(id: number, reason?: string) {
@@ -263,6 +266,8 @@ export class ReservationsService {
       createTime: createdAt,
       createdAt,
       checkedInAt: this.toIso(reservation.checkedInAt) || undefined,
+      waitingEpisodeId: reservation.waitingEpisodes?.[0]?.id ?? undefined,
+      waitingStartedAt: this.toIso(reservation.waitingEpisodes?.[0]?.startedAt) || undefined,
     };
   }
 }

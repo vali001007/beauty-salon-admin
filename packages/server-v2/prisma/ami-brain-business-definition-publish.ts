@@ -8,6 +8,7 @@ import { BrainManagerSkillsService } from '../src/brain/skills/brain-manager-ski
 import { BrainMarketingSkillsService } from '../src/brain/skills/brain-marketing-skills.service.js';
 import { BrainCustomerFactResolverService } from '../src/brain/domain/brain-customer-fact-resolver.service.js';
 import { CustomerFeedbackService } from '../src/customer-feedback/customer-feedback.service.js';
+import { CustomerWaitingService } from '../src/reservations/customer-waiting.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { BusinessDefinitionModule } from '../src/semantic-data/business-definition.module.js';
 import { createBusinessDefinitionFixtureArtifactFingerprint } from '../src/semantic-data/business-definition-fixture-source.service.js';
@@ -43,6 +44,7 @@ async function main() {
     const marketingSkills = new BrainMarketingSkillsService(prisma);
     const customerFacts = new BrainCustomerFactResolverService(prisma);
     const customerFeedback = new CustomerFeedbackService(prisma);
+    const customerWaiting = new CustomerWaitingService(prisma);
     const candidateAdapter = app.get(BusinessDefinitionCandidateRuntimeQueryAdapter).useResolverRowSource({
       async loadRows(input) {
         if (input.resolverKey === 'manager_staff_analysis') {
@@ -87,6 +89,13 @@ async function main() {
           return input.resolverKey === 'customer_service_feedback_summary'
             ? [result.summary as unknown as Record<string, unknown>]
             : result.staff as unknown as Record<string, unknown>[];
+        }
+        if (input.resolverKey === 'customer_waiting_summary') {
+          const result = await customerWaiting.analytics(input.storeId, {
+            startDate: input.startDate.toISOString(),
+            endDate: new Date(input.endExclusive.getTime() - 1).toISOString(),
+          });
+          return [result.summary as unknown as Record<string, unknown>];
         }
         return marketingSkills.buildFollowUpPriorityRows({
           storeId: input.storeId,

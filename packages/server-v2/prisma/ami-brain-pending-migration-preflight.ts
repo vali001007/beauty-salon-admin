@@ -12,6 +12,7 @@ import {
   CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS,
   CUSTOMER_FEEDBACK_REQUIRED_INDEXES,
   CUSTOMER_SERVICE_FEEDBACK_MIGRATION,
+  CUSTOMER_WAITING_EPISODE_MIGRATION,
   STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION,
   type BrainMigrationHistoryState,
   type BrainMigrationPreflightInput,
@@ -29,7 +30,11 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
-const MIGRATION_NAMES = [STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION, CUSTOMER_SERVICE_FEEDBACK_MIGRATION] as const;
+const MIGRATION_NAMES = [
+  STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION,
+  CUSTOMER_SERVICE_FEEDBACK_MIGRATION,
+  CUSTOMER_WAITING_EPISODE_MIGRATION,
+] as const;
 
 type MigrationRow = {
   migration_name: string;
@@ -122,16 +127,37 @@ async function migrationRows(migrationTableExists: boolean) {
 }
 
 async function collectInput(): Promise<BrainMigrationPreflightInput> {
-  const tables = await tableNames(['_prisma_migrations', 'Role', 'Store', 'Customer', 'customer_service_feedback']);
+  const tables = await tableNames([
+    '_prisma_migrations',
+    'Role',
+    'Store',
+    'Customer',
+    'Reservation',
+    'customer_service_feedback',
+    'customer_waiting_episode',
+  ]);
   const migrationTableExists = tables.has('_prisma_migrations');
   const roleTableExists = tables.has('Role');
   const customerFeedbackTableExists = tables.has('customer_service_feedback');
-  const [migrationRecords, roleColumns, feedbackColumns, feedbackConstraints, feedbackIndexes] = await Promise.all([
+  const customerWaitingTableExists = tables.has('customer_waiting_episode');
+  const [
+    migrationRecords,
+    roleColumns,
+    feedbackColumns,
+    feedbackConstraints,
+    feedbackIndexes,
+    waitingColumns,
+    waitingConstraints,
+    waitingIndexes,
+  ] = await Promise.all([
     migrationRows(migrationTableExists),
     roleTableExists ? columnsFor('Role') : Promise.resolve([]),
     customerFeedbackTableExists ? columnsFor('customer_service_feedback') : Promise.resolve([]),
     customerFeedbackTableExists ? constraintsFor('customer_service_feedback') : Promise.resolve([]),
     customerFeedbackTableExists ? indexesFor('customer_service_feedback') : Promise.resolve([]),
+    customerWaitingTableExists ? columnsFor('customer_waiting_episode') : Promise.resolve([]),
+    customerWaitingTableExists ? constraintsFor('customer_waiting_episode') : Promise.resolve([]),
+    customerWaitingTableExists ? indexesFor('customer_waiting_episode') : Promise.resolve([]),
   ]);
   const migrationByName = new Map(migrationRecords.map((row) => [row.migration_name, row]));
   const storeManagerRole = roleTableExists
@@ -145,6 +171,7 @@ async function collectInput(): Promise<BrainMigrationPreflightInput> {
         migrationByName.get(STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION),
       ),
       [CUSTOMER_SERVICE_FEEDBACK_MIGRATION]: historyState(migrationByName.get(CUSTOMER_SERVICE_FEEDBACK_MIGRATION)),
+      [CUSTOMER_WAITING_EPISODE_MIGRATION]: historyState(migrationByName.get(CUSTOMER_WAITING_EPISODE_MIGRATION)),
     },
     roleSchema: { tableExists: roleTableExists, columns: roleColumns },
     storeManagerRole: {
@@ -158,7 +185,17 @@ async function collectInput(): Promise<BrainMigrationPreflightInput> {
       constraints: feedbackConstraints,
       indexes: feedbackIndexes,
     },
-    dependencies: { Store: tables.has('Store'), Customer: tables.has('Customer') },
+    customerWaitingSchema: {
+      tableExists: customerWaitingTableExists,
+      columns: waitingColumns,
+      constraints: waitingConstraints,
+      indexes: waitingIndexes,
+    },
+    dependencies: {
+      Store: tables.has('Store'),
+      Customer: tables.has('Customer'),
+      Reservation: tables.has('Reservation'),
+    },
   };
 }
 
@@ -176,7 +213,7 @@ function renderMarkdown(result: BrainPendingMigrationPreflightResult) {
     })
     .join('\n\n');
 
-  return `# Ami Brain 待迁移项只读预检报告\n\n生成时间：${result.generatedAt}\n\n## 1. 总结\n\n- 总体状态：\`${result.status}\`\n- 数据库写入：未执行\n- 是否进入审批：${result.approval.decisionRequired ? '是' : '否'}\n- 审批动作：通过 / 修改 / 拒绝\n- 审批摘要：${result.approval.summary}\n\n${migrationSections}\n\n## 4. 执行边界\n\n- 本脚本只读取 migration 历史、系统目录、Role 和 store_manager 权限。\n- 本脚本不会执行 migration、resolve、DDL、DML、回填或权限修改。\n- 只有状态为 \`ready\` 且用户另行明确授权后，才可进入 apply -> verify。\n`;
+  return `# Ami Brain 待迁移项只读预检报告\n\n生成时间：${result.generatedAt}\n\n## 1. 总结\n\n- 总体状态：\`${result.status}\`\n- 数据库写入：未执行\n- 是否进入审批：${result.approval.decisionRequired ? '是' : '否'}\n- 审批动作：通过 / 修改 / 拒绝\n- 审批摘要：${result.approval.summary}\n\n${migrationSections}\n\n## ${result.migrations.length + 2}. 执行边界\n\n- 本脚本只读取 migration 历史、系统目录、Role 和 store_manager 权限。\n- 本脚本不会执行 migration、resolve、DDL、DML、回填或权限修改。\n- 只有状态为 \`ready\` 且用户另行明确授权后，才可进入 apply -> verify。\n`;
 }
 
 async function main() {

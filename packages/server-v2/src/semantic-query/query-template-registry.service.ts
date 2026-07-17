@@ -201,6 +201,16 @@ export class QueryTemplateRegistryService {
       defaultLimit: 10,
     },
     {
+      id: 'customer_waiting',
+      title: '客户等待与离店查询',
+      description: '查询客户等待、因等待过久离店和等待记录采集覆盖率。',
+      capabilityIds: ['customer_waiting_loss_overview'],
+      metricKeys: ['customer_long_wait_departure_count', 'customer_waiting_collection_coverage_rate'],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary', 'table', 'list'],
+      sourceModels: ['CustomerWaitingEpisode', 'Reservation', 'Customer'],
+    },
+    {
       id: 'customer_retention',
       title: '客户留存查询',
       description: '查询客户复购率和重复消费客户的平均回访间隔。',

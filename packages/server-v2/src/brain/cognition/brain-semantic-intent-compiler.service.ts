@@ -991,6 +991,10 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
       return /(反馈|评价|满意度)/.test(normalizedQuestion) && /(覆盖率|采集率|整体情况|总体情况)/.test(normalizedQuestion);
     case 'staff_customer_complaint_count':
       return /(美容师|员工|谁|哪个|哪位)/.test(normalizedQuestion) && /(投诉|客诉|差评)/.test(normalizedQuestion);
+    case 'customer_long_wait_departure_count':
+      return /(等待|排队).*(过久|太久|时间长).*(离开|离店|走了)|等太久.*(?:离开|离店|走了)/.test(normalizedQuestion);
+    case 'customer_waiting_collection_coverage_rate':
+      return /(等待|排队).*(覆盖率|采集率|记录情况)/.test(normalizedQuestion);
     default:
       return false;
   }

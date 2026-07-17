@@ -89,7 +89,8 @@ export interface BusinessMetricRuntimeResolver {
     | 'customer_retention_summary'
     | 'customer_acquisition_conversion_summary'
     | 'customer_service_feedback_summary'
-    | 'customer_service_feedback_by_staff';
+    | 'customer_service_feedback_by_staff'
+    | 'customer_waiting_summary';
   readonly dimensionFields: Readonly<Record<string, string>>;
   readonly expression: BusinessMetricRuntimeExpression;
   readonly overallAggregation: 'sum' | 'avg' | 'min' | 'max';

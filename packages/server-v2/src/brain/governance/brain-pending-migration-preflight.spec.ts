@@ -4,12 +4,17 @@ import {
   CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS,
   CUSTOMER_FEEDBACK_REQUIRED_INDEXES,
   CUSTOMER_SERVICE_FEEDBACK_MIGRATION,
+  CUSTOMER_WAITING_EPISODE_MIGRATION,
+  CUSTOMER_WAITING_REQUIRED_COLUMNS,
+  CUSTOMER_WAITING_REQUIRED_CONSTRAINTS,
+  CUSTOMER_WAITING_REQUIRED_INDEXES,
   STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION,
   type BrainMigrationPreflightInput,
 } from './brain-pending-migration-preflight.js';
 
-type InputOverrides = Omit<Partial<BrainMigrationPreflightInput>, 'migrations'> & {
+type InputOverrides = Omit<Partial<BrainMigrationPreflightInput>, 'migrations' | 'dependencies'> & {
   migrations?: Partial<BrainMigrationPreflightInput['migrations']>;
+  dependencies?: Partial<BrainMigrationPreflightInput['dependencies']>;
 };
 
 function input(overrides: InputOverrides = {}): BrainMigrationPreflightInput {
@@ -18,11 +23,13 @@ function input(overrides: InputOverrides = {}): BrainMigrationPreflightInput {
     migrations: {
       [STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION]: { status: 'pending' },
       [CUSTOMER_SERVICE_FEEDBACK_MIGRATION]: { status: 'pending' },
+      [CUSTOMER_WAITING_EPISODE_MIGRATION]: { status: 'pending' },
     },
     roleSchema: { tableExists: true, columns: ['key', 'status', 'permissions'] },
     storeManagerRole: { exists: true, status: 'active', permissions: ['core:supply:view'] },
     customerFeedbackSchema: { tableExists: false, columns: [], constraints: [], indexes: [] },
-    dependencies: { Store: true, Customer: true },
+    customerWaitingSchema: { tableExists: false, columns: [], constraints: [], indexes: [] },
+    dependencies: { Store: true, Customer: true, Reservation: true },
   };
   return {
     ...base,
@@ -31,6 +38,7 @@ function input(overrides: InputOverrides = {}): BrainMigrationPreflightInput {
     roleSchema: { ...base.roleSchema, ...overrides.roleSchema },
     storeManagerRole: { ...base.storeManagerRole, ...overrides.storeManagerRole },
     customerFeedbackSchema: { ...base.customerFeedbackSchema, ...overrides.customerFeedbackSchema },
+    customerWaitingSchema: { ...base.customerWaitingSchema, ...overrides.customerWaitingSchema },
     dependencies: { ...base.dependencies, ...overrides.dependencies },
   };
 }
@@ -42,6 +50,7 @@ describe('brain pending migration preflight', () => {
     expect(result.status).toBe('ready');
     expect(result.databaseWritePerformed).toBe(false);
     expect(result.approval).toMatchObject({ decisionRequired: true, allowedDecisions: ['approve', 'modify', 'reject'] });
+    expect(result.migrations).toHaveLength(3);
     expect(result.migrations.every((item) => item.directApplyAllowed)).toBe(true);
   });
 
@@ -84,6 +93,7 @@ describe('brain pending migration preflight', () => {
         migrations: {
           [STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION]: { status: 'applied', finishedAt: '2026-07-17T01:00:00.000Z' },
           [CUSTOMER_SERVICE_FEEDBACK_MIGRATION]: { status: 'applied', finishedAt: '2026-07-17T01:00:01.000Z' },
+          [CUSTOMER_WAITING_EPISODE_MIGRATION]: { status: 'applied', finishedAt: '2026-07-17T01:00:02.000Z' },
         },
         storeManagerRole: { exists: true, status: 'active', permissions: ['core:supply:manage'] },
         customerFeedbackSchema: {
@@ -91,6 +101,12 @@ describe('brain pending migration preflight', () => {
           columns: [...CUSTOMER_FEEDBACK_REQUIRED_COLUMNS],
           constraints: [...CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS],
           indexes: [...CUSTOMER_FEEDBACK_REQUIRED_INDEXES],
+        },
+        customerWaitingSchema: {
+          tableExists: true,
+          columns: [...CUSTOMER_WAITING_REQUIRED_COLUMNS],
+          constraints: [...CUSTOMER_WAITING_REQUIRED_CONSTRAINTS],
+          indexes: [...CUSTOMER_WAITING_REQUIRED_INDEXES],
         },
       }),
     );
@@ -119,5 +135,14 @@ describe('brain pending migration preflight', () => {
 
     expect(result.status).toBe('blocked');
     expect(result.migrations[0].checks[0]).toMatchObject({ status: 'fail' });
+  });
+
+  it('blocks a pending waiting migration when its target table already exists', () => {
+    const result = buildBrainPendingMigrationPreflight(
+      input({ customerWaitingSchema: { tableExists: true, columns: ['id'], constraints: [], indexes: [] } }),
+    );
+
+    expect(result.status).toBe('blocked');
+    expect(result.migrations[2].summary).toContain('已经存在');
   });
 });

@@ -1279,6 +1279,59 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     ]));
     expect(result.metadata).toMatchObject({ answerScope: 'staff_complaint_ranking' });
   });
+
+  it('answers long-wait departures from explicit waiting facts and discloses coverage', async () => {
+    const customerWaiting = {
+      analytics: jest.fn().mockResolvedValue({
+        summary: {
+          waitingEpisodeCount: 5,
+          activeWaitingCount: 1,
+          endedWaitingCount: 4,
+          servedCount: 2,
+          leftCount: 2,
+          longWaitDepartureCount: 1,
+          averageWaitMinutes: 26.5,
+          checkedInReservationCount: 10,
+          linkedReservationCount: 5,
+          collectionCoverageRate: 0.5,
+        },
+        longWaitDepartures: [{ customerName: '林女士', actualWaitMinutes: 48, reasonNote: '等待过久' }],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      customerWaiting as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_waiting_loss_overview', name: '客户等待流失分析' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'waiting-loss-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 13,
+      question: '最近有没有客户因为等待时间长而离开',
+      args: {
+        objective: '查询等待过久离店',
+        time: { label: '最近30天', timezone: 'Asia/Shanghai', startDate: '2026-06-18', endDate: '2026-07-17' },
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('有 1 位客户明确记录为因等待过久离店');
+    expect(result.answer).toContain('等待记录覆盖率 50.0%');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'table', rows: [expect.objectContaining({ customerName: '林女士' })] }),
+      expect.objectContaining({ kind: 'limitations', items: [expect.stringContaining('未记录不代表客户没有等待或离店')] }),
+    ]));
+    expect(result.metadata).toMatchObject({ capabilityKey: 'customer_waiting_loss_overview' });
+  });
 });
 
 function feedbackAnalytics(): any {

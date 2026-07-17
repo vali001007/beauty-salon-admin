@@ -1,6 +1,7 @@
 export const STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION =
   '20260717130000_store_manager_supply_manage_permission';
 export const CUSTOMER_SERVICE_FEEDBACK_MIGRATION = '20260717220000_customer_service_feedback_core';
+export const CUSTOMER_WAITING_EPISODE_MIGRATION = '20260717233000_customer_waiting_episode_core';
 
 export type BrainMigrationPreflightStatus = 'ready' | 'needs_review' | 'blocked' | 'already_applied';
 export type BrainMigrationHistoryStatus = 'pending' | 'applied' | 'failed' | 'rolled_back';
@@ -16,7 +17,9 @@ export type BrainMigrationHistoryState = {
 export type BrainMigrationPreflightInput = {
   migrationTableExists: boolean;
   migrations: Record<
-    typeof STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION | typeof CUSTOMER_SERVICE_FEEDBACK_MIGRATION,
+    | typeof STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION
+    | typeof CUSTOMER_SERVICE_FEEDBACK_MIGRATION
+    | typeof CUSTOMER_WAITING_EPISODE_MIGRATION,
     BrainMigrationHistoryState
   >;
   roleSchema: {
@@ -34,9 +37,16 @@ export type BrainMigrationPreflightInput = {
     constraints: string[];
     indexes: string[];
   };
+  customerWaitingSchema: {
+    tableExists: boolean;
+    columns: string[];
+    constraints: string[];
+    indexes: string[];
+  };
   dependencies: {
     Store: boolean;
     Customer: boolean;
+    Reservation: boolean;
   };
 };
 
@@ -115,6 +125,34 @@ export const CUSTOMER_FEEDBACK_REQUIRED_INDEXES = [
   'customer_service_feedback_serviceTaskId_idx',
   'customer_service_feedback_reservationId_idx',
   'customer_service_feedback_orderId_idx',
+] as const;
+
+export const CUSTOMER_WAITING_REQUIRED_COLUMNS = [
+  'id', 'storeId', 'customerId', 'reservationId', 'status', 'outcome', 'leaveReasonCode', 'leaveReasonNote',
+  'expectedWaitMinutes', 'actualWaitMinutes', 'startedAt', 'endedAt', 'sourceChannel', 'recordedByUserId',
+  'createdAt', 'updatedAt',
+] as const;
+
+export const CUSTOMER_WAITING_REQUIRED_CONSTRAINTS = [
+  'customer_waiting_episode_pkey',
+  'customer_waiting_episode_status_check',
+  'customer_waiting_episode_outcome_check',
+  'customer_waiting_episode_reason_check',
+  'customer_waiting_episode_expected_minutes_check',
+  'customer_waiting_episode_actual_minutes_check',
+  'customer_waiting_episode_end_check',
+  'customer_waiting_episode_storeId_fkey',
+  'customer_waiting_episode_customerId_fkey',
+  'customer_waiting_episode_reservationId_fkey',
+] as const;
+
+export const CUSTOMER_WAITING_REQUIRED_INDEXES = [
+  'customer_waiting_episode_active_reservation_key',
+  'customer_waiting_episode_storeId_startedAt_idx',
+  'customer_waiting_episode_storeId_status_startedAt_idx',
+  'customer_waiting_episode_storeId_outcome_leaveReasonCode_startedAt_idx',
+  'customer_waiting_episode_reservationId_status_idx',
+  'customer_waiting_episode_customerId_startedAt_idx',
 ] as const;
 
 const ROLE_REQUIRED_COLUMNS = ['key', 'status', 'permissions'] as const;
@@ -386,6 +424,67 @@ function classifyCustomerFeedbackMigration(input: BrainMigrationPreflightInput):
   };
 }
 
+function classifyCustomerWaitingMigration(input: BrainMigrationPreflightInput): BrainMigrationPreflightItem {
+  const migrationName = CUSTOMER_WAITING_EPISODE_MIGRATION;
+  const history = input.migrations[migrationName];
+  const schema = input.customerWaitingSchema;
+  const missingColumns = missing(CUSTOMER_WAITING_REQUIRED_COLUMNS, schema.columns);
+  const missingConstraints = missing(CUSTOMER_WAITING_REQUIRED_CONSTRAINTS, schema.constraints);
+  const missingIndexes = missing(CUSTOMER_WAITING_REQUIRED_INDEXES, schema.indexes);
+  const dependenciesReady = input.dependencies.Store && input.dependencies.Customer && input.dependencies.Reservation;
+  const completeSchema = schema.tableExists && missingColumns.length === 0 && missingConstraints.length === 0 && missingIndexes.length === 0;
+  const checks: BrainMigrationPreflightCheck[] = [
+    historyCheck(history),
+    {
+      key: 'waiting_dependencies',
+      status: dependenciesReady ? 'pass' : 'fail',
+      message: dependenciesReady ? 'Store、Customer 与 Reservation 依赖表齐全。' : '等待事实迁移所需依赖表缺失。',
+      evidence: input.dependencies,
+    },
+    {
+      key: 'waiting_target_table',
+      status: schema.tableExists ? (history.status === 'applied' ? 'pass' : 'fail') : history.status === 'applied' ? 'fail' : 'pass',
+      message: schema.tableExists ? 'customer_waiting_episode 目标表已经存在。' : 'customer_waiting_episode 尚不存在，不会发生 CREATE TABLE 冲突。',
+      evidence: { tableExists: schema.tableExists },
+    },
+    {
+      key: 'waiting_schema_contract',
+      status: schema.tableExists ? (completeSchema ? 'pass' : 'fail') : 'pass',
+      message: schema.tableExists
+        ? completeSchema ? '现有等待事实表满足字段、约束和索引合同。' : '现有等待事实表结构不完整或已发生漂移。'
+        : '待迁移项将创建完整等待事实 schema 合同。',
+      evidence: { missingColumns, missingConstraints, missingIndexes },
+    },
+  ];
+  if (!input.migrationTableExists) {
+    return blockedItem(migrationName, '缺少 Prisma migration 历史表。', checks, ['无法证明等待事实表是否由受治理迁移创建。'], '先恢复 Prisma migration 历史，再进入执行审批。');
+  }
+  if (history.status === 'failed' || history.status === 'rolled_back') {
+    return blockedItem(migrationName, '等待事实迁移存在失败或回滚记录。', checks, ['直接重试可能与部分创建对象冲突。'], '先修复残留对象和迁移历史，再重新预检。');
+  }
+  if (!dependenciesReady) {
+    return blockedItem(migrationName, '等待事实迁移依赖不完整。', checks, ['当前 schema 无法创建全部外键。'], '先恢复依赖表，再重新预检。');
+  }
+  if (history.status === 'applied') {
+    if (!completeSchema) {
+      return blockedItem(migrationName, '迁移历史显示已应用，但等待事实 schema 不完整。', checks, ['等待流失统计可能缺字段、约束或幂等索引。'], '通过新的受审查迁移修复漂移，不得改写已应用历史。');
+    }
+    return { migrationName, status: 'already_applied', directApplyAllowed: false, summary: '迁移历史与等待事实 schema 一致。', checks, risks: [], rollbackBoundary: '无需数据库操作。' };
+  }
+  if (schema.tableExists) {
+    return blockedItem(migrationName, '迁移历史仍待应用，但等待事实目标表已经存在。', checks, ['直接执行 CREATE TABLE 会失败。'], '先对比现有表与迁移，再选择结构修复或历史对齐路径。');
+  }
+  return {
+    migrationName,
+    status: 'ready',
+    directApplyAllowed: true,
+    summary: '依赖表齐全，未发现等待事实 schema 冲突。',
+    checks,
+    risks: ['迁移将创建客户等待业务事实、原因约束和预约级活动等待唯一索引。'],
+    rollbackBoundary: '产生真实等待数据前可删表回滚；产生业务数据后必须先备份并走受审查迁移。',
+  };
+}
+
 function overallStatus(items: BrainMigrationPreflightItem[]): BrainMigrationPreflightStatus {
   if (items.some((item) => item.status === 'blocked')) return 'blocked';
   if (items.some((item) => item.status === 'needs_review')) return 'needs_review';
@@ -397,7 +496,11 @@ export function buildBrainPendingMigrationPreflight(
   input: BrainMigrationPreflightInput,
   generatedAt = new Date().toISOString(),
 ): BrainPendingMigrationPreflightResult {
-  const migrations = [classifySupplyPermissionMigration(input), classifyCustomerFeedbackMigration(input)];
+  const migrations = [
+    classifySupplyPermissionMigration(input),
+    classifyCustomerFeedbackMigration(input),
+    classifyCustomerWaitingMigration(input),
+  ];
   const status = overallStatus(migrations);
   const directApplyCount = migrations.filter((item) => item.directApplyAllowed).length;
   return {

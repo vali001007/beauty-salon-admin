@@ -126,6 +126,7 @@ model Store {
   cardUsageRecords         CardUsageRecord[]
   cards                    Card[]
   customerServiceFeedback CustomerServiceFeedback[]
+  customerWaitingEpisodes CustomerWaitingEpisode[]
   brainOperatingTargets    BrainStoreOperatingTarget[]
 
   @@index([status])
@@ -291,6 +292,7 @@ model Customer {
   customerAppIdentities CustomerAppIdentity[]
   terminalFollowUpTasks TerminalFollowUpTask[]
   serviceFeedback      CustomerServiceFeedback[]
+  waitingEpisodes      CustomerWaitingEpisode[]
   recommendationAudienceMemberships MarketingRecommendationAudienceMember[]
   customerAppEvents     CustomerAppEvent[]
   gapCandidates         AppointmentGapCandidate[]
@@ -373,6 +375,36 @@ model CustomerServiceFeedback {
   @@index([reservationId])
   @@index([orderId])
   @@map("customer_service_feedback")
+}
+
+model CustomerWaitingEpisode {
+  id                  Int       @id @default(autoincrement())
+  storeId             Int
+  customerId          Int?
+  reservationId       Int?
+  status              String    @default("waiting")
+  outcome             String?
+  leaveReasonCode     String?
+  leaveReasonNote     String?   @db.Text
+  expectedWaitMinutes Int?
+  actualWaitMinutes   Int?
+  startedAt           DateTime  @default(now())
+  endedAt             DateTime?
+  sourceChannel       String    @default("manual")
+  recordedByUserId    Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, startedAt])
+  @@index([storeId, status, startedAt])
+  @@index([storeId, outcome, leaveReasonCode, startedAt])
+  @@index([reservationId, status])
+  @@index([customerId, startedAt])
+  @@map("customer_waiting_episode")
 }
 
 // ─── Products & Inventory ────────────────────────────────────────────────────
@@ -1754,6 +1786,7 @@ model Reservation {
   beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   followUpTasks TerminalFollowUpTask[]
   lifecycleAttributionEvents LifecycleAttributionEvent[]
+  waitingEpisodes CustomerWaitingEpisode[]
 
   @@index([storeId, date])
   @@index([customerId])

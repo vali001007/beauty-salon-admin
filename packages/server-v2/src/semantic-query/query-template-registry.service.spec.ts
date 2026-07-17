@@ -21,6 +21,7 @@ describe('QueryTemplateRegistryService', () => {
     expect(registry.findByMetric('customer_complaint_count')?.id).toBe('customer_feedback');
     expect(registry.findByMetric('customer_average_satisfaction_rating')?.id).toBe('customer_feedback');
     expect(registry.findByMetric('staff_customer_complaint_count')?.id).toBe('customer_feedback_staff');
+    expect(registry.findByMetric('customer_long_wait_departure_count')?.id).toBe('customer_waiting');
   });
 
   it('maps P0 skill capabilities to dedicated templates without stealing generic metrics', () => {

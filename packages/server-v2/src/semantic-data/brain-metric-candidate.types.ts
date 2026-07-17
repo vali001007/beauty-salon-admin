@@ -44,7 +44,8 @@ export interface BrainMetricDomainResolver {
     | 'customer_retention_summary'
     | 'customer_acquisition_conversion_summary'
     | 'customer_service_feedback_summary'
-    | 'customer_service_feedback_by_staff';
+    | 'customer_service_feedback_by_staff'
+    | 'customer_waiting_summary';
   dimensionFields: Record<string, string>;
   expression: BrainMetricResolverExpression;
   overallAggregation: 'sum' | 'avg' | 'min' | 'max';

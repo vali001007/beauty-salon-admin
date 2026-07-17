@@ -6,6 +6,7 @@ import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import { MarketingService } from '../../../marketing/marketing.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { CustomerFeedbackService } from '../../../customer-feedback/customer-feedback.service.js';
+import { CustomerWaitingService } from '../../../reservations/customer-waiting.service.js';
 import type { BrainDomainAnswer } from '../../domain/brain-domain-adapter.types.js';
 import { BrainDataQualityGuardService, type BrainDataQualityAssessment } from '../../inspection/brain-data-quality-guard.service.js';
 import type { BrainResponseBlock } from '../../response/brain-response.types.js';
@@ -34,6 +35,7 @@ const CAPABILITY_KEYS = [
   'store_operations_overview',
   'manager_staff_overview',
   'customer_feedback_overview',
+  'customer_waiting_loss_overview',
   'front_desk_operations_overview',
   'beautician_service_overview',
   'inventory_operations_overview',
@@ -84,6 +86,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     @Optional() private readonly marketing?: MarketingService,
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly customerFeedback?: CustomerFeedbackService,
+    @Optional() private readonly customerWaiting?: CustomerWaitingService,
   ) {}
 
   @BrainCapability({
@@ -198,6 +201,31 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   })
   customerFeedbackOverview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('customer_feedback_overview', args, input);
+  }
+
+  @BrainCapability({
+    key: 'customer_waiting_loss_overview',
+    name: '客户等待流失分析',
+    description: '基于统一客户等待事实，查询当前门店等待中、已服务、离店、因等待过久离店和等待记录采集覆盖率。没有结构化离店原因或采集覆盖不足时必须披露缺口，不得用取消预约或爽约替代等待流失。',
+    intents: ['query', 'diagnosis'],
+    examples: ['最近有没有客户因为等待时间长而离开', '本月有多少客户等太久走了', '今天还有多少客户在等待'],
+    negativeExamples: ['查询其他门店客户等待记录', '把取消预约都算成等待流失', '直接给等待客户发补偿'],
+    synonyms: ['等待流失', '等太久离店', '等待过久离开', '排队离店', '客户等待情况'],
+    businessDefinitionKeys: [
+      'metric.customer_long_wait_departure_count',
+      'metric.customer_waiting_collection_coverage_rate',
+      'entity.customer',
+      'entity.reservation',
+    ],
+    readOnly: true,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:store:reservations'],
+    allowedRoles: ['store_manager', 'receptionist'],
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+  })
+  customerWaitingLossOverview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('customer_waiting_loss_overview', args, input);
   }
 
   @BrainCapability({
@@ -1065,6 +1093,69 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             rangeLabel: range.label,
             collectionCoverageRate: summary.collectionCoverageRate,
             completionCriteria: ['complaints_loaded', 'unresolved_complaints_loaded', 'coverage_disclosed'],
+          },
+        };
+      }
+      case 'customer_waiting_loss_overview': {
+        if (!this.customerWaiting) {
+          return {
+            status: 'failed',
+            answer: '客户等待事实服务未接入，本次不推断等待流失。',
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: ['客户等待事实服务未接入'] }],
+            metadata: { capabilityKey: 'customer_waiting_loss_overview', failureCode: 'CUSTOMER_WAITING_SERVICE_UNAVAILABLE' },
+          };
+        }
+        const result = await this.customerWaiting.analytics(input.context.storeId, {
+          startDate: range.startDate.toISOString(),
+          endDate: range.endDate.toISOString(),
+        });
+        const summary = result.summary;
+        const coverageText = `等待记录覆盖率 ${(summary.collectionCoverageRate * 100).toFixed(1)}%（${summary.linkedReservationCount}/${summary.checkedInReservationCount} 个到店预约）`;
+        const coverageLimitation = summary.checkedInReservationCount > 0 && summary.collectionCoverageRate < 0.8
+          ? `当前${coverageText}，未记录不代表客户没有等待或离店。`
+          : undefined;
+        const answer = summary.longWaitDepartureCount > 0
+          ? `${range.label}有 ${summary.longWaitDepartureCount} 位客户明确记录为因等待过久离店；全部原因离店 ${summary.leftCount} 位。${coverageText}。`
+          : `${range.label}已记录等待事实中没有“等待过久离店”。${coverageText}。`;
+        const citations = [
+          { sourceType: 'db_skill', sourceId: 'customer_waiting_summary', label: '客户等待与离店统一事实' },
+          { sourceType: 'db_skill', sourceId: 'customer_long_wait_departures', label: '等待过久离店明细' },
+        ];
+        return {
+          status: 'completed',
+          answer: coverageLimitation ? `${answer}\n${coverageLimitation}` : answer,
+          citations,
+          grounding: 'db_skill',
+          blocks: [
+            {
+              kind: 'kpi',
+              items: [
+                { label: '等待过久离店', value: `${summary.longWaitDepartureCount} 人` },
+                { label: '全部原因离店', value: `${summary.leftCount} 人` },
+                { label: '当前等待', value: `${summary.activeWaitingCount} 人` },
+                { label: '平均等待', value: summary.averageWaitMinutes === null ? '暂无完整记录' : `${summary.averageWaitMinutes.toFixed(1)} 分钟` },
+                { label: '记录覆盖率', value: `${(summary.collectionCoverageRate * 100).toFixed(1)}%` },
+              ],
+              citationIds: ['customer_waiting_summary'],
+            },
+            ...(result.longWaitDepartures.length
+              ? [{
+                  kind: 'table' as const,
+                  rows: result.longWaitDepartures.slice(0, this.resolveLimit(input.args.limit, 20)),
+                  columns: ['customerName', 'actualWaitMinutes', 'expectedWaitMinutes', 'startedAt', 'endedAt', 'reasonNote'],
+                  citationIds: ['customer_long_wait_departures'],
+                }]
+              : []),
+            ...(coverageLimitation ? [{ kind: 'limitations' as const, items: [coverageLimitation] }] : []),
+          ],
+          metadata: {
+            capabilityKey: 'customer_waiting_loss_overview',
+            answerScope: 'waiting_loss_summary',
+            rangeLabel: range.label,
+            collectionCoverageRate: summary.collectionCoverageRate,
+            completionCriteria: ['waiting_facts_loaded', 'long_wait_departures_loaded', 'coverage_disclosed'],
           },
         };
       }
