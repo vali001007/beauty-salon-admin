@@ -722,6 +722,56 @@ describe('BrainChatService', () => {
     expect(response.failureCode).toBeNull();
   });
 
+  it('falls back to Supervisor when a multi-domain diagnosis has no single hard-filter match', async () => {
+    const card = {
+      key: 'finance_risk_overview', version: 20, name: '财务经营风险概览', description: '现金流、退款、折扣、成本与毛利风险',
+      domains: ['finance', 'payment', 'refund', 'operating_cost'], intents: ['query', 'diagnosis'], readOnly: true,
+      sideEffect: false, requiredPermissions: [], allowedRoles: ['store_manager'], examples: [],
+    };
+    const topK = [{ card, score: 0.86, matchedFields: ['description'] }];
+    const plan = {
+      schemaVersion: '1.0', planId: 'supervisor:finance-risk', objective: '检查现金流异常', replanCount: 0,
+      budgetMs: 10_000, nodes: [{ id: 'finance', capabilityKey: card.key, capabilityVersion: card.version, dependsOn: [], previewOnly: false, args: {} }],
+    };
+    const orchestrator = {
+      createModelExecutionPlan: jest.fn().mockResolvedValue({ status: 'planned', provider: 'openai', model: 'gpt-test', usage: {}, plan }),
+    };
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, orchestrator });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed', provider: 'openai', model: 'gpt-test', usage: {},
+      intent: {
+        schemaVersion: '1.0', objective: '检查最近现金流异常', domains: ['finance', 'payment', 'refund'], intent: 'diagnosis',
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis',
+        successCriteria: ['读取现金流事实', '识别异常并披露限制'], ambiguities: [], missingSlots: [], assumptions: [],
+        confidence: 0.92, decisionSummary: '财务风险诊断',
+      },
+    } as never);
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([card]);
+    modelPipeline!.retriever.retrieve.mockReturnValue({ status: 'none', topK: [], confidence: 0, margin: 0, reason: 'no_capability_after_hard_filters' } as never);
+    modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue(topK as never);
+    modelPipeline!.bounded.execute.mockResolvedValue({
+      status: 'completed', plan, replanCount: 0,
+      completion: { status: 'complete', missingCriteria: [], recoverable: false },
+      observations: [{
+        nodeId: 'finance', capabilityKey: card.key, capabilityVersion: card.version, status: 'completed', grounding: 'db_skill',
+        summary: '当前未发现现金流异常。', data: { blocks: [], metadata: {}, suggestedActions: [] },
+        citations: [{ sourceType: 'db_skill', sourceId: 'finance_risk_summary', label: '财务风险摘要' }],
+        startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString(),
+      }],
+    });
+
+    const response = await service.sendMessage(context, 12, { message: '最近有没有现金流异常的情况' });
+
+    expect(response.answer).toContain('未发现现金流异常');
+    expect(orchestrator.createModelExecutionPlan).toHaveBeenCalledWith(expect.objectContaining({ topK }));
+    expect(response.failureCode).toBeNull();
+  });
+
   it('preserves Supervisor provider outages as infrastructure failures for evaluation retry', async () => {
     const orchestrator = {
       createModelExecutionPlan: jest.fn().mockResolvedValue({
@@ -2243,6 +2293,108 @@ describe('BrainChatService', () => {
     });
 
     expect(normalized.dimensions).toEqual([]);
+  });
+
+  it('restores governed conversion metrics when the model diagnosis omits them', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const newCustomerCount = definitionRef('metric.new_customer_count');
+    const conversionCount = definitionRef('metric.new_customer_conversion_count');
+    const conversionRate = definitionRef('metric.new_customer_conversion_rate');
+    const intent = {
+      schemaVersion: '1.0', objective: '分析最近新客转化效果和问题', domains: ['customer'], intent: 'diagnosis', entities: [],
+      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['返回转化结果并说明诊断边界'],
+      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '新客转化诊断',
+    };
+    const card = {
+      key: 'customer_facts', version: 22, name: '客户事实与客群查询', description: '查询周期新客转化和客户事实',
+      domains: ['customer'], intents: ['query', 'diagnosis'], examples: [], synonyms: ['新客转化'], readOnly: true, sideEffect: false,
+      definitionRefs: [newCustomerCount, conversionCount, conversionRate],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '最近新客转化效果好不好，问题出在哪',
+      cards: [card],
+    });
+
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.new_customer_count' }),
+      expect.objectContaining({ definitionKey: 'metric.new_customer_conversion_count' }),
+      expect.objectContaining({ definitionKey: 'metric.new_customer_conversion_rate' }),
+    ]);
+  });
+
+  it('merges governed project dimensions into an exact promotion example', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const customerName = { ...definitionRef('dimension.customerName'), version: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) };
+    const customerId = { ...definitionRef('dimension.customerId'), version: 1, definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64) };
+    const projectName = { ...definitionRef('dimension.projectName'), version: 1, definitionFingerprint: 'e'.repeat(64), sourceFingerprint: 'f'.repeat(64) };
+    const question = '我想做个高端护理套餐推广，找哪些客户合适';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [], dimensions: [{ domain: 'customer' }, { domain: 'project' }] },
+      cards: [{
+        key: 'marketing_growth_overview', domains: ['customer', 'project'], intents: ['query', 'ranking', 'recommendation'],
+        examples: [question], definitionRefs: [customerName, customerId, projectName],
+      }],
+      intent: {
+        schemaVersion: '1.0', objective: question, domains: ['customer', 'project'], intent: 'query', entities: [], metrics: [],
+        dimensions: [definitionRef('dimension.customerName'), definitionRef('dimension.customerId')], filters: [], orderBy: [],
+        answerShape: 'list', successCriteria: ['返回客户名单'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9,
+        decisionSummary: '项目推广客群',
+      },
+    });
+
+    expect(normalized.dimensions.map((item: any) => item.definitionKey)).toEqual([
+      'dimension.customerName',
+      'dimension.customerId',
+      'dimension.projectName',
+    ]);
+  });
+
+  it('normalizes an exact fastest-consumption example to ranking', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '哪些耗材消耗速度最快';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [], dimensions: [{ domain: 'product' }] },
+      cards: [{
+        key: 'inventory_operations_overview', domains: ['product'], intents: ['query', 'ranking', 'diagnosis'],
+        examples: [question], definitionRefs: [
+          { ...definitionRef('metric.inventory_consumption_quantity'), version: 1 },
+          { ...definitionRef('dimension.productName'), version: 1 },
+        ],
+      }],
+      intent: {
+        schemaVersion: '1.0', objective: question, domains: ['product'], intent: 'query', entities: [], metrics: [], dimensions: [],
+        filters: [], orderBy: [], answerShape: 'list', successCriteria: ['返回耗材排行'], ambiguities: [], missingSlots: [],
+        assumptions: [], confidence: 0.9, decisionSummary: '耗材消耗排行',
+      },
+    });
+
+    expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.productName' })]);
+    expect(normalized.orderBy).toEqual([expect.objectContaining({ direction: 'desc' })]);
+  });
+
+  it('normalizes an exact problem-location example to diagnosis', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '最近新客转化效果好不好，问题出在哪';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [{ domain: 'customer' }], dimensions: [] },
+      cards: [{
+        key: 'customer_facts', domains: ['customer'], intents: ['query', 'diagnosis'],
+        examples: [question], definitionRefs: [],
+      }],
+      intent: {
+        schemaVersion: '1.0', objective: question, domains: ['customer'], intent: 'query', entities: [], metrics: [], dimensions: [],
+        filters: [], orderBy: [], answerShape: 'scalar', successCriteria: ['返回新客转化诊断'], ambiguities: [], missingSlots: [],
+        assumptions: [], confidence: 0.9, decisionSummary: '新客转化查询',
+      },
+    });
+
+    expect(normalized).toMatchObject({ intent: 'diagnosis', answerShape: 'diagnosis' });
   });
 
   it('normalizes an unordered governed customer list from ranking to query plus list', async () => {

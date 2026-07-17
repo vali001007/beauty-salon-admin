@@ -7,6 +7,7 @@ export interface BusinessMetricResolverContract {
   readonly key:
     | 'manager_staff_analysis'
     | 'inventory_risk_summary'
+    | 'inventory_consumption_rows'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'
     | 'customer_acquisition_conversion_summary'
@@ -65,6 +66,12 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
       storeModel: 'Product',
       dimensionFields: Object.freeze(['productId', 'name']),
       numericExpressionFields: Object.freeze(['currentStock', 'safetyStock']),
+    }),
+    inventory_consumption_rows: Object.freeze({
+      key: 'inventory_consumption_rows' as const,
+      storeModel: 'Product',
+      dimensionFields: Object.freeze(['productId', 'name']),
+      numericExpressionFields: Object.freeze(['outboundQty']),
     }),
     marketing_follow_up_opportunities: Object.freeze({
       key: 'marketing_follow_up_opportunities' as const,

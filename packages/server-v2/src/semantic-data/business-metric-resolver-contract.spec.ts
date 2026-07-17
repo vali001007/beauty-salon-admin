@@ -134,6 +134,39 @@ describe('business metric resolver runtime', () => {
     });
   });
 
+  it('ranks inventory consumption from governed outbound quantities', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'inventory_consumption_quantity',
+      resolver: {
+        kind: 'domain_service',
+        key: 'inventory_consumption_rows',
+        dimensionFields: { productId: 'productId', productName: 'name' },
+        expression: { op: 'field', field: 'outboundQty' },
+        overallAggregation: 'sum',
+      },
+      dimensions: ['productId', 'productName'],
+      outputField: 'inventory_consumption_quantity',
+      sourceModels: ['Product', 'StockMovement'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'Product',
+        model: 'Product',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [
+        { productId: 31, name: '美容棉片', outboundQty: 30 },
+        { productId: 32, name: '修护面膜', outboundQty: 12 },
+      ],
+    });
+
+    expect(result.groups).toEqual([
+      { dimensions: { productId: 31, productName: '美容棉片' }, value: 30 },
+      { dimensions: { productId: 32, productName: '修护面膜' }, value: 12 },
+    ]);
+    expect(result.overallValue).toBe(42);
+  });
+
   it('evaluates satisfaction and coverage from the shared feedback summary row', () => {
     const feedbackScope: BusinessMetricRuntimeQuery['storeScope'] = {
       mode: 'current_store',

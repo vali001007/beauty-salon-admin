@@ -95,7 +95,19 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'product_sales_ranking',
-    businessDefinitionKeys: ['metric.product_sales_quantity', 'entity.product'],
+    name: '商品销售数量与销售额分析',
+    description: '按当前门店和时间范围查询商品销售数量或商品净销售额；支持总额问数和按商品排行，严格区分商品销售额与全店实收。',
+    intents: ['query', 'ranking'],
+    examples: ['本月商品销售排行', '本月商品销售额', '哪些商品卖得最多', '哪些商品销售额最高'],
+    negativeExamples: ['查询全店所有收入', '查看其他门店商品销售'],
+    synonyms: ['商品销量排行', '产品销量排行', '商品销售额', '产品销售额', '热销商品'],
+    businessDefinitionKeys: [
+      'metric.product_sales_quantity',
+      'metric.product_sales_amount',
+      'entity.product',
+      'dimension.productId',
+      'dimension.productName',
+    ],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:order:products'],
@@ -178,9 +190,19 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
     this.assertStructuredArgsSupported(input);
     const snapshot = await this.definitionProvider.loadActiveDefinitions();
-    const metrics = snapshot.metrics.filter((metric): metric is RuntimeMetric =>
+    const availableMetrics = snapshot.metrics.filter((metric): metric is RuntimeMetric =>
       Boolean(metric.runtimeQuery?.capabilityKeys.includes(input.card.key)),
     );
+    const requestedMetricKeys = new Set(
+      (Array.isArray(input.args.metrics) ? input.args.metrics : []).flatMap((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+        const definitionKey = (value as Record<string, unknown>).definitionKey;
+        return typeof definitionKey === 'string' ? [definitionKey] : [];
+      }),
+    );
+    const metrics = requestedMetricKeys.size > 0
+      ? availableMetrics.filter((metric) => requestedMetricKeys.has(metric.definitionKey))
+      : availableMetrics;
     if (!metrics.length) throw new Error(`semantic_capability_binding_missing:${input.card.key}`);
     this.assertAllowedTaskTypes(input.card.key as (typeof ALLOWED_CAPABILITY_KEYS)[number], metrics);
     this.assertMetricPermissionsCovered(metrics, input.card.requiredPermissions, input.context);
@@ -204,11 +226,16 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       value: this.formatNumber(metricResults[index].overallValue),
       hint: `口径版本 ${metric.version}`,
     }));
-    const resultKind = input.card.intents.includes('ranking') ? 'ranking' : 'table';
+    const scalarAnswer = input.answerShape === 'scalar';
+    const resultKind = input.answerShape === 'ranking' || (input.answerShape !== 'scalar' && input.card.intents.includes('ranking'))
+      ? 'ranking'
+      : 'table';
 
     return {
       status: 'completed',
-      answer: metrics[0].runtimeQuery.dimensions.length
+      answer: scalarAnswer
+        ? `${timeRange.rangeLabel}${metrics.map((metric, index) => `${metric.name} ${this.formatNumber(metricResults[index].overallValue)}`).join('，')}。`
+        : metrics[0].runtimeQuery.dimensions.length
         ? `查询完成，共生成 ${allRows.length} 条经营指标结果，当前展示 ${displayRows.length} 条。`
         : `查询完成，已生成 ${metrics.length} 项经营指标汇总。`,
       citations: metrics.map((metric) => ({
@@ -218,10 +245,12 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
         definition: metric.description,
       })),
       grounding: 'metric_query',
-      blocks: [
-        { kind: resultKind, rows: displayRows, columns: this.outputColumns(displayRows, metrics) },
-        { kind: 'kpi', items: kpis },
-      ],
+      blocks: scalarAnswer
+        ? [{ kind: 'kpi', items: kpis }]
+        : [
+            { kind: resultKind, rows: displayRows, columns: this.outputColumns(displayRows, metrics) },
+            { kind: 'kpi', items: kpis },
+          ],
       metadata: {
         queryCount: metrics.length,
         resultCount: allRows.length,
@@ -343,6 +372,14 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
         expiringBefore: new Date(timeRange.endExclusive.getTime() - 1),
       });
       return result.lowStockProducts as unknown as UnknownRecord[];
+    }
+    if (resolverKey === 'inventory_consumption_rows') {
+      const result = await this.skillRuntime!.buildInventoryDetailAnalysis({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return result.products as unknown as UnknownRecord[];
     }
     if (resolverKey === 'marketing_follow_up_opportunities') {
       return this.skillRuntime!.buildMarketingFollowUpPriority({

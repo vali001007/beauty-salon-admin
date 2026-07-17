@@ -344,7 +344,9 @@ function inferExpectedMetrics(input: string) {
   if (/退款.*(?:金额|多少)/.test(input)) values.add('refund_amount');
   if (/退款有几笔|退款.*(?:笔数|几笔|次数)/.test(input)) values.add('refund_count');
   if (/(折扣|优惠|让利).*(?:多少钱|多少|金额|送出去)/.test(input)) values.add('discount_amount');
-  if (/商品|产品/.test(input) && /销售|卖得|销量/.test(input)) values.add('product_sales_quantity');
+  if (/商品|产品/.test(input) && /销售额|销售金额/.test(input)) values.add('product_sales_amount');
+  else if (/商品|产品/.test(input) && /销售|卖得|销量/.test(input)) values.add('product_sales_quantity');
+  if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(input)) values.add('inventory_consumption_quantity');
   if (/员工|美容师|谁/.test(input) && /业绩|表现/.test(input)) values.add('staff_performance_score');
   if (/员工|美容师|谁/.test(input) && /(?:接的客人|接待客户|接客|服务了几个客人|服务客户)/.test(input)) {
     values.add('staff_unique_customer_count');

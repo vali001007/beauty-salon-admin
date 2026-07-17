@@ -1258,6 +1258,18 @@ export class BrainChatService {
         topK: retrieval.topK,
       });
     }
+    if (retrieval.status === 'none' && ['diagnosis', 'recommendation'].includes(validation.intent.intent)) {
+      return this.buildModelSupervisorAnswer({
+        context: input.context,
+        dto: input.dto,
+        runId: input.runId,
+        intent: validation.intent,
+        cards,
+        modelMetadata,
+        roleContext,
+        deadlineAt: input.deadlineAt,
+      });
+    }
     if (retrieval.status !== 'selected' || !retrieval.selected) {
       const failureCode = retrieval.status === 'clarify' ? 'CAPABILITY_RETRIEVAL_CLARIFY' : 'CAPABILITY_RETRIEVAL_NONE';
       await this.recordModelFailure({
@@ -1487,24 +1499,40 @@ export class BrainChatService {
       input.intent.metrics.length === 0 &&
       input.intent.orderBy.length === 0 &&
       matched.intents.includes('query');
+    const orderedRankingIntent =
+      ['query', 'trend'].includes(input.intent.intent) &&
+      /(?:最多|最少|最高|最低|最快|最慢|排行|排名|top\s*\d*)/i.test(input.question) &&
+      matched.intents.includes('ranking');
+    const diagnosisIntent =
+      input.intent.intent === 'query' &&
+      /(?:问题|原因).*(?:在哪|是什么)|为什么/.test(input.question) &&
+      matched.intents.includes('diagnosis');
     const inferredDimensionKeys = new Set(inferQuestionDimensionDefinitions(input.question));
     const governedDimensions = (matched.definitionRefs ?? [])
       .filter((ref) => inferredDimensionKeys.has(ref.definitionKey))
       .map((ref) => definitionRefFromCard(ref, 'dimension'));
-    const inferredMetricKey = inferGovernedQuestionMetricKey(input.question);
-    const governedMetric = inferredMetricKey
-      ? (matched.definitionRefs ?? []).find((ref) => ref.definitionKey === inferredMetricKey)
-      : undefined;
-    const metrics = governedMetric ? [definitionRefFromCard(governedMetric, 'metric')] : input.intent.metrics;
-    const orderBy = governedMetric && input.intent.intent === 'ranking'
-      ? [{ definitionRef: definitionRefFromCard(governedMetric, 'metric'), direction: 'desc' as const }]
+    const supportedDefinitionKeys = new Set((matched.definitionRefs ?? []).map((ref) => ref.definitionKey));
+    const supportedInputDimensions = input.intent.dimensions.filter((dimension) =>
+      supportedDefinitionKeys.has(dimension.definitionKey),
+    );
+    const dimensions = [...new Map(
+      [...supportedInputDimensions, ...governedDimensions].map((dimension) => [dimension.definitionKey, dimension]),
+    ).values()];
+    const governedMetrics = inferGovernedQuestionMetricKeys(input.question)
+      .flatMap((definitionKey) => (matched.definitionRefs ?? []).filter((ref) => ref.definitionKey === definitionKey))
+      .map((ref) => definitionRefFromCard(ref, 'metric'));
+    const metrics = governedMetrics.length ? governedMetrics : input.intent.metrics;
+    const orderBy = governedMetrics.length && (input.intent.intent === 'ranking' || orderedRankingIntent)
+      ? [{ definitionRef: governedMetrics[0]!, direction: 'desc' as const }]
       : input.intent.orderBy;
     return {
       ...input.intent,
       ...(unorderedListIntent ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
+      ...(orderedRankingIntent ? { intent: 'ranking' as const, answerShape: 'ranking' as const } : {}),
+      ...(diagnosisIntent ? { intent: 'diagnosis' as const, answerShape: 'diagnosis' as const } : {}),
       domains: modelDomains.length ? modelDomains : cardDomains,
       metrics,
-      dimensions: input.intent.dimensions.length > 0 ? input.intent.dimensions : governedDimensions,
+      dimensions,
       orderBy,
       filters: [],
       ambiguities: [],
@@ -1597,7 +1625,11 @@ export class BrainChatService {
     ) return input.intent;
 
     const supportedDefinitions = new Set((matched.card.definitionRefs ?? []).map((ref) => ref.definitionKey));
-    const metrics = input.intent.metrics.filter((metric) => supportedDefinitions.has(metric.definitionKey));
+    const supportedInputMetrics = input.intent.metrics.filter((metric) => supportedDefinitions.has(metric.definitionKey));
+    const inferredMetrics = inferGovernedQuestionMetricKeys(input.question)
+      .flatMap((definitionKey) => (matched.card.definitionRefs ?? []).filter((ref) => ref.definitionKey === definitionKey))
+      .map((ref) => definitionRefFromCard(ref, 'metric'));
+    const metrics = supportedInputMetrics.length > 0 ? supportedInputMetrics : inferredMetrics;
     const removedMetricKeys = new Set(
       input.intent.metrics.filter((metric) => !supportedDefinitions.has(metric.definitionKey)).map((metric) => metric.definitionKey),
     );
@@ -3284,14 +3316,25 @@ function definitionRefFromCard<T extends 'metric' | 'dimension'>(
   };
 }
 
-function inferGovernedQuestionMetricKey(question: string): string | undefined {
+function inferGovernedQuestionMetricKeys(question: string): string[] {
+  const metrics: string[] = [];
   if (/(?:美容师|员工|谁).*(?:接|服务).*(?:客户|客人).*(?:最多|几个|排行)|(?:客户|客人).*(?:最多|几个).*(?:美容师|员工|谁)/.test(question)) {
-    return 'metric.staff_unique_customer_count';
+    metrics.push('metric.staff_unique_customer_count');
   }
   if (/(?:美容师|员工).*(?:服务次数|做了几次)|服务次数.*(?:美容师|员工)/.test(question)) {
-    return 'metric.staff_service_count';
+    metrics.push('metric.staff_service_count');
   }
-  return undefined;
+  if (/提成/.test(question)) metrics.push('metric.staff_commission_amount');
+  if (/(?:新客.*(?:转化|成交|首单)|(?:转化|成交|首单).*新客)/.test(question)) {
+    metrics.push('metric.new_customer_count', 'metric.new_customer_conversion_count', 'metric.new_customer_conversion_rate');
+  }
+  if (/(?:产品|商品).*(?:销售额|销售金额)|(?:销售额|销售金额).*(?:产品|商品)/.test(question)) {
+    metrics.push('metric.product_sales_amount');
+  }
+  if (/(?:耗材|物料|产品|商品).*(?:消耗|用量|出库).*(?:最快|最多|排行|排名)|(?:消耗|用量|出库).*(?:最快|最多).*(?:耗材|物料|产品|商品)/.test(question)) {
+    metrics.push('metric.inventory_consumption_quantity');
+  }
+  return [...new Set(metrics)];
 }
 
 function capabilityKeyDomains(capabilityKey?: string): string[] {
@@ -3314,8 +3357,9 @@ function capabilityKeyDomains(capabilityKey?: string): string[] {
 
 function inferQuestionDimensionDefinitions(question: string): string[] {
   const definitions: string[] = [];
+  if (/新客/.test(question) && /(?:渠道|来源)/.test(question)) definitions.push('dimension.customerSource');
   if (/(?:项目|套餐|护理)/.test(question)) definitions.push('dimension.projectName');
-  if (/(?:产品|商品|货品)/.test(question)) definitions.push('dimension.productName');
+  if (/(?:产品|商品|货品|耗材|物料)/.test(question)) definitions.push('dimension.productName');
   if (/(?:员工|美容师|技师)/.test(question)) definitions.push('dimension.beauticianName');
   if (/(?:客户|客人|会员)/.test(question)) definitions.push('dimension.customerName');
   return definitions;

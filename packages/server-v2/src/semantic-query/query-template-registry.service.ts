@@ -117,10 +117,10 @@ export class QueryTemplateRegistryService {
         'inventory_operations_overview',
         'inventory_procurement_advice',
       ],
-      metricKeys: ['stock_risk_score'],
+      metricKeys: ['stock_risk_score', 'inventory_consumption_quantity'],
       defaultDimensions: ['productId', 'productName'],
       supportedOutputShapes: ['list', 'table'],
-      sourceModels: ['Product'],
+      sourceModels: ['Product', 'StockMovement'],
     },
     {
       id: 'member_balance',

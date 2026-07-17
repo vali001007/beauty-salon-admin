@@ -404,6 +404,36 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     expect(semanticQuery.execute).not.toHaveBeenCalled();
   });
 
+  it('executes only the requested governed metric and returns KPI-only output for scalar questions', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ netAmount: 3580 }]);
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      provider([
+        publishedMetric('product_sales_quantity', { dimensions: [], outputFields: ['productSalesQuantity'] }),
+        publishedMetric(
+          'product_sales_amount',
+          { dimensions: [], outputFields: ['productSalesAmount'] },
+          { formula: { type: 'sum', model: 'ProductOrder', field: 'netAmount' } },
+        ),
+      ]) as never,
+      parser as never,
+      { productOrder: { findMany } } as never,
+    );
+
+    const answer = await executor.execute(input(
+      card('product_sales_ranking', 'semantic', { requiredPermissions: ['core:metric:view'], intents: ['query', 'ranking'] }),
+      {
+        question: '这个月产品销售额是多少',
+        answerShape: 'scalar',
+        args: { metrics: [{ definitionKey: 'metric.product_sales_amount' }] },
+      },
+    ));
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(answer.answer).toContain('product_sales_amount 3580');
+    expect(answer.blocks).toEqual([expect.objectContaining({ kind: 'kpi', items: [expect.objectContaining({ value: '3580' })] })]);
+    expect(answer.citations).toEqual([expect.objectContaining({ sourceId: 'metric.product_sales_amount@2' })]);
+  });
+
   it('rejects a ranking capability bound only to diagnosis metrics', async () => {
     const semanticQuery = { productOrder: { findMany: jest.fn() } };
     const executor = new BrainSemanticQueryCapabilityExecutor(

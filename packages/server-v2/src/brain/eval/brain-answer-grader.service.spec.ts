@@ -134,6 +134,61 @@ describe('BrainAnswerGraderService', () => {
     expect(result).toMatchObject({ status: 'usable_exact', actualIntent: 'ranking', actualShape: 'ranking' });
   });
 
+  it('distinguishes product sales amount from whole-store paid revenue', () => {
+    const result = grader.grade({
+      question: '这个月产品销售额是多少',
+      answer: '本月商品销售额 3580.00 元。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.product_sales_amount@1', label: '业务定义：商品销售额' }],
+      blocks: [{ kind: 'kpi', items: [{ label: '商品销售额', value: '3580.00 元' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedMetric: 'product_sales_amount',
+      actualMetric: 'product_sales_amount',
+      actualShape: 'scalar_metric',
+    });
+  });
+
+  it('grades inventory consumption rankings against the governed outbound metric', () => {
+    const result = grader.grade({
+      question: '哪些耗材消耗速度最快',
+      answer: '消耗量最高的是美容棉片，共出库 30 件。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.inventory_consumption_quantity@1', label: '业务定义：库存消耗量' }],
+      blocks: [{ kind: 'ranking', rows: [{ productName: '美容棉片', value: 30 }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedMetric: 'inventory_consumption_quantity',
+      actualMetric: 'inventory_consumption_quantity',
+      actualShape: 'ranking',
+    });
+  });
+
+  it('keeps a metric-grounded diagnosis classified as diagnosis', () => {
+    const result = grader.grade({
+      question: '最近新客转化效果好不好，问题出在哪',
+      answer: '新增客户 11 人，已转化 0 人。当前缺少未转化原因归因事实。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.new_customer_conversion_rate@1', label: '业务定义：新客转化率' }],
+      blocks: [
+        { kind: 'kpi', items: [{ label: '转化率', value: '0.0%' }] },
+        { kind: 'diagnosis', findings: [{ title: '归因边界', detail: '缺少未转化原因事实', severity: 'info' }] },
+      ],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'diagnosis',
+      actualIntent: 'diagnosis',
+      expectedShape: 'non_metric',
+      actualShape: 'non_metric',
+    });
+  });
+
   it('keeps a metric-backed staff ranking as ranking instead of scalar metric intent', () => {
     const result = grader.grade({
       question: '谁的客户复购率最高',

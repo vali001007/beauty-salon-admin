@@ -144,6 +144,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我看一下员工这周的工作饱和度',
       '谁的客户复购率最高',
       '这个月提成最高的是谁，大概多少',
+      '本月员工总提成大概多少',
       '今天谁请假了，有没有影响接待',
       '新员工试用期表现怎么样',
     ],
@@ -175,7 +176,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     key: 'customer_feedback_overview',
     name: '客户投诉与满意度分析',
     description: '基于统一客户服务反馈事实，查询当前门店投诉、未解决投诉、满意度、评价采集覆盖率和美容师客诉排行。无反馈记录时必须同时披露采集覆盖率，不得把未采集解释为没有投诉。',
-    intents: ['query', 'ranking', 'diagnosis'],
+    intents: ['query', 'ranking', 'trend', 'diagnosis'],
     examples: [
       '最近有没有客户投诉或者表达不满',
       '帮我看一下客户满意度整体情况',
@@ -275,10 +276,19 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '库存采购运营概览',
     description: '组合库存金额、低库存、临期批次、库存消耗、采购建议、供应商和最近采购单，返回只读库存运营诊断。',
     intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
-    examples: ['本月库存有什么风险', '现在哪些产品库存不够了', '哪些产品该补货了', '临期和低库存商品怎么处理', '有没有快过期的产品，数量多少'],
+    examples: ['本月库存有什么风险', '现在哪些产品库存不够了', '哪些产品该补货了', '临期和低库存商品怎么处理', '有没有快过期的产品，数量多少', '最近采购了什么，花了多少钱', '哪些耗材消耗速度最快', '有没有哪个项目因为缺耗材没法做', '这个月产品销售额是多少'],
     negativeExamples: ['直接创建采购单', '修改商品当前库存'],
     synonyms: ['库存概览', '库存风险', '采购建议', '低库存', '临期库存', '快过期产品'],
-    businessDefinitionKeys: ['entity.product', 'metric.stock_risk_score'],
+    businessDefinitionKeys: [
+      'entity.product',
+      'entity.project',
+      'dimension.productId',
+      'dimension.productName',
+      'dimension.projectName',
+      'metric.stock_risk_score',
+      'metric.inventory_consumption_quantity',
+      'metric.product_sales_amount',
+    ],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:inventory:stock'],
@@ -313,6 +323,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'metric.refund_count',
       'metric.discount_amount',
       'metric.operating_cost_amount',
+      'entity.payment_record',
+      'entity.product_order',
+      'entity.project',
+      'dimension.projectName',
       'dimension.paymentMethod',
     ],
     readOnly: true,
@@ -338,6 +352,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'entity.customer',
       'entity.project',
       'metric.follow_up_priority_score',
+      'dimension.customerId',
       'dimension.customerName',
       'dimension.projectName',
       'dimension.marketingChannel',
@@ -391,6 +406,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '哪些沉睡客户最近有点被唤醒的迹象',
       '帮我找一下办了卡但还没预约的新客',
       '这个月新客主要来自什么渠道',
+      '最近哪个时间段新客最多，从哪些渠道来',
+      '最近新客转化效果好不好，问题出在哪',
       '上个月新来了多少新客，转化了多少',
       '帮我看一下今天到店客人的画像，主要是什么年龄段',
       '帮我查一下张女士的客户资料',
@@ -399,6 +416,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     synonyms: ['客户事实', '客户名单', '沉睡客户', '沉睡客户唤醒迹象', '客户回流信号', '触达后预约客户', '触达后到店客户', '触达后消费客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
     businessDefinitionKeys: [
       'entity.customer',
+      'dimension.customerId',
       'dimension.customerName',
       'dimension.customerSource',
       'dimension.customerAgeGroup',
@@ -490,10 +508,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '库存采购建议',
     description: '基于当前库存、安全库存、最小采购量、供应映射和有效报价生成只读采购建议；数据质量不足时返回限制，不创建采购单。',
     intents: ['query', 'recommendation'],
-    examples: ['哪些商品需要补货，建议采购多少', '给我一份当前库存采购建议'],
+    examples: ['哪些商品需要补货，建议采购多少', '给我一份当前库存采购建议', '最近采购了什么，花了多少钱'],
     negativeExamples: ['直接创建并提交采购单', '修改商品安全库存'],
     synonyms: ['采购建议', '补货建议', '采购清单', '库存补货'],
-    businessDefinitionKeys: ['entity.product', 'metric.stock_risk_score'],
+    businessDefinitionKeys: ['entity.product', 'dimension.productId', 'dimension.productName', 'metric.stock_risk_score'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:inventory:stock'],
@@ -881,6 +899,39 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           };
         }), input.args.orderBy, input.question);
         const visibleRows = rows.slice(0, this.resolveLimit(input.args.limit, 15));
+        const commissionTotalQuestion = /(?:总提成|提成(?:合计|总共|一共)|提成.*(?:多少|金额))/.test(input.question) &&
+          !/(?:最高|最低|谁|哪个|哪位|排行|排名|对比)/.test(input.question);
+        if (focusMetric === 'metric.staff_commission_amount' && commissionTotalQuestion) {
+          const totalCommission = rows.reduce((sum, item) => sum + item.commissionAmount, 0);
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: `${range.label}员工提成合计 ${totalCommission.toFixed(2)} 元，共覆盖 ${rows.length} 位美容师。`,
+            citations,
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '员工提成合计', value: `${totalCommission.toFixed(2)} 元`, hint: `${rows.length} 位美容师` }],
+                citationIds: citations.map((item) => item.sourceId),
+              },
+              {
+                kind: 'table',
+                rows: visibleRows.map((item) => ({ staff: item.staff, commissionAmount: item.commissionAmount })),
+                columns: ['staff', 'commissionAmount'],
+                citationIds: ['manager_staff_analysis'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'manager_staff_overview',
+              answerScope: 'staff_commission_total',
+              rangeLabel: range.label,
+              staffCount: rows.length,
+              totalCommission,
+              focusMetric,
+              completionCriteria: ['staff_commission_total_loaded'],
+            },
+          }, dataQuality);
+        }
         if (/(?:谁|哪些人)?.*请假.*影响接待|影响接待.*请假/.test(input.question)) {
           const leaveRows = rows.filter((item) => item.status === '请假' || item.timeOffHours > 0);
           const availableRows = rows.filter((item) => item.status === '可接待');
@@ -1356,6 +1407,131 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           { sourceType: 'db_skill', sourceId: 'inventory_detail_analysis', label: '库存金额与消耗明细' },
           { sourceType: 'db_skill', sourceId: 'inventory_procurement_analysis', label: '采购建议、供应商和采购单' },
         ];
+        if (/(?:产品|商品).*(?:销售额|销售金额)|(?:销售额|销售金额).*(?:产品|商品)/.test(input.question)) {
+          const totalAmount = await this.productSalesAmount(input.context.storeId, range.startDate, range.endDate);
+          const metricRef = structuredDefinitionRef(input.args.metrics, 'metric.product_sales_amount');
+          return {
+            status: 'completed',
+            answer: `${range.label}商品净销售额 ${totalAmount.toFixed(2)} 元。`,
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: metricRef ? `${metricRef.definitionKey}@${metricRef.definitionVersion}` : 'metric.product_sales_amount',
+                label: '业务定义：商品销售额',
+              },
+              { sourceType: 'db_skill', sourceId: 'product_order_item_sales_amount', label: '商品订单明细净销售额' },
+            ],
+            grounding: 'db_skill',
+            blocks: [{
+              kind: 'kpi',
+              items: [{ label: '商品净销售额', value: `${totalAmount.toFixed(2)} 元` }],
+              citationIds: [metricRef ? `${metricRef.definitionKey}@${metricRef.definitionVersion}` : 'metric.product_sales_amount', 'product_order_item_sales_amount'],
+            }],
+            metadata: {
+              capabilityKey: 'inventory_operations_overview',
+              answerScope: 'product_sales_amount',
+              rangeLabel: range.label,
+              totalAmount,
+              completionCriteria: ['product_order_items_loaded', 'product_sales_amount_aggregated'],
+            },
+          };
+        }
+        if (/(?:项目|护理|服务).*(?:缺|不足|没有).*(?:耗材|物料)|(?:耗材|物料).*(?:缺|不足).*(?:项目|护理|服务)/.test(input.question)) {
+          const availability = await this.projectMaterialAvailability(input.context.storeId);
+          const rows = availability.blockedProjects.slice(0, this.resolveLimit(input.args.limit, 20));
+          const limitation = availability.unconfiguredProjectCount > 0
+            ? `${availability.unconfiguredProjectCount} 个在售项目没有配置 BOM，未纳入可执行性判断。`
+            : undefined;
+          return {
+            status: 'completed',
+            answer: rows.length
+              ? `当前有 ${rows.length} 个项目因至少一项标准耗材库存不足，不能按现有 BOM 完整执行。${limitation ? ` ${limitation}` : ''}`
+              : `已配置 BOM 的 ${availability.configuredProjectCount} 个项目中，没有发现因标准耗材库存不足而无法执行的项目。${limitation ? ` ${limitation}` : ''}`,
+            citations: [{ sourceType: 'db_skill', sourceId: 'project_material_availability', label: '项目 BOM 与当前耗材库存核对' }],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'table',
+                rows,
+                columns: ['projectName', 'productName', 'requiredQty', 'currentStock', 'shortageQty', 'unit'],
+                citationIds: ['project_material_availability'],
+              },
+              ...(limitation ? [{ kind: 'limitations' as const, items: [limitation] }] : []),
+            ],
+            metadata: {
+              capabilityKey: 'inventory_operations_overview',
+              answerScope: 'project_material_availability',
+              configuredProjectCount: availability.configuredProjectCount,
+              unconfiguredProjectCount: availability.unconfiguredProjectCount,
+              blockedProjectCount: new Set(rows.map((item) => item.projectId)).size,
+              completionCriteria: ['project_bom_loaded', 'current_material_stock_loaded'],
+            },
+          };
+        }
+        if (/(?:最近|本周|本月|近期)?.*采购了什么|采购.*(?:花了多少|金额|费用)|采购单.*(?:金额|明细)/.test(input.question)) {
+          const rows = procurement.recentOrders.slice(0, this.resolveLimit(input.args.limit, 10));
+          const totalAmount = rows.reduce((sum, item) => sum + item.amount, 0);
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: rows.length
+              ? `最近 ${rows.length} 张采购单合计 ${totalAmount.toFixed(2)} 元。`
+              : '当前门店没有采购订单记录。',
+            citations: [{ sourceType: 'db_skill', sourceId: 'inventory_procurement_analysis', label: '采购单、供应商与采购金额' }],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '采购单金额合计', value: `${totalAmount.toFixed(2)} 元`, hint: `${rows.length} 张采购单` }],
+                citationIds: ['inventory_procurement_analysis'],
+              },
+              {
+                kind: 'table',
+                rows,
+                columns: ['createdAt', 'orderNo', 'supplierName', 'amount', 'status'],
+                citationIds: ['inventory_procurement_analysis'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'inventory_operations_overview',
+              answerScope: 'recent_procurement_orders',
+              orderCount: rows.length,
+              totalAmount,
+              completionCriteria: ['recent_procurement_orders_loaded'],
+            },
+          }, dataQuality);
+        }
+        if (/(?:耗材|物料|产品|商品).*(?:消耗|用量|出库).*(?:最快|最多|排行|排名)|(?:消耗|用量|出库).*(?:最快|最多).*(?:耗材|物料|产品|商品)/.test(input.question)) {
+          const rows = detail.products
+            .filter((item) => item.outboundQty > 0)
+            .slice(0, this.resolveLimit(input.args.limit, 20))
+            .map((item) => ({
+              productId: item.productId,
+              productName: item.name,
+              outboundQty: item.outboundQty,
+              currentStock: item.stock,
+              coverageDays: item.coverageDays ?? '',
+            }));
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: rows.length
+              ? `${range.label}消耗量最高的是 ${rows[0]!.productName}，出库/消耗 ${rows[0]!.outboundQty}。`
+              : `${range.label}没有可用于消耗排行的出库记录。`,
+            citations: [{ sourceType: 'db_skill', sourceId: 'inventory_detail_analysis', label: '库存出库与消耗明细' }],
+            grounding: 'db_skill',
+            blocks: [{
+              kind: 'ranking',
+              rows,
+              columns: ['productName', 'outboundQty', 'currentStock', 'coverageDays'],
+              citationIds: ['inventory_detail_analysis'],
+            }],
+            metadata: {
+              capabilityKey: 'inventory_operations_overview',
+              answerScope: 'inventory_consumption_ranking',
+              rangeLabel: range.label,
+              completionCriteria: ['inventory_outbound_loaded', 'consumption_ranked'],
+            },
+          }, dataQuality);
+        }
         return this.applyDataQualityGuard({
           status: 'completed',
           answer: `${range.label}库存采购概览已完成，包含库存金额、低库存、临期、消耗和采购建议；不会直接创建采购单。`,
@@ -1968,32 +2144,42 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               label: `业务定义：${label}`,
             };
           });
+          const diagnosisRequested = input.answerShape === 'diagnosis' || /(?:问题|原因).*(?:在哪|是什么)|为什么/.test(input.question);
+          const diagnosisLimitation = '当前事实可确认新客 cohort、首笔有效订单转化和待转化人数，但尚未形成按未转化原因、顾问跟进过程和渠道质量拆解的归因事实，因此不能把低转化直接归因给某个渠道或员工。';
           return {
             status: 'completed',
-            answer: `${range.label}新增客户 ${summary.newCustomerCount} 人，其中 ${summary.convertedCustomerCount} 人在同一周期内完成首笔有效正金额订单，转化率 ${(summary.conversionRate * 100).toFixed(1)}%，待转化 ${summary.unconvertedCustomerCount} 人。`,
+            answer: `${range.label}新增客户 ${summary.newCustomerCount} 人，其中 ${summary.convertedCustomerCount} 人在同一周期内完成首笔有效正金额订单，转化率 ${(summary.conversionRate * 100).toFixed(1)}%，待转化 ${summary.unconvertedCustomerCount} 人。${diagnosisRequested ? ` ${diagnosisLimitation}` : ''}`,
             citations: [
               ...definitionCitations,
               { sourceType: 'db_skill', sourceId: 'customer_acquisition_conversion_summary', label: '客户建档与首笔有效订单转化事实' },
             ],
             grounding: 'db_skill',
-            blocks: [{
-              kind: 'kpi',
-              items: [
-                { label: '新增客户', value: `${summary.newCustomerCount} 人` },
-                { label: '已转化', value: `${summary.convertedCustomerCount} 人` },
-                { label: '转化率', value: `${(summary.conversionRate * 100).toFixed(1)}%` },
-                { label: '待转化', value: `${summary.unconvertedCustomerCount} 人` },
-              ],
-              citationIds: [
-                ...definitionCitations.map((citation) => citation.sourceId),
-                'customer_acquisition_conversion_summary',
-              ],
-            }],
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '新增客户', value: `${summary.newCustomerCount} 人` },
+                  { label: '已转化', value: `${summary.convertedCustomerCount} 人` },
+                  { label: '转化率', value: `${(summary.conversionRate * 100).toFixed(1)}%` },
+                  { label: '待转化', value: `${summary.unconvertedCustomerCount} 人` },
+                ],
+                citationIds: [
+                  ...definitionCitations.map((citation) => citation.sourceId),
+                  'customer_acquisition_conversion_summary',
+                ],
+              },
+              ...(diagnosisRequested ? [{
+                kind: 'diagnosis' as const,
+                findings: [{ title: '转化原因归因边界', detail: diagnosisLimitation, severity: 'info' as const }],
+                citationIds: ['customer_acquisition_conversion_summary'],
+              }] : []),
+            ],
             metadata: {
               capabilityKey: 'customer_facts',
               rangeLabel: range.label,
               cohortDefinition: 'Customer.createdAt within requested period',
               conversionDefinition: 'first valid positive-net ProductOrder between customer creation and period end',
+              diagnosisCoverage: diagnosisRequested ? 'conversion_result_only_without_cause_attribution' : 'not_requested',
               completionCriteria: ['new_customer_count_loaded', 'new_customer_conversion_count_loaded'],
             },
           };
@@ -2135,7 +2321,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
-        if (/消费了钱.*(?:很少用|少用).*次卡|次卡.*(?:很少用|使用少)/.test(input.question)) {
+        if (/消费了钱.*(?:很少用|少用).*次卡|次卡.*(?:很少用|使用少|不来用|一直不来)/.test(input.question)) {
           const result = await this.customerFacts.getLowCardUsageCustomers(
             input.context.storeId,
             this.resolveLimit(input.args.limit, 10),
@@ -2440,6 +2626,69 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       default:
         throw new Error(`unsupported_domain_capability:${input.card.key}`);
     }
+  }
+
+  private async projectMaterialAvailability(storeId: number) {
+    if (!this.prisma) throw new Error('project_material_availability_prisma_unavailable');
+    const projects = await this.prisma.project.findMany({
+      where: { storeId, deletedAt: null, status: 'active' },
+      select: {
+        id: true,
+        name: true,
+        bomItems: {
+          select: {
+            standardQty: true,
+            unit: true,
+            product: {
+              select: { id: true, name: true, currentStock: true, status: true, deletedAt: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ sort: 'asc' }, { id: 'asc' }],
+      take: 500,
+    });
+    const configuredProjects = projects.filter((project) => project.bomItems.length > 0);
+    const blockedProjects = configuredProjects.flatMap((project) =>
+      project.bomItems.flatMap((item) => {
+        const requiredQty = Number(item.standardQty);
+        const currentStock = Number(item.product.currentStock);
+        const unavailable = item.product.deletedAt !== null || item.product.status !== 'active';
+        if (!unavailable && currentStock >= requiredQty) return [];
+        return [{
+          projectId: project.id,
+          projectName: project.name,
+          productId: item.product.id,
+          productName: item.product.name,
+          requiredQty,
+          currentStock,
+          shortageQty: Math.max(0, requiredQty - currentStock),
+          unit: item.unit,
+          productStatus: unavailable ? 'unavailable' : 'active',
+        }];
+      }),
+    ).sort((left, right) => right.shortageQty - left.shortageQty || left.projectName.localeCompare(right.projectName, 'zh-CN'));
+    return {
+      configuredProjectCount: configuredProjects.length,
+      unconfiguredProjectCount: projects.length - configuredProjects.length,
+      blockedProjects,
+    };
+  }
+
+  private async productSalesAmount(storeId: number, startDate: Date, endDate: Date) {
+    if (!this.prisma) throw new Error('product_sales_amount_prisma_unavailable');
+    const result = await this.prisma.orderItem.aggregate({
+      where: {
+        itemType: 'product',
+        order: {
+          storeId,
+          status: { in: ['completed', 'paid'] },
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      },
+      _sum: { netAmount: true },
+    });
+    return Number(result._sum.netAmount ?? 0);
   }
 
   private resolveRange(input: BrainCapabilityExecutionInput) {

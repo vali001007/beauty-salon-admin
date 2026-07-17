@@ -64,6 +64,14 @@ async function main() {
           });
           return result.lowStockProducts as unknown as Record<string, unknown>[];
         }
+        if (input.resolverKey === 'inventory_consumption_rows') {
+          const result = await inventorySkills.buildInventoryDetailAnalysis({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          });
+          return result.products as unknown as Record<string, unknown>[];
+        }
         if (input.resolverKey === 'customer_retention_summary') {
           const result = await customerFacts.getCustomerRetentionSummary({
             storeId: input.storeId,

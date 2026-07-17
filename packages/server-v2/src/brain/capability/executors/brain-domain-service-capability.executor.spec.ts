@@ -714,7 +714,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts', intents: ['query'] },
       context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'low-card-use-test', timezone: 'Asia/Shanghai' },
       runId: 4,
-      question: '哪些客户消费了钱但很少用次卡',
+      question: '哪些客户买了次卡但最近一直不来用',
       args: { objective: '查询次卡低使用客户', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
     });
 
@@ -891,6 +891,37 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
   });
 
+  it('returns the staff commission total when the question asks for a total instead of a ranking', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          { beauticianId: 1, name: '唐伊', serviceCount: 8, completedCount: 8, uniqueCustomerCount: 6, repeatCustomerCount: 2, revenueAmount: 5000, commissionAmount: 320, timeOffHours: 0 },
+          { beauticianId: 2, name: '沈晴', serviceCount: 4, completedCount: 4, uniqueCustomerCount: 4, repeatCustomerCount: 1, revenueAmount: 4000, commissionAmount: 560, timeOffHours: 0 },
+        ],
+      }),
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue(reception(0)),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'commission-total-test', timezone: 'Asia/Shanghai' },
+      runId: 51,
+      question: '本月员工总提成大概多少',
+      answerShape: 'scalar',
+      args: {
+        objective: '员工提成合计', entities: [], dimensions: [], filters: [], orderBy: [],
+        metrics: [{ definitionType: 'metric', definitionKey: 'metric.staff_commission_amount', definitionVersion: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) }],
+      },
+    });
+
+    expect(result.answer).toBe('本月员工提成合计 880.00 元，共覆盖 2 位美容师。');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'kpi', items: [expect.objectContaining({ value: '880.00 元' })] }),
+      expect.objectContaining({ kind: 'table' }),
+    ]));
+    expect(result.metadata).toMatchObject({ answerScope: 'staff_commission_total', totalCommission: 880 });
+  });
+
   it('fails closed when the requested staff complaint fact does not exist', async () => {
     const skillRuntime = {
       buildManagerStaffAnalysis: jest.fn(),
@@ -980,6 +1011,127 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         rows: [{ product: '玻尿酸保湿精华', currentStock: 131, safetyStock: 143, shortage: 12 }],
       }),
     ]));
+  });
+
+  it('answers recent procurement amount from existing procurement orders', async () => {
+    const skillRuntime = {
+      buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0, expiringStockValue: 0, lowStockProducts: [], expiringProducts: [] }),
+      buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({ totalSku: 0, totalStockValue: 0, products: [], movements: [] }),
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+        suggestions: [], suppliers: [],
+        recentOrders: [
+          { orderNo: 'PO-2', supplierName: '供应商B', amount: 600, status: 'received', createdAt: '2026-07-16' },
+          { orderNo: 'PO-1', supplierName: '供应商A', amount: 400, status: 'approved', createdAt: '2026-07-10' },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_operations_overview', intents: ['query'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'procurement-history-test', timezone: 'Asia/Shanghai' },
+      runId: 52,
+      question: '最近采购了什么，花了多少钱',
+      answerShape: 'list',
+      args: { objective: '采购历史与金额', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toBe('最近 2 张采购单合计 1000.00 元。');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'kpi' }),
+      expect.objectContaining({ kind: 'table', rows: expect.arrayContaining([expect.objectContaining({ orderNo: 'PO-2' })]) }),
+    ]));
+  });
+
+  it('ranks consumables by real outbound quantity', async () => {
+    const skillRuntime = {
+      buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0, expiringStockValue: 0, lowStockProducts: [], expiringProducts: [] }),
+      buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({
+        totalSku: 2, totalStockValue: 100,
+        products: [
+          { productId: 1, name: '美容棉片', stock: 20, outboundQty: 30, coverageDays: 10 },
+          { productId: 2, name: '导入凝胶', stock: 50, outboundQty: 12, coverageDays: 40 },
+        ],
+        movements: [],
+      }),
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({ suggestions: [], suppliers: [], recentOrders: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_operations_overview', intents: ['query', 'ranking'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'consumption-ranking-test', timezone: 'Asia/Shanghai' },
+      runId: 53,
+      question: '哪些耗材消耗速度最快',
+      answerShape: 'ranking',
+      args: { objective: '耗材消耗排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('消耗量最高的是 美容棉片');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      rows: expect.arrayContaining([expect.objectContaining({ productName: '美容棉片', outboundQty: 30 })]),
+    });
+  });
+
+  it('answers product sales amount from existing order item facts', async () => {
+    const skillRuntime = {
+      buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0, expiringStockValue: 0, lowStockProducts: [], expiringProducts: [] }),
+      buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({ totalSku: 0, totalStockValue: 0, products: [], movements: [] }),
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({ suggestions: [], suppliers: [], recentOrders: [] }),
+    };
+    const prisma = {
+      orderItem: { aggregate: jest.fn().mockResolvedValue({ _sum: { netAmount: 3580 } }) },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_operations_overview', intents: ['query'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'product-sales-amount-test', timezone: 'Asia/Shanghai' },
+      runId: 54,
+      question: '这个月产品销售额是多少',
+      answerShape: 'scalar',
+      args: { objective: '商品销售额', entities: [], metrics: [{ definitionKey: 'metric.product_sales_amount', definitionVersion: 138 }], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('商品净销售额 3580.00 元');
+    expect(result.blocks?.[0]).toMatchObject({ kind: 'kpi' });
+    expect(prisma.orderItem.aggregate).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ order: expect.objectContaining({ storeId: 6 }) }),
+    }));
+  });
+
+  it('checks project BOM requirements against current material stock', async () => {
+    const skillRuntime = {
+      buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0, expiringStockValue: 0, lowStockProducts: [], expiringProducts: [] }),
+      buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({ totalSku: 0, totalStockValue: 0, products: [], movements: [] }),
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({ suggestions: [], suppliers: [], recentOrders: [] }),
+    };
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: '补水护理', bomItems: [{ standardQty: 2, unit: '支', product: { id: 10, name: '补水精华', currentStock: 1, status: 'active', deletedAt: null } }] },
+          { id: 2, name: '清洁护理', bomItems: [] },
+        ]),
+      },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService(), undefined, undefined, prisma as never);
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_operations_overview', intents: ['diagnosis'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'project-material-test', timezone: 'Asia/Shanghai' },
+      runId: 54,
+      question: '有没有哪个项目因为缺耗材没法做',
+      answerShape: 'diagnosis',
+      args: { objective: '项目耗材可执行性', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('1 个项目因至少一项标准耗材库存不足');
+    expect(result.answer).toContain('1 个在售项目没有配置 BOM');
+    expect(result.blocks?.[0]).toMatchObject({ kind: 'table', rows: [expect.objectContaining({ projectName: '补水护理', shortageQty: 1 })] });
   });
 
   it('answers explicitly requested payment methods with zero rows when the period has no payments', async () => {

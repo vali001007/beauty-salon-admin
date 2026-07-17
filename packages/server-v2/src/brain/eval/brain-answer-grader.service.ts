@@ -357,6 +357,7 @@ export class BrainAnswerGraderService {
     if (this.hasClarificationBlock(input.blocks) || this.isGeneralClarification(input.answer)) return 'clarify';
     const blockKinds = this.blockKinds(input.blocks);
     if (blockKinds.has('action_preview')) return 'action';
+    if (blockKinds.has('diagnosis')) return 'diagnosis';
     if (blockKinds.has('comparison')) return 'comparison';
     if (blockKinds.has('ranking')) return 'ranking';
     if (blockKinds.has('table')) return 'list';
@@ -390,6 +391,7 @@ export class BrainAnswerGraderService {
       return typeof kind === 'string' ? [kind] : [];
     });
     if (blockKinds.includes('clarification') || blockKinds.includes('clarification_card')) return 'clarification';
+    if (blockKinds.includes('diagnosis')) return 'non_metric';
     if (blockKinds.includes('ranking')) return 'ranking';
     if (blockKinds.includes('comparison')) return 'comparison';
     if (blockKinds.includes('table') && expectedShape === 'list') return 'list';
@@ -424,6 +426,8 @@ export class BrainAnswerGraderService {
 
     const text = this.normalize(question);
     if (/(预约|到店|空档|排班)/.test(text)) return 'appointment_count';
+    if (/(商品|产品).*(销售额|销售金额)|(销售额|销售金额).*(商品|产品)/.test(text)) return 'product_sales_amount';
+    if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(text)) return 'inventory_consumption_quantity';
     if (/(收入|流水|业绩|实收|营收|营业额|收款|收了|销售额)/.test(text)) return 'paid_revenue';
     if (/(谁|员工|美容师).*(客户复购率)|客户复购率.*(谁|员工|美容师)/.test(text)) return 'staff_customer_repurchase_rate';
     if (/(复购|回购|再次消费|回头率)/.test(text)) return 'repurchase_rate';

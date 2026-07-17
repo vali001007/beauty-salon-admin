@@ -965,6 +965,12 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
   const normalizedQuestion = normalizeSemanticText(question);
   const metricKey = definitionKey.replace(/^metric\./, '');
   switch (metricKey) {
+    case 'product_sales_amount':
+      return /(商品|产品)/.test(normalizedQuestion) && /(销售额|销售金额)/.test(normalizedQuestion);
+    case 'product_sales_quantity':
+      return /(商品|产品)/.test(normalizedQuestion) && /(销量|销售数量|卖出多少|卖了多少)/.test(normalizedQuestion);
+    case 'inventory_consumption_quantity':
+      return /(耗材|物料|产品|商品)/.test(normalizedQuestion) && /(消耗|用量|出库)/.test(normalizedQuestion);
     case 'refund_amount':
       return /退款/.test(normalizedQuestion) && /(金额|多少)/.test(normalizedQuestion);
     case 'refund_count':
