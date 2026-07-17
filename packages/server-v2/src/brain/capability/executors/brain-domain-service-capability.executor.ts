@@ -100,6 +100,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '现在店里哪些美容师在忙，哪些空着',
       '今天有没有什么异常情况我需要知道',
       '今天最大的一笔消费是多少',
+      '这周有没有哪天特别差，为什么',
     ],
     negativeExamples: ['帮我直接修改本月经营目标', '查询其他门店的经营数据'],
     synonyms: ['经营概览', '经营总结', '店里情况', '门店经营诊断', '经营对比', '目标完成率', '客单价', '美容师忙闲', '新客老客到店'],
@@ -135,6 +136,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我看一下员工这周的工作饱和度',
       '谁的客户复购率最高',
       '这个月提成最高的是谁，大概多少',
+      '今天谁请假了，有没有影响接待',
       '最近有没有客户投诉或者表达不满',
       '帮我看一下客户满意度整体情况',
       '新员工试用期表现怎么样',
@@ -303,7 +305,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'customer_facts',
     name: '客户事实与客群查询',
-    description: '查询当前门店的精确客户事实、VIP、新老客、沉睡客户、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
+    description: '查询当前门店的精确客户事实、VIP、新老客、周期新客转化、到店年龄画像、沉睡客户、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
     intents: ['query', 'ranking', 'diagnosis'],
     examples: [
       '最近哪些老客好久没来了，帮我列一下',
@@ -323,14 +325,20 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我找一下对我们上次活动有响应的客户',
       '帮我找一下办了卡但还没预约的新客',
       '这个月新客主要来自什么渠道',
+      '上个月新来了多少新客，转化了多少',
+      '帮我看一下今天到店客人的画像，主要是什么年龄段',
       '帮我查一下张女士的客户资料',
     ],
     negativeExamples: ['查询其他门店的客户名单', '直接修改客户会员等级'],
-    synonyms: ['客户事实', '客户名单', '沉睡客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道'],
+    synonyms: ['客户事实', '客户名单', '沉睡客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
     businessDefinitionKeys: [
       'entity.customer',
       'dimension.customerName',
       'dimension.customerSource',
+      'dimension.customerAgeGroup',
+      'metric.new_customer_count',
+      'metric.new_customer_conversion_count',
+      'metric.new_customer_conversion_rate',
     ],
     readOnly: true,
     storeScope: 'required',
@@ -572,6 +580,46 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           }, dataQuality);
         }
+        if (/(?:哪天.*(?:特别差|最差)|(?:特别差|最差).*哪天)/.test(input.question)) {
+          const dailyTrend = operations.dailyTrend
+            .filter((item) => Number.isFinite(item.revenue))
+            .sort((left, right) => left.revenue - right.revenue || left.date.localeCompare(right.date));
+          const averageRevenue = dailyTrend.length
+            ? dailyTrend.reduce((sum, item) => sum + item.revenue, 0) / dailyTrend.length
+            : 0;
+          const lowest = dailyTrend[0];
+          const lowestRows = lowest
+            ? dailyTrend.filter((item) => item.revenue === lowest.revenue)
+            : [];
+          const dayLabel = lowestRows.map((item) => item.date).join('、');
+          const reasonLimitation = '当前经营事实只能定位逐日实收结果，缺少逐日订单取消、客户流失、排班缺口和营销触达的统一归因数据，不能直接断言原因。';
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: lowest
+              ? `${range.label}按实收最低判断，表现最差的是 ${dayLabel}，实收 ${lowest.revenue.toFixed(2)} 元；期间日均实收 ${averageRevenue.toFixed(2)} 元。${reasonLimitation}`
+              : `${range.label}缺少逐日实收数据，无法定位表现最差的日期。${reasonLimitation}`,
+            citations: [citations[0]!],
+            grounding: 'db_skill',
+            blocks: [
+              ...(lowest
+                ? [{
+                    kind: 'ranking' as const,
+                    rows: dailyTrend.map((item) => ({ date: item.date, revenue: item.revenue })),
+                    columns: ['date', 'revenue'],
+                    citationIds: [citations[0]!.sourceId],
+                  }]
+                : []),
+              { kind: 'limitations' as const, items: [reasonLimitation] },
+            ],
+            metadata: {
+              capabilityKey: 'store_operations_overview',
+              answerScope: 'lowest_daily_paid_amount_with_reason_gap',
+              metricDefinitionKey: 'metric.paid_amount',
+              rangeLabel: range.label,
+              completionCriteria: ['daily_paid_amount_loaded', 'lowest_day_identified', 'attribution_gap_disclosed'],
+            },
+          }, dataQuality);
+        }
         return this.applyDataQualityGuard({
           status: 'completed',
           answer: `${range.label}经营概览已完成，包含实收、订单、预约到店、在店、退款、项目排行、员工状态和风险。`,
@@ -766,6 +814,53 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           };
         }), input.args.orderBy, input.question);
         const visibleRows = rows.slice(0, this.resolveLimit(input.args.limit, 15));
+        if (/(?:谁|哪些人)?.*请假.*影响接待|影响接待.*请假/.test(input.question)) {
+          const leaveRows = rows.filter((item) => item.status === '请假' || item.timeOffHours > 0);
+          const availableRows = rows.filter((item) => item.status === '可接待');
+          const leaveLabel = leaveRows.length ? leaveRows.map((item) => item.staff).join('、') : '无人';
+          const impact = leaveRows.length === 0
+            ? '当前没有请假记录，从排班快照看未发现请假造成的接待影响。'
+            : availableRows.length > 0
+              ? `当前仍有 ${availableRows.length} 位美容师可接待，未发现接待能力完全中断。`
+              : '当前没有美容师处于可接待状态，需要前台复核预约分配和等待风险。';
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: `${range.label}请假人员：${leaveLabel}。${impact}`,
+            citations,
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'table',
+                rows: rows.map((item) => ({
+                  staff: item.staff,
+                  status: item.status,
+                  timeOffHours: item.timeOffHours,
+                  appointmentCount: staffState.get(item.staff)?.appointmentCount ?? 0,
+                  nextAvailableAt: item.nextAvailableAt,
+                })),
+                columns: ['staff', 'status', 'timeOffHours', 'appointmentCount', 'nextAvailableAt'],
+                citationIds: ['manager_staff_analysis', 'reception_operations_snapshot'],
+              },
+              {
+                kind: 'diagnosis',
+                findings: [{
+                  title: '请假对接待的当前影响',
+                  detail: impact,
+                  severity: leaveRows.length > 0 && availableRows.length === 0 ? 'warning' : 'info',
+                }],
+                citationIds: ['reception_operations_snapshot'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'manager_staff_overview',
+              answerScope: 'staff_leave_reception_impact',
+              rangeLabel: range.label,
+              leaveStaffCount: leaveRows.length,
+              availableStaffCount: availableRows.length,
+              completionCriteria: ['staff_leave_loaded', 'current_reception_capacity_loaded'],
+            },
+          }, dataQuality);
+        }
         const focusedColumns = focusMetric === 'metric.staff_customer_repurchase_rate'
           ? ['staff', 'customerRepurchaseRate', 'repeatCustomerCount', 'uniqueCustomerCount']
           : focusMetric === 'metric.staff_commission_amount'
@@ -1505,6 +1600,116 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         });
       }
       case 'customer_facts': {
+        if (/(?:新客.*(?:转化|成交|首单)|(?:转化|成交|首单).*新客)/.test(input.question)) {
+          const summary = await this.customerFacts.getNewCustomerConversionSummary({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const metricKeys = [
+            ['metric.new_customer_count', '新客数'],
+            ['metric.new_customer_conversion_count', '新客转化数'],
+            ['metric.new_customer_conversion_rate', '新客转化率'],
+          ] as const;
+          const definitionCitations = metricKeys.map(([definitionKey, label]) => {
+            const ref = structuredDefinitionRef(input.args.metrics, definitionKey);
+            return {
+              sourceType: 'business_definition',
+              sourceId: ref ? `${ref.definitionKey}@${ref.definitionVersion}` : definitionKey,
+              label: `业务定义：${label}`,
+            };
+          });
+          return {
+            status: 'completed',
+            answer: `${range.label}新增客户 ${summary.newCustomerCount} 人，其中 ${summary.convertedCustomerCount} 人在同一周期内完成首笔有效正金额订单，转化率 ${(summary.conversionRate * 100).toFixed(1)}%，待转化 ${summary.unconvertedCustomerCount} 人。`,
+            citations: [
+              ...definitionCitations,
+              { sourceType: 'db_skill', sourceId: 'customer_acquisition_conversion_summary', label: '客户建档与首笔有效订单转化事实' },
+            ],
+            grounding: 'db_skill',
+            blocks: [{
+              kind: 'kpi',
+              items: [
+                { label: '新增客户', value: `${summary.newCustomerCount} 人` },
+                { label: '已转化', value: `${summary.convertedCustomerCount} 人` },
+                { label: '转化率', value: `${(summary.conversionRate * 100).toFixed(1)}%` },
+                { label: '待转化', value: `${summary.unconvertedCustomerCount} 人` },
+              ],
+              citationIds: [
+                ...definitionCitations.map((citation) => citation.sourceId),
+                'customer_acquisition_conversion_summary',
+              ],
+            }],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              rangeLabel: range.label,
+              cohortDefinition: 'Customer.createdAt within requested period',
+              conversionDefinition: 'first valid positive-net ProductOrder between customer creation and period end',
+              completionCriteria: ['new_customer_count_loaded', 'new_customer_conversion_count_loaded'],
+            },
+          };
+        }
+        if (/(?:到店|来店).*(?:年龄|年龄段)|(?:年龄|年龄段).*(?:到店|来店)/.test(input.question)) {
+          const distribution = await this.customerFacts.getArrivedCustomerAgeDistribution({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const dimensionRef = structuredDefinitionRef(input.args.dimensions, 'dimension.customerAgeGroup');
+          const definitionCitation = {
+            sourceType: 'business_definition',
+            sourceId: dimensionRef
+              ? `${dimensionRef.definitionKey}@${dimensionRef.definitionVersion}`
+              : 'dimension.customerAgeGroup',
+            label: '业务定义：到店客户年龄段',
+          };
+          const leading = distribution.rows[0];
+          return {
+            status: 'completed',
+            answer: distribution.arrivedCustomerCount === 0
+              ? `${range.label}没有实际到店客户，无法形成年龄段画像。`
+              : `${range.label}实际到店客户 ${distribution.arrivedCustomerCount} 人，已知年龄 ${distribution.knownAgeCount} 人、未知 ${distribution.unknownAgeCount} 人。${leading ? `人数最多的是 ${leading.ageGroup}，${leading.count} 人（${(leading.share * 100).toFixed(1)}%）。` : '当前没有可分组的已知年龄。'}`,
+            citations: [
+              definitionCitation,
+              { sourceType: 'db_skill', sourceId: 'arrived_customer_age_distribution', label: '预约到店与客户年龄聚合事实' },
+            ],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '实际到店客户', value: `${distribution.arrivedCustomerCount} 人` },
+                  { label: '年龄已知', value: `${distribution.knownAgeCount} 人` },
+                  { label: '年龄未知', value: `${distribution.unknownAgeCount} 人` },
+                ],
+                citationIds: [definitionCitation.sourceId, 'arrived_customer_age_distribution'],
+              },
+              {
+                kind: 'table',
+                rows: distribution.rows.map((item) => ({
+                  ageGroup: item.ageGroup,
+                  customerCount: item.count,
+                  share: `${(item.share * 100).toFixed(1)}%`,
+                })),
+                columns: ['ageGroup', 'customerCount', 'share'],
+                citationIds: [definitionCitation.sourceId, 'arrived_customer_age_distribution'],
+              },
+              ...(distribution.arrivedCustomerCount === 0
+                ? [{ kind: 'limitations' as const, items: [`${range.label}没有实际到店客户`] }]
+                : distribution.unknownAgeCount > 0
+                  ? [{ kind: 'limitations' as const, items: [`${distribution.unknownAgeCount} 位到店客户缺少有效年龄或生日，未分配到年龄段`] }]
+                  : []),
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              rangeLabel: range.label,
+              dimensionKey: 'customerAgeGroup',
+              arrivalDefinition: 'Reservation.checkedInAt in range, or arrived status on reservation date when checkedInAt is missing',
+              ageDefinition: 'valid Customer.age, otherwise derive from Customer.birthday as of range end',
+              privacy: 'aggregate_only',
+            },
+          };
+        }
         if (/(老客|客户).*(回头率|复购率)|(?:回头率|复购率).*(老客|客户)/.test(input.question)) {
           const explicitTime = readCapabilityStructuredTime(input.args, input.context.timezone);
           const summary = await this.customerFacts.getCustomerRetentionSummary({

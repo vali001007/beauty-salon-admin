@@ -351,6 +351,11 @@ function inferExpectedMetrics(input: string) {
   }
   if (/提成/.test(input)) values.add('staff_commission_amount');
   if (/负债|未消耗|剩余次数/.test(input)) values.add('card_liability');
+  if (/新客/.test(input) && /新来|新增|来了多少|多少新客/.test(input)) values.add('new_customer_count');
+  if (/新客/.test(input) && /转化|成交|首单/.test(input)) {
+    values.add('new_customer_conversion_count');
+    values.add('new_customer_conversion_rate');
+  }
   return [...values];
 }
 
@@ -368,6 +373,7 @@ function inferExpectedDimensions(input: string, semanticIntent: string) {
     !/(?:新客.*老客|老客.*新客).*(?:各|分别)|(?:各|分别).*(?:新客.*老客|老客.*新客)/.test(input)
   ) values.add('customer');
   if (/现金(?!流)|微信|支付宝|支付方式/.test(input)) values.add('payment_method');
+  if (/(年龄段|年龄画像|年龄分布)/.test(input)) values.add('customerAgeGroup');
   if (['trend', 'comparison'].includes(semanticIntent)) values.add('date');
   return [...values];
 }

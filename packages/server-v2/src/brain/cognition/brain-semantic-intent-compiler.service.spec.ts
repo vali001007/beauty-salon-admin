@@ -85,6 +85,38 @@ const staffServiceCountMetricRef = {
   sourceFingerprint: '4'.repeat(64),
 } as const;
 
+const newCustomerCountMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.new_customer_count',
+  definitionVersion: 1,
+  definitionFingerprint: '5'.repeat(64),
+  sourceFingerprint: '6'.repeat(64),
+} as const;
+
+const newCustomerConversionCountMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.new_customer_conversion_count',
+  definitionVersion: 1,
+  definitionFingerprint: '7'.repeat(64),
+  sourceFingerprint: '8'.repeat(64),
+} as const;
+
+const newCustomerConversionRateMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.new_customer_conversion_rate',
+  definitionVersion: 1,
+  definitionFingerprint: '9'.repeat(64),
+  sourceFingerprint: 'a'.repeat(64),
+} as const;
+
+const customerAgeGroupDimensionRef = {
+  definitionType: 'dimension',
+  definitionKey: 'dimension.customerAgeGroup',
+  definitionVersion: 1,
+  definitionFingerprint: 'b'.repeat(64),
+  sourceFingerprint: 'c'.repeat(64),
+} as const;
+
 const stockRiskMetricRef = {
   definitionType: 'metric',
   definitionKey: 'metric.stock_risk_score',
@@ -1223,6 +1255,73 @@ describe('BrainSemanticIntentCompilerService', () => {
         intent: 'ranking',
         metrics: [staffCommissionMetricRef],
         orderBy: [{ definitionRef: staffCommissionMetricRef, direction: 'desc' }],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('hydrates the governed new-customer conversion funnel from an exact candidate contract', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('上个月新来了多少新客，转化了多少');
+    input.capabilitySummaries = [{
+      key: 'customer_facts',
+      name: '客户事实与客群查询',
+      description: '周期新客与首单转化漏斗',
+      domains: ['customer'],
+      intents: ['query'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [
+        newCustomerCountMetricRef,
+        newCustomerConversionCountMetricRef,
+        newCustomerConversionRateMetricRef,
+      ],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'scalar',
+        metrics: [
+          newCustomerCountMetricRef,
+          newCustomerConversionCountMetricRef,
+          newCustomerConversionRateMetricRef,
+        ],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('hydrates a candidate age-group dimension for an exact arrived-customer profile contract', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('帮我看一下今天到店客人的画像，主要是什么年龄段');
+    input.capabilitySummaries = [{
+      key: 'customer_facts',
+      name: '客户事实与客群查询',
+      description: '实际到店客户年龄画像',
+      domains: ['customer'],
+      intents: ['query'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [customerAgeGroupDimensionRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        metrics: [],
+        dimensions: [customerAgeGroupDimensionRef],
       },
     });
     expect(aiService.generateStructured).not.toHaveBeenCalled();

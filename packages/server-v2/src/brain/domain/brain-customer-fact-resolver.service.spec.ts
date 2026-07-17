@@ -160,6 +160,71 @@ describe('BrainCustomerFactResolverService', () => {
     expect(sourceDistribution).toHaveBeenCalledWith({ storeId: 6, startDate, endDate });
   });
 
+  it('calculates new-customer conversion from the cohort created in the requested period', async () => {
+    const startDate = new Date('2026-05-31T16:00:00.000Z');
+    const endDate = new Date('2026-06-30T15:59:59.999Z');
+    const customerFindMany = jest.fn().mockResolvedValue([
+      { id: 1, createdAt: new Date('2026-06-03T02:00:00.000Z') },
+      { id: 2, createdAt: new Date('2026-06-10T03:00:00.000Z') },
+      { id: 3, createdAt: new Date('2026-06-20T04:00:00.000Z') },
+    ]);
+    const orderFindMany = jest.fn().mockResolvedValue([
+      { customerId: 1, createdAt: new Date('2026-06-05T02:00:00.000Z') },
+      { customerId: 1, createdAt: new Date('2026-06-06T02:00:00.000Z') },
+      { customerId: 2, createdAt: new Date('2026-06-09T02:00:00.000Z') },
+    ]);
+    const service = new BrainCustomerFactResolverService({
+      customer: { findMany: customerFindMany },
+      productOrder: { findMany: orderFindMany },
+    } as never);
+
+    await expect(service.getNewCustomerConversionSummary({ storeId: 6, startDate, endDate })).resolves.toEqual({
+      newCustomerCount: 3,
+      convertedCustomerCount: 1,
+      unconvertedCustomerCount: 2,
+      conversionRate: 1 / 3,
+    });
+    expect(customerFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: 6, deletedAt: null, createdAt: { gte: startDate, lte: endDate } },
+    }));
+    expect(orderFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        storeId: 6,
+        customerId: { in: [1, 2, 3] },
+        createdAt: { gte: startDate, lte: endDate },
+        netAmount: { gt: 0 },
+      }),
+    }));
+  });
+
+  it('groups unique arrived customers by governed age bands and keeps unknown coverage visible', async () => {
+    const startDate = new Date('2026-07-16T16:00:00.000Z');
+    const endDate = new Date('2026-07-17T15:59:59.999Z');
+    const findMany = jest.fn().mockResolvedValue([
+      { customerId: 1, customer: { age: 23, birthday: null } },
+      { customerId: 1, customer: { age: 23, birthday: null } },
+      { customerId: 2, customer: { age: null, birthday: new Date('1992-08-01T00:00:00.000Z') } },
+      { customerId: 3, customer: { age: null, birthday: null } },
+    ]);
+    const service = new BrainCustomerFactResolverService({ reservation: { findMany } } as never);
+
+    const result = await service.getArrivedCustomerAgeDistribution({ storeId: 6, startDate, endDate });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 6, OR: expect.any(Array) }),
+      take: 20_000,
+    }));
+    expect(result).toEqual({
+      arrivedCustomerCount: 3,
+      knownAgeCount: 2,
+      unknownAgeCount: 1,
+      rows: [
+        { ageGroup: '24岁及以下', count: 1, share: 1 / 3 },
+        { ageGroup: '25-34岁', count: 1, share: 1 / 3 },
+      ],
+    });
+  });
+
   it('matches uppercase VIP questions and returns the real total with a bounded list', async () => {
     const service = new BrainCustomerFactResolverService({
       customer: {

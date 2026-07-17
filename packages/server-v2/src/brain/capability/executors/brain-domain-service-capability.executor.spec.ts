@@ -104,6 +104,38 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ answerScope: 'largest_completed_order' });
   });
 
+  it('identifies the lowest paid-amount day and discloses the missing attribution facts', async () => {
+    const skillRuntime = {
+      buildManagerOperationsAnalysis: jest.fn().mockResolvedValue(operations({
+        dailyTrend: [
+          { date: '2026-07-13', revenue: 3400 },
+          { date: '2026-07-14', revenue: 0 },
+          { date: '2026-07-15', revenue: 4900 },
+        ],
+      })),
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue(reception(0)),
+      buildFinanceRiskSummary: jest.fn().mockResolvedValue(finance(0, 0)),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: storeCard(),
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'lowest-day-test', timezone: 'Asia/Shanghai' },
+      runId: 81,
+      question: '这周有没有哪天特别差，为什么',
+      answerShape: 'diagnosis',
+      args: { objective: '识别经营低谷日', time: { label: '本周', timezone: 'Asia/Shanghai', startDate: '2026-07-13', endDate: '2026-07-19' }, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('表现最差的是 2026-07-14，实收 0.00 元');
+    expect(result.answer).toContain('不能直接断言原因');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'ranking' }),
+      expect.objectContaining({ kind: 'limitations' }),
+    ]));
+    expect(result.metadata).toMatchObject({ answerScope: 'lowest_daily_paid_amount_with_reason_gap' });
+  });
+
   it('answers the largest governed daily paid-amount gap without expanding the full overview', async () => {
     const skillRuntime = {
       buildManagerOperationsAnalysis: jest
@@ -448,6 +480,112 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
   });
 
+  it('returns the governed new-customer cohort conversion funnel for the requested period', async () => {
+    const customerFacts = {
+      getNewCustomerConversionSummary: jest.fn().mockResolvedValue({
+        newCustomerCount: 9,
+        convertedCustomerCount: 1,
+        unconvertedCustomerCount: 8,
+        conversionRate: 1 / 9,
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'new-customer-conversion-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 4,
+      question: '上个月新来了多少新客，转化了多少',
+      answerShape: 'scalar',
+      args: {
+        objective: '查询上月新客转化',
+        time: { label: '上月', timezone: 'Asia/Shanghai', startDate: '2026-06-01', endDate: '2026-06-30' },
+        entities: [],
+        metrics: [
+          { definitionKey: 'metric.new_customer_count' },
+          { definitionKey: 'metric.new_customer_conversion_count' },
+          { definitionKey: 'metric.new_customer_conversion_rate' },
+        ],
+        dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(customerFacts.getNewCustomerConversionSummary).toHaveBeenCalledWith({
+      storeId: 6,
+      startDate: new Date('2026-05-31T16:00:00.000Z'),
+      endDate: new Date('2026-06-30T15:59:59.999Z'),
+    });
+    expect(result.answer).toContain('新增客户 9 人');
+    expect(result.answer).toContain('转化率 11.1%');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'kpi',
+        items: [
+          { label: '新增客户', value: '9 人' },
+          { label: '已转化', value: '1 人' },
+          { label: '转化率', value: '11.1%' },
+          { label: '待转化', value: '8 人' },
+        ],
+      }),
+    ]);
+    expect(result.metadata).toMatchObject({
+      cohortDefinition: 'Customer.createdAt within requested period',
+      conversionDefinition: 'first valid positive-net ProductOrder between customer creation and period end',
+    });
+  });
+
+  it('returns an aggregate-only arrived-customer age distribution', async () => {
+    const customerFacts = {
+      getArrivedCustomerAgeDistribution: jest.fn().mockResolvedValue({
+        arrivedCustomerCount: 5,
+        knownAgeCount: 4,
+        unknownAgeCount: 1,
+        rows: [
+          { ageGroup: '25-34岁', count: 3, share: 0.6 },
+          { ageGroup: '35-44岁', count: 1, share: 0.2 },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'arrived-age-profile-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 5,
+      question: '帮我看一下今天到店客人的画像，主要是什么年龄段',
+      answerShape: 'list',
+      args: {
+        objective: '查看今日到店年龄画像',
+        time: { label: '今天', timezone: 'Asia/Shanghai', startDate: '2026-07-17', endDate: '2026-07-17' },
+        entities: [], metrics: [],
+        dimensions: [{ definitionKey: 'dimension.customerAgeGroup' }],
+        filters: [], orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('实际到店客户 5 人');
+    expect(result.answer).toContain('人数最多的是 25-34岁');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'table', columns: ['ageGroup', 'customerCount', 'share'] }),
+      expect.objectContaining({ kind: 'limitations', items: ['1 位到店客户缺少有效年龄或生日，未分配到年龄段'] }),
+    ]));
+    expect(result.metadata).toMatchObject({ dimensionKey: 'customerAgeGroup', privacy: 'aggregate_only' });
+  });
+
   it('answers governed customer retention metrics without using the default today range', async () => {
     const customerFacts = {
       getCustomerRetentionSummary: jest.fn().mockResolvedValue({
@@ -588,6 +726,45 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       capabilityKey: 'manager_staff_overview',
       staffCount: 2,
       focusMetric: 'metric.staff_unique_customer_count',
+    });
+  });
+
+  it('answers staff leave impact from the shared leave and reception snapshot', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          { beauticianId: 1, name: '唐伊', serviceCount: 0, completedCount: 0, uniqueCustomerCount: 0, repeatCustomerCount: 0, revenueAmount: 0, commissionAmount: 0, timeOffHours: 8 },
+          { beauticianId: 2, name: '沈晴', serviceCount: 0, completedCount: 0, uniqueCustomerCount: 0, repeatCustomerCount: 0, revenueAmount: 0, commissionAmount: 0, timeOffHours: 0 },
+        ],
+      }),
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({
+        ...reception(2),
+        staff: [
+          { name: '唐伊', appointmentCount: 0, onTimeOff: true, inService: false, available: false, nextAvailableAt: null },
+          { name: '沈晴', appointmentCount: 2, onTimeOff: false, inService: false, available: true, nextAvailableAt: null },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query', 'diagnosis'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'staff-leave-impact-test', timezone: 'Asia/Shanghai' },
+      runId: 41,
+      question: '今天谁请假了，有没有影响接待',
+      answerShape: 'diagnosis',
+      args: { objective: '分析请假对接待的影响', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toBe('今天请假人员：唐伊。当前仍有 1 位美容师可接待，未发现接待能力完全中断。');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'table' }),
+      expect.objectContaining({ kind: 'diagnosis' }),
+    ]));
+    expect(result.metadata).toMatchObject({
+      answerScope: 'staff_leave_reception_impact',
+      leaveStaffCount: 1,
+      availableStaffCount: 1,
     });
   });
 

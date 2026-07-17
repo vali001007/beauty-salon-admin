@@ -62,4 +62,39 @@ describe('business metric resolver runtime', () => {
       }),
     ).toThrow('semantic_resolver_numeric_field_not_allowed:manager_staff_analysis:passwordHash');
   });
+
+  it('evaluates the governed new-customer conversion rate from the shared customer fact row', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'new_customer_conversion_rate',
+      resolver: {
+        kind: 'domain_service',
+        key: 'customer_acquisition_conversion_summary',
+        dimensionFields: {},
+        expression: {
+          op: 'divide',
+          numerator: { op: 'field', field: 'convertedCustomerCount' },
+          denominator: { op: 'field', field: 'newCustomerCount' },
+          zero: 'zero',
+        },
+        overallAggregation: 'avg',
+      },
+      dimensions: [],
+      outputField: 'new_customer_conversion_rate',
+      sourceModels: ['Customer', 'ProductOrder'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'Customer',
+        model: 'Customer',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [{ newCustomerCount: 9, convertedCustomerCount: 1 }],
+    });
+
+    expect(result).toEqual({
+      outputField: 'new_customer_conversion_rate',
+      groups: [{ dimensions: {}, value: 0.11111111 }],
+      overallValue: 0.11111111,
+    });
+  });
 });

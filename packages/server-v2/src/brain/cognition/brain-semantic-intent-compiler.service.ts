@@ -295,10 +295,18 @@ export class BrainSemanticIntentCompilerService {
     });
     const directDimensions = refs.flatMap((ref) =>
       ref.definitionType === 'dimension'
-        ? input.ontologySnapshot?.dimensions
-          .filter((item) => item.definitionKey === ref.definitionKey)
-          .filter((item) => intent === 'ranking' || definitionMatchesQuestion(input.question, item.name, item.aliases))
-          .map((item) => definitionRef('dimension', item)) ?? []
+        ? (() => {
+            const definitions = input.ontologySnapshot?.dimensions
+              .filter((item) => item.definitionKey === ref.definitionKey) ?? [];
+            if (definitions.length > 0) {
+              return definitions
+                .filter((item) => intent === 'ranking' || definitionMatchesQuestion(input.question, item.name, item.aliases))
+                .map((item) => definitionRef('dimension', item));
+            }
+            return governedDimensionKeyMatchesQuestion(input.question, ref.definitionKey)
+              ? [copyDefinitionRef(ref as BrainDefinitionRef<'dimension'>)]
+              : [];
+          })()
         : [],
     );
     const runtimeDimensionKeys = metrics.flatMap((metricRef) =>
@@ -966,9 +974,24 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
       return /(服务次数|服务量)/.test(normalizedQuestion);
     case 'staff_performance_score':
       return /(业绩|表现)/.test(normalizedQuestion);
+    case 'new_customer_count':
+      return /新客/.test(normalizedQuestion) && /(多少|几个|人数|来了)/.test(normalizedQuestion);
+    case 'new_customer_conversion_count':
+      return /新客/.test(normalizedQuestion) && /(转化|成交|首单)/.test(normalizedQuestion);
+    case 'new_customer_conversion_rate':
+      return /新客/.test(normalizedQuestion) && /(转化率|成交率|首单率|转化)/.test(normalizedQuestion);
     default:
       return false;
   }
+}
+
+function governedDimensionKeyMatchesQuestion(question: string, definitionKey: string): boolean {
+  const normalizedQuestion = normalizeSemanticText(question);
+  const dimensionKey = definitionKey.replace(/^dimension\./, '');
+  if (dimensionKey === 'customerAgeGroup') {
+    return /(年龄|年龄段|年龄画像)/.test(normalizedQuestion);
+  }
+  return false;
 }
 
 function selectCapabilityExamples(question: string, examples: readonly string[], limit = 3): string[] {

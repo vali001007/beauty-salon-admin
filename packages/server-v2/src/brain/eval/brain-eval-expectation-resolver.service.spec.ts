@@ -144,6 +144,50 @@ describe('BrainEvalExpectationResolverService', () => {
     expect(result.evidence.unresolved).toEqual(['metric:gross_margin_rate']);
   });
 
+  it('resolves validated candidate metrics and dimensions from the frozen evaluation release', () => {
+    const result = service.resolve({
+      base: {
+        intent: 'query',
+        metrics: [
+          'new_customer_count',
+          'new_customer_conversion_count',
+          'new_customer_conversion_rate',
+        ],
+        dimensions: ['customerAgeGroup'],
+      },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['customer_facts'],
+        capabilityCandidates: [
+          {
+            key: 'customer_facts',
+            allowedRoles: ['store_manager'],
+            intents: ['query'],
+            domains: ['customer'],
+            definitionRefs: [
+              { definitionKey: 'metric.new_customer_count' },
+              { definitionKey: 'metric.new_customer_conversion_count' },
+              { definitionKey: 'metric.new_customer_conversion_rate' },
+              { definitionKey: 'dimension.customerAgeGroup' },
+            ],
+          },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation).toMatchObject({
+      metrics: [
+        'new_customer_count',
+        'new_customer_conversion_count',
+        'new_customer_conversion_rate',
+      ],
+      dimensions: ['customerAgeGroup'],
+      capabilityAnyOf: ['customer_facts'],
+    });
+    expect(result.evidence.unresolved).toEqual([]);
+  });
+
   it('uses role-scoped release capabilities as alternatives when no metric binding exists', () => {
     const result = service.resolve({
       base: { intent: 'diagnosis', capabilityKeys: ['store.operations.overview'] },

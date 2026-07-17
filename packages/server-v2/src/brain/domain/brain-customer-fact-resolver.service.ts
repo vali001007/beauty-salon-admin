@@ -19,6 +19,20 @@ export interface BrainCustomerRetentionSummary {
   averageReturnIntervalDays: number | null;
 }
 
+export interface BrainNewCustomerConversionSummary {
+  newCustomerCount: number;
+  convertedCustomerCount: number;
+  unconvertedCustomerCount: number;
+  conversionRate: number;
+}
+
+export interface BrainArrivedCustomerAgeDistribution {
+  arrivedCustomerCount: number;
+  knownAgeCount: number;
+  unknownAgeCount: number;
+  rows: Array<{ ageGroup: string; count: number; share: number }>;
+}
+
 export interface BrainCustomerCardUsageRow {
   [key: string]: unknown;
   customerName: string;
@@ -259,6 +273,114 @@ export class BrainCustomerFactResolverService {
       averageReturnIntervalDays: intervals.length
         ? intervals.reduce((sum, value) => sum + value, 0) / intervals.length
         : null,
+    };
+  }
+
+  async getNewCustomerConversionSummary(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<BrainNewCustomerConversionSummary> {
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        storeId: input.storeId,
+        deletedAt: null,
+        createdAt: { gte: input.startDate, lte: input.endDate },
+      },
+      select: { id: true, createdAt: true },
+      take: 20_000,
+    });
+    if (!customers.length) {
+      return {
+        newCustomerCount: 0,
+        convertedCustomerCount: 0,
+        unconvertedCustomerCount: 0,
+        conversionRate: 0,
+      };
+    }
+    const createdAtByCustomer = new Map(customers.map((customer) => [customer.id, customer.createdAt]));
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { in: customers.map((customer) => customer.id) },
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+      },
+      select: { customerId: true, createdAt: true },
+      take: 20_000,
+    });
+    const convertedCustomerIds = new Set(
+      orders.flatMap((order) => {
+        const customerCreatedAt = order.customerId ? createdAtByCustomer.get(order.customerId) : undefined;
+        return order.customerId && customerCreatedAt && order.createdAt >= customerCreatedAt ? [order.customerId] : [];
+      }),
+    );
+    const newCustomerCount = customers.length;
+    const convertedCustomerCount = convertedCustomerIds.size;
+    return {
+      newCustomerCount,
+      convertedCustomerCount,
+      unconvertedCustomerCount: newCustomerCount - convertedCustomerCount,
+      conversionRate: newCustomerCount > 0 ? convertedCustomerCount / newCustomerCount : 0,
+    };
+  }
+
+  async getArrivedCustomerAgeDistribution(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<BrainArrivedCustomerAgeDistribution> {
+    const arrivedStatuses = ['checked_in', 'in_service', 'arrived', 'completed', 'served', '已到店', '服务中', '已完成'];
+    const reservations = await this.prisma.reservation.findMany({
+      where: {
+        storeId: input.storeId,
+        OR: [
+          { checkedInAt: { gte: input.startDate, lte: input.endDate } },
+          {
+            checkedInAt: null,
+            date: { gte: input.startDate, lte: input.endDate },
+            status: { in: arrivedStatuses },
+          },
+        ],
+      },
+      select: {
+        customerId: true,
+        customer: { select: { age: true, birthday: true } },
+      },
+      take: 20_000,
+    });
+    const ageByCustomer = new Map<number, number | null>();
+    for (const reservation of reservations) {
+      if (ageByCustomer.has(reservation.customerId)) continue;
+      ageByCustomer.set(
+        reservation.customerId,
+        this.resolveCustomerAge(reservation.customer.age, reservation.customer.birthday, input.endDate),
+      );
+    }
+    const counts = new Map<string, number>();
+    let unknownAgeCount = 0;
+    for (const age of ageByCustomer.values()) {
+      if (age === null) {
+        unknownAgeCount += 1;
+        continue;
+      }
+      const ageGroup = this.customerAgeGroup(age);
+      counts.set(ageGroup, (counts.get(ageGroup) ?? 0) + 1);
+    }
+    const arrivedCustomerCount = ageByCustomer.size;
+    const knownAgeCount = arrivedCustomerCount - unknownAgeCount;
+    const order = ['24岁及以下', '25-34岁', '35-44岁', '45-54岁', '55岁及以上'];
+    return {
+      arrivedCustomerCount,
+      knownAgeCount,
+      unknownAgeCount,
+      rows: order.flatMap((ageGroup) => {
+        const count = counts.get(ageGroup) ?? 0;
+        return count > 0
+          ? [{ ageGroup, count, share: arrivedCustomerCount > 0 ? count / arrivedCustomerCount : 0 }]
+          : [];
+      }),
     };
   }
 
@@ -849,6 +971,23 @@ ${cardLines}`;
       recommendation: '客户推荐',
     };
     return labels[source.toLowerCase()] ?? source;
+  }
+
+  private resolveCustomerAge(age: number | null | undefined, birthday: Date | null | undefined, asOf: Date) {
+    if (Number.isInteger(age) && age! > 0 && age! < 120) return age!;
+    if (!birthday) return null;
+    let calculated = asOf.getFullYear() - birthday.getFullYear();
+    const month = asOf.getMonth() - birthday.getMonth();
+    if (month < 0 || (month === 0 && asOf.getDate() < birthday.getDate())) calculated -= 1;
+    return calculated > 0 && calculated < 120 ? calculated : null;
+  }
+
+  private customerAgeGroup(age: number) {
+    if (age <= 24) return '24岁及以下';
+    if (age <= 34) return '25-34岁';
+    if (age <= 44) return '35-44岁';
+    if (age <= 54) return '45-54岁';
+    return '55岁及以上';
   }
 
   private extractCustomerName(message: string) {

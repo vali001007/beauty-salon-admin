@@ -109,6 +109,7 @@ function buildAmiCoreDimensionCandidates(
           dimensionKey: contract.dimensionKey,
           aliases: [...contract.aliases],
           source: { ...contract.source },
+          ...(contract.derivation ? { derivation: structuredClone(contract.derivation) } : {}),
           permissionPolicies: contract.capabilityKeys.map((bindingRef) => ({
             bindingRef,
             allOf: [...contract.permissions],

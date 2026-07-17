@@ -359,6 +359,15 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       });
       return [result as unknown as UnknownRecord];
     }
+    if (resolverKey === 'customer_acquisition_conversion_summary') {
+      if (!this.customerFacts) throw new Error('semantic_customer_acquisition_resolver_unavailable');
+      const result = await this.customerFacts.getNewCustomerConversionSummary({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return [result as unknown as UnknownRecord];
+    }
     throw new Error(`semantic_resolver_key_unsupported:${resolverKey}`);
   }
 

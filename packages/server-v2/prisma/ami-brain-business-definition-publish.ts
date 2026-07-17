@@ -66,6 +66,14 @@ async function main() {
           });
           return [result as unknown as Record<string, unknown>];
         }
+        if (input.resolverKey === 'customer_acquisition_conversion_summary') {
+          const result = await customerFacts.getNewCustomerConversionSummary({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          });
+          return [result as unknown as Record<string, unknown>];
+        }
         return marketingSkills.buildFollowUpPriorityRows({
           storeId: input.storeId,
           asOf: new Date(Math.min(Date.now(), input.endExclusive.getTime() - 1)),

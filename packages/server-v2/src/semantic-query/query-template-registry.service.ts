@@ -184,6 +184,20 @@ export class QueryTemplateRegistryService {
       sourceModels: ['Customer', 'ProductOrder'],
     },
     {
+      id: 'customer_acquisition',
+      title: '新客获取与转化查询',
+      description: '查询周期新增客户、周期内首单转化人数和转化率。',
+      capabilityIds: ['customer_facts'],
+      metricKeys: [
+        'new_customer_count',
+        'new_customer_conversion_count',
+        'new_customer_conversion_rate',
+      ],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary'],
+      sourceModels: ['Customer', 'ProductOrder'],
+    },
+    {
       id: 'reservation_schedule',
       title: '预约到店查询',
       description: '查询预约数量、到店率和时段趋势。',

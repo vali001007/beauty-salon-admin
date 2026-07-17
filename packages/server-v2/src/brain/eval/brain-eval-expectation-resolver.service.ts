@@ -25,14 +25,21 @@ export class BrainEvalExpectationResolverService {
     roleKey?: string;
   }): BrainEvalExpectationResolution {
     const unresolved: string[] = [];
+    const releaseResolvedDefinitionKeys = new Set<string>();
     const metrics = (input.base.metrics ?? []).flatMap((value) => {
       const match = uniqueMatch(
         value,
         input.definitions.metrics,
         (item) => [item.definitionKey, item.metricKey, item.name, ...(item.aliases ?? [])],
       );
-      if (!match) unresolved.push(`metric:${value}`);
-      return match ? [match.metricKey] : [];
+      if (match) return [match.metricKey];
+      const releaseDefinitionKey = findReleaseDefinitionKey(input.releaseSnapshot, 'metric', value);
+      if (releaseDefinitionKey) {
+        releaseResolvedDefinitionKeys.add(releaseDefinitionKey);
+        return [definitionBusinessKey(releaseDefinitionKey)];
+      }
+      unresolved.push(`metric:${value}`);
+      return [];
     });
     const entities = (input.base.entities ?? []).flatMap((value) => {
       const match = uniqueMatch(
@@ -40,8 +47,14 @@ export class BrainEvalExpectationResolverService {
         input.definitions.entities,
         (item) => [item.definitionKey, item.entityKey, item.name, ...item.aliases],
       );
-      if (!match) unresolved.push(`entity:${value}`);
-      return match ? [match.entityKey] : [];
+      if (match) return [match.entityKey];
+      const releaseDefinitionKey = findReleaseDefinitionKey(input.releaseSnapshot, 'entity', value);
+      if (releaseDefinitionKey) {
+        releaseResolvedDefinitionKeys.add(releaseDefinitionKey);
+        return [definitionBusinessKey(releaseDefinitionKey)];
+      }
+      unresolved.push(`entity:${value}`);
+      return [];
     });
     const resolvedMetricRows = input.definitions.metrics.filter((item) => metrics.includes(item.metricKey));
     const metricDimensionKeys = new Set(resolvedMetricRows.flatMap((item) => item.runtimeQuery?.dimensions ?? []));
@@ -52,6 +65,11 @@ export class BrainEvalExpectationResolverService {
         (item) => [item.definitionKey, item.dimensionKey, item.name, ...(item.aliases ?? [])],
       );
       if (exact) return [exact.dimensionKey];
+      const releaseDefinitionKey = findReleaseDefinitionKey(input.releaseSnapshot, 'dimension', value);
+      if (releaseDefinitionKey) {
+        releaseResolvedDefinitionKeys.add(releaseDefinitionKey);
+        return [definitionBusinessKey(releaseDefinitionKey)];
+      }
       const domain = normalize(value);
       const candidates = input.definitions.dimensions.filter(
         (item) =>
@@ -75,6 +93,7 @@ export class BrainEvalExpectationResolverService {
       (key) => !availableCapabilities.size || availableCapabilities.has(key),
     );
     const resolvedDefinitionKeys = new Set([
+      ...releaseResolvedDefinitionKeys,
       ...resolvedMetricRows.map((item) => item.definitionKey),
       ...resolvedDimensionRows.map((item) => item.definitionKey),
       ...input.definitions.entities
@@ -121,6 +140,36 @@ export class BrainEvalExpectationResolverService {
       },
     };
   }
+}
+
+function findReleaseDefinitionKey(
+  releaseSnapshot: BrainEvaluationReleaseSnapshot | undefined,
+  kind: 'metric' | 'dimension' | 'entity',
+  value: string,
+): string | undefined {
+  const expected = normalizeDefinitionKey(kind, value);
+  const matches = unique(
+    (releaseSnapshot?.capabilityCandidates ?? []).flatMap((candidate) => {
+      if (!Array.isArray(candidate.definitionRefs)) return [];
+      return candidate.definitionRefs.flatMap((ref) => {
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return [];
+        const definitionKey = String((ref as Record<string, unknown>).definitionKey ?? '');
+        return definitionKey.startsWith(`${kind}.`) && normalizeDefinitionKey(kind, definitionKey) === expected
+          ? [definitionKey]
+          : [];
+      });
+    }),
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function normalizeDefinitionKey(kind: 'metric' | 'dimension' | 'entity', value: string): string {
+  const normalized = value.trim().toLocaleLowerCase('zh-Hans-CN');
+  return normalized.startsWith(`${kind}.`) ? normalized : `${kind}.${normalized}`;
+}
+
+function definitionBusinessKey(definitionKey: string): string {
+  return definitionKey.slice(definitionKey.indexOf('.') + 1);
 }
 
 function uniqueMatch<T>(value: string, items: readonly T[], terms: (item: T) => readonly string[]): T | undefined {

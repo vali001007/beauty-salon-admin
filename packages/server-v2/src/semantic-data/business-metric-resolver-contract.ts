@@ -8,7 +8,8 @@ export interface BusinessMetricResolverContract {
     | 'manager_staff_analysis'
     | 'inventory_risk_summary'
     | 'marketing_follow_up_opportunities'
-    | 'customer_retention_summary';
+    | 'customer_retention_summary'
+    | 'customer_acquisition_conversion_summary';
   readonly storeModel: string;
   readonly dimensionFields: readonly string[];
   readonly numericExpressionFields: readonly string[];
@@ -77,6 +78,17 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
         'repurchaseRate',
         'repeatIntervalCount',
         'averageReturnIntervalDays',
+      ]),
+    }),
+    customer_acquisition_conversion_summary: Object.freeze({
+      key: 'customer_acquisition_conversion_summary' as const,
+      storeModel: 'Customer',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze([
+        'newCustomerCount',
+        'convertedCustomerCount',
+        'unconvertedCustomerCount',
+        'conversionRate',
       ]),
     }),
   });

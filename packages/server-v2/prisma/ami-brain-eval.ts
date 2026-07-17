@@ -40,6 +40,11 @@ import {
   type BrainQuestionIntent,
 } from '../src/brain/eval/brain-answer-grader.service.js';
 import { BrainCapabilityGraderService } from '../src/brain/eval/brain-capability-grader.service.js';
+import {
+  countBaselineTimeFallbackRisks,
+  countCurrentTimeFallbackRisks,
+  countDraftActionMetricMismatches,
+} from '../src/brain/eval/ami-brain-eval-baseline-risks.js';
 import { BrainEvalExpectationResolverService } from '../src/brain/eval/brain-eval-expectation-resolver.service.js';
 import { BrainCompletionGraderService } from '../src/brain/eval/brain-completion-grader.service.js';
 import { statusForLayerFailure } from '../src/brain/eval/brain-eval-status.js';
@@ -927,33 +932,6 @@ function buildBaselineComparison(input: {
 
 function rate(count: number, total: number) {
   return total ? count / total : 0;
-}
-
-function hasMetricCitation(record: Pick<AmiBrainEvalRecord, 'citations'>) {
-  return (record.citations ?? []).some(
-    (citation) =>
-      Boolean(citation.sourceId) &&
-      (citation.sourceType === 'metric' ||
-        (citation.sourceType === 'business_definition' && citation.sourceId?.startsWith('metric.'))),
-  );
-}
-
-function countBaselineTimeFallbackRisks(records: AmiBrainEvalRecord[]) {
-  return records.filter((record) => /(明天|下午|现在)/.test(record.question) && hasMetricCitation(record)).length;
-}
-
-function countCurrentTimeFallbackRisks(records: AmiBrainEvalRecord[], timeRangeParser: BrainTimeRangeParserService) {
-  return records.filter((record) => {
-    const parsed = timeRangeParser.parse(record.question);
-    return parsed.mentionedTime && parsed.unsupportedExpressions.length > 0 && hasMetricCitation(record);
-  }).length;
-}
-
-function countDraftActionMetricMismatches(records: AmiBrainEvalRecord[], questionIntent: BrainQuestionIntentService) {
-  return records.filter((record) => {
-    const intent = questionIntent.classify(record.question).intent;
-    return (intent === 'draft' || intent === 'action' || intent === 'recommendation') && hasMetricCitation(record);
-  }).length;
 }
 
 function groupSummary(records: AmiBrainEvalRecord[], keyFn: (item: AmiBrainEvalRecord) => string) {

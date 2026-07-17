@@ -67,6 +67,18 @@ describe('Agent eval question bank', () => {
     expect(bank.questions.find((item) => item.input === '今天折扣优惠送出去多少钱')?.expectedMetrics)
       .toContain('discount_amount');
     expect(bank.questions.find((item) => item.input === '今天新客老客各来了几个')?.expectedDimensions).not.toContain('customer');
+    expect(bank.questions.find((item) => item.input === '上个月新来了多少新客，转化了多少')).toMatchObject({
+      expectedSemanticIntent: 'query',
+      expectedMetrics: expect.arrayContaining([
+        'new_customer_count',
+        'new_customer_conversion_count',
+        'new_customer_conversion_rate',
+      ]),
+    });
+    expect(bank.questions.find((item) => item.input === '帮我看一下今天到店客人的画像，主要是什么年龄段')).toMatchObject({
+      expectedSemanticIntent: 'query',
+      expectedDimensions: expect.arrayContaining(['customerAgeGroup']),
+    });
     expect(bank.questions.find((item) => item.input === '哪个美容师接的客人最多')?.expectedDimensions).toEqual(['beautician']);
     expect(bank.questions.find((item) => item.input === '哪个美容师接的客人最多')?.expectedMetrics).toContain('staff_unique_customer_count');
     expect(bank.questions.find((item) => item.input === '今天谁服务了几个客人')?.expectedDimensions).toEqual(['beautician']);

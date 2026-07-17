@@ -41,7 +41,8 @@ export interface BrainMetricDomainResolver {
     | 'manager_staff_analysis'
     | 'inventory_risk_summary'
     | 'marketing_follow_up_opportunities'
-    | 'customer_retention_summary';
+    | 'customer_retention_summary'
+    | 'customer_acquisition_conversion_summary';
   dimensionFields: Record<string, string>;
   expression: BrainMetricResolverExpression;
   overallAggregation: 'sum' | 'avg' | 'min' | 'max';
