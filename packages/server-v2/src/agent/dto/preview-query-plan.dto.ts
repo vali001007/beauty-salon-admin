@@ -8,12 +8,12 @@ export class PreviewQueryPlanDto {
   @MinLength(1)
   message!: string;
 
-  @ApiPropertyOptional({ description: '当前角色', enum: ['manager', 'reception', 'beautician'], default: 'manager' })
+  @ApiPropertyOptional({ description: '仅用于客户端展示，授权角色以服务端认证 principal 为准', enum: ['manager', 'reception', 'beautician'] })
   @IsOptional()
   @IsIn(['manager', 'reception', 'beautician'])
   role?: AgentRole;
 
-  @ApiPropertyOptional({ description: '当前操作账号 ID' })
+  @ApiPropertyOptional({ description: '仅用于兼容旧客户端，不参与授权或本人范围判断' })
   @IsOptional()
   @IsInt()
   @Min(1)

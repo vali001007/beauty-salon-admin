@@ -1,5 +1,6 @@
 import { CapabilityRegistryService } from '../capabilities/capability-registry.service.js';
-import { SemanticMetricRegistryService } from '../../semantic-data/semantic-metric-registry.service.js';
+import { createInMemoryBusinessMetricCatalog } from '../../semantic-data/business-metric-catalog.testing.js';
+import { LEGACY_SEMANTIC_METRICS } from '../../semantic-data/legacy-semantic-metric.fixture.js';
 import { SemanticSqlDecisionService } from '../../semantic-sql/semantic-sql-decision.service.js';
 import { BusinessTaskCompilerService } from './business-task-compiler.service.js';
 import { BusinessTaskLlmCompilerService } from './business-task-llm-compiler.service.js';
@@ -10,7 +11,7 @@ describe('BusinessTaskCompilerService', () => {
   const service = new BusinessTaskCompilerService(
     new BusinessTaskPreParserService(),
     new CapabilityRegistryService(),
-    new SemanticMetricRegistryService(),
+    createInMemoryBusinessMetricCatalog(LEGACY_SEMANTIC_METRICS),
     new SemanticSqlDecisionService(),
     undefined,
     new AgentSkillsRegistryService(),
@@ -18,7 +19,7 @@ describe('BusinessTaskCompilerService', () => {
   const serviceWithLlmDraft = new BusinessTaskCompilerService(
     new BusinessTaskPreParserService(),
     new CapabilityRegistryService(),
-    new SemanticMetricRegistryService(),
+    createInMemoryBusinessMetricCatalog(LEGACY_SEMANTIC_METRICS),
     new SemanticSqlDecisionService(),
     new BusinessTaskLlmCompilerService({ get: jest.fn((_key: string, fallback: unknown) => fallback) } as any),
     new AgentSkillsRegistryService(),
@@ -104,6 +105,49 @@ describe('BusinessTaskCompilerService', () => {
       capabilityId: 'order_revenue_analysis',
       outputContract: expect.objectContaining({ requiredKinds: ['kpi', 'evidence'] }),
     });
+  });
+
+  it('does not continue capability planning when a requested metric is not allowed for the task type', async () => {
+    const restrictedCatalog = createInMemoryBusinessMetricCatalog(
+      LEGACY_SEMANTIC_METRICS.map((metric) =>
+        metric.key === 'revenue' ? { ...metric, allowedTaskTypes: ['ranking'] as const } : metric,
+      ),
+    );
+    const restricted = new BusinessTaskCompilerService(
+      new BusinessTaskPreParserService(),
+      new CapabilityRegistryService(),
+      restrictedCatalog,
+      new SemanticSqlDecisionService(),
+      undefined,
+      new AgentSkillsRegistryService(),
+    );
+
+    const result = await restricted.compile({ message: '今天营收多少', role: 'manager' });
+
+    expect(result.validation.valid).toBe(false);
+    expect(result.metricMatches).toEqual([]);
+    expect(result.capabilityMatches).toEqual([]);
+    expect(result.validation.warnings).toContain('metric_task_type_not_allowed:revenue:query');
+  });
+
+  it('does not continue capability planning when a requested metric is absent from the governed catalog', async () => {
+    const missingCatalog = createInMemoryBusinessMetricCatalog(
+      LEGACY_SEMANTIC_METRICS.filter((metric) => metric.key !== 'revenue'),
+    );
+    const restricted = new BusinessTaskCompilerService(
+      new BusinessTaskPreParserService(),
+      new CapabilityRegistryService(),
+      missingCatalog,
+      new SemanticSqlDecisionService(),
+      undefined,
+      new AgentSkillsRegistryService(),
+    );
+
+    const result = await restricted.compile({ message: '今天营收多少', role: 'manager' });
+
+    expect(result.validation.valid).toBe(false);
+    expect(result.capabilityMatches).toEqual([]);
+    expect(result.validation.warnings).toContain('metric_not_published:revenue');
   });
 
   it('compiles KPI shorthand phrases into the revenue order analysis skill without clarification', async () => {
@@ -531,7 +575,7 @@ describe('BusinessTaskCompilerService', () => {
     const compiler = new BusinessTaskCompilerService(
       new BusinessTaskPreParserService(),
       new CapabilityRegistryService(),
-      new SemanticMetricRegistryService(),
+      createInMemoryBusinessMetricCatalog(LEGACY_SEMANTIC_METRICS),
       new SemanticSqlDecisionService(),
       new BusinessTaskLlmCompilerService({ get: jest.fn(() => 'true') } as any, aiService),
       new AgentSkillsRegistryService(),

@@ -38,7 +38,6 @@ import { EntityResolverService } from './knowledge/entity-resolver.service.js';
 import { SchemaGraphService } from './knowledge/schema-graph.service.js';
 import { UnifiedQueryPlannerService } from './knowledge/unified-query-planner.service.js';
 import { AgentSkillsRegistryService } from './skills/index.js';
-import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
 import { SemanticDataModule } from '../semantic-data/semantic-data.module.js';
 import { SemanticQueryModule } from '../semantic-query/semantic-query.module.js';
 import { SemanticSqlDecisionService } from '../semantic-sql/semantic-sql-decision.service.js';
@@ -94,7 +93,6 @@ import { SemanticSqlExecutorService } from '../semantic-sql/semantic-sql-executo
     SchemaGraphService,
     UnifiedQueryPlannerService,
     AgentSkillsRegistryService,
-    SemanticMetricRegistryService,
     SemanticSqlDecisionService,
     SemanticSqlExecutorService,
     DeviceAuthGuard,

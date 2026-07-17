@@ -27,6 +27,7 @@ import { AgentSchemaReadinessService } from './agent-schema-readiness.service.js
 import { QueryPlannerService } from '../semantic-query/query-planner.service.js';
 import { SemanticQueryExecutorService } from '../semantic-query/semantic-query-executor.service.js';
 import { ResponseComposerService } from '../semantic-query/response-composer.service.js';
+import type { SemanticQueryActorContext } from '../semantic-query/query-plan.types.js';
 import { CapabilityCatalogService } from './knowledge/capability-catalog.service.js';
 import { EntityResolverService } from './knowledge/entity-resolver.service.js';
 import { SchemaGraphService } from './knowledge/schema-graph.service.js';
@@ -817,18 +818,16 @@ export class AgentController {
 
   @Post('query-plan/preview')
   @ApiOperation({ summary: 'Agent V1 legacy QueryPlan 预览，不执行查库' })
-  async previewQueryPlan(@CurrentDevice('storeId') storeId: number, @Body() dto: PreviewQueryPlanDto) {
-    const role = (dto.role ?? 'manager') as AgentRole;
+  async previewQueryPlan(@CurrentDevice() principal: any, @Body() dto: PreviewQueryPlanDto) {
+    const actor = await this.resolveSemanticQueryActor(principal);
     const compiled = await this.businessTaskCompiler.compile({
       message: dto.message,
-      role,
+      role: actor.role,
       context: dto.context,
     });
     const planned = this.queryPlanner?.plan({
       task: compiled.task,
-      role,
-      storeId,
-      operatorId: dto.operatorId,
+      actor,
       capabilityId: compiled.capabilityMatches[0]?.capabilityId ?? compiled.semanticSqlCandidate.fallbackCapability,
     });
     return {
@@ -844,18 +843,16 @@ export class AgentController {
 
   @Post('semantic-query/execute')
   @ApiOperation({ summary: 'Agent V1 legacy 内部受控只读查询（不作为 V2/V3 新能力入口）' })
-  async executeSemanticQuery(@CurrentDevice('storeId') storeId: number, @Body() dto: PreviewQueryPlanDto) {
-    const role = (dto.role ?? 'manager') as AgentRole;
+  async executeSemanticQuery(@CurrentDevice() principal: any, @Body() dto: PreviewQueryPlanDto) {
+    const actor = await this.resolveSemanticQueryActor(principal);
     const compiled = await this.businessTaskCompiler.compile({
       message: dto.message,
-      role,
+      role: actor.role,
       context: dto.context,
     });
     const planned = this.queryPlanner?.plan({
       task: compiled.task,
-      role,
-      storeId,
-      operatorId: dto.operatorId,
+      actor,
       capabilityId: compiled.capabilityMatches[0]?.capabilityId ?? compiled.semanticSqlCandidate.fallbackCapability,
     });
     if (!planned?.plan || !this.semanticQueryExecutor) {
@@ -1358,6 +1355,43 @@ export class AgentController {
       permissions: input.permissions ?? [],
       fieldScopes: input.fieldScopes ?? {},
     };
+  }
+
+  private async resolveSemanticQueryActor(principal: any): Promise<SemanticQueryActorContext> {
+    const userId = Number(principal?.userId);
+    const storeId = Number(principal?.storeId);
+    const permissions: string[] = Array.isArray(principal?.permissions)
+      ? [...new Set<string>(principal.permissions.filter((permission: unknown): permission is string => typeof permission === 'string' && permission.length > 0))]
+      : [];
+    const availableRoles = Array.isArray(principal?.availableRoles)
+      ? principal.availableRoles.filter((role: unknown): role is AgentRole =>
+          role === 'manager' || role === 'reception' || role === 'beautician',
+        )
+      : [];
+    if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(storeId) || storeId <= 0) {
+      throw new ForbiddenException('semantic_query_user_principal_required');
+    }
+    if (!permissions.length || !availableRoles.length) {
+      throw new ForbiddenException('semantic_query_authorization_context_missing');
+    }
+    const role = availableRoles.includes('manager') ? 'manager' : availableRoles[0];
+    if (!role) throw new ForbiddenException('semantic_query_actor_role_missing');
+    if (role !== 'beautician') {
+      return Object.freeze({ principalType: 'user', userId, storeId, role, permissions: Object.freeze(permissions) });
+    }
+    const beautician = await this.prisma.beautician.findFirst({
+      where: { storeId, userId, status: 'active' },
+      select: { id: true },
+    });
+    if (!beautician) throw new ForbiddenException('semantic_query_beautician_identity_missing');
+    return Object.freeze({
+      principalType: 'user',
+      userId,
+      storeId,
+      role,
+      permissions: Object.freeze(permissions),
+      beauticianId: beautician.id,
+    });
   }
 
   private resolveActorRole(requestedRole?: string, availableRoles?: AgentRole[]): AgentRole {

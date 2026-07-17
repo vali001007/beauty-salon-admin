@@ -3,7 +3,8 @@ import { BusinessTaskCompilerService } from './business-task/business-task-compi
 import { BusinessTaskPreParserService } from './business-task/business-task-preparser.service.js';
 import { CapabilityRegistryService } from './capabilities/capability-registry.service.js';
 import { AgentSkillsRegistryService } from './skills/index.js';
-import { SemanticMetricRegistryService } from '../semantic-data/semantic-metric-registry.service.js';
+import { createInMemoryBusinessMetricCatalog } from '../semantic-data/business-metric-catalog.testing.js';
+import { LEGACY_SEMANTIC_METRICS } from '../semantic-data/legacy-semantic-metric.fixture.js';
 import { SemanticSqlDecisionService } from '../semantic-sql/semantic-sql-decision.service.js';
 
 describe('AgentPlannerService', () => {
@@ -51,7 +52,7 @@ describe('AgentPlannerService', () => {
   const compiler = new BusinessTaskCompilerService(
     new BusinessTaskPreParserService(),
     new CapabilityRegistryService(),
-    new SemanticMetricRegistryService(),
+    createInMemoryBusinessMetricCatalog(LEGACY_SEMANTIC_METRICS),
     new SemanticSqlDecisionService(),
     undefined,
     new AgentSkillsRegistryService(),
