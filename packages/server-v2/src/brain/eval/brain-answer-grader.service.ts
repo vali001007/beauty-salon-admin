@@ -436,6 +436,9 @@ export class BrainAnswerGraderService {
     if (/(缺货|临期|过期|库存预警|库存货值)/.test(text)) return 'expiring_stock_value';
     if (/(roi|投产|活动效果|营销效果)/i.test(text)) return 'marketing_roi';
     if (/(最值得|优先).*(联系|跟进)|(?:联系|跟进).*(优先级|优先)/.test(text)) return 'follow_up_priority_score';
+    if (/沉睡客户/.test(text) && /(?:唤醒|回流).*(?:迹象|信号)|(?:迹象|信号).*(?:唤醒|回流)/.test(text)) {
+      return 'dormant_reactivation_customer_count';
+    }
     if (/(流失|沉睡|召回)/.test(text)) return 'churn_risk_count';
 
     return undefined;

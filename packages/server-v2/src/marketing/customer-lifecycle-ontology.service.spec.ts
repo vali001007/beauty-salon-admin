@@ -35,6 +35,16 @@ describe('CustomerLifecycleOntologyService', () => {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
       },
+      marketingAutomationTouch: {
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      reservation: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      productOrder: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       lifecycleBusinessPlan: {
         create: jest.fn(),
         findFirst: jest.fn(),
@@ -148,6 +158,126 @@ describe('CustomerLifecycleOntologyService', () => {
         recommendedExecutionMode: 'activity',
       }),
     }));
+  });
+
+  it('links a dormant touch to later reservation, arrival, and attributed order evidence', async () => {
+    const touchedAt = new Date('2026-07-05T02:00:00.000Z');
+    prisma.marketingAutomationTouch.findMany.mockResolvedValue([{
+      id: 501,
+      customerId: 21,
+      status: 'clicked',
+      channel: 'wechat',
+      touchedAt,
+      convertedAt: null,
+      conversionType: null,
+      actualRevenue: 688,
+      attributionWindowDays: 30,
+      customer: {
+        id: 21,
+        name: '赵女士',
+        memberLevel: '金卡',
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      },
+      predictionSnapshot: {
+        churnLevel: 'high',
+        churnScore: 82,
+        createdAt: new Date('2026-07-04T02:00:00.000Z'),
+      },
+      attributions: [{
+        orderId: 801,
+        attributedRevenue: 688,
+        occurredAt: new Date('2026-07-12T03:00:00.000Z'),
+      }],
+    }]);
+    prisma.marketingAutomationTouch.count.mockResolvedValue(1);
+    prisma.customerOpportunity.findMany.mockResolvedValue([]);
+    prisma.reservation.findMany.mockResolvedValue([{
+      id: 701,
+      customerId: 21,
+      createdAt: new Date('2026-07-08T03:00:00.000Z'),
+      checkedInAt: new Date('2026-07-11T03:00:00.000Z'),
+      date: new Date('2026-07-11T00:00:00.000Z'),
+      status: 'completed',
+    }]);
+    prisma.productOrder.findMany.mockResolvedValue([{
+      id: 801,
+      customerId: 21,
+      createdAt: new Date('2026-07-12T03:00:00.000Z'),
+      netAmount: 688,
+    }]);
+
+    const result = await service.getDormantReactivationEvidence(1, {
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-17T23:59:59.999Z'),
+    });
+
+    expect(result).toMatchObject({
+      dormantCandidateCount: 1,
+      reactivatedCustomerCount: 1,
+      strongSignalCustomerCount: 1,
+      explicitAttributionCustomerCount: 1,
+    });
+    expect(result.rows[0]).toMatchObject({
+      customerName: '赵女士',
+      signalLevel: 'strong',
+      attributionConfidence: 'explicit_attribution',
+      attributedRevenue: 688,
+      signalTypes: expect.arrayContaining(['attributed_order', 'order', 'arrival', 'reservation', 'touch_clicked']),
+    });
+    expect(prisma.marketingAutomationTouch.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ customer: { storeId: 1, deletedAt: null } }),
+    }));
+    expect(prisma.productOrder.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 1 }),
+    }));
+  });
+
+  it('does not treat delivery alone or a newly created customer as reactivation evidence', async () => {
+    const touchedAt = new Date('2026-07-10T02:00:00.000Z');
+    prisma.marketingAutomationTouch.findMany.mockResolvedValue([
+      {
+        id: 601,
+        customerId: 31,
+        status: 'delivered',
+        channel: 'sms',
+        touchedAt,
+        convertedAt: null,
+        conversionType: null,
+        actualRevenue: 0,
+        attributionWindowDays: 30,
+        customer: { id: 31, name: '陈女士', memberLevel: '银卡', createdAt: new Date('2025-01-01T00:00:00.000Z') },
+        predictionSnapshot: { churnLevel: 'dormant', churnScore: 75, createdAt: new Date('2026-07-09T02:00:00.000Z') },
+        attributions: [],
+      },
+      {
+        id: 602,
+        customerId: 32,
+        status: 'clicked',
+        channel: 'wechat',
+        touchedAt,
+        convertedAt: null,
+        conversionType: null,
+        actualRevenue: 0,
+        attributionWindowDays: 30,
+        customer: { id: 32, name: '新客户', memberLevel: '普通', createdAt: new Date('2026-07-01T00:00:00.000Z') },
+        predictionSnapshot: null,
+        attributions: [],
+      },
+    ]);
+    prisma.marketingAutomationTouch.count.mockResolvedValue(2);
+    prisma.customerOpportunity.findMany.mockResolvedValue([]);
+
+    const result = await service.getDormantReactivationEvidence(1, {
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-17T23:59:59.999Z'),
+    });
+
+    expect(result).toMatchObject({
+      touchCountAnalyzed: 2,
+      dormantCandidateCount: 1,
+      reactivatedCustomerCount: 0,
+    });
+    expect(result.rows).toEqual([]);
   });
 
   it('returns schema pending instead of throwing when lifecycle tables are unavailable', async () => {

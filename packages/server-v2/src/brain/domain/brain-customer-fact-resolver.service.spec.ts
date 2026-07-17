@@ -98,13 +98,28 @@ describe('BrainCustomerFactResolverService', () => {
     })).resolves.toContain('尚未注册该业务口径');
   });
 
-  it('does not replace dormant-customer reactivation evidence with a dormant list', async () => {
-    const service = new BrainCustomerFactResolverService({} as never);
+  it('answers dormant-customer reactivation from lifecycle evidence instead of a dormant list', async () => {
+    const customerLifecycle = {
+      getDormantReactivationEvidence: jest.fn().mockResolvedValue({
+        rangeLabel: '2026-07-01 至 2026-07-17',
+        touchCountAnalyzed: 4,
+        dormantCandidateCount: 2,
+        reactivatedCustomerCount: 1,
+        strongSignalCustomerCount: 1,
+        mediumSignalCustomerCount: 0,
+        weakSignalCustomerCount: 0,
+        rows: [{ customerName: '赵女士', signalSummary: '实际到店、产生有效消费', dormantEvidence: '触达前 60 天无实际到店或有效消费' }],
+      }),
+    };
+    const service = new BrainCustomerFactResolverService({} as never, customerLifecycle as never);
 
     await expect(service.answerCustomerFactQuestion({
       storeId: 6,
       message: '哪些沉睡客户最近有点被唤醒的迹象',
-    })).resolves.toContain('不会用沉睡客户名单代替回答');
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-17T23:59:59.999Z'),
+    })).resolves.toContain('赵女士：实际到店、产生有效消费');
+    expect(customerLifecycle.getDormantReactivationEvidence).toHaveBeenCalledWith(6, expect.objectContaining({ limit: 10 }));
   });
 
   it('uses the requested time range and returns a ranked new-customer source distribution', async () => {

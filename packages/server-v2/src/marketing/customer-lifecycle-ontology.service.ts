@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ATTRIBUTABLE_TOUCH_STATUS_SET } from './marketing-touch-status.constants.js';
+import {
+  ATTRIBUTABLE_TOUCH_STATUSES,
+  ATTRIBUTABLE_TOUCH_STATUS_SET,
+} from './marketing-touch-status.constants.js';
 
 type LifecycleStage = 'lead' | 'new_customer' | 'trial' | 'member' | 'active' | 'growth' | 'at_risk' | 'dormant' | 'lost';
 type OpportunityType =
@@ -34,6 +37,42 @@ type OpportunitySeed = {
   evidence: string[];
   expiresAt?: Date | null;
 };
+
+export type DormantReactivationSignalLevel = 'strong' | 'medium' | 'weak';
+
+export interface DormantReactivationEvidenceRow {
+  customerId: number;
+  customerName: string;
+  memberLevel: string;
+  touchId: number;
+  channel: string;
+  touchedAt: Date;
+  dormantEvidence: string;
+  dormantEvidenceSource: 'prediction_snapshot' | 'dormant_opportunity' | 'inactivity_window';
+  signalLevel: DormantReactivationSignalLevel;
+  signalTypes: string[];
+  signalSummary: string;
+  latestSignalAt: Date;
+  attributedRevenue: number;
+  attributionConfidence: 'explicit_attribution' | 'temporal_evidence';
+  reactivationSignal: 1;
+}
+
+export interface DormantReactivationEvidenceSummary {
+  rangeLabel: string;
+  dormantThresholdDays: number;
+  attributionWindowDays: number;
+  touchCountTotal: number;
+  touchCountAnalyzed: number;
+  touchesTruncated: boolean;
+  dormantCandidateCount: number;
+  reactivatedCustomerCount: number;
+  strongSignalCustomerCount: number;
+  mediumSignalCustomerCount: number;
+  weakSignalCustomerCount: number;
+  explicitAttributionCustomerCount: number;
+  rows: DormantReactivationEvidenceRow[];
+}
 
 const P0_OPPORTUNITY_TYPES: OpportunityType[] = [
   'care_cycle_due',
@@ -369,6 +408,250 @@ export class CustomerLifecycleOntologyService {
       delegate.count({ where }),
     ]);
     return { items: items.map((item: any) => this.serializeAttributionEvent(item)), data: items.map((item: any) => this.serializeAttributionEvent(item)), total, page, pageSize };
+  }
+
+  async getDormantReactivationEvidence(
+    storeId: number,
+    query: {
+      startDate?: Date | string;
+      endDate?: Date | string;
+      dormantThresholdDays?: number;
+      limit?: number;
+    } = {},
+  ): Promise<DormantReactivationEvidenceSummary> {
+    const endDate = this.validDate(query.endDate) ?? new Date();
+    const startDate = this.validDate(query.startDate) ?? new Date(endDate.getTime() - 30 * 86_400_000);
+    const dormantThresholdDays = this.boundedInteger(query.dormantThresholdDays, 60, 30, 365);
+    const limit = this.boundedInteger(query.limit, 10, 1, 50);
+    if (startDate > endDate) throw new Error('dormant_reactivation_time_range_invalid');
+
+    const touchStatuses = [...ATTRIBUTABLE_TOUCH_STATUSES, 'reached', 'replied'];
+    const touchWhere = {
+      customer: { storeId, deletedAt: null },
+      touchedAt: { gte: startDate, lte: endDate },
+      status: { in: touchStatuses },
+    };
+    const [touchCountTotal, touches] = await Promise.all([
+      this.prisma.marketingAutomationTouch.count({ where: touchWhere }),
+      this.prisma.marketingAutomationTouch.findMany({
+      where: touchWhere,
+      select: {
+        id: true,
+        customerId: true,
+        predictionSnapshotId: true,
+        status: true,
+        channel: true,
+        touchedAt: true,
+        convertedAt: true,
+        conversionType: true,
+        actualRevenue: true,
+        attributionWindowDays: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            memberLevel: true,
+            createdAt: true,
+          },
+        },
+        predictionSnapshot: {
+          select: {
+            churnLevel: true,
+            churnScore: true,
+            createdAt: true,
+          },
+        },
+        attributions: {
+          where: { occurredAt: { lte: endDate } },
+          select: { orderId: true, attributedRevenue: true, occurredAt: true },
+          orderBy: { occurredAt: 'desc' },
+          take: 20,
+        },
+      },
+      orderBy: [{ touchedAt: 'desc' }, { id: 'desc' }],
+      take: 5_000,
+    }),
+    ]);
+    if (!touches.length) {
+      return this.emptyDormantReactivationSummary(startDate, endDate, dormantThresholdDays, 30, touchCountTotal);
+    }
+
+    const customerIds = [...new Set(touches.map((touch) => touch.customerId))];
+    const earliestActivityAt = new Date(
+      Math.min(...touches.map((touch) => touch.touchedAt.getTime())) - dormantThresholdDays * 86_400_000,
+    );
+    const arrivedStatuses = ['checked_in', 'in_service', 'arrived', 'completed', 'served', '已到店', '服务中', '已完成'];
+    const [opportunities, reservations, orders] = await Promise.all([
+      this.prisma.customerOpportunity.findMany({
+        where: {
+          storeId,
+          customerId: { in: customerIds },
+          opportunityType: 'dormant_winback',
+          createdAt: { lte: endDate },
+        },
+        select: { customerId: true, createdAt: true, evidenceJson: true },
+        orderBy: { createdAt: 'asc' },
+        take: 5_000,
+      }),
+      this.prisma.reservation.findMany({
+        where: {
+          storeId,
+          customerId: { in: customerIds },
+          OR: [
+            { createdAt: { gte: earliestActivityAt, lte: endDate } },
+            { checkedInAt: { gte: earliestActivityAt, lte: endDate } },
+            { date: { gte: earliestActivityAt, lte: endDate }, status: { in: arrivedStatuses } },
+          ],
+        },
+        select: { id: true, customerId: true, createdAt: true, checkedInAt: true, date: true, status: true },
+        orderBy: [{ customerId: 'asc' }, { createdAt: 'asc' }],
+        take: 20_000,
+      }),
+      this.prisma.productOrder.findMany({
+        where: {
+          storeId,
+          customerId: { in: customerIds },
+          createdAt: { gte: earliestActivityAt, lte: endDate },
+          status: { notIn: ['cancelled', 'canceled', 'refunded', 'void', '已取消', '已退款'] },
+          netAmount: { gt: 0 },
+        },
+        select: { id: true, customerId: true, createdAt: true, netAmount: true },
+        orderBy: [{ customerId: 'asc' }, { createdAt: 'asc' }],
+        take: 20_000,
+      }),
+    ]);
+
+    const opportunitiesByCustomer = this.groupByCustomer(opportunities, 'customerId');
+    const reservationsByCustomer = this.groupByCustomer(reservations, 'customerId');
+    const ordersByCustomer = this.groupByCustomer(orders, 'customerId');
+    const bestByCustomer = new Map<number, DormantReactivationEvidenceRow>();
+    const dormantCustomerIds = new Set<number>();
+    let maxAttributionWindowDays = 30;
+
+    for (const touch of touches) {
+      const attributionWindowDays = this.boundedInteger(touch.attributionWindowDays, 30, 1, 90);
+      maxAttributionWindowDays = Math.max(maxAttributionWindowDays, attributionWindowDays);
+      const touchAt = touch.touchedAt;
+      const dormancyStart = new Date(touchAt.getTime() - dormantThresholdDays * 86_400_000);
+      const observationEnd = new Date(Math.min(endDate.getTime(), touchAt.getTime() + attributionWindowDays * 86_400_000));
+      const customerReservations = reservationsByCustomer.get(touch.customerId) ?? [];
+      const customerOrders = ordersByCustomer.get(touch.customerId) ?? [];
+      const priorArrival = customerReservations.some((reservation: any) => {
+        const arrivedAt = this.reservationArrivalAt(reservation, arrivedStatuses);
+        return arrivedAt && arrivedAt >= dormancyStart && arrivedAt < touchAt;
+      });
+      const priorOrder = customerOrders.some((order: any) => order.createdAt >= dormancyStart && order.createdAt < touchAt);
+      const snapshotDormant = Boolean(
+        touch.predictionSnapshot &&
+          touch.predictionSnapshot.createdAt <= touchAt &&
+          /(high|critical|dormant|lost|沉睡|流失)/i.test(String(touch.predictionSnapshot.churnLevel ?? '')),
+      );
+      const opportunity = (opportunitiesByCustomer.get(touch.customerId) ?? []).find(
+        (item: any) => item.createdAt <= touchAt,
+      );
+      const inactivityDormant =
+        touch.customer.createdAt <= dormancyStart &&
+        !priorArrival &&
+        !priorOrder;
+      if (!snapshotDormant && !opportunity && !inactivityDormant) continue;
+      dormantCustomerIds.add(touch.customerId);
+
+      const signalRows: Array<{ type: string; label: string; level: DormantReactivationSignalLevel; at: Date }> = [];
+      const attributedOrders = touch.attributions.filter(
+        (item) => item.occurredAt >= touchAt && item.occurredAt <= observationEnd,
+      );
+      for (const attribution of attributedOrders) {
+        signalRows.push({ type: 'attributed_order', label: '触达归因成交', level: 'strong', at: attribution.occurredAt });
+      }
+      for (const order of customerOrders) {
+        if (order.createdAt < touchAt || order.createdAt > observationEnd) continue;
+        signalRows.push({ type: 'order', label: '产生有效消费', level: 'strong', at: order.createdAt });
+      }
+      for (const reservation of customerReservations) {
+        const arrivedAt = this.reservationArrivalAt(reservation, arrivedStatuses);
+        if (arrivedAt && arrivedAt >= touchAt && arrivedAt <= observationEnd) {
+          signalRows.push({ type: 'arrival', label: '实际到店', level: 'strong', at: arrivedAt });
+        }
+        if (
+          reservation.createdAt >= touchAt &&
+          reservation.createdAt <= observationEnd &&
+          !/(cancel|void|取消|爽约|no_show)/i.test(String(reservation.status ?? ''))
+        ) {
+          signalRows.push({ type: 'reservation', label: '新建有效预约', level: 'medium', at: reservation.createdAt });
+        }
+      }
+      const touchSignal = this.touchEngagementSignal(touch.status, touch.convertedAt, touchAt, observationEnd);
+      if (touchSignal) signalRows.push(touchSignal);
+      if (!signalRows.length) continue;
+
+      const uniqueSignals = [...new Map(
+        signalRows
+          .sort((left, right) => right.at.getTime() - left.at.getTime())
+          .map((signal) => [signal.type, signal]),
+      ).values()];
+      const signalLevel = uniqueSignals.some((signal) => signal.level === 'strong')
+        ? 'strong'
+        : uniqueSignals.some((signal) => signal.level === 'medium')
+          ? 'medium'
+          : 'weak';
+      const attributedRevenue = attributedOrders.reduce(
+        (sum, item) => sum + Number(item.attributedRevenue ?? 0),
+        0,
+      );
+      const dormantEvidenceSource = snapshotDormant
+        ? 'prediction_snapshot'
+        : opportunity
+          ? 'dormant_opportunity'
+          : 'inactivity_window';
+      const dormantEvidence = snapshotDormant
+        ? `触达时预测流失等级 ${touch.predictionSnapshot?.churnLevel ?? '高风险'}，流失分 ${touch.predictionSnapshot?.churnScore ?? 0}`
+        : opportunity
+          ? `触达前已存在沉睡召回机会：${this.asStringArray(opportunity.evidenceJson).slice(0, 2).join('；') || 'dormant_winback'}`
+          : `触达前 ${dormantThresholdDays} 天无实际到店或有效正金额消费`;
+      const row: DormantReactivationEvidenceRow = {
+        customerId: touch.customerId,
+        customerName: touch.customer.name,
+        memberLevel: touch.customer.memberLevel,
+        touchId: touch.id,
+        channel: touch.channel ?? '未记录渠道',
+        touchedAt: touchAt,
+        dormantEvidence,
+        dormantEvidenceSource,
+        signalLevel,
+        signalTypes: uniqueSignals.map((signal) => signal.type),
+        signalSummary: uniqueSignals.map((signal) => signal.label).join('、'),
+        latestSignalAt: uniqueSignals[0]!.at,
+        attributedRevenue,
+        attributionConfidence: attributedOrders.length ? 'explicit_attribution' : 'temporal_evidence',
+        reactivationSignal: 1,
+      };
+      const previous = bestByCustomer.get(touch.customerId);
+      if (!previous || this.reactivationRowScore(row) > this.reactivationRowScore(previous)) {
+        bestByCustomer.set(touch.customerId, row);
+      }
+    }
+
+    const allRows = [...bestByCustomer.values()].sort(
+      (left, right) =>
+        this.signalLevelWeight(right.signalLevel) - this.signalLevelWeight(left.signalLevel) ||
+        right.latestSignalAt.getTime() - left.latestSignalAt.getTime() ||
+        left.customerId - right.customerId,
+    );
+    return {
+      rangeLabel: `${startDate.toISOString().slice(0, 10)} 至 ${endDate.toISOString().slice(0, 10)}`,
+      dormantThresholdDays,
+      attributionWindowDays: maxAttributionWindowDays,
+      touchCountTotal,
+      touchCountAnalyzed: touches.length,
+      touchesTruncated: touchCountTotal > touches.length,
+      dormantCandidateCount: dormantCustomerIds.size,
+      reactivatedCustomerCount: allRows.length,
+      strongSignalCustomerCount: allRows.filter((row) => row.signalLevel === 'strong').length,
+      mediumSignalCustomerCount: allRows.filter((row) => row.signalLevel === 'medium').length,
+      weakSignalCustomerCount: allRows.filter((row) => row.signalLevel === 'weak').length,
+      explicitAttributionCustomerCount: allRows.filter((row) => row.attributionConfidence === 'explicit_attribution').length,
+      rows: allRows.slice(0, limit),
+    };
   }
 
   async getQualitySnapshot(storeId: number) {
@@ -1329,6 +1612,73 @@ export class CustomerLifecycleOntologyService {
       evidence: this.asStringArray(item.evidenceJson),
       occurredAt: item.occurredAt,
     };
+  }
+
+  private emptyDormantReactivationSummary(
+    startDate: Date,
+    endDate: Date,
+    dormantThresholdDays: number,
+    attributionWindowDays: number,
+    touchCountTotal = 0,
+  ): DormantReactivationEvidenceSummary {
+    return {
+      rangeLabel: `${startDate.toISOString().slice(0, 10)} 至 ${endDate.toISOString().slice(0, 10)}`,
+      dormantThresholdDays,
+      attributionWindowDays,
+      touchCountTotal,
+      touchCountAnalyzed: 0,
+      touchesTruncated: false,
+      dormantCandidateCount: 0,
+      reactivatedCustomerCount: 0,
+      strongSignalCustomerCount: 0,
+      mediumSignalCustomerCount: 0,
+      weakSignalCustomerCount: 0,
+      explicitAttributionCustomerCount: 0,
+      rows: [],
+    };
+  }
+
+  private reservationArrivalAt(reservation: any, arrivedStatuses: readonly string[]) {
+    if (reservation.checkedInAt) return new Date(reservation.checkedInAt);
+    if (arrivedStatuses.includes(String(reservation.status ?? ''))) return new Date(reservation.date);
+    return null;
+  }
+
+  private touchEngagementSignal(
+    status: string,
+    convertedAt: Date | null,
+    touchedAt: Date,
+    observationEnd: Date,
+  ): { type: string; label: string; level: DormantReactivationSignalLevel; at: Date } | null {
+    const occurredAt = convertedAt ?? touchedAt;
+    if (occurredAt > observationEnd) return null;
+    if (status === 'converted') return { type: 'touch_converted', label: '触达状态已转化', level: 'medium', at: occurredAt };
+    if (status === 'replied') return { type: 'touch_replied', label: '客户已回复', level: 'weak', at: occurredAt };
+    if (status === 'clicked') return { type: 'touch_clicked', label: '客户已点击', level: 'weak', at: occurredAt };
+    if (status === 'opened') return { type: 'touch_opened', label: '客户已打开', level: 'weak', at: occurredAt };
+    return null;
+  }
+
+  private reactivationRowScore(row: DormantReactivationEvidenceRow) {
+    return this.signalLevelWeight(row.signalLevel) * 10_000_000_000_000 + row.latestSignalAt.getTime();
+  }
+
+  private signalLevelWeight(level: DormantReactivationSignalLevel) {
+    if (level === 'strong') return 3;
+    if (level === 'medium') return 2;
+    return 1;
+  }
+
+  private validDate(value?: Date | string) {
+    if (!value) return undefined;
+    const date = value instanceof Date ? new Date(value) : new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  private boundedInteger(value: unknown, fallback: number, min: number, max: number) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) return fallback;
+    return Math.max(min, Math.min(max, parsed));
   }
 
   private async createQualitySnapshot(storeId: number) {

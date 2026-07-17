@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { CustomerLifecycleOntologyService } from '../../marketing/customer-lifecycle-ontology.service.js';
 import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
@@ -47,7 +48,10 @@ export interface BrainCustomerCardUsageRow {
 
 @Injectable()
 export class BrainCustomerFactResolverService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly customerLifecycle?: CustomerLifecycleOntologyService,
+  ) {}
 
   async answerCustomerQuestion(input: {
     storeId: number;
@@ -218,7 +222,20 @@ export class BrainCustomerFactResolverService {
       return this.oneTimeCustomers(input.storeId);
     }
     if (/(?:沉睡客户.*唤醒.*迹象|唤醒.*迹象.*沉睡客户)/.test(message)) {
-      return '当前客户事实能力尚未接入“沉睡客户近期唤醒迹象”口径。该问题需同时核对触达、预约、到店或消费事件，Ami Brain 不会用沉睡客户名单代替回答。';
+      if (!this.customerLifecycle) {
+        return '客户生命周期事实服务未就绪，暂时无法核对沉睡客户的触达后预约、到店和消费证据；Ami Brain 不会用沉睡客户名单代替回答。';
+      }
+      const summary = await this.customerLifecycle.getDormantReactivationEvidence(input.storeId, {
+        startDate: input.startDate,
+        endDate: input.endDate,
+        limit: 10,
+      });
+      if (!summary.reactivatedCustomerCount) {
+        return `${summary.rangeLabel}分析了 ${summary.touchCountAnalyzed}/${summary.touchCountTotal} 条有效触达，其中 ${summary.dormantCandidateCount} 位客户在触达前满足沉睡证据，但触达后没有发现预约、实际到店、有效消费、点击或回复信号。发送成功本身不算唤醒。${summary.touchesTruncated ? '当前结果为受控部分扫描，不代表全量没有信号。' : ''}`;
+      }
+      return `${summary.rangeLabel}发现 ${summary.reactivatedCustomerCount} 位沉睡客户出现唤醒迹象，其中强信号 ${summary.strongSignalCustomerCount} 位、中信号 ${summary.mediumSignalCustomerCount} 位、弱信号 ${summary.weakSignalCustomerCount} 位。\n${summary.rows
+        .map((row, index) => `${index + 1}. ${row.customerName}：${row.signalSummary}；沉睡证据：${row.dormantEvidence}`)
+        .join('\n')}\n说明：预约、到店或消费发生在触达后窗口内属于时间关联证据；只有显式营销归因记录才视为系统归因，不直接宣称因果。${summary.touchesTruncated ? `本次扫描 ${summary.touchCountAnalyzed}/${summary.touchCountTotal} 条有效触达，结果为部分覆盖。` : ''}`;
     }
     if (/好久没来|不活跃|沉睡|流失|消费频率.*下降|续购|疗程快结束|\d+天没来|三个月没来/.test(message)) {
       const days = message.includes('三个月') ? 90 : Number(message.match(/(\d+)天没来/)?.[1] ?? 60);

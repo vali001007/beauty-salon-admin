@@ -92,6 +92,10 @@ describe('Agent eval question bank', () => {
       .toContain('staff_customer_complaint_count');
     expect(bank.questions.find((item) => item.input === '最近有没有客户因为等待时间长而离开')?.expectedMetrics)
       .toEqual(expect.arrayContaining(['customer_long_wait_departure_count', 'customer_waiting_collection_coverage_rate']));
+    expect(bank.questions.find((item) => item.input === '哪些沉睡客户最近有点被唤醒的迹象')).toMatchObject({
+      expectedMetrics: ['dormant_reactivation_customer_count'],
+      expectedDimensions: ['customer'],
+    });
   });
 
   it('selects the first 120 P0 gate cases by role and edge strategy', () => {

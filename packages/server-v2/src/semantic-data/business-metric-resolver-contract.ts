@@ -12,7 +12,8 @@ export interface BusinessMetricResolverContract {
     | 'customer_acquisition_conversion_summary'
     | 'customer_service_feedback_summary'
     | 'customer_service_feedback_by_staff'
-    | 'customer_waiting_summary';
+    | 'customer_waiting_summary'
+    | 'customer_dormant_reactivation_rows';
   readonly storeModel: string;
   readonly dimensionFields: readonly string[];
   readonly numericExpressionFields: readonly string[];
@@ -139,6 +140,12 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
         'linkedReservationCount',
         'collectionCoverageRate',
       ]),
+    }),
+    customer_dormant_reactivation_rows: Object.freeze({
+      key: 'customer_dormant_reactivation_rows' as const,
+      storeModel: 'Customer',
+      dimensionFields: Object.freeze(['customerId', 'customerName']),
+      numericExpressionFields: Object.freeze(['reactivationSignal']),
     }),
   });
 

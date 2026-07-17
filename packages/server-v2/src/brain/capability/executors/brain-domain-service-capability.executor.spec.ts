@@ -586,6 +586,97 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ dimensionKey: 'customerAgeGroup', privacy: 'aggregate_only' });
   });
 
+  it('returns structured dormant-customer reactivation evidence without claiming temporal causality', async () => {
+    const customerLifecycle = {
+      getDormantReactivationEvidence: jest.fn().mockResolvedValue({
+        rangeLabel: '2026-07-01 至 2026-07-17',
+        dormantThresholdDays: 60,
+        attributionWindowDays: 30,
+        touchCountAnalyzed: 6,
+        dormantCandidateCount: 3,
+        reactivatedCustomerCount: 2,
+        strongSignalCustomerCount: 1,
+        mediumSignalCustomerCount: 1,
+        weakSignalCustomerCount: 0,
+        explicitAttributionCustomerCount: 1,
+        rows: [
+          {
+            customerId: 21,
+            customerName: '赵女士',
+            memberLevel: '金卡',
+            touchId: 501,
+            channel: 'wechat',
+            touchedAt: new Date('2026-07-05T02:00:00.000Z'),
+            dormantEvidence: '触达前 60 天无实际到店或有效正金额消费',
+            dormantEvidenceSource: 'inactivity_window',
+            signalLevel: 'strong',
+            signalTypes: ['arrival', 'order'],
+            signalSummary: '实际到店、产生有效消费',
+            latestSignalAt: new Date('2026-07-12T03:00:00.000Z'),
+            attributedRevenue: 688,
+            attributionConfidence: 'explicit_attribution',
+          },
+          {
+            customerId: 22,
+            customerName: '陈女士',
+            memberLevel: '银卡',
+            touchId: 502,
+            channel: 'sms',
+            touchedAt: new Date('2026-07-06T02:00:00.000Z'),
+            dormantEvidence: '触达时预测流失等级 high，流失分 80',
+            dormantEvidenceSource: 'prediction_snapshot',
+            signalLevel: 'medium',
+            signalTypes: ['reservation'],
+            signalSummary: '新建有效预约',
+            latestSignalAt: new Date('2026-07-10T03:00:00.000Z'),
+            attributedRevenue: 0,
+            attributionConfidence: 'temporal_evidence',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      customerLifecycle as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query', 'diagnosis'] },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'dormant-reactivation-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 5,
+      question: '哪些沉睡客户最近有点被唤醒的迹象',
+      answerShape: 'list',
+      args: {
+        objective: '查询沉睡客户唤醒迹象',
+        time: { label: '最近', timezone: 'Asia/Shanghai', startDate: '2026-07-01', endDate: '2026-07-17' },
+        entities: [], dimensions: [], filters: [], orderBy: [],
+        metrics: [{ definitionKey: 'metric.dormant_reactivation_customer_count', definitionVersion: 1 }],
+      },
+    });
+
+    expect(result.answer).toContain('发现 2 位沉睡客户');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'kpi', items: expect.arrayContaining([{ label: '出现唤醒迹象', value: '2 人' }]) }),
+      expect.objectContaining({ kind: 'table', rows: expect.arrayContaining([expect.objectContaining({ customerName: '赵女士', signalLevel: 'strong' })]) }),
+      expect.objectContaining({ kind: 'limitations', items: expect.arrayContaining([expect.stringContaining('不能宣称由本次触达直接造成')]) }),
+    ]));
+    expect(result.metadata).toMatchObject({
+      answerScope: 'dormant_reactivation_evidence',
+      causalClaim: 'not_inferred_from_temporal_evidence',
+    });
+    expect(customerLifecycle.getDormantReactivationEvidence).toHaveBeenCalledWith(6, expect.objectContaining({ limit: 10 }));
+  });
+
   it('answers governed customer retention metrics without using the default today range', async () => {
     const customerFacts = {
       getCustomerRetentionSummary: jest.fn().mockResolvedValue({

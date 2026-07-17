@@ -442,15 +442,23 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_partial');
   });
 
-  it('grades an explicit unsupported business boundary as unsupported', () => {
+  it('grades structured dormant-customer reactivation evidence as usable', () => {
     const result = grader.grade({
       question: '哪些沉睡客户最近有点被唤醒的迹象',
-      answer: '当前客户事实能力尚未接入“沉睡客户近期唤醒迹象”口径。',
-      citations: [{ sourceType: 'db_skill', sourceId: 'capability_customer_facts', label: '客户事实查询' }],
+      answer: '最近发现 1 位沉睡客户出现唤醒迹象，赵女士已预约并实际到店。',
+      citations: [
+        { sourceType: 'business_definition', sourceId: 'metric.dormant_reactivation_customer_count@1', label: '沉睡客户唤醒迹象人数' },
+        { sourceType: 'db_skill', sourceId: 'dormant_customer_reactivation_evidence', label: '营销触达与到店消费证据' },
+      ],
       brainStatus: 'completed',
+      blocks: [{
+        kind: 'table',
+        columns: ['customerName', 'signalSummary'],
+        rows: [{ customerName: '赵女士', signalSummary: '新建有效预约、实际到店' }],
+      }],
     });
 
-    expect(result.status).toBe('unsupported_intent');
+    expect(result.status).toBe('usable_exact');
   });
 
   it('does not count a configured-target miss as a partial scalar answer', () => {

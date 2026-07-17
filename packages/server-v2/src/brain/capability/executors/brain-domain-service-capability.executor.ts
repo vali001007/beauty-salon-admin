@@ -4,6 +4,7 @@ import { BrainCustomerFactResolverService } from '../../domain/brain-customer-fa
 import { extractSpecificCustomerNameFromMention } from '../../domain/brain-customer-identity.js';
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import { MarketingService } from '../../../marketing/marketing.service.js';
+import { CustomerLifecycleOntologyService } from '../../../marketing/customer-lifecycle-ontology.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { CustomerFeedbackService } from '../../../customer-feedback/customer-feedback.service.js';
 import { CustomerWaitingService } from '../../../reservations/customer-waiting.service.js';
@@ -87,6 +88,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly customerFeedback?: CustomerFeedbackService,
     @Optional() private readonly customerWaiting?: CustomerWaitingService,
+    @Optional() private readonly customerLifecycle?: CustomerLifecycleOntologyService,
   ) {}
 
   @BrainCapability({
@@ -368,7 +370,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'customer_facts',
     name: '客户事实与客群查询',
-    description: '查询当前门店的精确客户事实、VIP、新老客、周期新客转化、到店年龄画像、沉睡客户、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
+    description: '查询当前门店的精确客户事实、VIP、新老客、周期新客转化、到店年龄画像、沉睡客户、沉睡客户触达后的预约/到店/消费唤醒迹象、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
     intents: ['query', 'ranking', 'diagnosis'],
     examples: [
       '最近哪些老客好久没来了，帮我列一下',
@@ -386,6 +388,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '有没有哪些客户快到生日了可以做关怀',
       '今天有没有重要客户来店，需要特别关注的',
       '帮我找一下对我们上次活动有响应的客户',
+      '哪些沉睡客户最近有点被唤醒的迹象',
       '帮我找一下办了卡但还没预约的新客',
       '这个月新客主要来自什么渠道',
       '上个月新来了多少新客，转化了多少',
@@ -393,7 +396,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我查一下张女士的客户资料',
     ],
     negativeExamples: ['查询其他门店的客户名单', '直接修改客户会员等级'],
-    synonyms: ['客户事实', '客户名单', '沉睡客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
+    synonyms: ['客户事实', '客户名单', '沉睡客户', '沉睡客户唤醒迹象', '客户回流信号', '触达后预约客户', '触达后到店客户', '触达后消费客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
     businessDefinitionKeys: [
       'entity.customer',
       'dimension.customerName',
@@ -402,6 +405,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'metric.new_customer_count',
       'metric.new_customer_conversion_count',
       'metric.new_customer_conversion_rate',
+      'metric.dormant_reactivation_customer_count',
     ],
     readOnly: true,
     storeScope: 'required',
@@ -1845,6 +1849,106 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         });
       }
       case 'customer_facts': {
+        if (/(?:沉睡客户.*(?:唤醒|回流).*(?:迹象|信号)|(?:唤醒|回流).*(?:迹象|信号).*沉睡客户)/.test(input.question)) {
+          if (!this.customerLifecycle) throw new Error('customer_lifecycle_service_not_configured');
+          const explicitTime = readCapabilityStructuredTime(input.args, input.context.timezone);
+          const summary = await this.customerLifecycle.getDormantReactivationEvidence(input.context.storeId, {
+            startDate: explicitTime ? range.startDate : undefined,
+            endDate: explicitTime ? range.endDate : undefined,
+            limit: this.resolveLimit(input.args.limit, 10),
+          });
+          const metricRef = structuredDefinitionRef(input.args.metrics, 'metric.dormant_reactivation_customer_count');
+          const metricCitation = {
+            sourceType: 'business_definition',
+            sourceId: metricRef
+              ? `${metricRef.definitionKey}@${metricRef.definitionVersion}`
+              : 'metric.dormant_reactivation_customer_count',
+            label: '业务定义：沉睡客户唤醒迹象人数',
+          };
+          const answer = summary.reactivatedCustomerCount
+            ? `${summary.rangeLabel}发现 ${summary.reactivatedCustomerCount} 位沉睡客户在有效触达后出现唤醒迹象：强信号 ${summary.strongSignalCustomerCount} 位、中信号 ${summary.mediumSignalCustomerCount} 位、弱信号 ${summary.weakSignalCustomerCount} 位。`
+            : `${summary.rangeLabel}分析了 ${summary.touchCountAnalyzed} 条有效触达，其中 ${summary.dormantCandidateCount} 位客户在触达前满足沉睡证据，但触达后没有发现预约、实际到店、有效消费、点击或回复信号。发送成功本身不算唤醒。`;
+          const evidenceCitationId = 'dormant_customer_reactivation_evidence';
+          return {
+            status: 'completed',
+            answer,
+            citations: [
+              metricCitation,
+              {
+                sourceType: 'db_skill',
+                sourceId: evidenceCitationId,
+                label: '营销触达、预约到店与有效消费关联证据',
+              },
+            ],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '出现唤醒迹象', value: `${summary.reactivatedCustomerCount} 人` },
+                  { label: '强信号', value: `${summary.strongSignalCustomerCount} 人` },
+                  { label: '中信号', value: `${summary.mediumSignalCustomerCount} 人` },
+                  { label: '弱信号', value: `${summary.weakSignalCustomerCount} 人` },
+                ],
+                citationIds: [metricCitation.sourceId, evidenceCitationId],
+              },
+              {
+                kind: 'table',
+                rows: summary.rows.map((row) => ({
+                  customerName: row.customerName,
+                  memberLevel: row.memberLevel,
+                  touchChannel: row.channel,
+                  touchedAt: row.touchedAt.toISOString(),
+                  dormantEvidence: row.dormantEvidence,
+                  signalLevel: row.signalLevel,
+                  signalSummary: row.signalSummary,
+                  latestSignalAt: row.latestSignalAt.toISOString(),
+                  attributionConfidence: row.attributionConfidence,
+                  attributedRevenue: row.attributedRevenue.toFixed(2),
+                })),
+                columns: [
+                  'customerName',
+                  'memberLevel',
+                  'touchChannel',
+                  'dormantEvidence',
+                  'signalLevel',
+                  'signalSummary',
+                  'latestSignalAt',
+                  'attributionConfidence',
+                  'attributedRevenue',
+                ],
+                citationIds: [evidenceCitationId],
+              },
+              {
+                kind: 'limitations',
+                items: [
+                  `沉睡基线为触达前 ${summary.dormantThresholdDays} 天无实际到店或有效正金额消费，或触达时已有高流失预测/沉睡召回机会。`,
+                  `触达后信号观察窗口最长 ${summary.attributionWindowDays} 天；时间先后只表示关联，只有显式营销归因记录才视为系统归因。`,
+                  summary.explicitAttributionCustomerCount < summary.reactivatedCustomerCount
+                    ? `${summary.reactivatedCustomerCount - summary.explicitAttributionCustomerCount} 位客户只有时间关联证据，不能宣称由本次触达直接造成。`
+                    : '当前返回客户均存在显式营销归因记录。',
+                  ...(summary.touchesTruncated
+                    ? [`有效触达共 ${summary.touchCountTotal} 条，本次受控扫描 ${summary.touchCountAnalyzed} 条，结果为部分覆盖。`]
+                    : []),
+                ],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'dormant_reactivation_evidence',
+              rangeLabel: summary.rangeLabel,
+              dormantThresholdDays: summary.dormantThresholdDays,
+              attributionWindowDays: summary.attributionWindowDays,
+              touchCountAnalyzed: summary.touchCountAnalyzed,
+              touchCountTotal: summary.touchCountTotal,
+              touchesTruncated: summary.touchesTruncated,
+              dormantCandidateCount: summary.dormantCandidateCount,
+              reactivatedCustomerCount: summary.reactivatedCustomerCount,
+              explicitAttributionCustomerCount: summary.explicitAttributionCustomerCount,
+              causalClaim: 'not_inferred_from_temporal_evidence',
+            },
+          };
+        }
         if (/(?:新客.*(?:转化|成交|首单)|(?:转化|成交|首单).*新客)/.test(input.question)) {
           const summary = await this.customerFacts.getNewCustomerConversionSummary({
             storeId: input.context.storeId,

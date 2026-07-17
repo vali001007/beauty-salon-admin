@@ -247,7 +247,10 @@ export class BrainSemanticIntentCompilerService {
       ...(comparisonTarget ? { comparisonTarget } : {}),
       orderBy: exactDefinitions.orderBy,
       answerShape:
-        intent === 'query' && exactDefinitions.metrics.length > 0 && exactDefinitions.dimensions.length === 0
+        intent === 'query' &&
+        exactDefinitions.metrics.length > 0 &&
+        exactDefinitions.dimensions.length === 0 &&
+        !isExplicitListQuestion(input.question)
           ? 'scalar'
           : exactCapabilityAnswerShape(intent),
       successCriteria: [`执行已发布能力 ${capability.key} 并返回可追溯结果`],
@@ -888,6 +891,10 @@ function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): Brai
   return 'list';
 }
 
+function isExplicitListQuestion(question: string) {
+  return /(哪些|哪几|名单|列表|列出|找出|分别是谁|都有谁)/.test(question);
+}
+
 function localIsoDate(value: Date): string {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -995,6 +1002,8 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
       return /(等待|排队).*(过久|太久|时间长).*(离开|离店|走了)|等太久.*(?:离开|离店|走了)/.test(normalizedQuestion);
     case 'customer_waiting_collection_coverage_rate':
       return /(等待|排队).*(覆盖率|采集率|记录情况)/.test(normalizedQuestion);
+    case 'dormant_reactivation_customer_count':
+      return /沉睡客户/.test(normalizedQuestion) && /(?:唤醒|回流).*(?:迹象|信号)|(?:迹象|信号).*(?:唤醒|回流)/.test(normalizedQuestion);
     default:
       return false;
   }

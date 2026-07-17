@@ -98,6 +98,42 @@ describe('business metric resolver runtime', () => {
     });
   });
 
+  it('counts dormant reactivation rows by governed customer dimensions', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'dormant_reactivation_customer_count',
+      resolver: {
+        kind: 'domain_service',
+        key: 'customer_dormant_reactivation_rows',
+        dimensionFields: { customerId: 'customerId', customerName: 'customerName' },
+        expression: { op: 'field', field: 'reactivationSignal' },
+        overallAggregation: 'sum',
+      },
+      dimensions: ['customerId', 'customerName'],
+      outputField: 'dormant_reactivation_customer_count',
+      sourceModels: ['Customer', 'MarketingAutomationTouch', 'Reservation', 'ProductOrder'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'Customer',
+        model: 'Customer',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [
+        { customerId: 21, customerName: '赵女士', reactivationSignal: 1 },
+        { customerId: 22, customerName: '陈女士', reactivationSignal: 1 },
+      ],
+    });
+
+    expect(result).toEqual({
+      outputField: 'dormant_reactivation_customer_count',
+      groups: [
+        { dimensions: { customerId: 21, customerName: '赵女士' }, value: 1 },
+        { dimensions: { customerId: 22, customerName: '陈女士' }, value: 1 },
+      ],
+      overallValue: 2,
+    });
+  });
+
   it('evaluates satisfaction and coverage from the shared feedback summary row', () => {
     const feedbackScope: BusinessMetricRuntimeQuery['storeScope'] = {
       mode: 'current_store',

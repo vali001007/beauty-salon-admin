@@ -7,6 +7,7 @@ import { BrainInventorySkillsService } from '../src/brain/skills/brain-inventory
 import { BrainManagerSkillsService } from '../src/brain/skills/brain-manager-skills.service.js';
 import { BrainMarketingSkillsService } from '../src/brain/skills/brain-marketing-skills.service.js';
 import { BrainCustomerFactResolverService } from '../src/brain/domain/brain-customer-fact-resolver.service.js';
+import { CustomerLifecycleOntologyService } from '../src/marketing/customer-lifecycle-ontology.service.js';
 import { CustomerFeedbackService } from '../src/customer-feedback/customer-feedback.service.js';
 import { CustomerWaitingService } from '../src/reservations/customer-waiting.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
@@ -45,6 +46,7 @@ async function main() {
     const customerFacts = new BrainCustomerFactResolverService(prisma);
     const customerFeedback = new CustomerFeedbackService(prisma);
     const customerWaiting = new CustomerWaitingService(prisma);
+    const customerLifecycle = new CustomerLifecycleOntologyService(prisma);
     const candidateAdapter = app.get(BusinessDefinitionCandidateRuntimeQueryAdapter).useResolverRowSource({
       async loadRows(input) {
         if (input.resolverKey === 'manager_staff_analysis') {
@@ -96,6 +98,14 @@ async function main() {
             endDate: new Date(input.endExclusive.getTime() - 1).toISOString(),
           });
           return [result.summary as unknown as Record<string, unknown>];
+        }
+        if (input.resolverKey === 'customer_dormant_reactivation_rows') {
+          const result = await customerLifecycle.getDormantReactivationEvidence(input.storeId, {
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+            limit: 50,
+          });
+          return result.rows as unknown as Record<string, unknown>[];
         }
         return marketingSkills.buildFollowUpPriorityRows({
           storeId: input.storeId,

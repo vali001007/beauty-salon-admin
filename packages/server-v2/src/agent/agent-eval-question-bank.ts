@@ -372,6 +372,9 @@ function inferExpectedMetrics(input: string) {
     values.add('customer_long_wait_departure_count');
     values.add('customer_waiting_collection_coverage_rate');
   }
+  if (/沉睡客户/.test(input) && /(?:唤醒|回流).*(?:迹象|信号)|(?:迹象|信号).*(?:唤醒|回流)/.test(input)) {
+    values.add('dormant_reactivation_customer_count');
+  }
   return [...values];
 }
 

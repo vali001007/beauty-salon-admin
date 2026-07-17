@@ -109,6 +109,14 @@ const newCustomerConversionRateMetricRef = {
   sourceFingerprint: 'a'.repeat(64),
 } as const;
 
+const dormantReactivationMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.dormant_reactivation_customer_count',
+  definitionVersion: 1,
+  definitionFingerprint: 'd'.repeat(64),
+  sourceFingerprint: 'e'.repeat(64),
+} as const;
+
 const customerAgeGroupDimensionRef = {
   definitionType: 'dimension',
   definitionKey: 'dimension.customerAgeGroup',
@@ -1322,6 +1330,35 @@ describe('BrainSemanticIntentCompilerService', () => {
         answerShape: 'list',
         metrics: [],
         dimensions: [customerAgeGroupDimensionRef],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('hydrates the governed dormant-customer reactivation metric from an exact customer-facts contract', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('哪些沉睡客户最近有点被唤醒的迹象');
+    input.capabilitySummaries = [{
+      key: 'customer_facts',
+      name: '客户事实与客群查询',
+      description: '查询沉睡客户触达后的预约、到店、消费和互动信号',
+      domains: ['customer'],
+      intents: ['query', 'diagnosis'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [dormantReactivationMetricRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        metrics: [dormantReactivationMetricRef],
       },
     });
     expect(aiService.generateStructured).not.toHaveBeenCalled();
