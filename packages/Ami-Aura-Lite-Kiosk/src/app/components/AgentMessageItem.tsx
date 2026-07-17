@@ -1,7 +1,7 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
-import { getAgentResultDisplayModel } from "@ami/agent-core";
-import type { AgentFeedbackContext } from "@ami/agent-core";
+import { getAgentResultDisplayModel, mapBrainResponseBlocks } from "@ami/agent-core";
+import type { AgentFeedbackContext, BrainResponseBlockCompat } from "@ami/agent-core";
 import type { AgentRunResult, AuraResponseBlock } from "@/types/agent";
 import { FollowUpChips } from "./FollowUpChips";
 import { AgentFeedback } from "./AgentFeedback";
@@ -13,6 +13,7 @@ const LazyBlockRenderer = React.lazy(() =>
 
 type AgentRunWithBlocks = AgentRunResult & {
   renderedBlocks?: AuraResponseBlock[];
+  brainBlocks?: BrainResponseBlockCompat[];
   followUpSuggestions?: string[];
 };
 
@@ -178,7 +179,7 @@ export function AgentMessageItem({
   onFeedback,
 }: AgentMessageItemProps) {
   const displayModel = getAgentResultDisplayModel(data);
-  const blocks = displayModel.blocks;
+  const blocks = [...displayModel.blocks, ...mapBrainResponseBlocks(data.brainBlocks ?? [])];
   const evidenceText = getEvidenceText(displayModel.evidence);
   const suggestedActions = displayModel.actions;
   const limitations = displayModel.limitations;

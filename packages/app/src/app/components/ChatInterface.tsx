@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import type { ComponentProps } from 'react'
 import { Menu, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { ChatMessage } from './ChatMessage'
@@ -48,6 +49,7 @@ interface UIMessage {
   type: 'ai' | 'user' | 'system'
   content: string
   businessResult?: BusinessResult | null
+  blocks?: ComponentProps<typeof ChatMessage>['blocks']
 }
 
 export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
@@ -129,7 +131,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       {/* 消息区域 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {uiMessages.map((msg) => (
-          <ChatMessage key={msg.id} type={msg.type} content={msg.content} businessResult={msg.businessResult} />
+          <ChatMessage key={msg.id} type={msg.type} content={msg.content} businessResult={msg.businessResult} blocks={msg.blocks} />
         ))}
         {loading && uiMessages[uiMessages.length - 1]?.content === '' && (
           <div className="flex gap-2 items-center pl-10">
