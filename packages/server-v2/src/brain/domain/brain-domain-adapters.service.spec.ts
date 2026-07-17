@@ -523,7 +523,13 @@ describe('Brain domain adapters', () => {
     const answer = await adapter.execute(execution('给张女士创建跟进任务', 'customer_service', 'action'));
 
     expect(answer?.grounding).toBe('preview_action');
-    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionId: 'persisted_action', actionType: 'create_customer_followup', requiresConfirmation: true });
+    expect(answer?.suggestedActions?.[0]).toMatchObject({
+      actionId: 'persisted_action',
+      actionType: 'create_customer_followup',
+      requiresConfirmation: true,
+      requiredPermissions: ['assist:followup:create'],
+    });
+    expect(answer?.metadata).toMatchObject({ executionRequiredPermissions: ['assist:followup:create'] });
     expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
       skillKey: 'create_customer_followup',
       payload: expect.objectContaining({ customerId: 7 }),

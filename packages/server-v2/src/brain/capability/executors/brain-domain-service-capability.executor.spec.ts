@@ -251,6 +251,89 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toBe('沉睡客户名单');
   });
 
+  it('returns structured clarification when an exact customer mention matches multiple records', async () => {
+    const customerFacts = {
+      answerCustomerQuestion: jest.fn().mockResolvedValue(
+        '找到 2 位同名或尾号匹配客户：\n1. 胡静怡，手机 ***7636\n2. 胡静怡，手机 ***0522\n请补充完整姓名或手机号后四位后继续。',
+      ),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-disambiguation-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 3,
+      question: '客户叫胡静怡',
+      args: {
+        objective: '查询胡静怡的最近消费和卡项',
+        entities: [{ entityType: 'customer', mention: '胡静怡' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result).toMatchObject({
+      grounding: 'none',
+      blocks: [{ kind: 'clarification' }],
+      metadata: {
+        clarification: { missingSlots: ['entity'] },
+        completion: { status: 'partial', recoverable: true },
+      },
+    });
+  });
+
+  it('extracts the inherited name from a name-and-phone semantic mention', async () => {
+    const customerFacts = { answerCustomerQuestion: jest.fn().mockResolvedValue('客户事实') };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-name-phone-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 4,
+      question: '手机号后四位是7636',
+      args: {
+        objective: '查询胡静怡的消费和卡项',
+        entities: [{ entityType: 'customer', mention: '胡静怡（手机号后四位7636）' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(customerFacts.answerCustomerQuestion).toHaveBeenCalledWith(expect.objectContaining({
+      specificCustomerMention: '胡静怡',
+    }));
+  });
+
   it('returns a structured new-customer source ranking for the requested period', async () => {
     const customerFacts = {
       getNewCustomerSourceDistribution: jest.fn().mockResolvedValue({

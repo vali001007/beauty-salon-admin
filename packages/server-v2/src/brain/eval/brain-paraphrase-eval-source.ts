@@ -10,8 +10,12 @@ type ParaphraseExpected = {
   entities?: string[];
   metrics?: string[];
   dimensions?: string[];
+  capabilityKeys?: string[];
   answerShape?: string;
   requiresConfirmation?: boolean;
+  brainStatus?: 'completed' | 'clarify';
+  missingSlots?: string[];
+  forbiddenMissingSlots?: string[];
 };
 
 type ParaphraseCase = {
@@ -21,10 +25,42 @@ type ParaphraseCase = {
   expected: ParaphraseExpected;
 };
 
-export function parseBrainParaphraseEvalJson(raw: string): AgentEvalQuestionCase[] {
+type ConversationTurn = {
+  id: string;
+  intent: string;
+  input: string;
+  expected: ParaphraseExpected;
+};
+
+type ConversationCase = {
+  id: string;
+  persona?: AgentQuestionBankPersona;
+  turns: ConversationTurn[];
+};
+
+export type BrainEvalQuestionCase = AgentEvalQuestionCase & {
+  expectedAnswerShape?: string;
+  expectedBrainStatus?: 'completed' | 'clarify';
+  expectedMissingSlots?: string[];
+  expectedForbiddenMissingSlots?: string[];
+  conversationTurns?: BrainEvalQuestionCase[];
+  scenarioId?: string;
+  turnId?: string;
+  turnIndex?: number;
+  turnCount?: number;
+};
+
+export function parseBrainParaphraseEvalJson(raw: string): BrainEvalQuestionCase[] {
   const payload = JSON.parse(raw) as { cases?: unknown };
   if (!Array.isArray(payload.cases)) throw new Error('ami_brain_paraphrase_cases_missing');
-  return payload.cases.map((value, index) => toQuestionCase(parseCase(value, index), index));
+  return payload.cases.map((value, index) => {
+    if (hasConversationTurns(value)) return toConversationQuestionCase(parseConversationCase(value, index), index);
+    return toQuestionCase(parseCase(value, index), index);
+  });
+}
+
+function hasConversationTurns(value: unknown) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Array.isArray((value as any).turns));
 }
 
 function parseCase(value: unknown, index: number): ParaphraseCase {
@@ -49,7 +85,7 @@ function parseCase(value: unknown, index: number): ParaphraseCase {
   };
 }
 
-function toQuestionCase(testCase: ParaphraseCase, index: number): AgentEvalQuestionCase {
+function toQuestionCase(testCase: ParaphraseCase, index: number): BrainEvalQuestionCase {
   const persona = personaFor(testCase);
   return {
     id: `paraphrase-${testCase.id}`,
@@ -68,15 +104,93 @@ function toQuestionCase(testCase: ParaphraseCase, index: number): AgentEvalQuest
     expectedEntities: stringList(testCase.expected.entities),
     expectedMetrics: stringList(testCase.expected.metrics),
     expectedDimensions: stringList(testCase.expected.dimensions),
+    expectedCapabilityKeys: stringList(testCase.expected.capabilityKeys),
+    expectedAnswerShape: testCase.expected.answerShape,
     expectedPlanShape: testCase.expected.requiresConfirmation
       ? { requiresPreview: true }
       : undefined,
+    expectedBrainStatus: testCase.expected.brainStatus,
+    expectedMissingSlots: stringList(testCase.expected.missingSlots),
+    expectedForbiddenMissingSlots: stringList(testCase.expected.forbiddenMissingSlots),
     riskLevel: testCase.expected.requiresConfirmation ? 'high' : 'low',
     requiresApproval: testCase.expected.requiresConfirmation === true,
     notes: `同义改写期望输出：${testCase.expected.answerShape ?? '未声明'}`,
     systemSupportStatus: 'system_supported_testable',
     systemSupportReason: '模型驱动语义改写门禁必须经过真实 BrainChat 链路。',
     coverageStage: 'not_run',
+  };
+}
+
+function parseConversationCase(value: unknown, index: number): ConversationCase {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`ami_brain_conversation_case_invalid:${index}`);
+  }
+  const item = value as Record<string, unknown>;
+  if (typeof item.id !== 'string' || !item.id.trim() || !Array.isArray(item.turns) || item.turns.length < 2) {
+    throw new Error(`ami_brain_conversation_case_invalid:${index}`);
+  }
+  const persona = typeof item.persona === 'string' ? item.persona as AgentQuestionBankPersona : undefined;
+  if (persona && !['manager', 'marketing', 'reception', 'beautician', 'inventory', 'finance', 'edge'].includes(persona)) {
+    throw new Error(`ami_brain_conversation_persona_invalid:${index}`);
+  }
+  return {
+    id: item.id.trim(),
+    persona,
+    turns: item.turns.map((turn, turnIndex) => parseConversationTurn(turn, index, turnIndex)),
+  };
+}
+
+function parseConversationTurn(value: unknown, caseIndex: number, turnIndex: number): ConversationTurn {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`ami_brain_conversation_turn_invalid:${caseIndex}:${turnIndex}`);
+  }
+  const item = value as Record<string, unknown>;
+  const expected = item.expected;
+  if (
+    typeof item.id !== 'string' || !item.id.trim() ||
+    typeof item.intent !== 'string' || !item.intent.trim() ||
+    typeof item.input !== 'string' || !item.input.trim() ||
+    !expected || typeof expected !== 'object' || Array.isArray(expected)
+  ) {
+    throw new Error(`ami_brain_conversation_turn_invalid:${caseIndex}:${turnIndex}`);
+  }
+  return {
+    id: item.id.trim(),
+    intent: item.intent.trim(),
+    input: item.input.trim(),
+    expected: expected as ParaphraseExpected,
+  };
+}
+
+function toConversationQuestionCase(testCase: ConversationCase, index: number): BrainEvalQuestionCase {
+  const turns = testCase.turns.map((turn, turnIndex) => {
+    const question = toQuestionCase({ ...turn }, index);
+    return {
+      ...question,
+      id: `conversation-${testCase.id}:${turn.id}`,
+      sourceSection: '模型驱动多轮会话门禁',
+      sourceCategory: testCase.id,
+      sourceIndex: turnIndex + 1,
+      ...(testCase.persona ? {
+        persona: testCase.persona,
+        evalRole: testCase.persona === 'reception'
+          ? 'reception'
+          : testCase.persona === 'beautician'
+            ? 'beautician'
+            : 'manager',
+      } : {}),
+      scenarioId: testCase.id,
+      turnId: turn.id,
+      turnIndex: turnIndex + 1,
+      turnCount: testCase.turns.length,
+    } satisfies BrainEvalQuestionCase;
+  });
+  const first = turns[0]!;
+  return {
+    ...first,
+    id: `conversation-${testCase.id}`,
+    conversationTurns: turns,
+    notes: `多轮会话门禁，共 ${turns.length} 轮；每轮必须通过真实 BrainChat 六层评分。`,
   };
 }
 

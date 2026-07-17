@@ -48,6 +48,34 @@ describe('BrainActionTargetResolverService', () => {
     if (!result.ok) expect(result.message).toContain('手机号后四位');
   });
 
+  it('resolves a customer by the natural phone-last-four expression', async () => {
+    prisma.customer.findMany.mockResolvedValue([{ id: 9, name: '胡静怡', phone: '13800007636' }]);
+
+    await expect(service.resolveCustomer({
+      storeId: 6,
+      message: '手机号后四位是7636，继续生成预览',
+    })).resolves.toMatchObject({ ok: true, value: { id: 9, name: '胡静怡' } });
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ phone: { endsWith: '7636' } }),
+    }));
+  });
+
+  it('combines the inherited customer name with the supplied phone tail', async () => {
+    prisma.customer.findMany.mockResolvedValue([{ id: 9, name: '胡静怡', phone: '13800007636' }]);
+
+    await service.resolveCustomer({
+      storeId: 6,
+      message: '手机号后四位是7636，继续生成预览',
+      customerName: '胡静怡',
+    });
+
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        AND: [{ name: { contains: '胡静怡' } }, { phone: { endsWith: '7636' } }],
+      }),
+    }));
+  });
+
   it('parses a precise relative appointment time but rejects a vague afternoon', () => {
     const now = new Date('2026-07-11T02:00:00.000Z');
 

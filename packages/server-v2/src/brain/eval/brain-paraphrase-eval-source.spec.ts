@@ -67,4 +67,64 @@ describe('parseBrainParaphraseEvalJson', () => {
       'ami_brain_paraphrase_case_invalid:0',
     );
   });
+
+  it('parses multi-turn cases without flattening the conversation boundary', () => {
+    const [scenario] = parseBrainParaphraseEvalJson(JSON.stringify({
+      cases: [{
+        id: 'comparison-slot-fill',
+        persona: 'finance',
+        turns: [
+          {
+            id: 'ask',
+            intent: 'comparison',
+            input: '把本月实收跟另一个周期比较',
+            expected: {
+              domains: ['finance_risk'],
+              metrics: ['paid_amount'],
+              answerShape: 'clarification',
+              brainStatus: 'clarify',
+              missingSlots: ['comparisonTarget'],
+            },
+          },
+          {
+            id: 'fill-period',
+            intent: 'comparison',
+            input: '上个月',
+            expected: {
+              domains: ['finance_risk'],
+              metrics: ['paid_amount'],
+              capabilityKeys: ['finance_payment_breakdown'],
+              answerShape: 'comparison',
+              brainStatus: 'completed',
+              forbiddenMissingSlots: ['comparisonTarget'],
+            },
+          },
+        ],
+      }],
+    }));
+
+    expect(scenario).toMatchObject({
+      id: 'conversation-comparison-slot-fill',
+      persona: 'finance',
+      expectedBrainStatus: 'clarify',
+    });
+    expect(scenario.conversationTurns).toHaveLength(2);
+    expect(scenario.conversationTurns?.[0]).toMatchObject({
+      id: 'conversation-comparison-slot-fill:ask',
+      turnIndex: 1,
+      expectedMissingSlots: ['comparisonTarget'],
+    });
+    expect(scenario.conversationTurns?.[1]).toMatchObject({
+      id: 'conversation-comparison-slot-fill:fill-period',
+      turnIndex: 2,
+      expectedCapabilityKeys: ['finance_payment_breakdown'],
+      expectedForbiddenMissingSlots: ['comparisonTarget'],
+    });
+  });
+
+  it('requires at least two valid turns for a conversation case', () => {
+    expect(() => parseBrainParaphraseEvalJson(JSON.stringify({
+      cases: [{ id: 'broken', turns: [{ id: 'only-one' }] }],
+    }))).toThrow('ami_brain_conversation_case_invalid:0');
+  });
 });

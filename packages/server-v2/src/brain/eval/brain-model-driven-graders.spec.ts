@@ -118,6 +118,47 @@ describe('Ami Brain model-driven deterministic graders', () => {
     })).toMatchObject({ passed: false, failures: ['intent_mismatch'] });
   });
 
+  it('grades required and cleared clarification slots deterministically', () => {
+    const grader = new BrainIntentGraderService();
+    expect(grader.grade({
+      expected: {
+        intent: 'comparison',
+        answerShape: 'clarification',
+        missingSlots: ['comparisonTarget'],
+      },
+      actual: {
+        intent: 'comparison',
+        answerShape: 'comparison',
+        missingSlots: ['comparisonTarget'],
+      },
+    })).toMatchObject({ passed: true, failures: [] });
+    expect(grader.grade({
+      expected: {
+        intent: 'comparison',
+        answerShape: 'comparison',
+        forbiddenMissingSlots: ['comparisonTarget'],
+      },
+      actual: {
+        intent: 'comparison',
+        answerShape: 'comparison',
+        missingSlots: ['comparisonTarget'],
+      },
+    })).toMatchObject({ passed: false, failures: ['missing_slot_not_cleared:comparisonTarget'] });
+  });
+
+  it('allows an expected clarification status without weakening normal completion checks', () => {
+    const grader = new BrainCompletionGraderService();
+    expect(grader.grade({
+      expected: { brainStatuses: ['clarify'], requiresComplete: false, requiresGrounding: false },
+      brainStatus: 'clarify',
+      completion: { status: 'partial' },
+    })).toMatchObject({ passed: true, failures: [] });
+    expect(grader.grade({
+      expected: { requiresComplete: false, requiresGrounding: false },
+      brainStatus: 'clarify',
+    })).toMatchObject({ passed: false, failures: ['brain_status:clarify'] });
+  });
+
 });
 
 describe('BrainIntentGraderService implicit list dimensions', () => {

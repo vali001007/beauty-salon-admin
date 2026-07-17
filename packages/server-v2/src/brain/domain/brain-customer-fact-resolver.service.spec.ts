@@ -36,6 +36,21 @@ describe('BrainCustomerFactResolverService', () => {
     );
   });
 
+  it('supports the natural phone-last-four expression for exact customer lookup', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);
+
+    await service.answerCustomerQuestion({
+      storeId: 6,
+      message: '手机号后四位是7636',
+      permissions: ['core:customer:view'],
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ phone: { endsWith: '7636' } }),
+    }));
+  });
+
   it('routes a resolved customer mention to exact facts and a generic segment question to customer analysis', async () => {
     const service = new BrainCustomerFactResolverService({} as never);
     const exact = jest.spyOn(service, 'answerExactCustomerQuestion').mockResolvedValue('张女士客户事实');
@@ -62,7 +77,8 @@ describe('BrainCustomerFactResolverService', () => {
 
     expect(exact).toHaveBeenCalledWith({
       storeId: 6,
-      message: '张女士',
+      message: '帮我查一下这个客户',
+      customerName: '张女士',
       permissions: ['core:customer:view'],
     });
     expect(segment).toHaveBeenCalledWith(expect.objectContaining({

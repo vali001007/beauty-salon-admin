@@ -99,6 +99,7 @@ export class BrainEvalExpectationResolverService {
     });
     const definitionCapabilities = unique([...capabilityKeys, ...definitionBoundCapabilityKeys]);
     const capabilityAnyOf = unique(definitionCapabilities.length ? definitionCapabilities : roleCapabilityKeys);
+    const expectsClarification = input.base.answerShape === 'clarification';
 
     return {
       expectation: {
@@ -108,14 +109,14 @@ export class BrainEvalExpectationResolverService {
         entities: [],
         domains,
         capabilityKeys: input.releaseSnapshot ? [] : input.base.capabilityKeys,
-        capabilityAnyOf: input.releaseSnapshot ? capabilityAnyOf : undefined,
+        capabilityAnyOf: input.releaseSnapshot && !expectsClarification ? capabilityAnyOf : undefined,
       },
       evidence: {
         metricKeys: metrics,
         dimensionKeys: dimensions,
         entityKeys: entities,
         domainKeys: domains,
-        capabilityKeys: input.releaseSnapshot ? capabilityAnyOf : input.base.capabilityKeys ?? [],
+        capabilityKeys: input.releaseSnapshot && !expectsClarification ? capabilityAnyOf : input.base.capabilityKeys ?? [],
         unresolved: unique(unresolved),
       },
     };

@@ -1029,6 +1029,7 @@ export class BrainChatService {
         conversationSlots: compilerInput.conversationSlots,
       }),
       conversationSlots: compilerInput.conversationSlots,
+      question: input.dto.message,
     });
     let validation: ReturnType<BrainSemanticIntentValidatorService['validate']>;
     try {
@@ -1084,6 +1085,7 @@ export class BrainChatService {
             conversationSlots: compilerInput.conversationSlots,
           }),
           conversationSlots: compilerInput.conversationSlots,
+          question: input.dto.message,
         });
         const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent);
         compilation = repairCompilation;
@@ -1184,7 +1186,13 @@ export class BrainChatService {
     }
 
     const governedExampleCard = this.findGovernedCapabilityExampleCard(input.dto.message, cards);
-    if (validation.intent.intent === 'workflow' && !governedExampleCard) {
+    const pendingCapabilityCard = this.resolvePendingClarificationCapability(
+      compilerInput.conversationSlots,
+      validation.intent,
+      cards,
+    );
+    const deterministicCapabilityCard = governedExampleCard ?? pendingCapabilityCard;
+    if (validation.intent.intent === 'workflow' && !deterministicCapabilityCard) {
       return this.buildModelSupervisorAnswer({
         context: input.context,
         dto: input.dto,
@@ -1197,14 +1205,18 @@ export class BrainChatService {
       });
     }
 
-    const retrieval: ReturnType<BrainCapabilityRetrieverService['retrieve']> = governedExampleCard
+    const retrieval: ReturnType<BrainCapabilityRetrieverService['retrieve']> = deterministicCapabilityCard
       ? {
           status: 'selected',
-          selected: governedExampleCard,
-          topK: [{ card: governedExampleCard, score: 1, matchedFields: ['examples'] }],
+          selected: deterministicCapabilityCard,
+          topK: [{
+            card: deterministicCapabilityCard,
+            score: 1,
+            matchedFields: [governedExampleCard ? 'examples' : 'pending_clarification'],
+          }],
           confidence: 1,
           margin: 1,
-          reason: 'governed_example_selected',
+          reason: governedExampleCard ? 'governed_example_selected' : 'pending_clarification_capability_reused',
         }
       : this.capabilityRetriever!.retrieve({
           intent: validation.intent,
@@ -1275,7 +1287,7 @@ export class BrainChatService {
     }
     if (
       this.shouldUseModelSupervisor(validation.intent) &&
-      !governedExampleCard &&
+      !deterministicCapabilityCard &&
       !this.canUseSingleCapabilityFastPath(retrieval.selected, validation.intent)
     ) {
       return this.buildModelSupervisorAnswer({
@@ -1380,6 +1392,14 @@ export class BrainChatService {
         });
         return this.modelFailure('CAPABILITY_EXECUTION_FAILED', executionMetadata);
       }
+      const executionClarification = this.modelPendingClarification(execution.metadata?.clarification);
+      const executionIntent = executionClarification
+        ? {
+            ...validation.intent,
+            missingSlots: [...new Set([...validation.intent.missingSlots, ...executionClarification.missingSlots])],
+            ambiguities: executionClarification.ambiguities,
+          }
+        : validation.intent;
       await this.recordModelTrace({
         runId: input.runId,
         stepKey: 'model_answer_compose',
@@ -1409,10 +1429,13 @@ export class BrainChatService {
               citationCount: execution.citations.length,
             },
           ],
-          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+          completion: executionClarification
+            ? { status: 'partial', missingCriteria: [...executionClarification.missingSlots], recoverable: true }
+            : { status: 'complete', missingCriteria: [], recoverable: false },
         },
         modelMetadata: executionMetadata,
-        modelContextIntent: validation.intent,
+        modelContextIntent: executionIntent,
+        ...(executionClarification ? { modelContextPendingClarification: executionClarification } : {}),
       };
     } catch (error) {
       await this.recordModelFailure({
@@ -1684,13 +1707,42 @@ export class BrainChatService {
   private normalizePendingClarificationResolution(input: {
     intent: BrainSemanticIntent;
     conversationSlots: Record<string, unknown>;
+    question: string;
   }): BrainSemanticIntent {
     const directives = this.modelContextRecord(input.conversationSlots.turnDirectives);
     if (directives.mode !== 'resolve_pending_or_new') return input.intent;
+    const pendingSlots = Array.isArray(directives.pendingSlots)
+      ? directives.pendingSlots.filter((slot): slot is string => typeof slot === 'string')
+      : [];
+    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    if (
+      pendingSlots.some((slot) => slot === 'actionTarget' || slot === 'entity') &&
+      ['action', 'workflow'].includes(String(modelContext.intent)) &&
+      (
+        input.intent.entities.some((entity) => this.isSpecificModelEntity(entity)) ||
+        /(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*\d{4}/.test(input.question)
+      ) &&
+      !this.isExplicitPendingObjectiveAbandonment(input.question)
+    ) {
+      return {
+        ...input.intent,
+        objective: typeof modelContext.objective === 'string'
+          ? `${modelContext.objective}；补充要求：${input.intent.objective}`
+          : input.intent.objective,
+        intent: modelContext.intent as BrainSemanticIntent['intent'],
+        answerShape: 'action_preview',
+        missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'actionTarget' && slot !== 'entity'),
+        ambiguities: input.intent.ambiguities.filter((ambiguity) => ambiguity.slot !== 'actionTarget' && ambiguity.slot !== 'entity'),
+        successCriteria: [
+          ...input.intent.successCriteria,
+          '生成待确认操作预览，用户确认前不执行真实业务写入',
+        ],
+      };
+    }
+
     const resolve = this.modelContextRecord(directives.resolve);
     const comparisonTarget = this.modelContextTimeRange(resolve.comparisonTarget);
     if (input.intent.intent !== 'comparison' || !comparisonTarget) return input.intent;
-    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
     const currentRange = this.modelContextTimeRange(modelContext.timeRange) ?? input.intent.timeRange;
     if (!currentRange) return input.intent;
     return {
@@ -1702,8 +1754,60 @@ export class BrainChatService {
     };
   }
 
+  private isSpecificModelEntity(entity: BrainSemanticIntent['entities'][number]) {
+    const mention = entity.mention.trim();
+    if (!entity.definitionRef || !mention) return false;
+    if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
+    return !/(客户|顾客|老客|新客|会员|客群|人群|员工|美容师|商品|产品|项目|预约|她|他|这个|那个)/.test(mention);
+  }
+
+  private isExplicitPendingObjectiveAbandonment(question: string) {
+    return /^(算了|不用了|取消|换个|另外)|(?:改看|改成|不要|不用).*(?:跟进|任务|预览)/.test(question.trim());
+  }
+
   private modelContextRecord(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  }
+
+  private modelPendingClarification(value: unknown): BrainModelPendingClarification | undefined {
+    const clarification = this.modelContextRecord(value);
+    const missingSlots = Array.isArray(clarification.missingSlots)
+      ? clarification.missingSlots.filter((slot): slot is string => typeof slot === 'string' && Boolean(slot.trim()))
+      : [];
+    const questions = Array.isArray(clarification.questions)
+      ? clarification.questions.filter((question): question is string => typeof question === 'string' && Boolean(question.trim()))
+      : [];
+    const ambiguities = Array.isArray(clarification.ambiguities)
+      ? clarification.ambiguities.flatMap((value) => {
+          const ambiguity = this.modelContextRecord(value);
+          if (typeof ambiguity.slot !== 'string' || typeof ambiguity.reason !== 'string') return [];
+          const candidates = Array.isArray(ambiguity.candidates)
+            ? ambiguity.candidates.filter((candidate): candidate is string => typeof candidate === 'string')
+            : [];
+          return [{ slot: ambiguity.slot, reason: ambiguity.reason, candidates }];
+        })
+      : [];
+    if (!missingSlots.length || !questions.length) return undefined;
+    return { missingSlots, questions, ambiguities };
+  }
+
+  private resolvePendingClarificationCapability(
+    conversationSlots: Record<string, unknown>,
+    intent: BrainSemanticIntent,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    const directives = this.modelContextRecord(conversationSlots.turnDirectives);
+    if (directives.mode !== 'resolve_pending_or_new' || !Array.isArray(directives.pendingSlots)) return undefined;
+    const modelContext = this.modelContextRecord(conversationSlots.modelContext);
+    const capability = this.modelContextRecord(modelContext.capability);
+    if (typeof capability.key !== 'string' || !Number.isInteger(capability.version)) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === capability.key &&
+        card.version === capability.version &&
+        card.intents.includes(intent.intent) &&
+        (intent.intent === 'action' ? !card.readOnly && card.sideEffect : card.readOnly),
+    );
   }
 
   private modelContextTimeRange(value: unknown): BrainSemanticIntent['timeRange'] | undefined {

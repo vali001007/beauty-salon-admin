@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
 export type BrainTargetResolution<T> =
   | { ok: true; value: T }
@@ -48,9 +49,9 @@ export class BrainActionTargetResolverService {
     }
   }
 
-  async resolveCustomer(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; name: string; maskedPhone: string }>> {
-    const name = this.extractCustomerName(input.message);
-    const phoneTail = input.message.match(/(?:尾号|手机尾号)[^0-9]*(\d{4})/)?.[1];
+  async resolveCustomer(input: { storeId: number; message: string; customerName?: string }): Promise<BrainTargetResolution<{ id: number; name: string; maskedPhone: string }>> {
+    const name = input.customerName?.trim() || this.extractCustomerName(input.message);
+    const phoneTail = extractCustomerPhoneTail(input.message);
     if (!name && !phoneTail) {
       return { ok: false, reason: 'missing_customer', message: '请提供客户姓名或手机号后四位后再生成动作预览。' };
     }

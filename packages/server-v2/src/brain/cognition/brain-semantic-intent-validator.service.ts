@@ -96,16 +96,26 @@ export class BrainSemanticIntentValidatorService {
     this.collectIntentShapeGaps(intent, missingSlots);
     clarificationIssues.push(...this.findEntityConflicts(intent));
     const stableClarificationIssues = dedupeIssues(clarificationIssues);
-    for (const ambiguity of actionableAmbiguities) missingSlots.delete(ambiguity.slot);
-
-    const orderedMissingSlots = [...missingSlots].sort();
+    const ambiguitySlots = new Set(actionableAmbiguities.map((ambiguity) => ambiguity.slot));
+    const requiredMissingSlots = [...missingSlots].filter((slot) => !ambiguitySlots.has(slot)).sort();
+    const canonicalMissingSlots = new Set(missingSlots);
+    for (const ambiguity of actionableAmbiguities) canonicalMissingSlots.add(ambiguity.slot);
+    const orderedMissingSlots = [...canonicalMissingSlots].sort();
     if (orderedMissingSlots.length > 0 || clarificationIssues.length > 0) {
+      const clarifiedIntent: BrainSemanticIntent = {
+        ...intent,
+        missingSlots: orderedMissingSlots,
+        ambiguities: actionableAmbiguities.map((ambiguity) => ({
+          ...ambiguity,
+          candidates: [...ambiguity.candidates],
+        })),
+      };
       return {
         status: 'clarification_required',
-        intent,
+        intent: clarifiedIntent,
         snapshotFingerprint: snapshot.fingerprint,
         issues: [
-          ...orderedMissingSlots.map((slot) => ({
+          ...requiredMissingSlots.map((slot) => ({
             code: 'MISSING_REQUIRED_SLOT' as const,
             slot,
             message: `Required semantic slot ${slot} is missing.`,
@@ -280,7 +290,7 @@ export class BrainSemanticIntentValidatorService {
     }
 
     if (intent.intent === 'action') {
-      if (!intent.entities.some((entity) => entity.definitionRef)) missingSlots.add('actionTarget');
+      if (!intent.entities.some(isSpecificActionTarget)) missingSlots.add('actionTarget');
       if (intent.successCriteria.length === 0) missingSlots.add('successCriteria');
     }
   }
@@ -311,6 +321,16 @@ export class BrainSemanticIntentValidatorService {
     return { status: 'invalid', intent, ...(snapshotFingerprint ? { snapshotFingerprint } : {}), issues };
   }
 }
+
+function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number]): boolean {
+  if (!entity.definitionRef) return false;
+  if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
+  const mention = normalizeMention(entity.mention);
+  if (!mention) return false;
+  return !GENERIC_ACTION_TARGET_MENTIONS.has(mention) && !/^(这个|该|那个)?(客户|顾客|会员|员工|美容师|商品|产品|项目|预约)$/.test(mention);
+}
+
+const GENERIC_ACTION_TARGET_MENTIONS = new Set(['她', '他', 'ta', '对方', '目标客户', '目标对象']);
 
 function isGroupedDimensionComparison(intent: BrainSemanticIntent): boolean {
   return (

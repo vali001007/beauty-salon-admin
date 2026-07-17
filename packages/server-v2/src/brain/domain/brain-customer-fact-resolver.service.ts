@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
+import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
 export interface BrainNewCustomerSourceDistribution {
   total: number;
@@ -21,15 +22,15 @@ export class BrainCustomerFactResolverService {
     startDate?: Date;
     endDate?: Date;
   }) {
-    const exactMessage = input.specificCustomerMention?.trim() || input.message;
     const hasExactLookup = Boolean(
       input.specificCustomerMention?.trim() ||
-      /(?:尾号|手机尾号)[^0-9]*\d{4}/.test(exactMessage),
+      extractCustomerPhoneTail(input.message),
     );
     if (hasExactLookup) {
       return this.answerExactCustomerQuestion({
         storeId: input.storeId,
-        message: exactMessage,
+        message: input.message,
+        customerName: input.specificCustomerMention?.trim(),
         permissions: input.permissions,
       });
     }
@@ -41,9 +42,9 @@ export class BrainCustomerFactResolverService {
     });
   }
 
-  async answerExactCustomerQuestion(input: { storeId: number; message: string; permissions: string[] }) {
-    const name = this.extractCustomerName(input.message);
-    const phoneTail = input.message.match(/(?:尾号|手机尾号)[^0-9]*(\d{4})/)?.[1];
+  async answerExactCustomerQuestion(input: { storeId: number; message: string; customerName?: string; permissions: string[] }) {
+    const name = input.customerName?.trim() || this.extractCustomerName(input.message);
+    const phoneTail = extractCustomerPhoneTail(input.message);
     if (!name && !phoneTail) {
       return '请提供客户姓名或手机号后四位，我才能在当前门店范围内精确查询；不会根据“这个客人”猜测身份。';
     }

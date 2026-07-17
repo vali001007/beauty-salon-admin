@@ -1,6 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { BrainTimeRangeParserService, type BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainCustomerFactResolverService } from '../../domain/brain-customer-fact-resolver.service.js';
+import { extractSpecificCustomerNameFromMention } from '../../domain/brain-customer-identity.js';
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import { MarketingService } from '../../../marketing/marketing.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
@@ -20,6 +21,14 @@ import {
   structuredEntityMentions,
   structuredTimeUtcRange,
 } from '../brain-capability-structured-args.js';
+
+function specificCustomerMention(
+  entity: ReturnType<typeof structuredEntityMentions>[number] | undefined,
+): string | undefined {
+  if (!entity) return undefined;
+  if (entity.entityKey && entity.entityKey !== 'customer') return entity.mention;
+  return extractSpecificCustomerNameFromMention(entity.mention);
+}
 
 const CAPABILITY_KEYS = [
   'store_operations_overview',
@@ -1442,16 +1451,34 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           });
         }
-        const customerEntity = structuredEntityMentions(input.args as BrainCapabilityToolArgs)
-          .find((entity) => entity.entityType === 'customer');
+        const customerMention = structuredEntityMentions(input.args as BrainCapabilityToolArgs)
+          .filter((entity) => entity.entityType === 'customer')
+          .map((entity) => specificCustomerMention(entity))
+          .find((mention): mention is string => Boolean(mention));
         const answer = await this.customerFacts.answerCustomerQuestion({
           storeId: input.context.storeId,
           message: input.question,
-          specificCustomerMention: customerEntity?.entityKey ? customerEntity.mention : undefined,
+          specificCustomerMention: customerMention,
           permissions: input.context.permissions,
           startDate: range.startDate,
           endDate: range.endDate,
         });
+        if (isCustomerIdentityClarification(answer)) {
+          const question = '找到多位匹配客户，请补充手机号后四位后继续。';
+          return {
+            status: 'completed',
+            answer,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'clarification', question, options: [] }],
+            metadata: {
+              rangeLabel: range.label,
+              unsupportedReason: 'customer_identity_requires_clarification',
+              clarification: { questions: [question], missingSlots: ['entity'], ambiguities: [] },
+              completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+            },
+          };
+        }
         return this.answer({
           answer,
           citationId: 'capability_customer_facts',
@@ -2321,6 +2348,13 @@ function structuredDefinitionKeys(value: unknown): Set<string> {
     const definitionKey = (item as Record<string, unknown>).definitionKey;
     return typeof definitionKey === 'string' ? [definitionKey] : [];
   }));
+}
+
+function isCustomerIdentityClarification(answer: string) {
+  return (
+    answer.includes('请提供客户姓名或手机号后四位') ||
+    (answer.includes('找到 ') && answer.includes('请补充完整姓名或手机号后四位后继续'))
+  );
 }
 
 function structuredDefinitionRef(value: unknown, definitionKey: string) {

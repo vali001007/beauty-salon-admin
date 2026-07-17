@@ -105,7 +105,11 @@ import {
   resolveBrainEvalExecutionPath,
   type BrainEvalExecutionPath,
 } from '../src/brain/eval/brain-eval-execution-path.js';
-import { parseBrainParaphraseEvalJson } from '../src/brain/eval/brain-paraphrase-eval-source.js';
+import {
+  parseBrainParaphraseEvalJson,
+  type BrainEvalQuestionCase,
+} from '../src/brain/eval/brain-paraphrase-eval-source.js';
+import { runBrainEvalConversation } from '../src/brain/eval/brain-conversation-eval-runner.js';
 
 @Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), BrainModule] })
 class AmiBrainEvalModule {}
@@ -124,6 +128,11 @@ type AmiBrainEvalRecord = {
   latencyMs: number;
   conversationId?: number;
   runId?: number;
+  scenarioId?: string;
+  turnId?: string;
+  turnIndex?: number;
+  turnCount?: number;
+  turns?: AmiBrainEvalRecord[];
   answer: string;
   citations: Array<{ sourceType?: string; sourceId?: string; label?: string; definition?: string }>;
   adapterKey?: string;
@@ -167,10 +176,10 @@ const RESULTS_FILE = 'ami-brain-model-driven-eval-results-2026-07-15.json';
 const REPORT_FILE = 'ami-brain-model-driven-eval-report-2026-07-15.md';
 const CHECKPOINT_FILE = 'ami-brain-model-driven-eval-checkpoint-2026-07-15.json';
 
-function loadEvalQuestions(questionFile: string): AgentEvalQuestionCase[] {
+function loadEvalQuestions(questionFile: string): BrainEvalQuestionCase[] {
   const raw = readFileSync(questionFile, 'utf8');
   if (extname(questionFile).toLowerCase() === '.json') return parseBrainParaphraseEvalJson(raw);
-  return parseAgentEvalQuestionMarkdown(raw).questions;
+  return parseAgentEvalQuestionMarkdown(raw).questions as BrainEvalQuestionCase[];
 }
 
 async function main() {
@@ -346,6 +355,7 @@ async function main() {
         sourceFile: questionFile,
         questionCount: questions.length,
         actualRunCount: records.length,
+        actualTurnCount: records.reduce((sum, record) => sum + (record.turns?.length ?? 1), 0),
         requestedStoreId: options.storeId,
         storeId: runtimeStoreId,
         releaseId: options.releaseId ?? null,
@@ -418,7 +428,7 @@ async function runOne(
   planGrader: BrainPlanGraderService,
   completionGrader: BrainCompletionGraderService,
   prisma: PrismaService,
-  question: AgentEvalQuestionCase,
+  question: BrainEvalQuestionCase,
   storeId: number,
   evaluationRoleKey: string,
   permissionsByRole: BrainEvalRolePermissionMap,
@@ -436,27 +446,90 @@ async function runOne(
       permissionsByRole,
       releaseSnapshot,
     );
-    const conversation = await chat.createConversation(context, {
-      title: `Ami Brain Eval ${question.id}`.slice(0, 80),
+    const turns = question.conversationTurns?.length ? question.conversationTurns : [question];
+    const result = await runBrainEvalConversation({
+      turns,
+      createConversation: () => chat.createConversation(context, {
+        title: `Ami Brain Eval ${question.id}`.slice(0, 80),
+      }),
+      runTurn: (turn, conversation, index) => runOneTurn({
+        chat,
+        grader,
+        intentGrader,
+        capabilityGrader,
+        planGrader,
+        completionGrader,
+        prisma,
+        question: turn,
+        context: { ...context, requestId: `${context.requestId}_turn_${index + 1}` },
+        conversationId: conversation.id,
+        evaluationRole,
+        releaseSnapshot,
+        definitions,
+        expectationResolver,
+      }),
     });
-    const response = await chat.sendMessage(context, conversation.id, {
-      message: question.input,
-      timezone: 'Asia/Shanghai',
-      roleHint: resolveBrainEvalQuestionRole('persona', question.persona) as any,
-    });
+    return aggregateConversationRecord(
+      question,
+      result.conversation.id,
+      result.results,
+      Math.round(performance.now() - startedAt),
+    );
+  } catch (error) {
     const latencyMs = Math.round(performance.now() - startedAt);
-    const runOutput = await readRunOutput(prisma, response.runId);
+    return {
+      questionId: question.id,
+      sourceSection: question.sourceSection,
+      sourceCategory: question.sourceCategory,
+      sourceIndex: question.sourceIndex,
+      persona: question.persona,
+      question: question.input,
+      status: classifyError(error),
+      latencyMs,
+      answer: '',
+      citations: [],
+      legacyStatus: 'not_usable',
+      error: errorMessage(error),
+      failureReason: errorMessage(error),
+    };
+  }
+}
+
+async function runOneTurn(input: {
+  chat: BrainChatService;
+  grader: BrainAnswerGraderService;
+  intentGrader: BrainIntentGraderService;
+  capabilityGrader: BrainCapabilityGraderService;
+  planGrader: BrainPlanGraderService;
+  completionGrader: BrainCompletionGraderService;
+  prisma: PrismaService;
+  question: BrainEvalQuestionCase;
+  context: BrainRequestContext;
+  conversationId: number;
+  evaluationRole: string;
+  releaseSnapshot?: BrainEvaluationReleaseSnapshot;
+  definitions?: BusinessDefinitionSnapshotInput;
+  expectationResolver: BrainEvalExpectationResolverService;
+}): Promise<AmiBrainEvalRecord> {
+  const startedAt = performance.now();
+  try {
+    const response = await input.chat.sendMessage(input.context, input.conversationId, {
+      message: input.question.input,
+      timezone: 'Asia/Shanghai',
+      roleHint: resolveBrainEvalQuestionRole('persona', input.question.persona) as any,
+    });
+    const runOutput = await readRunOutput(input.prisma, response.runId);
     const blocks = Array.isArray(runOutput?.blocks) ? runOutput.blocks : [];
-    const baseExpected = expectationForQuestion(question);
-    const resolved = expectationResolver.resolve({
+    const baseExpected = expectationForQuestion(input.question);
+    const resolved = input.expectationResolver.resolve({
       base: baseExpected,
-      definitions: definitions ?? { entities: [], relations: [], metrics: [], dimensions: [] },
-      releaseSnapshot,
-      roleKey: evaluationRole,
+      definitions: input.definitions ?? { entities: [], relations: [], metrics: [], dimensions: [] },
+      releaseSnapshot: input.releaseSnapshot,
+      roleKey: input.evaluationRole,
     });
     const expected = resolved.expectation;
-    const grade = grader.grade({
-      question: question.input,
+    const grade = input.grader.grade({
+      question: input.question.input,
       answer: response.answer,
       citations: response.citations ?? [],
       blocks,
@@ -468,15 +541,15 @@ async function runOne(
     const actualPlan = adapterMetadata.supervisorPlan ?? adapterMetadata.executionPlan;
     const actualCapabilities = actualCapabilityKeys(runOutput, actualPlan);
     const layers = {
-      intent: intentGrader.grade({ expected, actual: runOutput?.semanticIntent ?? runOutput?.routePlan }),
-      tool: capabilityGrader.grade({ expected, actualCapabilityKeys: actualCapabilities }),
-      plan: planGrader.grade({ expected, actualPlan }),
+      intent: input.intentGrader.grade({ expected, actual: runOutput?.semanticIntent ?? runOutput?.routePlan }),
+      tool: input.capabilityGrader.grade({ expected, actualCapabilityKeys: actualCapabilities }),
+      plan: input.planGrader.grade({ expected, actualPlan }),
       execution: executionLayerGrade(
         response.status,
         adapterMetadata.observations,
         adapterMetadata.completion,
       ),
-      completion: completionGrader.grade({
+      completion: input.completionGrader.grade({
         expected,
         brainStatus: response.status,
         completion: adapterMetadata.completion,
@@ -494,17 +567,21 @@ async function runOne(
         ? grade.status
         : statusForLayerFailure(layers, grade.status);
     return {
-      questionId: question.id,
-      sourceSection: question.sourceSection,
-      sourceCategory: question.sourceCategory,
-      sourceIndex: question.sourceIndex,
-      persona: question.persona,
-      question: question.input,
+      questionId: input.question.id,
+      sourceSection: input.question.sourceSection,
+      sourceCategory: input.question.sourceCategory,
+      sourceIndex: input.question.sourceIndex,
+      persona: input.question.persona,
+      question: input.question.input,
       status,
       brainStatus: response.status,
-      latencyMs,
-      conversationId: conversation.id,
+      latencyMs: Math.round(performance.now() - startedAt),
+      conversationId: input.conversationId,
       runId: response.runId,
+      scenarioId: input.question.scenarioId,
+      turnId: input.question.turnId,
+      turnIndex: input.question.turnIndex,
+      turnCount: input.question.turnCount,
       answer: response.answer,
       citations: response.citations ?? [],
       adapterKey: typeof runOutput?.adapterKey === 'string' ? runOutput.adapterKey : undefined,
@@ -530,16 +607,20 @@ async function runOne(
           : firstLayerFailure(layers) ?? grade.reason,
     };
   } catch (error) {
-    const latencyMs = Math.round(performance.now() - startedAt);
     return {
-      questionId: question.id,
-      sourceSection: question.sourceSection,
-      sourceCategory: question.sourceCategory,
-      sourceIndex: question.sourceIndex,
-      persona: question.persona,
-      question: question.input,
+      questionId: input.question.id,
+      sourceSection: input.question.sourceSection,
+      sourceCategory: input.question.sourceCategory,
+      sourceIndex: input.question.sourceIndex,
+      persona: input.question.persona,
+      question: input.question.input,
       status: classifyError(error),
-      latencyMs,
+      latencyMs: Math.round(performance.now() - startedAt),
+      conversationId: input.conversationId,
+      scenarioId: input.question.scenarioId,
+      turnId: input.question.turnId,
+      turnIndex: input.question.turnIndex,
+      turnCount: input.question.turnCount,
       answer: '',
       citations: [],
       legacyStatus: 'not_usable',
@@ -549,7 +630,48 @@ async function runOne(
   }
 }
 
+function aggregateConversationRecord(
+  question: BrainEvalQuestionCase,
+  conversationId: number,
+  turns: AmiBrainEvalRecord[],
+  latencyMs: number,
+): AmiBrainEvalRecord {
+  if (turns.length === 1) return turns[0]!;
+  const final = turns[turns.length - 1]!;
+  const firstFailure = turns.find((turn) => !isUsableStatus(turn.status));
+  const providerUnavailable = turns.some((turn) => turn.status === 'provider_unavailable');
+  const allExact = turns.every((turn) => turn.status === 'usable_exact');
+  const allUsable = turns.every((turn) => isUsableStatus(turn.status));
+  const status = providerUnavailable
+    ? 'provider_unavailable'
+    : allUsable
+      ? allExact ? 'usable_exact' : 'usable_partial'
+      : firstFailure?.status ?? 'error';
+  return {
+    ...final,
+    questionId: question.id,
+    sourceSection: question.sourceSection,
+    sourceCategory: question.sourceCategory,
+    sourceIndex: question.sourceIndex,
+    persona: question.persona,
+    question: turns.map((turn) => turn.question).join(' -> '),
+    status,
+    latencyMs,
+    conversationId,
+    scenarioId: question.scenarioId ?? question.id,
+    turnIndex: undefined,
+    turnId: undefined,
+    turnCount: turns.length,
+    turns,
+    sixLayerPassed: turns.every((turn) => turn.sixLayerPassed === true),
+    failureReason: firstFailure
+      ? `${firstFailure.turnId ?? firstFailure.questionId}:${firstFailure.failureReason ?? firstFailure.status}`
+      : undefined,
+  };
+}
+
 function answerIntentForExpectation(expected: BrainEvalExpectation): BrainQuestionIntent | undefined {
+  if (expected.answerShape === 'clarification' || expected.brainStatuses?.includes('clarify')) return 'clarify';
   if (expected.intent === 'clarify') return 'clarify';
   if (expected.intent === 'ranking') return 'ranking';
   if (expected.intent === 'comparison' || expected.intent === 'trend') return 'comparison';
@@ -557,7 +679,7 @@ function answerIntentForExpectation(expected: BrainEvalExpectation): BrainQuesti
   if (expected.intent === 'action' || expected.intent === 'workflow') return 'action';
   if (expected.intent === 'recommendation') return 'recommendation';
   if (expected.intent === 'diagnosis') return 'diagnosis';
-  if (expected.intent === 'query' && expected.metrics?.length) return 'metric_query';
+  if (expected.intent === 'query' && (expected.answerShape === 'scalar' || expected.metrics?.length)) return 'metric_query';
   return undefined;
 }
 
@@ -600,19 +722,37 @@ function buildEvalContext(
   };
 }
 
-function expectationForQuestion(question: AgentEvalQuestionCase): BrainEvalExpectation {
-  const clarification = question.expectedSemanticIntent === 'clarify';
+function expectationForQuestion(question: BrainEvalQuestionCase): BrainEvalExpectation {
+  const clarification =
+    question.expectedAnswerShape === 'clarification' ||
+    question.expectedSemanticIntent === 'clarify' ||
+    question.expectedBrainStatus === 'clarify';
   return {
     intent: question.expectedSemanticIntent,
+    answerShape: answerShapeForQuestion(question),
     domains: question.expectedDomains ?? [],
     entities: question.expectedEntities ?? [],
     metrics: question.expectedMetrics ?? [],
     dimensions: question.expectedDimensions ?? [],
     capabilityKeys: question.expectedCapabilityKeys ?? [],
     planShape: question.expectedPlanShape,
+    brainStatuses: question.expectedBrainStatus ? [question.expectedBrainStatus] : undefined,
+    missingSlots: question.expectedMissingSlots,
+    forbiddenMissingSlots: question.expectedForbiddenMissingSlots,
     requiresGrounding: !clarification && question.systemSupportStatus !== 'system_unsupported',
     requiresComplete: !clarification && question.systemSupportStatus !== 'system_unsupported',
   };
+}
+
+function answerShapeForQuestion(question: BrainEvalQuestionCase) {
+  if (question.expectedAnswerShape) return question.expectedAnswerShape;
+  const outputKinds = question.expectedOutputKinds ?? [];
+  if (outputKinds.includes('clarify')) return 'clarification';
+  if (outputKinds.includes('action_card')) return 'action_preview';
+  if (outputKinds.includes('chart')) return 'trend';
+  if (outputKinds.includes('table') && question.expectedSemanticIntent === 'ranking') return 'ranking';
+  if (outputKinds.includes('kpi')) return 'scalar';
+  return undefined;
 }
 
 function actualCapabilityKeys(runOutput: Record<string, unknown> | undefined, planValue: unknown) {
@@ -671,6 +811,7 @@ function isUsableStatus(status: AmiBrainEvalStatus) {
 }
 
 function buildSummary(records: AmiBrainEvalRecord[]) {
+  const turnRecords = records.flatMap((item) => item.turns?.length ? item.turns : [item]);
   const evaluableRecords = records.filter((item) => item.status !== 'provider_unavailable');
   const legacyUsableWithCitation = evaluableRecords.filter((item) => item.legacyStatus === 'usable_with_citation').length;
   const trueUsable = evaluableRecords.filter((item) => isUsableStatus(item.status)).length;
@@ -689,6 +830,12 @@ function buildSummary(records: AmiBrainEvalRecord[]) {
     trueUsable,
     trueUsableRate: evaluableRecords.length ? trueUsable / evaluableRecords.length : 0,
     observedTrueUsableRate: records.length ? trueUsable / records.length : 0,
+    conversationGate: {
+      scenarioCount: records.filter((item) => Boolean(item.turns?.length)).length,
+      passedScenarioCount: records.filter((item) => Boolean(item.turns?.length) && isUsableStatus(item.status)).length,
+      turnCount: turnRecords.length,
+      passedTurnCount: turnRecords.filter((item) => isUsableStatus(item.status)).length,
+    },
     byStatus: groupSummary(records, (item) => item.status),
     byPersona: groupSummary(records, (item) => item.persona),
     byCategory: groupSummary(records, (item) => item.sourceCategory),
@@ -718,7 +865,9 @@ function buildSummary(records: AmiBrainEvalRecord[]) {
     capabilityDistribution: topCounts(capabilityKeys, 30),
     executionPathDistribution: topCounts(executionPaths, 10),
     sixLayer: Object.fromEntries(layerKeys.map((key) => {
-      const grades = evaluableRecords.flatMap((item) => item.layers?.[key] ? [item.layers[key]] : []);
+      const grades = turnRecords
+        .filter((item) => item.status !== 'provider_unavailable')
+        .flatMap((item) => item.layers?.[key] ? [item.layers[key]] : []);
       const passed = grades.filter((grade) => grade.passed).length;
       return [key, {
         total: grades.length,
@@ -937,6 +1086,7 @@ ${baselineRows}
 - 问题来源：${payload.metadata.sourceFile}
 - 问题数：${payload.metadata.questionCount}
 - 实际记录数：${payload.metadata.actualRunCount}
+- 实际对话轮数：${payload.metadata.actualTurnCount ?? payload.metadata.actualRunCount}
 - 门店：requestedStoreId=${payload.metadata.requestedStoreId}，runtimeStoreId=${payload.metadata.storeId}
 - 权限来源：${payload.metadata.permissionSource}
 - 已注册评测角色：${payload.metadata.evaluationRoleKeys.join(', ') || '无'}
@@ -961,6 +1111,8 @@ Ami Brain 当前已经不再是空入口：每题都会创建会话、写入用�
 | 旧口径可用率 | ${percent(payload.summary.legacyUsableRate)} |
 | 新口径真实可用题数 | ${payload.summary.trueUsable} |
 | 新口径真实可用率 | ${percent(payload.summary.trueUsableRate)} |
+| 多轮场景通过数 | ${payload.summary.conversationGate?.passedScenarioCount ?? 0} / ${payload.summary.conversationGate?.scenarioCount ?? 0} |
+| 多轮轮次通过数 | ${payload.summary.conversationGate?.passedTurnCount ?? 0} / ${payload.summary.conversationGate?.turnCount ?? payload.summary.total} |
 | 平均耗时 | ${payload.summary.latency.avgMs} ms |
 | P95 耗时 | ${payload.summary.latency.p95Ms} ms |
 | 最大耗时 | ${payload.summary.latency.maxMs} ms |

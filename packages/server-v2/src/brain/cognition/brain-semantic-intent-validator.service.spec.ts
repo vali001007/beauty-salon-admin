@@ -234,6 +234,7 @@ describe('BrainSemanticIntentValidatorService', () => {
     expect(missing.status).toBe('clarification_required');
     if (missing.status === 'clarification_required') {
       expect(missing.clarification.missingSlots).toContain('comparisonTarget');
+      expect(missing.intent.missingSlots).toContain('comparisonTarget');
     }
   });
 
@@ -363,6 +364,30 @@ describe('BrainSemanticIntentValidatorService', () => {
     }
   });
 
+  it('does not accept a generic entity type as a concrete action target', () => {
+    const result = createValidator().validate(
+      rankingIntent({
+        intent: 'action',
+        answerShape: 'action_preview',
+        entities: [{
+          entityType: 'product',
+          entityKey: 'product',
+          mention: '这个商品',
+          source: 'user',
+          definitionRef: entityRef,
+          confidence: 0.9,
+        }],
+        successCriteria: ['生成预览，不执行'],
+      }),
+    );
+
+    expect(result.status).toBe('clarification_required');
+    if (result.status === 'clarification_required') {
+      expect(result.intent.missingSlots).toContain('actionTarget');
+      expect(result.clarification.missingSlots).toContain('actionTarget');
+    }
+  });
+
   it('clarifies an unresolved entity instead of treating it as a hallucinated active reference', () => {
     const result = createValidator().validate(
       rankingIntent({
@@ -427,6 +452,8 @@ describe('BrainSemanticIntentValidatorService', () => {
     );
     expect(clarification.status).toBe('clarification_required');
     if (clarification.status === 'clarification_required') {
+      expect(clarification.intent.missingSlots).toContain('metric');
+      expect(clarification.clarification.missingSlots).toContain('metric');
       expect(
         clarification.issues.filter((issue) => issue.code === 'MISSING_REQUIRED_SLOT' && issue.slot === 'metric'),
       ).toHaveLength(0);

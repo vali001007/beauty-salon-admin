@@ -9,6 +9,7 @@ export interface BrainEvalPlanShapeExpectation {
 
 export interface BrainEvalExpectation {
   intent?: string;
+  answerShape?: string;
   domains?: string[];
   entities?: string[];
   metrics?: string[];
@@ -16,6 +17,9 @@ export interface BrainEvalExpectation {
   capabilityKeys?: string[];
   capabilityAnyOf?: string[];
   planShape?: BrainEvalPlanShapeExpectation;
+  brainStatuses?: string[];
+  missingSlots?: string[];
+  forbiddenMissingSlots?: string[];
   requiresGrounding?: boolean;
   requiresComplete?: boolean;
 }
@@ -41,6 +45,16 @@ export class BrainIntentGraderService {
     this.subsetCheck(checks, 'entity', input.expected.entities, entityTypes(actual.entities));
     this.subsetCheck(checks, 'metric', input.expected.metrics, definitionKeys(actual.metrics));
     this.subsetCheck(checks, 'dimension', input.expected.dimensions, inferredDimensionKeys(actual));
+    this.subsetCheck(checks, 'missing_slot', input.expected.missingSlots, stringArray(actual.missingSlots));
+    for (const value of input.expected.forbiddenMissingSlots ?? []) {
+      checks.push({
+        ok: !stringArray(actual.missingSlots).includes(value),
+        failure: `missing_slot_not_cleared:${value}`,
+      });
+    }
+    if (input.expected.answerShape && input.expected.answerShape !== 'clarification') {
+      checks.push({ ok: actual.answerShape === input.expected.answerShape, failure: 'answer_shape_mismatch' });
+    }
     return layerGrade('intent', checks);
   }
 

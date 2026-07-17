@@ -1064,6 +1064,7 @@ describe('BrainChatService', () => {
 
     const normalized = (service as any).normalizePendingClarificationResolution({
       intent,
+      question: '上个月',
       conversationSlots: {
         modelContext: { timeRange: current },
         turnDirectives: {
@@ -1080,6 +1081,91 @@ describe('BrainChatService', () => {
       missingSlots: [],
       ambiguities: [],
     });
+  });
+
+  it('preserves a pending action objective when the next turn supplies a concrete target', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const customerRef = {
+      definitionType: 'entity',
+      definitionKey: 'entity.customer',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    } as const;
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '为胡静怡起草回店护理提醒',
+      domains: ['customer'],
+      intent: 'draft',
+      entities: [{ entityType: 'customer', mention: '胡静怡', source: 'user', definitionRef: customerRef, confidence: 1 }],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'draft',
+      successCriteria: ['生成提醒内容'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '文案',
+    };
+
+    const normalized = (service as any).normalizePendingClarificationResolution({
+      intent,
+      question: '目标客户是胡静怡，提醒她回来做护理',
+      conversationSlots: {
+        modelContext: {
+          objective: '生成指定客户的待确认跟进任务预览',
+          intent: 'action',
+          answerShape: 'action_preview',
+        },
+        turnDirectives: {
+          mode: 'resolve_pending_or_new',
+          pendingSlots: ['actionTarget'],
+        },
+      },
+    });
+
+    expect(normalized).toMatchObject({
+      intent: 'action',
+      answerShape: 'action_preview',
+      entities: [expect.objectContaining({ mention: '胡静怡' })],
+      missingSlots: [],
+    });
+  });
+
+  it('reuses the snapshot-bound capability while resolving a pending clarification', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const card = {
+      key: 'customer_facts',
+      version: 19,
+      intents: ['query', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const intent = {
+      intent: 'diagnosis',
+    };
+
+    const selected = (service as any).resolvePendingClarificationCapability(
+      {
+        modelContext: { capability: { key: 'customer_facts', version: 19 } },
+        turnDirectives: { mode: 'resolve_pending_or_new', pendingSlots: ['entity'] },
+      },
+      intent,
+      [card as any],
+    );
+
+    expect(selected).toBe(card);
+    expect((service as any).resolvePendingClarificationCapability(
+      {
+        modelContext: { capability: { key: 'customer_facts', version: 18 } },
+        turnDirectives: { mode: 'resolve_pending_or_new', pendingSlots: ['entity'] },
+      },
+      intent,
+      [card as any],
+    )).toBeUndefined();
   });
 
   it('returns model blocks through the ready event, run output, assistant metadata, and final response', async () => {

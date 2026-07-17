@@ -164,6 +164,21 @@ describe('BrainEvalExpectationResolverService', () => {
     });
   });
 
+  it('does not require capability selection while the turn is waiting for clarification', () => {
+    const result = service.resolve({
+      base: { intent: 'comparison', answerShape: 'clarification', metrics: ['paid_amount'] },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['order_revenue_analysis'],
+        capabilityCandidates: [{ key: 'order_revenue_analysis', allowedRoles: ['store_manager'] }],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toBeUndefined();
+    expect(result.evidence.capabilityKeys).toEqual([]);
+  });
+
   it('includes release capabilities whose frozen definition refs cover the expected metric', () => {
     const result = service.resolve({
       base: { intent: 'query', metrics: ['paid_amount'] },

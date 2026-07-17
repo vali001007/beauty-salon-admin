@@ -12,8 +12,14 @@ export class BrainCompletionGraderService {
     suggestedActions?: unknown[];
   }): BrainEvalLayerGrade {
     const completion = record(input.completion);
+    const allowedStatuses = input.expected.brainStatuses?.length
+      ? input.expected.brainStatuses
+      : ['completed'];
     const checks: Array<{ ok: boolean; failure: string }> = [
-      { ok: input.brainStatus === 'completed', failure: `brain_status:${String(input.brainStatus ?? 'missing')}` },
+      {
+        ok: allowedStatuses.includes(String(input.brainStatus ?? 'missing')),
+        failure: `brain_status:${String(input.brainStatus ?? 'missing')}`,
+      },
     ];
     if (input.expected.requiresComplete !== false && completion.status !== undefined) {
       checks.push({ ok: completion.status === 'complete', failure: `completion_status:${String(completion.status)}` });
