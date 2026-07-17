@@ -4,7 +4,7 @@
 
 本轮完成客户投诉、满意度和美容师客诉排行的代码闭环，但尚未完成数据库落地和真实门店评测。准确状态是：
 
-> 管理端、后端、统一业务语义和 Ami Brain 专用能力均已代码就绪；迁移历史不一致阻止新事实表落库，因此三条目标问题当前不能计入真实可用率。
+> 管理端、后端、统一业务语义和 Ami Brain 专用能力均已代码就绪；migration 历史已对齐，但两个本地 migration 尚未获得落库授权，因此三条目标问题当前不能计入真实可用率。
 
 ## 二、覆盖问题
 
@@ -88,25 +88,22 @@
 | 管理端生产构建 | typecheck 和 Vite build 通过 |
 | 浏览器 | 未登录访问正确跳转 `/login`；无登录会话，登录后页面未做视觉验收 |
 
-## 八、数据库阻塞
+## 八、数据库状态
 
 `prisma migrate status`：
 
-- 本地 migration 数：97。
-- 最后共同 migration：`20260715095000_store_manager_brain_read_permissions`。
+- 本地 migration 数：98。
+- `20260715150000_store_metrics_core` 已按源提交原样补入，Prisma 不再报告数据库独有 migration 或 checksum 修改。
 - 本地待应用：
   - `20260717130000_store_manager_supply_manage_permission`
   - `20260717220000_customer_service_feedback_core`
-- 数据库存在但当前分支缺失：
-  - `20260715150000_store_metrics_core`
 
 未执行 migration、真实反馈录入、候选同步、fixture 验证、evaluation release 创建或真实题目评测。
 
 ## 九、下一步门禁
 
-1. 集成缺失 migration 历史并重新确认 `prisma migrate status`。
-2. 单独授权后应用 migration，核验表、约束、索引和跨门店隔离。
-3. 通过真实业务流程采集反馈，禁止向生产门店写评测假数据。
-4. 同步并验证五项候选定义，创建 evaluationOnly release。
-5. 运行三题 targeted、店长前 50 题和 P0 120 题。
-6. 验收要求：三题真实可用、假阳性 0、未采集误判 0、跨门店读取 0。
+1. 单独授权后应用 migration，核验表、约束、索引和跨门店隔离。
+2. 通过真实业务流程采集反馈，禁止向生产门店写评测假数据。
+3. 同步并验证五项候选定义，创建 evaluationOnly release。
+4. 运行三题 targeted、店长前 50 题和 P0 120 题。
+5. 验收要求：三题真实可用、假阳性 0、未采集误判 0、跨门店读取 0。
