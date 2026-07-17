@@ -280,6 +280,28 @@ describe('Brain domain adapters', () => {
       boundary: '预测用于优先级和建议，不是确定事实。',
     }),
   };
+  const gapOpportunities = {
+    preview: jest.fn().mockResolvedValue({
+      persisted: false,
+      summary: { opportunityCount: 1, candidateCount: 2, availableCapacity: 1, expectedRevenue: 398, averageFillRate: 0.88 },
+      opportunities: [{
+        date: '2026-07-11',
+        startTime: '15:00',
+        endTime: '16:00',
+        availableCapacity: 1,
+        candidates: [{
+          customerId: 7,
+          customerName: '张女士',
+          projectName: '补水护理',
+          score: 88,
+          recommendedChannel: 'phone',
+          messageDraft: '张女士，今天下午有一个补水护理空档，是否帮您预留？',
+          reasons: ['护理周期已到', '下午到店偏好'],
+          risks: [],
+        }],
+      }],
+    }),
+  };
 
   it('store manager adapter returns db-skill overview citation', async () => {
     const adapter = new BrainStoreManagerDomainAdapter(skillRuntime as never, timeRangeParser as never);
@@ -692,6 +714,78 @@ describe('Brain domain adapters', () => {
       skillKey: 'create_marketing_touch_draft',
       payload: expect.objectContaining({ customerId: 7 }),
     }));
+  });
+
+  it('marketing adapter turns a governed gap workflow into one confirmable touch preview', async () => {
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+    );
+    const answer = await adapter.execute(execution(
+      '找出明天下午空档、筛合适客户、写提醒并生成触达预览',
+      'marketing_growth',
+      'action',
+      'gap_fill_touch_preview',
+    ));
+
+    expect(gapOpportunities.preview).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 2,
+      opportunityLimit: 3,
+      candidateLimit: 3,
+    }));
+    expect(answer).toMatchObject({
+      grounding: 'preview_action',
+      metadata: expect.objectContaining({
+        capabilityKey: 'gap_fill_touch_preview',
+        selectedCustomerId: 7,
+        businessDataPersisted: false,
+      }),
+    });
+    expect(answer?.answer).toContain('张女士');
+    expect(answer?.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'table' }),
+      expect.objectContaining({ kind: 'action_preview' }),
+    ]));
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'create_marketing_touch_draft',
+      payload: expect.objectContaining({ customerId: 7, channel: 'phone' }),
+    }));
+  });
+
+  it('marketing adapter returns grounded no-data without a fake action when future schedules are missing', async () => {
+    gapOpportunities.preview.mockResolvedValueOnce({
+      persisted: false,
+      summary: { opportunityCount: 0, candidateCount: 0 },
+      opportunities: [],
+    });
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+    );
+    const answer = await adapter.execute(execution(
+      '规划一个补齐明天下午空档的完整流程',
+      'marketing_growth',
+      'action',
+      'gap_fill_touch_preview',
+    ));
+
+    expect(answer).toMatchObject({
+      grounding: 'db_skill',
+      suggestedActions: [],
+      metadata: expect.objectContaining({ noActionReason: 'appointment_gap_missing', businessDataPersisted: false }),
+    });
+    expect(answer?.answer).toContain('没有可补位的预约空档');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'gap_opportunity_readonly_preview' });
   });
 
   it('beautician adapter returns service schedule citation', async () => {

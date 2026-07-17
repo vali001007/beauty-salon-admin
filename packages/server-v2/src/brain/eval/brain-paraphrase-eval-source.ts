@@ -82,11 +82,12 @@ function toQuestionCase(testCase: ParaphraseCase, index: number): AgentEvalQuest
 
 function personaFor(testCase: ParaphraseCase): AgentQuestionBankPersona {
   const domains = new Set(stringList(testCase.expected.domains));
+  if (testCase.intent === 'workflow') return 'edge';
   if (domains.has('front_desk')) return 'reception';
   if (domains.has('marketing_growth')) return 'marketing';
   if (domains.has('inventory_procurement')) return 'inventory';
   if (domains.has('finance_risk')) return 'finance';
-  return testCase.intent === 'clarify' || testCase.intent === 'workflow' ? 'edge' : 'manager';
+  return testCase.intent === 'clarify' ? 'edge' : 'manager';
 }
 
 function intentTypeFor(intent: string): AgentQuestionIntentType {

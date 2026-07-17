@@ -1662,6 +1662,252 @@ describe('BrainChatService', () => {
     expect(normalized.assumptions).toContain('能力 reservation_action_preview 将采用并披露已治理的默认分析口径。');
   });
 
+  it('lets a governed workflow capability apply published customer selection defaults', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const definitionRef = (definitionKey: string) => ({
+      definitionType: 'entity', definitionKey, definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+    });
+    const intent = {
+      schemaVersion: '1.0', objective: '识别空档并匹配客户生成触达预览', domains: ['reservation', 'customer'],
+      intent: 'workflow', metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'draft',
+      entities: [
+        { entityType: 'reservation', mention: '明天下午空档', confidence: 0.9, source: 'user', definitionRef: definitionRef('entity.reservation') },
+        { entityType: 'customer', mention: '合适客户', confidence: 0.9, source: 'user', definitionRef: definitionRef('entity.customer') },
+      ],
+      successCriteria: ['识别空档', '匹配候选客户', '生成待确认触达预览'],
+      ambiguities: [{ slot: 'customerSelectionCriteria', reason: '未说明客户筛选规则', candidates: ['高价值低活跃客户'] }],
+      missingSlots: ['客户筛选规则'], assumptions: [], confidence: 0.88, decisionSummary: '空档补位工作流',
+    };
+    const card = {
+      key: 'gap_fill_touch_preview', version: 1, name: '空档补位客户匹配与触达预览',
+      description: '自动识别空档并按已发布规则匹配客户。', domains: ['reservation', 'customer'],
+      intents: ['workflow', 'action'], examples: ['找出明天下午空档、筛合适客户、写提醒并生成触达预览'],
+      synonyms: ['空档补位方案'], readOnly: false, sideEffect: true, requiresConfirmation: true,
+      idempotency: 'required', grounding: 'preview_action',
+      definitionRefs: [definitionRef('entity.customer'), definitionRef('entity.reservation'), definitionRef('entity.project'), definitionRef('entity.beautician')],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '找出明天下午空档、筛合适客户、写提醒并生成触达预览',
+      cards: [card],
+    });
+
+    expect(normalized).toMatchObject({ answerShape: 'action_preview', ambiguities: [], missingSlots: [] });
+    expect(normalized.assumptions).toEqual(expect.arrayContaining([
+      expect.stringContaining('管理端已发布的空档、候选评分和冷却期规则'),
+      expect.stringContaining('用户确认前不创建任务'),
+    ]));
+  });
+
+  it('keeps customer identity and security ambiguities in a workflow', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0', objective: '给指定客户生成补位触达预览', domains: ['reservation', 'customer'],
+      intent: 'workflow', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview',
+      successCriteria: ['生成待确认触达预览'],
+      ambiguities: [{ slot: 'customerIdentity', reason: '指定客户身份不明确', candidates: [] }],
+      missingSlots: ['customerIdentity'], assumptions: [], confidence: 0.8, decisionSummary: '指定客户补位工作流',
+    };
+    const card = {
+      key: 'gap_fill_touch_preview', version: 1, name: '空档补位客户匹配与触达预览', description: '空档补位',
+      domains: ['reservation', 'customer'], intents: ['workflow'], examples: ['空档补位'], synonyms: [],
+      readOnly: false, sideEffect: true, requiresConfirmation: true, idempotency: 'required', grounding: 'preview_action',
+      definitionRefs: [],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '给这个客户安排空档补位触达',
+      cards: [card],
+    });
+
+    expect(normalized).toMatchObject({ missingSlots: ['customerIdentity'] });
+  });
+
+  it('collapses model over-expansion of one workflow mention to the strongest governed entity', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const ref = (definitionKey: string) => ({
+      definitionType: 'entity', definitionKey, definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+    });
+    const intent = {
+      schemaVersion: '1.0', objective: '查看预约资源后匹配客户并生成触达草稿',
+      domains: ['reservation', 'customer', 'beautician', 'project'], intent: 'workflow',
+      entities: [
+        { entityType: 'reservation', mention: '预约资源', confidence: 0.98, source: 'user', definitionRef: ref('entity.reservation') },
+        { entityType: 'beautician', mention: '预约资源', confidence: 0.82, source: 'inferred', definitionRef: ref('entity.beautician') },
+        { entityType: 'project', mention: '预约资源', confidence: 0.72, source: 'inferred', definitionRef: ref('entity.project') },
+        { entityType: 'customer', mention: '客户', confidence: 0.98, source: 'user', definitionRef: ref('entity.customer') },
+      ],
+      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'draft',
+      successCriteria: ['识别空档', '匹配客户', '生成触达草稿'], ambiguities: [], missingSlots: [], assumptions: [],
+      confidence: 0.99, decisionSummary: '空档补位工作流',
+    };
+    const card = {
+      key: 'gap_fill_touch_preview', version: 2, name: '空档补位客户匹配与触达预览', description: '预约资源和客户匹配',
+      domains: ['reservation', 'customer', 'beautician', 'project'], intents: ['workflow'],
+      examples: ['先看预约资源，再选客户，最后给我触达草稿'], synonyms: [], readOnly: false, sideEffect: true,
+      requiresConfirmation: true, idempotency: 'required', grounding: 'preview_action',
+      definitionRefs: [ref('entity.reservation'), ref('entity.customer'), ref('entity.beautician'), ref('entity.project')],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '先看预约资源，再选客户，最后给我触达草稿',
+      cards: [card],
+    });
+
+    expect(normalized.entities).toHaveLength(2);
+    expect(normalized.entities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entityType: 'reservation', mention: '预约资源' }),
+      expect.objectContaining({ entityType: 'customer', mention: '客户' }),
+    ]));
+    expect(normalized.answerShape).toBe('action_preview');
+  });
+
+  it('lets a governed ranking capability apply its optional time default', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const salesMetric = definitionRef('metric.product_sales_quantity');
+    const productDimension = definitionRef('dimension.productName');
+    const intent = {
+      schemaVersion: '1.0', objective: '按销售件数把产品从高到低列出来', domains: ['product', 'order'], intent: 'ranking',
+      entities: [], metrics: [salesMetric], dimensions: [productDimension], filters: [],
+      orderBy: [{ definitionRef: salesMetric, direction: 'desc' }], answerShape: 'ranking', successCriteria: ['返回商品排行'],
+      ambiguities: [{ slot: 'timeRange', reason: '未指定统计时间', candidates: ['本月', '近30天'] }],
+      missingSlots: ['timeRange'], assumptions: [], confidence: 0.91, decisionSummary: '商品销量排行',
+    };
+    const card = {
+      key: 'product_sales_ranking', version: 3, name: '商品销售排行', description: '按销售件数返回商品排行。',
+      domains: ['product', 'order'], intents: ['ranking'], examples: ['本月查询本店商品销量排行'], synonyms: ['商品销量排行'],
+      readOnly: true, sideEffect: false, grounding: 'semantic_query', definitionRefs: [
+        { definitionKey: salesMetric.definitionKey, version: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) },
+        { definitionKey: productDimension.definitionKey, version: 1, definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64) },
+      ],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '按销售件数把产品从高到低列出来',
+      cards: [card, {
+        key: 'inventory_operations_overview', version: 11, name: '库存采购运营概览', description: '库存运营诊断。',
+        domains: ['product'], intents: ['query', 'ranking', 'diagnosis', 'recommendation'], examples: ['哪些产品该补货了'], synonyms: ['库存概览'],
+        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [
+          { definitionKey: 'metric.stock_risk_score', version: 1, definitionFingerprint: 'e'.repeat(64), sourceFingerprint: 'f'.repeat(64) },
+        ],
+      }],
+    });
+
+    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: [] });
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.product_sales_quantity' })]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.productName' })]);
+    expect(normalized.assumptions).toContain('能力 product_sales_ranking 将采用并披露已治理的默认分析口径。');
+  });
+
+  it('collapses duplicate diagnosis entities created from the same user mention', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0', objective: '为什么最近做得不少却不赚钱', domains: ['finance'], intent: 'diagnosis',
+      entities: [
+        { entityType: 'product_order', mention: '做得不少', confidence: 0.96, source: 'user' },
+        { entityType: 'order_item', mention: '做得不少', confidence: 0.78, source: 'inferred' },
+      ],
+      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['解释利润问题'],
+      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '利润诊断',
+    };
+    const card = {
+      key: 'finance_risk_overview', version: 4, name: '财务风险概览', description: '诊断收入、成本和利润风险。',
+      domains: ['finance'], intents: ['query', 'diagnosis'], examples: ['为什么最近做得不少却不赚钱'], synonyms: ['利润诊断'],
+      readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '为什么最近做得不少却不赚钱',
+      cards: [card],
+    });
+
+    expect(normalized.entities).toEqual([
+      expect.objectContaining({ entityType: 'product_order', mention: '做得不少', confidence: 0.96 }),
+    ]);
+  });
+
+  it('removes unsupported model-added metrics from a governed procurement recommendation', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const salesMetric = definitionRef('metric.product_sales_quantity');
+    const stockRiskMetric = definitionRef('metric.stock_risk_score');
+    const productDimension = definitionRef('dimension.productName');
+    const intent = {
+      schemaVersion: '1.0', objective: '根据安全库存和近期销量推荐采购清单', domains: ['product'], intent: 'recommendation',
+      entities: [], metrics: [salesMetric, stockRiskMetric], dimensions: [productDimension], filters: [],
+      orderBy: [{ definitionRef: salesMetric, direction: 'desc' }], answerShape: 'list', successCriteria: ['返回采购建议'],
+      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.93, decisionSummary: '采购建议',
+    };
+    const card = {
+      key: 'inventory_procurement_advice', version: 5, name: '库存采购建议', description: '基于已治理安全库存和消耗口径生成采购建议。',
+      domains: ['product'], intents: ['query', 'recommendation'], examples: ['哪些商品需要补货，建议采购多少'], synonyms: ['采购清单'],
+      readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [
+        { definitionKey: stockRiskMetric.definitionKey, version: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) },
+        { definitionKey: productDimension.definitionKey, version: 1, definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64) },
+      ],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '根据安全库存和近期销量推荐采购清单',
+      cards: [card, {
+        key: 'inventory_operations_overview', version: 11, name: '库存采购运营概览', description: '组合库存与采购建议。',
+        domains: ['product'], intents: ['query', 'ranking', 'diagnosis', 'recommendation'], examples: ['哪些产品该补货了'], synonyms: ['采购建议'],
+        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [
+          { definitionKey: stockRiskMetric.definitionKey, version: 1, definitionFingerprint: 'e'.repeat(64), sourceFingerprint: 'f'.repeat(64) },
+        ],
+      }],
+    });
+
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.stock_risk_score' })]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.productName' })]);
+    expect(normalized.orderBy).toEqual([]);
+    expect(normalized.assumptions).toContain('能力 inventory_procurement_advice 将采用并披露已治理的默认分析口径。');
+  });
+
+  it('prefers the narrower governed recommendation when the model only adds an unsupported display dimension', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const productDimension = definitionRef('dimension.productName');
+    const intent = {
+      schemaVersion: '1.0', objective: '兼顾断货和积压安排采购', domains: ['product'], intent: 'recommendation',
+      entities: [{ entityType: 'product', mention: '采购、断货、积压', confidence: 0.98, source: 'user' }],
+      metrics: [], dimensions: [productDimension], filters: [], orderBy: [], answerShape: 'diagnosis',
+      successCriteria: ['识别补货与积压风险', '给出采购安排'], ambiguities: [], missingSlots: [], assumptions: [],
+      confidence: 0.97, decisionSummary: '采购安排建议',
+    };
+    const commonDefinition = {
+      definitionKey: 'metric.stock_risk_score', version: 1,
+      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+    };
+    const cards = [
+      {
+        key: 'inventory_operations_overview', version: 11, name: '库存采购运营概览', description: '组合库存与采购建议。',
+        domains: ['product'], intents: ['query', 'ranking', 'diagnosis', 'recommendation'], examples: ['哪些产品该补货了'], synonyms: ['采购建议'],
+        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [commonDefinition],
+      },
+      {
+        key: 'inventory_procurement_advice', version: 5, name: '库存采购建议', description: '生成只读采购安排。',
+        domains: ['product'], intents: ['query', 'recommendation'], examples: ['哪些商品需要补货，建议采购多少'], synonyms: ['采购清单'],
+        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [commonDefinition],
+      },
+    ];
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '既别断货也别积压，采购应该怎么安排',
+      cards,
+    });
+
+    expect(normalized.dimensions).toEqual([]);
+    expect(normalized.assumptions).toContain('能力 inventory_procurement_advice 将采用并披露已治理的默认分析口径。');
+  });
+
   it('uses the single-capability path for a governed confirmation-gated action preview', () => {
     const { service } = createService({ modelPipeline: {} });
     const card = {

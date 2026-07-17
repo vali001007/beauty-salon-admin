@@ -128,6 +128,7 @@ import { BrainReceptionSkillsService } from './skills/brain-reception-skills.ser
 import { BrainRiskSkillsService } from './skills/brain-risk-skills.service.js';
 import { BrainSkillRegistryService } from './skills/brain-skill-registry.service.js';
 import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.js';
+import { SchedulingModule } from '../scheduling/scheduling.module.js';
 
 @Module({
   imports: [
@@ -136,6 +137,7 @@ import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.j
     ReservationsModule,
     InventoryModule,
     MarketingModule,
+    SchedulingModule,
     TerminalModule,
     SemanticDataModule,
     BusinessDefinitionModule,

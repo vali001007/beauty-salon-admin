@@ -27,6 +27,7 @@ const CAPABILITIES: Record<string, ActionCapabilityDefinition> = {
   customer_follow_up_draft: { adapterKey: 'customer_service', role: 'customer_service', domain: 'customer_service' },
   purchase_order_draft: { adapterKey: 'inventory_procurement', role: 'inventory', domain: 'inventory_procurement' },
   marketing_touch_draft: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
+  gap_fill_touch_preview: { adapterKey: 'marketing_growth', role: 'store_manager', domain: 'marketing_growth' },
 };
 
 @Injectable()
@@ -116,6 +117,35 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
     return this.executeDeclared('marketing_touch_draft', args, input);
   }
 
+  @BrainCapability({
+    key: 'gap_fill_touch_preview',
+    name: '空档补位客户匹配与触达预览',
+    description: '读取当前门店排班、预约、客户、卡项、历史偏好和已发布预测快照，识别空档并匹配候选客户，自动选择最高分候选生成待确认触达任务预览。确认前不创建任务、不发送消息、不修改预约。',
+    intents: ['workflow', 'action'],
+    examples: [
+      '找出明天下午空档、筛合适客户、写提醒并生成触达预览',
+      '把明日空闲时段和可召回客户配对，再准备邀约',
+      '先看预约资源，再选客户，最后给我触达草稿',
+      '规划一个补齐明天下午空档的完整流程',
+      '组合预约清单、客户筛选和提醒文案，生成待确认方案',
+    ],
+    negativeExamples: ['直接给候选客户发送消息', '自动修改客户预约', '读取其他门店的空档与客户'],
+    synonyms: ['空档补位方案', '空闲时段客户匹配', '补位邀约预览', '预约空档触达计划'],
+    businessDefinitionKeys: ['entity.customer', 'entity.reservation', 'entity.project', 'entity.beautician'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:store:scheduling', 'core:marketing:create'],
+    allowedRoles: ['store_manager', 'marketing'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  gapFillTouchPreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    if (input.card.grounding !== 'preview_action') {
+      throw new Error('gap_fill_touch_preview_grounding_contract_invalid');
+    }
+    return this.executeDeclared('gap_fill_touch_preview', args, input);
+  }
+
   async execute(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
     const definition = CAPABILITIES[input.card.key];
     if (!definition) throw new Error(`unsupported_action_capability:${input.card.key}`);
@@ -157,6 +187,12 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
         throw new Error('action_executor_invalid_clarification');
       }
       return;
+    }
+    if (answer.grounding === 'db_skill') {
+      const actions = Array.isArray(answer.suggestedActions) ? answer.suggestedActions : [];
+      const noActionReason = String(answer.metadata?.noActionReason ?? '');
+      if (!actions.length && noActionReason) return;
+      throw new Error('action_executor_invalid_grounded_no_action');
     }
     if (answer.grounding !== 'preview_action') {
       throw new Error(`action_executor_non_preview_result:${answer.grounding}`);

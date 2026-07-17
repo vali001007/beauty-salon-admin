@@ -1449,36 +1449,83 @@ export class BrainChatService {
     question: string;
     cards: readonly BrainCapabilityCard[];
   }): BrainSemanticIntent {
+    if (input.intent.intent === 'workflow') return this.normalizeGovernedWorkflowIntent(input);
     const requestedSlots = new Set([
       ...input.intent.missingSlots.map((slot) => slot.trim().toLowerCase()),
       ...input.intent.ambiguities.map((ambiguity) => ambiguity.slot.trim().toLowerCase()),
     ]);
+    const contractMayResolveModelExpansion = ['action', 'draft', 'recommendation', 'diagnosis'].includes(input.intent.intent);
     if (
-      (!requestedSlots.size && !['action', 'draft'].includes(input.intent.intent)) ||
+      (!requestedSlots.size && !contractMayResolveModelExpansion) ||
       this.hasProtectedCapabilityClarification(input.intent)
     ) {
       return input.intent;
     }
     const isAction = input.intent.intent === 'action';
     const isDraft = input.intent.intent === 'draft';
+    const requestedDefinitionKeys = new Set([
+      ...input.intent.metrics.map((metric) => metric.definitionKey),
+      ...input.intent.dimensions.map((dimension) => dimension.definitionKey),
+    ]);
     const candidates = input.cards
       .filter((card) =>
         (isAction
           ? !card.readOnly && card.sideEffect && card.requiresConfirmation && card.intents.includes('action')
-          : card.readOnly && card.grounding === 'domain_service') &&
+          : card.readOnly) &&
         (isAction
           ? input.intent.domains.every((domain) => card.domains.includes(domain))
           : input.intent.domains.some((domain) => card.domains.includes(domain))) &&
         (card.intents.includes(input.intent.intent) || (input.intent.intent === 'ranking' && card.intents.includes('query'))),
       )
-      .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
+      .map((card) => {
+        const supportedDefinitions = new Set((card.definitionRefs ?? []).map((ref) => ref.definitionKey));
+        const supportedRequestedCount = [...requestedDefinitionKeys]
+          .filter((definitionKey) => supportedDefinitions.has(definitionKey)).length;
+        return {
+          card,
+          score: this.governedCapabilitySemanticScore(input.question, card),
+          supportedRequestedCount,
+          unsupportedRequestedCount: requestedDefinitionKeys.size - supportedRequestedCount,
+          intentBreadth: card.intents.length,
+        };
+      })
       .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key));
-    const matched = candidates[0];
-    const margin = matched ? matched.score - (candidates[1]?.score ?? 0) : 0;
+    const definitionCandidates = requestedDefinitionKeys.size > 0
+      ? [...candidates].sort((left, right) =>
+          right.supportedRequestedCount - left.supportedRequestedCount ||
+          left.unsupportedRequestedCount - right.unsupportedRequestedCount ||
+          left.intentBreadth - right.intentBreadth ||
+          right.score - left.score ||
+          left.card.key.localeCompare(right.card.key),
+        )
+      : [];
+    const definitionMatched = definitionCandidates[0]?.supportedRequestedCount > 0 &&
+      (!definitionCandidates[1] ||
+        definitionCandidates[0].supportedRequestedCount !== definitionCandidates[1].supportedRequestedCount ||
+        definitionCandidates[0].unsupportedRequestedCount !== definitionCandidates[1].unsupportedRequestedCount ||
+        definitionCandidates[0].intentBreadth !== definitionCandidates[1].intentBreadth)
+      ? definitionCandidates[0]
+      : undefined;
+    const specificityCandidates = ['recommendation', 'diagnosis'].includes(input.intent.intent)
+      ? [...candidates].sort((left, right) =>
+          left.intentBreadth - right.intentBreadth ||
+          right.score - left.score ||
+          left.card.key.localeCompare(right.card.key),
+        )
+      : [];
+    const specificityMatched = specificityCandidates[0] &&
+      (!specificityCandidates[1] || specificityCandidates[0].intentBreadth < specificityCandidates[1].intentBreadth)
+      ? specificityCandidates[0]
+      : undefined;
+    const matched = definitionMatched ?? specificityMatched ?? candidates[0];
+    const margin = matched
+      ? matched.score - (candidates.find((candidate) => candidate !== matched)?.score ?? 0)
+      : 0;
     const governedSingleIntentCapability = (isAction || isDraft) && candidates.length === 1;
     if (
       !matched ||
-      (!governedSingleIntentCapability && (matched.score < 0.68 || (matched.score < 0.82 && margin < 0.08)))
+      (!governedSingleIntentCapability && !definitionMatched && !specificityMatched &&
+        (matched.score < 0.68 || (matched.score < 0.82 && margin < 0.08)))
     ) return input.intent;
 
     const supportedDefinitions = new Set((matched.card.definitionRefs ?? []).map((ref) => ref.definitionKey));
@@ -1504,18 +1551,77 @@ export class BrainChatService {
       : ['list', 'ranking'].includes(input.intent.answerShape)
         ? governedDimensions
         : supportedInputDimensions;
+    const entities = [...input.intent.entities]
+      .sort((left, right) => right.confidence - left.confidence)
+      .filter((entity, index, values) => {
+        const mention = this.normalizeGovernedExampleText(entity.mention);
+        return values.findIndex((candidate) => this.normalizeGovernedExampleText(candidate.mention) === mention) === index;
+      });
     const unorderedList = input.intent.intent === 'ranking' && metrics.length === 0 && orderBy.length === 0;
     return {
       ...input.intent,
       ...(unorderedList ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
       metrics,
       dimensions,
+      entities,
       orderBy,
       ambiguities: [],
       missingSlots: [],
       assumptions: [
         ...input.intent.assumptions,
         `能力 ${matched.card.key} 将采用并披露已治理的默认分析口径。`,
+      ],
+    };
+  }
+
+  private normalizeGovernedWorkflowIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+  }): BrainSemanticIntent {
+    if (
+      input.intent.intent !== 'workflow' ||
+      this.hasProtectedCapabilityClarification(input.intent)
+    ) {
+      return input.intent;
+    }
+    const requestedDefinitions = new Set(
+      input.intent.entities
+        .map((entity) => entity.definitionRef?.definitionKey)
+        .filter((value): value is string => Boolean(value)),
+    );
+    const cards = input.cards.filter((card) =>
+      card.intents.includes('workflow') &&
+      card.sideEffect &&
+      card.requiresConfirmation &&
+      card.idempotency === 'required' &&
+      card.grounding === 'preview_action',
+    );
+    const matched = cards
+      .filter((card) => [...requestedDefinitions].every((definitionKey) =>
+        card.definitionRefs.some((definition) => definition.definitionKey === definitionKey),
+      ))
+      .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
+      .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key))[0];
+    if (!matched || matched.score < 0.45) return input.intent;
+
+    const entities = [...input.intent.entities]
+      .sort((left, right) => right.confidence - left.confidence)
+      .filter((entity, index, values) => {
+        const mention = this.normalizeGovernedExampleText(entity.mention);
+        return values.findIndex((candidate) => this.normalizeGovernedExampleText(candidate.mention) === mention) === index;
+      });
+
+    return {
+      ...input.intent,
+      entities,
+      answerShape: 'action_preview',
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        ...input.intent.assumptions,
+        `能力 ${matched.card.key} 将使用管理端已发布的空档、候选评分和冷却期规则自动生成最优待确认方案。`,
+        '自动选择只产生预览，用户确认前不创建任务、不发送消息、不修改预约。',
       ],
     };
   }

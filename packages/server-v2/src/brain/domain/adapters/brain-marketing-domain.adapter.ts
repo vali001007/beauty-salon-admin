@@ -8,6 +8,25 @@ import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-pa
 import { defaultBrainDateRange, formatBrainMoney, formatBrainPercent } from '../brain-domain-formatters.js';
 import { BrainActionTargetResolverService } from '../brain-action-target-resolver.service.js';
 import { BrainPredictionSkillsService } from '../../skills/brain-prediction-skills.service.js';
+import { GapOpportunityService } from '../../../scheduling/gap-opportunity.service.js';
+
+type GapFillPreviewCandidate = {
+  customerId: number;
+  customerName?: string;
+  projectName?: string;
+  score?: number;
+  recommendedChannel?: string;
+  messageDraft?: string;
+  reasons?: unknown[];
+  risks?: unknown[];
+};
+
+type GapFillPreviewOpportunity = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  candidates?: GapFillPreviewCandidate[];
+};
 
 @Injectable()
 export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
@@ -22,6 +41,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
     private readonly actionConfirmationService: BrainActionConfirmationService,
     @Optional() private readonly actionTargets?: BrainActionTargetResolverService,
     @Optional() private readonly predictionSkills?: BrainPredictionSkillsService,
+    @Optional() private readonly gapOpportunities?: GapOpportunityService,
   ) {}
 
   canHandle(plan: BrainDomainAdapterExecution['plan']) {
@@ -29,6 +49,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'gap_fill_touch_preview') return this.previewGapFillTouch(input);
     if (input.plan.capabilityKey === 'marketing_touch_draft') return this.previewDirectTouch(input);
     const message = input.dto.message;
     if (/(流失|复购|响应|客户价值|ltv).*(预测|概率|风险|评分)|预测.*(流失|复购|响应|客户价值|ltv)/i.test(message)) {
@@ -215,14 +236,154 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
     };
   }
 
-  private actionClarification(answer: string): BrainDomainAnswer {
+  private async previewGapFillTouch(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
+    this.assertPermission(input, 'core:store:scheduling');
+    this.assertPermission(input, 'core:marketing:create');
+    if (!this.gapOpportunities) return this.actionClarification('空档机会预览服务未就绪，请稍后重试。', 'capability_not_open');
+
+    const parsed = this.timeRangeParser.parse(input.dto.message);
+    const range = parsed.range ?? this.tomorrowRange();
+    const preview = await this.gapOpportunities.preview({
+      storeId: input.context.storeId,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      opportunityLimit: 3,
+      candidateLimit: 3,
+    });
+    const opportunities = (preview.opportunities ?? []) as GapFillPreviewOpportunity[];
+    if (!opportunities.length) {
+      return this.gapNoAction(`${range.label}没有可补位的预约空档，本次未生成触达任务。`, 'appointment_gap_missing');
+    }
+    const selectedOpportunity = opportunities.find((item) => Array.isArray(item.candidates) && item.candidates.length > 0);
+    const selectedCandidate = selectedOpportunity?.candidates?.[0];
+    if (!selectedOpportunity || !selectedCandidate) {
+      return this.gapNoAction(
+        `${range.label}存在预约空档，但没有通过冷却期、联系方式和预约冲突校验的候选客户。`,
+        'gap_candidate_missing',
+      );
+    }
+
+    const appointmentWindow = `${selectedOpportunity.date} ${selectedOpportunity.startTime}-${selectedOpportunity.endTime}`;
+    const script = String(selectedCandidate.messageDraft ?? '').trim();
+    const customerName = String(selectedCandidate.customerName ?? '候选客户');
+    const projectName = String(selectedCandidate.projectName ?? '适配护理项目');
+    const summary = `为空档 ${appointmentWindow} 创建 ${customerName} 的触达任务草稿；推荐项目 ${projectName}；不会自动发送或修改预约。`;
+    const action = await this.actionConfirmationService.createPreview({
+      runId: input.runId,
+      userId: input.context.userId,
+      storeId: input.context.storeId,
+      skillKey: 'create_marketing_touch_draft',
+      planId: input.plan.executionPlanId,
+      riskLevel: 'medium',
+      preview: {
+        actionType: 'create_marketing_touch_draft',
+        summary,
+        riskLevel: 'medium',
+        impactItems: [
+          { objectType: 'customer', objectId: String(selectedCandidate.customerId), label: customerName },
+          { objectType: 'appointment_gap', objectId: `${selectedOpportunity.date}:${selectedOpportunity.startTime}`, label: appointmentWindow },
+        ],
+        risks: [
+          ...(Array.isArray(selectedCandidate.risks) ? selectedCandidate.risks.map(String) : []),
+          '确认后仅创建人工跟进任务，不会发送消息或创建预约。',
+        ],
+      } as Prisma.InputJsonValue,
+      payload: {
+        customerId: Number(selectedCandidate.customerId),
+        title: `空档补位邀约：${appointmentWindow}`,
+        script,
+        note: `Ami Brain 自动匹配；候选分 ${Number(selectedCandidate.score ?? 0)}；${summary}`,
+        channel: String(selectedCandidate.recommendedChannel ?? 'phone'),
+      } as Prisma.InputJsonValue,
+    });
+    const suggestedAction = {
+      actionId: action.actionId,
+      actionType: 'create_marketing_touch_draft',
+      riskLevel: 'medium',
+      requiresConfirmation: true,
+      summary,
+    };
+    const rows = opportunities.flatMap((opportunity) =>
+      (opportunity.candidates ?? []).slice(0, 3).map((candidate) => ({
+        appointmentWindow: `${opportunity.date} ${opportunity.startTime}-${opportunity.endTime}`,
+        customer: candidate.customerName,
+        project: candidate.projectName,
+        score: candidate.score,
+        channel: candidate.recommendedChannel,
+        reason: Array.isArray(candidate.reasons) ? candidate.reasons.slice(0, 2).join('；') : '',
+      })),
+    );
+    return {
+      status: 'completed',
+      answer: `${range.label}识别到 ${preview.summary.opportunityCount} 个可补位空档、${preview.summary.candidateCount} 个候选匹配。已按已发布评分规则选择 ${customerName}，候选分 ${Number(selectedCandidate.score ?? 0)}。\n${summary}\n邀约草稿：${script}`,
+      citations: [{ sourceType: 'db_skill', sourceId: 'gap_opportunity_readonly_preview', label: '排班、预约与空档候选匹配预览' }],
+      suggestedActions: [suggestedAction],
+      grounding: 'preview_action',
+      blocks: [
+        {
+          kind: 'table',
+          rows,
+          columns: ['appointmentWindow', 'customer', 'project', 'score', 'channel', 'reason'],
+          citationIds: ['gap_opportunity_readonly_preview'],
+        },
+        { kind: 'action_preview', actions: [suggestedAction] },
+        { kind: 'limitations', items: ['自动选择仅生成触达任务草稿；用户确认前不写业务任务、不发送消息、不创建或修改预约。'] },
+      ],
+      metadata: {
+        adapterKey: this.key,
+        capabilityKey: 'gap_fill_touch_preview',
+        rangeLabel: range.label,
+        selectedCustomerId: selectedCandidate.customerId,
+        selectedOpportunity: appointmentWindow,
+        selectionPolicy: 'GapOpportunityService published scoring and safety filters',
+        businessDataPersisted: false,
+      },
+    };
+  }
+
+  private assertPermission(input: BrainDomainAdapterExecution, permission: string) {
+    if (!input.context.permissions.includes('*') && !input.context.permissions.includes(permission)) {
+      throw new ForbiddenException(`missing_permission:${permission}`);
+    }
+  }
+
+  private tomorrowRange() {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() + 1);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(startDate);
+    endDate.setHours(23, 59, 59, 999);
+    return { label: '明天', preset: 'tomorrow', startDate, endDate };
+  }
+
+  private actionClarification(answer: string, unsupportedReason = 'action_target_requires_clarification'): BrainDomainAnswer {
     return {
       status: 'completed',
       answer,
       citations: [],
       suggestedActions: [],
       grounding: 'none',
-      metadata: { adapterKey: this.key, unsupportedReason: 'action_target_requires_clarification' },
+      metadata: { adapterKey: this.key, unsupportedReason },
+    };
+  }
+
+  private gapNoAction(answer: string, noActionReason: string): BrainDomainAnswer {
+    return {
+      status: 'completed',
+      answer,
+      citations: [{ sourceType: 'db_skill', sourceId: 'gap_opportunity_readonly_preview', label: '排班、预约与空档候选匹配预览' }],
+      suggestedActions: [],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'table',
+          rows: [],
+          columns: ['appointmentWindow', 'customer', 'project', 'score', 'channel'],
+          citationIds: ['gap_opportunity_readonly_preview'],
+        },
+        { kind: 'limitations', items: ['没有真实空档或合格候选时不生成确认按钮、不创建任务、不发送消息。'] },
+      ],
+      metadata: { adapterKey: this.key, capabilityKey: 'gap_fill_touch_preview', noActionReason, businessDataPersisted: false },
     };
   }
 

@@ -41,6 +41,7 @@ const ACTION_KEYS = [
   'customer_follow_up_draft',
   'purchase_order_draft',
   'marketing_touch_draft',
+  'gap_fill_touch_preview',
 ] as const;
 
 const context = (overrides: Partial<BrainRequestContext> = {}): BrainRequestContext => ({
@@ -122,7 +123,7 @@ const stubExecutor = (
 });
 
 describe('BrainCapabilityExecutorRegistryService', () => {
-  it('resolves all 22 discoverable capability keys', () => {
+  it('resolves all 23 discoverable capability keys', () => {
     const snapshot = { loadActiveDefinitions: jest.fn() };
     const timeParser = { parse: jest.fn() };
     const semanticQuery = { execute: jest.fn() };
@@ -135,7 +136,7 @@ describe('BrainCapabilityExecutorRegistryService', () => {
       new BrainActionCapabilityExecutor(adapterRegistry as never),
     ]);
 
-    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(22);
+    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(23);
     for (const key of SEMANTIC_KEYS) expect(registry.resolve(key).kind).toBe('semantic');
     for (const key of DOMAIN_KEYS) expect(registry.resolve(key).kind).toBe('domain');
     for (const key of ACTION_KEYS) expect(registry.resolve(key).kind).toBe('action');
@@ -2627,7 +2628,7 @@ describe('BrainActionCapabilityExecutor', () => {
     expect(answer.answer).toMatch(/[\u4e00-\u9fff]/);
   });
 
-  it('allows target clarification but rejects non-preview execution results', async () => {
+  it('allows target clarification and grounded no-action results but rejects ungoverned non-preview results', async () => {
     const adapter = {
       execute: jest
         .fn()
@@ -2641,6 +2642,14 @@ describe('BrainActionCapabilityExecutor', () => {
         })
         .mockResolvedValueOnce({
           status: 'completed',
+          answer: 'No future schedule',
+          citations: [{ sourceType: 'db_skill', sourceId: 'gap_preview' }],
+          suggestedActions: [],
+          grounding: 'db_skill',
+          metadata: { noActionReason: 'appointment_gap_missing' },
+        })
+        .mockResolvedValueOnce({
+          status: 'completed',
           answer: 'Database result',
           citations: [],
           grounding: 'db_skill',
@@ -2650,7 +2659,11 @@ describe('BrainActionCapabilityExecutor', () => {
     const capabilityInput = input(card('customer_follow_up_draft', 'action'));
 
     await expect(executor.execute(capabilityInput)).resolves.toMatchObject({ grounding: 'none' });
-    await expect(executor.execute(capabilityInput)).rejects.toThrow('action_executor_non_preview_result:db_skill');
+    await expect(executor.execute(capabilityInput)).resolves.toMatchObject({
+      grounding: 'db_skill',
+      metadata: { noActionReason: 'appointment_gap_missing' },
+    });
+    await expect(executor.execute(capabilityInput)).rejects.toThrow('action_executor_invalid_grounded_no_action');
   });
 
   it('rejects incomplete previews and receipt semantics', async () => {

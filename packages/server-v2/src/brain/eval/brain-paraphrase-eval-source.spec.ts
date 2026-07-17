@@ -27,10 +27,19 @@ describe('parseBrainParaphraseEvalJson', () => {
             requiresConfirmation: true,
           },
         },
+        {
+          id: 'workflow-01',
+          intent: 'workflow',
+          input: '找出明天下午空档、筛合适客户、写提醒并生成触达预览',
+          expected: {
+            domains: ['front_desk', 'marketing_growth'],
+            answerShape: 'diagnosis',
+          },
+        },
       ],
     }));
 
-    expect(questions).toHaveLength(2);
+    expect(questions).toHaveLength(3);
     expect(questions[0]).toMatchObject({
       id: 'paraphrase-ranking-01',
       persona: 'inventory',
@@ -44,6 +53,12 @@ describe('parseBrainParaphraseEvalJson', () => {
       evalRole: 'reception',
       expectedPlanShape: { requiresPreview: true },
       requiresApproval: true,
+    });
+    expect(questions[2]).toMatchObject({
+      id: 'paraphrase-workflow-01',
+      persona: 'edge',
+      evalRole: 'manager',
+      expectedSemanticIntent: 'workflow',
     });
   });
 
