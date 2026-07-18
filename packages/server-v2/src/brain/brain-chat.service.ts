@@ -2286,6 +2286,9 @@ export class BrainChatService {
       question: input.dto.message,
       intent: input.intent,
     });
+    const completed = execution.observations.filter((item) => item.status === 'completed');
+    const noSuccessfulExecution =
+      completed.length === 0 && execution.observations.some((item) => item.status === 'failed');
     await this.recordModelTrace({
       runId: input.runId,
       stepKey: 'bounded_dag_execution',
@@ -2302,12 +2305,12 @@ export class BrainChatService {
           status: item.status,
           grounding: item.grounding,
           citationCount: item.citations.length,
+          errorCode: item.errorCode ?? null,
         })),
       }),
-      status: execution.status === 'rejected' ? 'failed' : 'completed',
+      status: execution.status === 'rejected' || noSuccessfulExecution ? 'failed' : 'completed',
     });
 
-    const completed = execution.observations.filter((item) => item.status === 'completed');
     const grounded = this.groundedAnswerComposer?.compose({
       observations: execution.observations,
       completion: execution.completion,
@@ -2332,18 +2335,26 @@ export class BrainChatService {
       model: planning.model,
     });
     return {
-      status: execution.status === 'rejected' ? 'failed' : 'completed',
+      status: execution.status === 'rejected' || noSuccessfulExecution ? 'failed' : 'completed',
       answer: grounded?.answer ?? fallbackAnswer,
       citations: grounded?.citations ?? citations,
       suggestedActions: grounded?.suggestedActions ?? suggestedActions,
       blocks: grounded?.blocks ?? blocks,
-      grounding: completed.some((item) => item.grounding === 'preview_action') ? 'preview_action' : 'db_skill',
+      grounding: completed.some((item) => item.grounding === 'preview_action')
+        ? 'preview_action'
+        : completed.length > 0
+          ? 'db_skill'
+          : 'none',
       adapterMetadata: {
         supervisorPlan: execution.plan,
         observations: execution.observations,
         completion: execution.completion,
       },
-      modelMetadata: execution.status === 'rejected' ? { ...metadata, failureCode: 'MODEL_EXECUTION_REJECTED' } : metadata,
+      modelMetadata: execution.status === 'rejected'
+        ? { ...metadata, failureCode: 'MODEL_EXECUTION_REJECTED' }
+        : noSuccessfulExecution
+          ? { ...metadata, failureCode: 'MODEL_EXECUTION_FAILED' }
+          : metadata,
       modelContextIntent: input.intent,
     };
   }

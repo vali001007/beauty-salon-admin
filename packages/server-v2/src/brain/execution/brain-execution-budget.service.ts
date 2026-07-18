@@ -57,10 +57,14 @@ export class BrainExecutionBudgetService {
   }
 
   assertCanStartNode(state: BrainExecutionBudgetState, card: BrainCapabilityCard, nowMs = Date.now()): void {
-    const remainingMs = state.deadlineMs - nowMs;
+    const remainingMs = this.remainingMs(state, nowMs);
     if (remainingMs <= 0) {
-      throw new RequestTimeoutException(`brain_execution_budget_exhausted:${Math.max(0, remainingMs)}`);
+      throw new RequestTimeoutException(`brain_execution_budget_exhausted:${remainingMs}`);
     }
+  }
+
+  remainingMs(state: BrainExecutionBudgetState, nowMs = Date.now()): number {
+    return Math.max(0, state.deadlineMs - nowMs);
   }
 
   consumeReplan(state: BrainExecutionBudgetState): BrainExecutionBudgetState {

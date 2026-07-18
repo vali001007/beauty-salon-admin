@@ -17,6 +17,7 @@ export class BrainReplannerService {
     previousPlan: BrainExecutionPlan;
     observations: readonly BrainObservation[];
     reasons: readonly string[];
+    deadlineAt: number;
   }) {
     if (input.observations.some((item) => item.status === 'rejected')) {
       return Promise.resolve({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID', reason: 'replan_rejected_observation_forbidden' } as const);
@@ -30,6 +31,7 @@ export class BrainReplannerService {
       topK: input.topK,
       audit: input.audit,
       previousPlan: input.previousPlan,
+      deadlineAt: input.deadlineAt,
       observations: input.observations.map((item) => ({
         nodeId: item.nodeId,
         capabilityKey: item.capabilityKey,

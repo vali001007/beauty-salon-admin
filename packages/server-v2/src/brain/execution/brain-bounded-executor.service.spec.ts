@@ -66,6 +66,37 @@ describe('BrainBoundedExecutorService', () => {
     expect(result.status).toBe('completed');
     expect(result.replanCount).toBe(1);
     expect(replanner.replan).toHaveBeenCalledTimes(1);
+    expect(replanner.replan).toHaveBeenCalledWith(expect.objectContaining({ deadlineAt: expect.any(Number) }));
+  });
+
+  it('does not replan after a capability timeout exhausts the execution budget', async () => {
+    jest.useFakeTimers();
+    try {
+      const capability = card('facts', { timeoutMs: 100 });
+      const plan = { ...singlePlan(capability), budgetMs: 100 };
+      const replanner = { replan: jest.fn() };
+      const service = executor(jest.fn(() => new Promise(() => undefined)), replanner);
+
+      const pending = service.execute({
+        plan,
+        topK: ranked([capability]),
+        context: context as any,
+        runId: 1,
+        question: 'facts',
+        intent,
+      });
+      await jest.advanceTimersByTimeAsync(100);
+      const result = await pending;
+
+      expect(result.status).toBe('partial');
+      expect(result.replanCount).toBe(0);
+      expect(result.observations).toEqual([
+        expect.objectContaining({ status: 'failed', errorCode: 'brain_capability_execution_timeout' }),
+      ]);
+      expect(replanner.replan).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

@@ -63,6 +63,9 @@ export class BrainBoundedExecutorService {
       if (!completion.recoverable || !this.replanner || plan.replanCount >= 2) {
         return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
       }
+      if (this.budget.remainingMs(budgetState) <= 0) {
+        return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
+      }
       const replanning = await this.replanner.replan({
         question: input.question,
         intent: input.intent,
@@ -71,8 +74,12 @@ export class BrainBoundedExecutorService {
         previousPlan: plan,
         observations,
         reasons: completion.missingCriteria,
+        deadlineAt: budgetState.deadlineMs,
       });
       if (replanning.status !== 'planned') {
+        return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
+      }
+      if (this.budget.remainingMs(budgetState) <= 0) {
         return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
       }
       budgetState = this.budget.consumeReplan(budgetState);

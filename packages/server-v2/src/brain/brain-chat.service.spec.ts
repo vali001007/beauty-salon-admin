@@ -2665,6 +2665,56 @@ describe('BrainChatService', () => {
     );
   });
 
+  it('returns failed when Supervisor produces no successful observation', async () => {
+    const plan = {
+      schemaVersion: '1.0', planId: 'supervisor:failed', objective: '查询库存', replanCount: 0, budgetMs: 10_000,
+      nodes: [{ id: 'inventory', capabilityKey: 'inventory_operations_overview', capabilityVersion: 1, dependsOn: [], previewOnly: false, args: {} }],
+    };
+    const card = {
+      key: 'inventory_operations_overview', version: 1, name: '库存概览', description: '库存事实',
+      domains: ['product'], intents: ['workflow'], readOnly: true, sideEffect: false, requiredPermissions: [],
+    };
+    const orchestrator = {
+      createModelExecutionPlan: jest.fn().mockResolvedValue({ status: 'planned', provider: 'openai', model: 'gpt-test', usage: {}, plan }),
+    };
+    const { prisma, modelPipeline, trace, service } = createService({ modelPipeline: {}, orchestrator });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed', provider: 'openai', model: 'gpt-test', usage: {},
+      intent: {
+        schemaVersion: '1.0', objective: '查询库存', domains: ['product'], intent: 'workflow', entities: [], metrics: [],
+        dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['返回库存事实'], ambiguities: [],
+        missingSlots: [], assumptions: [], confidence: 0.95, decisionSummary: '库存查询',
+      },
+    } as never);
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([card]);
+    modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue([{ card, score: 0.9, matchedFields: ['name'] }] as never);
+    modelPipeline!.bounded.execute.mockResolvedValue({
+      status: 'partial', plan, replanCount: 0,
+      completion: { status: 'incomplete', missingCriteria: ['failed:inventory'], recoverable: true },
+      observations: [{
+        nodeId: 'inventory', capabilityKey: card.key, capabilityVersion: 1, status: 'failed', grounding: 'none',
+        summary: '执行失败。', data: {}, citations: [], errorCode: 'brain_capability_execution_timeout',
+        startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString(),
+      }],
+    });
+
+    const response = await service.sendMessage(context, 12, { message: '查询库存' });
+
+    expect(response).toMatchObject({ status: 'failed', grounding: 'none', failureCode: 'MODEL_EXECUTION_FAILED' });
+    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({
+      stepKey: 'bounded_dag_execution',
+      status: 'failed',
+      output: expect.objectContaining({
+        observations: [expect.objectContaining({ errorCode: 'brain_capability_execution_timeout' })],
+      }),
+    }));
+  });
+
   it('preserves an ordered new-customer time ranking for an exact governed example', () => {
     const { service } = createService({ modelPipeline: {} });
     const question = '最近哪个时间段新客最多，从哪些渠道来';
