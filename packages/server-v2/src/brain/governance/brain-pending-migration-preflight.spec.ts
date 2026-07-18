@@ -138,6 +138,28 @@ describe('brain pending migration preflight', () => {
     expect(result.migrations[1].summary).toContain('不完整');
   });
 
+  it('accepts PostgreSQL-truncated identifiers in an applied waiting migration', () => {
+    const indexes = CUSTOMER_WAITING_REQUIRED_INDEXES.map((name) =>
+      name === 'customer_waiting_episode_storeId_outcome_leaveReasonCode_startedAt_idx'
+        ? name.slice(0, 63)
+        : name,
+    );
+    const result = buildBrainPendingMigrationPreflight(
+      input({
+        migrations: { [CUSTOMER_WAITING_EPISODE_MIGRATION]: { status: 'applied' } },
+        customerWaitingSchema: {
+          tableExists: true,
+          columns: [...CUSTOMER_WAITING_REQUIRED_COLUMNS],
+          constraints: [...CUSTOMER_WAITING_REQUIRED_CONSTRAINTS],
+          indexes,
+        },
+      }),
+    );
+
+    expect(result.migrations[2]).toMatchObject({ status: 'already_applied', directApplyAllowed: false });
+    expect(result.migrations[2].checks.at(-1)).toMatchObject({ status: 'pass' });
+  });
+
   it('blocks failed migration history instead of recommending a retry', () => {
     const result = buildBrainPendingMigrationPreflight(
       input({ migrations: { [STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION]: { status: 'failed', logs: 'boom' } } }),

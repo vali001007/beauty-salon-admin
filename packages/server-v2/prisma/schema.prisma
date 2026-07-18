@@ -105,7 +105,6 @@ model Store {
   marketingRecommendationAudienceSnapshots MarketingRecommendationAudienceSnapshot[]
   marketingRecommendationAudienceMembers MarketingRecommendationAudienceMember[]
   marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
-  marketingRecommendationAdoptions MarketingRecommendationAdoption[]
   amiMonthlyBills          AmiMonthlyBill[]
   procurementOrders        ProcurementOrder[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
@@ -128,6 +127,9 @@ model Store {
   customerServiceFeedback CustomerServiceFeedback[]
   customerWaitingEpisodes CustomerWaitingEpisode[]
   brainOperatingTargets    BrainStoreOperatingTarget[]
+  reservationStatusEvents                  ReservationStatusEvent[]
+  metricTargets                            StoreMetricTarget[]
+  metricSnapshots                          StoreMetricSnapshot[]
 
   @@index([status])
 }
@@ -1498,11 +1500,14 @@ model ProductOrder {
   @@index([storeId, createdAt])
   @@index([checkoutGroupNo])
   @@index([orderKind])
+  @@index([source])
 }
 
 model OrderItem {
   id           Int      @id @default(autoincrement())
   orderId      Int
+  reservationId                Int?
+  serviceTaskId                Int?
   itemType     String
   itemId       Int?
   name         String
@@ -1527,6 +1532,8 @@ model OrderItem {
   createdAt    DateTime @default(now())
 
   order             ProductOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reservation            Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  serviceTask            ServiceTask?       @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
   beautician        Beautician?        @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   commissionRecords CommissionRecord[]
   sourceCustomerCards CustomerCard[]    @relation("CustomerCardSourceOrderItem")
@@ -1535,6 +1542,8 @@ model OrderItem {
   stockMovements     StockMovement[]
 
   @@index([orderId])
+  @@index([reservationId])
+  @@index([serviceTaskId])
   @@index([itemType, itemId])
   @@index([beauticianId])
 }
@@ -1663,6 +1672,7 @@ model CustomerCard {
   operatorId     Int?
   sourceOrderId  Int?
   sourceOrderItemId Int?
+  renewedFromCustomerCardId Int?
   cardName       String
   totalTimes     Int
   remainingTimes Int
@@ -1673,6 +1683,10 @@ model CustomerCard {
   pricingSnapshot Json?
   expiryDate     DateTime
   status         String   @default("active")
+  saleType                  String    @default("new")
+  activatedAt               DateTime?
+  terminatedAt              DateTime?
+  terminationReason         String?
   createdAt      DateTime @default(now())
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -1680,13 +1694,17 @@ model CustomerCard {
   operator User?    @relation("CustomerCardOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   sourceOrder ProductOrder? @relation("CustomerCardSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
   sourceOrderItem OrderItem? @relation("CustomerCardSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
+  renewedFromCustomerCard CustomerCard?     @relation("CustomerCardRenewal", fields: [renewedFromCustomerCardId], references: [id], onDelete: SetNull)
+  renewedCustomerCards    CustomerCard[]    @relation("CustomerCardRenewal")
   usageRecords CardUsageRecord[]
 
   @@index([customerId])
   @@index([operatorId])
   @@index([sourceOrderId])
   @@index([sourceOrderItemId])
+  @@index([renewedFromCustomerCardId])
   @@index([status])
+  @@index([saleType])
 }
 
 model CardUsageRecord {
@@ -1705,6 +1723,8 @@ model CardUsageRecord {
   recognizedAmount Decimal @default(0)
   sourceOrderId Int?
   sourceOrderItemId Int?
+  reservationId       Int?
+  serviceTaskId       Int?
   pricingSnapshot Json?
   operatorId     Int?
   beauticianId   Int?
@@ -1718,6 +1738,8 @@ model CardUsageRecord {
   store      Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
   sourceOrder ProductOrder?   @relation("CardUsageSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
   sourceOrderItem OrderItem?  @relation("CardUsageSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
+  reservation       Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  serviceTask       ServiceTask?       @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
   operator   User?           @relation("CardUsageOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   device     TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
@@ -1730,6 +1752,8 @@ model CardUsageRecord {
   @@index([storeId, verifiedAt])
   @@index([sourceOrderId])
   @@index([sourceOrderItemId])
+  @@index([reservationId])
+  @@index([serviceTaskId])
   @@index([operatorId])
   @@index([beauticianId])
   @@index([deviceId])
@@ -1771,12 +1795,19 @@ model Reservation {
   customerId   Int
   projectId    Int
   beauticianId Int?
+  sourceReservationId Int?
+  createdById         Int?
   date         DateTime
   startTime    String
   endTime      String?
   status       String    @default("pending")
+  bookingSource       String    @default("manual")
   remark       String?
   checkedInAt  DateTime?
+  cancelledAt         DateTime?
+  cancelReasonCode    String?
+  cancelledByType     String?
+  noShowAt            DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -1784,15 +1815,97 @@ model Reservation {
   customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   project    Project     @relation(fields: [projectId], references: [id])
   beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  sourceReservation          Reservation?                @relation("ReservationSource", fields: [sourceReservationId], references: [id], onDelete: SetNull)
+  derivedReservations        Reservation[]               @relation("ReservationSource")
   followUpTasks TerminalFollowUpTask[]
   lifecycleAttributionEvents LifecycleAttributionEvent[]
   waitingEpisodes CustomerWaitingEpisode[]
+  orderItems                 OrderItem[]
+  cardUsageRecords           CardUsageRecord[]
+  serviceTask                ServiceTask?
+  statusEvents               ReservationStatusEvent[]
 
   @@index([storeId, date])
   @@index([customerId])
   @@index([projectId])
   @@index([beauticianId])
   @@index([status])
+  @@index([sourceReservationId])
+  @@index([bookingSource])
+}
+
+model ReservationStatusEvent {
+  id            Int      @id @default(autoincrement())
+  reservationId Int
+  storeId       Int
+  fromStatus    String?
+  toStatus      String
+  reasonCode    String?
+  actorType     String?
+  actorId       Int?
+  occurredAt    DateTime @default(now())
+  metadata      Json?
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId, occurredAt])
+  @@index([storeId, occurredAt])
+  @@index([toStatus])
+}
+
+model StoreMetricTarget {
+  id                Int       @id @default(autoincrement())
+  storeId           Int
+  metricKey         String
+  periodType        String
+  periodStart       DateTime
+  periodEnd         DateTime
+  targetValue       Decimal
+  warningValue      Decimal?
+  criticalValue     Decimal?
+  weight            Decimal?
+  definitionVersion Int       @default(1)
+  status            String    @default("active")
+  createdById       Int?
+  approvedById      Int?
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, metricKey, periodType, periodStart])
+  @@index([storeId, periodStart, periodEnd])
+  @@index([metricKey, status])
+  @@map("store_metric_target")
+}
+
+model StoreMetricSnapshot {
+  id                Int       @id @default(autoincrement())
+  storeId           Int
+  metricKey         String
+  metricDate        DateTime
+  granularity       String    @default("day")
+  value             Decimal?
+  numerator         Decimal?
+  denominator       Decimal?
+  sampleCount       Int?
+  qualityStatus     String
+  qualityReasons    Json?
+  dimensions        Json?
+  definitionVersion Int       @default(1)
+  calculationMode   String    @default("live")
+  sourceVersion     String?
+  generatedAt       DateTime  @default(now())
+  frozenAt          DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, metricKey, metricDate, granularity, definitionVersion])
+  @@index([storeId, metricDate])
+  @@index([metricKey, metricDate])
+  @@map("store_metric_snapshot")
 }
 
 // ─── Terminal Devices ─────────────────────────────────────────────────────────
@@ -2040,6 +2153,7 @@ model ServiceTask {
   beauticianId     Int?
   deviceId         Int?
   storeId          Int
+  reservationId    Int?              @unique
   appointmentTime  DateTime
   duration         Int               @default(60)
   status           ServiceTaskStatus @default(pending)
@@ -2054,9 +2168,12 @@ model ServiceTask {
   project              Project               @relation(fields: [projectId], references: [id])
   beautician           Beautician?           @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   device               TerminalDevice?       @relation(fields: [deviceId], references: [id])
+  reservation          Reservation?           @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   skinTests            SkinTest[]
   recommendationEvents RecommendationEvent[]
   followUpTasks        TerminalFollowUpTask[]
+  orderItems           OrderItem[]
+  cardUsageRecords     CardUsageRecord[]
 
   @@index([storeId, status])
   @@index([customerId])
@@ -2306,6 +2423,7 @@ model MarketingAutomationStrategy {
   audienceSnapshot MarketingRecommendationAudienceSnapshot? @relation(fields: [audienceSnapshotId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status])
+  @@index([status])
   @@index([source])
   @@index([recommendationInstanceId])
   @@index([adoptionId])
@@ -2406,6 +2524,7 @@ model PredictionRun {
   automationStrategies MarketingAutomationStrategy[]
 
   @@index([storeId, businessDate, status])
+  @@index([storeId])
   @@index([modelVersion])
   @@index([startedAt])
   @@index([status])
@@ -3005,7 +3124,6 @@ model MarketingRecommendationAdoption {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
   activities MarketingActivity[]
   pages MarketingPage[]
@@ -4587,7 +4705,7 @@ model BrainStoreOperatingTarget {
 
   @@unique([storeId, periodType, periodStart])
   @@index([storeId, periodStart, periodEnd])
-  @@index([storeId, status])
+  @@index([status])
   @@map("brain_store_operating_target")
 }
 

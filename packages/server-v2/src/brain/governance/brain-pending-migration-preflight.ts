@@ -176,6 +176,20 @@ function missing(required: readonly string[], actual: readonly string[]) {
   return required.filter((item) => !actualSet.has(item));
 }
 
+function normalizePostgresIdentifier(identifier: string) {
+  const maxBytes = 63;
+  if (Buffer.byteLength(identifier, 'utf8') <= maxBytes) return identifier;
+
+  let end = identifier.length;
+  while (end > 0 && Buffer.byteLength(identifier.slice(0, end), 'utf8') > maxBytes) end -= 1;
+  return identifier.slice(0, end);
+}
+
+function missingPostgresIdentifiers(required: readonly string[], actual: readonly string[]) {
+  const actualSet = new Set(actual.map(normalizePostgresIdentifier));
+  return required.filter((item) => !actualSet.has(normalizePostgresIdentifier(item)));
+}
+
 function historyCheck(history: BrainMigrationHistoryState): BrainMigrationPreflightCheck {
   if (history.status === 'applied') {
     return {
@@ -246,9 +260,11 @@ function classifySupplyPermissionMigration(input: BrainMigrationPreflightInput):
     },
     {
       key: 'permission_effect',
-      status: hasPermission ? 'warn' : 'pass',
+      status: hasPermission ? (history.status === 'applied' ? 'pass' : 'warn') : 'pass',
       message: hasPermission
-        ? `迁移尚未登记，但 store_manager 已拥有 ${SUPPLY_PERMISSION}。`
+        ? history.status === 'applied'
+          ? `store_manager 已拥有 ${SUPPLY_PERMISSION}。`
+          : `迁移尚未登记，但 store_manager 已拥有 ${SUPPLY_PERMISSION}。`
         : `store_manager 尚未获得 ${SUPPLY_PERMISSION}。`,
       evidence: { hasPermission },
     },
@@ -337,8 +353,8 @@ function classifyCustomerFeedbackMigration(input: BrainMigrationPreflightInput):
   const history = input.migrations[migrationName];
   const schema = input.customerFeedbackSchema;
   const missingColumns = missing(CUSTOMER_FEEDBACK_REQUIRED_COLUMNS, schema.columns);
-  const missingConstraints = missing(CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS, schema.constraints);
-  const missingIndexes = missing(CUSTOMER_FEEDBACK_REQUIRED_INDEXES, schema.indexes);
+  const missingConstraints = missingPostgresIdentifiers(CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS, schema.constraints);
+  const missingIndexes = missingPostgresIdentifiers(CUSTOMER_FEEDBACK_REQUIRED_INDEXES, schema.indexes);
   const dependenciesReady = input.dependencies.Store && input.dependencies.Customer;
   const completeSchema =
     schema.tableExists && missingColumns.length === 0 && missingConstraints.length === 0 && missingIndexes.length === 0;
@@ -442,8 +458,8 @@ function classifyCustomerWaitingMigration(input: BrainMigrationPreflightInput): 
   const history = input.migrations[migrationName];
   const schema = input.customerWaitingSchema;
   const missingColumns = missing(CUSTOMER_WAITING_REQUIRED_COLUMNS, schema.columns);
-  const missingConstraints = missing(CUSTOMER_WAITING_REQUIRED_CONSTRAINTS, schema.constraints);
-  const missingIndexes = missing(CUSTOMER_WAITING_REQUIRED_INDEXES, schema.indexes);
+  const missingConstraints = missingPostgresIdentifiers(CUSTOMER_WAITING_REQUIRED_CONSTRAINTS, schema.constraints);
+  const missingIndexes = missingPostgresIdentifiers(CUSTOMER_WAITING_REQUIRED_INDEXES, schema.indexes);
   const dependenciesReady = input.dependencies.Store && input.dependencies.Customer && input.dependencies.Reservation;
   const completeSchema = schema.tableExists && missingColumns.length === 0 && missingConstraints.length === 0 && missingIndexes.length === 0;
   const checks: BrainMigrationPreflightCheck[] = [
@@ -527,7 +543,8 @@ function classifyBeauticianBrainSelfPermissionMigration(
     },
     {
       key: 'permission_effect',
-      status: missingPermissions.length === 0 ? 'warn' : 'pass',
+      status:
+        missingPermissions.length === 0 ? (history.status === 'applied' ? 'pass' : 'warn') : 'pass',
       message:
         missingPermissions.length === 0
           ? 'beautician 已具备全部本人范围 Brain 权限。'

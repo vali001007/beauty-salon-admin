@@ -1,0 +1,43 @@
+{
+  "runId": "r228",
+  "date": "2026-07-18",
+  "status": "passed",
+  "productionDatabaseWritePerformed": false,
+  "environment": {
+    "postgres": "16-alpine",
+    "host": "127.0.0.1",
+    "port": 55432,
+    "emptyDatabase": "ami_migration_empty",
+    "incrementalDatabase": "ami_migration_incremental"
+  },
+  "migrationHistory": {
+    "localCount": 100,
+    "emptyReplayApplied": 100,
+    "incrementalApplied": 100,
+    "failed": 0,
+    "checksumMismatches": 0,
+    "chainSha256": "5c4be56cb566400a4d96da96859ffdb129f94e7ee7aefb3047799351fd6991cf"
+  },
+  "databaseShape": {
+    "publicTables": 212,
+    "brainTables": 28
+  },
+  "incrementalUpgrade": {
+    "baselineMigrationCount": 95,
+    "upgradeMigrationCount": 5,
+    "sourceTargetPreserved": true,
+    "metricTargetBackfilled": true,
+    "permissionsPreserved": true,
+    "permissionDuplicates": 0
+  },
+  "fixes": [
+    "align_prisma_schema_with_store_metrics_migration",
+    "handle_postgresql_63_byte_identifier_truncation_in_preflight",
+    "correct_applied_permission_check_status"
+  ],
+  "residualDrift": [
+    "five_legacy_supply_tables_are_database_only",
+    "historical_default_expression_representation",
+    "postgresql_truncated_identifier_names"
+  ]
+}
