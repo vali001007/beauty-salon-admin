@@ -28,6 +28,7 @@ const CAPABILITIES: Record<string, ActionCapabilityDefinition> = {
   customer_follow_up_draft: { adapterKey: 'customer_service', role: 'customer_service', domain: 'customer_service' },
   purchase_order_draft: { adapterKey: 'inventory_procurement', role: 'inventory', domain: 'inventory_procurement' },
   marketing_touch_draft: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
+  marketing_strategy_execute_preview: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
   gap_fill_touch_preview: { adapterKey: 'marketing_growth', role: 'store_manager', domain: 'marketing_growth' },
 };
 
@@ -136,6 +137,26 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   })
   marketingTouchDraft(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('marketing_touch_draft', args, input);
+  }
+
+  @BrainCapability({
+    key: 'marketing_strategy_execute_preview',
+    name: '自动触达策略执行预览',
+    description: '解析当前门店内用户明确指定且已启用的自动触达策略，读取实时受众规模和渠道，生成高风险待确认预览。确认后复用营销执行、投递队列、触达冷却、回执和幂等合同；受众显著扩大时拒绝执行并要求重新审批。',
+    intents: ['action'],
+    examples: ['执行自动触达策略“沉睡客户唤醒”', '运行营销策略 12 并发送', '启动指定的自动触达策略'],
+    negativeExamples: ['直接群发不要确认', '执行其他门店策略', '创建一个新的自动触达规则', '只查看自动触达效果'],
+    synonyms: ['执行营销策略', '启动自动触达', '发送自动触达策略'],
+    businessDefinitionKeys: ['entity.customer'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:marketing:update'],
+    allowedRoles: ['marketing', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  marketingStrategyExecutePreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('marketing_strategy_execute_preview', args, input);
   }
 
   @BrainCapability({

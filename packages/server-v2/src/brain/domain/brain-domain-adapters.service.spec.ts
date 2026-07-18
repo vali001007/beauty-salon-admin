@@ -276,6 +276,19 @@ describe('Brain domain adapters', () => {
     }),
     resolveBeautician: jest.fn().mockResolvedValue({ ok: true, value: { id: 2, name: '王美容师' } }),
     resolveUsageTimes: jest.fn().mockReturnValue(1),
+    resolveMarketingStrategy: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: 12,
+        name: '沉睡客户唤醒',
+        status: 'enabled',
+        executionType: 'manual',
+        ruleRelation: 'AND',
+        actions: [{ channel: 'sms', value: '护理提醒' }],
+        targetCount: 20,
+        lastExecutedAt: '2026-07-10T08:00:00.000Z',
+      },
+    }),
   };
   const predictionSkills = {
     getCustomerPrediction: jest.fn().mockResolvedValue({
@@ -316,6 +329,9 @@ describe('Brain domain adapters', () => {
         }],
       }],
     }),
+  };
+  const marketingService = {
+    previewAudience: jest.fn().mockResolvedValue({ estimatedReachedCount: 18 }),
   };
 
   it('store manager adapter returns db-skill overview citation', async () => {
@@ -773,6 +789,62 @@ describe('Brain domain adapters', () => {
     expect(answer?.citations[0]).toMatchObject({ sourceId: 'marketing_automation_rule_preview' });
     expect(answer?.answer).toContain('新客到店 3 天后');
     expect(answer?.answer).toContain('不会生成不可执行的确认按钮');
+  });
+
+  it('marketing adapter creates a high-risk preview for an existing enabled strategy', async () => {
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+      marketingService as never,
+    );
+    const answer = await adapter.execute(execution(
+      '执行自动触达策略沉睡客户唤醒',
+      'marketing_growth',
+      'action',
+      'marketing_strategy_execute_preview',
+    ));
+
+    expect(answer).toMatchObject({ grounding: 'preview_action' });
+    expect(answer?.answer).toContain('预计进入发送队列 18 人');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({
+      actionType: 'execute_marketing_strategy',
+      riskLevel: 'high',
+      requiresConfirmation: true,
+    });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'execute_marketing_strategy',
+      riskLevel: 'high',
+      payload: { strategyId: 12, strategyName: '沉睡客户唤醒', approvedAudienceCount: 18 },
+    }));
+  });
+
+  it('marketing adapter does not expose a confirmation when the live audience is empty', async () => {
+    marketingService.previewAudience.mockResolvedValueOnce({ estimatedReachedCount: 0 });
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+      marketingService as never,
+    );
+
+    const answer = await adapter.execute(execution(
+      '执行自动触达策略沉睡客户唤醒',
+      'marketing_growth',
+      'action',
+      'marketing_strategy_execute_preview',
+    ));
+
+    expect(answer).toMatchObject({ grounding: 'db_skill', suggestedActions: [] });
+    expect(answer?.metadata).toMatchObject({ noActionReason: 'marketing_strategy_audience_empty' });
   });
 
   it('marketing adapter creates a customer-scoped touch task draft preview', async () => {

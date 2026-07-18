@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Optional } from '@
 import type { BrainRiskLevel } from '@prisma/client';
 import { CardsService } from '../../cards/cards.service.js';
 import { InventoryService } from '../../inventory/inventory.service.js';
+import { MarketingService } from '../../marketing/marketing.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ReservationsService } from '../../reservations/reservations.service.js';
 import { TerminalService } from '../../terminal/terminal.service.js';
@@ -115,6 +116,19 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     receiptType: 'marketing_touch_draft',
     failureRecovery: 'safe_replay',
   },
+  execute_marketing_strategy: {
+    key: 'execute_marketing_strategy',
+    version: 1,
+    endpoint: 'marketing/automation/strategies/:id/execute',
+    method: 'POST',
+    permission: 'core:marketing:update',
+    riskLevel: 'high',
+    requiredFields: ['strategyId', 'approvedAudienceCount'],
+    allowedFields: ['strategyId', 'strategyName', 'approvedAudienceCount'],
+    transactionBoundary: 'MarketingService.executeStrategy:idempotent',
+    receiptType: 'marketing_automation_execution',
+    failureRecovery: 'safe_replay',
+  },
   save_service_record: {
     key: 'save_service_record',
     version: 1,
@@ -151,6 +165,7 @@ export class BrainCapabilityGatewayService {
     @Optional() private readonly terminalService?: TerminalService,
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly cardsService?: CardsService,
+    @Optional() private readonly marketingService?: MarketingService,
   ) {}
 
   resolve(skillKey: string) {
@@ -185,6 +200,8 @@ export class BrainCapabilityGatewayService {
         return this.createPurchaseOrder(payload, input.context);
       case 'create_marketing_touch_draft':
         return this.createFollowUp(payload, input.context, 'brain_marketing_touch_draft');
+      case 'execute_marketing_strategy':
+        return this.executeMarketingStrategy(payload, input.context);
       case 'save_service_record':
         return this.saveServiceRecord(payload, input.context);
       case 'verify_card_usage':
@@ -287,6 +304,37 @@ export class BrainCapabilityGatewayService {
     return this.receipt('create_purchase_order', 'purchase_order', result.id, result);
   }
 
+  private async executeMarketingStrategy(payload: Record<string, unknown>, context: BrainCapabilityContext) {
+    const service = this.requireService(this.marketingService, 'MarketingService');
+    const strategyId = this.positiveInteger(payload.strategyId, 'strategyId');
+    const approvedAudienceCount = this.nonNegativeInteger(payload.approvedAudienceCount, 'approvedAudienceCount');
+    const preview = await service.previewAudience([], 'AND', strategyId, context.storeId) as Record<string, unknown>;
+    const currentAudienceCount = this.nonNegativeInteger(
+      preview.estimatedReachedCount ?? preview.estimatedCount ?? preview.total ?? 0,
+      'currentAudienceCount',
+    );
+    const allowedGrowth = Math.max(10, Math.ceil(approvedAudienceCount * 0.2));
+    if (currentAudienceCount > approvedAudienceCount + allowedGrowth) {
+      throw new BadRequestException('marketing_audience_changed_reapproval_required');
+    }
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
+    const result = await service.executeStrategy(strategyId, context.storeId, idempotencyKey);
+    const failedCount = Number((result as Record<string, unknown>).failedCount ?? 0);
+    const queuedCount = Number((result as Record<string, unknown>).queuedCount ?? 0);
+    const reachedCount = Number((result as Record<string, unknown>).reachedCount ?? 0);
+    const status = String((result as Record<string, unknown>).status ?? 'pending');
+    return this.receipt(
+      'execute_marketing_strategy',
+      'marketing_automation_execution',
+      (result as Record<string, unknown>).id as number | string,
+      result,
+      status === 'pending'
+        ? `自动触达执行已进入队列，待发送 ${queuedCount} 人。`
+        : `自动触达执行完成，已触达 ${reachedCount} 人，失败 ${failedCount} 人。`,
+      failedCount > 0 && reachedCount > 0 ? 'partially_succeeded' : 'succeeded',
+    );
+  }
+
   private async saveServiceRecord(payload: Record<string, unknown>, context: BrainCapabilityContext) {
     const service = this.requireService(this.terminalService, 'TerminalService');
     const taskId = this.positiveInteger(payload.taskId, 'taskId');
@@ -334,6 +382,12 @@ export class BrainCapabilityGatewayService {
     const missing = descriptor.requiredFields.filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === '');
     if (missing.length) throw new BadRequestException(`missing_capability_fields:${missing.join(',')}`);
     return payload;
+  }
+
+  private nonNegativeInteger(value: unknown, field: string) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) throw new BadRequestException(`invalid_${field}`);
+    return parsed;
   }
 
   private purchaseItems(value: unknown) {
@@ -419,7 +473,15 @@ export class BrainCapabilityGatewayService {
     businessObjectId: number | string,
     result: unknown,
     message?: string,
+    status?: BrainCapabilityReceipt['status'],
   ): BrainCapabilityReceipt {
-    return { capabilityKey, businessObjectType, businessObjectId, result, ...(message ? { message } : {}) };
+    return {
+      capabilityKey,
+      businessObjectType,
+      businessObjectId,
+      result,
+      ...(message ? { message } : {}),
+      ...(status ? { status } : {}),
+    };
   }
 }

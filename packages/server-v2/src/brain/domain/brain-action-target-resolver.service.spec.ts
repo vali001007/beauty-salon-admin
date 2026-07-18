@@ -10,6 +10,8 @@ describe('BrainActionTargetResolverService', () => {
     cardUsageRecord: { aggregate: jest.fn(), findUnique: jest.fn() },
     purchaseOrder: { findUnique: jest.fn() },
     terminalFollowUpTask: { findUnique: jest.fn() },
+    marketingAutomationStrategy: { findFirst: jest.fn(), findMany: jest.fn() },
+    marketingAutomationExecution: { findUnique: jest.fn() },
     beautician: { findMany: jest.fn(), findFirst: jest.fn() },
     product: { count: jest.fn() },
   };
@@ -56,6 +58,76 @@ describe('BrainActionTargetResolverService', () => {
       args: { items: [{ productId: 11 }] },
       idempotencyKey: 'purchase-action-new',
     })).rejects.toThrow('cross_store_action_target');
+  });
+
+  it('resolves one enabled marketing strategy by exact name inside the current store', async () => {
+    prisma.marketingAutomationStrategy.findMany.mockResolvedValue([{
+      id: 12,
+      name: '沉睡客户唤醒',
+      status: 'enabled',
+      executionType: 'manual',
+      ruleRelation: 'AND',
+      actions: [{ channel: 'sms' }],
+      targetCount: 20,
+      lastExecutedAt: new Date('2026-07-10T08:00:00.000Z'),
+    }]);
+
+    await expect(service.resolveMarketingStrategy({
+      storeId: 6,
+      message: '执行自动触达策略沉睡客户唤醒',
+    })).resolves.toEqual({
+      ok: true,
+      value: {
+        id: 12,
+        name: '沉睡客户唤醒',
+        status: 'enabled',
+        executionType: 'manual',
+        ruleRelation: 'AND',
+        actions: [{ channel: 'sms' }],
+        targetCount: 20,
+        lastExecutedAt: '2026-07-10T08:00:00.000Z',
+      },
+    });
+    expect(prisma.marketingAutomationStrategy.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: 6 },
+    }));
+  });
+
+  it('rejects a disabled marketing strategy before creating an action preview', async () => {
+    prisma.marketingAutomationStrategy.findFirst.mockResolvedValue({
+      id: 12,
+      name: '沉睡客户唤醒',
+      status: 'paused',
+      executionType: 'manual',
+      ruleRelation: 'AND',
+      actions: [],
+      targetCount: 0,
+      lastExecutedAt: null,
+    });
+
+    const result = await service.resolveMarketingStrategy({ storeId: 6, message: '执行策略 12' });
+
+    expect(result).toMatchObject({ ok: false, reason: 'marketing_strategy_not_enabled' });
+  });
+
+  it('revalidates an enabled marketing strategy and safely accepts an existing execution', async () => {
+    prisma.marketingAutomationExecution.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 91, storeId: 6 });
+    prisma.marketingAutomationStrategy.findFirst.mockResolvedValue({ id: 12, status: 'enabled' });
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'execute_marketing_strategy',
+      storeId: 6,
+      args: { strategyId: 12, approvedAudienceCount: 20 },
+      idempotencyKey: 'brain-marketing-execution-91',
+    })).resolves.toBeUndefined();
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'execute_marketing_strategy',
+      storeId: 6,
+      args: { strategyId: 12, approvedAudienceCount: 20 },
+      idempotencyKey: 'brain-marketing-execution-91',
+    })).resolves.toBeUndefined();
+
+    expect(prisma.marketingAutomationStrategy.findFirst).toHaveBeenCalledTimes(1);
   });
 
   it('resolves an exact customer only inside the current store', async () => {

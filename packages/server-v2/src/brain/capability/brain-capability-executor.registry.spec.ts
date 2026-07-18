@@ -39,8 +39,10 @@ const DOMAIN_KEYS = [
 
 const ACTION_KEYS = [
   'reservation_action_preview',
+  'card_usage_action_preview',
   'customer_follow_up_draft',
   'purchase_order_draft',
+  'marketing_strategy_execute_preview',
   'marketing_touch_draft',
   'gap_fill_touch_preview',
 ] as const;
@@ -124,7 +126,7 @@ const stubExecutor = (
 });
 
 describe('BrainCapabilityExecutorRegistryService', () => {
-  it('resolves all 24 discoverable capability keys', () => {
+  it('resolves all 26 discoverable capability keys', () => {
     const snapshot = { loadActiveDefinitions: jest.fn() };
     const timeParser = { parse: jest.fn() };
     const semanticQuery = { execute: jest.fn() };
@@ -137,7 +139,7 @@ describe('BrainCapabilityExecutorRegistryService', () => {
       new BrainActionCapabilityExecutor(adapterRegistry as never),
     ]);
 
-    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(24);
+    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(26);
     for (const key of SEMANTIC_KEYS) expect(registry.resolve(key).kind).toBe('semantic');
     for (const key of DOMAIN_KEYS) expect(registry.resolve(key).kind).toBe('domain');
     for (const key of ACTION_KEYS) expect(registry.resolve(key).kind).toBe('action');

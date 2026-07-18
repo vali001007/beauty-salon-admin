@@ -47,6 +47,30 @@ export class BrainActionTargetResolverService {
         await this.requireScopedRecord('customer', input.args.customerId, input.storeId);
         return;
       }
+      case 'execute_marketing_strategy': {
+        if (input.idempotencyKey) {
+          const committed = await this.prisma.marketingAutomationExecution.findUnique({
+            where: {
+              strategyId_idempotencyKey: {
+                strategyId: this.positiveId(input.args.strategyId),
+                idempotencyKey: input.idempotencyKey,
+              },
+            },
+            select: { id: true, storeId: true },
+          });
+          if (committed) {
+            if (committed.storeId !== input.storeId) throw new ForbiddenException('cross_store_action_target');
+            return;
+          }
+        }
+        const strategy = await this.prisma.marketingAutomationStrategy.findFirst({
+          where: { id: this.positiveId(input.args.strategyId), storeId: input.storeId },
+          select: { id: true, status: true },
+        });
+        if (!strategy) throw new ForbiddenException('cross_store_action_target');
+        if (strategy.status !== 'enabled') throw new BadRequestException('marketing_strategy_not_enabled');
+        return;
+      }
       case 'save_service_record':
         await this.requireScopedRecord('serviceTask', input.args.taskId, input.storeId);
         return;
@@ -101,6 +125,60 @@ export class BrainActionTargetResolverService {
       ok: true,
       value: { id: customers[0].id, name: customers[0].name, maskedPhone: this.maskPhone(customers[0].phone) },
     };
+  }
+
+  async resolveMarketingStrategy(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{
+    id: number;
+    name: string;
+    status: string;
+    executionType: string;
+    ruleRelation: string;
+    actions: unknown;
+    targetCount: number;
+    lastExecutedAt: string | null;
+  }>> {
+    const explicitId = Number(input.message.match(/(?:自动触达|营销)?策略[#号\s]*(\d+)/)?.[1]);
+    if (explicitId > 0) {
+      const strategy = await this.prisma.marketingAutomationStrategy.findFirst({
+        where: { id: explicitId, storeId: input.storeId },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          executionType: true,
+          ruleRelation: true,
+          actions: true,
+          targetCount: true,
+          lastExecutedAt: true,
+        },
+      });
+      return strategy
+        ? this.marketingStrategyResolution(strategy)
+        : { ok: false, reason: 'marketing_strategy_not_found', message: '当前门店没有找到该自动触达策略。' };
+    }
+    const strategies = await this.prisma.marketingAutomationStrategy.findMany({
+      where: { storeId: input.storeId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        executionType: true,
+        ruleRelation: true,
+        actions: true,
+        targetCount: true,
+        lastExecutedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
+    const matches = strategies.filter((strategy) => input.message.includes(strategy.name));
+    if (!matches.length) {
+      return { ok: false, reason: 'marketing_strategy_required', message: '请提供当前门店的自动触达策略名称或策略编号后再生成执行预览。' };
+    }
+    if (matches.length > 1) {
+      return { ok: false, reason: 'ambiguous_marketing_strategy', message: '问题中命中多个自动触达策略，请明确策略编号。' };
+    }
+    return this.marketingStrategyResolution(matches[0]);
   }
 
   async resolveProject(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; name: string; duration: number }>> {
@@ -362,6 +440,43 @@ export class BrainActionTargetResolverService {
   private maskPhone(phone?: string | null) {
     const value = String(phone ?? '').replace(/\s+/g, '');
     return value.length >= 4 ? `***${value.slice(-4)}` : '未记录';
+  }
+
+  private marketingStrategyResolution(strategy: {
+    id: number;
+    name: string;
+    status: unknown;
+    executionType: string;
+    ruleRelation: string;
+    actions: unknown;
+    targetCount: number;
+    lastExecutedAt: Date | null;
+  }): BrainTargetResolution<{
+    id: number;
+    name: string;
+    status: string;
+    executionType: string;
+    ruleRelation: string;
+    actions: unknown;
+    targetCount: number;
+    lastExecutedAt: string | null;
+  }> {
+    if (String(strategy.status) !== 'enabled') {
+      return { ok: false, reason: 'marketing_strategy_not_enabled', message: `自动触达策略“${strategy.name}”当前未启用，不能执行发送。` };
+    }
+    return {
+      ok: true,
+      value: {
+        id: strategy.id,
+        name: strategy.name,
+        status: String(strategy.status),
+        executionType: strategy.executionType,
+        ruleRelation: strategy.ruleRelation,
+        actions: strategy.actions,
+        targetCount: strategy.targetCount,
+        lastExecutedAt: strategy.lastExecutedAt?.toISOString() ?? null,
+      },
+    };
   }
 
   private async revalidateCardUsageTarget(storeId: number, args: Record<string, unknown>, rawIdempotencyKey?: string) {

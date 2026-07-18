@@ -55,6 +55,7 @@ export class BrainRoleIntentRouterService {
     const managerDetailHint = input.roleHint === 'store_manager' && this.isSupportedManagerDetail(text);
     const beauticianDetailHint = input.roleHint === 'beautician' && this.isSupportedBeauticianDetail(text);
     const marketingFactHint = this.isSupportedMarketingCustomerFact(text) || this.isSupportedMarketingAnalytics(text);
+    const marketingStrategyExecutionHint = this.isSupportedMarketingStrategyExecution(text);
     const marketingAutomationHint = input.roleHint === 'marketing' && this.isSupportedMarketingAutomationPreview(text);
     const unsupportedForExplicitOtherRole =
       Boolean(
@@ -70,6 +71,7 @@ export class BrainRoleIntentRouterService {
           !managerDetailHint &&
           !beauticianDetailHint &&
           !marketingFactHint &&
+          !marketingStrategyExecutionHint &&
           !marketingAutomationHint,
       ) &&
       this.isKnownUnsupportedDomainDetail(text);
@@ -95,7 +97,7 @@ export class BrainRoleIntentRouterService {
                         ? 'beautician_service'
                         : marketingFactHint
                           ? 'marketing_growth'
-                          : marketingAutomationHint
+                          : marketingStrategyExecutionHint || marketingAutomationHint
                             ? 'marketing_growth'
                             : unsupportedForExplicitOtherRole
                               ? undefined
@@ -116,7 +118,7 @@ export class BrainRoleIntentRouterService {
       answerShape: runtime.expectedShape,
       adapterKey,
       expectedMetric: runtime.expectedMetric,
-      requiredPermissions: this.permissionsFor(adapterKey, runtime.intent),
+      requiredPermissions: this.permissionsFor(adapterKey, runtime.intent, runtime.reason),
       confidence: this.confidenceFor(text, input.roleHint, adapterKey),
       grounding: this.groundingFor(adapterKey, runtime.intent),
       reason: runtime.reason,
@@ -247,6 +249,9 @@ export class BrainRoleIntentRouterService {
     if ((adapterKey === 'marketing_growth' || hintedRole === 'marketing') && this.isSupportedMarketingAnalytics(text)) {
       return this.adapterPlan(input, 'marketing_growth', 'diagnosis', 'non_metric', 'marketing_attribution_analytics');
     }
+    if ((adapterKey === 'marketing_growth' || hintedRole === 'marketing') && this.isSupportedMarketingStrategyExecution(text)) {
+      return this.adapterPlan(input, 'marketing_growth', 'action', 'non_metric', 'marketing_strategy_execute_preview');
+    }
     if ((adapterKey === 'marketing_growth' || hintedRole === 'marketing') && this.isSupportedMarketingAutomationPreview(text)) {
       return this.adapterPlan(input, 'marketing_growth', 'action', 'non_metric', 'marketing_automation_rule_preview');
     }
@@ -273,7 +278,7 @@ export class BrainRoleIntentRouterService {
       answerShape,
       adapterKey,
       expectedMetric: input.runtimeIntent.expectedMetric,
-      requiredPermissions: this.permissionsFor(adapterKey, intent),
+      requiredPermissions: this.permissionsFor(adapterKey, intent, reason),
       confidence: this.confidenceFor(input.message.trim().toLowerCase(), input.roleHint, adapterKey),
       grounding: this.groundingFor(adapterKey, intent),
       reason,
@@ -293,8 +298,9 @@ export class BrainRoleIntentRouterService {
     return roleHint ? map[roleHint] : undefined;
   }
 
-  private permissionsFor(adapterKey: BrainDomainAdapterKey, intent: BrainRoleIntentPlan['intent']) {
+  private permissionsFor(adapterKey: BrainDomainAdapterKey, intent: BrainRoleIntentPlan['intent'], reason?: string) {
     if (adapterKey === 'marketing_growth') {
+      if (reason === 'marketing_strategy_execute_preview') return ['core:marketing:update'];
       return intent === 'action' || intent === 'draft' || intent === 'recommendation'
         ? ['core:marketing:create']
         : ['core:marketing:analytics'];
@@ -468,5 +474,9 @@ export class BrainRoleIntentRouterService {
 
   private isSupportedMarketingAutomationPreview(text: string) {
     return /(设置|创建|新建|设计|做一个|能不能).*(自动|规则|流程)|自动.*(送|跟进|提醒|推荐|升级|复盘|推送)/.test(text);
+  }
+
+  private isSupportedMarketingStrategyExecution(text: string) {
+    return /(?:执行|运行|启动|开始|立即).*(?:自动触达|营销).*(?:策略|发送)|(?:自动触达|营销)策略.*(?:执行|运行|启动|发送)/.test(text);
   }
 }

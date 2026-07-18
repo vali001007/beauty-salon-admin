@@ -20,6 +20,7 @@ describe('BrainCapabilityGatewayService', () => {
     expect(service.failureRecovery('create_purchase_order')).toBe('safe_replay');
     expect(service.failureRecovery('create_customer_followup')).toBe('safe_replay');
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('safe_replay');
+    expect(service.failureRecovery('execute_marketing_strategy')).toBe('safe_replay');
     expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
   });
 
@@ -169,6 +170,74 @@ describe('BrainCapabilityGatewayService', () => {
     }), 9);
     expect(followup.businessObjectId).toBe(31);
     expect(touch.businessObjectId).toBe(32);
+  });
+
+  it('executes an approved marketing strategy through the existing idempotent business service', async () => {
+    const marketing = {
+      previewAudience: jest.fn().mockResolvedValue({ estimatedReachedCount: 18 }),
+      executeStrategy: jest.fn().mockResolvedValue({ id: 91, status: 'pending', queuedCount: 18, reachedCount: 0, failedCount: 0 }),
+    };
+    const service = new BrainCapabilityGatewayService(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      marketing as never,
+    );
+
+    const receipt = await service.execute({
+      skillKey: 'execute_marketing_strategy',
+      payload: { strategyId: 12, strategyName: '沉睡客户唤醒', approvedAudienceCount: 20 },
+      context: {
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:marketing:update'],
+        idempotencyKey: 'brain-marketing-execution-91',
+      },
+    });
+
+    expect(service.resolve('execute_marketing_strategy')).toMatchObject({
+      permission: 'core:marketing:update',
+      riskLevel: 'high',
+      failureRecovery: 'safe_replay',
+    });
+    expect(marketing.previewAudience).toHaveBeenCalledWith([], 'AND', 12, 6);
+    expect(marketing.executeStrategy).toHaveBeenCalledWith(12, 6, 'brain-marketing-execution-91');
+    expect(receipt).toMatchObject({
+      capabilityKey: 'execute_marketing_strategy',
+      businessObjectType: 'marketing_automation_execution',
+      businessObjectId: 91,
+      status: 'succeeded',
+      message: '自动触达执行已进入队列，待发送 18 人。',
+    });
+  });
+
+  it('requires reapproval when the live marketing audience grows materially', async () => {
+    const marketing = {
+      previewAudience: jest.fn().mockResolvedValue({ estimatedReachedCount: 31 }),
+      executeStrategy: jest.fn(),
+    };
+    const service = new BrainCapabilityGatewayService(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      marketing as never,
+    );
+
+    await expect(service.execute({
+      skillKey: 'execute_marketing_strategy',
+      payload: { strategyId: 12, approvedAudienceCount: 10 },
+      context: {
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:marketing:update'],
+        idempotencyKey: 'brain-marketing-execution-92',
+      },
+    })).rejects.toThrow('marketing_audience_changed_reapproval_required');
+    expect(marketing.executeStrategy).not.toHaveBeenCalled();
   });
 
   it('saves an in-progress service record through TerminalService after store validation', async () => {

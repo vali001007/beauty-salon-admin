@@ -9,6 +9,7 @@ import { defaultBrainDateRange, formatBrainMoney, formatBrainPercent } from '../
 import { BrainActionTargetResolverService } from '../brain-action-target-resolver.service.js';
 import { BrainPredictionSkillsService } from '../../skills/brain-prediction-skills.service.js';
 import { GapOpportunityService } from '../../../scheduling/gap-opportunity.service.js';
+import { MarketingService } from '../../../marketing/marketing.service.js';
 
 type GapFillPreviewCandidate = {
   customerId: number;
@@ -42,6 +43,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
     @Optional() private readonly actionTargets?: BrainActionTargetResolverService,
     @Optional() private readonly predictionSkills?: BrainPredictionSkillsService,
     @Optional() private readonly gapOpportunities?: GapOpportunityService,
+    @Optional() private readonly marketingService?: MarketingService,
   ) {}
 
   canHandle(plan: BrainDomainAdapterExecution['plan']) {
@@ -49,9 +51,11 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'marketing_strategy_execute_preview') return this.previewStrategyExecution(input);
     if (input.plan.capabilityKey === 'gap_fill_touch_preview') return this.previewGapFillTouch(input);
     if (input.plan.capabilityKey === 'marketing_touch_draft') return this.previewDirectTouch(input);
     const message = input.dto.message;
+    if (this.isStrategyExecutionAction(message)) return this.previewStrategyExecution(input);
     if (/(流失|复购|响应|客户价值|ltv).*(预测|概率|风险|评分)|预测.*(流失|复购|响应|客户价值|ltv)/i.test(message)) {
       return this.answerCustomerPrediction(input);
     }
@@ -184,6 +188,97 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
   private isDirectTouchAction(input: BrainDomainAdapterExecution) {
     const message = input.dto.message;
     return !this.isAutomationRulePreview(message) && (input.plan.intent === 'action' || /(给|为).*(客户|女士|先生).*(创建|生成|发起).*(触达|提醒|召回|消息任务)/.test(message));
+  }
+
+  private isStrategyExecutionAction(message: string) {
+    return /(?:执行|运行|启动|开始|立即).*(?:自动触达|营销).*(?:策略|发送)|(?:自动触达|营销)策略.*(?:执行|运行|启动|发送)/.test(message);
+  }
+
+  private async previewStrategyExecution(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
+    this.assertPermission(input, 'core:marketing:update');
+    if (!this.actionTargets || !this.marketingService) {
+      return this.actionClarification('自动触达策略执行服务未就绪，请稍后重试。', 'capability_not_open');
+    }
+    const strategy = await this.actionTargets.resolveMarketingStrategy({
+      storeId: input.context.storeId,
+      message: input.dto.message,
+    });
+    if (!strategy.ok) return this.actionClarification(strategy.message, strategy.reason);
+    const audience = await this.marketingService.previewAudience(
+      [],
+      strategy.value.ruleRelation,
+      strategy.value.id,
+      input.context.storeId,
+    ) as Record<string, unknown>;
+    const audienceCount = this.audienceCount(audience);
+    if (audienceCount <= 0) {
+      return {
+        status: 'completed',
+        answer: `自动触达策略“${strategy.value.name}”当前没有通过规则、冷却期和渠道条件的可触达客户，本次未生成执行确认。`,
+        citations: [{ sourceType: 'db_skill', sourceId: `marketing_strategy:${strategy.value.id}`, label: '自动触达策略与受众预览' }],
+        suggestedActions: [],
+        grounding: 'db_skill',
+        metadata: { adapterKey: this.key, noActionReason: 'marketing_strategy_audience_empty', strategyId: strategy.value.id },
+      };
+    }
+    const channel = this.strategyChannel(strategy.value.actions);
+    const summary = `执行自动触达策略“${strategy.value.name}”：当前预计进入发送队列 ${audienceCount} 人，渠道 ${channel}。`;
+    const confirmation = await this.actionConfirmationService.createPreview({
+      runId: input.runId,
+      userId: input.context.userId,
+      storeId: input.context.storeId,
+      skillKey: 'execute_marketing_strategy',
+      planId: input.plan.executionPlanId,
+      riskLevel: 'high',
+      preview: {
+        actionType: 'execute_marketing_strategy',
+        summary,
+        riskLevel: 'high',
+        impactItems: [{ objectType: 'marketing_strategy', objectId: String(strategy.value.id), label: strategy.value.name }],
+        risks: [
+          `确认后将按当前策略向预计 ${audienceCount} 位客户创建真实发送任务。`,
+          '实际人数会受触达冷却、联系方式有效性和发送时刻数据变化影响。',
+          '若确认时受众规模显著扩大，系统会拒绝执行并要求重新审批。',
+        ],
+      } as Prisma.InputJsonValue,
+      payload: {
+        strategyId: strategy.value.id,
+        strategyName: strategy.value.name,
+        approvedAudienceCount: audienceCount,
+      } as Prisma.InputJsonValue,
+    });
+    const action = {
+      actionId: confirmation.actionId,
+      actionType: 'execute_marketing_strategy',
+      riskLevel: 'high',
+      requiresConfirmation: true,
+      summary,
+    };
+    return {
+      status: 'completed',
+      answer: `${summary}\n策略状态：已启用；执行类型：${strategy.value.executionType}；上次执行：${strategy.value.lastExecutedAt ?? '暂无'}。确认前不会创建发送任务。`,
+      citations: [{ sourceType: 'db_skill', sourceId: `marketing_strategy:${strategy.value.id}`, label: '自动触达策略与受众预览' }],
+      suggestedActions: [action],
+      grounding: 'preview_action',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [
+            { label: '预计触达客户', value: `${audienceCount} 人` },
+            { label: '发送渠道', value: channel },
+            { label: '策略状态', value: '已启用' },
+          ],
+          citationIds: [`marketing_strategy:${strategy.value.id}`],
+        },
+        { kind: 'action_preview', actions: [action] },
+      ],
+      metadata: {
+        adapterKey: this.key,
+        strategyId: strategy.value.id,
+        approvedAudienceCount: audienceCount,
+        channel,
+      },
+    };
   }
 
   private async previewDirectTouch(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
@@ -408,5 +503,17 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
       return { type: 'birthday_care', name: '生日关怀提醒', trigger: '客户生日当天', action: '创建生日关怀和礼物审核任务', guardrails: '礼物和权益需先校验预算与客户授权' };
     }
     return { type: 'customer_lifecycle', name: '客户生命周期自动跟进', trigger: '满足已配置客户行为条件', action: '创建跟进或推荐任务草稿', guardrails: '不自动群发、不自动改权益、不跨门店触达' };
+  }
+
+  private audienceCount(preview: Record<string, unknown>) {
+    const value = Number(preview.estimatedReachedCount ?? preview.estimatedCount ?? preview.total ?? 0);
+    return Number.isInteger(value) && value > 0 ? value : 0;
+  }
+
+  private strategyChannel(actions: unknown) {
+    if (!Array.isArray(actions)) return 'in_app';
+    const action = actions.find((item) => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, unknown> | undefined;
+    const channel = String(action?.channel ?? action?.type ?? '').trim();
+    return ['terminal', 'in_app', 'sms', 'wechat'].includes(channel) ? channel : 'in_app';
   }
 }

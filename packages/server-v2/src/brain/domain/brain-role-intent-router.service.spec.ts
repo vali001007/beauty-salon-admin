@@ -225,6 +225,22 @@ describe('BrainRoleIntentRouterService', () => {
     expect(plan.grounding).toBe('preview_action');
   });
 
+  it('routes execution of an existing marketing strategy with update permission', () => {
+    const plan = router.route({
+      message: '执行自动触达策略沉睡客户唤醒',
+      roleHint: 'store_manager',
+      runtimeIntent: { intent: 'unknown', expectedShape: 'unknown', allowsScalarMetric: false, reason: 'test' },
+    });
+
+    expect(plan).toMatchObject({
+      adapterKey: 'marketing_growth',
+      intent: 'action',
+      grounding: 'preview_action',
+      reason: 'marketing_strategy_execute_preview',
+      requiredPermissions: ['core:marketing:update'],
+    });
+  });
+
   it('does not turn customer-specific reception lookups into generic previews or finance summaries', () => {
     const supportedCustomerFacts = [
       '这个客人的储值余额还有多少',
