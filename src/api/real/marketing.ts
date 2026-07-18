@@ -138,7 +138,8 @@ export async function realBatchCreateMarketingFollowUpTasks(
   recommendationId: number,
   data: TerminalFollowUpTaskCreateRequest,
 ): Promise<TerminalFollowUpTaskBatchCreateResponse> {
-  return apiClient.post(`/marketing/recommendations/${recommendationId}/follow-up-tasks`, data);
+  const idempotencyKey = data.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `marketing-follow-up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return apiClient.post(`/marketing/recommendations/${recommendationId}/follow-up-tasks`, { ...data, idempotencyKey });
 }
 
 export async function realGetMarketingFollowUpTasks(

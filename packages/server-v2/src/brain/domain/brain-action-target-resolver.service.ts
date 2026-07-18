@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { buildCardUsageIdempotencyKey } from '../../cards/card-usage-idempotency.js';
 import { buildReservationIdempotencyKey } from '../../reservations/reservation-idempotency.js';
 import { buildPurchaseOrderIdempotencyKey } from '../../inventory/purchase-order-idempotency.js';
+import { buildFollowUpTaskIdempotencyKey } from '../../terminal/follow-up-task-idempotency.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
 export type BrainTargetResolution<T> =
@@ -36,9 +37,16 @@ export class BrainActionTargetResolverService {
         await this.requireScopedRecord('reservation', input.args.reservationId, input.storeId);
         return;
       case 'create_customer_followup':
-      case 'create_marketing_touch_draft':
+      case 'create_marketing_touch_draft': {
+        if (input.idempotencyKey) {
+          const source = input.capabilityKey === 'create_customer_followup' ? 'brain_followup' : 'brain_marketing_touch_draft';
+          const idempotencyKey = buildFollowUpTaskIdempotencyKey(input.storeId, source, input.idempotencyKey);
+          const committed = await this.prisma.terminalFollowUpTask.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          if (committed) return;
+        }
         await this.requireScopedRecord('customer', input.args.customerId, input.storeId);
         return;
+      }
       case 'save_service_record':
         await this.requireScopedRecord('serviceTask', input.args.taskId, input.storeId);
         return;

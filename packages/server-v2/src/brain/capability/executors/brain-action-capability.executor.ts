@@ -81,7 +81,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'customer_follow_up_draft',
     name: '客户跟进任务预览',
-    description: '解析当前门店内的唯一客户并生成待确认的客户跟进任务预览，不直接创建任务。',
+    description: '解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。',
     intents: ['action'],
     examples: ['给指定客户准备一个待确认跟进任务', '生成客户回访任务预览'],
     negativeExamples: ['直接创建客户任务不要确认', '操作其他门店客户', '只写一段通用回访文案'],
@@ -121,7 +121,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'marketing_touch_draft',
     name: '单客户营销触达预览',
-    description: '解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示，不自动群发。',
+    description: '解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示；确认后只创建强幂等跟进草稿，不自动群发。',
     intents: ['action'],
     examples: ['给指定客户准备一条待确认的邀约任务', '生成单客户召回触达预览'],
     negativeExamples: ['直接给全部客户群发', '操作其他门店客户', '只生成通用文案'],

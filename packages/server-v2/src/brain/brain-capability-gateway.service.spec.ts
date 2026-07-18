@@ -11,14 +11,15 @@ describe('BrainCapabilityGatewayService', () => {
     });
   });
 
-  it('declares safe replay for idempotent reservation and card usage actions', () => {
+  it('declares safe replay for every action backed by a business idempotency contract', () => {
     const service = new BrainCapabilityGatewayService();
 
     expect(service.failureRecovery('reschedule_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('cancel_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('create_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('create_purchase_order')).toBe('safe_replay');
-    expect(service.failureRecovery('create_marketing_touch_draft')).toBe('manual_reconcile');
+    expect(service.failureRecovery('create_customer_followup')).toBe('safe_replay');
+    expect(service.failureRecovery('create_marketing_touch_draft')).toBe('safe_replay');
     expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
   });
 
@@ -138,7 +139,12 @@ describe('BrainCapabilityGatewayService', () => {
         .mockResolvedValueOnce({ id: 32, status: 'pending' }),
     };
     const service = new BrainCapabilityGatewayService(undefined, undefined, terminal as never, undefined);
-    const context = { userId: 9, storeId: 6, permissions: ['assist:followup:create', 'core:marketing:create'] };
+    const context = {
+      userId: 9,
+      storeId: 6,
+      permissions: ['assist:followup:create', 'core:marketing:create'],
+      idempotencyKey: 'follow-up-action-31',
+    };
 
     const followup = await service.execute({
       skillKey: 'create_customer_followup',
@@ -151,8 +157,16 @@ describe('BrainCapabilityGatewayService', () => {
       context,
     });
 
-    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(1, 6, undefined, expect.objectContaining({ customerId: 11, source: 'brain_followup' }), 9);
-    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(2, 6, undefined, expect.objectContaining({ customerId: 11, source: 'brain_marketing_touch_draft' }), 9);
+    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(1, 6, undefined, expect.objectContaining({
+      customerId: 11,
+      source: 'brain_followup',
+      idempotencyKey: 'follow-up-action-31',
+    }), 9);
+    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(2, 6, undefined, expect.objectContaining({
+      customerId: 11,
+      source: 'brain_marketing_touch_draft',
+      idempotencyKey: 'follow-up-action-31',
+    }), 9);
     expect(followup.businessObjectId).toBe(31);
     expect(touch.businessObjectId).toBe(32);
   });

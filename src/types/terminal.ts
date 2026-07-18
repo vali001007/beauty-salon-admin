@@ -1097,6 +1097,7 @@ export interface TerminalRecommendationEventRequest {
 }
 
 export interface TerminalFollowUpTaskCreateRequest {
+  idempotencyKey?: string;
   customerId: number;
   customerIds?: number[];
   assignments?: TerminalFollowUpTaskAssignment[];

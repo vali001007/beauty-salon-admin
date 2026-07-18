@@ -62,6 +62,11 @@ import {
   isMarketingFeatureEnabledForStore,
   MarketingFeatureFlagsService,
 } from '../marketing/marketing-feature-flags.service.js';
+import {
+  buildFollowUpTaskCreationFingerprint,
+  buildFollowUpTaskIdempotencyKey,
+  normalizeFollowUpTaskSource,
+} from './follow-up-task-idempotency.js';
 
 type TerminalDashboardInsight = {
   title: string;
@@ -5628,6 +5633,19 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     assignedByUserId?: number,
   ) {
     if (!dto.customerId) throw new BadRequestException('customerId is required');
+    const source = normalizeFollowUpTaskSource(dto.source);
+    const idempotencyKey = buildFollowUpTaskIdempotencyKey(storeId, source, dto.idempotencyKey);
+    const creationFingerprint = buildFollowUpTaskCreationFingerprint({ ...dto, storeId, source });
+    if (idempotencyKey) {
+      const committed = await this.prisma.terminalFollowUpTask.findUnique({
+        where: { idempotencyKey },
+        include: this.followUpTaskInclude(),
+      });
+      if (committed) {
+        this.assertFollowUpTaskIdempotency(committed, creationFingerprint);
+        return this.mapFollowUpTask(committed, { duplicated: true });
+      }
+    }
     const customer = await this.prisma.customer.findFirst({
       where: { id: Number(dto.customerId), storeId, deletedAt: null },
     });
@@ -5641,6 +5659,69 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     const title = dto.title ?? this.buildFollowUpTaskTitle(dto);
     const priority = this.normalizeFollowUpPriority(dto.priority, dto);
     const note = dto.note ?? dto.remark ?? undefined;
+    const { idempotencyKey: _rawIdempotencyKey, ...sourcePayload } = dto;
+    const taskData = {
+      idempotencyKey,
+      creationFingerprint: idempotencyKey ? creationFingerprint : undefined,
+      storeId,
+      customerId: customer.id,
+      recommendationId: dto.recommendationId ? Number(dto.recommendationId) : null,
+      recommendationInstanceId: dto.recommendationInstanceId ?? null,
+      adoptionId: dto.adoptionId ? Number(dto.adoptionId) : null,
+      sourceRecommendationKey: dto.sourceRecommendationKey ?? null,
+      source,
+      triggerType: dto.triggerType ?? null,
+      title,
+      script: dto.script ?? note ?? null,
+      note: note ?? null,
+      priority,
+      assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
+      assigneeUserId: explicitAssigneeUserId ?? assignment.assigneeUserId ?? null,
+      assigneeBeauticianId: dto.assigneeBeauticianId
+        ? Number(dto.assigneeBeauticianId)
+        : (assignment.assigneeBeauticianId ?? null),
+      assignedByUserId: assignedByUserId ?? null,
+      assignedAt: new Date(),
+      dueAt,
+      status: 'pending',
+      orderId: dto.orderId ? Number(dto.orderId) : null,
+      serviceTaskId: dto.taskId ? Number(dto.taskId) : null,
+      reservationId: dto.reservationId ? Number(dto.reservationId) : null,
+      deviceId: terminalDeviceId ?? null,
+      payload: this.toJsonPayload({
+        channel: dto.channel ?? 'phone',
+        assignmentReason: assignment.reason,
+        sourcePayload,
+      }),
+    };
+
+    if (idempotencyKey) {
+      const result = await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+        const existing = await tx.terminalFollowUpTask.findUnique({
+          where: { idempotencyKey },
+          include: this.followUpTaskInclude(),
+        });
+        if (existing) {
+          this.assertFollowUpTaskIdempotency(existing, creationFingerprint);
+          return { task: existing, replayed: true };
+        }
+        const task = await tx.terminalFollowUpTask.create({
+          data: taskData,
+          include: this.followUpTaskInclude(),
+        });
+        return { task, replayed: false };
+      });
+      if (!result.replayed) {
+        await this.recordFollowUpTaskEvent(storeId, customer.id, terminalDeviceId, 'follow_up_created', result.task, {
+          ...sourcePayload,
+          status: 'pending',
+          assignmentReason: assignment.reason,
+        });
+        await this.recordTerminalFollowUpFact(result.task, 'delivery');
+      }
+      return this.mapFollowUpTask(result.task, { duplicated: result.replayed });
+    }
 
     if (taskDelegate?.findFirst && taskDelegate?.create) {
       try {
@@ -5675,42 +5756,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         }
 
         const task = await taskDelegate.create({
-          data: {
-            storeId,
-            customerId: customer.id,
-            recommendationId: dto.recommendationId ? Number(dto.recommendationId) : null,
-            recommendationInstanceId: dto.recommendationInstanceId ?? null,
-            adoptionId: dto.adoptionId ? Number(dto.adoptionId) : null,
-            sourceRecommendationKey: dto.sourceRecommendationKey ?? null,
-            source: dto.source ?? 'recommendation',
-            triggerType: dto.triggerType ?? null,
-            title,
-            script: dto.script ?? note ?? null,
-            note: note ?? null,
-            priority,
-            assigneeRole: dto.assigneeRole ?? assignment.assigneeRole,
-            assigneeUserId: explicitAssigneeUserId ?? assignment.assigneeUserId ?? null,
-            assigneeBeauticianId: dto.assigneeBeauticianId
-              ? Number(dto.assigneeBeauticianId)
-              : (assignment.assigneeBeauticianId ?? null),
-            assignedByUserId: assignedByUserId ?? null,
-            assignedAt: new Date(),
-            dueAt,
-            status: 'pending',
-            orderId: dto.orderId ? Number(dto.orderId) : null,
-            serviceTaskId: dto.taskId ? Number(dto.taskId) : null,
-            reservationId: dto.reservationId ? Number(dto.reservationId) : null,
-            deviceId: terminalDeviceId ?? null,
-            payload: {
-              channel: dto.channel ?? 'phone',
-              assignmentReason: assignment.reason,
-              sourcePayload: dto,
-            },
-          },
+          data: taskData,
           include: this.followUpTaskInclude(),
         });
         await this.recordFollowUpTaskEvent(storeId, customer.id, terminalDeviceId, 'follow_up_created', task, {
-          ...dto,
+          ...sourcePayload,
           status: 'pending',
           assignmentReason: assignment.reason,
         });
@@ -5732,7 +5782,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         orderId: dto.orderId ? Number(dto.orderId) : undefined,
         note: dto.script ?? dto.note ?? dto.remark ?? '终端创建客户邀约跟进',
         payload: this.toJsonPayload({
-          ...dto,
+          ...sourcePayload,
           status: 'pending',
           source: 'aura_lite_terminal',
           dueAt: dto.dueAt,
@@ -5761,6 +5811,12 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       assignmentReason: assignment.reason,
       createdAt: event.createdAt.toISOString(),
     };
+  }
+
+  private assertFollowUpTaskIdempotency(existing: any, creationFingerprint: string) {
+    if (typeof existing.creationFingerprint !== 'string' || existing.creationFingerprint !== creationFingerprint) {
+      throw new ConflictException('幂等键已用于另一条客户跟进任务，请核对原任务');
+    }
   }
 
   async batchCreateFollowUpTasks(
@@ -5794,6 +5850,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
           {
             ...dto,
             customerId,
+            idempotencyKey: dto.idempotencyKey ? `${dto.idempotencyKey}:${customerId}` : undefined,
             ...(assignment
               ? {
                   assigneeRole: assignment.assigneeRole ?? dto.assigneeRole,

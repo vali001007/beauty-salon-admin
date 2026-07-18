@@ -9,12 +9,29 @@ describe('BrainActionTargetResolverService', () => {
     customerCard: { findMany: jest.fn(), findFirst: jest.fn() },
     cardUsageRecord: { aggregate: jest.fn(), findUnique: jest.fn() },
     purchaseOrder: { findUnique: jest.fn() },
+    terminalFollowUpTask: { findUnique: jest.fn() },
     beautician: { findMany: jest.fn(), findFirst: jest.fn() },
     product: { count: jest.fn() },
   };
   const service = new BrainActionTargetResolverService(prisma as never);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it.each(['create_customer_followup', 'create_marketing_touch_draft'])(
+    'recovers a committed %s task before mutable customer checks',
+    async (capabilityKey) => {
+      prisma.terminalFollowUpTask.findUnique.mockResolvedValue({ id: 31 });
+
+      await expect(service.revalidateCapabilityTarget({
+        capabilityKey,
+        storeId: 6,
+        args: { customerId: 11 },
+        idempotencyKey: 'follow-up-action-31',
+      })).resolves.toBeUndefined();
+
+      expect(prisma.customer.findFirst).not.toHaveBeenCalled();
+    },
+  );
 
   it('recovers a committed purchase order before mutable product checks', async () => {
     prisma.purchaseOrder.findUnique.mockResolvedValue({ id: 88 });

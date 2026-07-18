@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "databaseWritePerformed": true,
+  "target": {
+    "host": "127.0.0.1",
+    "port": 55437,
+    "database": "ami_brain_followup_r235"
+  },
+  "evidence": {
+    "actionId": "brain_action_1784373532771_bwg8sx",
+    "followUpTaskId": 1,
+    "duplicateConfirmationShortCircuited": true,
+    "businessReplayReturnedSameTask": true,
+    "postMutationReplayReturnedSameTask": true,
+    "mismatchedReplayRejected": true,
+    "rawIdempotencyKeyAbsentFromPayload": true,
+    "receiptFailureDetectedAfterBusinessCommit": true,
+    "receiptSafeReplaySucceeded": true,
+    "receiptSafeReplayFollowUpCount": 1,
+    "concurrentReplayFollowUpCount": 1,
+    "concurrentReplaySameBusinessObject": true,
+    "crossSourceSameRawKeySeparated": true,
+    "marketingDeliveryJobCount": 0,
+    "marketingTouchCount": 0
+  }
+}

@@ -3145,6 +3145,8 @@ model MarketingRecommendationAdoption {
 
 model TerminalFollowUpTask {
   id                      Int       @id @default(autoincrement())
+  idempotencyKey          String?   @unique
+  creationFingerprint     String?   @db.VarChar(64)
   storeId                 Int
   customerId              Int
   recommendationId        Int?

@@ -1,0 +1,115 @@
+{
+  "key": "customer_follow_up_draft",
+  "version": 1,
+  "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+  "name": "客户跟进任务预览",
+  "description": "解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。",
+  "domains": [
+    "fixture"
+  ],
+  "intents": [
+    "action"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:customer:view"
+  ],
+  "allowedRoles": [
+    "customer_service",
+    "receptionist",
+    "store_manager"
+  ],
+  "readOnly": false,
+  "sideEffect": true,
+  "riskLevel": "high",
+  "requiresConfirmation": true,
+  "idempotency": "required",
+  "timeoutMs": 10000,
+  "grounding": "preview_action",
+  "examples": [
+    "给指定客户准备一个待确认跟进任务",
+    "生成客户回访任务预览"
+  ],
+  "negativeExamples": [
+    "操作其他门店客户",
+    "直接创建客户任务不要确认",
+    "只写一段通用回访文案"
+  ],
+  "synonyms": [
+    "跟进任务方案",
+    "客户跟进预览",
+    "客户回访任务草稿"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 1,
+      "versionId": 10001,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+      "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+    }
+  ]
+}

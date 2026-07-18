@@ -481,8 +481,14 @@ export class TerminalOrderController {
     @CurrentDevice('id') deviceId: number,
     @CurrentDevice('userId') userId: number | undefined,
     @Body() dto: CreateTerminalFollowUpTaskDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.terminalService.createFollowUpTask(storeId, deviceId, dto, userId);
+    return this.terminalService.createFollowUpTask(
+      storeId,
+      deviceId,
+      { ...dto, idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey },
+      userId,
+    );
   }
 
   @Get('follow-up-tasks')

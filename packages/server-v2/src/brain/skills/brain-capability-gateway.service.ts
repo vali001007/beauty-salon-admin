@@ -85,9 +85,9 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'medium',
     requiredFields: ['customerId'],
     allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
-    transactionBoundary: 'TerminalService.createFollowUpTask',
+    transactionBoundary: 'TerminalService.createFollowUpTask:idempotent',
     receiptType: 'follow_up_task',
-    failureRecovery: 'manual_reconcile',
+    failureRecovery: 'safe_replay',
   },
   create_purchase_order: {
     key: 'create_purchase_order',
@@ -111,9 +111,9 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'medium',
     requiredFields: ['customerId', 'script'],
     allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
-    transactionBoundary: 'TerminalService.createFollowUpTask',
+    transactionBoundary: 'TerminalService.createFollowUpTask:idempotent',
     receiptType: 'marketing_touch_draft',
-    failureRecovery: 'manual_reconcile',
+    failureRecovery: 'safe_replay',
   },
   save_service_record: {
     key: 'save_service_record',
@@ -248,6 +248,7 @@ export class BrainCapabilityGatewayService {
       {
         ...payload,
         customerId,
+        idempotencyKey: context.idempotencyKey,
         source,
         title: typeof payload.title === 'string' ? payload.title : source === 'brain_followup' ? 'Ami Brain 客户跟进' : 'Ami Brain 营销触达草稿',
         note: typeof payload.note === 'string' ? payload.note : undefined,

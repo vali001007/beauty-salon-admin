@@ -18,6 +18,12 @@ export const FOLLOW_UP_TASK_STATUSES = ['pending', 'in_progress', 'completed', '
 export const FOLLOW_UP_RESULT_TYPES = ['contacted', 'booked', 'not_reached', 'refused', 'converted'] as const;
 
 export class CreateTerminalFollowUpTaskDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  idempotencyKey?: string;
+
   @ApiProperty()
   @Type(() => Number)
   @IsInt()

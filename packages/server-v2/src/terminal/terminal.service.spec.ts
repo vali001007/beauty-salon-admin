@@ -92,6 +92,7 @@ describe('TerminalService automation', () => {
         delete: jest.fn(),
       },
       terminalFollowUpTask: {
+        findUnique: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
@@ -110,6 +111,8 @@ describe('TerminalService automation', () => {
         findFirst: jest.fn(),
       },
     };
+    prisma.$executeRaw = jest.fn().mockResolvedValue(0);
+    prisma.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback(prisma));
     service = new TerminalService(
       prisma as any,
       {} as any,

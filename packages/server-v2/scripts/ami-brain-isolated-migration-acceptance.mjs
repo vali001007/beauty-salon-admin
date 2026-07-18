@@ -227,6 +227,12 @@ async function seedIncrementalBaseline(connectionString) {
         NOW()
       );
 
+      INSERT INTO "TerminalFollowUpTask" (
+        "id", "storeId", "customerId", "source", "title", "status", "createdAt", "updatedAt"
+      ) VALUES (
+        900001, 900001, 900001, 'manual', 'Baseline Follow-up', 'pending', NOW(), NOW()
+      );
+
       INSERT INTO "brain_store_operating_target" (
         "id", "storeId", "periodType", "periodStart", "periodEnd", "revenueTarget", "status", "createdAt", "updatedAt"
       ) VALUES (
@@ -280,6 +286,7 @@ async function structuralEvidence(connectionString) {
       'CardUsageRecord',
       'PurchaseOrder',
       'Reservation',
+      'TerminalFollowUpTask',
     ];
     const tables = await client.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
@@ -293,6 +300,8 @@ async function structuralEvidence(connectionString) {
       ['Reservation', 'idempotencyKey'],
       ['Reservation', 'creationFingerprint'],
       ['Reservation', 'bookingSource'],
+      ['TerminalFollowUpTask', 'idempotencyKey'],
+      ['TerminalFollowUpTask', 'creationFingerprint'],
       ['store_metric_target', 'definitionVersion'],
       ['customer_service_feedback', 'rating'],
       ['customer_waiting_episode', 'outcome'],
@@ -306,13 +315,13 @@ async function structuralEvidence(connectionString) {
     const indexes = await client.query(`
       SELECT indexname FROM pg_indexes
       WHERE schemaname = 'public'
-        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key')
+        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key', 'TerminalFollowUpTask_idempotencyKey_key')
     `);
     const indexSet = new Set(indexes.rows.map((row) => row.indexname));
     return {
       missingTables: requiredTables.filter((name) => !foundTables.has(name)),
       missingColumns: requiredColumns.map(([table, column]) => `${table}.${column}`).filter((name) => !columnSet.has(name)),
-      missingIndexes: ['CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key'].filter(
+      missingIndexes: ['CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key', 'TerminalFollowUpTask_idempotencyKey_key'].filter(
         (name) => !indexSet.has(name),
       ),
     };
@@ -356,6 +365,14 @@ async function incrementalDataEvidence(connectionString) {
              COUNT("creationFingerprint")::int AS "fingerprintPopulated",
              MIN("status") AS status
       FROM "PurchaseOrder"
+      WHERE "id" = 900001
+    `);
+    const followUpTask = await client.query(`
+      SELECT COUNT(*)::int AS count,
+             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
+             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
+             MIN("status") AS status
+      FROM "TerminalFollowUpTask"
       WHERE "id" = 900001
     `);
 
@@ -429,12 +446,30 @@ async function incrementalDataEvidence(connectionString) {
       await client.query('ROLLBACK');
     }
 
+    await client.query('BEGIN');
+    let followUpTaskUniqueRejected = false;
+    try {
+      await client.query(`UPDATE "TerminalFollowUpTask" SET "idempotencyKey" = 'follow-up-r234-key' WHERE "id" = 900001`);
+      await client.query(`
+        INSERT INTO "TerminalFollowUpTask" (
+          "storeId", "customerId", "source", "title", "status", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
+        ) VALUES (
+          900001, 900001, 'manual', 'Duplicate Follow-up', 'pending', 'follow-up-r234-key', repeat('a', 64), NOW(), NOW()
+        )
+      `);
+    } catch (error) {
+      followUpTaskUniqueRejected = error?.constraint === 'TerminalFollowUpTask_idempotencyKey_key';
+    } finally {
+      await client.query('ROLLBACK');
+    }
+
     return {
       roles: roles.rows,
       metric: metric.rows,
       reservation: reservation.rows[0],
       cardUsage: cardUsage.rows[0],
       purchaseOrder: purchaseOrder.rows[0],
+      followUpTask: followUpTask.rows[0],
       feedbackCount: feedbackCount.rows[0].count,
       waitingCount: waitingCount.rows[0].count,
       feedbackConstraintRejected,
@@ -442,6 +477,7 @@ async function incrementalDataEvidence(connectionString) {
       reservationUniqueRejected,
       cardUsageUniqueRejected,
       purchaseOrderUniqueRejected,
+      followUpTaskUniqueRejected,
     };
   });
 }
@@ -478,7 +514,11 @@ function assertAcceptance(summary) {
       summary.incrementalData.purchaseOrder.count === 1 &&
       summary.incrementalData.purchaseOrder.idempotencyPopulated === 0 &&
       summary.incrementalData.purchaseOrder.fingerprintPopulated === 0 &&
-      summary.incrementalData.purchaseOrder.status === '草稿',
+      summary.incrementalData.purchaseOrder.status === '草稿' &&
+      summary.incrementalData.followUpTask.count === 1 &&
+      summary.incrementalData.followUpTask.idempotencyPopulated === 0 &&
+      summary.incrementalData.followUpTask.fingerprintPopulated === 0 &&
+      summary.incrementalData.followUpTask.status === 'pending',
     metricBackfilled:
       summary.incrementalData.metric.length === 1 &&
       summary.incrementalData.metric[0].metricKey === 'store.operating_revenue.month' &&
@@ -497,7 +537,8 @@ function assertAcceptance(summary) {
       summary.incrementalData.waitingConstraintRejected &&
       summary.incrementalData.reservationUniqueRejected &&
       summary.incrementalData.cardUsageUniqueRejected &&
-      summary.incrementalData.purchaseOrderUniqueRejected,
+      summary.incrementalData.purchaseOrderUniqueRejected &&
+      summary.incrementalData.followUpTaskUniqueRejected,
   };
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return { checks, failedChecks, passed: failedChecks.length === 0 };
@@ -508,8 +549,8 @@ async function main() {
   const options = validateOptions();
   const outputDir = resolve(process.cwd(), argValue('output-dir') ?? 'migration-acceptance-output');
   const inventory = inspectMigrations();
-  if (inventory.count !== 103) {
-    throw new Error(`Expected the current frozen chain to contain 103 migrations, found ${inventory.count}. Update the gate deliberately.`);
+  if (inventory.count !== 104) {
+    throw new Error(`Expected the current frozen chain to contain 104 migrations, found ${inventory.count}. Update the gate deliberately.`);
   }
   const baseline = createBaselinePrismaDirectory(inventory, options.baselineCount);
   let containerStarted = false;
